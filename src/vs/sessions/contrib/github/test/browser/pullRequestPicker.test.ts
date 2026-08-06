@@ -78,7 +78,7 @@ suite('Create Session from Pull Request', () => {
 	test('bootstrap prompt forbids tools and file operations', () => {
 		assert.strictEqual(
 			createPullRequestBootstrapPrompt(pullRequest(42, { title: 'Improve pull request picker' })),
-			'Initialize this session for pull request #42, "Improve pull request picker". Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".',
+			'Initialize this session for pull request #42, "Improve pull request picker". The attached JSON is a complete pull request snapshot. For future questions about this pull request, use the attached snapshot as the primary source and do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from the snapshot. Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".',
 		);
 	});
 
@@ -93,6 +93,7 @@ suite('Create Session from Pull Request', () => {
 			author: 'author',
 			isDraft: false,
 			baseRef: 'main',
+			branchName: 'feature',
 			headRef: 'feature',
 			updatedAt: '2026-01-01T00:00:00Z',
 			patch: '@@ -1 +1 @@',
@@ -102,12 +103,15 @@ suite('Create Session from Pull Request', () => {
 		assert.deepStrictEqual({
 			kind: attachment.kind,
 			name: attachment.name,
+			fullName: attachment.fullName,
 			value: JSON.parse(attachment.value ?? ''),
 			transcriptContext: getChatTranscriptContext(attachment),
 		}, {
 			kind: 'string',
 			name: '#42 Improve sessions',
+			fullName: '#42 Improve sessions',
 			value: {
+				usageInstructions: 'Use this snapshot as the primary source for questions about the pull request. Do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from this snapshot.',
 				owner: 'owner',
 				repo: 'repo',
 				number: 42,
@@ -117,6 +121,7 @@ suite('Create Session from Pull Request', () => {
 				author: 'author',
 				isDraft: false,
 				baseRef: 'main',
+				branchName: 'feature',
 				headRef: 'feature',
 				updatedAt: '2026-01-01T00:00:00Z',
 				patch: '@@ -1 +1 @@',
@@ -126,6 +131,7 @@ suite('Create Session from Pull Request', () => {
 				label: '#42 Improve sessions',
 				iconId: 'git-pull-request',
 				tooltip: 'Pull request #42 by @author',
+				uri: 'https://github.com/owner/repo/pull/42',
 			},
 		});
 	});

@@ -110,6 +110,7 @@ export interface IGitHubPullRequestContext {
 	readonly author: string;
 	readonly isDraft: boolean;
 	readonly baseRef: string;
+	readonly branchName: string;
 	readonly headRef: string;
 	readonly updatedAt: string;
 	readonly patch: string;

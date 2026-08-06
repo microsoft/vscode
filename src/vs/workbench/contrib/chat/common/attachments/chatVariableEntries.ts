@@ -20,7 +20,7 @@ import { IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
 import type { ILanguageModelChatMetadata } from '../languageModels.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
-import { Mutable } from '../../../../../base/common/types.js';
+import { hasKey, Mutable } from '../../../../../base/common/types.js';
 
 
 /**
@@ -108,6 +108,7 @@ export interface IChatTranscriptContext {
 	readonly label: string;
 	readonly iconId?: string;
 	readonly tooltip?: string;
+	readonly uri?: string;
 }
 
 export function getChatTranscriptContext(entry: IChatRequestVariableEntry): IChatTranscriptContext | undefined {
@@ -123,7 +124,16 @@ export function getChatTranscriptContext(entry: IChatRequestVariableEntry): ICha
 		label: record.label,
 		...(typeof record.iconId === 'string' ? { iconId: record.iconId } : {}),
 		...(typeof record.tooltip === 'string' ? { tooltip: record.tooltip } : {}),
+		...(typeof record.uri === 'string' ? { uri: record.uri } : {}),
 	};
+}
+
+export function getChatTranscriptContextUri(entry: IChatRequestVariableEntry): URI | undefined {
+	const contextUri = getChatTranscriptContext(entry)?.uri;
+	if (contextUri) {
+		return URI.parse(contextUri);
+	}
+	return hasKey(entry, { uri: true }) && URI.isUri(entry.uri) ? entry.uri : undefined;
 }
 
 export function withChatTranscriptContext<T extends IChatRequestVariableEntry>(entry: T, context: IChatTranscriptContext) {

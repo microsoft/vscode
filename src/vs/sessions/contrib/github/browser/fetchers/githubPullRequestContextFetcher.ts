@@ -68,6 +68,7 @@ export class GitHubPullRequestContextFetcher {
 			author: pullRequest.user.login,
 			isDraft: pullRequest.draft,
 			baseRef: pullRequest.base.ref,
+			branchName: pullRequest.head.ref,
 			headRef: pullRequest.head.ref,
 			updatedAt: pullRequest.updated_at,
 			patch: createPatch(files),

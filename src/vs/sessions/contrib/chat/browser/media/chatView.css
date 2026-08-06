@@ -62,10 +62,23 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
 	padding: 0 var(--vscode-spacing-size40);
+	color: inherit;
+	font: inherit;
+	background: transparent;
 }
 
 .agent-sessions-workbench .chat-transcript-context > .chat-attached-context-attachment > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.agent-sessions-workbench .chat-transcript-context > .chat-attached-context-attachment:not(:disabled) {
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+.agent-sessions-workbench .chat-transcript-context > .chat-attached-context-attachment:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-progress {

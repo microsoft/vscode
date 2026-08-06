@@ -6,6 +6,7 @@
 import './media/chatView.css';
 import './media/voiceChatView.css';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -18,15 +19,16 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
-import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { ChatWidget, IChatTranscriptContextPresentation } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { getChatTranscriptContext, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { getChatTranscriptContext, getChatTranscriptContextUri, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
@@ -174,6 +176,7 @@ export class ChatView extends AbstractChatView {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -288,13 +291,9 @@ export class ChatView extends AbstractChatView {
 				return;
 			}
 			currentEntryId = entry?.id;
-			const context = entry ? getChatTranscriptContext(entry) : undefined;
-			this._widget.setTranscriptContext(context ? {
-				label: context.label,
-				icon: context.iconId ? ThemeIcon.fromId(context.iconId) : undefined,
-				tooltip: context.tooltip,
-				attachment: entry,
-			} : undefined);
+			this._widget.setTranscriptContext(entry ? createTranscriptContextPresentation(entry, uri => {
+				void this.openerService.open(uri, { openExternal: true }).catch(onUnexpectedError);
+			}) : undefined);
 		}));
 	}
 
@@ -513,6 +512,22 @@ export function findTranscriptContextEntry(requests: readonly { readonly variabl
 		}
 	}
 	return undefined;
+}
+
+export function createTranscriptContextPresentation(entry: IChatRequestVariableEntry, openExternal: (uri: URI) => void): IChatTranscriptContextPresentation | undefined {
+	const context = getChatTranscriptContext(entry);
+	if (!context) {
+		return undefined;
+	}
+	const uri = getChatTranscriptContextUri(entry);
+	return {
+		label: context.label,
+		icon: context.iconId ? ThemeIcon.fromId(context.iconId) : undefined,
+		tooltip: context.tooltip,
+		ariaLabel: uri ? localize('chatView.openTranscriptContext', "Open {0} in Browser", context.label) : undefined,
+		onDidActivate: uri ? () => openExternal(uri) : undefined,
+		attachment: entry,
+	};
 }
 
 /**

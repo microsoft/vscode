@@ -73,7 +73,7 @@ import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+import { getChatTranscriptContext, getChatTranscriptContextUri, getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -849,9 +849,12 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
 		const description = correspondingContentReference?.options?.status?.description;
+		const transcriptContext = getChatTranscriptContext(attachment);
 
 		// Provider-supplied icon path (ThemeIcon | Uri | { light, dark }) for context items
-		const iconPath = (isStringVariableEntry(attachment) || attachment.kind === 'generic') ? attachment.iconPath : undefined;
+		const iconPath = (isStringVariableEntry(attachment) || attachment.kind === 'generic')
+			? attachment.iconPath ?? (transcriptContext?.iconId ? ThemeIcon.fromId(transcriptContext.iconId) : undefined)
+			: undefined;
 
 		this._applyLabel(attachment, attachmentLabel, description, iconPath);
 
@@ -861,6 +864,14 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", attachment.name));
+		const transcriptContextUri = getChatTranscriptContextUri(attachment);
+		if (transcriptContextUri) {
+			this.element.ariaLabel = localize('chat.openTranscriptContext', "Open {0} in Browser", transcriptContext?.label ?? attachment.name);
+			this.element.style.cursor = 'pointer';
+			this._register(registerOpenEditorListeners(this.element, async () => {
+				await this.openerService.open(transcriptContextUri, { openExternal: true });
+			}));
+		}
 
 		if (attachment.kind === 'diagnostic') {
 			if (attachment.filterUri) {

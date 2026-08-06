@@ -139,7 +139,7 @@ export function pullRequestMatchesQuery(pullRequest: IGitHubPullRequestSummary, 
 }
 
 export function createPullRequestBootstrapPrompt(pullRequest: IGitHubPullRequestSummary): string {
-	return `Initialize this session for pull request #${pullRequest.number}, "${pullRequest.title}". Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".`;
+	return `Initialize this session for pull request #${pullRequest.number}, "${pullRequest.title}". The attached JSON is a complete pull request snapshot. For future questions about this pull request, use the attached snapshot as the primary source and do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from the snapshot. Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".`;
 }
 
 export function createPullRequestContextAttachment(context: IGitHubPullRequestContext): IChatRequestStringVariableEntry {
@@ -148,8 +148,11 @@ export function createPullRequestContextAttachment(context: IGitHubPullRequestCo
 		kind: 'string',
 		id: `github-pull-request:${context.owner}/${context.repo}#${context.number}`,
 		name: label,
-		fullName: localize('pullRequest.context.fullName', "Pull Request #{0}: {1}", context.number, context.title),
-		value: JSON.stringify(context, undefined, 2),
+		fullName: label,
+		value: JSON.stringify({
+			usageInstructions: 'Use this snapshot as the primary source for questions about the pull request. Do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from this snapshot.',
+			...context,
+		}, undefined, 2),
 		modelDescription: 'Pull request details, patch, and comments as JSON.',
 		iconPath: Codicon.gitPullRequest,
 		uri: URI.parse(context.url),
@@ -159,6 +162,7 @@ export function createPullRequestContextAttachment(context: IGitHubPullRequestCo
 		label,
 		iconId: Codicon.gitPullRequest.id,
 		tooltip: localize('pullRequest.context.tooltip', "Pull request #{0} by @{1}", context.number, context.author),
+		uri: context.url,
 	});
 }
 

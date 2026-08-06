@@ -114,6 +114,8 @@ export interface IChatTranscriptContextPresentation {
 	readonly label: string;
 	readonly icon?: ThemeIcon;
 	readonly tooltip?: string;
+	readonly ariaLabel?: string;
+	readonly onDidActivate?: () => void;
 	readonly attachment?: IChatRequestVariableEntry;
 }
 
@@ -308,7 +310,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private transcriptProgress: { readonly container: HTMLElement; readonly label: HTMLElement } | undefined;
-	private transcriptContext: { readonly container: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement } | undefined;
+	private transcriptContext: { readonly container: HTMLElement; readonly pill: HTMLButtonElement; readonly icon: HTMLElement; readonly label: HTMLElement } | undefined;
 	private transcriptContextValue: IChatTranscriptContextPresentation | undefined;
 
 	get domNode() { return this.container; }
@@ -1212,15 +1214,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.transcriptContext) {
 			const container = dom.append(this.listContainer, $('.chat-transcript-context.chat-attached-context'));
 			container.hidden = true;
-			const pill = dom.append(container, $('.chat-attached-context-attachment'));
+			const pill = dom.append(container, $('button.chat-attached-context-attachment')) as HTMLButtonElement;
+			pill.type = 'button';
 			const icon = dom.append(pill, $('span'));
 			icon.setAttribute('aria-hidden', 'true');
 			const label = dom.append(pill, $('span.chat-attached-context-custom-text'));
-			this.transcriptContext = { container, icon, label };
+			this._register(dom.addDisposableListener(pill, dom.EventType.CLICK, () => this.transcriptContextValue?.onDidActivate?.()));
+			this.transcriptContext = { container, pill, icon, label };
 		}
 		this.transcriptContext.container.hidden = context === undefined;
-		this.transcriptContext.container.title = context?.tooltip ?? '';
-		this.transcriptContext.container.setAttribute('aria-label', context?.tooltip ?? context?.label ?? '');
+		this.transcriptContext.pill.disabled = context?.onDidActivate === undefined;
+		this.transcriptContext.pill.title = context?.ariaLabel ?? context?.tooltip ?? '';
+		this.transcriptContext.pill.setAttribute('aria-label', context?.ariaLabel ?? context?.tooltip ?? context?.label ?? '');
 		this.transcriptContext.icon.className = context?.icon
 			? ThemeIcon.asClassName(context.icon)
 			: '';

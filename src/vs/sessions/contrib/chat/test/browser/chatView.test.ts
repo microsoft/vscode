@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { findTranscriptContextEntry, NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
+import { createTranscriptContextPresentation, findTranscriptContextEntry, NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
-import { IChatRequestStringVariableEntry, withChatTranscriptContext } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestStringVariableEntry, IGenericChatRequestVariableEntry, withChatTranscriptContext } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 suite('Sessions - Chat View', () => {
@@ -64,5 +64,27 @@ suite('Sessions - Chat View', () => {
 			variableData: { variables: [] },
 			attachedContext: [attachment],
 		}]), attachment);
+	});
+
+	test('opens transcript context attachment URI when activated', () => {
+		const uri = URI.parse('https://github.com/owner/repo/pull/42');
+		const attachment = withChatTranscriptContext<IGenericChatRequestVariableEntry>({
+			kind: 'generic',
+			id: 'pr',
+			name: 'PR',
+			value: '{}',
+		}, { label: '#42 PR', uri: uri.toString() });
+		let opened: URI | undefined;
+
+		const presentation = createTranscriptContextPresentation(attachment, target => opened = target);
+		presentation?.onDidActivate?.();
+
+		assert.deepStrictEqual({
+			ariaLabel: presentation?.ariaLabel,
+			opened: opened?.toString(),
+		}, {
+			ariaLabel: 'Open #42 PR in Browser',
+			opened: uri.toString(),
+		});
 	});
 });
