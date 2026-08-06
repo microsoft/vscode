@@ -169,13 +169,14 @@ export class EditorHeaderControl extends Disposable {
 			this.primaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.primaryActionsContainer, headerPrimaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderPrimaryActions', "Editor primary actions"))));
 			store.add(this.primaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
-		if (headerSecondaryMenuId) {
-			this.secondaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderActions', "Editor actions"), !!headerLayoutMenuId)));
-			store.add(this.secondaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
-		}
 		if (headerLayoutMenuId) {
 			this.layoutActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.layoutActionsContainer, headerLayoutMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderLayoutActions', "Editor layout actions"))));
-			store.add(this.layoutActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
+			store.add(this.layoutActionsToolbar.onDidChangeMenuItems(() => this.renderActions(true)));
+		}
+		if (headerSecondaryMenuId) {
+			const hasLayoutActions = (this.layoutActionsToolbar?.getItemsLength() ?? 0) > 0;
+			this.secondaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderActions', "Editor actions"), hasLayoutActions)));
+			store.add(this.secondaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		this.headerActions.value = store;
 		this.updateVisibility(relayout);
