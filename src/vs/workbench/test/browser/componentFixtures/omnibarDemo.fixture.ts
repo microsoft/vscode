@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, disposableWindowInterval, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, disposableWindowInterval, getWindow } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { createPixelSpinner } from '../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import '../../../../base/browser/ui/pixelSpinner/pixelSpinner.css';
@@ -33,6 +33,13 @@ import { ComponentFixtureContext, darkTheme, defineComponentFixture, defineTheme
  */
 
 const TICK_MS = 60;
+
+/**
+ * Where inside a beat a paused frame sits. Far enough in that anything which
+ * animates on arrival has landed — a state caught mid-transition is not the
+ * state you were trying to look at.
+ */
+const PAUSED_PROGRESS = 0.85;
 const DOCKED_WIDTH = 430;
 const FLOATING_WIDTH = 580;
 const FLOATING_IDLE_WIDTH = 400;
@@ -450,6 +457,33 @@ const CSS = `
 	font-family: var(--vscode-font-family);
 	color: var(--vscode-foreground);
 }
+.omnibar-transport {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	align-self: flex-start;
+}
+.omnibar-transport-button {
+	display: flex; align-items: center; justify-content: center;
+	min-width: 26px; height: 24px; padding: 0 7px;
+	border: 1px solid var(--vscode-input-border, rgba(127,127,127,.35));
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-family: inherit; font-size: 12px; line-height: 1;
+	cursor: pointer;
+}
+.omnibar-transport-button:hover:not([disabled]) { background: var(--vscode-toolbar-hoverBackground); }
+.omnibar-transport-button[disabled] { opacity: .35; cursor: default; }
+.omnibar-transport-counter {
+	margin-left: 4px;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	color: var(--vscode-descriptionForeground);
+}
+/* The timeline doubles as a jump target, so its ticks are live. */
+.omnibar-tick { cursor: pointer; }
+
 .omnibar-note {
 	align-self: flex-start;
 	min-height: 17px;
@@ -901,7 +935,8 @@ const CSS = `
 .chat-question-submit-hint { font-size: 11px; color: var(--vscode-descriptionForeground); }
 
 /* Progress through the script */
-.omnibar-timeline { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 3px; }
+.omnibar-footer { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 10px; }
+.omnibar-timeline { display: flex; gap: 3px; }
 .omnibar-tick { flex: 1; height: 2px; border-radius: 999px; background: currentColor; opacity: .1; transition: opacity 260ms ease; }
 .omnibar-tick[data-on] { opacity: .4; }
 `;
@@ -1508,7 +1543,7 @@ function buildBody(body: Body, store: DisposableStore, updaters: BeatUpdater[]):
 // Demo
 // ============================================================================
 
-function renderDemo(ctx: ComponentFixtureContext): void {
+function renderDemo(ctx: ComponentFixtureContext, startPaused = false): void {
 	const { container, disposableStore, isInteractive } = ctx;
 	container.style.cssText = [
 		'padding:26px 24px', 'box-sizing:border-box', 'width:640px', 'min-height:600px',
@@ -1571,7 +1606,23 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		return tick;
 	});
 
-	stage.append(note, windowEl, floatLayer, timeline);
+	const transport = $('.omnibar-transport');
+	const prevBtn = $('button.omnibar-transport-button');
+	prevBtn.textContent = '\u2039';
+	prevBtn.title = 'Previous state';
+	const playBtn = $('button.omnibar-transport-button.omnibar-transport-play');
+	const nextBtn = $('button.omnibar-transport-button');
+	nextBtn.textContent = '\u203A';
+	nextBtn.title = 'Next state';
+	const counter = $('span.omnibar-transport-counter');
+	transport.append(prevBtn, playBtn, nextBtn, counter);
+
+	// The timeline says where you are and the transport moves you; they are one
+	// control, so they sit together at the foot of the stage.
+	const footer = $('.omnibar-footer');
+	footer.append(timeline, transport);
+
+	stage.append(note, windowEl, floatLayer, footer);
 	container.appendChild(stage);
 
 	const beam = disposableStore.add(new MutableDisposable<IDisposable>());
@@ -1727,6 +1778,16 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 	let currentIndex = -1;
 	let currentHome: Home | undefined;
 
+	/*
+	 * Stepping, not scrubbing. Reading a state means looking at it for as long
+	 * as you want, and a script that keeps moving underneath you turns every
+	 * question into a wait for the next loop. Paused holds one beat; playing
+	 * runs the clock.
+	 */
+	let paused = startPaused;
+	let pausedIndex = 0;
+	let pausedProgress = PAUSED_PROGRESS;
+
 	// Lets a screenshot harness jump to a beat instead of waiting three minutes
 	// for one to come round.
 	const view = container.ownerDocument.defaultView as (Window & { omnibarSeek?: (ms: number) => void }) | null;
@@ -1735,19 +1796,39 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 	}
 
 	const frame = () => {
-		const elapsed = (Date.now() - started + TOTAL_MS) % TOTAL_MS;
+		let index: number;
+		let progress: number;
 
-		let acc = 0;
-		let index = SCRIPT.length - 1;
-		for (let i = 0; i < SCRIPT.length; i++) {
-			if (elapsed < acc + SCRIPT[i].ms) {
-				index = i;
-				break;
+		if (paused) {
+			index = pausedIndex;
+			progress = pausedProgress;
+		} else {
+			const elapsed = Date.now() - started;
+			if (elapsed >= TOTAL_MS) {
+				// The script ends at rest, which is a real state and a fine place to
+				// stop. Looping back to the title bar would restart a story nobody
+				// asked to hear again.
+				paused = true;
+				pausedIndex = SCRIPT.length - 1;
+				pausedProgress = 1;
+				renderControls();
+				index = pausedIndex;
+				progress = 1;
+			} else {
+				let acc = 0;
+				index = SCRIPT.length - 1;
+				for (let i = 0; i < SCRIPT.length; i++) {
+					if (elapsed < acc + SCRIPT[i].ms) {
+						index = i;
+						break;
+					}
+					acc += SCRIPT[i].ms;
+				}
+				progress = Math.min(1, (elapsed - acc) / SCRIPT[index].ms);
+				pausedIndex = index;
 			}
-			acc += SCRIPT[i].ms;
 		}
 		const beat = SCRIPT[index];
-		const progress = Math.min(1, (elapsed - acc) / beat.ms);
 
 		// Compact whenever it is holding nothing — no text, no body, no badge.
 		surface.toggleAttribute('data-compact', !beat.text && !beat.badge && (beat.body?.kind ?? 'none') === 'none');
@@ -1786,6 +1867,56 @@ function renderDemo(ctx: ComponentFixtureContext): void {
 		paintInput(beat, progress);
 	};
 
+	function renderControls(): void {
+		playBtn.textContent = paused ? '\u25B6' : '\u23F8';
+		playBtn.title = paused ? 'Play' : 'Pause';
+		counter.textContent = `${pausedIndex + 1} / ${SCRIPT.length}`;
+		prevBtn.toggleAttribute('disabled', paused && pausedIndex === 0);
+		nextBtn.toggleAttribute('disabled', paused && pausedIndex === SCRIPT.length - 1);
+	}
+
+	const goTo = (index: number) => {
+		paused = true;
+		pausedIndex = Math.max(0, Math.min(SCRIPT.length - 1, index));
+		// Land far enough into the beat that anything which animates in has
+		// arrived: a state caught mid-transition is not the state.
+		pausedProgress = PAUSED_PROGRESS;
+		renderControls();
+		frame();
+	};
+
+	const togglePlay = () => {
+		paused = !paused;
+		if (!paused) {
+			// Resume from the beat you are looking at, not from wherever the clock
+			// would have been.
+			let acc = 0;
+			for (let i = 0; i < pausedIndex; i++) {
+				acc += SCRIPT[i].ms;
+			}
+			started = Date.now() - acc;
+		}
+		renderControls();
+		frame();
+	};
+
+	disposableStore.add(addDisposableListener(prevBtn, 'click', () => goTo(pausedIndex - 1)));
+	disposableStore.add(addDisposableListener(nextBtn, 'click', () => goTo(pausedIndex + 1)));
+	disposableStore.add(addDisposableListener(playBtn, 'click', togglePlay));
+	// The timeline already shows where you are, so let it also say where to go.
+	ticks.forEach((tick, i) => {
+		tick.setAttribute('role', 'button');
+		tick.title = SCRIPT[i].note;
+		disposableStore.add(addDisposableListener(tick, 'click', () => goTo(i)));
+	});
+	disposableStore.add(addDisposableListener(getWindow(container), 'keydown', e => {
+		const event = e as KeyboardEvent;
+		if (event.key === 'ArrowRight') { goTo(pausedIndex + 1); }
+		else if (event.key === 'ArrowLeft') { goTo(pausedIndex - 1); }
+		else if (event.key === ' ') { event.preventDefault(); togglePlay(); }
+	}));
+
+	renderControls();
 	frame();
 	// Only run the script while someone is watching; a capture takes the opening frame.
 	if (isInteractive) {
@@ -1797,6 +1928,6 @@ export default defineThemedFixtureGroup({ path: 'voice/omnibarDemo/' }, {
 	Demo: defineComponentFixture({
 		labels: { kind: 'animated' },
 		virtualTime: { enabled: false },
-		render: renderDemo,
+		render: ctx => renderDemo(ctx, true),
 	}),
 });
