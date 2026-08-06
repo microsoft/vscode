@@ -15,6 +15,7 @@ import type {
 const GENERATED_MARKER = '$generated';
 const MARKDOWN_EDITOR_COMMAND_ID_PREFIX = 'markdown.editor.';
 const GENERATED_COMMAND_TITLE_SUFFIX = '.title';
+const GENERATED_COMMAND_TITLE_COMMENT = 'Generated from @vscode/markdown-editor/commands. Do not edit manually.';
 const MARKDOWN_EDITOR_ACTIVE = `activeCustomEditorId == 'vscode.markdown.editor'`;
 const MARKDOWN_EDITOR_KEYBINDING = `${MARKDOWN_EDITOR_ACTIVE} && markdownEditorFocus`;
 const PACKAGE_JSON_UPDATE_DEBOUNCE_MS = 2_000;
@@ -54,12 +55,20 @@ interface PackageJson {
 	readonly [key: string]: unknown;
 }
 
+interface PackageNlsMessage {
+	readonly message: string;
+	readonly comment: readonly string[];
+	readonly $generated?: true;
+}
+
+type PackageNlsJson = Readonly<Record<string, string | PackageNlsMessage>>;
+
 type JsonUpdate<T> =
 	| { readonly kind: 'unchanged' }
 	| { readonly kind: 'updated'; readonly value: T };
 
 export type PackageJsonUpdate = JsonUpdate<PackageJson>;
-export type PackageNlsJsonUpdate = JsonUpdate<Readonly<Record<string, string>>>;
+export type PackageNlsJsonUpdate = JsonUpdate<PackageNlsJson>;
 
 export function updatePackageJson(
 	currentPackageJson: PackageJson,
@@ -126,13 +135,17 @@ export function updatePackageJson(
 }
 
 export function updatePackageNlsJson(
-	currentPackageNlsJson: Readonly<Record<string, string>>,
+	currentPackageNlsJson: PackageNlsJson,
 	commandDefinitions: readonly EditorCommandDefinition[],
 ): PackageNlsJsonUpdate {
 	const currentEntries = Object.entries(currentPackageNlsJson);
 	const firstGeneratedIndex = currentEntries.findIndex(([key]) => isGeneratedCommandTitleLocalizationKey(key));
 	const manualEntries = currentEntries.filter(([key]) => !isGeneratedCommandTitleLocalizationKey(key));
-	const generatedEntries = commandDefinitions.map(command => [commandTitleLocalizationKey(command), command.title] as const);
+	const generatedEntries = commandDefinitions.map(command => [commandTitleLocalizationKey(command), {
+		message: command.title,
+		comment: [GENERATED_COMMAND_TITLE_COMMENT],
+		$generated: true,
+	}] as const);
 	const insertionIndex = firstGeneratedIndex < 0
 		? manualEntries.length
 		: Math.min(firstGeneratedIndex, manualEntries.length);
@@ -252,7 +265,7 @@ async function updateManifestFilesNow(mode: 'write' | 'check'): Promise<'unchang
 		readFile(packageNlsJsonPath, 'utf8'),
 	]);
 	const currentPackageJson = JSON.parse(currentPackageJsonText) as PackageJson;
-	const currentPackageNlsJson = JSON.parse(currentPackageNlsJsonText) as Readonly<Record<string, string>>;
+	const currentPackageNlsJson = JSON.parse(currentPackageNlsJsonText) as PackageNlsJson;
 	const commandDefinitions = await loadCommandDefinitions();
 	const packageJsonUpdate = updatePackageJson(currentPackageJson, commandDefinitions);
 	const packageNlsJsonUpdate = updatePackageNlsJson(currentPackageNlsJson, commandDefinitions);

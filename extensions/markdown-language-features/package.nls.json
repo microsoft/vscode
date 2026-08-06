@@ -106,43 +106,277 @@
 	"configuration.markdown.editor.filePaste.audioSnippet": "Snippet used when adding audio to Markdown. This snippet can use the following variables:\n- `${src}` — The resolved path of the audio  file.\n- `${title}` — The title used for the audio. A snippet placeholder will automatically be created for this variable.",
 	"configuration.markdown.editor.updateLinksOnPaste.enabled": "Enable/disable a paste option that updates links and reference in text that is copied and pasted between Markdown editors.\n\nTo use this feature, after pasting text that contains updatable links, just click on the Paste Widget and select `Paste and update pasted links`.",
 	"workspaceTrust": "Required for loading styles configured in the workspace.",
-	"markdown.editor.cursorLeft.title": "Move Cursor Left",
-	"markdown.editor.cursorRight.title": "Move Cursor Right",
-	"markdown.editor.cursorUp.title": "Move Cursor Up",
-	"markdown.editor.cursorDown.title": "Move Cursor Down",
-	"markdown.editor.cursorLeftSelect.title": "Select Left",
-	"markdown.editor.cursorRightSelect.title": "Select Right",
-	"markdown.editor.cursorUpSelect.title": "Select Up",
-	"markdown.editor.cursorDownSelect.title": "Select Down",
-	"markdown.editor.cursorWordLeft.title": "Move Cursor Word Left",
-	"markdown.editor.cursorWordRight.title": "Move Cursor Word Right",
-	"markdown.editor.cursorWordLeftSelect.title": "Select Word Left",
-	"markdown.editor.cursorWordRightSelect.title": "Select Word Right",
-	"markdown.editor.cursorVisualLineStart.title": "Move Cursor to Visual Line Start",
-	"markdown.editor.cursorVisualLineEnd.title": "Move Cursor to Visual Line End",
-	"markdown.editor.cursorVisualLineStartSelect.title": "Select to Visual Line Start",
-	"markdown.editor.cursorVisualLineEndSelect.title": "Select to Visual Line End",
-	"markdown.editor.cursorLogicalLineStart.title": "Move Cursor to Logical Line Start",
-	"markdown.editor.cursorLogicalLineEnd.title": "Move Cursor to Logical Line End",
-	"markdown.editor.cursorLogicalLineStartSelect.title": "Select to Logical Line Start",
-	"markdown.editor.cursorLogicalLineEndSelect.title": "Select to Logical Line End",
-	"markdown.editor.cursorDocumentStart.title": "Move Cursor to Document Start",
-	"markdown.editor.cursorDocumentEnd.title": "Move Cursor to Document End",
-	"markdown.editor.cursorDocumentStartSelect.title": "Select to Document Start",
-	"markdown.editor.cursorDocumentEndSelect.title": "Select to Document End",
-	"markdown.editor.selectAll.title": "Select All",
-	"markdown.editor.deleteLeft.title": "Delete Left",
-	"markdown.editor.deleteRight.title": "Delete Right",
-	"markdown.editor.deleteWordLeft.title": "Delete Word Left",
-	"markdown.editor.deleteWordRight.title": "Delete Word Right",
-	"markdown.editor.deleteLineLeft.title": "Delete All Left",
-	"markdown.editor.deleteLineRight.title": "Delete All Right",
-	"markdown.editor.undo.title": "Undo",
-	"markdown.editor.redo.title": "Redo",
-	"markdown.editor.insertTab.title": "Insert Tab",
-	"markdown.editor.outdent.title": "Outdent",
-	"markdown.editor.toggleTabFocus.title": "Toggle Tab Key Moves Focus",
-	"markdown.editor.smartEnter.title": "Insert Paragraph",
-	"markdown.editor.insertHardLineBreak.title": "Insert Hard Line Break",
-	"markdown.editor.insertParagraph.title": "Insert Paragraph Without Continuing Markup"
+	"markdown.editor.cursorLeft.title": {
+		"message": "Move Cursor Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorRight.title": {
+		"message": "Move Cursor Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorUp.title": {
+		"message": "Move Cursor Up",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorDown.title": {
+		"message": "Move Cursor Down",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorLeftSelect.title": {
+		"message": "Select Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorRightSelect.title": {
+		"message": "Select Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorUpSelect.title": {
+		"message": "Select Up",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorDownSelect.title": {
+		"message": "Select Down",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorWordLeft.title": {
+		"message": "Move Cursor Word Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorWordRight.title": {
+		"message": "Move Cursor Word Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorWordLeftSelect.title": {
+		"message": "Select Word Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorWordRightSelect.title": {
+		"message": "Select Word Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorVisualLineStart.title": {
+		"message": "Move Cursor to Visual Line Start",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorVisualLineEnd.title": {
+		"message": "Move Cursor to Visual Line End",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorVisualLineStartSelect.title": {
+		"message": "Select to Visual Line Start",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorVisualLineEndSelect.title": {
+		"message": "Select to Visual Line End",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorLogicalLineStart.title": {
+		"message": "Move Cursor to Logical Line Start",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorLogicalLineEnd.title": {
+		"message": "Move Cursor to Logical Line End",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorLogicalLineStartSelect.title": {
+		"message": "Select to Logical Line Start",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorLogicalLineEndSelect.title": {
+		"message": "Select to Logical Line End",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorDocumentStart.title": {
+		"message": "Move Cursor to Document Start",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorDocumentEnd.title": {
+		"message": "Move Cursor to Document End",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorDocumentStartSelect.title": {
+		"message": "Select to Document Start",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.cursorDocumentEndSelect.title": {
+		"message": "Select to Document End",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.selectAll.title": {
+		"message": "Select All",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.deleteLeft.title": {
+		"message": "Delete Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.deleteRight.title": {
+		"message": "Delete Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.deleteWordLeft.title": {
+		"message": "Delete Word Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.deleteWordRight.title": {
+		"message": "Delete Word Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.deleteLineLeft.title": {
+		"message": "Delete All Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.deleteLineRight.title": {
+		"message": "Delete All Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.undo.title": {
+		"message": "Undo",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.redo.title": {
+		"message": "Redo",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.insertTab.title": {
+		"message": "Insert Tab",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.outdent.title": {
+		"message": "Outdent",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.toggleTabFocus.title": {
+		"message": "Toggle Tab Key Moves Focus",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.smartEnter.title": {
+		"message": "Insert Paragraph",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.insertHardLineBreak.title": {
+		"message": "Insert Hard Line Break",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.insertParagraph.title": {
+		"message": "Insert Paragraph Without Continuing Markup",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	}
 }

@@ -143,7 +143,11 @@ describe('updatePackageNlsJson', () => {
 			kind: 'updated',
 			value: {
 				displayName: 'Markdown Language Features',
-				[`${command.id}.title`]: command.title,
+				[`${command.id}.title`]: {
+					message: command.title,
+					comment: ['Generated from @vscode/markdown-editor/commands. Do not edit manually.'],
+					$generated: true,
+				},
 				description: 'Provides rich language support for Markdown.',
 			},
 		});
@@ -152,7 +156,11 @@ describe('updatePackageNlsJson', () => {
 	it('returns unchanged for current generated command titles', () => {
 		const current = {
 			displayName: 'Markdown Language Features',
-			[`${command.id}.title`]: command.title,
+			[`${command.id}.title`]: {
+				message: command.title,
+				comment: ['Generated from @vscode/markdown-editor/commands. Do not edit manually.'],
+				$generated: true as const,
+			},
 		};
 
 		assert.deepEqual(updatePackageNlsJson(current, [command]), { kind: 'unchanged' });
