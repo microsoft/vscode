@@ -79,8 +79,8 @@ width) captures a width to restore later.
 |---------|----------|--------|
 | **Toggle Details** (`≡`) | Editor header layout toolbar, after the actions overflow and a separator | Shows/hides the detail panel (default keybinding **`⌥⌘L`**). Hiding the detail **while the editor is hidden reveals the editor** (→ *Editor only*), so the pane is never left empty. It never changes the Sessions sidebar; that remains under explicit user control. Its `toggled` state (`AuxiliaryBarVisibleContext`) is kept **in sync with the actual rendering**. Shown **only** when the active tab is **Changes or Files** (not Browser or Search, which have no detail). |
 | **Maximize / Restore** | Editor title bar, primary inline | Maximizes the editor area (forces the Changes detail while maximized; restores on un-maximize). Default keybinding **`⌥⌘E`** toggles maximize/restore while the editor area is visible. |
-| **Hide Editor** (chevron `>`) | Editor title bar (tab strip), after Maximize/Restore | Closes the editor content and keeps the detail (→ *Detail only*). The docked side pane shrinks to the detail width so the freed editor width goes to the **chat**, not the detail. Always shown; disabled while the detail panel is hidden. |
-| **Show Editor** (chevron `<`) | Editor title bar (tab strip), same slot as Hide Editor | Reveals the (possibly empty) editor content again. Always shown whenever the editor area is closed, regardless of the active tab's detail support. |
+| **Hide Editor** (`right-panel-hide`) | Editor title bar (tab strip), after Maximize/Restore | Closes the editor content and keeps the detail (→ *Detail only*). The docked side pane shrinks to the detail width so the freed editor width goes to the **chat**, not the detail. Always shown and always enabled, regardless of whether a detail panel is currently visible. |
+| **Show Editor** (`right-panel-show`) | Editor title bar (tab strip), same slot as Hide Editor | Reveals the (possibly empty) editor content again. Always shown whenever the editor area is closed, regardless of the active tab's detail support. |
 | **Collapse All Diffs** | Changes editor header, primary inline | Collapses every file in the Changes multi-diff (`SessionChangesEditor.collapseAllDiffs`). |
 | **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`, Search `⌘K S`; a **Changes** entry when the Changes editor tab is closed, and a **Files** entry `⌘K B` when the Files tab is closed — both for any workspace session). Re-added managed Changes/Files tabs are inserted at the **end** of the tab strip. Search opens a new Search editor. **Hidden when the editor area is closed.** |
 | **Toggle Side Panel** | Command / keybinding | Closes/opens the **whole** side pane (editor + detail together) → chat-only and back. The mechanics live on the workbench layout service (`toggleSidePane`); while the editor area is maximized, the shared `Workbench.toggleSidePane()` emits its will event, un-maximizes, then performs the collapse so the restored detail is also hidden. Hiding a focused side pane moves focus to the sessions list. |
@@ -88,7 +88,7 @@ width) captures a width to restore later.
 | **Grid sash** | Between the chat and the third pane | Dragging a detail-only side pane wider keeps the editor content closed. When editor content and details are visible but no longer fit, the detail panel hides; widening past the hysteresis threshold restores it. |
 | **Changes pill** | Session header meta row | Opens the managed Changes multi-diff editor and explicitly reveals the editor area when the side pane was closed or in detail-only mode. The managed Changes tab still remains excluded from automatic reveal-on-open, so merely activating its tab does not reveal the editor. |
 
-**Editor action visibility.** Maximize/Restore, Toggle Details, and Open in Modal are hidden while the **editor area is closed** (`MainEditorAreaVisibleContext`). Hide Editor and Show Editor are the mutually-exclusive pair that controls that very state: both render in the tab strip's editor-title layout cluster (`MenuId.EditorTitleLayout`), immediately after Maximize/Restore, gated only on `MainEditorAreaVisibleContext` being true/false respectively — unlike Toggle Details, they always show regardless of whether the active tab has a docked detail panel (no `HasDockedDetailsContext` gate), consistent with Maximize/Restore's own always-shown behavior in that same cluster. Hide Editor uses `AuxiliaryBarVisibleContext` as its precondition, so hiding details disables it without hiding or shifting the toolbar; Show Editor needs no such precondition, since the tab strip is only rendered while the auxiliary bar is already visible whenever the editor area is closed. Show Editor reveals the editor via the same explicit-reveal API (`revealEditorPartExplicitly()`) used by the session-header Changes pill, then focuses the editor group. Toggle Details remains alone in its own trailing editor-header cluster and keeps its **has a docked detail panel** (`HasDockedDetailsContext`) gating — a managed Changes/Files tab or a text file editor — since toggling a nonexistent detail panel is never meaningful.
+**Editor action visibility.** Maximize/Restore, Toggle Details, and Open in Modal are hidden while the **editor area is closed** (`MainEditorAreaVisibleContext`). Hide Editor and Show Editor are the mutually-exclusive pair that controls that very state: both render in the tab strip's editor-title layout cluster (`MenuId.EditorTitleLayout`), immediately after Maximize/Restore, gated only on `MainEditorAreaVisibleContext` being true/false respectively — unlike Toggle Details, they always show and are always enabled regardless of whether the active tab has a docked detail panel or the detail panel is currently visible (no `HasDockedDetailsContext` gate and no `AuxiliaryBarVisibleContext` precondition), consistent with Maximize/Restore's own always-shown behavior in that same cluster. Hide Editor unconditionally reveals the auxiliary bar as part of its `run()`, so it always has somewhere to fall back to even if the detail panel was hidden beforehand — `SinglePaneDetailPanelStrategy` decides what that panel actually shows (the active tab's own detail, or the Changes/Files fallback for a Browser tab with none of its own; see §5). Show Editor reveals the editor via the same explicit-reveal API (`revealEditorPartExplicitly()`) used by the session-header Changes pill, then focuses the editor group. Toggle Details remains alone in its own trailing editor-header cluster and keeps its **has a docked detail panel** (`HasDockedDetailsContext`) gating — a managed Changes/Files tab or a text file editor — since toggling a nonexistent detail panel is never meaningful.
 
 **Managed Files tab.** The empty Files placeholder tab (and the Changes tab) is opened only when the editor group is **empty** on a view-open trigger (a session switch or a side-pane reveal). Opening a real workspace file **tidies away** the empty placeholder (a `[Changes][file]` strip) as a **one-shot reaction to that open** — not a standing rule — so the user can still add the Files tab via **`+` Files** while a real file is open (that opens an `EmptyFileEditorInput`, not a real file, so it is not tidied away). The placeholder is **not** re-added when the real file closes; the defaults return only when the group empties and the side pane is reopened.
 
@@ -137,14 +137,17 @@ The single-pane layout controller (`SinglePaneLayoutController`) maps the active
 |-----------|--------------|
 | **Changes or any diff editor** | Branch Changes file list + Checks — shown (Changes container) while the detail is visible |
 | **Any file or Markdown preview editor** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
-| **Browser** | **Hidden** (transiently) while the Browser tab is active; restored when switching back |
+| **Browser** | **Hidden** (transiently) while the Browser tab is active *and the editor area stays visible*; restored when switching back. If the editor area itself is hidden while Browser is active (e.g. via **Hide Editor**), the panel instead shows the Changes/Files fallback, since it is the only thing left on screen. |
 
 Rules:
 - **Reveal on activate, respect after.** Switching to a Changes/File tab reveals the detail with the
   right container. While the **same** tab stays active, an explicit user hide of the detail (via the
   detail toggle) is **respected** — it is not re-forced. Switching tabs reveals it again.
-- **Browser is transient.** A Browser tab hides the detail panel; switching back to Files/Changes
-  **restores** it.
+- **Browser is transient, but only while the editor area is visible.** A Browser tab hides the detail
+  panel while the editor content stays on screen; switching back to Files/Changes **restores** it.
+  Hiding the editor area (Hide Editor) while Browser is active does **not** leave the panel blank: it
+  shows the same Changes/Files fallback a session with no active editor gets, and reveals the editor
+  area again (Show Editor) restores the "Browser hides the detail" rule.
 
 ---
 
@@ -172,7 +175,7 @@ restored when returning to a workspace session.
 | *Detail only* (new session) | Drag grid sash wider | *Detail only* (editor stays closed) |
 | *Detail only* (new session) | Toggle Sessions List closed | *Detail only*; the **detail panel** widens by the sessions-list width (editor stays closed) |
 | *Detail only* | Toggle Details (hide detail) | *Editor only* (editor revealed) |
-| *Editor + Detail* | Hide Editor chevron | *Detail only* (detail keeps width, chat expands) |
+| *Editor + Detail* | Hide Editor | *Detail only* (detail keeps width, chat expands) |
 | *Editor + Detail* | Toggle Details (hide detail) | *Editor only* |
 | *Editor only* | Toggle Details (show detail) | *Editor + Detail* |
 | *Detail only* / *Editor only* / *Editor + Detail* | Toggle Side Panel | *Side pane closed* |
@@ -184,6 +187,8 @@ restored when returning to a workspace session.
 | *Detail only* (created session) | Drag grid sash wider | *Detail only* (editor content stays closed) |
 | any | Activate **Browser** tab | detail hidden (transient) |
 | Browser active (detail hidden) | Activate **Files/Changes** tab | detail restored |
+| *Editor + Detail* with Browser active | Hide Editor | *Detail only* (detail shows the Changes/Files fallback, not left blank) |
+| *Detail only* (Browser was last active tab) | Show Editor | *Editor + Detail* (detail hides again — Browser's transient-hide rule resumes) |
 | any new-session pane state | **Submit** the session | same visibility and active tab; Changes becomes active after file changes arrive |
 
 ---
@@ -196,8 +201,8 @@ restored when returning to a workspace session.
 3. **Detail toggle** in the new-session view → the editor content appears (detail hides).
 4. **Submit** a new session → the Changes tab becomes active with the Changes detail; the editor
    content is **still closed**.
-5. **Hide Editor** chevron → editor content closes, detail **keeps its width**, chat expands, tab bar
-   stays; the chevron then hides.
+5. **Hide Editor** → editor content closes, detail **keeps its width**, chat expands, tab bar
+   stays; Hide Editor is then replaced by Show Editor in the same slot.
 6. **Detail toggle** from *Editor + Detail* → detail hides, editor stays (*Editor only*); toggle again
    → detail returns.
 7. **Toggle Side Panel** → the whole side pane closes (chat-only); toggle again → it restores.
@@ -206,7 +211,7 @@ restored when returning to a workspace session.
 10. **Close the last editor tab** → the whole side pane closes (chat-only); opening any tab restores it.
 11. **`+` button** hidden while the editor area is closed; reappears when the editor is open.
 12. **Sash drag** to widen the third pane in a **created** session while the editor is closed → editor
-    content re-reveals and the Hide Editor chevron reappears; hiding the editor never leaves a
+    content re-reveals and Hide Editor reappears (replacing Show Editor); hiding the editor never leaves a
     corrupted/overlapping layout. In the **new-session** view the same drag widens the detail panel and
     the editor stays closed.
 13. **Toggle Sessions List** while the side pane is visible → when the editor content is visible the
@@ -228,5 +233,5 @@ restored when returning to a workspace session.
 | Managed Changes + File tabs (suppressed opens) | `contrib/layout/browser/singlePaneLayoutController.ts` |
 | Startup controller selection | `contrib/layout/browser/sessions.layout.contribution.ts` |
 | Global editor/detail visibility and quick-chat suppression | `contrib/layout/browser/singlePane/singlePaneSidePaneVisibilityStrategy.ts` |
-| Hide Editor chevron, Maximize, add-tab actions | `contrib/editor/browser/editor.contribution.ts`, `contrib/editor/browser/addTabActions.ts` |
+| Hide/Show Editor, Maximize, add-tab actions | `contrib/editor/browser/editor.contribution.ts`, `contrib/editor/browser/addTabActions.ts` |
 | Toggle Details command + editor-title item | `contrib/layout/browser/singlePaneLayoutController.ts` |

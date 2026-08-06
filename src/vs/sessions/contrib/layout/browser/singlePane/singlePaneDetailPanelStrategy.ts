@@ -51,6 +51,10 @@ const MARKDOWN_EDITOR_VIEW_TYPES = new Set([
  * becoming active never force-reveals a hidden detail (except restoring it after
  * a transient browser-tab hide). Opening the empty Files placeholder (making it
  * the active editor) reveals the Files detail, since its content lives there.
+ * A Browser tab hides the detail only while the editor area itself stays
+ * visible; if the editor area is hidden (e.g. via Hide Editor) while Browser
+ * is active, the docked panel instead shows the Changes/Files fallback, since
+ * it would otherwise be the only thing left on screen.
  */
 export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
@@ -75,11 +79,12 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		const activeEditorObs = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => this._isMainPartEmpty());
 		const auxBarVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
 
 		this._register(autorun(reader => {
 			const activeEditor = activeEditorObs.read(reader);
-			const target = this._computeDetailTarget(reader, activeEditor, mainPartEmptyObs, editorMaximizedObs);
+			const target = this._computeDetailTarget(reader, activeEditor, mainPartEmptyObs, editorMaximizedObs, editorPartVisibleObs);
 			const hasDockedDetails = target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced || target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced;
 			this._hasDockedDetailsContext!.set(hasDockedDetails);
 			auxBarVisibleObs.read(reader);
@@ -98,7 +103,7 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		}));
 	}
 
-	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>): DetailPanelTarget {
+	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>, editorPartVisibleObs: IObservable<boolean>): DetailPanelTarget {
 		const activeSession = this._sessionsService.activeSession.read(reader);
 		if (!activeSession) {
 			return DetailPanelTarget.Preserve;
@@ -136,7 +141,17 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		}
 
 		if (activeEditor instanceof BrowserEditorInput) {
-			return DetailPanelTarget.BrowserHidden;
+			// Browser has no docked detail of its own. While the editor area is
+			// still visible (Editor + Detail), any newly-revealed detail is
+			// transient and gets hidden again immediately. But once the editor
+			// area itself is hidden (e.g. via Hide Editor), the docked panel is
+			// all that is left on screen, so it must show something meaningful —
+			// the same contextual default (Changes/Files) as having no active
+			// editor at all — instead of being forced shut right back down.
+			if (editorPartVisibleObs.read(reader)) {
+				return DetailPanelTarget.BrowserHidden;
+			}
+			return activeSession?.isCreated.read(reader) ? DetailPanelTarget.Changes : DetailPanelTarget.Files;
 		}
 
 		if (this._isChangesEditor(activeEditor)) {

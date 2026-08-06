@@ -19,7 +19,7 @@ import { Action2, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -201,9 +201,8 @@ class HideMainEditorPartAction extends Action2 {
 		super({
 			id: HideMainEditorPartAction.ID,
 			title: localize2('hideMainEditorPart', "Hide Editor"),
-			icon: Codicon.chevronRight,
+			icon: Codicon.rightPanelHide,
 			f1: false,
-			precondition: AuxiliaryBarVisibleContext,
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
@@ -218,6 +217,10 @@ class HideMainEditorPartAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		// Reveal the detail panel so Hide Editor always lands in "Detail only"
+		// rather than collapsing the whole side pane. For tabs with no docked
+		// detail of their own (e.g. Browser), SinglePaneDetailPanelStrategy
+		// shows the Changes/Files fallback instead of forcing it shut again.
 		layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 		layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		// Closing the editor area frees horizontal space, so bring the sessions
@@ -235,7 +238,7 @@ class ShowMainEditorPartAction extends Action2 {
 		super({
 			id: ShowMainEditorPartAction.ID,
 			title: localize2('showMainEditorPart', "Show Editor"),
-			icon: Codicon.chevronLeft,
+			icon: Codicon.rightPanelShow,
 			f1: false,
 			menu: {
 				id: MenuId.EditorTitleLayout,

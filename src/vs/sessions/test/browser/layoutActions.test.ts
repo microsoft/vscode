@@ -13,6 +13,7 @@ import { CommandsRegistry } from '../../../platform/commands/common/commands.js'
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
 import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
@@ -22,6 +23,16 @@ import '../../browser/layoutActions.js';
 suite('Sessions - Layout Actions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Loaded once via `suiteSetup` (before `ensureNoDisposablesAreLeakedInTestSuite`'s
+	// per-test tracker starts), rather than a static top-level import, since
+	// `vs/sessions/test/browser/**` may not statically import `vs/sessions/contrib/**`
+	// (see the source-code-organization layering rules) and a dynamic `import()`
+	// inside an individual test body would wrongly attribute its permanent
+	// module-level command/menu registrations to that one test as "leaked".
+	suiteSetup(async () => {
+		await import('../../contrib/editor/browser/editor.contribution.js');
+	});
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
 		const items = MenuRegistry.getMenuItems(Menus.TitleBarRightLayout);
@@ -75,9 +86,7 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane Hide/Show Editor render in the editor-title layout cluster after Maximize/Restore', async () => {
-		await import('../../contrib/editor/browser/editor.contribution.js');
-
+	test('single-pane Hide/Show Editor render in the editor-title layout cluster after Maximize/Restore', () => {
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => (item.when?.serialize() ?? '').includes(MainEditorAreaVisibleContext.key));
@@ -97,7 +106,7 @@ suite('Sessions - Layout Actions', () => {
 		}, {
 			maximize: [{ group: 'navigation', order: 10, precondition: undefined }],
 			restore: [{ group: 'navigation', order: 10, precondition: undefined }],
-			hide: [{ group: 'navigation', order: 20, precondition: AuxiliaryBarVisibleContext.key }],
+			hide: [{ group: 'navigation', order: 20, precondition: undefined }],
 			show: [{ group: 'navigation', order: 20, precondition: undefined }],
 		});
 
@@ -120,5 +129,29 @@ suite('Sessions - Layout Actions', () => {
 		const headerSecondaryIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
 		assert.ok(headerSecondaryIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
+	});
+
+	test('Hide Editor unconditionally reveals the auxiliary bar so the pane always lands in Detail only', async () => {
+		const command = CommandsRegistry.getCommand('workbench.action.agentSessions.hideMainEditorPart');
+		assert.ok(command);
+
+		const calls: Array<{ hidden: boolean; part: Parts }> = [];
+		const layoutService = {
+			setPartHidden: (hidden: boolean, part: Parts) => calls.push({ hidden, part }),
+		};
+		const accessor = { get: () => layoutService } as ServicesAccessor;
+
+		await command.handler(accessor);
+
+		// Whether the active tab has a docked detail of its own (Changes/Files/
+		// text file) or not (Browser/Search), Hide Editor always reveals the
+		// auxiliary bar: SinglePaneDetailPanelStrategy decides what to show in
+		// it (the tab's own detail, or a Changes/Files fallback once the editor
+		// area itself is hidden), so the action itself does not need to know.
+		assert.deepStrictEqual(calls, [
+			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
+			{ hidden: true, part: Parts.EDITOR_PART },
+			{ hidden: false, part: Parts.SIDEBAR_PART },
+		]);
 	});
 });
