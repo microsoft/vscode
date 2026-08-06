@@ -25,7 +25,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { combineSessionRouteConfidence, heuristicScore, IRoutableSession, isCorroboratedSessionRoute, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { heuristicScore, IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -100,6 +100,21 @@ export function resolveNewSessionWorkspaceFolder(
 		?? folderFromRelatedSession(results, candidates, folders)
 		?? defaultFolder
 		?? folders[0]?.uri;
+}
+
+export function selectRouterShortlist(
+	candidates: readonly IRoutableSession[],
+	results: readonly ISessionRouteResult[],
+	limit: number = ROUTE_ENRICH_MAX_CANDIDATES,
+): IRoutableSession[] {
+	if (candidates.length <= limit) {
+		return [...candidates];
+	}
+	const byId = new Map(candidates.map(candidate => [candidate.sessionId, candidate]));
+	return results
+		.map(result => byId.get(result.sessionId))
+		.filter((candidate): candidate is IRoutableSession => !!candidate)
+		.slice(0, limit);
 }
 
 function folderMentionedInUtterance(utterance: string, folders: readonly IWorkspaceFolder[]): URI | undefined {
@@ -345,10 +360,15 @@ export class ChatSessionRoutingController extends Disposable {
 			return true;
 		}
 
-		// Stage 1: cheaply pre-rank on in-memory metadata to pick a shortlist, then
-		// stage 2: enrich only that shortlist with conversation content before the
-		// final model score. This keeps transcript resolves bounded per submission.
-		const shortlist = this._preRankCandidates(candidates, utterance);
+		// For large candidate sets, ask the router tool to select the sessions
+		// worth enriching. Titles are context for the tool, never a lexical gate.
+		const preliminaryResults = candidates.length > ROUTE_ENRICH_MAX_CANDIDATES
+			? await this._route(candidates, utterance, token)
+			: [];
+		if (token.isCancellationRequested) {
+			return true;
+		}
+		const shortlist = selectRouterShortlist(candidates, preliminaryResults);
 		const enriched = shortlist.length ? await this._enrichCandidates(shortlist, token) : [];
 		if (token.isCancellationRequested) {
 			return true;
@@ -405,13 +425,10 @@ export class ChatSessionRoutingController extends Disposable {
 	private async _route(candidates: IRoutableSession[], utterance: string, token: CancellationToken): Promise<ISessionRouteResult[]> {
 		try {
 			const results = await this.sessionRouter.route({ utterance, sessions: candidates }, token);
-			const corroboration = new Map(heuristicScore({ utterance, sessions: candidates }).map(result => [result.sessionId, result]));
-			return results.flatMap(result => {
-				const evidence = corroboration.get(result.sessionId);
-				return evidence && isCorroboratedSessionRoute(evidence)
-					? [{ ...result, confidence: combineSessionRouteConfidence(result.confidence, evidence.confidence) }]
-					: [];
-			}).sort((a, b) => b.confidence - a.confidence);
+			const lexicalTieBreak = new Map(heuristicScore({ utterance, sessions: candidates }).map(result => [result.sessionId, result.confidence]));
+			return [...results].sort((a, b) =>
+				b.confidence - a.confidence
+				|| (lexicalTieBreak.get(b.sessionId) ?? 0) - (lexicalTieBreak.get(a.sessionId) ?? 0));
 		} catch (err) {
 			if (!token.isCancellationRequested) {
 				this.logService.warn('[chatSessionRouting] session routing failed:', err);
@@ -517,26 +534,7 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/**
-	 * Stage 1: cheap, in-memory pre-rank to pick which candidates are worth
-	 * enriching. Uses the offline token-overlap heuristic over the metadata we
-	 * already hold, then keeps the top {@link ROUTE_ENRICH_MAX_CANDIDATES}. Any
-	 * candidate the heuristic can't score (all zero, e.g. empty utterance) still
-	 * passes through up to the cap so routing never starves on a weak pre-rank.
-	 */
-	private _preRankCandidates(candidates: IRoutableSession[], utterance: string): IRoutableSession[] {
-		if (candidates.length <= ROUTE_ENRICH_MAX_CANDIDATES) {
-			return candidates;
-		}
-		const byId = new Map(candidates.map(c => [c.sessionId, c]));
-		const ranked = heuristicScore({ utterance, sessions: candidates });
-		return ranked
-			.slice(0, ROUTE_ENRICH_MAX_CANDIDATES)
-			.map(r => byId.get(r.sessionId))
-			.filter((c): c is IRoutableSession => !!c);
-	}
-
-	/**
-	 * Stage 2: enrich the shortlisted candidates with conversation content (first
+	 * Enrich the shortlisted candidates with conversation content (first
 	 * request, most recent request, and a truncated most recent response) so the
 	 * final score can match on what a session is actually about rather than just
 	 * its title. Each fetch degrades independently: a session whose content can't

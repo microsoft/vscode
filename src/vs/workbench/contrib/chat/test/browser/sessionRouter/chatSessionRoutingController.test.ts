@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
+import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 
 suite('ChatSessionRoutingController', () => {
 
@@ -38,6 +38,34 @@ suite('ChatSessionRoutingController', () => {
 		);
 
 		assert.strictEqual(result?.toString(), docs.uri.toString());
+	});
+
+	test('explicit folder mention overrides a related session in another folder', () => {
+		const result = resolveNewSessionWorkspaceFolder(
+			'update the vscode-docs API reference',
+			[vscode, docs],
+			[{ sessionId: 'related', confidence: 0.9 }],
+			[{ sessionId: 'related', label: 'Related work', cwd: '/work/vscode/src' }],
+			vscode.uri,
+		);
+
+		assert.strictEqual(result?.toString(), docs.uri.toString());
+	});
+
+	test('uses router-tool order rather than lexical title matching for the enrichment shortlist', () => {
+		const candidates = Array.from({ length: 13 }, (_, index) => ({
+			sessionId: `s${index}`,
+			label: index === 0 ? 'exact lexical title match' : `session ${index}`,
+		}));
+		const results = candidates.slice(1).reverse().map((candidate, index) => ({
+			sessionId: candidate.sessionId,
+			confidence: 1 - index / 100,
+		}));
+
+		assert.deepStrictEqual(
+			selectRouterShortlist(candidates, results).map(candidate => candidate.sessionId),
+			results.map(result => result.sessionId),
+		);
 	});
 
 	test('keeps the sticky default for a weak related-session match', () => {

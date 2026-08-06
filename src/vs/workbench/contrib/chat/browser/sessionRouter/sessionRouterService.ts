@@ -7,12 +7,12 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatMessageRole, getTextResponseFromStream, IChatMessage, ILanguageModelsService } from '../../common/languageModels.js';
-import { buildRouterMessages, heuristicScore, ISessionRouteRequest, ISessionRouteResult, ISessionRouter, parseRouterResponse } from '../../common/sessionRouter.js';
+import { buildRouterMessages, ISessionRouteRequest, ISessionRouteResult, ISessionRouter, parseRouterResponse } from '../../common/sessionRouter.js';
 
 /**
  * Default {@link ISessionRouter}. Scores candidate sessions with a renderer
- * language model (Copilot/CAPI under the hood) and degrades to a local
- * heuristic when no model is available or the response can't be parsed.
+ * language model (Copilot/CAPI under the hood). If model scoring is unavailable,
+ * it returns no matches so the caller starts a new session rather than guessing.
  *
  * The prompt/parse logic lives in `../../common/sessionRouter.ts` so the scoring
  * backend can later be swapped for the agent-host CAPI utility completion or a
@@ -32,7 +32,7 @@ export class SessionRouterService implements ISessionRouter {
 			return [];
 		}
 		const scored = await this.scoreWithModel(request, token);
-		return scored ?? heuristicScore(request);
+		return scored ?? [];
 	}
 
 	private async scoreWithModel(request: ISessionRouteRequest, token: CancellationToken): Promise<ISessionRouteResult[] | undefined> {
@@ -44,7 +44,7 @@ export class SessionRouterService implements ISessionRouter {
 			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
 			modelId = models.at(0);
 		} catch (err) {
-			this.logService.trace('[SessionRouter] model selection failed, falling back to heuristic', err);
+			this.logService.trace('[SessionRouter] model selection failed, routing to a new session', err);
 		}
 		if (!modelId) {
 			return undefined;
@@ -66,7 +66,7 @@ export class SessionRouterService implements ISessionRouter {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			this.logService.trace('[SessionRouter] scoring request failed, falling back to heuristic', err);
+			this.logService.trace('[SessionRouter] scoring request failed, routing to a new session', err);
 			return undefined;
 		}
 	}

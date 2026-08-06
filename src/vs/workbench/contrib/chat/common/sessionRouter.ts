@@ -14,24 +14,9 @@ export const OmniChatEnabledSettingId = 'chat.omni.enabled';
 
 /** Existing sessions must exceed this confidence to be shown or selected. */
 export const SESSION_ROUTE_CONFIDENCE_THRESHOLD = 0.8;
-export const SESSION_ROUTE_CORROBORATION_THRESHOLD = 0.25;
 
 export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boolean {
 	return result.confidence > SESSION_ROUTE_CONFIDENCE_THRESHOLD;
-}
-
-export function isCorroboratedSessionRoute(result: ISessionRouteResult): boolean {
-	return result.confidence >= SESSION_ROUTE_CORROBORATION_THRESHOLD;
-}
-
-/**
- * Combine independent model and lexical evidence. Either weak signal remains
- * weak, while two agreeing signals can establish a high-confidence route.
- */
-export function combineSessionRouteConfidence(model: number, corroboration: number): number {
-	const boundedModel = Math.max(0, Math.min(1, model));
-	const boundedCorroboration = Math.max(0, Math.min(1, corroboration));
-	return 1 - ((1 - boundedModel) * (1 - boundedCorroboration));
 }
 
 /**
@@ -89,8 +74,8 @@ export interface ISessionRouter {
 
 	/**
 	 * Rank the candidate sessions for the given utterance, best match first.
-	 * Never rejects for routing reasons: on model/parse failure it degrades to a
-	 * local heuristic so callers always receive a usable ranking.
+	 * Returns no matches when model scoring is unavailable so callers safely
+	 * create a new session instead of guessing from lexical overlap.
 	 */
 	route(request: ISessionRouteRequest, token: CancellationToken): Promise<ISessionRouteResult[]>;
 }
@@ -206,10 +191,10 @@ export function parseRouterResponse(text: string, validSessionIds: ReadonlySet<s
 }
 
 /**
- * Zero-dependency offline ranking used both as the cheap stage-1 pre-rank and as
- * the fallback when no scoring model is available. Token-overlap heuristic over
- * the session's identity/content fields (label, repo, cwd, description, and,
- * when enriched, its first/most-recent request and most-recent response).
+ * Zero-dependency lexical ranking used only to break equal model scores.
+ * Token-overlap heuristic over the session's identity/content fields (label,
+ * repo, cwd, description, and, when enriched, its first/most-recent request and
+ * most-recent response).
  *
  * The score is calibrated against the candidate's own metadata rather than the
  * raw utterance length: it blends how much of the session's strongest identity
