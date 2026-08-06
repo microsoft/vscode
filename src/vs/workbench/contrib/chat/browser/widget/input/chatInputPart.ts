@@ -20,6 +20,7 @@ import { IStringDictionary } from '../../../../../../base/common/collections.js'
 import { isDefined } from '../../../../../../base/common/types.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -3341,9 +3342,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
 		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		// The lone dictation / Voice Mode control drops its circular border and
+		// only regains it when both share the row (see the matching rules in
+		// chat.css). Count the voice-input actions from the toolbar's action
+		// model — matching the same icon set the CSS keys off — rather than
+		// querying the DOM.
+		const voiceInputActionIconClasses = new Set([
+			Codicon.mic, Codicon.micFilled, Codicon.micDownloadCompact,
+			Codicon.voiceModeCompact, Codicon.loadingCompact, Codicon.debugDisconnectCompact,
+		].map(icon => ThemeIcon.asClassName(icon)));
 		const updateVoiceInputActionBorder = () => {
-			const voiceInputActions = this.executeToolbar.getElement().querySelectorAll('.action-label.codicon-mic, .action-label.codicon-mic-filled, .action-label.codicon-mic-download-compact, .action-label.codicon-voice-mode-compact, .action-label.codicon-loading-compact, .action-label.codicon-debug-disconnect-compact');
-			this.executeToolbar.getElement().classList.toggle('chat-voice-input-actions-multiple', voiceInputActions.length > 1);
+			let voiceInputActionCount = 0;
+			for (let i = 0; ; i++) {
+				const action = this.executeToolbar.getItemAction(i);
+				if (!action) {
+					break;
+				}
+				if (action.class && voiceInputActionIconClasses.has(action.class)) {
+					voiceInputActionCount++;
+				}
+			}
+			this.executeToolbar.getElement().classList.toggle('chat-voice-input-actions-multiple', voiceInputActionCount > 1);
 		};
 		updateVoiceInputActionBorder();
 		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
