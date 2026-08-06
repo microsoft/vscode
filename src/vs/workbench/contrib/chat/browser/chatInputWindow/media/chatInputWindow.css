@@ -104,6 +104,10 @@
 	display: none;
 }
 
+.chat-input-window .chat-session-target-picker-item {
+	display: none;
+}
+
 .chat-input-window .chat-input-container:not(.working) {
 	border-color: transparent !important;
 	background: transparent !important;
