@@ -43,10 +43,10 @@ import { ILlmNESTelemetry, NextEditProviderTelemetryBuilder } from '../../node/n
 const testModelName = 'test-patch-model';
 const testModelConfig = JSON.stringify({ promptingStrategy: 'patchBased02' });
 
-function createModelService(rejectedEditMemoryEnabled = false): IInlineEditsModelService {
+function createModelService(rejectedEditMemoryEnabled = false, promptingStrategy = PromptingStrategy.PatchBased02): IInlineEditsModelService {
 	const modelConfiguration: ModelConfiguration = {
 		modelName: testModelName,
-		promptingStrategy: PromptingStrategy.PatchBased02,
+		promptingStrategy,
 		includeTagsInCurrentFile: false,
 		memory: { rejectedEdits: rejectedEditMemoryEnabled ? RejectedEditsMemoryMode.DiffWithTags : undefined },
 		lintOptions: undefined,
@@ -548,7 +548,7 @@ describe('NextEditProvider Caching', () => {
 		return { provider, getCallCount: () => callCount, whenFirstStreamEnded: firstStreamEnded.p };
 	}
 
-	async function runCrossFileScenario(options?: { activeDocWindow?: OffsetRange; disposeTargetBeforeSecondRequest?: boolean; mutateTargetBeforeSecondRequest?: boolean; disableEditorChangeTrigger?: boolean; rejectedEditMemoryEnabled?: boolean; rejectFirstSuggestion?: boolean }) {
+	async function runCrossFileScenario(options?: { activeDocWindow?: OffsetRange; disposeTargetBeforeSecondRequest?: boolean; mutateTargetBeforeSecondRequest?: boolean; disableEditorChangeTrigger?: boolean; rejectedEditMemoryEnabled?: boolean; promptingStrategy?: PromptingStrategy; rejectFirstSuggestion?: boolean }) {
 		const obsWorkspace = new MutableObservableWorkspace();
 		const obsGit = new ObservableGit(gitExtensionService);
 
@@ -565,7 +565,7 @@ describe('NextEditProvider Caching', () => {
 		const { provider: statelessNextEditProvider, getCallCount, whenFirstStreamEnded } = createCrossFileStatelessProvider(docBId, targetEdit, options?.activeDocWindow);
 
 		const historyTracker = new NesXtabHistoryTracker(obsWorkspace, undefined, scenarioConfigService, expService);
-		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), historyTracker, undefined, createModelService(options?.rejectedEditMemoryEnabled), scenarioConfigService, snippyService, logService, expService, requestLogger);
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), historyTracker, undefined, createModelService(options?.rejectedEditMemoryEnabled, options?.promptingStrategy), scenarioConfigService, snippyService, logService, expService, requestLogger);
 
 		const docB = obsWorkspace.addDocument({ id: docBId, initialValue: ['export function helper() {', '\treturn 1;', '}'].join('\n') });
 		const docA = obsWorkspace.addDocument({ id: docAId, initialValue: ['class Point {', '\tconstructor(', '\t\tprivate readonly x: number,', '\t) { }', '}'].join('\n') });
@@ -666,9 +666,9 @@ describe('NextEditProvider Caching', () => {
 
 	});
 
-	it('records a cross-file rejection only when the originating suggestion enabled memory', async () => {
-		const enabled = await runCrossFileScenario({ rejectedEditMemoryEnabled: true, rejectFirstSuggestion: true });
-		const disabled = await runCrossFileScenario({ rejectedEditMemoryEnabled: false, rejectFirstSuggestion: true });
+	it('records a cross-file rejection based on memory capability, not prompting strategy', async () => {
+		const enabled = await runCrossFileScenario({ rejectedEditMemoryEnabled: true, promptingStrategy: PromptingStrategy.Xtab275, rejectFirstSuggestion: true });
+		const disabled = await runCrossFileScenario({ rejectedEditMemoryEnabled: false, promptingStrategy: PromptingStrategy.Xtab275, rejectFirstSuggestion: true });
 
 		expect({
 			enabled: enabled.rejectedEditHistory,

@@ -647,7 +647,7 @@ describe('getUserPrompt', () => {
 			kind: 'rejectedEdit',
 			docId: documentId,
 			hunks: [{ startLineNumber: 1, oldLines: ['  const x = 1;'], newLines: ['  const x = 2;'] }],
-			sequence: 0,
+			ordinal: 0,
 		}];
 
 		return new PromptPieces(
@@ -663,9 +663,9 @@ describe('getUserPrompt', () => {
 			new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
-			undefined,
-			undefined,
 			rejectedEditHistory,
+			undefined,
+			undefined,
 		);
 	}
 
@@ -706,7 +706,7 @@ describe('getUserPrompt', () => {
 		expect(prompt).toContain('are previous suggestions the developer rejected');
 	});
 
-	test('rejected edit memory does not change other prompting strategies', () => {
+	test('rejected edit memory applies independently of the prompting strategy', () => {
 		const pieces = createTestPromptPieces({
 			cursorLine: 2,
 			cursorColumn: 9,
@@ -715,11 +715,11 @@ describe('getUserPrompt', () => {
 		});
 		const { prompt } = getUserPrompt(pieces);
 
-		expect(prompt).not.toContain('<|rejected/|>');
-		expect(prompt).not.toContain('previous suggestions the developer rejected');
+		expect(prompt).toContain('<|rejected/|>');
+		expect(prompt).toContain('previous suggestions the developer rejected');
 	});
 
-	test('does not explain rejection annotations when the model postscript is disabled', () => {
+	test('explains rejection annotations when the standard postscript is disabled', () => {
 		const pieces = createTestPromptPieces({
 			cursorLine: 2,
 			cursorColumn: 9,
@@ -730,7 +730,7 @@ describe('getUserPrompt', () => {
 		const { prompt } = getUserPrompt(pieces);
 
 		expect(prompt).toContain('<|rejected/|>');
-		expect(prompt).not.toContain('are previous suggestions the developer rejected');
+		expect(prompt).toContain('are previous suggestions the developer rejected');
 		expect(prompt).not.toContain('Output a modified diff format');
 	});
 
@@ -982,6 +982,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			new LintErrors(activeDoc.id, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			[],
 			undefined,
 			extra?.precomputedCascade,
 		);
@@ -1078,7 +1079,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 	function runCascade(globalBudget: GlobalBudgetOptions, extra?: { langCtx?: LanguageContextResponse }) {
 		const { activeDoc } = makeActiveDoc();
 		const opts: PromptOptions = { ...DEFAULT_OPTIONS, globalBudget };
-		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget);
+		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget, []);
 	}
 
 	test('finalSurplus carries the full unused pool when no cascade part consumes budget', () => {

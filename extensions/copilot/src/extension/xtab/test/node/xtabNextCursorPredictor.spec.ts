@@ -97,9 +97,9 @@ function createTestPromptPieces(promptOptions: Partial<PromptOptions> = {}, reje
 		new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()), // lintErrors
 		computeTokens,
 		opts,
-		undefined,
-		undefined,
 		rejectedEditHistory,
+		undefined,
+		undefined,
 	);
 }
 
@@ -143,7 +143,7 @@ describe('XtabNextCursorPredictor', () => {
 			kind: 'rejectedEdit',
 			docId: promptPieces.activeDoc.id,
 			hunks: [{ startLineNumber: 2, oldLines: ['line 2'], newLines: ['replacement line'] }],
-			sequence: 0,
+			ordinal: 0,
 		});
 
 		const result = predictor.buildCursorPredictionPrompt(promptPieces);

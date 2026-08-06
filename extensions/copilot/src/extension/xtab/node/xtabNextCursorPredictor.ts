@@ -168,9 +168,9 @@ export class XtabNextCursorPredictor {
 					includeLineNumbers: includeLineNumbersInRecentSnippets,
 				},
 			},
-			undefined,
-			undefined,
 			[],
+			undefined,
+			undefined,
 		);
 
 		const { prompt: userMessage } = getUserPrompt(newPromptPieces);
@@ -369,4 +369,3 @@ function stripThinkTags(text: string): string {
 	}
 	return result.trim();
 }
-

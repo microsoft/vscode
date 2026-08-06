@@ -9,7 +9,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/rootedLineEdit';
-import { applyStrategyConfig, isRejectedEditMemoryEnabled, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { isRejectedEditMemoryEnabled, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
@@ -1391,7 +1391,12 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		const xtabEditHistory = this._xtabHistoryTracker.getHistory();
 		const rejectedEditHistory = this._xtabHistoryTracker.getRejectedEditHistory();
-		const suggestedEdit: IXtabHistoryEditEntry = { kind: 'edit', docId: curDocId, sequence: this._xtabHistoryTracker.allocateSequence(), edit: rootedEdit };
+		// Keep the request-local suggestion last without advancing the tracker's ordinal.
+		const suggestedEditOrdinal = Math.max(
+			xtabEditHistory.at(-1)?.ordinal ?? -1,
+			rejectedEditHistory.at(-1)?.ordinal ?? -1,
+		) + 1;
+		const suggestedEdit: IXtabHistoryEditEntry = { kind: 'edit', docId: curDocId, ordinal: suggestedEditOrdinal, edit: rootedEdit };
 		xtabEditHistory.push(suggestedEdit);
 
 		const firstEdit = new DeferredPromise<Result<CachedOrRebasedEdit, NoNextEditReason>>();
@@ -1648,7 +1653,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	}
 
 	private _isRejectedEditMemoryEnabled(): boolean {
-		return isRejectedEditMemoryEnabled(applyStrategyConfig(this._modelService.selectedModelConfiguration()));
+		return isRejectedEditMemoryEnabled(this._modelService.selectedModelConfiguration());
 	}
 
 	private _addLiveLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {

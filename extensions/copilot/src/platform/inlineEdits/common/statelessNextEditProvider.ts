@@ -121,7 +121,7 @@ export class StatelessNextEditRequest<TFirstEdit = any> {
 		public readonly recordingBookmark: DebugRecorderBookmark | undefined,
 		public readonly recording: LogEntry[] | undefined,
 		public readonly providerRequestStartDateTime: number | undefined,
-		public readonly xtabRejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = [],
+		public readonly xtabRejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
 	) {
 		assert(documents.length > 0);
 		assert(activeDocumentIdx >= 0 && activeDocumentIdx < documents.length);

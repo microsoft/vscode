@@ -491,9 +491,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			lintErrors,
 			XtabProvider.computeTokens,
 			promptOptions,
+			request.xtabRejectedEditHistory,
 			neighborSnippets,
 			precomputedCascade,
-			request.xtabRejectedEditHistory,
 		);
 
 		const { prompt: userPrompt, nDiffsInPrompt, neighborSnippetsResult, sectionTokens } = getUserPrompt(promptPieces);

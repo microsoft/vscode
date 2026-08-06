@@ -40,7 +40,7 @@ function createHistoryEntry(docId: DocumentId, baseContent: string, replacements
 	return {
 		docId,
 		kind: 'edit',
-		sequence: 0,
+		ordinal: 0,
 		edit: new RootedEdit(base, new StringEdit(replacements)),
 	};
 }
@@ -127,9 +127,12 @@ describe('getEditDiffHistory', () => {
 			createHistoryEntry(docId, 'aaa\nbbb\nccc\nddd\neee', [
 				new StringReplacement(new OffsetRange(0, 3), 'AAA'),
 			]),
-			createHistoryEntry(docId, 'AAA\nbbb\nccc\nddd\neee', [
-				new StringReplacement(new OffsetRange(4, 7), 'BBB'),
-			]),
+			{
+				...createHistoryEntry(docId, 'AAA\nbbb\nccc\nddd\neee', [
+					new StringReplacement(new OffsetRange(4, 7), 'BBB'),
+				]),
+				ordinal: 1,
+			},
 		];
 
 		const result = runGetEditDiffHistory(activeDoc, historyEntries, new Set(), computeTokens, diffHistoryOptions);
@@ -160,7 +163,7 @@ describe('getEditDiffHistory', () => {
 		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
 			kind: 'rejectedEdit',
 			docId,
-			sequence: 0,
+			ordinal: 0,
 			hunks: [{ startLineNumber: 0, oldLines: ['aaa'], newLines: ['AAA'] }],
 		};
 
@@ -176,31 +179,31 @@ describe('getEditDiffHistory', () => {
 		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
 			kind: 'rejectedEdit',
 			docId,
-			sequence: 1,
+			ordinal: 1,
 			hunks: [{ startLineNumber: 0, oldLines: ['aaa'], newLines: ['AAA'] }],
 		};
-		const normalEntry = { ...createHistoryEntry(docId, 'aaa\nbbb', [new StringReplacement(new OffsetRange(4, 7), 'BBB')]), sequence: 2 };
+		const normalEntry = { ...createHistoryEntry(docId, 'aaa\nbbb', [new StringReplacement(new OffsetRange(4, 7), 'BBB')]), ordinal: 2 };
 
 		const result = runGetEditDiffHistory(activeDoc, [normalEntry], new Set(), computeTokens, diffHistoryOptions, [rejectedEntry]);
 
 		expect(result.indexOf('<|rejected/|>')).toBeLessThan(result.indexOf('+BBB'));
 	});
 
-	it('inserts rejections by sequence before a synthetic history entry', () => {
+	it('inserts rejections by ordinal before a synthetic history entry', () => {
 		const docId = DocumentId.create('file:///workspace/src/a.ts');
 		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb\nccc'));
 		const normalEntry = {
 			...createHistoryEntry(docId, 'aaa\nbbb\nccc', [new StringReplacement(new OffsetRange(0, 3), 'AAA')]),
-			sequence: 47,
+			ordinal: 47,
 		};
 		const syntheticEntry = {
 			...createHistoryEntry(docId, 'AAA\nbbb\nccc', [new StringReplacement(new OffsetRange(8, 11), 'CCC')]),
-			sequence: 49,
+			ordinal: 49,
 		};
 		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
 			kind: 'rejectedEdit',
 			docId,
-			sequence: 48,
+			ordinal: 48,
 			hunks: [{ startLineNumber: 1, oldLines: ['bbb'], newLines: ['BBB'] }],
 		};
 
@@ -216,10 +219,10 @@ describe('getEditDiffHistory', () => {
 		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
 			kind: 'rejectedEdit',
 			docId,
-			sequence: 2,
+			ordinal: 2,
 			hunks: [{ startLineNumber: 0, oldLines: ['a'], newLines: ['x'.repeat(500)] }],
 		};
-		const normalEntry = { ...createHistoryEntry(docId, 'a\nb', [new StringReplacement(new OffsetRange(2, 3), 'B')]), sequence: 1 };
+		const normalEntry = { ...createHistoryEntry(docId, 'a\nb', [new StringReplacement(new OffsetRange(2, 3), 'B')]), ordinal: 1 };
 
 		const result = runGetEditDiffHistory(
 			activeDoc,

@@ -24,11 +24,8 @@ describe('NesXtabHistoryTracker', () => {
 
 	afterEach(() => {
 		for (const tracker of trackers) {
-			const sequences = tracker.getHistory().map(entry => {
-				assert(entry.sequence !== undefined);
-				return entry.sequence;
-			});
-			expect(sequences).toEqual([...sequences].sort((left, right) => left - right));
+			const ordinals = tracker.getHistory().map(entry => entry.ordinal);
+			expect(ordinals).toEqual([...ordinals].sort((left, right) => left - right));
 		}
 		trackers.length = 0;
 		overrideNowValue(-1);
@@ -84,7 +81,7 @@ describe('NesXtabHistoryTracker', () => {
 		});
 	});
 
-	it('keeps normal history ordered by capture sequence when rejected edits are interleaved', () => {
+	it('keeps normal history ordered by capture ordinal when rejected edits are interleaved', () => {
 		const recording: IRecordingInformation = {
 			log: [
 				{ documentType: 'workspaceRecording@1.0', kind: 'header', repoRootUri: 'file:///Users/john/myProject', time: 0, uuid: '' },
@@ -105,9 +102,9 @@ describe('NesXtabHistoryTracker', () => {
 		);
 
 		expect({
-			normalSequences: tracker.getHistory().map(entry => entry.sequence),
-			rejectedSequences: tracker.getRejectedEditHistory().map(entry => entry.sequence),
-		}).toEqual({ normalSequences: [0, 1], rejectedSequences: [2] });
+			normalOrdinals: tracker.getHistory().map(entry => entry.ordinal),
+			rejectedOrdinals: tracker.getRejectedEditHistory().map(entry => entry.ordinal),
+		}).toEqual({ normalOrdinals: [0, 1], rejectedOrdinals: [2] });
 	});
 
 	it('does not retain oversized rejected edits', () => {
