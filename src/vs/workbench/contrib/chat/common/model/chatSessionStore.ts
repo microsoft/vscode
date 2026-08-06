@@ -31,7 +31,7 @@ import { ChatAgentLocation, ChatPermissionLevel } from '../constants.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatModelInputState, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData } from './chatModel.js';
 import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
-import { LocalChatSessionUri } from './chatUri.js';
+import { getChatSessionStorageResource, LocalChatSessionUri } from './chatUri.js';
 import { stringifyEntryWithFallback } from './objectMutationLog.js';
 
 const maxPersistedSessions = 400;
@@ -697,7 +697,7 @@ export class ChatSessionStore extends Disposable {
 		let rawData: VSBuffer | undefined;
 
 		if (this.previousEmptyWindowStorageRoot) {
-			const storageLocation2 = joinPath(this.previousEmptyWindowStorageRoot, `${sessionId}.json`);
+			const storageLocation2 = getChatSessionStorageResource(this.previousEmptyWindowStorageRoot, sessionId, '.json');
 			try {
 				rawData = (await this.fileService.readFile(storageLocation2)).value;
 				this.logService.info(`ChatSessionStore: Read chat session ${sessionId} from previous location`);
@@ -717,15 +717,18 @@ export class ChatSessionStore extends Disposable {
 		log?: URI;
 	} {
 		return {
-			flat: joinPath(this.storageRoot, `${chatSessionId}.json`),
+			flat: getChatSessionStorageResource(this.storageRoot, chatSessionId, '.json'),
 			// todo@connor4312: remove after stabilizing
-			log: this.configurationService.getValue('chat.useLogSessionStorage') !== false ? joinPath(this.storageRoot, `${chatSessionId}.jsonl`) : undefined,
+			log: this.configurationService.getValue('chat.useLogSessionStorage') !== false ? getChatSessionStorageResource(this.storageRoot, chatSessionId, '.jsonl') : undefined,
 		};
 	}
 
 	private getTransferredSessionStorageLocation(sessionResource: URI): URI {
 		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
-		return joinPath(this.transferredSessionStorageRoot, `${sessionId}.json`);
+		if (!sessionId) {
+			throw new Error(`Invalid local chat session resource: ${sessionResource.toString()}`);
+		}
+		return getChatSessionStorageResource(this.transferredSessionStorageRoot, sessionId, '.json');
 	}
 
 	/**

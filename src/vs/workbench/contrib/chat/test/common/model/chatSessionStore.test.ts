@@ -64,6 +64,7 @@ suite('ChatSessionStore', () => {
 
 	let instantiationService: TestInstantiationService;
 	let mockWorkspaceEditingService: MockWorkspaceEditingService;
+	let fileService: InMemoryTestFileService;
 
 	function createChatSessionStore(isEmptyWindow: boolean = false): ChatSessionStore {
 		const workspace = isEmptyWindow ? new Workspace('empty-window-id', []) : TestWorkspace;
@@ -76,7 +77,8 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IFileService, testDisposables.add(new InMemoryTestFileService()));
+		fileService = testDisposables.add(new InMemoryTestFileService());
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
@@ -145,6 +147,21 @@ suite('ChatSessionStore', () => {
 		const index = await store.getIndex();
 		assert.ok(index['session-1']);
 		assert.strictEqual(index['session-1'].sessionId, 'session-1');
+	});
+
+	test('storeSessions rejects session IDs that escape the storage root', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('../../../outside')));
+
+		await store.storeSessions([model]);
+
+		assert.deepStrictEqual({
+			hasSessions: store.hasSessions(),
+			writtenResources: fileService.writeOperations.map(operation => operation.resource.toString()),
+		}, {
+			hasSessions: false,
+			writtenResources: [],
+		});
 	});
 
 	test('storeSessions persists custom title', async () => {
