@@ -439,7 +439,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
-	test('preferAgentHost is not respected when chat.agentHost.enabled is false', () => {
+	test('preferAgentHost is not respected when Agent Host is unavailable', () => {
 		// Yielding to the agent host's Claude only makes sense when the agent
 		// host is enabled to register it. With the agent host disabled the
 		// preference must be ignored so this provider keeps surfacing Claude;
@@ -522,7 +522,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('hideExtensionHost is not respected when chat.agentHost.enabled is false', () => {
+	test('hideExtensionHost is not respected when Agent Host is unavailable', () => {
 		// Hiding the Extension Host Copilot CLI only makes sense when the agent
 		// host is enabled to surface the Agent Host Copilot CLI in its place. With
 		// the agent host disabled the hide setting must be ignored so the entry
@@ -531,7 +531,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('chat.agentHost.enabled is read once when the provider is created', () => {
+	test('Agent Host availability is observed after the provider is created', () => {
 		// With the hide setting on but the agent host initially disabled, the
 		// Copilot CLI entry is visible. Since enablement is fixed at startup,
 		// the provider always reflects the initial value.

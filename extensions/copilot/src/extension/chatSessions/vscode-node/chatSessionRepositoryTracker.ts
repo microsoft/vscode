@@ -13,7 +13,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 
-const AGENT_HOST_ENABLED_SETTING_ID = 'chat.agentHost.enabled';
+const AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID = 'chat.agentHost.defaultSessionsProvider';
 
 export class ChatSessionRepositoryTracker extends Disposable {
 	private readonly repositories = new DisposableResourceMap();
@@ -30,11 +30,11 @@ export class ChatSessionRepositoryTracker extends Disposable {
 	) {
 		super();
 
-		// Only open repositories and track their changes in
-		// the agents app when the agent host is not enabled.
+		// Only open repositories and track their changes when the extension-host
+		// provider is preferred in the Agents window.
 		if (
 			vscode.workspace.isAgentSessionsWorkspace &&
-			this.configurationService.getNonExtensionConfig<boolean>(AGENT_HOST_ENABLED_SETTING_ID) !== true
+			this.configurationService.getNonExtensionConfig<boolean>(AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID) !== true
 		) {
 			this.logService.trace('[ChatSessionRepositoryTracker][constructor] Initializing workspace folder event handler');
 			this._register(vscode.workspace.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
