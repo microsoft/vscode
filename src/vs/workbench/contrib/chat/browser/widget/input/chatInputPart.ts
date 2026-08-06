@@ -1259,6 +1259,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			currentMode: this._currentModeObservable,
 			currentChatModes,
 			sessionResource: () => this._widget?.viewModel?.sessionResource,
+			inputUri: () => this.inputUri,
 			// Direct setter for hosts that embed `ChatInputPart` without
 			// registering an `IChatWidget` (e.g. the automations dialog).
 			// The picker only calls this when `sessionResource()` is

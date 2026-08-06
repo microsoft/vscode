@@ -43,6 +43,13 @@ export interface IModePickerDelegate {
 	/** Direct mode-change callback for hosts without a registered IChatWidget (bypasses ToggleAgentModeActionId). */
 	readonly setMode?: (mode: IChatMode) => void;
 	/**
+	 * Unique input URI of the chat widget hosting this picker. Required to
+	 * disambiguate when multiple chat widgets share a session resource (e.g. a
+	 * chat view and a chat editor showing the same session), so mode changes
+	 * target the widget the user actually clicked in.
+	 */
+	readonly inputUri?: () => URI | undefined;
+	/**
 	 * When set, the mode picker will show custom agents whose target matches this value.
 	 * Custom agents without a target are always shown in all session types. If no agents match the target, shows a default "Agent" option.
 	 */
@@ -154,7 +161,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					}
 					const result = await commandService.executeCommand(
 						ToggleAgentModeActionId,
-						{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
+						{ modeId: mode.id, sessionResource: this.delegate.sessionResource(), inputUri: this.delegate.inputUri?.() } satisfies IToggleChatModeArgs
 					);
 					if (this.element) {
 						this.renderLabel(this.element);
