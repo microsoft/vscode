@@ -85,7 +85,7 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts win32 $(VSCODE_ARCH)
+      - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Verify native optional dependency binaries
 

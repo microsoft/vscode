@@ -159,7 +159,7 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts linux $(NPM_ARCH)
+  - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries
 
   - script: node build/azure-pipelines/distro/mixin-npm.ts

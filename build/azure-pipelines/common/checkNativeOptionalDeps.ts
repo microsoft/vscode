@@ -55,10 +55,19 @@ export function findMissingNativeOptionalDep(nodeModulesDir: string, basePackage
 // #region CLI entry point
 //
 // Runs after the root node_modules is restored or installed in CI. Verifies
-// the repo-root node_modules has the per-platform package for the target so a
-// poisoned cache (base package present, native package silently skipped) is
-// neither used nor persisted. The optional CLI arguments override the current
-// platform and architecture for cross-architecture builds.
+// the repo-root node_modules has the per-platform package for the machine
+// running the install, so a silently incomplete install (base package present,
+// native package skipped) is neither used nor persisted in the cache.
+//
+// This deliberately checks the HOST platform/arch, never the build target. The
+// pipelines set `npm_config_arch`, but that only steers node-gyp/prebuild
+// downloads — it does NOT drive npm's `os`/`cpu` optional-dependency
+// filtering. On a cross-architecture job (e.g. Windows arm64 built on an x64
+// agent) npm therefore installs the HOST's per-platform package, and asserting
+// on the target's would fail every such job. The per-target binaries that
+// actually ship are produced separately by `build/agent-sdk/package.ts`, which
+// installs into a scratch dir with `npm_config_os`/`npm_config_cpu` set and
+// validates the result via `findMissingNativeOptionalDep` below.
 
 // Base packages whose per-platform package (`<base>-<platform>-<arch>`) is
 // required whenever the base package itself is installed.
@@ -79,8 +88,8 @@ function isCliInvocation(): boolean {
 }
 
 function main(): void {
-	const platform = process.argv[2] ?? process.platform;
-	const arch = process.argv[3] ?? process.arch;
+	const platform = process.platform;
+	const arch = process.arch;
 	if (!SUPPORTED_PLATFORMS.has(platform) || !SUPPORTED_ARCHS.has(arch)) {
 		console.log(`Skipping native optional-dependency check on unsupported ${platform}-${arch}.`);
 		return;
