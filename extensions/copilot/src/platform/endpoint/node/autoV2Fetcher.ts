@@ -77,6 +77,8 @@ export class AutoV2Fetcher {
 			 * Keeps the placeholder prompt out of telemetry and the request log.
 			 */
 			isDiscountProbe?: boolean;
+			/** Auto tier to request. Omitted from the body when empty. */
+			tier?: string;
 		} = {},
 	): Promise<AutoV2Response> {
 		const startTime = Date.now();
@@ -86,6 +88,9 @@ export class AutoV2Fetcher {
 		}
 		if (options.multiTurn) {
 			requestBody.multi_turn = options.multiTurn;
+		}
+		if (options.tier) {
+			requestBody.tier = options.tier;
 		}
 
 		const copilotToken = (await this._authService.getCopilotToken()).token;

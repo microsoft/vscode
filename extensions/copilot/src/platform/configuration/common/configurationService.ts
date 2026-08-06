@@ -632,6 +632,12 @@ export namespace ConfigKey {
 		 * Experiment-based so it can be remotely disabled; an explicit user setting still wins.
 		 */
 		export const AutoModeV2Enabled = defineSetting<boolean>('chat.autoMode.v2.enabled', ConfigType.ExperimentBased, true, undefined, undefined, { experimentName: 'copilotchat.autoModeV2Enabled' });
+		/**
+		 * Auto tier to request on `POST /auto`. Empty sends no tier, which routes exactly
+		 * as Auto did before tiers existed. Not experiment-based: this is a dogfooding
+		 * switch that is expected to be set by hand in settings.json.
+		 */
+		export const AutoModeV2Tier = defineSetting<'' | 'eco' | 'balanced' | 'max' | 'fast'>('chat.autoMode.v2.tier', ConfigType.Simple, '');
 		export const CLIModelDetailsEnabled = defineSetting<boolean>('chat.agent.modelDetails.enabled', ConfigType.Simple, true);
 		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
 		export const CLIChatLazyLoadSessionItem = defineSetting<boolean>('chat.cli.lazyLoadSessionItem.enabled', ConfigType.Simple, true);
