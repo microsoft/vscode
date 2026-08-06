@@ -15,8 +15,9 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -193,7 +194,128 @@ interface IRenderFormHandle {
 	readonly getPermissionLevel: () => string | undefined;
 	readonly getModelId: () => string | undefined;
 	readonly getBranch: () => string | undefined;
+	readonly waitForAutomationSessionSync: () => Promise<void>;
 	readonly getFocusableElements: () => readonly HTMLElement[];
+}
+
+export type AutomationSessionDraftTarget =
+	| { readonly kind: 'workspace'; readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string }
+	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string };
+
+type AutomationSessionDraftService = Pick<
+	ISessionsManagementService,
+	'automationSession' | 'createAutomationSession' | 'createAutomationQuickChat' | 'discardAutomationSession'
+>;
+
+export class AutomationSessionDraftSynchronizer extends Disposable {
+	private requestedTarget: AutomationSessionDraftTarget | undefined;
+	private appliedTarget: AutomationSessionDraftTarget | undefined;
+	private session: ISession | undefined;
+	private generation = 0;
+	private syncScheduled = false;
+	private syncPromise = Promise.resolve();
+	private disposed = false;
+
+	constructor(
+		private readonly sessionsManagementService: AutomationSessionDraftService,
+		private readonly canSelectWorkspace: (folderUri: URI, preferredProviderId: string | undefined) => Promise<boolean>,
+		private readonly onError: (error: unknown) => void,
+	) {
+		super();
+	}
+
+	update(target: AutomationSessionDraftTarget | undefined): void {
+		this.requestedTarget = target;
+		this.generation++;
+		this.scheduleSync();
+	}
+
+	async waitForSync(): Promise<void> {
+		let pendingSync: Promise<void>;
+		do {
+			pendingSync = this.syncPromise;
+			await pendingSync;
+		} while (pendingSync !== this.syncPromise);
+	}
+
+	private scheduleSync(): void {
+		if (this.syncScheduled) {
+			return;
+		}
+		this.syncScheduled = true;
+		this.syncPromise = Promise.resolve().then(() => {
+			this.syncScheduled = false;
+			if (!this.disposed) {
+				return this.sync(this.generation);
+			}
+			return undefined;
+		});
+	}
+
+	private async sync(generation: number): Promise<void> {
+		const target = this.requestedTarget;
+		if (!target) {
+			this.discardSession();
+			return;
+		}
+		if (this.matchesAppliedTarget(target)) {
+			return;
+		}
+		try {
+			if (target.kind === 'workspace' && !await this.canSelectWorkspace(target.folderUri, target.providerId)) {
+				if (generation === this.generation) {
+					this.discardSession();
+				}
+				return;
+			}
+			if (this.disposed || generation !== this.generation) {
+				return;
+			}
+			this.session = target.kind === 'quickChat'
+				? this.sessionsManagementService.createAutomationQuickChat({
+					providerId: target.providerId,
+					sessionTypeId: target.sessionTypeId,
+				})
+				: this.sessionsManagementService.createAutomationSession(target.folderUri, {
+					providerId: target.providerId,
+					sessionTypeId: target.sessionTypeId,
+				});
+			this.appliedTarget = target;
+		} catch (error) {
+			if (!this.disposed && generation === this.generation) {
+				this.discardSession();
+				this.onError(error);
+			}
+		}
+	}
+
+	private matchesAppliedTarget(target: AutomationSessionDraftTarget): boolean {
+		if (!this.session
+			|| !this.appliedTarget
+			|| this.sessionsManagementService.automationSession.get()?.sessionId !== this.session.sessionId
+			|| this.appliedTarget.kind !== target.kind
+			|| this.appliedTarget.providerId !== target.providerId
+			|| this.appliedTarget.sessionTypeId !== target.sessionTypeId) {
+			return false;
+		}
+		return target.kind === 'quickChat'
+			|| (this.appliedTarget.kind === 'workspace' && isEqual(this.appliedTarget.folderUri, target.folderUri));
+	}
+
+	private discardSession(): void {
+		if (this.session) {
+			this.sessionsManagementService.discardAutomationSession(this.session);
+		}
+		this.session = undefined;
+		this.appliedTarget = undefined;
+	}
+
+	override dispose(): void {
+		this.disposed = true;
+		this.generation++;
+		this.discardSession();
+		super.dispose();
+	}
 }
 
 export function resolveAutomationModelIdentifier(
@@ -806,10 +928,6 @@ export function renderForm(
 	// Covers both explicit user picks and recomputes (e.g. an agent host
 	// advertising its session types after the dialog opened), so the saved
 	// automation always matches the chip the picker displays.
-	disposables.add(sessionTypePicker.onDidChangeSelectedPick(() => {
-		syncStateFromPicker();
-		revalidate();
-	}));
 
 	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker, {
 		canSelectWorkspace: (folderUri, preferredProviderId) =>
@@ -818,12 +936,42 @@ export function renderForm(
 	workspacePicker.setTargetModel(isolationModel);
 	workspacePicker.setLayoutService(layoutService);
 
+	const automationSessionDraftSynchronizer = disposables.add(new AutomationSessionDraftSynchronizer(
+		sessionsManagementService,
+		(folderUri, preferredProviderId) => canSelectAutomationWorkspace(folderUri, preferredProviderId, sessionsManagementService, workspaceTrustRequestService),
+		error => logService.error('[AutomationDialog] Failed to synchronize the automation session draft.', error),
+	));
+	const updateAutomationSessionTarget = () => {
+		const folderUri = isolationModel.folderUriObs.get();
+		const pick = sessionTypePicker.selectedPick;
+		const isQuickChat = isolationModel.isQuickChatObs.get();
+		if (!pick || (isQuickChat && !pick.providerId) || (!isQuickChat && !folderUri)) {
+			automationSessionDraftSynchronizer.update(undefined);
+			return;
+		}
+		if (isQuickChat) {
+			const providerId = pick.providerId;
+			if (providerId) {
+				automationSessionDraftSynchronizer.update({ kind: 'quickChat', providerId, sessionTypeId: pick.sessionTypeId });
+			}
+		} else if (folderUri) {
+			automationSessionDraftSynchronizer.update({ kind: 'workspace', folderUri, providerId: pick.providerId, sessionTypeId: pick.sessionTypeId });
+		}
+	};
+	disposables.add(sessionTypePicker.onDidChangeSelectedPick(() => {
+		syncStateFromPicker();
+		updateAutomationSessionTarget();
+		revalidate();
+	}));
+	disposables.add(sessionsManagementService.onDidChangeSessionTypes(() => updateAutomationSessionTarget()));
+
 	if (state.folderUri) {
 		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false, persist: false });
 	}
 
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
 		if (isolationModel.setWorkspace(uri)) {
+			updateAutomationSessionTarget();
 			revalidate();
 		}
 	}));
@@ -834,6 +982,7 @@ export function renderForm(
 
 	disposables.add(autorun(reader => {
 		isolationModel.isQuickChatObs.read(reader);
+		updateAutomationSessionTarget();
 		revalidate();
 	}));
 
@@ -1045,6 +1194,10 @@ export function renderForm(
 		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
 		getModelId: () => chatInput.selectedLanguageModel.get()?.identifier,
 		getBranch: () => isolationModel.persistedBranch,
+		waitForAutomationSessionSync: () => {
+			updateAutomationSessionTarget();
+			return automationSessionDraftSynchronizer.waitForSync();
+		},
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));

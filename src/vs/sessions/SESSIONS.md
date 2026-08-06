@@ -41,6 +41,7 @@ Defines the foundational interfaces that all providers and consumers share:
 - **`ISession`** (`session.ts`) — Universal session facade. A self-contained observable object representing a session; consumers never reach back to provider internals. Each session has a globally unique ID built via `toSessionId(providerId, resource)` and groups one or more `IChat` instances.
 - **`ISessionsProvider`** (`sessionsProvider.ts`) — Contract every provider implements. Covers workspace discovery, session CRUD, sending requests, model enumeration/selection/presentation (`getModelsSnapshot`, `getModelPickerOptions`, `onDidChangeModels`, `setModel`), and firing change events.
 - **`ISessionsManagementService`** (`sessionsManagement.ts`) — The session **model** service. Aggregates sessions from all providers, owns the pending new-session draft (`createNewSession`/`newSession`), send (`sendNewChatRequest`/`createAndSendNewChatRequest`/`sendRequest`), CRUD (archive/delete/rename), and recency history. It performs **no** view/layout mutation and never imports the view or part service. It does **not** own the active session — that lives in the view service.
+  The Automation dialog uses a separate `automationSession` draft lifecycle so changing or closing the dialog never replaces the regular new-session draft.
 
 > **Model vs view.** The active session (`activeSession`), the visible-session slots and their arrangement, opening sessions, focus, Back/Forward navigation, and per-session view persistence live in **`ISessionsService`** (services — see `services/sessions/browser/sessionsService.ts`), not the management service. The split mirrors `IEditorService.activeEditor` (the active item is owned by the view-facing service) rather than the underlying model. See [Model vs View](#model-vs-view-session-services).
 
@@ -82,6 +83,14 @@ focus a slot:   part.onDidFocusSession → view.setActive → updates active vis
 ```
 
 The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
+
+The Agents Window overrides the shared `IWorkspaceFolderLabelService` with a session-aware
+implementation. It matches projected workspace-folder URIs against the active session exposed by
+`ISessionsService` so editor breadcrumbs can use repository identity while the Files workspace root
+retains its verbose repository-and-branch label. The label service is delayed and consumed when
+`BreadcrumbsControl.update()` creates a model for an active file, after editor-part construction.
+When the active session does not own the projected folder, it falls back to sessions aggregated by
+`ISessionsManagementService`.
 
 User selections in the Agents-window mode picker report the shared `chat.modeChange` telemetry event. Agent Host execution-mode transitions (`interactive`, `plan`, and `autopilot`) are reported separately as `agentHost.executionModeChanged`.
 

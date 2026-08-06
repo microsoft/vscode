@@ -647,6 +647,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			additionalDirectories,
 			systemMessage,
 			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
+			largeOutput: {
+				maxSizeBytes: 8 * 1024,
+			},
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],
