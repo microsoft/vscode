@@ -39,6 +39,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { createEditorTypeActions, getAvailableEditorTypes } from './editorTypePicker.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { swallowMiddleClickPaste } from './swallowMiddleClickPaste.js';
 import { hash } from '../../../../base/common/hash.js';
 import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
@@ -414,12 +415,20 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}));
 
-		// Close empty editor group via middle mouse click
+		// Close empty editor group via middle mouse click, or open a new
+		// terminal in it when a modifier key is held
 		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
 			if (this.isEmpty && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);
 
-				this.groupsView.removeGroup(this);
+				if (e.ctrlKey || e.metaKey) {
+					// Swallow the Linux middle-click paste that the browser would
+					// otherwise deliver into the newly focused terminal input.
+					this._register(swallowMiddleClickPaste(getWindow(this.element)));
+					this.commandService.executeCommand('workbench.action.createTerminalEditor');
+				} else {
+					this.groupsView.removeGroup(this);
+				}
 			}
 		}));
 	}
