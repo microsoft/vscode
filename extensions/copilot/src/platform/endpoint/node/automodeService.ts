@@ -22,6 +22,7 @@ import { IChatEndpoint } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isAutoModeTier, isSelectableAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
 import { ICAPIClientService } from '../common/capiClient';
 import type { IChatModelCapabilities, IChatModelInformation } from '../common/endpointProvider';
 import { AutoChatEndpoint } from './autoChatEndpoint';
@@ -42,6 +43,8 @@ interface AutoV2CacheEntry {
 	/** UNIX seconds at which `sessionToken` expires. */
 	expiresAt: number;
 	lastRoutedPrompt?: string;
+	/** Routing profile the session was resolved with; a change re-routes. */
+	tier: AutoModeTier;
 	turnCount: number;
 	needsReEval: boolean;
 }
@@ -118,6 +121,9 @@ class AutoModeTokenBank extends Disposable {
 	}
 }
 
+/** Inline surfaces trade routing depth for latency, so they all ride the same tier. */
+const inlineChatLocations: ReadonlySet<ChatLocation> = new Set([ChatLocation.Editor, ChatLocation.Terminal, ChatLocation.Notebook]);
+
 /**
  * The subset of {@link ChatRequest} auto mode reads when routing. Callers that
  * have a real `ChatRequest` pass it directly; callers that do not (e.g. the
@@ -131,6 +137,8 @@ export interface IAutoModeRoutingRequest {
 	readonly sessionId?: string;
 	readonly sessionResource?: { toString(): string };
 	readonly references?: readonly { readonly value: unknown }[];
+	/** The picker configuration for the Auto model, which carries the selected tier. */
+	readonly modelConfiguration?: { readonly [key: string]: unknown };
 }
 
 export interface AutoModeRoutingDecision {
@@ -168,6 +176,12 @@ export interface IAutomodeService {
 	 * this issues a one-time probe with a placeholder prompt.
 	 */
 	getAutoPickerMetadata(): Promise<AutoModePickerMetadata | undefined>;
+
+	/**
+	 * Whether routing goes through `POST /auto`. Tiers are a V2-only concept, so
+	 * the picker must not offer them while the legacy flow is in use.
+	 */
+	isAutoV2Enabled(): boolean;
 
 	/**
 	 * Returns the routing decision from the last call to {@link resolveAutoModeEndpoint},
@@ -291,7 +305,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (!knownEndpoints.length) {
 			throw new Error('No auto mode endpoints provided.');
 		}
-		if (!this._isAutoV2Enabled()) {
+		if (!this.isAutoV2Enabled()) {
 			return this.resolveAutoModeEndpoint(undefined, knownEndpoints);
 		}
 		// Nothing to route without a prompt: wrap a representative endpoint for
@@ -304,7 +318,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	async getAutoPickerMetadata(): Promise<AutoModePickerMetadata | undefined> {
-		if (this._isAutoV2Enabled()) {
+		if (this.isAutoV2Enabled()) {
 			// `/auto` requires a prompt, which the picker does not have. Prefer
 			// the discounts observed on a real request; only when none have been
 			// seen yet (first ever run) probe with a placeholder prompt.
@@ -355,7 +369,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// leak to a consumer if this call takes a non-router path.
 		this._lastRoutingDecision = undefined;
 
-		if (this._isAutoV2Enabled()) {
+		if (this.isAutoV2Enabled()) {
 			const v2Endpoint = await this._tryResolveWithAutoV2(chatRequest, knownEndpoints);
 			if (v2Endpoint) {
 				return v2Endpoint;
@@ -489,8 +503,29 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return autoEndpoint;
 	}
 
-	private _isAutoV2Enabled(): boolean {
+	isAutoV2Enabled(): boolean {
 		return !this._autoV2Unavailable && this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AutoModeV2Enabled, this._expService);
+	}
+
+	/**
+	 * The routing profile to request for a turn, in precedence order: the
+	 * internal override setting, then the pin inline surfaces trade routing
+	 * depth for latency with, then the model picker (which always resolves to a
+	 * schema default when the user has not chosen).
+	 */
+	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier {
+		const override = this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTierOverride);
+		if (override) {
+			if (isAutoModeTier(override)) {
+				return override;
+			}
+			this._logService.warn(`[AutomodeService] Ignoring auto tier override '${override}' — not one of [${autoModeTiers.join(', ')}].`);
+		}
+		if (chatRequest?.location !== undefined && inlineChatLocations.has(chatRequest.location)) {
+			return inlineChatAutoModeTier;
+		}
+		const configured = chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY];
+		return isSelectableAutoModeTier(configured) ? configured : defaultAutoModeTier;
 	}
 
 	/**
@@ -500,18 +535,22 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private async _tryResolveWithAutoV2(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint | undefined> {
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
 		const prompt = chatRequest?.prompt?.trim();
-		// `/auto` needs a prompt. Non-panel locations stay on the legacy flow,
-		// which applies their location-specific model hints.
-		if (!prompt?.length || conversationId === 'unknown' || !this._isRouterEnabled(chatRequest)) {
+		// `/auto` only needs a prompt and a conversation to key the session on;
+		// every surface routes, and the tier carries the surface's intent.
+		if (!prompt?.length || conversationId === 'unknown') {
 			return undefined;
 		}
 
+		const tier = this._resolveTier(chatRequest);
 		const entry = this._autoV2Cache.get(conversationId);
 		// The token lasts 24h with no refresh, so reuse the endpoint for the rest
 		// of the conversation. A turn that newly attaches an image must
-		// re-resolve, since the cached model was picked without that constraint.
+		// re-resolve, since the cached model was picked without that constraint,
+		// as must a turn whose tier no longer matches the routing profile the
+		// cached model was picked under.
 		const cacheUsable = entry && !entry.needsReEval && entry.turnCount > 0
 			&& !this._isAutoV2SessionExpired(entry)
+			&& entry.tier === tier
 			&& (!hasImage(chatRequest) || entry.endpoint.supportsVision);
 		if (cacheUsable) {
 			return entry.endpoint;
@@ -522,6 +561,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				hasImage: hasImage(chatRequest),
 				conversationId,
 				vscodeRequestId: chatRequest?.id,
+				tier,
 			});
 			this._setLastAutoV2Discounts(result.discounted_costs);
 
@@ -558,6 +598,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				sessionToken: result.session_token,
 				expiresAt: result.expires_at,
 				lastRoutedPrompt: prompt,
+				tier,
 				turnCount: (entry?.turnCount ?? 0) + (entry?.lastRoutedPrompt === prompt ? 0 : 1),
 				needsReEval: false,
 			});
@@ -795,6 +836,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return fallbackEndpoint;
 	}
 
+	/**
+	 * Gates the legacy router. Kept panel-only so the fallback path behaves
+	 * exactly as it did before `/auto`; V2 routes every surface.
+	 */
 	private _isRouterEnabled(chatRequest: IAutoModeRoutingRequest | undefined): boolean {
 		const isPanelChat = !chatRequest?.location || chatRequest?.location === ChatLocation.Panel;
 		return isPanelChat;

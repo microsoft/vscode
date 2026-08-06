@@ -13,6 +13,7 @@ import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError 
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
+import { AUTO_MODE_TIER_PROPERTY, defaultAutoModeTier, selectableAutoModeTiers } from '../../../platform/endpoint/common/autoModeTiers';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
@@ -44,7 +45,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -125,13 +126,16 @@ function buildAutoRoutingContext(
 	// Key by the calling extension. Like a panel conversation, the first prompt
 	// picks the model and later ones reuse it, which bounds the cache at one
 	// entry per extension.
-	return { prompt, sessionId: `vscode.lm:${options.requestInitiator ?? 'unknown'}`, references };
+	return { prompt, sessionId: `vscode.lm:${options.requestInitiator ?? 'unknown'}`, references, modelConfiguration: options.modelConfiguration };
 }
 
-// Auto model delegates to different backends, so don't expose config pickers
-function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+// Auto model delegates to different backends, so the only picker it exposes is
+// the routing tier; per-model options belong to the model it routes to.
+function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: boolean, autoTiersEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
-		return {};
+		return autoTiersEnabled
+			? { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } }
+			: {};
 	}
 
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
@@ -329,6 +333,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 		const seenFamilies = new Set<string>();
 		const preferLongContext = this._configurationService.getConfig(ConfigKey.PreferLongContext);
+		const autoTiersEnabled = this._automodeService.isAutoV2Enabled();
 
 		for (const endpoint of chatEndpoints) {
 			if (seenFamilies.has(endpoint.family) && !endpoint.showInModelPicker) {
@@ -414,7 +419,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint, preferLongContext),
+				...buildConfigurationSchema(endpoint, preferLongContext, autoTiersEnabled),
 			};
 
 			models.push(model);

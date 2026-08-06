@@ -21,12 +21,14 @@ type ChatThinkingEffortChangeClassification = {
 	owner: 'lramos15';
 	comment: 'Reporting when the thinking effort is changed';
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the thinking effort was changed for' };
+	property: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configuration property that was changed, e.g. reasoningEffort or tier for the Auto model' };
 	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous thinking effort value' };
 	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new thinking effort value' };
 };
 
 type ChatThinkingEffortChangeEvent = {
 	model: string | TelemetryTrustedValue<string>;
+	property: string;
 	fromValue: string;
 	toValue: string;
 };
@@ -79,7 +81,11 @@ export class ModelPickerConfiguration {
 				? effortConfig.schema.enumItemLabels[enumIndex]
 				: String(effortConfig.value);
 			labelParts.push(effortLabel);
-			ariaParts.push(localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
+			// The group is generic, so producers name it: Copilot's Auto model uses it
+			// for "Tier" while regular models use it for thinking effort.
+			ariaParts.push(effortConfig.schema.title
+				? localize('chat.modelPicker.navigationAriaLabel', "{0}: {1}", effortConfig.schema.title, effortLabel)
+				: localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
 		}
 		if (tokensConfig && tokensConfig.value !== undefined) {
 			const enumIndex = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
@@ -193,9 +199,9 @@ export class ModelPickerConfiguration {
 		const defaultLabel = localize('models.configDefault', "Default");
 		const appendConfigSection = (
 			group: string,
-			headerLabel: string,
+			fallbackHeaderLabel: string,
 			formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
-			logChange: (value: unknown, previousValue: string) => void,
+			logChange: (value: unknown, previousValue: string, key: string) => void,
 		): void => {
 			const config = this._getConfigProperty(group);
 			if (!config) {
@@ -206,7 +212,7 @@ export class ModelPickerConfiguration {
 			if (items.length) {
 				items.push({ kind: ActionListItemKind.Separator });
 			}
-			items.push({ kind: ActionListItemKind.Header, label: headerLabel });
+			items.push({ kind: ActionListItemKind.Header, label: config.schema.title ?? fallbackHeaderLabel });
 			for (let index = 0; index < enumValues.length; index++) {
 				const value = enumValues[index];
 				const isDefault = value === config.schema.default;
@@ -223,7 +229,7 @@ export class ModelPickerConfiguration {
 						tooltip: enumDescription ?? '',
 						label: displayLabel,
 						run: () => {
-							logChange(value, previousValue);
+							logChange(value, previousValue, config.key);
 							return configurationAccess.setModelConfiguration(modelIdentifier, { [config.key]: value });
 						}
 					},
@@ -243,8 +249,9 @@ export class ModelPickerConfiguration {
 			'navigation',
 			localize('chat.effort.header', "Thinking Effort"),
 			(value, enumLabel) => enumLabel ?? String(value),
-			(value, previousValue) => this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
+			(value, previousValue, key) => this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
 				model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+				property: key,
 				fromValue: previousValue,
 				toValue: String(value),
 			}),

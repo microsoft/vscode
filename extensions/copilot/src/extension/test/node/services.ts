@@ -217,5 +217,9 @@ class NullAutomodeService implements IAutomodeService {
 		return undefined;
 	}
 
+	isAutoV2Enabled(): boolean {
+		return false;
+	}
+
 	invalidateRouterCache(): void { }
 }

@@ -753,6 +753,13 @@ export namespace ConfigKey {
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
 
 		/**
+		 * Internal: override the routing tier sent to `POST /auto`, ignoring both the
+		 * model picker and the tier inline surfaces would otherwise be pinned to.
+		 * Unlike the picker this accepts `fast`, so evals can exercise every profile.
+		 */
+		export const AutoModeTierOverride = defineSetting<string | null>('chat.autoModeTierOverride', ConfigType.Simple, null);
+
+		/**
 		 * When enabled, periodic keep-alive probes are sent during long-running tool calls
 		 * to keep the server-side prompt cache warm.
 		 */

@@ -213,6 +213,7 @@ suite('LanguageModelAccess model info', () => {
 			resolveAutoModeEndpoint: async () => endpoint,
 			resolveAutoModePickerEndpoint: async () => endpoint,
 			getAutoPickerMetadata: async () => undefined,
+			isAutoV2Enabled: () => false,
 			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
