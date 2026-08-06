@@ -995,7 +995,6 @@ export function getDeleteSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	return session;
 }
 
-/** Deletes a session and returns the model-facing confirmation. */
 interface IRenameSessionArgs {
 	readonly session?: unknown;
 	readonly title?: unknown;
@@ -1067,40 +1066,84 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	let session: URI | undefined;
 	let chat: URI | undefined;
 
+	// --- Resolve session from the `session` argument ---
 	if (sessionInput !== undefined) {
+		// The `session` field may carry an open-session link (agent-host-session://...),
+		// a backend session URI, or (for rename_chat) an ahp-chat:// chat URI.
+		// Try standard session resolution first; if that fails, try parsing as a chat URI
+		// so callers that pass the current chat channel directly are handled gracefully.
+		const openLinkChatId = parseOpenSessionLinkChatId(sessionInput);
 		session = resolveKnownSession(sessionInput, sessions);
+		if (!session) {
+			// Could be an ahp-chat:// URI — extract the owning session.
+			const parsedFromChat = parseChatUri(sessionInput);
+			if (parsedFromChat) {
+				session = resolveKnownSession(parsedFromChat.session, sessions);
+				if (!chat) {
+					// The chat identity was carried in the `session` argument itself.
+					chat = URI.parse(sessionInput);
+				}
+			}
+		}
 		if (!session) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: session must match the URI of a known session (see list_sessions).`);
 		}
-		const openLinkChatId = parseOpenSessionLinkChatId(sessionInput);
+		// An open-link chat id takes priority over any chat already extracted above.
 		if (openLinkChatId) {
 			chat = URI.parse(buildChatUri(session.toString(), openLinkChatId));
 		}
 	}
 
+	// --- Resolve chat from the `chat` argument (only when not already set) ---
 	if (!chat && chatInput !== undefined) {
 		const openLinkChatId = parseOpenSessionLinkChatId(chatInput);
 		const parsedChatUri = parseChatUri(chatInput);
-		if (openLinkChatId && session) {
-			chat = URI.parse(buildChatUri(session.toString(), openLinkChatId));
-		} else if (parsedChatUri) {
-			chat = URI.parse(chatInput);
+		if (openLinkChatId) {
+			// Open-link with embedded chat id — session must already be resolved.
+			const linkSession = resolveKnownSession(chatInput, sessions);
 			if (!session) {
-				session = URI.parse(parsedChatUri.session);
+				session = linkSession;
+			} else if (linkSession && linkSession.toString() !== session.toString()) {
+				throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat link belongs to a different session than the one provided.`);
 			}
+			if (session) {
+				chat = URI.parse(buildChatUri(session.toString(), openLinkChatId));
+			}
+		} else if (parsedChatUri) {
+			// Full ahp-chat:// URI — validate ownership when session was also supplied.
+			const chatOwner = resolveKnownSession(parsedChatUri.session, sessions);
+			if (!session) {
+				session = chatOwner;
+			} else if (chatOwner && chatOwner.toString() !== session.toString()) {
+				throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat URI belongs to a different session than the one provided.`);
+			}
+			if (!session) {
+				throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: session must match the URI of a known session (see list_sessions).`);
+			}
+			chat = URI.parse(chatInput);
 		} else if (session) {
+			// Bare chat id — only valid once we have the owning session.
 			chat = URI.parse(buildChatUri(session.toString(), chatInput));
+		} else {
+			// Bare chat id with no session context yet — cannot resolve.
+			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: a bare chat id requires a session to be specified as well.`);
 		}
 	}
 
+	// --- Fall back to the current invocation channel ---
 	if (!session && currentChannel) {
 		session = currentSessionUri(currentChannel);
 	}
 
-	if (!chat && currentChannel) {
-		chat = URI.parse(currentChannel);
-	} else if (!chat && session) {
-		chat = URI.parse(buildDefaultChatUri(session.toString()));
+	if (!chat) {
+		// Only use currentChannel as a chat target when it actually parses as a chat URI;
+		// some agents pass the session storage URI as the channel (e.g. Claude, Codex).
+		const channelAsChat = currentChannel ? parseChatUri(currentChannel) : undefined;
+		if (channelAsChat && currentChannel) {
+			chat = URI.parse(currentChannel);
+		} else if (session) {
+			chat = URI.parse(buildDefaultChatUri(session.toString()));
+		}
 	}
 
 	if (!session || !chat) {
