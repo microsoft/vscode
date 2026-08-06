@@ -1,0 +1,9 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-list .outline-element > .custom-editor-outline-actions {
+	margin-left: auto;
+	padding: 0 0.8em 0 0.4em;
+}

@@ -33,6 +33,7 @@ import { IEditorPane } from '../../../common/editor.js';
 import { CustomEditorInput } from './customEditorInput.js';
 import { ICustomEditorOutlineItemDto, ICustomEditorOutlineProviderService } from '../common/customEditorOutlineService.js';
 import '../../../contrib/codeEditor/browser/outline/documentSymbolsTree.css'; // reuse outline-element styles
+import './media/customEditorOutline.css';
 
 // ----- Outline item wrapper -----
 
@@ -87,8 +88,7 @@ class CustomEditorOutlineRenderer implements ITreeRenderer<CustomEditorOutlineEn
 		const iconClass = dom.$('.outline-element-icon.inline');
 		container.prepend(iconClass);
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
-		const actionMenu = dom.$('.action-menu');
-		actionMenu.style.marginLeft = 'auto';
+		const actionMenu = dom.$('.action-menu.custom-editor-outline-actions');
 		container.appendChild(actionMenu);
 		return { container, iconClass, iconLabel, actionMenu, elementDisposables };
 	}

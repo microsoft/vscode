@@ -22,14 +22,14 @@ suite('OutlineService', () => {
 		let customEditorAvailable = false;
 		let standardOutlineCreates = 0;
 
-		const standardCreator: IOutlineCreator<IEditorPane, never> = {
+		const standardCreator: IOutlineCreator<IEditorPane, unknown> = {
 			matches: (candidate): candidate is IEditorPane => candidate === pane,
 			createOutline: async () => {
 				standardOutlineCreates++;
 				return undefined;
 			},
 		};
-		const customEditorCreator: IOutlineCreator<IEditorPane, never> = {
+		const customEditorCreator: IOutlineCreator<IEditorPane, unknown> = {
 			onDidChange: onDidChange.event,
 			matches: (_candidate): _candidate is IEditorPane => customEditorAvailable,
 			createOutline: async () => undefined,
