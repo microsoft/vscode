@@ -86,8 +86,8 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	) {
 		super(editorPartsView, _instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 
-		// The docked tab bar always shows multiple tabs, ignoring `workbench.editor.showTabs` (single/none).
-		this._register(this.enforcePartOptions({ showTabs: 'multiple' }));
+		// The docked tab bar has fixed geometry and must not inherit compact tab density.
+		this._register(this.enforcePartOptions({ showTabs: 'multiple', tabHeight: 'default' }));
 	}
 
 	/**

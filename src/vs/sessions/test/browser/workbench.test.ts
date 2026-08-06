@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { TestEditorParts, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
@@ -26,7 +28,7 @@ class TestDockedEditorInput extends DockedEditorInput {
 }
 
 suite('Sessions - Workbench', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Real Workbench methods invoked against a prototype-chained fake harness so
 	// the protected layout hooks dispatch to the base (grid) or SinglePaneWorkbench
@@ -1253,6 +1255,24 @@ suite('Sessions - Workbench', () => {
 		const minimumWidth = minimumWidthGetter.call({ layoutService: { isVisible: () => false } });
 
 		assert.strictEqual(minimumWidth, SESSIONS_LIST_MINIMUM_WIDTH);
+	});
+
+	test('single-pane editor part keeps default-height tabs when the window tab density is compact', () => {
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				window: { density: { editorTabHeight: 'compact' } }
+			})
+		}, disposables);
+		const editorParts = disposables.add(instantiationService.createInstance(TestEditorParts));
+		const editorPart = disposables.add(instantiationService.createInstance(SinglePaneMainEditorPart, editorParts));
+
+		assert.deepStrictEqual({
+			showTabs: editorPart.partOptions.showTabs,
+			tabHeight: editorPart.partOptions.tabHeight,
+		}, {
+			showTabs: 'multiple',
+			tabHeight: 'default',
+		});
 	});
 
 	test('single-pane editor part hosts breadcrumbs in the group header (scoped to the Agents Window)', () => {
