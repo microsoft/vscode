@@ -39,7 +39,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -52,6 +52,7 @@ import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriF
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatInputNoticeHubService } from '../widget/input/chatInputNoticeHub.js';
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatMode, IChatMode } from '../../common/chatModes.js';
@@ -1067,33 +1068,36 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class FocusTipAction extends Action2 {
+	registerAction2(class FocusNoticeAction extends Action2 {
+		// Kept as `focusTip` so existing keybindings and user settings continue to work.
 		static readonly ID = 'workbench.action.chat.focusTip';
 
 		constructor() {
 			super({
-				id: FocusTipAction.ID,
-				title: localize2('interactiveSession.focusTip.label', "Chat: Toggle Focus Between Tip and Input"),
+				id: FocusNoticeAction.ID,
+				title: localize2('interactiveSession.focusNotice.label', "Chat: Toggle Focus Between Notice and Input"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				precondition: ChatContextKeys.inChatSession,
+				// The Agents composer is not a chat widget, so it never sets
+				// `inChatSession`; gate on the window instead so the shortcut works there.
+				precondition: ContextKeyExpr.or(ChatContextKeys.inChatSession, IsSessionsWindowContext),
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 					when: ContextKeyExpr.or(
 						ChatContextKeys.inChatSession,
-						ChatContextKeys.inChatTip
+						ChatContextKeys.inChatTip,
+						IsSessionsWindowContext
 					),
 				}]
 			});
 		}
 
 		run(accessor: ServicesAccessor): void {
-			const widgetService = accessor.get(IChatWidgetService);
-			const widget = widgetService.lastFocusedWidget;
-
-			if (!widget || !widget.toggleTipFocus()) {
-				alert(localize('chat.tip.focusUnavailable', "No chat tip."));
+			// Resolved through the notice hub rather than the chat widget service so
+			// this also works in the Agents window, whose composer is not a chat widget.
+			if (!accessor.get(IChatInputNoticeHubService).toggleNoticeFocus()) {
+				alert(localize('chat.notice.focusUnavailable', "No chat notice."));
 			}
 		}
 	});

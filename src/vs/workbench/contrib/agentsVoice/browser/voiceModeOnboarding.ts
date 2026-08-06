@@ -23,7 +23,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, CHAT_INPUT_INTRODUCTION_GROUP, IChatInputOnboardingBanner, IChatInputOnboardingContext, IChatInputOnboardingHostOptions } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, asCssVariableWithDefault, selectBackground, selectListBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -1165,7 +1165,7 @@ export interface IVoiceModeOnboardingService {
 	 * Passed explicitly because `focusRoot` is a container, not a control - the
 	 * host knows where its caret belongs and this service does not.
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 
 	/**
 	 * Show the introduction if the user has never seen it. Marks it as seen on
@@ -1195,11 +1195,12 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: AgentsVoiceStorageKeys.IntroBannerShown,
 			hostClass: 'has-voice-mode-onboarding',
+			exclusionGroup: CHAT_INPUT_INTRODUCTION_GROUP,
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, focus, tipContainer, onDidChangeVisible);
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
+		return this.onboarding.registerHost(options);
 	}
 
 	showIfNeeded(): void {

@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner } from '../widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, CHAT_INPUT_INTRODUCTION_GROUP, IChatInputOnboardingBanner, IChatInputOnboardingHostOptions } from '../widget/input/chatInputOnboarding.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -866,7 +866,7 @@ export interface IDictationOnboardingService {
 	 * @param focusRoot the element whose focus marks this host as the active one
 	 * (typically the chat input part the container lives in).
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 
 	/**
 	 * Show the card alongside the user's first dictation. Dictation starts
@@ -908,11 +908,12 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: DICTATION_INTRO_SHOWN_KEY,
 			hostClass: 'has-dictation-onboarding',
+			exclusionGroup: CHAT_INPUT_INTRODUCTION_GROUP,
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, undefined, tipContainer, onDidChangeVisible);
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
+		return this.onboarding.registerHost(options);
 	}
 
 	showIfNeeded(): boolean {

@@ -39,8 +39,7 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback
 import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedbackAttachmentEntry.js';
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ChatTipContentPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatTipContentPart.js';
-import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
+import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -53,11 +52,9 @@ export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
-	private readonly _chatTipPart = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
 	private _chatTipContainer: HTMLElement | undefined;
 	private _isChatTipSessionInitialized = false;
-	private _isInputOnboardingVisible = false;
-	private _isInputNotificationVisible = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
@@ -187,9 +184,6 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
-			getInputOnboardingTipContainer: () => this._chatTipContainer,
-			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
-			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -206,7 +200,7 @@ export class NewChatWidget extends Disposable {
 		// (which this composer is not registered with).
 		this._register(this.openerService.registerOpener({
 			open: async (resource: URI | string): Promise<boolean> => {
-				if (!this._chatTipPart.value) {
+				if (!this._chatTipPresenter.value?.current) {
 					return false;
 				}
 				const link = typeof resource === 'string' ? resource : resource.toString();
@@ -343,9 +337,33 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
-		this._chatTipContainer = dom.append(chatWidgetContent, dom.$('.chat-getting-started-tip-container'));
-		this._renderChatTip();
 		this._newChatInput.render(chatWidgetContent, parent);
+
+		// The tip lives in the input's notice slot, so the presenter is created
+		// after the input has rendered it.
+		this._chatTipContainer = this._newChatInput.gettingStartedTipContainerElement;
+		this._chatTipPresenter.value = this._chatTipContainer && this.instantiationService.createInstance(
+			ChatInputTipPresenter,
+			{
+				container: this._chatTipContainer,
+				// Reset tip rotation the first time this composer becomes the only
+				// foreground surface, so a returning user gets a fresh tip.
+				onBeforeUpdate: () => {
+					if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
+						this._isChatTipSessionInitialized = false;
+					} else if (!this._isChatTipSessionInitialized) {
+						this._isChatTipSessionInitialized = true;
+						this.chatTipService.resetSession();
+					}
+				},
+				// No tip in the no-agent-host empty state: there is no usable composer.
+				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
+					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
+				focusInput: () => this.focusInput(),
+			},
+			this._newChatInput.noticeHost,
+		);
+		this._renderChatTip();
 
 		// Quick chat composer: hide the workspace picker for workspace-less
 		// drafts (there is nothing to pick) and reflect it in the picker-visible
@@ -399,84 +417,11 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderChatTip(): void {
-		if (!this._chatTipContainer) {
-			return;
-		}
-		if (this.isChatTipSuppressed()) {
-			this._clearChatTip();
-			return;
-		}
-		// Don't show a tip in the no-agent-host empty state — there is no usable composer.
-		if (this._chatTipContainer.parentElement?.classList.contains('no-agent-host')) {
-			return;
-		}
-		if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
-			this._isChatTipSessionInitialized = false;
-			this._clearChatTip();
-			return;
-		}
-		if (!this._isChatTipSessionInitialized) {
-			this._isChatTipSessionInitialized = true;
-			this.chatTipService.resetSession();
-		}
-
-		const tip = this.chatTipService.getWelcomeTip(this.contextKeyService);
-		if (!tip) {
-			this._clearChatTip();
-			return;
-		}
-		if (this._chatTipPart.value) {
-			dom.setVisibility(true, this._chatTipContainer);
-			return;
-		}
-
-		const store = new DisposableStore();
-		const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
-		const tipPart = store.add(this.instantiationService.createInstance(ChatTipContentPart, tip, renderer));
-		store.add(tipPart.onDidHide(() => {
-			this._clearChatTip();
-			// Restore focus to the input after the tip DOM is removed so keyboard
-			// focus is not stranded on <body> (matches ChatWidget behaviour).
-			this.focusInput();
-		}));
-		this._chatTipPart.value = store;
-		dom.clearNode(this._chatTipContainer);
-		this._chatTipContainer.appendChild(tipPart.domNode);
-		dom.setVisibility(true, this._chatTipContainer);
+		this._chatTipPresenter.value?.update();
 	}
 
 	private _clearChatTip(): void {
-		this._chatTipPart.clear();
-		if (this._chatTipContainer) {
-			dom.clearNode(this._chatTipContainer);
-			dom.setVisibility(false, this._chatTipContainer);
-		}
-	}
-
-	private isInputOnboardingVisible(): boolean {
-		return this._isInputOnboardingVisible;
-	}
-
-	private setInputOnboardingVisible(visible: boolean): void {
-		this._isInputOnboardingVisible = visible;
-		this.updateChatTipVisibility();
-	}
-
-	private setInputNotificationVisible(visible: boolean): void {
-		this._isInputNotificationVisible = visible;
-		this.updateChatTipVisibility();
-	}
-
-	private isChatTipSuppressed(): boolean {
-		return this.isInputOnboardingVisible() || this._isInputNotificationVisible;
-	}
-
-	private updateChatTipVisibility(): void {
-		if (this.isChatTipSuppressed()) {
-			this._clearChatTip();
-		} else {
-			this._renderChatTip();
-		}
+		this._chatTipPresenter.value?.clear();
 	}
 
 	/**

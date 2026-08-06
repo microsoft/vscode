@@ -428,6 +428,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	getWelcomeTip(contextKeyService: IContextKeyService): IChatTip | undefined {
+		// Mode usage is persisted permanently, so only surfaces that can actually
+		// show a tip may record it. Inline chat, request-edit and dialog inputs
+		// would otherwise mark modes as used from a scope the user never saw a
+		// tip in, silently excluding tips forever.
+		if (!this._isChatLocation(contextKeyService)) {
+			return undefined;
+		}
+
 		this._createSlashCommandsUsageTracker.syncContextKey(contextKeyService);
 		// Always record the current mode so that mode-based exclusions are
 		// persisted even on stable-rerender paths (e.g. user switches to Plan
@@ -454,11 +462,6 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		// Tips are only relevant after sign-in has completed.
 		if (this._chatEntitlementService.entitlement === ChatEntitlement.Unknown && !this._chatEntitlementService.hasByokModels) {
-			return undefined;
-		}
-
-		// Only show tips in the main chat panel, not in terminal/editor inline chat
-		if (!this._isChatLocation(contextKeyService)) {
 			return undefined;
 		}
 

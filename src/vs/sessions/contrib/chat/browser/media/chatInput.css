@@ -11,15 +11,13 @@
 	display: none;
 }
 
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) {
+/* The tip sits in the input's notice slot, attached to the top of the input. */
+.new-chat-input-container > .chat-getting-started-tip-container {
+	width: 100%;
 	margin-bottom: 0;
 }
 
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container {
-	margin-top: 0;
-}
-
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container .new-chat-input-area {
+.new-chat-input-container:has(> .chat-getting-started-tip-container > .chat-tip-widget) .new-chat-input-area {
 	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 }
 

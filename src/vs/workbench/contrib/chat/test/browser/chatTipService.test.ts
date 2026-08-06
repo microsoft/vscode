@@ -30,6 +30,7 @@ import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { storeSelectedModel } from '../../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { TipEligibilityStorageKeys } from '../../browser/chatTipStorageKeys.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
@@ -572,6 +573,29 @@ suite('ChatTipService', () => {
 
 		const tip = service.getWelcomeTip(editorContextKeyService);
 		assert.strictEqual(tip, undefined, 'Should not return a tip in editor inline chat');
+	});
+
+	test('does not persist mode usage from a surface that cannot show a tip', () => {
+		const service = createService();
+
+		// An inline chat scope must not mark its mode as used: the exclusion is
+		// permanent and would silently suppress the tip in the real chat panel.
+		const inlineContextKeyService = new MockContextKeyServiceWithRulesMatching();
+		inlineContextKeyService.createKey(ChatContextKeys.location.key, ChatAgentLocation.EditorInline);
+		inlineContextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		inlineContextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
+		service.getWelcomeTip(inlineContextKeyService);
+
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
+
+		assert.strictEqual(
+			storageService.get(TipEligibilityStorageKeys.UsedModes, StorageScope.APPLICATION),
+			undefined,
+			'Inline chat must not persist mode usage');
+		assert.ok(service.getWelcomeTip(contextKeyService), 'The chat panel should still be offered a tip');
 	});
 
 	test('returns a tip when foreground session count is exactly one', () => {
