@@ -372,6 +372,7 @@ export class MockAgent implements IAgent {
  */
 export const PRE_EXISTING_SESSION_URI = AgentSession.uri('mock', 'pre-existing-session');
 
+/** @skipMangle */
 export class ScriptedMockAgent implements IAgent {
 	readonly id: AgentProvider = 'mock';
 

@@ -81,17 +81,17 @@ export function isExpired(entry: { token: { expires_in?: number }; created_at: n
  */
 export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base: TBase): TBase {
 	return class XaaAuthenticationProvider extends Base {
-		private readonly _resourceTokens = new Map<string, IResourceCacheEntry>();
+		readonly _resourceTokens = new Map<string, IResourceCacheEntry>();
 		/**
 		 * Per-(resource, client_id) client secrets. Lazily populated via the main-thread
 		 * prompt. Keyed by both the resource indicator and the client_id because two
 		 * different resources may legitimately share a client_id but require different
 		 * secrets — keying by client_id alone could send the wrong secret to the wrong AS.
 		 */
-		private readonly _resourceClientSecrets = new Map<string, string>();
+		readonly _resourceClientSecrets = new Map<string, string>();
 
 		/** Compound key for {@link _resourceClientSecrets}, matching main-thread secret storage scoping. */
-		private _resourceClientSecretKey(resource: string, clientId: string): string {
+		_resourceClientSecretKey(resource: string, clientId: string): string {
 			return `${resource}|${clientId}`;
 		}
 
@@ -193,7 +193,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 		 *
 		 * Caches the resulting token in `_resourceTokens` so subsequent getSessions are O(1).
 		 */
-		private async _mintResourceToken(
+		async _mintResourceToken(
 			idpSession: vscode.AuthenticationSession,
 			scopes: string[],
 			audience: string,
@@ -289,13 +289,13 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 		 * `undefined`. Critically does NOT call `super.createSession`, so this is safe to use
 		 * from {@link getSessions}.
 		 */
-		private async _tryGetSilentIdpSession(): Promise<vscode.AuthenticationSession | undefined> {
+		async _tryGetSilentIdpSession(): Promise<vscode.AuthenticationSession | undefined> {
 			const cleanOptions: vscode.AuthenticationProviderSessionOptions = {};
 			const existing = await super.getSessions(IDP_SCOPES as string[], cleanOptions);
 			return existing.length ? existing[0] : undefined;
 		}
 
-		private async _ensureIdpSession(): Promise<vscode.AuthenticationSession> {
+		async _ensureIdpSession(): Promise<vscode.AuthenticationSession> {
 			this._logger.trace(`[XAA] _ensureIdpSession: scopes=[${IDP_SCOPES.join(' ')}] authorization_endpoint=${this._serverMetadata.authorization_endpoint}`);
 			const silent = await this._tryGetSilentIdpSession();
 			if (silent?.idToken) {
@@ -306,7 +306,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			return super.createSession([...IDP_SCOPES], {});
 		}
 
-		private async _exchangeForIdJag(idToken: string, audience: string, resource: string, scopes: string[]): Promise<string> {
+		async _exchangeForIdJag(idToken: string, audience: string, resource: string, scopes: string[]): Promise<string> {
 			const tokenEndpoint = this._serverMetadata.token_endpoint;
 			if (!tokenEndpoint) {
 				throw new Error('Issuer metadata is missing token_endpoint; cannot perform XAA token exchange.');
@@ -334,7 +334,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			return issued;
 		}
 
-		private async _discoverResourceTokenEndpoint(audience: string): Promise<string> {
+		async _discoverResourceTokenEndpoint(audience: string): Promise<string> {
 			const { metadata, errors } = await fetchAuthorizationServerMetadata(audience);
 			if (!metadata?.token_endpoint) {
 				throw new Error(`Failed to discover resource authorization server metadata for '${audience}': ${errors.map(e => e.message).join('; ') || 'no token_endpoint in metadata'}`);
@@ -342,7 +342,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			return metadata.token_endpoint;
 		}
 
-		private async _redeemAtResource(tokenEndpoint: string, idJag: string, resource: string, scopes: string[], resourceClientId: string, resourceClientSecret: string | undefined): Promise<IAuthorizationTokenResponse> {
+		async _redeemAtResource(tokenEndpoint: string, idJag: string, resource: string, scopes: string[], resourceClientId: string, resourceClientSecret: string | undefined): Promise<IAuthorizationTokenResponse> {
 			const body = buildResourceRedemptionBody(resourceClientId, resourceClientSecret, idJag, resource, scopes);
 			this._logger.trace(`[XAA] POST ${tokenEndpoint} (ID-JAG redemption) client_id=${resourceClientId} resource=${resource} scope=${scopes.join(' ')}`);
 			const response = await fetch(tokenEndpoint, {

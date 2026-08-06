@@ -5578,7 +5578,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		// with `deny` and clears the entry.
 		const { ctx, canUseTool, sessionUri } = await materialize();
 
-		const session = ctx.agent['_sessions'].get(AgentSession.id(sessionUri))?.defaultChat;
+		const session = (ctx.agent as ClaudeAgent).getSessionForTesting(sessionUri);
 		assert.ok(session, 'session is materialized');
 
 		const ac = new AbortController();

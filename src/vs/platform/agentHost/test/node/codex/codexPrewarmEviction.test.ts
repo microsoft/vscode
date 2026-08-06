@@ -209,19 +209,19 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 	const agent = await createAgent(disposables);
 	const peer = disposables.add(createTestPeer());
 	const client = new CodexAppServerClient(peer.transport);
-	agent['_connection'] = {
+	(agent as unknown as { _connection: unknown })['_connection'] = {
 		kind: 'ready',
 		client,
 		usageSource: 'github',
 		child: { kill: () => true },
 	} as never;
-	agent['_refreshSkillHookCustomizations'] = async () => { };
-	agent['_refreshSkillExtraRoots'] = async () => { };
+	(agent as unknown as { _refreshSkillHookCustomizations: () => Promise<void> })['_refreshSkillHookCustomizations'] = async () => { };
+	(agent as unknown as { _refreshSkillExtraRoots: () => Promise<void> })['_refreshSkillExtraRoots'] = async () => { };
 
 	const folder = URI.file('/repo/folder');
 	const worktree = URI.file('/repo/worktree');
 	const { session } = await agent.createSession({ workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
-	const entry = agent['_sessions'].get(AgentSession.id(session))!;
+	const entry = (agent as unknown as { _sessions: { get(id: string): { defaultChat: unknown, materializePromise: unknown, threadId: string, workingDirectory: { fsPath: string } | undefined } | undefined } })['_sessions'].get(AgentSession.id(session))!;
 	const folderStart = await readNextRequest(peer.outbound);
 
 	try {
@@ -258,8 +258,8 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 			],
 			threadId: entry.threadId,
 			workingDirectory: entry.workingDirectory?.fsPath,
-			folderThreadRouted: agent['_sessionIdByThreadId'].has('thread-folder'),
-			worktreeThreadRouted: agent['_sessionIdByThreadId'].has('thread-worktree'),
+			folderThreadRouted: (agent as unknown as { _sessionIdByThreadId: { has(id: string): boolean } })['_sessionIdByThreadId'].has('thread-folder'),
+			worktreeThreadRouted: (agent as unknown as { _sessionIdByThreadId: { has(id: string): boolean } })['_sessionIdByThreadId'].has('thread-worktree'),
 		}, {
 			requests: [
 				{ method: 'thread/start', cwd: folder.fsPath },

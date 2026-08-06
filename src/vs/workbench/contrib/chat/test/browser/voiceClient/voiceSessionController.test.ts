@@ -4754,22 +4754,22 @@ suite('VoiceSessionController live transcription', () => {
 		});
 
 		const controller = store.add(instantiationService.createInstance(VoiceSessionController));
-		controller['_isConnected'].set(true, undefined);
-		controller['_userLogin'] = 'test-user';
+		(controller as unknown as { _isConnected: { set(v: boolean, e: undefined): void } })['_isConnected'].set(true, undefined);
+		(controller as unknown as { _userLogin: string })['_userLogin'] = 'test-user';
 		return { controller, persisted };
 	}
 
 	function beginTurn(controller: VoiceSessionController): string {
 		controller.pttDown();
-		return controller['_pttCurrentTurnId'];
+		return (controller as unknown as { _pttCurrentTurnId: string })['_pttCurrentTurnId'];
 	}
 
 	function finishTurn(controller: VoiceSessionController): void {
-		controller['_finishPtt']('local');
+		(controller as unknown as { _finishPtt(ctx: string): void })['_finishPtt']('local');
 	}
 
 	function transcribe(controller: VoiceSessionController, event: IVoiceTranscription): void {
-		controller['_handleTranscription'](event);
+		(controller as unknown as { _handleTranscription(e: IVoiceTranscription): void })['_handleTranscription'](event);
 	}
 
 	test('replaces cumulative partials and final exactly once', () => {
@@ -4820,7 +4820,7 @@ suite('VoiceSessionController live transcription', () => {
 		const turnId = beginTurn(controller);
 
 		transcribe(controller, { text: 'run the tests', committed: 'run ', status: 'partial', turnId, revision: 1 });
-		controller['_handleTurnAutoEnded']({ reason: 'vad_silence', turnId });
+		(controller as unknown as { _handleTurnAutoEnded(e: unknown): void })['_handleTurnAutoEnded']({ reason: 'vad_silence', turnId });
 		transcribe(controller, { text: 'run the focused tests', status: 'final', turnId, revision: 2 });
 
 		assert.deepStrictEqual({
@@ -4867,13 +4867,13 @@ suite('VoiceSessionController live transcription', () => {
 		const { controller, persisted } = createController();
 		const bargeInTurnId = beginTurn(controller);
 		finishTurn(controller);
-		controller['_handleBargeIn']({ turnId: 'new-turn', interruptedTurnId: bargeInTurnId });
+		(controller as unknown as { _handleBargeIn(e: unknown): void })['_handleBargeIn']({ turnId: 'new-turn', interruptedTurnId: bargeInTurnId });
 		transcribe(controller, { text: 'after barge-in', status: 'final', turnId: bargeInTurnId, revision: 1 });
 
-		controller['_isConnected'].set(true, undefined);
+		(controller as unknown as { _isConnected: { set(v: boolean, e: undefined): void } })['_isConnected'].set(true, undefined);
 		const reconnectTurnId = beginTurn(controller);
 		finishTurn(controller);
-		controller['_onConnectionLost']();
+		(controller as unknown as { _onConnectionLost(): void })['_onConnectionLost']();
 		transcribe(controller, { text: 'after reconnect', status: 'final', turnId: reconnectTurnId, revision: 1 });
 
 		assert.deepStrictEqual(persisted, []);
