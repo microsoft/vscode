@@ -437,6 +437,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const host: IChatSessionRoutingHost = {
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
+			getVoiceFollowupSessionResource: () => this.voiceSessionController.getLastSpokenResponseSession(),
 			onDidResolveRoute: (resource, kind) => {
 				this.commandService.executeCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, resource?.toString(), kind).catch(() => { });
 			},

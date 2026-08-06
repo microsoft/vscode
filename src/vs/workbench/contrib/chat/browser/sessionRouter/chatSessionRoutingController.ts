@@ -210,6 +210,8 @@ export interface IChatSessionRoutingHost {
 	readonly widget: ChatWidget;
 	/** Resource of the host's own scratch session, excluded from routing candidates. */
 	getOwnSessionResource(): URI | undefined;
+	/** Existing session that a voice follow-up should continue without re-routing. */
+	getVoiceFollowupSessionResource?(): URI | undefined;
 	/**
 	 * Insert the advisory badge into the host DOM near the input.
 	 * If the host has no surface to place it, leave the badge disconnected and
@@ -301,6 +303,17 @@ export class ChatSessionRoutingController extends Disposable {
 			isVoiceModeInput,
 			attachedContext: attachedContext?.length ? [...attachedContext] : undefined,
 		};
+		const followupResource = isVoiceModeInput ? this.host.getVoiceFollowupSessionResource?.() : undefined;
+		if (followupResource && followupResource.toString() !== this.host.getOwnSessionResource()?.toString()) {
+			const followupTarget: PendingTarget = {
+				kind: 'session',
+				sessionId: followupResource.toString(),
+				label: this.chatService.getSession(followupResource)?.title || localize('chatSessionRouting.currentSession', "Current session"),
+				confidence: 1,
+			};
+			this._dispatchImmediately(followupTarget, query, submittedAttachmentIds, utterance, requestOptions, cts);
+			return true;
+		}
 
 		const candidates = await this._collectCandidateSessions(token);
 		if (token.isCancellationRequested) {
@@ -327,23 +340,27 @@ export class ChatSessionRoutingController extends Disposable {
 		const candidateIds = new Set(enriched.map(candidate => candidate.sessionId));
 		const hasSessionChoice = results.some(result => candidateIds.has(result.sessionId) && isHighConfidenceSessionRoute(result));
 		if (target.kind === 'new' && !hasSessionChoice) {
-			this._submitDraftListeners.clear();
-			this._setSubmissionPhase('dispatching');
-			void this._dispatchTo(target, query, submittedAttachmentIds, utterance, requestOptions, cts.token).then(result => {
-				if (this._submitCts.value !== cts) {
-					return;
-				}
-				this._setSubmissionPhase('idle');
-				if ((result.status === 'sent' || result.status === 'queued') && result.resource) {
-					this._showDeliveryConfirmation(target.label, result);
-				} else {
-					this._showDispatchFailure(target.label);
-				}
-			});
+			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
 		this._beginPendingSend(target, newSessionTarget, results, enriched, query, submittedAttachmentIds, utterance, requestOptions, cts);
 		return true;
+	}
+
+	private _dispatchImmediately(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, cts: CancellationTokenSource): void {
+		this._submitDraftListeners.clear();
+		this._setSubmissionPhase('dispatching');
+		void this._dispatchTo(target, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts.token).then(result => {
+			if (this._submitCts.value !== cts) {
+				return;
+			}
+			this._setSubmissionPhase('idle');
+			if ((result.status === 'sent' || result.status === 'queued') && result.resource) {
+				this._showDeliveryConfirmation(target.label, result);
+			} else {
+				this._showDispatchFailure(target.label);
+			}
+		});
 	}
 
 	/** Cancel any in-flight submission and remove the pending badge. */

@@ -195,6 +195,8 @@ export interface IVoiceSessionController {
 	readonly hasDraftTarget: IObservable<boolean>;
 	/** Whether the floating omni input, rather than a standard chat input, owns Voice Mode. */
 	readonly omniInputActive: IObservable<boolean>;
+	/** Session that produced the response most recently spoken to the user. */
+	getLastSpokenResponseSession(): URI | undefined;
 
 	connect(window: Window & typeof globalThis): Promise<void>;
 	/** Update the OS window whose focus controls capture and hands-free listening. */
@@ -451,6 +453,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// {@link _markNarrationHeard}).
 	private _currentPlaybackResponseId: string | undefined;
 	private _currentPlaybackNarration: IPlaybackNarration | undefined;
+	private _lastSpokenResponseSessionId: string | undefined;
 	// True once the currently-playing response has received its final audio
 	// chunk. A same-session frame arriving after this marks a NEW response and
 	// must be serialized (queued) rather than fast-pathed, or its audio would be
@@ -2139,6 +2142,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._currentPlaybackSessionId = null;
 		this._currentPlaybackResponseId = undefined;
 		this._currentPlaybackNarration = undefined;
+		this._lastSpokenResponseSessionId = undefined;
 		this._isProcessingQueue = false;
 		this._suppressIncomingAudio = false;
 		this._interruptedAudioIds.clear();
@@ -2821,6 +2825,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._targetOmniRoute = resource ? omniRoute : undefined;
 		this._hasDraftTarget.set(false, undefined);
 		this._targetSession.set(resource, undefined);
+	}
+
+	getLastSpokenResponseSession(): URI | undefined {
+		if (!this._lastSpokenResponseSessionId) {
+			return undefined;
+		}
+		try {
+			return URI.parse(this._lastSpokenResponseSessionId);
+		} catch {
+			return undefined;
+		}
 	}
 
 	setDraftTarget(): void {
@@ -5382,6 +5397,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// (onPlaybackStopped never fires), deadlocking every other
 			// session's queued audio.
 			this._currentPlaybackSessionId = sessionId;
+			if (sessionId && !isCheckpointNarration) {
+				this._lastSpokenResponseSessionId = this._sessionKey(sessionId);
+			}
 			// Track the response now occupying the slot so onPlaybackStopped can
 			// mark it heard once its audio truly finishes (not merely queued).
 			this._currentPlaybackResponseId = responseId;

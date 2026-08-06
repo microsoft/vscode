@@ -3932,10 +3932,12 @@ suite('VoiceSessionController', () => {
 
 		assert.deepStrictEqual({
 			playedAudio: ttsPlaybackService.playedAudio,
+			followupSession: controller.getLastSpokenResponseSession()?.toString(),
 			deferredResponses: (Reflect.get(controller, '_deferredResponses') as Map<string, unknown>).size,
 			pendingResponses: (Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).size,
 		}, {
 			playedAudio: ['omni response'],
+			followupSession: resource.toString(),
 			deferredResponses: 0,
 			pendingResponses: 0,
 		});
