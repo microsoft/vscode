@@ -48,6 +48,7 @@ export class PlaywrightDriver {
 
 	private static traceCounter = 1;
 	private static screenShotCounter = 1;
+	private static reloadMarkerCounter = 1;
 
 	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
 		cmd: 'Meta',
@@ -434,6 +435,25 @@ export class PlaywrightDriver {
 
 	async didFinishLoad(): Promise<void> {
 		await this.whenLoaded;
+	}
+
+	/**
+	 * Stamps the current document so that {@link waitForWindowReload} can tell the
+	 * document apart from the one that a window reload will bring up.
+	 */
+	async markWindowForReload(): Promise<string> {
+		const marker = `vscodeSmokeTestReloadMarker${PlaywrightDriver.reloadMarkerCounter++}`;
+		await this.page.evaluate(m => { (window as unknown as Record<string, boolean>)[m] = true; }, marker);
+
+		return marker;
+	}
+
+	/**
+	 * Waits until the document that was stamped via {@link markWindowForReload} is
+	 * gone, meaning the window reload actually took effect.
+	 */
+	async waitForWindowReload(marker: string, timeout: number = 60_000): Promise<void> {
+		await this.page.waitForFunction(m => !(window as unknown as Record<string, boolean>)[m], marker, { timeout, polling: 100 });
 	}
 
 	private _cdpSession: playwright.CDPSession | undefined;

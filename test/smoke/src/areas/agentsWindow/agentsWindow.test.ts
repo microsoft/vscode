@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 
 // Selector for the send button in the Agents Window new-session homepage.
@@ -128,8 +128,9 @@ async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefine
 		'github.copilot.advanced.debug.overrideAuthType': 'token',
 		'chat.allowAnonymousAccess': true,
 		'github.copilot.chat.githubMcpServer.enabled': false,
-		// This suite exercises the extension-host session providers directly.
-		'chat.agentHost.enabled': false,
+		'chat.agentHost.defaultSessionsProvider': false,
+		'chat.agents.copilotCli.hideExtensionHost': false,
+		'chat.agents.claude.preferAgentHost': false,
 		'sessions.chat.localAgent.enabled': true,
 		'github.copilot.chat.cli.sandbox.enabled': 'on',
 		'github.copilot.chat.cli.sessionEventLogging.enabled': true,
@@ -690,7 +691,12 @@ export function setup(logger: Logger) {
 			}
 		});
 
-		it('forwards the selected reasoning effort and context size from the Local session', async function () {
+		// Warm up and select the mock model once for the whole suite: cold-starting
+		// the Local session's copilot-chat exthost and registering the models is
+		// expensive, and both tests need the same starting point. Selecting the
+		// model does not touch its configuration, so the default-state test below
+		// still sees a pristine picker.
+		before(async function () {
 			const app = this.app as Application;
 
 			try {
@@ -707,7 +713,51 @@ export function setup(logger: Logger) {
 				// Select the mock model that exposes both configuration pickers in
 				// the active session input.
 				await app.workbench.agentsWindow.selectModel(MODEL_CONFIG_MODEL_NAME);
+			} catch (error) {
+				logger.log(`[Agents Window/model-config] SETUP FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (model configuration)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
 
+		// Must run before any test selects an option: the model configuration is
+		// sticky, so the pristine defaults are only observable on the first test of
+		// the suite.
+		it('shows the schema defaults and every configured option in the model configuration picker', async function () {
+			const app = this.app as Application;
+
+			try {
+				// The button summarizes the *effective* configuration, which before any
+				// selection is the schema default of each group.
+				const defaultLabel = await app.workbench.agentsWindow.getModelConfigLabel();
+				assert.strictEqual(
+					defaultLabel.replace(/\s+/g, ' ').trim(),
+					MOCK_CONFIG_MODEL_DEFAULT_LABEL,
+					`Expected the untouched model-config button to show '${MOCK_CONFIG_MODEL_DEFAULT_LABEL}', got '${defaultLabel}'.`
+				);
+
+				await app.workbench.agentsWindow.openModelConfig();
+				const sections = await app.workbench.agentsWindow.getModelConfigSections();
+				await app.workbench.agentsWindow.closeModelConfig();
+
+				assert.deepStrictEqual(
+					sections,
+					MOCK_CONFIG_MODEL_DEFAULT_SECTIONS,
+					`Model configuration dropdown did not list every option declared by '${MODEL_CONFIG_MODEL_NAME}' with its pristine defaults.`
+				);
+
+				logger.log(`[Agents Window/model-config] defaults verified: label='${defaultLabel}', sections=${JSON.stringify(sections)}`);
+			} catch (error) {
+				logger.log(`[Agents Window/model-config] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (model configuration)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+
+		it('forwards the selected reasoning effort and context size from the Local session', async function () {
+			const app = this.app as Application;
+
+			try {
 				for (const testCase of MODEL_CONFIG_CASES) {
 					logger.log(`[Agents Window/model-config] case '${testCase.name}': selecting effort='${testCase.effortLabel}', context='${testCase.contextLabel}'`);
 
@@ -1283,9 +1333,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		}));
 
 		// Pre-seed settings.json on disk into BOTH the default profile and the
-		// Agents profile. Writing settings after the workbench is up would race
-		// with AgentHostContribution’s startup (it gates on
-		// `chat.agentHost.enabled` at construction).
+		// Agents profile so Agent Host startup observes the test configuration.
 		const userDataDir = (this.app as Application).userDataPath;
 		if (userDataDir) {
 			const settings = JSON.stringify({
@@ -1297,7 +1345,6 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'http.proxySupport': 'override',
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
-				'chat.agentHost.enabled': true,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
 				// Verbose Copilot runtime logging for capturable failure diagnostics.

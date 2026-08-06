@@ -57,7 +57,7 @@ export interface IDiffStats {
 
 export const EMPTY_DIFF_STATS: IDiffStats = { files: 0, insertions: 0, deletions: 0 };
 
-/** A markdown file the preview pill can open. */
+/** A markdown file outside the workspace that the preview pill can open. */
 export interface IPreviewFile {
 	readonly uri: URI;
 	readonly kind: 'markdown';
@@ -286,7 +286,8 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
  *
  * - **Changes** — `<n> Files +ins -del` for the turn. Activating it opens the
  *   changes.
- * - **Preview** — shown when the turn created or edited a markdown file.
+ * - **Preview** — shown when the turn created or edited a markdown file outside
+ *   the current workspace.
  *   Rendered as a resource label for the primary file. Activating it opens that
  *   file; when several exist, a dropdown lists them all.
  * The data and the open actions are supplied by the {@link IChatTurnPillsModel}

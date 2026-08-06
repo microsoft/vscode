@@ -57,9 +57,8 @@ export class ContributedCustomEditors extends Disposable {
 		this._editors.clear();
 
 		for (const extension of extensions) {
-			const hasCustomEditorPriorityProposal = extension.description.enabledApiProposals?.includes('customEditorPriority') ?? false;
 			for (const webviewEditorContribution of extension.value) {
-				const priority = getPriorityFromContribution(webviewEditorContribution.priority, extension.description, hasCustomEditorPriorityProposal);
+				const priority = getPriorityFromContribution(webviewEditorContribution.priority, extension.description);
 				this.add(new CustomEditorInfo({
 					id: webviewEditorContribution.viewType,
 					displayName: webviewEditorContribution.displayName,
@@ -118,17 +117,11 @@ function normalizeStoredCustomEditorDescriptor(descriptor: StoredCustomEditorDes
 function getPriorityFromContribution(
 	contribution: ICustomEditorsExtensionPoint['priority'],
 	extension: IExtensionDescription,
-	includeDiffPriority: boolean,
 ): CustomEditorDescriptor['priority'] {
-	// The `textEditor` value drives the normal editor and keeps its historical `default` fallback when
-	// omitted. `diffEditor` does not inherit from `textEditor`: it defaults to `explicit`, so a custom
-	// editor is not used for diffs unless it explicitly opts in (which requires the
-	// `customEditorPriority` proposal).
 	const editorPriority = getSinglePriorityFromContribution(typeof contribution === 'string' ? contribution : contribution?.textEditor, extension) ?? RegisteredEditorPriority.default;
-	const readObjectField = includeDiffPriority && typeof contribution !== 'string';
 	return {
 		editor: editorPriority,
-		diff: (readObjectField ? getSinglePriorityFromContribution(contribution?.diffEditor, extension) : undefined) ?? RegisteredEditorPriority.explicit,
+		diff: (typeof contribution === 'string' ? undefined : getSinglePriorityFromContribution(contribution?.diffEditor, extension)) ?? RegisteredEditorPriority.explicit,
 	};
 }
 

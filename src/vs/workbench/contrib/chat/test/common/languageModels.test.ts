@@ -379,6 +379,24 @@ suite('LanguageModels', function () {
 		assert.strictEqual(fired, 2);
 	});
 
+	test('model visibility — bulk updates fire once', async function () {
+		await languageModels.selectLanguageModels({});
+
+		let fired = 0;
+		store.add(languageModels.onDidChangeModelVisibility(() => fired++));
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1', 'test-id-12']);
+		assert.strictEqual(fired, 1);
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], true);
+		assert.strictEqual(fired, 1);
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+		assert.strictEqual(fired, 2);
+	});
+
 	test('model visibility — hiding every model in a group hides the group', async function () {
 		await languageModels.selectLanguageModels({});
 

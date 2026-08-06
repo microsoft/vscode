@@ -67,7 +67,8 @@ export function renderChangesSummaryFileList(
 	options?: IChangesSummaryFileListOptions,
 ): IDisposable {
 	const store = new DisposableStore();
-	const list = store.add(instantiationService.createInstance(CollapsibleChangesSummaryListPool, options)).get();
+	const columnWidths: IChangesSummaryColumnWidths = { insertions: 2, deletions: 2 };
+	const list = store.add(instantiationService.createInstance(CollapsibleChangesSummaryListPool, options, columnWidths)).get();
 	const listNode = list.getHTMLElement();
 	container.appendChild(listNode.parentElement!);
 
@@ -104,6 +105,17 @@ export function renderChangesSummaryFileList(
 
 	store.add(autorun((r) => {
 		const currentDiffs = diffs.read(r);
+		let insertionsColumnCharacters = 2;
+		let deletionsColumnCharacters = 2;
+		// Widths are shared by the list so each row uses the same count columns.
+		for (const diff of currentDiffs) {
+			if (!diff.identical && !diff.isBusy) {
+				insertionsColumnCharacters = Math.max(insertionsColumnCharacters, String(diff.added).length + 1);
+				deletionsColumnCharacters = Math.max(deletionsColumnCharacters, String(diff.removed).length + 1);
+			}
+		}
+		columnWidths.insertions = insertionsColumnCharacters;
+		columnWidths.deletions = deletionsColumnCharacters;
 
 		const itemsShown = Math.min(currentDiffs.length, CHANGES_SUMMARY_MAX_ITEMS_SHOWN);
 		const height = itemsShown * CHANGES_SUMMARY_ELEMENT_HEIGHT;
@@ -278,12 +290,18 @@ interface IChatFileChangesSummaryListWrapper extends IDisposable {
 	list: WorkbenchList<IEditSessionEntryDiff>;
 }
 
+interface IChangesSummaryColumnWidths {
+	insertions: number;
+	deletions: number;
+}
+
 class CollapsibleChangesSummaryListPool extends Disposable {
 
 	private _resourcePool: ResourcePool<IChatFileChangesSummaryListWrapper>;
 
 	constructor(
 		private readonly options: IChangesSummaryFileListOptions | undefined,
+		private readonly columnWidths: IChangesSummaryColumnWidths,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
@@ -301,7 +319,7 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleChangesSummaryListDelegate(),
-			[new CollapsibleChangesSummaryListRenderer(resourceLabels, this.options)],
+			[new CollapsibleChangesSummaryListRenderer(resourceLabels, this.options, this.columnWidths)],
 			{
 				alwaysConsumeMouseWheel: false
 			}
@@ -322,6 +340,7 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 	readonly label: IResourceLabel;
 	readonly actionBar?: ActionBar;
+	readonly changesContainer: HTMLElement;
 	changesElement?: HTMLElement;
 }
 
@@ -345,14 +364,14 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 
 	constructor(
 		private labels: ResourceLabels,
-		private readonly options?: IChangesSummaryFileListOptions,
+		private readonly options: IChangesSummaryFileListOptions | undefined,
+		private readonly columnWidths: IChangesSummaryColumnWidths,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICollapsibleChangesSummaryListTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
-		// Only when a row-action provider is supplied do we add a right-aligned
-		// action bar; the row becomes a flex row so the label fills the remaining
-		// width and the actions hug the right edge.
+		// Only when a row-action provider is supplied do we add an action bar
+		// between the file label and the trailing change counts.
 		let actionBar: ActionBar | undefined;
 		if (this.options?.getRowActions) {
 			container.classList.add('chat-summary-list-row-with-actions');
@@ -362,6 +381,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 		return {
 			label,
 			actionBar,
+			changesContainer: actionBar ? container : label.element,
 			dispose: () => {
 				label.dispose();
 				actionBar?.dispose();
@@ -375,18 +395,19 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 			fileKind: FileKind.FILE,
 			title: data.modifiedURI.path
 		});
-		const labelElement = label.element;
 
 		templateData.changesElement?.remove();
 
 		if (!data.identical && !data.isBusy) {
-			const changesSummary = labelElement.appendChild($(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
+			const changesSummary = templateData.changesContainer.appendChild($(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
 
 			const added = changesSummary.appendChild($(`.insertions`));
 			added.textContent = `+${data.added}`;
+			added.style.width = `${this.columnWidths.insertions}ch`;
 
 			const removed = changesSummary.appendChild($(`.deletions`));
 			removed.textContent = `-${data.removed}`;
+			removed.style.width = `${this.columnWidths.deletions}ch`;
 
 			templateData.changesElement = changesSummary;
 		}

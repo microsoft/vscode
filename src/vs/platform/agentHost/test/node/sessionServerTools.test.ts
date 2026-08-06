@@ -54,7 +54,7 @@ suite('SessionServerTools', () => {
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt) => { overrides?.onPrompt?.(session, chat, prompt); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),
-			getChatContext: overrides?.getChatContext ?? (() => undefined),
+			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 		};
@@ -85,7 +85,7 @@ suite('SessionServerTools', () => {
 
 	test('serializeSessions includes meaningful metadata when present', () => {
 		let meta = withSessionGitState(undefined, { branchName: 'feature/x', baseBranchName: 'main', outgoingChanges: 2, incomingChanges: 1, uncommittedChanges: 3 });
-		meta = withSessionGitHubState(meta, { owner: 'microsoft', repo: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1' });
+		meta = withSessionGitHubState(meta, { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] });
 		const rich: IAgentSessionMetadata = {
 			session: URI.parse('copilot:/rich'),
 			startTime: 0,
@@ -205,7 +205,7 @@ suite('SessionServerTools', () => {
 		const needsInput = { ...sessionMeta('needsInput', SessionStatus.InputNeeded, workspace), startTime: 3000, status: SessionStatus.InputNeeded };
 		const elsewhere = { ...sessionMeta('elsewhere', SessionStatus.Idle, other), startTime: 5000 };
 		const archived = { ...sessionMeta('archived', SessionStatus.Idle | SessionStatus.IsArchived, workspace), startTime: 2000 };
-		const withPr = { ...sessionMeta('withPr', SessionStatus.Idle, workspace), startTime: 4000, _meta: withSessionGitHubState(undefined, { pullRequestUrl: 'https://github.com/o/r/pull/2' }) };
+		const withPr = { ...sessionMeta('withPr', SessionStatus.Idle, workspace), startTime: 4000, _meta: withSessionGitHubState(undefined, { pullRequestUrls: ['https://github.com/o/r/pull/2'] }) };
 		const sessions = [idle, needsInput, elsewhere, archived, withPr];
 		const group = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions }));
 
@@ -414,11 +414,11 @@ suite('SessionServerTools', () => {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
-			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: () => snapshot }));
+			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => snapshot }));
 			const live = JSON.parse(await withCtx.execute(stateManager, 'copilot:/caller', SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }));
 			assert.strictEqual(live.transcript.length, 2);
 
-			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: () => undefined }));
+			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => undefined }));
 			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, 'copilot:/caller', SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
 				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], hasMoreHistory: false, truncated: false,
 			});

@@ -31,7 +31,7 @@ const DEFAULT_MODEL_PICKER_OPTIONS: INormalizedSessionModelPickerOptions = {
 	showAutoModel: true,
 };
 
-type ModelSelectionRefreshTrigger = 'sessionState' | 'configuration' | 'providers' | 'models';
+type ModelSelectionRefreshTrigger = 'sessionState' | 'configuration' | 'providers' | 'models' | 'storage';
 
 interface IRememberedModelSelection {
 	readonly identifier: string;
@@ -143,7 +143,9 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 			}
 		}));
 		this._register(this._sessionsProvidersService.onDidChangeProviders(() => this._refresh('providers')));
-		this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => this._sharedDiagnostics.logStorageChange(event, this._state.get().currentModel?.identifier)));
+		this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => {
+			this._sharedDiagnostics.logStorageChange(event, this._state.get().currentModel?.identifier);
+		}));
 	}
 
 	selectModel(modelIdentifier: string): boolean {

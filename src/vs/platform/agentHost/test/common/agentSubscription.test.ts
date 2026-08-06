@@ -453,6 +453,36 @@ suite('SessionStateSubscription', () => {
 		assert.strictEqual(fired.length, 1);
 		assert.strictEqual(fired[0].title, 'Changed');
 	});
+
+	suite('ordinary optimistic working-directory actions', () => {
+
+		test('accepted action moves the optimistic directory into confirmed state', () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+			const action = { type: ActionType.SessionWorkingDirectorySet as const, directory: 'file:///ws2' };
+
+			const clientSeq = sub.applyOptimistic(action);
+			assert.deepStrictEqual((sub.value as SessionState).workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.verifiedValue?.workingDirectories, undefined);
+
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+			assert.deepStrictEqual(sub.verifiedValue?.workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.value, sub.verifiedValue);
+		});
+
+		test('rejected action rolls optimistic working directories back', () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+			const action = { type: ActionType.SessionWorkingDirectorySet as const, directory: 'file:///ws2' };
+
+			const clientSeq = sub.applyOptimistic(action);
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }, 'denied'));
+
+			assert.strictEqual(sub.verifiedValue?.workingDirectories, undefined);
+			assert.strictEqual((sub.value as SessionState).workingDirectories, undefined);
+		});
+	});
 });
 
 // ChatStateSubscription
@@ -985,5 +1015,37 @@ suite('AgentSubscriptionManager', () => {
 			[{ kind: StateComponents.Session, status: 'error' }],
 		);
 		ref.dispose();
+	});
+
+	suite('ordinary optimistic reconnect state', () => {
+
+		test('applyReconnectSnapshot clears pending actions and applies the fresh state', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
+			assert.deepStrictEqual((ref.object.value as SessionState).workingDirectories, ['file:///ws2']);
+
+			mgr.applyReconnectSnapshot(sessionUri, makeSessionState(sessionUri, { workingDirectories: ['file:///fresh'] }), 5);
+
+			assert.deepStrictEqual((ref.object.value as SessionState).workingDirectories, ['file:///fresh']);
+			assert.deepStrictEqual(mgr.getPendingSessionActions(), []);
+			ref.dispose();
+		});
+
+		test('markSubscriptionsMissing clears pending actions and exposes an error', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
+
+			mgr.markSubscriptionsMissing([URI.parse(sessionUri)]);
+
+			assert.ok(ref.object.value instanceof Error);
+			assert.deepStrictEqual(mgr.getPendingSessionActions(), []);
+			ref.dispose();
+		});
 	});
 });

@@ -15,7 +15,8 @@ import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../bro
 import { ChatSessionOptionsMap, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 
 suite('Codex Agent Host preference', () => {
@@ -246,6 +247,96 @@ suite('ChatSessionsService - getChatSessionItems availability', () => {
 
 		gatedEnabled.set(false);
 		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
+	});
+});
+
+suite('ChatSessionsService - requiresCopilotSignInForSessionType', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	function register(type: string, extra: Partial<IChatSessionsExtensionPoint>): void {
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '', ...extra }));
+	}
+
+	test('evaluates a functional requiresCopilotSignIn, and reads a static flag otherwise', () => {
+		// Declarative (extension) types supply a static boolean, read directly.
+		register('static-required', { requiresCopilotSignIn: true });
+		register('static-not-required', { requiresCopilotSignIn: false });
+
+		// Programmatic types (e.g. agent host) own a function deriving the
+		// requirement from their agent's advertised protected resources — an agent
+		// that marks the Copilot resource `required: false` (Claude native, Codex on
+		// OpenAI) is usable without signing in; an unresolved agent falls back to
+		// "required".
+		const resourcesByProvider: Record<string, readonly ProtectedResourceMetadata[] | undefined> = {
+			proxy: [GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE],
+			native: [{ ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false }, GITHUB_REPO_PROTECTED_RESOURCE],
+			'codex-openai': [{ ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false }],
+			unresolved: undefined,
+		};
+		const derive = (provider: string) => () => {
+			const resources = resourcesByProvider[provider];
+			return resources !== undefined ? protectedResourcesRequireGitHubCopilotSignIn(resources) : true;
+		};
+		register('ah-proxy', { agentHostProviderId: 'proxy', requiresCopilotSignIn: derive('proxy') });
+		register('ah-native', { agentHostProviderId: 'native', requiresCopilotSignIn: derive('native') });
+		register('ah-codex-openai', { agentHostProviderId: 'codex-openai', requiresCopilotSignIn: derive('codex-openai') });
+		register('ah-unresolved', { agentHostProviderId: 'unresolved', requiresCopilotSignIn: derive('unresolved') });
+
+		assert.deepStrictEqual({
+			staticRequired: service.requiresCopilotSignInForSessionType('static-required'),
+			staticNotRequired: service.requiresCopilotSignInForSessionType('static-not-required'),
+			ahProxy: service.requiresCopilotSignInForSessionType('ah-proxy'),
+			ahNative: service.requiresCopilotSignInForSessionType('ah-native'),
+			ahCodexOpenai: service.requiresCopilotSignInForSessionType('ah-codex-openai'),
+			ahUnresolved: service.requiresCopilotSignInForSessionType('ah-unresolved'),
+			unknownType: service.requiresCopilotSignInForSessionType('never-registered'),
+		}, {
+			staticRequired: true,
+			staticNotRequired: false,
+			ahProxy: true,
+			ahNative: false,
+			ahCodexOpenai: false,
+			ahUnresolved: true,
+			unknownType: false,
+		});
+	});
+
+	test('a contribution change event re-fires onDidChangeAvailability until it is unregistered', () => {
+		const changed = store.add(new Emitter<void>());
+		let availabilityFires = 0;
+		store.add(service.onDidChangeAvailability(() => availabilityFires++));
+
+		// Registering the contribution fires availability once (a type appeared);
+		// its onDidChangeRequiresCopilotSignIn is wired generically.
+		const registration = store.add(service.registerChatSessionContribution({
+			type: 'dyn', name: 'dyn', displayName: 'dyn', description: '',
+			requiresCopilotSignIn: () => true,
+			onDidChangeRequiresCopilotSignIn: changed.event,
+		}));
+		const afterRegister = availabilityFires;
+
+		changed.fire();
+		const afterChange = availabilityFires;
+
+		// Unregistering disposes the subscription (and fires once for the removal),
+		// so a later change no longer drives availability.
+		registration.dispose();
+		const afterDispose = availabilityFires;
+		changed.fire();
+		const afterChangePostDispose = availabilityFires;
+
+		assert.deepStrictEqual(
+			{ afterRegister, afterChange, afterDispose, afterChangePostDispose },
+			{ afterRegister: 1, afterChange: 2, afterDispose: 3, afterChangePostDispose: 3 },
+		);
 	});
 });
 

@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
-import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpeechFrameDurations, getChatPetSpriteName, isChatPetImageSource, isChatPetVisible } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -255,14 +255,14 @@ suite('ChatPetWidget', () => {
 			getChatPetAnimationFrame(frameDurations, 600, 2),
 		], [
 			{ frameIndex: 0, complete: true },
-			{ frameIndex: 0, complete: false },
-			{ frameIndex: 0, complete: false },
-			{ frameIndex: 1, complete: false },
-			{ frameIndex: 1, complete: false },
-			{ frameIndex: 2, complete: false },
-			{ frameIndex: 2, complete: false },
+			{ frameIndex: 0, complete: false, nextFrameDelay: 100 },
+			{ frameIndex: 0, complete: false, nextFrameDelay: 1 },
+			{ frameIndex: 1, complete: false, nextFrameDelay: 50 },
+			{ frameIndex: 1, complete: false, nextFrameDelay: 1 },
+			{ frameIndex: 2, complete: false, nextFrameDelay: 150 },
+			{ frameIndex: 2, complete: false, nextFrameDelay: 1 },
 			{ frameIndex: 2, complete: true },
-			{ frameIndex: 0, complete: false },
+			{ frameIndex: 0, complete: false, nextFrameDelay: 100 },
 			{ frameIndex: 2, complete: true },
 		]);
 	});
@@ -316,6 +316,32 @@ suite('ChatPetWidget', () => {
 			50,
 			100,
 			40,
+		]);
+	});
+
+	test('adapts vertical alignment to the input stack', () => {
+		assert.deepStrictEqual([
+			getChatPetVerticalOffset(100, 98),
+			getChatPetVerticalOffset(100, 108),
+			getChatPetVerticalOffset(100, 112),
+		], [
+			0,
+			8,
+			10,
+		]);
+	});
+
+	test('moves only the rendering speech bubble before it crosses the input edge', () => {
+		assert.deepStrictEqual([
+			shouldPlaceChatPetSpeechBubbleLeft('rendering', 980, 1000),
+			shouldPlaceChatPetSpeechBubbleLeft('rendering', 981, 1000),
+			shouldPlaceChatPetSpeechBubbleLeft('yapping', 981, 1000),
+			shouldPlaceChatPetSpeechBubbleLeft('yappingMouthOpen', 981, 1000),
+		], [
+			false,
+			true,
+			false,
+			false,
 		]);
 	});
 });

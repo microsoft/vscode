@@ -122,9 +122,12 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 			}
 		}));
 
-		// Once the pointer is browsing the flyout itself, the row under it is the subject; drop the
-		// dot-driven preview so only one row reads as highlighted.
-		this._register(addDisposableListener(this._list, EventType.MOUSE_OVER, () => this._setPreview(-1)));
+		// Keep row and dot feedback paired whichever side of the dock the pointer enters from.
+		this._register(addDisposableListener(this._list, EventType.MOUSE_OVER, e => {
+			const target = e.target as Node | null;
+			const rowIndex = target === null ? -1 : this._rows.findIndex(row => row.button.contains(target));
+			this._setPreview(rowIndex);
+		}));
 
 		// Touch + click + keyboard toggle on the handle (iOS needs both click and tap per Sessions guidance).
 		this._register(Gesture.addTarget(this._rest));
@@ -220,12 +223,29 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		for (let i = 0; i < this._rows.length; i++) {
 			this._rows[i].button.classList.toggle('preview', i === index);
 		}
+		const previewDot = this._findNearestDotIndex(index);
 		for (let i = 0; i < this._dots.length; i++) {
-			this._dots[i].classList.toggle('preview', this._dotTicks[i] === index);
+			this._dots[i].classList.toggle('preview', i === previewDot);
 		}
 		if (index >= 0) {
 			this._revealRow(index);
 		}
+	}
+
+	private _findNearestDotIndex(tickIndex: number): number {
+		if (tickIndex < 0) {
+			return -1;
+		}
+		let nearestDot = -1;
+		let bestDelta = Number.POSITIVE_INFINITY;
+		for (let i = 0; i < this._dotTicks.length; i++) {
+			const delta = Math.abs(this._dotTicks[i] - tickIndex);
+			if (delta < bestDelta) {
+				bestDelta = delta;
+				nearestDot = i;
+			}
+		}
+		return nearestDot;
 	}
 
 	/**
@@ -378,17 +398,7 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 	 * ({@link MAX_REST_DOTS}) the nearest dot stands in for the active prompt.
 	 */
 	private _updateActiveDot(activeIndex: number): void {
-		let activeDot = -1;
-		if (activeIndex >= 0) {
-			let bestDelta = Number.POSITIVE_INFINITY;
-			for (let i = 0; i < this._dotTicks.length; i++) {
-				const delta = Math.abs(this._dotTicks[i] - activeIndex);
-				if (delta < bestDelta) {
-					bestDelta = delta;
-					activeDot = i;
-				}
-			}
-		}
+		const activeDot = activeIndex >= 0 ? this._findNearestDotIndex(activeIndex) : -1;
 		for (let i = 0; i < this._dots.length; i++) {
 			this._dots[i].classList.toggle('active', i === activeDot);
 		}

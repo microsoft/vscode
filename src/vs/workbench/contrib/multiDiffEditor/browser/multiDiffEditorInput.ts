@@ -108,6 +108,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return {
 				source,
 				resources: source ? observableFromValueWithChangeEvent(this, source.resources) : constObservable([]),
+				label: source?.label ? observableFromValueWithChangeEvent(this, source.label) : undefined,
 			};
 		});
 		this.resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
@@ -141,7 +142,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._register(autorun((reader) => {
 			/** @description Updates name */
 			const resources = this.resources.read(reader);
-			const label = this.label ?? localize('name', "Multi Diff Editor");
+			const resolvedSource = this._resolvedSource.cachedPromiseResult.read(reader)?.data;
+			const label = resolvedSource?.label?.read(reader) ?? this.label ?? localize('name', "Multi Diff Editor");
 			if (resources && resources.length === 1) {
 				this._name = localize({ key: 'nameWithOneFile', comment: ['{0} is the name of the editor'] }, "{0} (1 file)", label);
 			} else if (resources) {

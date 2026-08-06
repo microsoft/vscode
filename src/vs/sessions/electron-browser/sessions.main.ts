@@ -222,7 +222,7 @@ export class SessionsMain extends Disposable {
 		// Policies
 		let policyService: IPolicyService;
 		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
-		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings')));
+		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings'), logService));
 		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
 		const fileManagedSettings = this._register(new FileManagedSettingsChannelClient(mainProcessService.getChannel('fileManagedSettings')));
 		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);

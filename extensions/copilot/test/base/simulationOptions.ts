@@ -62,6 +62,10 @@ export type NesDatagen = {
 	readonly sameFileJumpMinBelow: number;
 	/** Maximum number of samples selected from one raw workspace recording. */
 	readonly maxSamplesPerRecording?: number;
+	/** Whether to emit scoredEdits viewer files for generated samples. */
+	readonly generateScoredEdits: boolean;
+	/** Internal worker-only directory for staging scoredEdits files. */
+	readonly scoredEditsOutputDirectory?: string;
 	/** Internal worker-only subset of selected workspace-recording operation indices. */
 	readonly workspacePivotOperationIndices?: readonly number[];
 };
@@ -243,6 +247,8 @@ export class SimulationOptions {
 					'--max-samples-per-recording',
 					DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP,
 				),
+				generateScoredEdits: boolean(argv['generate-scored-edits'], false),
+				scoredEditsOutputDirectory: argv['scored-edits-output-directory'],
 				workspacePivotOperationIndices: SimulationOptions.parseWorkspacePivotOperationIndices(argv['workspace-pivot-operation-indices']),
 			}
 			: undefined;
@@ -333,6 +339,8 @@ export class SimulationOptions {
 			`                                       random             → pick a single eligible pivot uniformly at random`,
 			`  --seed                             Integer seed for the continuous pivot RNG (default: random, logged for reproducibility)`,
 			`  --max-samples-per-recording        Maximum samples selected from a workspace recording (default: 100)`,
+			`  --generate-scored-edits            Generate <sample-id>.scoredEdits.w.json files beside the output JSONL`,
+			`                                     Requires --sample-task=xtab`,
 			`  --sample-task                      Which target to generate (default: xtab)`,
 			`                                     Values: xtab, cursor-same-file, cursor-cross-file, cursor-both`,
 			`                                       xtab               → edit-prediction sample (assistant = an edit)`,
@@ -359,6 +367,7 @@ export class SimulationOptions {
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous --pivot-strategy=random --seed=42`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording --generate-scored-edits`,
 			``,
 		].join('\n'));
 	}

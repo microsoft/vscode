@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
-import { ISessionGitHubState, readSessionGitHubState, readSessionGitState, SessionLifecycle, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
+import { ISessionGitHubState, readSessionGitHubState, readSessionGitState, SessionLifecycle, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
 import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -127,12 +127,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				return;
 			}
 
-			await this.setSessionGitHubState(sessionKey, {
-				owner: gitHubState.owner,
-				repo: gitHubState.repo,
-				pullRequestUrl: pr.url,
-				pullRequestBranchName: branchName
-			} satisfies ISessionGitHubState);
+			const currentGitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+			await this.setSessionGitHubState(sessionKey, withMostRecentSessionPullRequest(currentGitHubState, pr.url, branchName));
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
 		}

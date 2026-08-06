@@ -11,7 +11,8 @@
  * margin, border and rounded corners — echoing the agents window design. The
  * matching content dimensions are reduced in code (AbstractPaneCompositePart) so
  * the inner layout stays in sync with this CSS. The margin and the 1px border
- * must match `FLOATING_PANEL_MARGIN` and the border inset used there. The outermost
+ * must match `FLOATING_PANEL_MARGIN`, `FLOATING_PANEL_INNER_MARGIN` and the border
+ * inset used there. The outermost
  * card on a window edge gets a doubled outer gutter (`.floating-part-outer-*`).
  * Colors come from the generic `surface.*` tokens (shared with the agent
  * sessions window).
@@ -22,7 +23,7 @@
 
 .monaco-workbench.floating-panels .part.sidebar,
 .monaco-workbench.floating-panels .part.auxiliarybar {
-	margin: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	margin: 0 var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40);
 	border: 1px solid var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-surface-background) !important;
@@ -31,7 +32,7 @@
 
 /* Keep the panel surface aligned with the panel theme background in light theme. */
 .monaco-workbench.floating-panels .part.panel {
-	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40);
 	border: 1px solid var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-panel-background) !important;
@@ -67,6 +68,14 @@
 	margin-top: 0;
 }
 
+/* With no title bar and no banner above them (`.top-window-edge`, e.g. native fullscreen
+ * on macOS) the cards abut the window edge; double the top margin to match the outer
+ * gutter on the other window edges. Mirrors the .nostatusbar pattern for the bottom. */
+.monaco-workbench.floating-panels.top-window-edge .part.sidebar,
+.monaco-workbench.floating-panels.top-window-edge .part.auxiliarybar {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
+}
+
 /*
  * When panel is at TOP and sidebars are in the same grid row as the editor (sibling),
  * give them a top margin matching the editor's gap from the panel. Alignment determines
@@ -90,10 +99,20 @@
 	margin-top: 0;
 }
 
+.monaco-workbench.floating-panels.top-window-edge .part.panel.top,
+.monaco-workbench.floating-panels.top-window-edge .part.panel.left,
+.monaco-workbench.floating-panels.top-window-edge .part.panel.right {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
+}
+
 /* When the bottom panel is maximized (editor hidden) it spans the full content height
  * and is flush with the title bar — remove the inter-card top margin. */
 .monaco-workbench.floating-panels.nomaineditorarea .part.panel.bottom {
 	margin-top: 0;
+}
+
+.monaco-workbench.floating-panels.top-window-edge.nomaineditorarea .part.panel.bottom {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
 /*
@@ -112,7 +131,11 @@
 
 /* Main editor: float like the other cards, but stay flush with the title bar. */
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
-	margin: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	margin: 0 var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels.top-window-edge > .monaco-grid-view .part.editor {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
 /* When the panel is at the top and visible the editor sits below it — give it a top margin
@@ -160,6 +183,10 @@
 .monaco-workbench.floating-panels .part.activitybar {
 	margin-left: var(--vscode-spacing-size40);
 	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels.top-window-edge .part.activitybar {
+	margin-top: calc(var(--vscode-spacing-size40) * 2);
 }
 
 /* When the activity bar is on the right, mirror the gutter so the bar stays centered. */
@@ -245,7 +272,7 @@
 
 /*
  * When a visible bottom panel directly abuts the sidebars and/or editor (they share
- * the same grid row), keep the normal trailing 2px margin instead of the doubled 8px.
+ * the same grid row), keep the normal zero trailing margin instead of the doubled 8px.
  * Which bars are in the same row as the editor depends on panel alignment:
  *   justify  → both sidebars are in the top row (above the full-width panel)
  *   left     → the bar on the LEFT is in the top row; the bar on the RIGHT is full-height
@@ -260,7 +287,7 @@
 .monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-right .part.sidebar.right,
 .monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-right .part.auxiliarybar.right,
 .monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel) > .monaco-grid-view .part.editor {
-	margin-bottom: var(--vscode-spacing-size20);
+	margin-bottom: var(--vscode-spacing-sizeNone);
 }
 
 .monaco-workbench.floating-panels.nostatusbar .part.activitybar {
@@ -268,29 +295,28 @@
 }
 
 /*
- * Floating cards use a 4px leading margin (`--vscode-spacing-size40`) and a 2px
- * trailing margin (`--vscode-spacing-size20`), so adjacent cards are separated by a
- * 6px gap (`--vscode-spacing-size60`). A grid sash is centered on the grid boundary
- * but, at the default 4px size, is narrower than the gap and — because the two card
- * margins differ — leaves uneven dead space, so its hover highlight activates at a
- * different distance from each card edge. Grow only grid sashes to at least the gap
- * width (never below the configured `--vscode-sash-size`) and re-centre them on the
- * gap's midpoint. Because the midpoint offset is half the margin difference — a
- * constant, independent of the sash size — and the growth is symmetric, the hit
- * region reaches both card edges and the highlight (`:before`, itself centred in the
- * sash) stays centred in the gap for any configured sash size. Part-internal sashes
- * and the hidden-panel reveal sash retain their own geometry.
+ * Floating cards use a 4px leading margin (`--vscode-spacing-size40`) and no trailing
+ * margin (`--vscode-spacing-sizeNone`), so adjacent cards are separated by a 4px gap.
+ * A grid sash is centered on the grid boundary, but because the two card margins
+ * differ, that boundary is offset from the gap's midpoint by half the margin
+ * difference. At the default 4px size the sash already matches the gap width and only
+ * needs recentering. Grow grid sashes configured below the gap width to 4px, preserve
+ * larger configured sizes, and compensate for that symmetric growth while shifting
+ * the sash onto the gap midpoint. This keeps the hit region reaching both card edges
+ * and the highlight (`:before`, itself centered in the sash) centered in the gap for
+ * any configured sash size. Part-internal sashes and the hidden-panel reveal sash
+ * retain their own geometry.
  */
 .monaco-workbench.floating-panels .monaco-sash.vertical:not(.part .monaco-sash) {
 	/* Thickness: at least the gap, but never smaller than the configured sash size. */
-	width: max(var(--vscode-sash-size), var(--vscode-spacing-size60));
+	width: max(var(--vscode-sash-size), var(--vscode-spacing-size40));
 	/* Shift onto the gap midpoint (half the margin difference), compensating for the symmetric growth. */
-	transform: translateX(calc((var(--vscode-spacing-size40) - var(--vscode-spacing-size20)) / 2 - (max(var(--vscode-sash-size), var(--vscode-spacing-size60)) - var(--vscode-sash-size)) / 2));
+	transform: translateX(calc((var(--vscode-spacing-size40) - var(--vscode-spacing-sizeNone)) / 2 - (max(var(--vscode-sash-size), var(--vscode-spacing-size40)) - var(--vscode-sash-size)) / 2));
 }
 
 .monaco-workbench.floating-panels:not(.nopanel) .monaco-sash.horizontal:not(.part .monaco-sash) {
-	height: max(var(--vscode-sash-size), var(--vscode-spacing-size60));
-	transform: translateY(calc((var(--vscode-spacing-size40) - var(--vscode-spacing-size20)) / 2 - (max(var(--vscode-sash-size), var(--vscode-spacing-size60)) - var(--vscode-sash-size)) / 2));
+	height: max(var(--vscode-sash-size), var(--vscode-spacing-size40));
+	transform: translateY(calc((var(--vscode-spacing-size40) - var(--vscode-spacing-sizeNone)) / 2 - (max(var(--vscode-sash-size), var(--vscode-spacing-size40)) - var(--vscode-sash-size)) / 2));
 }
 
 /*
@@ -300,15 +326,15 @@
  * overshoots into those gaps — the reported "sash extends past the panels". Anchor the
  * highlight with `top`/`bottom` (rather than `height`) so the two insets compose
  * independently across layouts. The base leaves the cards flush with the title bar
- * (`top: 0`) and insets the bottom by the 2px trailing card margin
- * (`--vscode-spacing-size20`). Only the highlight is inset; the sash hit region is
+ * (`top: 0`) and leaves the bottom flush with the zero trailing card margin
+ * (`--vscode-spacing-sizeNone`). Only the highlight is inset; the sash hit region is
  * unchanged. In non-justify alignments a full-height side bar (spanning both the panel
  * and editor rows) keeps its own margins, so its highlight may sit up to a card margin
  * short on the abutting edge — an accepted minor cosmetic gap.
  */
 .monaco-workbench.floating-panels .monaco-sash.vertical:not(.part .monaco-sash)::before {
 	top: 0;
-	bottom: var(--vscode-spacing-size20);
+	bottom: var(--vscode-spacing-sizeNone);
 	height: auto;
 }
 
@@ -321,11 +347,18 @@
 	top: var(--vscode-spacing-size40);
 }
 
+/* At the top window edge the cards take a doubled top gutter.
+ * Inset the sash highlight to match so it doesn't overshoot above the cards. */
+.monaco-workbench.floating-panels.top-window-edge .monaco-sash.vertical:not(.part .monaco-sash)::before {
+	top: calc(var(--vscode-spacing-size40) * 2);
+}
+
 /*
  * When the status bar is hidden the cards sit against the window bottom edge and take
- * the doubled outer gutter (`--vscode-spacing-size40` * 2) instead of the 2px inter-card
- * gap. Match that larger bottom inset. Excluded when a bottom panel is present, since
- * then the side/aux bars abut the panel card and keep the normal 2px trailing margin.
+ * the doubled outer gutter (`--vscode-spacing-size40` * 2) instead of the zero trailing
+ * margin used at an inter-card edge. Match that larger bottom inset. Excluded when a
+ * bottom panel is present, since then the side/aux bars abut the panel card and keep
+ * the normal zero trailing margin.
  */
 .monaco-workbench.floating-panels.nostatusbar:is(:not(.panel-position-bottom), .nopanel) .monaco-sash.vertical:not(.part .monaco-sash)::before {
 	bottom: calc(var(--vscode-spacing-size40) * 2);
@@ -337,7 +370,7 @@
  * column's side edges by the floating card margins — so the line overshoots both ends.
  * Anchor the highlight with `left`/`right` (rather than `width`) so each side composes
  * independently: the base uses the panel card's leading (`--vscode-spacing-size40`) and
- * trailing (`--vscode-spacing-size20`) margins. Either margin doubles to the outer
+ * trailing (`--vscode-spacing-sizeNone`) margins. Either margin doubles to the outer
  * gutter (`--vscode-spacing-size40` * 2) when the panel is the outermost card on that
  * window edge; mirror that with the `.floating-panel-outer-left` / `.floating-panel-outer-right`
  * classes set on the workbench root (propagated from the panel's outer-edge state in
@@ -346,7 +379,7 @@
  */
 .monaco-workbench.floating-panels:not(.nopanel) .monaco-sash.horizontal:not(.part .monaco-sash)::before {
 	left: var(--vscode-spacing-size40);
-	right: var(--vscode-spacing-size20);
+	right: var(--vscode-spacing-sizeNone);
 	width: auto;
 }
 

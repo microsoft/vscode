@@ -27,7 +27,7 @@ suite('codexCustomizations', () => {
 		({ data: entries.map(e => ({ cwd: e.cwd, skills: e.skills, errors: [] })) });
 
 	const hook = (key: string, eventName: HookMetadata['eventName'], sourcePath: string, displayOrder = 0, enabled = true): HookMetadata =>
-		({ key, eventName, handlerType: 'command', matcher: null, command: 'echo hi', timeoutSec: 5n, statusMessage: null, sourcePath, source: 'project', pluginId: null, displayOrder: BigInt(displayOrder), enabled, isManaged: false, currentHash: 'h', trustStatus: 'trusted' });
+		({ key, eventName, handlerType: 'command', matcher: null, command: 'echo hi', timeoutSec: 5n, statusMessage: null, additionalContextLimit: null, sourcePath, source: 'project', pluginId: null, displayOrder: BigInt(displayOrder), enabled, isManaged: false, currentHash: 'h', trustStatus: 'trusted' });
 
 	test('groups skills by scope into read-only containers, sorted by name', () => {
 		const containers = codexSkillsToContainers(skillsResponse({

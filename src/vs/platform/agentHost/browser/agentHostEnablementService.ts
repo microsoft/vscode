@@ -6,16 +6,11 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { isWeb } from '../../../base/common/platform.js';
-import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
-
-// The setting ID is intentionally not exported — all runtime checks go through
-// IAgentHostEnablementService. The string is needed here only to register
-// and apply the policy.
-const agentHostEnabledSettingId = 'chat.agentHost.enabled';
 
 export class AgentHostEnablementService extends Disposable implements IAgentHostEnablementService {
 
@@ -37,10 +32,7 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 		this._enabledContextKey.set(this.enabled.get());
 
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (
-				(event.source === ConfigurationTarget.DEFAULT && event.affectsConfiguration(agentHostEnabledSettingId))
-				|| event.affectsConfiguration(ChatAIDisabledSettingId)
-			) {
+			if (event.affectsConfiguration(ChatAIDisabledSettingId)) {
 				this._updateEnabled(configurationService);
 			}
 		}));
@@ -48,7 +40,6 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 
 	private _readEnabled(configurationService: IConfigurationService): boolean {
 		return this._isAgentHostRuntimeAvailable
-			&& (configurationService.getValue<boolean>(agentHostEnabledSettingId) ?? false)
 			&& configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true;
 	}
 

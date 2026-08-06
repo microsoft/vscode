@@ -242,17 +242,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this.invocationMessage = lastStreamingMessage;
 		}
 
-		// Update fields from prepared invocation
-		this.parameters = parameters;
-		if (preparedInvocation) {
-			if (preparedInvocation.invocationMessage) {
-				this.invocationMessage = preparedInvocation.invocationMessage;
-			}
-			this.pastTenseMessage = preparedInvocation.pastTenseMessage;
-			this.confirmationMessages = preparedInvocation.confirmationMessages;
-			this.presentation = preparedInvocation.presentation;
-			this.toolSpecificData = preparedInvocation.toolSpecificData;
-		}
+		this._updatePreparedInvocation(preparedInvocation, parameters);
 
 		// Transition to the appropriate state
 		if (autoConfirmed) {
@@ -273,6 +263,41 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				confirm: reason => this._confirm(reason),
 			}, undefined);
 		}
+	}
+
+	/**
+	 * Applies locally prepared parameters and presentation without changing an
+	 * invocation state already established by an external protocol.
+	 */
+	public updatePreparedInvocation(preparedInvocation: IPreparedToolInvocation | undefined, parameters: unknown): boolean {
+		const currentState = this._state.get();
+		if (currentState.type === IChatToolInvocation.StateKind.Streaming
+			|| currentState.type === IChatToolInvocation.StateKind.Completed
+			|| currentState.type === IChatToolInvocation.StateKind.Cancelled) {
+			return false;
+		}
+
+		this._updatePreparedInvocation(preparedInvocation, parameters);
+		this._state.set({
+			...currentState,
+			parameters: this.parameters,
+			confirmationMessages: this.confirmationMessages,
+		}, undefined);
+		return true;
+	}
+
+	private _updatePreparedInvocation(preparedInvocation: IPreparedToolInvocation | undefined, parameters: unknown): void {
+		this.parameters = parameters;
+		if (!preparedInvocation) {
+			return;
+		}
+		if (preparedInvocation.invocationMessage) {
+			this.invocationMessage = preparedInvocation.invocationMessage;
+		}
+		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
+		this.confirmationMessages = preparedInvocation.confirmationMessages;
+		this.presentation = preparedInvocation.presentation;
+		this.toolSpecificData = preparedInvocation.toolSpecificData;
 	}
 
 	/** Moves an active invocation into confirmation while preserving the same tool card. */

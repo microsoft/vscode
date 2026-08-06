@@ -106,7 +106,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
 
-	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key, ChatEntitlementContextKeys.hasByokModels.key]);
+	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set([InEditorZenModeContext.key, ChatEntitlementContextKeys.hasByokModels.key]);
 
 	private static readonly QUOTA_RESUME_STATE_KEY = 'chat.quotaResumeState';
 	private static readonly QUOTA_RESET_RETRY_DELAY = 5 * 60 * 1000; // re-check 5 min after a passed reset time
@@ -429,11 +429,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		}
 
 		if (this.chatEntitlementService.sentiment.hidden || this.chatEntitlementService.sentiment.disabledInWorkspace) {
-			return false;
-		}
-
-		const hasTitleBarUpdate = Boolean(this.contextKeyService.getContextKeyValue('updateTitleBar'));
-		if (hasTitleBarUpdate) {
 			return false;
 		}
 

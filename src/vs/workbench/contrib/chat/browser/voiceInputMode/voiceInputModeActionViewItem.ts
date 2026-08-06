@@ -413,6 +413,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
 		}));
+		this._registerActivationKeys(this._dictationCell, () => this._onClickDictation());
 		this._register(addMicButtonContextMenuListener(
 			this._dictationCell,
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
@@ -443,6 +444,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			dom.EventHelper.stop(e, true);
 			void this._onClickVoicePowerToggle();
 		}));
+		this._registerActivationKeys(this._voiceCell, () => this._onClickVoicePowerToggle());
 		this._register(addMicButtonContextMenuListener(
 			this._voiceCell,
 			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
@@ -491,6 +493,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			}
 			this._onClickListen();
 		}));
+		this._registerActivationKeys(this._listenCell, () => this._onClickListen());
 
 		// Dictation activity: driven directly by the built-in on-device speech-to-text
 		// service so the mic reliably fills while a dictation session is recording or
@@ -717,6 +720,29 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		} else {
 			this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID);
 		}
+	}
+
+	/**
+	 * Activate a segmented cell from the keyboard. The cells live inside a toolbar's
+	 * `ActionBar`, whose key handler runs the (no-op) placeholder action on Enter/Space
+	 * and calls `preventDefault`/`stopPropagation`, which would otherwise swallow the
+	 * native button activation. Handle Enter/Space here and stop the event before it
+	 * bubbles to the ActionBar so the focused cell's own gesture runs.
+	 */
+	private _registerActivationKeys(cell: HTMLElement, handler: () => void): void {
+		this._register(dom.addStandardDisposableListener(cell, dom.EventType.KEY_DOWN, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
+		this._register(dom.addStandardDisposableListener(cell, dom.EventType.KEY_UP, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+				handler();
+			}
+		}));
 	}
 
 	private _onClickDictation(): void {

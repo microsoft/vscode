@@ -170,6 +170,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.element.classList.add('chat-viewpane-container');
 
 		// View state for the ViewPane is currently global per-provider basically,
 		// but some other strictly per-model state will require a separate memento.

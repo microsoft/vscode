@@ -8,7 +8,7 @@
 import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscode/component-explorer';
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
 import { z } from 'zod';
-import { DisposableStore, DisposableTracker, IDisposable, IReference, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDisposable, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -335,8 +335,12 @@ export async function setupTheme(container: HTMLElement, theme: ColorThemeData, 
  * flag), parsed once into a typed shape by {@link parseFixtureInput}.
  */
 interface FixtureRenderInput {
-	/** See {@link ReverseStylesheetsOption}; `false` when no reversal is requested. */
-	readonly reverseStylesheets: ReverseStylesheetsOption;
+	/** Whether all stylesheet documents should be reversed. */
+	readonly reverseStylesheets: boolean;
+	/** The stylesheet document range to reverse, when set. */
+	readonly reverseStylesheetsRange: Exclude<ReverseStylesheetsOption, boolean> | undefined;
+	/** Whether CSS animations and transitions are enabled. */
+	readonly enableAnimations: boolean;
 	/** Whether the render should return its virtual-time trace as `output`. */
 	readonly outputTimeTrace: boolean;
 	/** Whether the render should return the bundled stylesheet files as `output`. */
@@ -349,43 +353,41 @@ interface FixtureRenderInput {
  */
 function parseFixtureInput(input: unknown): FixtureRenderInput {
 	if (!input || typeof input !== 'object') {
-		return { reverseStylesheets: false, outputTimeTrace: false, outputStylesheetFiles: false };
+		return { reverseStylesheets: false, reverseStylesheetsRange: undefined, enableAnimations: false, outputTimeTrace: false, outputStylesheetFiles: false };
 	}
 	const record = input as Record<string, unknown>;
 	return {
-		reverseStylesheets: parseReverseOption(record.reverseStylesheets),
+		reverseStylesheets: record.reverseStylesheets === true,
+		reverseStylesheetsRange: parseReverseStylesheetsRange(record.reverseStylesheetsRange),
+		enableAnimations: record.enableAnimations === true,
 		outputTimeTrace: !!record.outputTimeTrace,
 		outputStylesheetFiles: !!record.outputStylesheetFiles,
 	};
 }
 
-/**
- * Validates a `reverseStylesheets` input value: `true` (reverse all stylesheet
- * documents), `{ fromIndex, toIndex }` (reverse only that index window, used by
- * the order-dependency bisection), or `false` when absent/unrecognized.
- */
-function parseReverseOption(value: unknown): ReverseStylesheetsOption {
-	if (value === true) {
-		return true;
-	}
+function parseReverseStylesheetsRange(value: unknown): Exclude<ReverseStylesheetsOption, boolean> | undefined {
 	if (value && typeof value === 'object') {
 		const range = value as Record<string, unknown>;
 		if (typeof range.fromIndex === 'number' && typeof range.toIndex === 'number') {
 			return { fromIndex: range.fromIndex, toIndex: range.toIndex };
 		}
 	}
-	return false;
+	return undefined;
+}
+
+function getReverseStylesheetsOption(input: unknown): ReverseStylesheetsOption {
+	const parsedInput = parseFixtureInput(input);
+	return parsedInput.reverseStylesheetsRange ?? parsedInput.reverseStylesheets;
 }
 
 /** Inputs exposed as Component Explorer controls. */
 const fixtureInputSchema = z.object({
-	reverseStylesheets: z.union([
-		z.boolean(),
-		z.object({
-			fromIndex: z.number(),
-			toIndex: z.number(),
-		}),
-	]).default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
+	reverseStylesheets: z.boolean().default(false).describe('Reverse the order of the bundled CSS documents to surface cascade-order dependencies.'),
+	reverseStylesheetsRange: z.object({
+		fromIndex: z.number(),
+		toIndex: z.number(),
+	}).optional().describe('Reverse the bundled CSS documents in this half-open index range.'),
+	enableAnimations: z.boolean().default(false).describe('Enable CSS animations and transitions.'),
 	outputTimeTrace: z.boolean().default(false).describe('Return the render\'s virtual-time trace as its output.'),
 	outputStylesheetFiles: z.boolean().default(false).describe('Return the bundled stylesheet files as the render output.'),
 });
@@ -897,6 +899,10 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		displayMode: { type: 'component' },
 		background: themeVariant.background,
 		inputSchema: fixtureInputSchema,
+		inputControls: {
+			reverseStylesheets: { placement: 'toolbar', label: 'Reverse Stylesheets' },
+			enableAnimations: { placement: 'toolbar', label: 'Enable Animations' },
+		},
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
 			const input = parseFixtureInput(context.input);
@@ -999,12 +1005,19 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			async function actualRender() {
 				await setupTheme(container, theme, scopeThemingParticipants);
 
-				// The order-dependency fuzzer reorders the bundled CSS for just
-				// this render; the override is scoped to the fixture's lifetime
-				// (disposed at teardown, where it is also leak-checked).
-				if (input.reverseStylesheets !== false) {
-					disposableStore.add(overrideStylesheetOrder(input.reverseStylesheets));
-				}
+				const stylesheetOrderOverride = disposableStore.add(new MutableDisposable<IDisposable>());
+				const updateStylesheetOrder = (input: unknown) => {
+					const option = getReverseStylesheetsOption(input);
+					stylesheetOrderOverride.clear();
+					if (option !== false) {
+						stylesheetOrderOverride.value = overrideStylesheetOrder(option);
+					}
+				};
+				context.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input));
+				context.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input));
+				context.watchInput('enableAnimations', value => {
+					container.classList.toggle('disable-animations', !value);
+				});
 
 				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {

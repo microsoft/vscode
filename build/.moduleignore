@@ -251,7 +251,9 @@ zone.js/dist/**
 @vscode/os-proxy-resolver-darwin-x64/**
 @vscode/os-proxy-resolver-linux-arm-gnueabihf/**
 @vscode/os-proxy-resolver-linux-arm64-gnu/**
+@vscode/os-proxy-resolver-linux-arm64-musl/**
 @vscode/os-proxy-resolver-linux-x64-gnu/**
+@vscode/os-proxy-resolver-linux-x64-musl/**
 @vscode/os-proxy-resolver-win32-arm64-msvc/**
 @vscode/os-proxy-resolver-win32-x64-msvc/**
 

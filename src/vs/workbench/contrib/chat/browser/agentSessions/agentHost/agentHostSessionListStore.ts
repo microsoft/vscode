@@ -348,6 +348,9 @@ export class AgentHostSessionListStore extends Disposable {
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
 				workingDirectories: session.workingDirectories?.map(d => d.toString()),
+				// Carry `_meta` so the adoptable-legacy marker survives into the list
+				// item; consumers use it to avoid passively restoring (and thereby
+				// migrating) an un-adopted legacy Copilot CLI session.
 				...(session._meta !== undefined ? { _meta: session._meta } : {}),
 			},
 		};

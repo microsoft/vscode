@@ -5,9 +5,9 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -25,6 +25,7 @@ import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } fr
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from './agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -48,6 +49,7 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
  * and in the regular VS Code workbench window it returns nothing at all.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
+	PromptsStorage.local,
 	PromptsStorage.plugin,
 	PromptsStorage.extension,
 	PromptsStorage.builtIn,
@@ -112,6 +114,71 @@ export async function enumerateLocalCustomizationsForHarness(
 		}
 	}
 
+	return result;
+}
+
+/**
+ * Resolves the selectable custom-agent metadata that the client has already
+ * discovered and will publish to an agent host for `sessionType`.
+ *
+ * Client customization refs intentionally omit parsed children; the host adds
+ * those later in `SessionState.customizations`. New Agents-window drafts need
+ * the picker before that state exists, so this mirrors the same eligibility
+ * rules used by {@link resolveCustomizationRefs} without waiting for the host
+ * to parse the plugin or synthetic bundle.
+ */
+export async function resolveLocalCustomAgents(
+	fileService: IFileService,
+	promptsService: IPromptsService,
+	syncProvider: ICustomizationSyncProvider,
+	agentPluginService: IAgentPluginService,
+	sessionType: string,
+	options?: ILocalCustomizationSyncOptions,
+): Promise<readonly AgentCustomization[]> {
+	const plugins = agentPluginService.plugins.get();
+	const result: AgentCustomization[] = [];
+	const parser = new PromptFileParser();
+	const pending: Promise<void>[] = [];
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+
+	for (const agent of enumerated) {
+		if (agent.type !== PromptsType.agent || agent.disabled) {
+			continue;
+		}
+		const plugin = agent.source === AICustomizationSources.plugin
+			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
+			: undefined;
+		if (agent.source === AICustomizationSources.plugin
+			&& (!plugin || syncProvider.isDisabled(plugin.uri) || !isContributionEnabled(plugin.enablement.get()))) {
+			continue;
+		}
+		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
+		pending.push((async () => {
+			let name = pluginAgent?.name ?? basename(agent.uri, '.agent.md');
+			let description = pluginAgent?.description;
+			let disableUserInvocation: boolean | undefined;
+			try {
+				const content = await fileService.readFile(agent.uri);
+				const header = parser.parse(agent.uri, content.value.toString()).header;
+				name = header?.name ?? name;
+				description = header?.description ?? description;
+				disableUserInvocation = header?.userInvocable === false || undefined;
+			} catch {
+				// The host will parse the full agent after session creation. Keep the
+				// discovery metadata as a best-effort draft fallback if the file moved.
+			}
+			result.push({
+				type: CustomizationType.Agent,
+				id: agent.uri.toString(),
+				uri: agent.uri.toString(),
+				name,
+				description,
+				disableUserInvocation,
+			});
+		})());
+	}
+	await Promise.all(pending);
+	result.sort((a, b) => a.name.localeCompare(b.name) || a.uri.toString().localeCompare(b.uri.toString()));
 	return result;
 }
 
@@ -346,9 +413,10 @@ export async function resolveCustomizationRefs(
 		}
 	}
 
-	// Plugins that only contribute MCP servers have no prompt files, so they
-	// are never surfaced by enumeration above. Include them explicitly so
-	// their servers are still synced to the harness.
+	// Plugin prompt discovery is not guaranteed to be hydrated before an agent
+	// host registration resolves (notably in the Agents window). Include every
+	// enabled plugin with a concrete contribution directly; `pluginRefs`
+	// de-duplicates those already found through prompt-file enumeration.
 	for (const plugin of plugins) {
 		if (pluginRefs.has(plugin.uri.toString())) {
 			continue;
@@ -359,7 +427,12 @@ export async function resolveCustomizationRefs(
 		if (!isContributionEnabled(plugin.enablement.get())) {
 			continue;
 		}
-		if (plugin.mcpServerDefinitions.get().length === 0) {
+		if (plugin.hooks.get().length === 0
+			&& plugin.commands.get().length === 0
+			&& plugin.skills.get().length === 0
+			&& plugin.agents.get().length === 0
+			&& plugin.instructions.get().length === 0
+			&& plugin.mcpServerDefinitions.get().length === 0) {
 			continue;
 		}
 		addPluginRef(plugin);

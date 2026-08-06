@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Language } from '../../../../../base/common/platform.js';
+
 const NEMOTRON_LOCALES = new Set([
 	'ar-AR', 'bg-BG', 'cs-CZ', 'da-DK', 'de-DE', 'en-GB', 'en-US', 'es-ES',
 	'es-US', 'et-EE', 'fi-FI', 'fr-CA', 'fr-FR', 'el-GR', 'he-IL', 'hi-IN',
@@ -50,16 +52,29 @@ const NEMOTRON_DEFAULT_LOCALE_BY_LANGUAGE: Readonly<Record<string, string>> = {
 	zh: 'zh-CN',
 };
 
+function getConfiguredDisplayLanguage(): string | undefined {
+	return Language.value();
+}
+
 /**
  * Resolve the on-device dictation language using the same setting semantics as
- * Voice Mode. Automatic follows the browser locale when Nemotron supports it,
- * then falls back to the model's language detection.
+ * Voice Mode. Automatic follows the configured display language when supported,
+ * then the system or browser locale, then the model's language detection.
  */
-export function resolveDictationLanguage(configuredLanguage: unknown, browserLanguage: string | undefined): string {
+export function resolveDictationLanguage(configuredLanguage: unknown, browserLanguage: string | undefined, displayLanguage = getConfiguredDisplayLanguage()): string {
 	const configured = typeof configuredLanguage === 'string' ? configuredLanguage.trim() : '';
-	const candidate = configured && configured.toLowerCase() !== 'auto' ? configured : browserLanguage;
+	if (configured && configured.toLowerCase() !== 'auto') {
+		return resolveSupportedDictationLanguage(configured) ?? 'auto';
+	}
+
+	return resolveSupportedDictationLanguage(displayLanguage)
+		?? resolveSupportedDictationLanguage(browserLanguage)
+		?? 'auto';
+}
+
+function resolveSupportedDictationLanguage(candidate: string | undefined): string | undefined {
 	if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
-		return 'auto';
+		return undefined;
 	}
 
 	try {
@@ -67,8 +82,8 @@ export function resolveDictationLanguage(configuredLanguage: unknown, browserLan
 		if (NEMOTRON_LOCALES.has(canonical)) {
 			return canonical;
 		}
-		return NEMOTRON_DEFAULT_LOCALE_BY_LANGUAGE[canonical.split('-')[0]] ?? 'auto';
+		return NEMOTRON_DEFAULT_LOCALE_BY_LANGUAGE[canonical.split('-')[0]];
 	} catch {
-		return 'auto';
+		return undefined;
 	}
 }

@@ -40,7 +40,7 @@ const AGENT_HOST_SHELL_DEPENDENT_SETTINGS = [
  * {@link AgentHostRootConfigForwarder} (also used by
  * `AgentHostCopilotCliSettingsContribution`).
  *
- * Gated on the `chat.agentHost.enabled` setting.
+ * Gated on Agent Host runtime availability.
  */
 export class AgentHostTerminalContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentHostTerminal';

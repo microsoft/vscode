@@ -83,6 +83,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
+	private updateToolBarElement: HTMLElement | undefined;
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
@@ -151,6 +152,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
 		// Window Controls Container (must be before left toolbar for correct ordering)
+		let rightWindowControlsContainer: HTMLElement | undefined;
 		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			let primaryWindowControlsLocation = isMacintosh ? 'left' : 'right';
 			if (isMacintosh && isNative) {
@@ -183,9 +185,15 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
 				// controls explicitly disabled
 			} else {
-				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				const primaryWindowControlsContainer = this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				if (primaryWindowControlsLocation === 'right') {
+					rightWindowControlsContainer = primaryWindowControlsContainer;
+				}
 				if (isWeb) {
-					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
+					const secondaryWindowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
+					if (primaryWindowControlsLocation === 'left') {
+						rightWindowControlsContainer = secondaryWindowControlsContainer;
+					}
 				}
 
 				if (isWCOEnabled()) {
@@ -258,6 +266,18 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
+		// Update toolbar (rightmost, immediately before native window controls)
+		const updateToolBarElement = $('div.titlebar-actions-container.titlebar-update-container');
+		this.rightContent.insertBefore(updateToolBarElement, rightWindowControlsContainer ?? null);
+		this.updateToolBarElement = updateToolBarElement;
+		const updateToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, Menus.TitleBarUpdate, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.update',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+		this._register(updateToolBar.onDidChangeMenuItems(() => this.updateUpdateToolBarOverflow()));
+
 		// Context menu on the titlebar
 		this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
 			EventHelper.stop(e);
@@ -307,6 +327,22 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
+		this.updateUpdateToolBarOverflow();
+	}
+
+	private updateUpdateToolBarOverflow(): void {
+		const element = this.updateToolBarElement;
+		if (!element) {
+			return;
+		}
+
+		if (element.classList.contains('has-no-actions')) {
+			element.classList.remove('overflowing');
+			return;
+		}
+
+		element.classList.remove('overflowing');
+		element.classList.toggle('overflowing', this.rootContainer.scrollWidth > this.rootContainer.clientWidth);
 	}
 
 	private updateLayout(): void {

@@ -45,7 +45,7 @@ const hasGit = (() => {
 	});
 
 	setup(async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 		// Initialize a tmp git repo as the session's working directory.
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-proto-diff-'));
 		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
@@ -77,7 +77,7 @@ const hasGit = (() => {
 	});
 
 	test('terminal-driven file edit (no ToolResultFileEditContent) lands in the session changeset', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 90_000));
 
 		// Create a session whose working directory is the tmp git repo.
 		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-git-diffs' });
@@ -120,7 +120,7 @@ const hasGit = (() => {
 				return false;
 			}
 			return matchesEditedFile(getActionEnvelope(n).action as ChangesetContentChangedAction);
-		}, 10_000);
+		}, getAgentHostE2ETestTimeout(10_000, 30_000));
 		const action = getActionEnvelope(contentChangedNotif).action as ChangesetContentChangedAction;
 		const file = action.files.find(f => {
 			const u = fileUri(f.edit);

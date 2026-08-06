@@ -46,7 +46,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { INewChatVoiceTargetService, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
-import { SessionTypePicker } from './sessionTypePicker.js';
+import { ISessionTypePickerOptions, SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
@@ -85,7 +85,7 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService, isDictationActiveOnSurface } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
@@ -104,7 +104,7 @@ import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agent
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
 const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
-const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitoring-agents';
+const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
@@ -311,9 +311,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** Opens the model picker dropdown. */
 	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
 
+	/** Moves the provider-contributed session controls into the given container. */
+	renderSessionControls(container: HTMLElement): void {
+		if (!this._sessionControlsContainer) {
+			throw new Error('NewChatInputWidget must be rendered before its session controls.');
+		}
+		container.appendChild(this._sessionControlsContainer);
+	}
+
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
+	private _sessionControlsContainer: HTMLElement | undefined;
 
 	// Send button
 	private _sendButton: Button | undefined;
@@ -358,6 +367,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			minEditorHeight?: number;
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
+			renderSendButton?: boolean;
+			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			getInputOnboardingTipContainer?: () => HTMLElement | undefined;
 			onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
@@ -422,7 +433,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// the same class regardless of construction-time viewport
 		// avoids a class-mismatch when the user resizes across the
 		// phone breakpoint after the chat input mounted.
-		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, undefined));
+		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, this.options.sessionTypePickerOptions));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();
@@ -494,7 +505,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
+		this._register(this.instantiationService.createInstance(ChatPetWidget, parent, inputArea, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
@@ -503,9 +514,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const sessionTypePickerHost = dom.append(newChatControlsContainer, dom.$('.new-chat-session-type-picker-host'));
 			this.sessionTypePicker.render(sessionTypePickerHost);
 		}
-		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
+		const sessionControlsContainer = this._sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
+		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, sessionControlsContainer, Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
+		this._register({ dispose: () => sessionControlsContainer.remove() });
 
 		const repoConfigContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-repo-config-container'));
 		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
@@ -843,17 +856,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
 		this._loadingSpinner.classList.toggle('visible', this.options.loading.get());
 
-		const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
-		const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
-			secondary: true,
-			title: this.options.supportsBackground
-				? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
-				: localize('send', "Send"),
-			ariaLabel: localize('send', "Send"),
-		}));
-		sendButton.icon = Codicon.arrowUpCompact;
-		// Hold Alt while clicking Send to start the session in the background.
-		this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
+		if (this.options.renderSendButton !== false) {
+			const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
+			const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
+				secondary: true,
+				title: this.options.supportsBackground
+					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
+					: localize('send', "Send"),
+				ariaLabel: localize('send', "Send"),
+			}));
+			sendButton.icon = Codicon.arrowUpCompact;
+			// Hold Alt while clicking Send to start the session in the background.
+			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
+		}
 	}
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
@@ -915,23 +930,23 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// (which invites the user to click to cancel) so this composer matches
 			// the main chat toolbar affordance. Idle gets the richer description
 			// naming the configured dictation model.
-			content: sttService.isPreparingModel
+			content: sttService.currentSurface === 'chat' && sttService.isPreparingModel
 				? getDictationDownloadHoverMarkdown(sttService)
-				: (sttService.state !== ChatSpeechToTextState.Idle ? stopLabel : getDictationHoverMarkdown(micLabel, this.configurationService)),
+				: (isDictationActiveOnSurface(sttService, 'chat') ? stopLabel : getDictationHoverMarkdown(micLabel, this.configurationService)),
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
 		})));
 
 		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
-			const preparing = sttService.isPreparingModel;
+			const active = isDictationActiveOnSurface(sttService, 'chat');
+			const preparing = active && sttService.isPreparingModel;
 			// Only the active Recording state should read as "recording" (filled
 			// mic). Once the user stops, the service enters Transcribing while it
 			// waits for the final transcript (up to a few seconds on the cloud
 			// backend); during that the mic must already read as idle, matching
 			// the chat toolbar which flips as soon as recording stops.
-			const recording = sttService.state === ChatSpeechToTextState.Recording;
-			const active = sttService.state !== ChatSpeechToTextState.Idle;
+			const recording = active && sttService.state === ChatSpeechToTextState.Recording;
 			dom.clearNode(button);
 			downloadRing.clear();
 			if (preparing) {
@@ -982,7 +997,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// keys off `isConnected` only, not the connecting phase.
 			const sessionActive = this.voiceSessionController.isConnected.get();
 			const pillActive = (dict && voice) || (voice && !dict && !handsFree && sessionActive);
-			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive);
+			// Honor the shared `dictation.showButton` visibility toggle: hiding the
+			// button still leaves Cmd/Ctrl+I working (its keybinding is independent).
+			const buttonShown = this.configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
+			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive || !buttonShown);
 		};
 		updateVisibility();
 		this._register(autorun(reader => {
@@ -999,7 +1017,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Both the enable kill-switch and the model selection can change
 			// availability (e.g. an unsupported on-device platform becomes
 			// configured when switching to the cloud backend).
-			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model')) {
+			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model') || e.affectsConfiguration(DictationSettingId.ShowButton)) {
 				updateVisibility();
 			}
 		}));

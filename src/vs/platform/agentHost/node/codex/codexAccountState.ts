@@ -3,46 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
-import type { CodexUsageSource } from '../../common/agentHostCustomizationConfig.js';
+import type { ICodexAccountRateLimitInfo } from '../../common/codexAccount.js';
+import type { GetAccountRateLimitsResponse } from './protocol/generated/v2/GetAccountRateLimitsResponse.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
+import type { RateLimitWindow } from './protocol/generated/v2/RateLimitWindow.js';
 
 export interface ICodexAccountState {
 	readonly usageSource: 'openai' | 'copilot';
-	readonly status: 'signedIn' | 'signedOut' | 'error';
+	readonly status: 'unknown' | 'signedIn' | 'signedOut' | 'unavailable' | 'error';
 	readonly authType?: 'chatgpt' | 'apiKey' | 'other';
+	readonly email?: string;
 	readonly planType?: string;
+	readonly requiresOpenaiAuth?: boolean;
 	readonly error?: string;
 }
 
 export function codexAccountStateFromResponse(response: GetAccountResponse): ICodexAccountState {
 	if (response.account?.type === 'chatgpt') {
-		return { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: response.account.planType };
+		return { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: response.account.email ?? undefined, planType: response.account.planType, requiresOpenaiAuth: response.requiresOpenaiAuth };
 	}
 	if (response.account?.type === 'apiKey') {
-		return { usageSource: 'openai', status: 'signedIn', authType: 'apiKey' };
+		return { usageSource: 'openai', status: 'unavailable', authType: 'apiKey', requiresOpenaiAuth: response.requiresOpenaiAuth };
 	}
 	if (response.account) {
-		return { usageSource: 'openai', status: 'signedIn', authType: 'other' };
+		return { usageSource: 'openai', status: 'unavailable', authType: 'other', requiresOpenaiAuth: response.requiresOpenaiAuth };
 	}
-	return { usageSource: 'openai', status: 'signedOut' };
+	return { usageSource: 'openai', status: response.requiresOpenaiAuth ? 'signedOut' : 'unavailable', requiresOpenaiAuth: response.requiresOpenaiAuth };
 }
 
-export function resolveCodexUsageSourceAfterAccountRead(source: CodexUsageSource, account: ICodexAccountState): CodexUsageSource {
-	return source === 'openai' && account.status === 'signedOut' ? 'copilot' : source;
-}
-
-export function codexAccountStateForUsageSource(source: CodexUsageSource, openAIAccount: ICodexAccountState): ICodexAccountState {
-	return source === 'openai' ? openAIAccount : { ...openAIAccount, usageSource: 'copilot' };
-}
-
-export function codexProtectedResourcesForUsageSource(
-	source: CodexUsageSource,
-	copilotResource: ProtectedResourceMetadata,
-	repoResource: ProtectedResourceMetadata,
-): ProtectedResourceMetadata[] {
-	return [
-		source === 'openai' ? { ...copilotResource, required: false } : copilotResource,
-		repoResource,
-	];
+export function codexAccountRateLimitFromResponse(response: GetAccountRateLimitsResponse): ICodexAccountRateLimitInfo | undefined {
+	const codexSnapshot = response.rateLimitsByLimitId?.codex;
+	const snapshot = codexSnapshot?.primary || codexSnapshot?.secondary ? codexSnapshot : response.rateLimits;
+	const windows = [snapshot.primary, snapshot.secondary].filter((window): window is RateLimitWindow => !!window);
+	if (windows.length === 0) {
+		return undefined;
+	}
+	const weeklyWindowMins = 7 * 24 * 60;
+	const window = windows.reduce((best, candidate) => {
+		if (candidate.windowDurationMins === null) {
+			return best;
+		}
+		if (best.windowDurationMins === null) {
+			return candidate;
+		}
+		return Math.abs(candidate.windowDurationMins - weeklyWindowMins) < Math.abs(best.windowDurationMins - weeklyWindowMins) ? candidate : best;
+	});
+	if (!Number.isFinite(window.usedPercent)) {
+		return undefined;
+	}
+	return {
+		usedPercent: Math.min(100, Math.max(0, window.usedPercent)),
+		windowDurationMins: window.windowDurationMins !== null && window.windowDurationMins > 0 ? window.windowDurationMins : undefined,
+		resetsAt: window.resetsAt !== null && window.resetsAt > 0 ? window.resetsAt : undefined,
+	};
 }

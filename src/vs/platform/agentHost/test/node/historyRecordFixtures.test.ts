@@ -313,7 +313,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 				{
 					type: 'skill.invoked',
 					id: 'evt-42',
-					data: { name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+					data: { name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 				},
 				{
 					type: 'user.message',

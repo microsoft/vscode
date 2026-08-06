@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
-import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
@@ -319,6 +319,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 			activateLink(markdown, options, keyboardEvent);
 		}));
+
 	}
 
 	// Remove/disable inputs
@@ -388,9 +389,18 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 				resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 			}
 			el.dataset.href = resolvedHref;
+
+			// Leaving `href` empty makes the browser resolve it against the workbench document
+			// when serializing a copy, so every pasted link became a `workbench.html` URL. Only
+			// restore it where an action handler intercepts clicks and routes them through the
+			// opener; without one the anchor would navigate natively.
+			if (options.actionHandler && isPortableLinkTarget(resolvedHref)) {
+				el.setAttribute('href', resolvedHref);
+			}
 		}
 	}
 }
+
 
 function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
 	const renderer = new marked.Renderer(options.markedOptions);

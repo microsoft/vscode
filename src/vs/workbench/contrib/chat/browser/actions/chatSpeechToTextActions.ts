@@ -26,17 +26,24 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 import { buildMicrophoneOptions, IDictationOnboardingService, RESET_DICTATION_ONBOARDING_COMMAND, SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
 // hidden (not just disabled) when the user has turned AI features off; without
-// it the F1 "Dictate: Select Microphone" command stays discoverable.
+// it the F1 "Select Microphone" command stays discoverable.
 export const ChatSpeechToTextConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key));
 /** True while the selected dictation backend is preparing. */
 export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.speechToTextPreparing.key);
 const ChatSpeechToTextMaiBackend = ContextKeyExpr.equals('config.dictation.model', 'mai');
+/**
+ * True unless the user has hidden the chat-input dictation microphone button via
+ * {@link DictationSettingId.ShowButton}. Gates only the toolbar button; the
+ * Cmd/Ctrl+I dictation shortcut stays available so dictation can still be
+ * launched when the button is hidden.
+ */
+const ChatSpeechToTextButtonShown = ContextKeyExpr.notEquals(`config.${DictationSettingId.ShowButton}`, false);
 
 /** Releases shorter than this are treated as an accidental tap and discarded. */
 const HOLD_TO_TALK_THRESHOLD_MS = 500;
@@ -144,7 +151,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
 				group: 'navigation',
 			}],
 			keybinding: {
@@ -200,7 +207,7 @@ export class ChatSpeechToTextPreparingAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
 				group: 'navigation',
 			}],
 		});
@@ -228,7 +235,7 @@ export class ChatSpeechToTextConnectingAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend, AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend, AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
 				group: 'navigation',
 			}],
 		});
@@ -292,10 +299,12 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 	constructor() {
 		super({
 			id: SelectSpeechToTextMicrophoneAction.ID,
-			title: localize2('chat.speechToText.selectMicrophone', "Dictate: Select Microphone"),
+			title: localize2('chat.speechToText.selectMicrophone', "Select Microphone"),
 			category: CHAT_CATEGORY,
 			f1: true,
-			precondition: ChatSpeechToTextConfigured,
+			// Shared by dictation and Voice Mode (both persist to the same
+			// device), so stay available whenever either feature is enabled.
+			precondition: ContextKeyExpr.or(ChatSpeechToTextConfigured, ContextKeyExpr.equals('config.agents.voice.enabled', true)),
 		});
 	}
 

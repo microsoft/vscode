@@ -407,7 +407,7 @@ export interface ISessionDataService {
 	 * Subscribers can register asynchronous cleanup work via
 	 * {@link IWillDeleteSessionDataEvent.waitUntil}; the deletion is
 	 * blocked until all registered promises settle. Used by
-	 * `IAgentHostCheckpointService.disposeSessionData` to read the exact
+	 * `IAgentHostCheckpointService.deleteCheckpoints` to read the exact
 	 * list of checkpoint refs from the (still-readable) database and
 	 * delete them before the directory is removed.
 	 *

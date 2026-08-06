@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent } from '@github/copilot-sdk';
+import type { Attachment, SessionEvent, SessionEventPayload, SkillInvokedData, ToolExecutionCompleteContent } from '@github/copilot-sdk';
 
 // =============================================================================
 // Minimal session-event shapes for tests
@@ -82,17 +82,12 @@ export interface ISessionEventMessage {
 	};
 }
 
-/** Minimal event shape for `skill.invoked`, used to synthesize a tool-style render. */
 export interface ISessionEventSkillInvoked {
 	type: 'skill.invoked';
 	id?: string;
 	/** Envelope-level sub-agent instance id. */
 	agentId?: string;
-	data: {
-		name: string;
-		path?: string;
-		description?: string;
-	};
+	data: SkillInvokedData;
 }
 
 export interface ISessionEventSubagentStarted {

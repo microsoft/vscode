@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, managedSettingValue, projectManagedSettings, pickManagedSettings } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, hasManagedSettingsDefinitions, managedSettingValue, projectManagedSettings, pickManagedSettings, shouldForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -72,6 +72,22 @@ suite('Copilot managed settings projection', () => {
 			managedSettingValue('permissions.disableBypassPermissionsMode'),
 			managedSettingValue('some.other.key'),
 		);
+	});
+
+	test('forceRemoteSettingsRefresh uses native MDM over the cached server value', () => {
+		assert.deepStrictEqual({
+			serverTrue: shouldForceRemoteSettingsRefresh(undefined, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
+			nativeTrue: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }),
+			nativeFalse: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
+			malformedNative: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: 'true' }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
+			unset: shouldForceRemoteSettingsRefresh(undefined, undefined),
+		}, {
+			serverTrue: true,
+			nativeTrue: true,
+			nativeFalse: false,
+			malformedNative: true,
+			unset: false,
+		});
 	});
 
 	test('projectManagedSettings keeps declared+typed keys, drops undeclared and type-mismatched', () => {

@@ -24,10 +24,12 @@ suite('VoiceInputModeService', () => {
 		} as IChatSpeechToTextService;
 	}
 
-	function createService(options: { voiceEnabled?: boolean; dictationConfigured?: boolean } = {}) {
+	function createService(options: { voiceEnabled?: boolean; voiceButtonShown?: boolean; dictationConfigured?: boolean; dictationButtonShown?: boolean } = {}) {
 		const storageService = store.add(new TestStorageService());
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('agents.voice.enabled', options.voiceEnabled ?? false);
+		configurationService.setUserConfiguration('agents.voice.showButton', options.voiceButtonShown ?? true);
+		configurationService.setUserConfiguration('dictation.showButton', options.dictationButtonShown ?? true);
 		const contextKeyService = new MockContextKeyService();
 		const dictationService = createDictationService(options.dictationConfigured ?? false);
 		const service = store.add(new VoiceInputModeService(storageService, configurationService, contextKeyService, dictationService));
@@ -54,6 +56,20 @@ suite('VoiceInputModeService', () => {
 		const { service: unavailable } = createService({ voiceEnabled: false, dictationConfigured: false });
 		assert.deepStrictEqual(
 			{ voice: unavailable.voiceAvailable.get(), dictation: unavailable.dictationAvailable.get() },
+			{ voice: false, dictation: false }
+		);
+	});
+
+	test('excludes hidden controls from mode availability', () => {
+		const { service } = createService({
+			voiceEnabled: true,
+			voiceButtonShown: false,
+			dictationConfigured: true,
+			dictationButtonShown: false,
+		});
+
+		assert.deepStrictEqual(
+			{ voice: service.voiceAvailable.get(), dictation: service.dictationAvailable.get() },
 			{ voice: false, dictation: false }
 		);
 	});

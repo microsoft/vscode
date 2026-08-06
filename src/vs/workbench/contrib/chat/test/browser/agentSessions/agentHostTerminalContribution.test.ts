@@ -245,7 +245,7 @@ suite('AgentHostTerminalContribution', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('does not dispatch when chat.agentHost.enabled is false', async () => {
+	test('does not dispatch when Agent Host is unavailable', async () => {
 		const { agentHostService } = setup(disposables, /*agentHostEnabled*/ false);
 
 		// Even with a fully-hydrated rootState, nothing should fire because

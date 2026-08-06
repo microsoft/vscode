@@ -9,7 +9,7 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, sessionFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
 
 suite('isActiveSessionStatus', () => {
 
@@ -113,6 +113,22 @@ suite('sessionFileChangesEqual', () => {
 	test('returns true when entries are the same reference (short-circuit)', () => {
 		const shared = v1(fileA);
 		assert.strictEqual(sessionFileChangesEqual([shared], [shared]), true);
+	});
+});
+
+suite('sessionTurnFileChangesEqual', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes workspace classification in equality', () => {
+		const uri = URI.file('/a.txt');
+		const inside: ISessionTurnFileChange = { uri, modifiedUri: uri, insertions: 1, deletions: 0, isOutsideWorkspace: false };
+		const outside: ISessionTurnFileChange = { ...inside, isOutsideWorkspace: true };
+
+		assert.deepStrictEqual([
+			sessionTurnFileChangesEqual([inside], [{ ...inside }]),
+			sessionTurnFileChangesEqual([inside], [outside]),
+		], [true, false]);
 	});
 });
 

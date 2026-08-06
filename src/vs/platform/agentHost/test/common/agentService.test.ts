@@ -7,7 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostCodexAgentEnabledSettingId, AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, buildAgentSdkEnv, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { AgentHostByokModelsEnabledEnvVar, AgentHostCodexAgentEnabledSettingId, AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, buildAgentSdkEnv, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, isAgentEnabled, protectedResourcesRequireGitHubCopilotSignIn, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
@@ -325,5 +326,48 @@ suite('buildAgentSdkEnv (BYOK gate forwarding)', () => {
 	test('lets an inherited env var win over the setting (developer override)', () => {
 		const env = buildAgentSdkEnv({ byokModelsEnabled: true }, { [AgentHostByokModelsEnabledEnvVar]: 'false' });
 		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], undefined);
+	});
+});
+
+suite('protectedResourcesRequireGitHubCopilotSignIn', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const githubCopilotWithoutRequired: ProtectedResourceMetadata = { resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource };
+	const githubCopilotRequiredFalse: ProtectedResourceMetadata = { ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false };
+	const otherRequiredResource: ProtectedResourceMetadata = { resource: 'https://api.openai.com', required: true };
+
+	test('derives the requirement from advertised protected resources', () => {
+		const scenarios: Record<string, ProtectedResourceMetadata[]> = {
+			// Proxy-mode Copilot / Claude: advertises the resource as required.
+			copilotRequired: [GITHUB_COPILOT_PROTECTED_RESOURCE],
+			// Absent `required` is treated the same as `true`.
+			copilotRequiredAbsent: [githubCopilotWithoutRequired],
+			// An agent that advertises no protected resources at all.
+			noResourcesAdvertised: [],
+			// Codex on OpenAI: advertises the resource but marks it optional.
+			copilotRequiredFalse: [githubCopilotRequiredFalse],
+			// Only unrelated resources are advertised.
+			onlyOtherResource: [otherRequiredResource],
+			// Mixed: an optional GitHub Copilot resource alongside a required other one.
+			optionalCopilotWithOtherRequired: [githubCopilotRequiredFalse, otherRequiredResource],
+		};
+
+		const result = Object.fromEntries(
+			Object.entries(scenarios).map(([name, resources]) => [name, protectedResourcesRequireGitHubCopilotSignIn(resources)]),
+		);
+
+		assert.deepStrictEqual(result, {
+			copilotRequired: true,
+			copilotRequiredAbsent: true,
+			noResourcesAdvertised: false,
+			copilotRequiredFalse: false,
+			onlyOtherResource: false,
+			optionalCopilotWithOtherRequired: false,
+		});
+	});
+
+	test('the GitHub repo resource alone does not require Copilot sign-in', () => {
+		assert.strictEqual(protectedResourcesRequireGitHubCopilotSignIn([GITHUB_REPO_PROTECTED_RESOURCE]), false);
 	});
 });

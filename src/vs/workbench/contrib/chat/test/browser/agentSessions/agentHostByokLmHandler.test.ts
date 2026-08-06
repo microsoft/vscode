@@ -12,6 +12,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import type { IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentHostByokLmHandler } from '../../../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -54,6 +58,16 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 	}
 }
 
+class TestChatEntitlementService extends mock<IChatEntitlementService>() {
+	constructor(private readonly _contextKeyService: IContextKeyService) {
+		super();
+	}
+
+	override get clientByokEnabled(): boolean {
+		return this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === true;
+	}
+}
+
 function byokModel(vendor: string, id: string, capabilities?: ILanguageModelChatMetadata['capabilities']): ILanguageModelChatMetadata {
 	return {
 		extension: new ExtensionIdentifier('test.byok'),
@@ -85,9 +99,54 @@ suite('AgentHostByokLmHandler', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
-		return store.add(new AgentHostByokLmHandler(service, new NullLogService()));
+	function createPolicyContext(enabled: boolean): { contextKeyService: IContextKeyService; clientByokEnabled: IContextKey<boolean> } {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const clientByokEnabled = ChatEntitlementContextKeys.clientByokEnabled.bindTo(contextKeyService);
+		clientByokEnabled.set(enabled);
+		return { contextKeyService, clientByokEnabled };
 	}
+
+	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
+		const { contextKeyService } = createPolicyContext(true);
+		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+	}
+
+	test('updates model discovery and blocks requests when BYOK policy changes', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme', byokModel('acme', 'claude')]]),
+			() => responseOf([]),
+		);
+		const { contextKeyService, clientByokEnabled } = createPolicyContext(true);
+		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+		let modelChangeCount = 0;
+		store.add(handler.onDidChangeModels(() => modelChangeCount++));
+
+		clientByokEnabled.set(false);
+		const disabledModels = await handler.listModels(CancellationToken.None);
+		const disabledResult = await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [],
+		}, CancellationToken.None);
+		clientByokEnabled.set(true);
+		const enabledModels = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			modelChangeCount,
+			disabledModels,
+			disabledResult,
+			enabledModels,
+			requestSent: service.captured !== undefined,
+		}, {
+			modelChangeCount: 2,
+			disabledModels: [],
+			disabledResult: { output: [], error: 'BYOK models are disabled by policy.' },
+			enabledModels: [
+				{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 2000, supportsVision: false },
+			],
+			requestSent: false,
+		});
+	});
 
 	test('listModels enumerates renderer BYOK models and excludes agent-host copies', async () => {
 		const service = new TestLanguageModelsService(

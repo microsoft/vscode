@@ -181,9 +181,8 @@ const between = text.slice(firstBrace + 1, lastBrace)
 	.replace(/\/\*[\s\S]*?\*\//g, '')
 	.replace(/\/\/[^\n]*/g, '')
 	.trim();
-const insertion = between.length === 0
-	? '\n  "' + KEY + '": true\n'
-	: ',\n  "' + KEY + '": true\n';
+const separator = between.length === 0 || between.endsWith(',') ? '' : ',';
+const insertion = separator + '\n  "' + KEY + '": true\n';
 
 fs.writeFileSync(f, text.slice(0, lastBrace) + insertion + text.slice(lastBrace));
 NODE

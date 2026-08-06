@@ -83,6 +83,27 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 	}
 */
 
+/* __GDPR__
+	"copilotCli/task_complete_todo_state": {
+		"owner": "amunger",
+		"comment": "Reports the aggregate state of the Copilot CLI todo list when task completion is recorded. Contains only todo-status counts and derived boolean indicators; it does not contain todo text or other user content.",
+		"${include}": [ "${CopilotCliForwardedTelemetry}" ],
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"surface": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Telemetry-safe product surface that recorded task completion." },
+		"billable": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the interaction is billable." },
+		"had_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the Copilot CLI todo list contained at least one item when task completion was recorded." },
+		"has_open_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the Copilot CLI todo list contained at least one pending, in-progress, or blocked item when task completion was recorded." },
+		"pending_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the pending state when task completion was recorded.", "isMeasurement": true },
+		"in_progress_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the in-progress state when task completion was recorded.", "isMeasurement": true },
+		"blocked_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the blocked state when task completion was recorded.", "isMeasurement": true },
+		"done_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items in the done state when task completion was recorded.", "isMeasurement": true },
+		"open_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of todo items not yet done, comprising pending, in-progress, and blocked items, when task completion was recorded.", "isMeasurement": true },
+		"total_todos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of todo items when task completion was recorded.", "isMeasurement": true }
+	}
+*/
+
 /**
  * Re-emits GitHub-shaped telemetry events forwarded by the Copilot CLI runtime
  * (via the SDK's `onGitHubTelemetry` connection-global callback) through VS

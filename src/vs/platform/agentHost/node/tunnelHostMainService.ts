@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Tunnel } from '@microsoft/dev-tunnels-contracts';
+import type { Tunnel, TunnelPort } from '@microsoft/dev-tunnels-contracts';
 import type { TunnelManagementHttpClient } from '@microsoft/dev-tunnels-management';
 import { connect } from 'net';
 import { hostname } from 'os';
@@ -14,7 +14,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogger, ILoggerService } from '../../log/common/log.js';
 import { localize } from '../../../nls.js';
-import { CONFIGURATION_KEY_HOST_NAME } from '../../remoteTunnel/common/remoteTunnel.js';
+import { CONFIGURATION_KEY_HOST_NAME, normalizeTunnelName, tunnelNameFromHostname } from '../../remoteTunnel/common/remoteTunnel.js';
 import {
 	ITunnelAgentHostHostingService,
 	PROTOCOL_VERSION_TAG_PREFIX,
@@ -33,6 +33,7 @@ interface IActiveTunnel {
 	readonly tunnel: Tunnel;
 	readonly host: { dispose(): void };
 	readonly client: TunnelManagementHttpClient;
+	readonly created: boolean;
 }
 
 export class TunnelHostMainService extends Disposable implements ITunnelAgentHostHostingService {
@@ -73,21 +74,77 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 		// Create tunnel with agent host port and appropriate labels
 		const protocolVersionTag = `${PROTOCOL_VERSION_TAG_PREFIX}${TUNNEL_MIN_PROTOCOL_VERSION}`;
 
+		const agentHostPort: TunnelPort = {
+			portNumber: TUNNEL_AGENT_HOST_PORT,
+			protocol: 'https',
+		};
+		const labels = [TUNNEL_LAUNCHER_LABEL, tunnelName, protocolVersionTag];
+
 		const newTunnel: Tunnel = {
-			ports: [{
-				portNumber: TUNNEL_AGENT_HOST_PORT,
-				protocol: 'https',
-			}],
-			labels: [TUNNEL_LAUNCHER_LABEL, tunnelName, protocolVersionTag],
+			ports: [agentHostPort],
+			labels,
 		};
 
-		const tunnelRequestOptions = {
+		// The SDK mutates the request options it is handed — `updateTunnel`
+		// injects an `If-Match: *` header, `createTunnel` an `If-Not-Match: *`
+		// — so every call gets its own object. Sharing one leaks a stale
+		// precondition onto the next request, which makes the service reject
+		// the agent host port with a 404 when that port does not exist yet.
+		const tunnelRequestOptions = () => ({
 			tokenScopes: ['host', 'connect'],
 			includePorts: true,
-		};
+		});
 
-		const tunnel = await client.createOrUpdateTunnel(newTunnel, tunnelRequestOptions);
-		this._logger.info(`Tunnel created: ${tunnel.tunnelId} in cluster ${tunnel.clusterId}`);
+		const [existingTunnel] = await client.listTunnels(undefined, undefined, {
+			labels: [TUNNEL_LAUNCHER_LABEL, tunnelName],
+			requireAllLabels: true,
+			includePorts: true,
+			tokenScopes: ['host', 'connect'],
+			limit: 1,
+		});
+		const rawHostConnectionCount = existingTunnel?.status?.hostConnectionCount;
+		const hostConnectionCount = typeof rawHostConnectionCount === 'number' ? rawHostConnectionCount : (rawHostConnectionCount?.current ?? 0);
+
+		let tunnel: Tunnel | undefined;
+		let created = false;
+		if (existingTunnel && hostConnectionCount === 0) {
+			try {
+				const existingLabels = existingTunnel.labels ?? [];
+				const hasCurrentLabels = labels.every(l => existingLabels.includes(l))
+					&& !existingLabels.some(l => l.startsWith(PROTOCOL_VERSION_TAG_PREFIX) && l !== protocolVersionTag);
+				const hasAgentHostPort = existingTunnel.ports?.some(p => p.portNumber === TUNNEL_AGENT_HOST_PORT) ?? false;
+
+				if (hasCurrentLabels && hasAgentHostPort) {
+					tunnel = existingTunnel;
+				} else {
+					let adopted = existingTunnel;
+					if (!hasCurrentLabels) {
+						adopted = await client.updateTunnel({
+							tunnelId: existingTunnel.tunnelId,
+							clusterId: existingTunnel.clusterId,
+							labels,
+						}, tunnelRequestOptions());
+					}
+					if (!hasAgentHostPort) {
+						await client.createOrUpdateTunnelPort(adopted, agentHostPort, tunnelRequestOptions());
+					}
+					tunnel = await client.getTunnel(adopted, tunnelRequestOptions()) ?? adopted;
+				}
+				this._logger.info(`Adopted existing inactive tunnel: ${tunnel.tunnelId} in cluster ${tunnel.clusterId}`);
+			} catch (err) {
+				// Falling back to creating a tunnel costs us the de-duplication
+				// but still gets the user connected.
+				this._logger.warn(`Failed to adopt existing tunnel ${existingTunnel.tunnelId}, creating a new one instead`, err);
+			}
+		} else if (existingTunnel) {
+			this._logger.warn(`Tunnel name '${tunnelName}' is already in use by another active host; creating a new tunnel`);
+		}
+
+		if (!tunnel) {
+			tunnel = await client.createOrUpdateTunnel(newTunnel, tunnelRequestOptions());
+			created = true;
+			this._logger.info(`Tunnel created: ${tunnel.tunnelId} in cluster ${tunnel.clusterId}`);
+		}
 
 		// Host the tunnel using TunnelRelayTunnelHost.
 		// We disable automatic local port forwarding so that we can capture
@@ -119,7 +176,9 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 		await host.connect(tunnel);
 		this._logger.info(`Tunnel relay host connected`);
 
-		const domain = tunnel.ports?.[0]?.portForwardingUris?.[0] ?? `${tunnel.tunnelId}.${tunnel.clusterId}.devtunnels.ms`;
+		// An adopted tunnel may carry additional forwarded ports, so look the
+		// agent host port up by number rather than assuming it comes first.
+		const domain = tunnel.ports?.find(p => p.portNumber === TUNNEL_AGENT_HOST_PORT)?.portForwardingUris?.[0] ?? `${tunnel.tunnelId}.${tunnel.clusterId}.devtunnels.ms`;
 		const info: ITunnelHostInfo = {
 			tunnelName,
 			tunnelId: tunnel.tunnelId!,
@@ -127,7 +186,7 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 			domain: typeof domain === 'string' ? domain : `${tunnel.tunnelId}.${tunnel.clusterId}.devtunnels.ms`,
 		};
 
-		this._active = { info, tunnel, host, client };
+		this._active = { info, tunnel, host, client, created };
 		this._activeTunnel.value = {
 			dispose: () => {
 				host.dispose();
@@ -144,16 +203,20 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 			return;
 		}
 
-		const { tunnel, client } = this._active;
+		const { tunnel, client, created } = this._active;
 		this._logger.info(`Stopping tunnel hosting...`);
 
-		// Delete the tunnel from the management service before
-		// tearing down the local relay so we can retry on failure
-		try {
-			await client.deleteTunnel(tunnel);
-			this._logger.info(`Tunnel deleted`);
-		} catch (err) {
-			this._logger.warn(`Failed to delete tunnel`, err);
+		if (created) {
+			// Delete the tunnel from the management service before
+			// tearing down the local relay so we can retry on failure
+			try {
+				await client.deleteTunnel(tunnel);
+				this._logger.info(`Tunnel deleted`);
+			} catch (err) {
+				this._logger.warn(`Failed to delete tunnel`, err);
+			}
+		} else {
+			this._logger.info(`Leaving adopted tunnel ${tunnel.tunnelId} in place`);
 		}
 
 		this._activeTunnel.clear();
@@ -172,9 +235,8 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 	 * Get the sanitized tunnel name from configuration or OS hostname.
 	 */
 	private _getTunnelName(): string {
-		let name = this._configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) || hostname();
-		name = name.replace(/^-+/g, '').replace(/[^\w-]/g, '').substring(0, 20);
-		return name || 'vscode';
+		const configured = this._configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME);
+		return (configured ? normalizeTunnelName(configured) : tunnelNameFromHostname(hostname())) || 'vscode';
 	}
 
 	private async _createManagementClient(token: string, authProvider: 'github' | 'microsoft'): Promise<TunnelManagementHttpClient> {

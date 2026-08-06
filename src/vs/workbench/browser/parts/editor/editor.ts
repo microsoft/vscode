@@ -263,9 +263,12 @@ export interface IEditorGroupViewOptions {
 
 	/**
 	 * Optional menu ids used by the group header and tab bar. When unset the
-	 * workbench uses the shared defaults and renders no full-width header.
+	 * workbench uses the shared defaults and renders no custom header actions.
 	 */
 	readonly menuIds?: IEditorGroupMenuIds;
+
+	/** Shows the full-width group header with its configured actions and breadcrumbs. */
+	readonly showHeader?: boolean;
 }
 
 export interface IEditorGroupMenuIds {
@@ -273,6 +276,8 @@ export interface IEditorGroupMenuIds {
 	readonly headerPrimary?: MenuId;
 	/** Menu whose actions render as the trailing (right) header toolbar. */
 	readonly headerSecondary?: MenuId;
+	/** Menu whose actions render after the trailing header toolbar. */
+	readonly headerLayout?: MenuId;
 	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
 	readonly editorActions?: MenuId;
 	/** Menu shown when right-clicking the empty tab-bar area. */

@@ -375,7 +375,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 	});
 
-	test('restore ignores VS Code\'s global recents, using only the sessions\' own history', async () => {
+	test('restore prioritizes the sessions\' own history over VS Code\'s global recents', async () => {
 		const localProvider = createMockProvider('local-1');
 		providersService.setProviders([localProvider]);
 
@@ -401,41 +401,96 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recentWorkspacesService);
 
-		assert.strictEqual(picker.selectedFolderUri?.toString(), ownUri.toString(), 'restore selects only the sessions-owned entry, not the VS Code global recent');
+		assert.strictEqual(picker.selectedFolderUri?.toString(), ownUri.toString(), 'restore selects the sessions-owned entry before the VS Code global recent');
 	});
 
-	test('restore selects nothing when own history is empty, even with VS Code global recents present', async () => {
+	test('restore selects the most recent VS Code workspace when own history is empty', async () => {
 		const localProvider = createMockProvider('local-1');
 		providersService.setProviders([localProvider]);
 
-		const globalUri = URI.file('/local/global-only-project');
+		const mostRecentGlobalUri = URI.file('/local/most-recent-global-project');
+		const olderGlobalUri = URI.file('/local/older-global-project');
 		const storage = disposables.add(new TestStorageService());
 
-		const workspacesService = { getRecentlyOpened: async () => ({ workspaces: [{ folderUri: globalUri }], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService;
+		const workspacesService = {
+			getRecentlyOpened: async () => ({
+				workspaces: [{ folderUri: mostRecentGlobalUri }, { folderUri: olderGlobalUri }],
+				files: [],
+			}),
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService;
 		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
 
 		const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recentWorkspacesService);
 
-		assert.strictEqual(picker.selectedFolderUri, undefined, 'restore selects nothing when there is no owned history to restore from');
+		assert.strictEqual(picker.selectedFolderUri?.toString(), mostRecentGlobalUri.toString());
 	});
 
-	test('filters worktree checkout folders from VS Code global recents only', async () => {
+	test('restore selects a VS Code recent that finishes loading after picker creation', async () => {
+		const localProvider = createMockProvider('local-1');
+		providersService.setProviders([localProvider]);
+
+		const globalUri = URI.file('/local/global-project');
+		const recentlyOpened = new DeferredPromise<Awaited<ReturnType<IWorkspacesService['getRecentlyOpened']>>>();
+		const workspacesService = {
+			getRecentlyOpened: () => recentlyOpened.p,
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService;
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, workspacesService);
+
+		const initialSelection = picker.selectedFolderUri;
+		assert.strictEqual(initialSelection, undefined);
+		await recentlyOpened.complete({ workspaces: [{ folderUri: globalUri }], files: [] });
+
+		assert.strictEqual(picker.selectedFolderUri?.toString(), globalUri.toString());
+	});
+
+	test('late VS Code recents do not override an explicit workspace selection', async () => {
+		const localProvider = createMockProvider('local-1');
+		providersService.setProviders([localProvider]);
+
+		const selectedUri = URI.file('/local/selected-project');
+		const globalUri = URI.file('/local/global-project');
+		const recentlyOpened = new DeferredPromise<Awaited<ReturnType<IWorkspacesService['getRecentlyOpened']>>>();
+		const workspacesService = {
+			getRecentlyOpened: () => recentlyOpened.p,
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService;
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, workspacesService);
+		picker.setSelectedWorkspace(selectedUri, { fireEvent: false });
+
+		await recentlyOpened.complete({ workspaces: [{ folderUri: globalUri }], files: [] });
+
+		assert.strictEqual(picker.selectedFolderUri?.toString(), selectedUri.toString());
+	});
+
+	test('shows manually picked worktree folders but filters them from VS Code recents', async () => {
 		const provider = createMockProvider('provider');
 		providersService.setProviders([provider]);
 
 		const ownWorktreeUri = URI.file('/code/owned.worktrees/feature');
+		const ownCopilotWorktreeUri = URI.file('/tmp/copilot-worktrees/owned-feature');
+		const ownRegularUri = URI.file('/code/owned-feature');
 		const globalWorktreeUri = URI.file('/code/vscode.worktrees/feature');
 		const globalUppercaseWorktreeUri = URI.file('/code/VSCode.WORKTREES/other-feature');
+		const globalCopilotWorktreeUri = URI.file('/tmp/copilot-worktrees/global-feature');
+		const globalUppercaseCopilotWorktreeUri = URI.file('/tmp/COPILOT-WORKTREES/other-global-feature');
 		const globalSimilarUri = URI.file('/code/vscode.worktrees-backup/feature');
 		const globalRegularUri = URI.file('/code/vscode/feature');
 		const storage = disposables.add(new TestStorageService());
-		seedStorage(storage, [{ uri: ownWorktreeUri, providerId: 'provider', checked: false }]);
+		seedStorage(storage, [
+			{ uri: ownWorktreeUri, providerId: 'provider', checked: false },
+			{ uri: ownCopilotWorktreeUri, providerId: 'provider', checked: false },
+			{ uri: ownRegularUri, providerId: 'provider', checked: false },
+		]);
 
 		const workspacesService = {
 			getRecentlyOpened: async () => ({
 				workspaces: [
 					{ folderUri: globalWorktreeUri },
 					{ folderUri: globalUppercaseWorktreeUri },
+					{ folderUri: globalCopilotWorktreeUri },
+					{ folderUri: globalUppercaseCopilotWorktreeUri },
 					{ folderUri: globalSimilarUri },
 					{ folderUri: globalRegularUri },
 				],
@@ -447,8 +502,32 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		assert.deepStrictEqual(
 			recentWorkspacesService.getRecentWorkspaces().map(recent => recent.workspace.uri.toString()),
-			[ownWorktreeUri, globalSimilarUri, globalRegularUri].map(uri => uri.toString()),
+			[ownWorktreeUri, ownCopilotWorktreeUri, ownRegularUri, globalSimilarUri, globalRegularUri].map(uri => uri.toString()),
 		);
+	});
+
+	test('restore never preselects a worktree folder', async () => {
+		const localProvider = createMockProvider('local-1');
+		providersService.setProviders([localProvider]);
+		const globalUri = URI.file('/local/global-project');
+		const selected: string[] = [];
+
+		for (const excludedUri of [
+			URI.file('/local/project.worktrees/feature'),
+			URI.file('/local/copilot-worktrees/feature'),
+		]) {
+			const storage = disposables.add(new TestStorageService());
+			seedStorage(storage, [{ uri: excludedUri, providerId: 'local-1', checked: true }]);
+			const workspacesService = {
+				getRecentlyOpened: async () => ({ workspaces: [{ folderUri: globalUri }], files: [] }),
+				onDidChangeRecentlyOpened: Event.None,
+			} as unknown as IWorkspacesService;
+			const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+			const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recentWorkspacesService);
+			selected.push(picker.selectedFolderUri?.toString() ?? '');
+		}
+
+		assert.deepStrictEqual(selected, [globalUri.toString(), globalUri.toString()]);
 	});
 
 	test('restored remote that never connects falls back after grace period', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

@@ -20,7 +20,6 @@ suite('WebAgentHostEnablementService', () => {
 
 	function getEnablement(options: {
 		readonly remoteAuthority?: string;
-		readonly configured?: boolean;
 		readonly aiDisabled?: boolean;
 	}): {
 		readonly enabled: boolean;
@@ -28,7 +27,6 @@ suite('WebAgentHostEnablementService', () => {
 	} {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService({
-			'chat.agentHost.enabled': options.configured ?? true,
 			[ChatAIDisabledSettingId]: options.aiDisabled ?? false,
 		});
 		const contextKeyService = disposables.add(new MockContextKeyService());
@@ -57,13 +55,10 @@ suite('WebAgentHostEnablementService', () => {
 		});
 	});
 
-	test('respects configuration and AI disablement in web with a remote extension host', () => {
-		assert.deepStrictEqual({
-			configuredOff: getEnablement({ remoteAuthority: 'ssh-remote+test', configured: false }),
-			aiDisabled: getEnablement({ remoteAuthority: 'ssh-remote+test', aiDisabled: true }),
-		}, {
-			configuredOff: { enabled: false, contextKey: false },
-			aiDisabled: { enabled: false, contextKey: false },
+	test('respects AI disablement in web with a remote extension host', () => {
+		assert.deepStrictEqual(getEnablement({ remoteAuthority: 'ssh-remote+test', aiDisabled: true }), {
+			enabled: false,
+			contextKey: false,
 		});
 	});
 });

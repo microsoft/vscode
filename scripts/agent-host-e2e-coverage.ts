@@ -41,7 +41,6 @@ const providerPackages = [
 
 const incompatibleFlags = [
 	'AGENT_HOST_REAL_CODEX',
-	'AGENT_HOST_REAL_SDK',
 	'AGENT_HOST_REPLAY_RECORD',
 	'AGENT_HOST_UPDATE_AHP_SNAPSHOTS',
 	'AGENT_HOST_UPDATE_SNAPSHOTS',

@@ -30,7 +30,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
@@ -232,15 +232,13 @@ export class WorkspacePicker extends Disposable {
 					this._selectedResolved = reresolved;
 				}
 			}
-			if (!this._userHasPicked) {
-				const restoredNow = this._restoreSelectedWorkspace();
-				if (restoredNow && !this._isSelectedFolder(restoredNow.workspace.folders[0]?.root)) {
-					this._applySelection(restoredNow);
-					this._updateTriggerLabel();
-					this._onDidChangeSelection.fire();
-					this._onDidSelectWorkspace.fire(this._selectedFolderUri);
-					this._watchForConnectionFailure(restoredNow);
-				}
+			this._restoreSelectionFromHistory();
+		}));
+
+		// VS Code's recent-workspace history is loaded asynchronously.
+		this._register(this.recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
+			if (!this._selectedFolderUri) {
+				this._restoreSelectionFromHistory();
 			}
 		}));
 
@@ -1006,15 +1004,11 @@ export class WorkspacePicker extends Disposable {
 			return checked;
 		}
 
-		// Fall back to the first resolvable recent workspace from a connected provider.
-		// Fallbacks (vs. the user's explicit checked pick) require the provider
-		// to be ready: we don't want to silently land on, e.g., a disconnected
-		// remote workspace that the user never picked. Restrict to the sessions'
-		// own recent history (not VS Code's global recents) so restoration never
-		// seeds a new session from a folder merely opened in another window.
+		// Agents-owned recents are ordered before VS Code's general recents.
 		try {
-			for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
-				if (this._isProviderUnavailable(recent.providerId)) {
+			for (const recent of this.recentWorkspacesService.getRecentWorkspaces()) {
+				const folderUri = recent.workspace.folders[0]?.root;
+				if (!folderUri || isWorktreeWorkspaceUri(folderUri) || this._isProviderUnavailable(recent.providerId)) {
 					continue;
 				}
 				return recent;
@@ -1023,6 +1017,21 @@ export class WorkspacePicker extends Disposable {
 		} catch {
 			return undefined;
 		}
+	}
+
+	private _restoreSelectionFromHistory(): void {
+		if (this._userHasPicked) {
+			return;
+		}
+		const restored = this._restoreSelectedWorkspace();
+		if (!restored || this._isSelectedFolder(restored.workspace.folders[0]?.root)) {
+			return;
+		}
+		this._applySelection(restored);
+		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
+		this._onDidSelectWorkspace.fire(this._selectedFolderUri);
+		this._watchForConnectionFailure(restored);
 	}
 
 	/**
@@ -1035,7 +1044,10 @@ export class WorkspacePicker extends Disposable {
 	 */
 	private _restoreCheckedWorkspace(): IResolvedFolderWorkspace | undefined {
 		try {
-			return this.recentWorkspacesService.getRecentWorkspaces(false).find(recent => recent.checked);
+			return this.recentWorkspacesService.getRecentWorkspaces(false).find(recent => {
+				const folderUri = recent.workspace.folders[0]?.root;
+				return recent.checked && !!folderUri && !isWorktreeWorkspaceUri(folderUri);
+			});
 		} catch {
 			return undefined;
 		}

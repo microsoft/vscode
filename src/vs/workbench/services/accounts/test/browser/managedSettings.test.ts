@@ -95,11 +95,13 @@ suite('adaptManagedSettings', () => {
 			strictPluginOnlyCustomization: true,
 			allowManagedMcpServersOnly: true,
 			allowManagedHooksOnly: true,
+			forceRemoteSettingsRefresh: true,
 		}), {
 			managedSettings: {
 				strictPluginOnlyCustomization: true,
 				allowManagedMcpServersOnly: true,
 				allowManagedHooksOnly: true,
+				forceRemoteSettingsRefresh: true,
 			},
 		});
 	});

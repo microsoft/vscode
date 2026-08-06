@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -31,13 +31,65 @@ export function computeWorkingDirectories(primary: URI | undefined, workspaceFol
 	if (!primary) {
 		return undefined;
 	}
-	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
-	const supportsMultiple = !!agent?.capabilities?.multipleWorkingDirectories;
+	const supportsMultiple = supportsMultipleWorkingDirectories(rootState, provider);
 	if (!supportsMultiple || !workspaceFolders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, primary))) {
 		return [primary];
 	}
-	const rest = workspaceFolders.filter(folder => !extUriBiasedIgnorePathCase.isEqual(folder, primary));
-	return [primary, ...rest];
+	return computeDesiredWorkingDirectories(primary, [primary], workspaceFolders);
+}
+
+export function supportsMultipleWorkingDirectories(rootState: RootState | Error | undefined, provider: string): boolean {
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	return !!agent?.capabilities?.multipleWorkingDirectories;
+}
+
+/**
+ * Whether `provider` pins its first working directory as a fixed process root
+ * (`multipleWorkingDirectories.immutablePrimary`). Agents without it treat every
+ * working directory as an equal peer.
+ */
+export function hasImmutablePrimaryWorkingDirectory(rootState: RootState | Error | undefined, provider: string): boolean {
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	return agent?.capabilities?.multipleWorkingDirectories?.immutablePrimary === true;
+}
+
+/**
+ * Computes the working-directory set a session should have for the current
+ * workspace, as `[primary, ...secondaries]`.
+ *
+ * A secondary is kept only while it remains a workspace folder, so folders the
+ * user removed drop out. Folders the user added are appended. The primary is
+ * never dropped, even when it is no longer a workspace folder — an agent's
+ * process root is fixed once the session starts.
+ *
+ * Ordering is stable rather than meaningful: retained secondaries keep their
+ * existing order and newly added folders follow workspace order, so an
+ * unchanged workspace always recomputes an identical set.
+ */
+export function computeDesiredWorkingDirectories(
+	primary: URI,
+	currentWorkingDirectories: readonly URI[],
+	workspaceFolders: readonly URI[],
+	extUri: IExtUri = extUriBiasedIgnorePathCase,
+): readonly URI[] {
+	const desired: URI[] = [primary];
+	const addIfWorkspaceSecondary = (candidate: URI) => {
+		const alreadyIncluded = desired.some(existing => extUri.isEqual(existing, candidate));
+		if (alreadyIncluded || !workspaceFolders.some(folder => extUri.isEqual(folder, candidate))) {
+			return;
+		}
+		desired.push(candidate);
+	};
+
+	// Retained secondaries first so their existing order survives, then any
+	// folder the workspace gained since the set was last computed.
+	for (const currentSecondary of currentWorkingDirectories.slice(1)) {
+		addIfWorkspaceSecondary(currentSecondary);
+	}
+	for (const folder of workspaceFolders) {
+		addIfWorkspaceSecondary(folder);
+	}
+	return desired;
 }
 
 /**

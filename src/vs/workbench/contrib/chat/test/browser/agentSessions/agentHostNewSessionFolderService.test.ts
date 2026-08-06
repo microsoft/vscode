@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
 import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { AgentHostNewSessionFolderService, computeWorkingDirectories } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { AgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 
 suite('AgentHostNewSessionFolderService', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -179,6 +179,30 @@ suite('computeWorkingDirectories', () => {
 			providerAbsent: [folderB.toString()],
 			rootStateUndefined: [folderB.toString()],
 			rootStateError: [folderB.toString()],
+		});
+	});
+
+	test('preserves the primary and retained secondary order while applying membership changes', () => {
+		assert.deepStrictEqual({
+			retainsSecondaryOrder: toStrings(computeDesiredWorkingDirectories(
+				folderA,
+				[folderA, folderC, folderB],
+				[folderB, folderC],
+			)),
+			removesStaleAndAddsMissing: toStrings(computeDesiredWorkingDirectories(
+				folderA,
+				[folderA, folderB],
+				[folderC],
+			)),
+			deduplicates: toStrings(computeDesiredWorkingDirectories(
+				folderA,
+				[folderA, folderB, folderB],
+				[folderB, folderC, folderC],
+			)),
+		}, {
+			retainsSecondaryOrder: [folderA.toString(), folderC.toString(), folderB.toString()],
+			removesStaleAndAddsMissing: [folderA.toString(), folderC.toString()],
+			deduplicates: [folderA.toString(), folderB.toString(), folderC.toString()],
 		});
 	});
 });

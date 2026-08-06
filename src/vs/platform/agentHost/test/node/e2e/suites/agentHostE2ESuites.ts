@@ -7,10 +7,13 @@ import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDi
 import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
+import { defineCustomizationDiscoveryTests } from './customizationDiscoverySuite.js';
 import { defineAnnotationsTests } from './annotationsSuite.js';
 import { defineChangesetTests } from './changesetSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
 import { defineProtocolContractTests } from './protocolContractsSuite.js';
+import { defineServerToolsTests } from './serverToolsSuite.js';
+import { defineSessionPersistenceTests } from './sessionPersistenceSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
@@ -47,12 +50,16 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
-			supportsFileTools: config.supportsFileTools,
-			stableSharedServerFileScenarios: config.stableSharedServerFileScenarios ?? true,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
+			restartServer: async () => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				client = await lease.restart();
+			},
 			connectClient: () => {
 				if (!lease) {
 					throw new Error('[agent-host-e2e] no server lease');
@@ -150,6 +157,9 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		// peer turns and capability advertisement are provider-dependent
 		// (parity). The registrars self-select on `context.tier`.
 		defineMultiChatTests(context);
+		defineServerToolsTests(context);
+		defineCustomizationDiscoveryTests(context);
+		defineSessionPersistenceTests(context);
 	});
 }
 

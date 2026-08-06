@@ -68,12 +68,8 @@
 }
 
 /*
- * Add vertical breathing room to the headers. `--pane-header-size` drives both
- * the CSS header height (paneview.css) and the size the split view reserves for
- * the header during layout (Pane.resolveHeaderSize in paneview.ts), so the
- * taller header is reserved correctly even when a section is collapsed. The
- * StyleOverridesContribution triggers a relayout when this setting changes so
- * the new reservation is picked up immediately.
+ * Add vertical breathing room to the headers. Keep this value in sync with
+ * PANE_HEADER_OVERRIDE_SIZE so CSS presentation and split-view layout agree.
  */
 .style-override .monaco-pane-view {
 	--pane-header-size: 28px;

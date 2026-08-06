@@ -13,13 +13,27 @@ use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::util::errors::AnyError;
 
 use super::agent;
+use super::agent_discovery;
 use super::args::AgentLogsArgs;
 use super::output::Styles;
 use super::CommandContext;
 
 /// Subscribes to a session and streams actions/notifications in real time.
 pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32, AnyError> {
-	let client = agent::connect(&ctx, args.address.as_deref(), args.tunnel.as_deref()).await?;
+	let client = match (
+		args.discovery.address.as_deref(),
+		args.discovery.tunnel.as_deref(),
+	) {
+		(None, None) => {
+			agent_discovery::connect_to_session_host(
+				&ctx,
+				&args.session,
+				args.discovery.user_data_dir.as_deref(),
+			)
+			.await?
+		}
+		(address, tunnel) => agent::connect_explicit(&ctx, address, tunnel).await?,
+	};
 
 	let (result, mut sub): (SubscribeResult, _) = {
 		let r: SubscribeResult = agent::request_with_auth(

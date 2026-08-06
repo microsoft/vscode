@@ -437,7 +437,8 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const screenshotBuffer = attachImages
 			? await model.captureScreenshot({
 				quality: 90,
-				pageRect: bounds
+				pageRect: bounds,
+				awaitNextPaint: true
 			})
 			: undefined;
 

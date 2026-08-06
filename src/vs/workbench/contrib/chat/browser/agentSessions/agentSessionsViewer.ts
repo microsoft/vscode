@@ -258,6 +258,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposable = disposables.add(new DisposableStore());
+		container.closest('.monaco-list-row')?.classList.add('agent-session-list-row', 'agent-session-item-row');
 
 		const elements = h(
 			'div.agent-session-item@item',
@@ -793,6 +794,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 	renderTemplate(container: HTMLElement): IAgentSessionSectionTemplate {
 		const disposables = new DisposableStore();
+		container.closest('.monaco-list-row')?.classList.add('agent-session-list-row', 'agent-session-section-row');
 
 		const elements = h(
 			'div.agent-session-section@container',

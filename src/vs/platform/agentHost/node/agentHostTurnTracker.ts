@@ -13,8 +13,9 @@ interface ITurnTiming {
 	readonly stopWatch: StopWatch;
 	readonly provider: string;
 	readonly session: string;
-	readonly model: string | undefined;
-	readonly modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	model: string | undefined;
+	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
 	firstProgressMs: number | undefined;
 }
@@ -58,6 +59,7 @@ export class AgentHostTurnTracker extends Disposable {
 			session,
 			model,
 			modelTelemetryKind,
+			modelSelectionKind: model === undefined ? 'default' : model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel,
 			firstProgressMs: undefined,
 		});
@@ -69,6 +71,19 @@ export class AgentHostTurnTracker extends Disposable {
 		if (timing && timing.firstProgressMs === undefined) {
 			timing.firstProgressMs = timing.stopWatch.elapsed();
 		}
+	}
+
+	updateModel(session: string, turnId: string, model: string, modelTelemetryKind: AgentHostModelTelemetryKind): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			timing.model = model;
+			timing.modelTelemetryKind = modelTelemetryKind;
+		}
+	}
+
+	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		return timing ? { model: timing.model, modelTelemetryKind: timing.modelTelemetryKind } : undefined;
 	}
 
 	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
@@ -88,6 +103,7 @@ export class AgentHostTurnTracker extends Disposable {
 			result,
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
+			modelSelectionKind: timing.modelSelectionKind,
 			permissionLevel: timing.permissionLevel,
 			failure,
 		});

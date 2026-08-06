@@ -20,7 +20,6 @@ export function narrowApprovalPolicy(value: unknown): CodexApprovalPolicy | unde
 	switch (value) {
 		case 'never':
 		case 'on-request':
-		case 'on-failure':
 		case 'untrusted':
 			return value;
 		default:

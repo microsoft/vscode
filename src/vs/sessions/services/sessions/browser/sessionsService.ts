@@ -706,6 +706,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
+
 		this._activate(sessionData, options?.preserveFocus);
 		if (!await this._waitForSessionToLoad(sessionData, token)) {
 			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionResource.toString()}`);

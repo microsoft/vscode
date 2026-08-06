@@ -347,6 +347,29 @@ suite('IncrementalDOMMorpher', () => {
 			assert.strictEqual(rendered.length, 2);
 			assert.strictEqual(rendered[1], fullContent);
 		});
+
+		test('signals when word-buffered content has drained to the DOM', async () => {
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'word');
+			const morpher = createMorpher();
+			morpher.setRenderCallback(() => { });
+			let drainCount = 0;
+			disposables.add(morpher.onDidDrain(() => drainCount++));
+
+			morpher.seed('one two three');
+			morpher.updateStreamRate(2000, true);
+			assert.strictEqual(morpher.isDrained, false);
+
+			await new Promise(r => mainWindow.requestAnimationFrame(r));
+			await new Promise(r => mainWindow.requestAnimationFrame(r));
+
+			assert.deepStrictEqual({
+				isDrained: morpher.isDrained,
+				drainCount,
+			}, {
+				isDrained: true,
+				drainCount: 1,
+			});
+		});
 	});
 });
 

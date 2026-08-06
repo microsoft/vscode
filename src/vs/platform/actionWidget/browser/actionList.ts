@@ -629,6 +629,11 @@ export interface IActionListOptions {
 	readonly className?: string;
 
 	/**
+	 * Optional CSS class name added to the containing action widget.
+	 */
+	readonly widgetClassName?: string;
+
+	/**
 	 * Optional CSS class and duration used to animate the containing action widget
 	 * before the context view is hidden.
 	 */
@@ -2050,6 +2055,7 @@ export class ActionList<T> extends Disposable {
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
+	private readonly _widgetClassName: string | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -2073,6 +2079,10 @@ export class ActionList<T> extends Disposable {
 
 	get closeAnimation(): IActionListCloseAnimation | undefined {
 		return this._widget.closeAnimation;
+	}
+
+	get widgetClassName(): string | undefined {
+		return this._widgetClassName;
 	}
 
 	/**
@@ -2104,6 +2114,7 @@ export class ActionList<T> extends Disposable {
 		super();
 		this._anchor = anchor;
 		this._preferredAnchorPosition = options?.anchorPosition;
+		this._widgetClassName = options?.widgetClassName;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,

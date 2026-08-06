@@ -28,16 +28,20 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ChangesetOperationTargetKind } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	ChangesetKind,
 	buildBranchChangesetUri,
+	buildCompareTurnsChangesetUri,
+	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
 } from '../../../../common/changesetUri.js';
-import { createRealSession, dispatchTurn, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -100,6 +104,26 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
 	}
 
+	async function createWorktreeSessionIn(workspace: string, prefix: string): Promise<string> {
+		tempDirs.push(`${workspace}.worktrees`);
+		context.client.setWorkingDirectory(workspace);
+		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `${prefix}-${config.provider}` }, 30_000);
+		await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken ?? resolveGitHubToken() }, 30_000);
+		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		const branch = execSync('git branch --show-current', { cwd: workspace, encoding: 'utf8' }).trim();
+		await context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			workingDirectories: [URI.file(workspace).toString()],
+			config: { isolation: 'worktree', branch },
+		}, 30_000);
+		createdSessions.push(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		context.client.clearReceived();
+		return sessionUri;
+	}
+
 	/**
 	 * Writes `file` through a host-executed bang command, so the change reaches
 	 * disk the way an agent's shell edit would rather than from the test
@@ -144,6 +168,27 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
 			90_000,
 		);
+	}
+
+	async function changesetState(channel: string): Promise<{ readonly status: string; readonly files: readonly IObservedChangesetFile[]; readonly error?: { readonly message?: string } }> {
+		const result = await context.client.call<SubscribeResult>('subscribe', { channel });
+		let state = result.snapshot!.state as { readonly status: string; readonly files: readonly IObservedChangesetFile[]; readonly error?: { readonly message?: string } };
+		if (state.status === 'computing') {
+			await context.client.waitForNotification(n =>
+				isActionNotification(n, 'changeset/statusChanged')
+				&& getActionEnvelope(n).channel === channel
+				&& (getActionEnvelope(n).action as { readonly status: string }).status !== 'computing',
+				60_000,
+			);
+			state = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!.state as typeof state;
+		}
+		return state;
+	}
+
+	async function runBangTurn(sessionUri: string, turnId: string, command: string, clientSeq: number): Promise<void> {
+		context.client.clearReceived();
+		dispatchTurn(context.client, sessionUri, turnId, command, clientSeq);
+		await waitForTurnComplete(sessionUri, turnId);
 	}
 
 	async function waitForIdleResourceOnlyOperation(
@@ -228,7 +273,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}
 
 
-	conformanceTest(context, 'subscribing to a changeset reports its computation status', async function () {
+	conformanceTest(context, 'subscribing to a changeset reaches ready status', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-status-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-status');
 		const branchUri = buildBranchChangesetUri(sessionUri);
@@ -334,10 +379,19 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			&& getActionEnvelope(n).channel === branchUri,
 			60_000,
 		);
+		const authoritative = await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+		const reviewed = ((authoritative.snapshot!.state as { files: readonly IObservedChangesetFile[] }).files)
+			.find(candidate => candidate.id === file.id)?.reviewed;
 
-		assert.deepStrictEqual(getActionEnvelope(echoed).action, {
-			type: ActionType.ChangesetFilesReviewChanged,
-			files: [file.id],
+		assert.deepStrictEqual({
+			action: getActionEnvelope(echoed).action,
+			reviewed,
+		}, {
+			action: {
+				type: ActionType.ChangesetFilesReviewChanged,
+				files: [file.id],
+				reviewed: true,
+			},
 			reviewed: true,
 		});
 	});
@@ -451,4 +505,135 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			subscribedChannels: advertisedChannels,
 		});
 	});
+
+	conformanceTest(context, 'a per-turn changeset reports a file created in that turn', async function () {
+		const workspace = createGitWorkspace('ahp-turn-changeset-add-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-add');
+		await runBangTurn(sessionUri, 'turn-add', writeFileCommand('turn-added.txt', 'ADDED'), 1);
+
+		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'turn-add'));
+		const file = state.files.find(file => fileUri(file).endsWith('/turn-added.txt'));
+
+		assert.deepStrictEqual({
+			status: state.status,
+			hasBefore: file?.edit.before !== undefined,
+			hasAfter: file?.edit.after !== undefined,
+			diff: file?.edit.diff,
+		}, {
+			status: 'ready',
+			hasBefore: false,
+			hasAfter: true,
+			diff: { added: 1, removed: 0 },
+		});
+	}, false);
+
+	conformanceTest(context, 'a per-turn changeset reports an edit to a committed file', async function () {
+		const workspace = createGitWorkspace('ahp-turn-changeset-edit-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-edit');
+		await runBangTurn(sessionUri, 'turn-edit', writeFileCommand('seed.txt', 'edited'), 1);
+
+		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'turn-edit'));
+		const file = state.files.find(file => fileUri(file).endsWith('/seed.txt'));
+
+		assert.deepStrictEqual({
+			status: state.status,
+			hasBefore: file?.edit.before !== undefined,
+			hasAfter: file?.edit.after !== undefined,
+		}, {
+			status: 'ready',
+			hasBefore: true,
+			hasAfter: true,
+		});
+	}, false);
+
+	conformanceTest(context, 'a per-turn changeset reports a file deleted in that turn', async function () {
+		const workspace = createGitWorkspace('ahp-turn-changeset-delete-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-delete');
+		await runBangTurn(sessionUri, 'turn-delete', '!node -e "require(\'fs\').unlinkSync(process.argv[1])" seed.txt', 1);
+
+		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'turn-delete'));
+		const file = state.files.find(file => fileUri(file).endsWith('/seed.txt'));
+
+		assert.deepStrictEqual({
+			status: state.status,
+			hasBefore: file?.edit.before !== undefined,
+			hasAfter: file?.edit.after !== undefined,
+		}, {
+			status: 'ready',
+			hasBefore: true,
+			hasAfter: false,
+		});
+	}, false);
+
+	conformanceTest(context, 'a per-turn changeset for a no-op turn is empty and ready', async function () {
+		const workspace = createGitWorkspace('ahp-turn-changeset-noop-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-noop');
+		await runBangTurn(sessionUri, 'turn-noop', '/rename No File Changes', 1);
+
+		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'turn-noop'));
+		assert.deepStrictEqual({ status: state.status, files: state.files }, { status: 'ready', files: [] });
+	});
+
+	conformanceTest(context, 'a per-turn changeset for an unknown turn reports an error', async function () {
+		const workspace = createGitWorkspace('ahp-turn-changeset-missing-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'turn-changeset-missing');
+		await runBangTurn(sessionUri, 'turn-known', '/rename Known Turn', 1);
+
+		const state = await changesetState(buildTurnChangesetUri(sessionUri, 'missing-turn'));
+		assert.strictEqual(state.status, 'error');
+	}, false);
+
+	conformanceTest(context, 'comparing a turn with itself produces an empty ready changeset', async function () {
+		const workspace = createGitWorkspace('ahp-compare-turns-same-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'compare-turns-same');
+		await runBangTurn(sessionUri, 'turn-same', writeFileCommand('same.txt', 'SAME'), 1);
+
+		const state = await changesetState(buildCompareTurnsChangesetUri(sessionUri, 'turn-same', 'turn-same'));
+		assert.deepStrictEqual({ status: state.status, files: state.files }, { status: 'ready', files: [] });
+	}, false);
+
+	conformanceTest(context, 'comparing two turns reports the changes between their checkpoints', async function () {
+		const workspace = createGitWorkspace('ahp-compare-turns-edit-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'compare-turns-edit');
+		await runBangTurn(sessionUri, 'turn-first', writeFileCommand('between.txt', 'FIRST'), 1);
+		await runBangTurn(sessionUri, 'turn-second', writeFileCommand('between.txt', 'SECOND'), 2);
+
+		const state = await changesetState(buildCompareTurnsChangesetUri(sessionUri, 'turn-first', 'turn-second'));
+		const file = state.files.find(file => fileUri(file).endsWith('/between.txt'));
+		assert.deepStrictEqual({
+			status: state.status,
+			hasBefore: file?.edit.before !== undefined,
+			hasAfter: file?.edit.after !== undefined,
+		}, {
+			status: 'ready',
+			hasBefore: true,
+			hasAfter: true,
+		});
+	}, false);
+
+	conformanceTest(context, 'comparing with an unknown turn reports an error', async function () {
+		const workspace = createGitWorkspace('ahp-compare-turns-missing-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'compare-turns-missing');
+		await runBangTurn(sessionUri, 'turn-known', writeFileCommand('known.txt', 'KNOWN'), 1);
+
+		const state = await changesetState(buildCompareTurnsChangesetUri(sessionUri, 'missing-turn', 'turn-known'));
+		assert.strictEqual(state.status, 'error');
+	});
+
+	conformanceTest(context, 'a materialized git session advertises turn and compare changeset templates', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-template-catalog-');
+		const sessionUri = await createWorktreeSessionIn(workspace, 'changeset-template-catalog');
+		await runBangTurn(sessionUri, 'turn-materialize', '/rename Materialized', 1);
+
+		const session = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const kinds = ((session.snapshot!.state as SessionState).changesets ?? []).map(changeset => changeset.changeKind);
+
+		assert.deepStrictEqual({
+			hasTurn: kinds.includes(ChangesetKind.Turn),
+			hasCompare: kinds.includes(ChangesetKind.Compare),
+		}, {
+			hasTurn: true,
+			hasCompare: true,
+		});
+	}, false);
 }

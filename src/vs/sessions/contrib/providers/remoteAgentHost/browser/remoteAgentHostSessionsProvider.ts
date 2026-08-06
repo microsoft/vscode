@@ -52,6 +52,14 @@ function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly address: string;
 	readonly name: string;
+	/**
+	 * Stable preference key for this host (see
+	 * {@link IAgentHostSessionsProvider.remoteLocationPreferenceKey}), when
+	 * it differs from {@link address} — e.g. an SSH host's
+	 * `computeSSHConnectionKey()` result versus its live forwarded address.
+	 * Defaults to {@link address} when omitted.
+	 */
+	readonly preferenceKey?: string;
 	/** Optional hook to establish a connection on demand (e.g. tunnel relay). */
 	readonly connectOnDemand?: () => Promise<void>;
 	/** Optional hook to tear down the active connection on demand (e.g. tunnel relay). */
@@ -102,11 +110,18 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
+	readonly remoteLocationPreferenceKey: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
+	/**
+	 * Forces this host's sessions read-only. Distinct from `disconnected`: a disconnected host may
+	 * come back, so its sessions stay writable and queue on reconnect, whereas this marks a host
+	 * that is gone and whose sessions exist only as replayed history.
+	 */
+	private readonly _readOnly = observableValue<boolean>('providerReadOnly', false);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
 	/**
@@ -180,6 +195,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this.label = displayName;
 		this.remoteAddress = config.address;
+		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
 		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 
 		this.browseActions = [{
@@ -213,6 +229,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	protected _adapterOptions() {
 		const web = this.isWebPlatform;
 		return {
+			readOnly: this._readOnly,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;
@@ -291,6 +308,17 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	/** Update the connection status for this provider. */
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this._connectionStatus.set(status, undefined);
+	}
+
+	/**
+	 * Forces every session on this host to be read-only.
+	 *
+	 * Set when the host is permanently unreachable and its sessions are being served from
+	 * persisted history: the conversation is genuine, but there is no host left to send to, so the
+	 * composer must be hidden rather than accept input that can never be delivered.
+	 */
+	setReadOnly(readOnly: boolean): void {
+		this._readOnly.set(readOnly, undefined);
 	}
 
 	/**

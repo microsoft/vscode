@@ -200,6 +200,7 @@ suite('Edit Source Tracking Windows', () => {
 			stats: context.stats.map(event => ({
 				statsUuid: event.statsUuid,
 				otherAIModifiedCount: event.otherAIModifiedCount,
+				agentHostModifiedCount: event.agentHostModifiedCount,
 				totalModifiedCharacters: event.totalModifiedCharacters,
 			})),
 			commits,
@@ -211,7 +212,8 @@ suite('Edit Source Tracking Windows', () => {
 			}],
 			stats: [{
 				statsUuid: 'stats-2',
-				otherAIModifiedCount: 8,
+				otherAIModifiedCount: 5,
+				agentHostModifiedCount: 3,
 				totalModifiedCharacters: 8,
 			}],
 			commits: [8],
@@ -266,13 +268,15 @@ suite('Edit Source Tracking Windows', () => {
 			committedTotals,
 			stats: context.stats.map(event => ({
 				otherAIModifiedCount: event.otherAIModifiedCount,
+				agentHostModifiedCount: event.agentHostModifiedCount,
 				externalModifiedCount: event.externalModifiedCount,
 				totalModifiedCharacters: event.totalModifiedCharacters,
 			})),
 		}, {
 			committedTotals: [3],
 			stats: [{
-				otherAIModifiedCount: 3,
+				otherAIModifiedCount: 0,
+				agentHostModifiedCount: 3,
 				externalModifiedCount: 0,
 				totalModifiedCharacters: 3,
 			}],
@@ -283,6 +287,7 @@ suite('Edit Source Tracking Windows', () => {
 
 	test('defers Agent Host attribution while the model is dirty', () => runWithFakedTimers({}, async () => {
 		const dirtyStates: boolean[] = [];
+		let coverageGapTakeCount = 0;
 		const markerService: IAgentHostEditMarkerService = {
 			createCorrelation: () => ({
 				onDidSuppress: Event.None,
@@ -297,6 +302,10 @@ suite('Edit Source Tracking Windows', () => {
 				}
 				return undefined;
 			},
+			takeCoverageGap: () => {
+				coverageGapTakeCount++;
+				return { editCount: 1, insertedCount: 42 };
+			},
 		};
 		const context = setup(undefined, markerService, true);
 		await timeout(10);
@@ -308,12 +317,14 @@ suite('Edit Source Tracking Windows', () => {
 
 		assert.deepStrictEqual({
 			dirtyStates,
+			coverageGapTakeCount,
 			details: context.details.map(event => ({
 				modifiedCount: event.modifiedCount,
 				totalModifiedCount: event.totalModifiedCount,
 			})),
 		}, {
 			dirtyStates: [true],
+			coverageGapTakeCount: 0,
 			details: [{
 				modifiedCount: 5,
 				totalModifiedCount: 5,
@@ -523,6 +534,7 @@ suite('Edit Source Tracking Windows', () => {
 	}));
 
 	test('does not fall back when Agent Host attribution is deferred', () => runWithFakedTimers({}, async () => {
+		let coverageGapTakeCount = 0;
 		const markerService: IAgentHostEditMarkerService = {
 			createCorrelation: () => ({
 				onDidSuppress: Event.None,
@@ -533,6 +545,10 @@ suite('Edit Source Tracking Windows', () => {
 			}),
 			prepareFlush: async () => {
 				throw new AgentHostEditAttributionDeferredError(new Error('Prepare cancelled'));
+			},
+			takeCoverageGap: () => {
+				coverageGapTakeCount++;
+				return { editCount: 1, insertedCount: 42 };
 			},
 		};
 		const context = setup(undefined, markerService);
@@ -546,15 +562,18 @@ suite('Edit Source Tracking Windows', () => {
 		assert.deepStrictEqual({
 			detailCount: context.details.length,
 			statsCount: context.stats.length,
+			coverageGapTakeCount,
 		}, {
 			detailCount: 0,
 			statsCount: 0,
+			coverageGapTakeCount: 0,
 		});
 
 		context.disposables.dispose();
 	}));
 
 	test('does not emit external fallback when the Agent Host commit outcome is unknown', () => runWithFakedTimers({}, async () => {
+		let coverageGapTakeCount = 0;
 		const markerService: IAgentHostEditMarkerService = {
 			createCorrelation: () => ({
 				onDidSuppress: Event.None,
@@ -570,6 +589,10 @@ suite('Edit Source Tracking Windows', () => {
 					throw new AgentHostEditAttributionUnknownOutcomeError(new Error('Transport unavailable'));
 				},
 			}),
+			takeCoverageGap: () => {
+				coverageGapTakeCount++;
+				return { editCount: 1, insertedCount: 42 };
+			},
 		};
 		const context = setup(undefined, markerService);
 		await timeout(10);
@@ -581,15 +604,19 @@ suite('Edit Source Tracking Windows', () => {
 
 		assert.deepStrictEqual({
 			detailCount: context.details.length,
+			coverageGapTakeCount,
 			stats: context.stats.map(event => ({
 				otherAIModifiedCount: event.otherAIModifiedCount,
+				agentHostModifiedCount: event.agentHostModifiedCount,
 				externalModifiedCount: event.externalModifiedCount,
 				totalModifiedCharacters: event.totalModifiedCharacters,
 			})),
 		}, {
 			detailCount: 0,
+			coverageGapTakeCount: 0,
 			stats: [{
-				otherAIModifiedCount: 3,
+				otherAIModifiedCount: 0,
+				agentHostModifiedCount: 3,
 				externalModifiedCount: 0,
 				totalModifiedCharacters: 3,
 			}],
@@ -653,6 +680,7 @@ function setup(
 	const stats: Array<{
 		statsUuid: string;
 		otherAIModifiedCount: number;
+		agentHostModifiedCount: number;
 		externalModifiedCount: number;
 		totalModifiedCharacters: number;
 		agentHostAttributionCoverage?: 'complete' | 'partial';

@@ -24,6 +24,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { AgentsVoiceSettingId } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -141,6 +142,7 @@ registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, Instant
 export const SessionsNewChatVoiceMenu = new MenuId('SessionsNewChatVoiceMenu');
 
 const WHEN_VOICE_ENABLED = ContextKeyExpr.equals('config.agents.voice.enabled', true);
+const WHEN_VOICE_BUTTON_SHOWN = ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false);
 const WHEN_CONNECTING = ContextKeyExpr.equals('agentsVoiceConnecting', true);
 const WHEN_LISTENING = ContextKeyExpr.equals('agentsVoiceListening', true);
 const WHEN_CONNECTED = ContextKeyExpr.equals('agentsVoiceConnected', true);
@@ -159,35 +161,35 @@ const WHEN_NO_SEGMENTED_PILL = SegmentedVoiceInputModePillInactive;
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.connecting', title: localize('agentsVoice.connecting', "Connecting..."), icon: Codicon.loadingCompact },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.startVoiceInChat', title: localize('agentsVoice.startVoiceInChat', "Voice Mode"), icon: Codicon.voiceModeCompact },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_SURFACE, WHEN_LISTENING.negate(), WHEN_CONNECTING.negate(), WHEN_NOT_DICTATING, WHEN_NO_SEGMENTED_PILL),
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_VOICE_SURFACE, WHEN_LISTENING.negate(), WHEN_CONNECTING.negate(), WHEN_NOT_DICTATING, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.pttStopInChat', title: localize('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"), icon: Codicon.voiceModeCompact },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_LISTENING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_LISTENING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.openSettings', title: localize('agentsVoice.openSettings', "Voice Mode Settings"), icon: Codicon.settingsGear },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -9.5,
 });
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.disconnect', title: localize('agentsVoice.disconnect', "Disconnect Voice Mode"), icon: Codicon.debugDisconnectCompact },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -9,
 });

@@ -12,14 +12,3 @@
 		animation: none !important;
 	}
 }
-
-.component-fixture {
-	&,
-	&::before,
-	&::after,
-	*,
-	*::before,
-	*::after {
-		box-sizing: border-box;
-	}
-}

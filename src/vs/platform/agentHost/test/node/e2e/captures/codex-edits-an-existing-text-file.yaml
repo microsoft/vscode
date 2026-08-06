@@ -6,44 +6,43 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''edit.txt'',''AFTER_VALUE'')"`. Then reply exactly "done".'
     response:
       content:
         - type: text
-          text: I’m replacing `edit.txt` so its entire contents become exactly `AFTER_VALUE`, then I’ll verify it.
+          text: Executing your exact command now, then I’ll reply with the exact requested text.
         - type: tool_use
           id: toolcall_0
           name: exec_command
           input:
-            cmd: printf 'AFTER_VALUE' > edit.txt && cat edit.txt
-            workdir: ${workdir}/ahp-coverage-edit-${temp}
+            cmd: node -e "require('fs').writeFileSync('edit.txt','AFTER_VALUE')"
+            workdir: ${workdir}
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
       system: ${system}
       messages:
         - role: user
-          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''edit.txt'',''AFTER_VALUE'')"`. Then reply exactly "done".'
         - role: assistant
-          content: I’m replacing `edit.txt` so its entire contents become exactly `AFTER_VALUE`, then I’ll verify it.
+          content: Executing your exact command now, then I’ll reply with the exact requested text.
         - role: assistant
           content:
             - type: tool_use
               name: exec_command
               input:
-                cmd: printf 'AFTER_VALUE' > edit.txt && cat edit.txt
-                workdir: ${workdir}/ahp-coverage-edit-${temp}
+                cmd: node -e "require('fs').writeFileSync('edit.txt','AFTER_VALUE')"
+                workdir: ${workdir}
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Chunk ID: 2d70cd
+                Chunk ID: 9817fe
                 Wall time: 0.0000 seconds
                 Process exited with code 0
-                Original token count: 3
+                Original token count: 0
                 Output:
-                AFTER_VALUE
     response:
-      content: Done. `edit.txt` now contains exactly `AFTER_VALUE`.
+      content: done
       stopReason: end_turn

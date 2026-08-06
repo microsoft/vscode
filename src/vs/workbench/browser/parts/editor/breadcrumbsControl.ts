@@ -18,7 +18,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { basename, extUri } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DocumentSymbol } from '../../../../editor/common/languages.js';
 import { OutlineElement } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
@@ -148,7 +148,7 @@ class FileItem extends BreadcrumbsItem {
 		if (!(other instanceof FileItem)) {
 			return false;
 		}
-		return (extUri.isEqual(this.element.uri, other.element.uri) &&
+		return (this.element.equals(other.element) &&
 			this.options.showFileIcons === other.options.showFileIcons &&
 			this.options.showSymbolIcons === other.options.showSymbolIcons);
 
@@ -157,12 +157,17 @@ class FileItem extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		// file/folder
 		const label = this._labels.create(container, { hoverDelegate: this._hoverDelegate });
-		label.setFile(this.element.uri, {
+		const options = {
 			hidePath: true,
 			hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
 			fileKind: this.element.kind,
 			fileDecorations: { colors: this.options.showDecorationColors, badges: false },
-		});
+		};
+		if (this.element.label) {
+			label.setResource({ resource: this.element.uri, name: this.element.label }, { ...options, forceLabel: true });
+		} else {
+			label.setFile(this.element.uri, options);
+		}
 		container.classList.add(FileKind[this.element.kind].toLowerCase());
 		this._disposables.add(label);
 

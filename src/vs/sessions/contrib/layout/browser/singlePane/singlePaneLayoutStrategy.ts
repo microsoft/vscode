@@ -6,13 +6,11 @@
 import { Sequencer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { ISessionViewState } from '../baseSessionLayoutController.js';
 
 /**
  * Shared controller state that single-pane layout strategies read/coordinate
@@ -30,12 +28,6 @@ export interface ISinglePaneLayoutContext {
 	readonly togglingSidePane: boolean;
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
-	/** [B3] Per-session aux-bar view state, persisted by the base controller. */
-	readonly viewStateBySession: ResourceMap<ISessionViewState>;
-	/** `true` while a restore-driven aux-bar hide is in progress, so the [D2] capture ignores it. */
-	readonly hidingAuxiliaryBarForRestore: boolean;
-	/** Hides the aux bar as part of restoring remembered state; the [D2] capture ignores the resulting change. */
-	hideAuxiliaryBarForRestore(): void;
 }
 
 /** Base class for a single-pane layout behaviour, owning its own disposables. */

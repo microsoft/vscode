@@ -24,6 +24,58 @@ media/                   Default Markdown preview styles and scripts
 
 Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/` (notebook renderer).
 
+### Developing the Markdown editor
+
+1. **Know the repositories and integration points**
+
+   `@vscode/markdown-editor` lives in the sibling `microsoft/vscode-packages` checkout at `vscode-team-tools/packages/markdown-editor`. In this repo, the integration is in `extensions/markdown-language-features`, especially `markdown-editor-src`, `src/preview/markdownEditorProvider.ts`, and `esbuild.markdownEditor.mts`. These instructions assume `vscode` and `vscode-packages` are sibling folders.
+
+2. **Build the package first**
+
+   The package exports files from `dist`, so VS Code does not consume its TypeScript sources directly. Run `pnpm build` once in `vscode-packages/vscode-team-tools/packages/markdown-editor`. For ongoing work, keep `pnpm dev` running there so `dist` stays up to date.
+
+3. **Point the extension at your local package**
+
+   **A. Use a `file:` dependency for a durable local setup**
+
+   Set the dependency in `extensions/markdown-language-features/package.json` to:
+
+   ```json
+   "@vscode/markdown-editor": "file:../../../vscode-packages/vscode-team-tools/packages/markdown-editor"
+   ```
+
+   Then run `npm install` in `extensions/markdown-language-features`. This updates `package.json` and `package-lock.json`, creates a local link, and survives later `npm install` runs. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
+
+   **B. Use `npm link` for a temporary setup**
+
+   In `vscode-packages/vscode-team-tools/packages/markdown-editor`, run:
+
+   ```bash
+   npm link
+   ```
+
+   In `vscode\extensions\markdown-language-features`, run:
+
+   ```bash
+   npm link @vscode/markdown-editor
+   ```
+
+   This leaves `package.json` and `package-lock.json` unchanged, but any later `npm install` in the extension replaces the link. If that happens, run `npm link @vscode/markdown-editor` again.
+
+   Verify the resolved package from `extensions/markdown-language-features`:
+
+   ```bash
+   node -e "console.log(require('node:fs').realpathSync('node_modules/@vscode/markdown-editor'))"
+   ```
+
+   The output should be the local `vscode-packages/vscode-team-tools/packages/markdown-editor` directory.
+
+4. **Rebuild and run VS Code**
+
+   Source-built VS Code does not load `@vscode/markdown-editor` dynamically from `node_modules`. `esbuild.markdownEditor.mts` bundles it into `markdown-editor-out`, so keep both the package `pnpm dev` watcher and VS Code's **Ext - Build** task running. For a one-time build, run `npm run build-markdown-editor` in `extensions/markdown-language-features` after the package build completes.
+
+   Launch VS Code with the **Run VS Code** task. After the Markdown editor bundle is rebuilt, reload the development window or close and reopen the Markdown custom editor.
+
 ### Running tests
 
 You can run the VS Code extension tests by running the `Markdown Extension Tests` target in VS Code. This will run the tests under `./src/test`

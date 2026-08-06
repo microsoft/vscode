@@ -105,6 +105,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 */
 	readonly onDidChangeDiff: Event<IEditSessionDiffStats> = this._onDidChangeDiff.event;
 
+	private readonly _onDidFinishRendering = this._register(new Emitter<void>());
+	readonly onDidFinishRendering: Event<void> = this._onDidFinishRendering.event;
+
 	private readonly allRefs: IDisposableReference<CodeBlockPart | ChatOutputCodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
 
 	private readonly _codeblocks: IMarkdownPartCodeBlockInfo[] = [];
@@ -161,6 +164,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const incrementalRenderingEnabled = configurationService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
 		if (incrementalRenderingEnabled && isResponseVM(element) && fillInIncompleteTokens && !element.isComplete) {
 			this._incrementalMorpher = this._register(instantiationService.createInstance(IncrementalDOMMorpher, this.domNode));
+			this._register(this._incrementalMorpher.onDidDrain(() => this._onDidFinishRendering.fire()));
 			this._incrementalMorpher.setRenderCallback((newMd) => {
 				// Temporarily swap this.markdown to the buffered content
 				// for doRenderMarkdown(), then restore it. The morpher may
@@ -543,6 +547,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		return false;
+	}
+
+	get isRenderComplete(): boolean {
+		return this._incrementalMorpher?.isDrained ?? true;
 	}
 
 	/**

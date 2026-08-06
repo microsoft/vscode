@@ -17,7 +17,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 
 aiCustomizationManagementSectionRegistry.register({
 	id: AICustomizationManagementSection.HarnessSettings,
-	label: localize('codexCustomizationSettings.navigationLabel', "Codex Settings"),
+	label: localize('codexCustomizationSettings.navigationLabel', "Codex"),
 	icon: Codicon.openai,
 	description: localize('codexCustomizationSettings.navigationDescription', "Configure global behavior for this harness."),
 	supportsHarness: harnessId => harnessId === SessionType.AgentHostCodex,

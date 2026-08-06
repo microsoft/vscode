@@ -4,9 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { PermissionRequest } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+
+type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
+type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
+
+function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
+	return {
+		kind: 'shell',
+		canOfferSessionApproval: false,
+		commands: [],
+		fullCommandText,
+		hasWriteFileRedirection: false,
+		intention: '',
+		possiblePaths: [],
+		possibleUrls: [],
+		requestSandboxBypass,
+	};
+}
+
+function customToolPermissionRequest(toolName: string, args: Record<string, unknown>): CopilotCustomToolPermissionRequest {
+	return {
+		kind: 'custom-tool',
+		toolName,
+		toolDescription: '',
+		args,
+	};
+}
 
 suite('copilotToolDisplay — friendly tool names', () => {
 
@@ -136,50 +163,33 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 	const wd = URI.file('/repo/project');
 
 	test('strips redundant cd from shell permission request fullCommandText', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /repo/project && npm test',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'npm test');
 		assert.strictEqual(display.permissionKind, 'shell');
 	});
 
 	test('leaves shell command alone when cd target differs from working directory', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /tmp && ls',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /tmp && ls');
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'cd /tmp && ls');
 	});
 
 	test('leaves shell command alone when no working directory provided', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'shell',
-			fullCommandText: 'cd /repo/project && npm test',
-		} as ITypedPermissionRequest;
+		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, undefined);
 		assert.strictEqual(display.toolInput, 'cd /repo/project && npm test');
 	});
 
 	test('strips redundant cd from custom-tool shell permission request', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'bash',
-			args: { command: 'cd /repo/project && echo hi' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('bash', { command: 'cd /repo/project && echo hi' });
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'echo hi');
 		assert.strictEqual(display.permissionKind, 'shell');
 	});
 
 	test('does not affect non-shell custom-tool requests', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'some_other_tool',
-			args: { command: 'cd /repo/project && echo hi' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('some_other_tool', { command: 'cd /repo/project && echo hi' });
 		const display = getPermissionDisplay(request, wd);
 		// Falls through to the generic branch — toolInput is the JSON-stringified args.
 		assert.ok(display.toolInput?.includes('cd /repo/project'), `expected unrewritten args, got: ${display.toolInput}`);
@@ -187,39 +197,16 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 	});
 
 	test('handles powershell custom-tool with semicolon separator', () => {
-		const request: ITypedPermissionRequest = {
-			kind: 'custom-tool',
-			toolName: 'powershell',
-			args: { command: 'cd /repo/project; dir' },
-		} as ITypedPermissionRequest;
+		const request = customToolPermissionRequest('powershell', { command: 'cd /repo/project; dir' });
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'dir');
 	});
 
 	test('confirmation title reflects sandbox bypass for shell requests', () => {
-		const sandboxed = getPermissionDisplay({
-			kind: 'shell',
-			fullCommandText: 'npm test',
-		} as ITypedPermissionRequest, wd);
-		const bypass = getPermissionDisplay({
-			kind: 'shell',
-			fullCommandText: 'npm test',
-			requestSandboxBypass: true,
-		} as ITypedPermissionRequest, wd);
+		const sandboxed = getPermissionDisplay(shellPermissionRequest('npm test'), wd);
+		const bypass = getPermissionDisplay(shellPermissionRequest('npm test', true), wd);
 
 		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
-		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
-	});
-
-	test('confirmation title reflects sandbox bypass for custom-tool shell requests', () => {
-		const bypass = getPermissionDisplay({
-			kind: 'custom-tool',
-			toolName: 'bash',
-			args: { command: 'echo hi' },
-			requestSandboxBypass: true,
-		} as ITypedPermissionRequest, wd);
-
-		assert.strictEqual(bypass.permissionKind, 'shell');
 		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
 	});
 
@@ -234,7 +221,7 @@ suite('getPermissionDisplay — read permission display', () => {
 			kind: 'read',
 			path: '/Users/connor/Downloads/context7-copilot-debug-main.json',
 			intention: 'Read file: /Users/connor/Downloads/context7-copilot-debug-main.json',
-		} as ITypedPermissionRequest, URI.file('/repo/project'));
+		}, URI.file('/repo/project'));
 
 		assert.deepStrictEqual({
 			invocationMessage: display.invocationMessage,
@@ -257,8 +244,11 @@ suite('getPermissionDisplay — write permission display', () => {
 	test('distinguishes creating a file from editing one', () => {
 		const request = {
 			kind: 'write',
+			canOfferSessionApproval: false,
+			diff: '',
 			fileName: '/repo/project/package.json',
-		} as ITypedPermissionRequest;
+			intention: '',
+		} satisfies PermissionRequest;
 
 		assert.deepStrictEqual({
 			create: getPermissionDisplay(request, URI.file('/repo/project'), true),
@@ -522,8 +512,16 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 			assert.strictEqual(getToolKind('task'), 'subagent');
 		});
 
-		test('returns undefined for view', () => {
-			assert.strictEqual(getToolKind('view'), undefined);
+		test('returns read for file reads', () => {
+			assert.deepStrictEqual([
+				getToolKind('view'),
+				getToolKind('str_replace_editor', { command: 'view' }),
+				getToolKind('str_replace_editor', { command: 'str_replace' }),
+			], [
+				'read',
+				'read',
+				undefined,
+			]);
 		});
 
 		test('returns search for glob', () => {
@@ -688,11 +686,11 @@ suite('skill events', () => {
 
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
 		const withPath = synthesizeSkillToolCall(
-			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
+			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 			'evt-123',
 		);
-		const noPath = synthesizeSkillToolCall(
-			{ name: 'plan' },
+		const withoutEventId = synthesizeSkillToolCall(
+			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md', content: '' },
 			undefined,
 		);
 
@@ -703,9 +701,9 @@ suite('skill events', () => {
 			withPathDisplayName: withPath.displayName,
 			withPathInvocation: withPath.invocationMessage,
 			withPathPastTense: withPath.pastTenseMessage,
-			noPathToolCallId: noPath.toolCallId,
-			noPathInvocation: noPath.invocationMessage,
-			noPathPastTense: noPath.pastTenseMessage,
+			withoutEventIdToolCallId: withoutEventId.toolCallId,
+			withoutEventIdInvocation: withoutEventId.invocationMessage,
+			withoutEventIdPastTense: withoutEventId.pastTenseMessage,
 		}, {
 			skillIsHidden: true,
 			withPathToolCallId: 'synth-skill-evt-123',
@@ -713,9 +711,9 @@ suite('skill events', () => {
 			withPathDisplayName: 'Read Skill',
 			withPathInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withPathPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
-			noPathToolCallId: 'synth-skill-2108d652',
-			noPathInvocation: 'Reading skill plan',
-			noPathPastTense: 'Read skill plan',
+			withoutEventIdToolCallId: 'synth-skill--15753539',
+			withoutEventIdInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			withoutEventIdPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 		});
 	});
 });

@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -15,6 +15,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { Queue } from '../../../../base/common/async.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -27,6 +28,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
 	) {
 		super();
 		this._register(autorun(reader => {
@@ -74,7 +76,10 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 
 		return {
 			uri: folder.workingDirectory,
-			name: this.uriIdentityService.extUri.isEqual(folder.root, folder.workingDirectory) ? workspace.label : `${this.uriIdentityService.extUri.basename(folder.root)} (${folder.gitRepository?.branchName ?? this.uriIdentityService.extUri.basename(folder.workingDirectory)})`
+			name: this.workspaceFolderLabelService.getWorkspaceFolderLabel(
+				new WorkspaceFolder({ uri: folder.workingDirectory, name: workspace.label, index: 0 }),
+				true
+			) ?? workspace.label
 		};
 	}
 
