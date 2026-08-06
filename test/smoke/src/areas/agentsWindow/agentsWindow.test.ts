@@ -128,8 +128,6 @@ async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefine
 		'github.copilot.advanced.debug.overrideAuthType': 'token',
 		'chat.allowAnonymousAccess': true,
 		'github.copilot.chat.githubMcpServer.enabled': false,
-		'chat.agentHost.defaultSessionsProvider': false,
-		'chat.agents.copilotCli.hideExtensionHost': false,
 		'chat.agents.claude.preferAgentHost': false,
 		'sessions.chat.localAgent.enabled': true,
 		'github.copilot.chat.cli.sandbox.enabled': 'on',
