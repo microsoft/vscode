@@ -46,11 +46,8 @@ const MARKDOWN_EDITOR_VIEW_TYPES = new Set([
 
 /**
  * Maps the active editor to its detail container (Changes / Files) and
- * reveals/hides the auxiliary bar accordingly. A created single-pane session
- * defaults to the Changes editor with the detail closed; a Changes/file editor
- * becoming active never force-reveals a hidden detail (except restoring it after
- * a transient browser-tab hide). Opening the empty Files placeholder (making it
- * the active editor) reveals the Files detail, since its content lives there.
+ * reveals/hides the auxiliary bar accordingly. See SINGLE_PANE_SCENARIOS.md
+ * section 5 for the full per-tab behavior catalog.
  */
 export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
@@ -75,11 +72,12 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		const activeEditorObs = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => this._isMainPartEmpty());
 		const auxBarVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
 
 		this._register(autorun(reader => {
 			const activeEditor = activeEditorObs.read(reader);
-			const target = this._computeDetailTarget(reader, activeEditor, mainPartEmptyObs, editorMaximizedObs);
+			const target = this._computeDetailTarget(reader, activeEditor, mainPartEmptyObs, editorMaximizedObs, editorPartVisibleObs);
 			const hasDockedDetails = target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced || target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced;
 			this._hasDockedDetailsContext!.set(hasDockedDetails);
 			auxBarVisibleObs.read(reader);
@@ -98,7 +96,7 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		}));
 	}
 
-	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>): DetailPanelTarget {
+	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>, editorPartVisibleObs: IObservable<boolean>): DetailPanelTarget {
 		const activeSession = this._sessionsService.activeSession.read(reader);
 		if (!activeSession) {
 			return DetailPanelTarget.Preserve;
@@ -136,7 +134,13 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		}
 
 		if (activeEditor instanceof BrowserEditorInput) {
-			return DetailPanelTarget.BrowserHidden;
+			// Browser has no detail of its own, so it only hides the panel
+			// while the editor area is visible; once hidden, fall back to the
+			// contextual Changes/Files default instead of leaving it blank.
+			if (editorPartVisibleObs.read(reader)) {
+				return DetailPanelTarget.BrowserHidden;
+			}
+			return activeSession?.isCreated.read(reader) ? DetailPanelTarget.Changes : DetailPanelTarget.Files;
 		}
 
 		if (this._isChangesEditor(activeEditor)) {
