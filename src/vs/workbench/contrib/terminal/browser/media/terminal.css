@@ -477,15 +477,25 @@
 .monaco-action-bar .action-item .single-terminal-tab {
 	display: flex !important;
 	align-items: center;
+	/* Allow the tab label to shrink below its content size so that long
+	   titles + status icons do not overflow the pane header when the view
+	   is narrow (e.g. terminal moved to the side). */
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .monaco-action-bar .action-item .single-terminal-tab .codicon:first-child {
 	margin-right: 4px;
+	flex-shrink: 0;
 }
 
 .monaco-action-bar .action-item .single-terminal-tab .codicon:nth-child(2) {
 	margin-left: 4px;
 	color: inherit;
+	flex-shrink: 0;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .uri-icon {
