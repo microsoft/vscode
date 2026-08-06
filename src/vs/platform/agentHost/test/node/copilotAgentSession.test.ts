@@ -75,6 +75,7 @@ class MockCopilotSession {
 	permissionModeSetSuccess = true;
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
+	sandboxConfigUpdateSuccess = true;
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
 	readonly compactCalls: unknown[] = [];
@@ -310,7 +311,7 @@ class MockCopilotSession {
 				if (params.isExperimentalMode !== undefined) {
 					this.experimentalModeUpdates.push(params.isExperimentalMode);
 				}
-				return { success: this.experimentalModeUpdateSuccess };
+				return { success: params.sandboxConfig !== undefined ? this.sandboxConfigUpdateSuccess : this.experimentalModeUpdateSuccess };
 			},
 		},
 		instructions: {
@@ -3446,6 +3447,24 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.strictEqual(mockSession.abortCalls, 1);
+		});
+
+		test('aborts when a live sandbox update fails', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables);
+			await session.syncPermissionMode('turn-start');
+			mockSession.sandboxConfigUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
+
+			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'autoApprove' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				permissionModes: mockSession.permissionModeSetCalls,
+				abortCalls: mockSession.abortCalls,
+			}, {
+				permissionModes: ['off', 'on'],
+				abortCalls: 1,
+			});
 		});
 
 		test('per-request permissions: Autopilot with Ask When Needed keeps SDK approval mode off', async () => {

@@ -3023,7 +3023,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
 		try {
 			await this.syncPermissionMode('config-change');
-			await this._applyEffectiveSandboxConfig();
+			await this._applyEffectiveSandboxConfig(true);
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change; aborting active turn`);
 			try {
@@ -3086,7 +3086,7 @@ export class CopilotAgentSession extends Disposable {
 	 * explicitly disabled sandbox when no sandbox is configured (setting off,
 	 * or Windows).
 	 */
-	private async _applyEffectiveSandboxConfig(): Promise<void> {
+	private async _applyEffectiveSandboxConfig(failOnError = false): Promise<void> {
 		if (this._isCustomTerminalToolEnabled()) {
 			return;
 		}
@@ -3094,8 +3094,14 @@ export class CopilotAgentSession extends Disposable {
 		const base = buildSandboxConfigForSdk(this._platform, sandbox);
 		const sandboxConfig: ISdkSandboxConfig | { enabled: false } = (base && !this._isBypassApprovals()) ? base : { enabled: false };
 		try {
-			await this._wrapper.session.rpc.options.update({ sandboxConfig });
+			const result = await this._wrapper.session.rpc.options.update({ sandboxConfig });
+			if (!result.success) {
+				throw new Error('Copilot SDK rejected sandbox config update');
+			}
 		} catch (err) {
+			if (failOnError) {
+				throw err;
+			}
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update sandbox config for request`, err);
 		}
 	}
