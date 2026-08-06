@@ -87,6 +87,11 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 			return false;
 		}
 
+		// `changesObs` can retain a stale row during a session switch; validate against the active changeset.
+		if (!getChangesEditorFileStats(resource, this.changesViewService.activeSessionChangesObs.get())) {
+			return false;
+		}
+
 		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource);
 		return true;
 	}
