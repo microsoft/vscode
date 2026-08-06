@@ -184,7 +184,12 @@ export interface NativeParsedArgs {
 /** Copies arguments for the initial window and removes one-shot values from the shared process arguments. */
 export function consumeInitialWindowArgs(args: NativeParsedArgs): NativeParsedArgs {
 	const initialWindowArgs = { ...args };
-	delete args['trust-folder'];
+	removeOneShotWindowArgs(args);
 
 	return initialWindowArgs;
+}
+
+/** Removes arguments that must not be inherited by another load of a window. */
+export function removeOneShotWindowArgs(args: NativeParsedArgs): void {
+	delete args['trust-folder'];
 }
