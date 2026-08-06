@@ -175,6 +175,27 @@ describe('nes-datagen pipeline e2e', () => {
 			]);
 		});
 
+		test('applies the configured oracle edit limit to alternative-action recordings', async () => {
+			const result = await runPipeline({
+				nesDatagen: {
+					input: inputPath,
+					output: outputPath,
+					rowOffset: 0,
+					workerMode: false,
+					generateScoredEdits: false,
+					sampleTask: NesDatagenSampleTask.Xtab,
+					sameFileJumpMinAbove: 5,
+					sameFileJumpMinBelow: 5,
+					inputFormat: NesDatagenInputFormat.AlternativeAction,
+					pivotStrategy: PivotStrategy.Random,
+					seed: 0,
+					maxOracleEdits: 1,
+				},
+			});
+
+			expect(result.samples.map(sample => sample.metadata.oracleEdits.length)).toEqual([1, 1]);
+		});
+
 		test('produces output samples for valid rows', () => {
 			// 2 valid rows (ts + py), 1 invalid row (missing recording)
 			expect(result.samples.length).toBe(2);
