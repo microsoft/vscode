@@ -166,7 +166,8 @@ suite('NewChatWidget', () => {
 
 	test('hides tips for notifications until all suppressors are inactive', () => {
 		const visibilityChanges = ['visible'];
-		const harness = createChatTipVisibilityHarness(visibilityChanges);
+		const storageValues = new Map([['agentSessions.telemetry.totalSessions', 2]]);
+		const harness = createChatTipVisibilityHarness(visibilityChanges, storageValues);
 
 		setInputNotificationVisible.call(harness, true);
 		setInputOnboardingVisible.call(harness, true);
