@@ -224,8 +224,27 @@ async function extractUriList(dataTransfer: IReadonlyVSDataTransfer): Promise<{ 
 	}
 
 	const strUriList = await urlListEntry.asString();
+
+	// Some browsers (notably Safari on iPadOS) synthesize a `text/uri-list`
+	// entry from any plain text that vaguely looks like a URL — e.g. copying
+	// `foo: bar` produces a uri-list of `foo:%20bar` because of the colon.
+	// Pasting then prefers the percent-encoded uri-list over the plain text.
+	// Drop uri-list entries that are just a percent-encoded form of the
+	// accompanying plain text. See https://github.com/microsoft/vscode/issues/235666.
+	const plainTextEntry = dataTransfer.get(Mimes.text);
+	const plainText = plainTextEntry ? await plainTextEntry.asString() : undefined;
+
 	const entries: { readonly uri: URI; readonly originalText: string }[] = [];
 	for (const entry of UriList.parse(strUriList)) {
+		if (plainText !== undefined && entry !== plainText) {
+			try {
+				if (decodeURIComponent(entry) === plainText) {
+					continue;
+				}
+			} catch {
+				// invalid percent encoding, fall through
+			}
+		}
 		try {
 			entries.push({ uri: URI.parse(entry), originalText: entry });
 		} catch {
