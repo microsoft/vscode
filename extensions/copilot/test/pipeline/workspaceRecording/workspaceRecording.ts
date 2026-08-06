@@ -20,6 +20,7 @@ import type { IWorkspaceRecordingSampleProvenance } from '../replayRecording';
 const WORKSPACE_RECORDING_CONTEXT_WINDOW_MS = 5 * 60 * 1000;
 const WORKSPACE_RECORDING_CURSOR_SUPPRESSION_MS = 200;
 const WORKSPACE_RECORDING_ORACLE_IDLE_MS = 5 * 1000;
+const WORKSPACE_RECORDING_ORACLE_CURSOR_CONTINUATION_LINE_GAP = 3;
 const WORKSPACE_RECORDING_SYNTHETIC_TIME_BASE = 3_000_000;
 
 type EditClassification = 'user' | 'accepted' | 'partially-accepted' | 'generated' | 'ambiguous';
@@ -628,8 +629,30 @@ function collectOracle(
 			if (
 				operationIndices.length > 0
 				&& nextChangeOperationIndex !== undefined
-				&& doesOperationContinueOracle(recording, operationIndices, nextChangeOperationIndex)
 			) {
+				const nextChangeOperation = recording.resolved.operations[nextChangeOperationIndex];
+				const nextClassification = classifications.get(nextChangeOperationIndex) ?? 'ambiguous';
+				const nextDelta = nextChangeOperation.time - previousEditTime;
+				const continuesNearbyUserIntent = (
+					nextClassification === 'accepted'
+					|| nextClassification === 'partially-accepted'
+					|| (nextClassification === 'user' && nextDelta > 0 && nextDelta < WORKSPACE_RECORDING_ORACLE_IDLE_MS)
+				) && areDocumentChangesWithinLineGap(
+					recording,
+					operationIndices[operationIndices.length - 1],
+					nextChangeOperationIndex,
+					WORKSPACE_RECORDING_ORACLE_CURSOR_CONTINUATION_LINE_GAP,
+				);
+				if (continuesNearbyUserIntent) {
+					continue;
+				}
+				if (!doesOperationContinueOracle(recording, operationIndices, nextChangeOperationIndex)) {
+					return {
+						operationIndices,
+						cursorBoundaryOperationIndex: i,
+						stopReason: 'cursor-move',
+					};
+				}
 				return {
 					operationIndices,
 					cursorBoundaryOperationIndex: undefined,
@@ -721,6 +744,45 @@ function findNextDocumentChangeOperationIndex(
 		return operation.documentId === documentId ? operation.operationIdx : undefined;
 	}
 	return undefined;
+}
+
+function areDocumentChangesWithinLineGap(
+	recording: IWorkspaceRecording,
+	firstOperationIndex: number,
+	secondOperationIndex: number,
+	maxLineGap: number,
+): boolean {
+	const first = getDocumentChangeLineRange(recording, firstOperationIndex);
+	const second = getDocumentChangeLineRange(recording, secondOperationIndex);
+	if (!first || !second || first.documentId !== second.documentId) {
+		return false;
+	}
+	if (first.endLine < second.startLine) {
+		return second.startLine - first.endLine - 1 <= maxLineGap;
+	}
+	if (second.endLine < first.startLine) {
+		return first.startLine - second.endLine - 1 <= maxLineGap;
+	}
+	return true;
+}
+
+function getDocumentChangeLineRange(
+	recording: IWorkspaceRecording,
+	operationIndex: number,
+): { documentId: number; startLine: number; endLine: number } | undefined {
+	const operation = recording.resolved.operations[operationIndex];
+	if (!operation || operation.kind !== OperationKind.Changed || operation.edit.replacements.length === 0) {
+		return undefined;
+	}
+	const state = recording.resolved.getDocument(operation.documentId).getState(operation.documentStateIdBefore);
+	const transformer = new StringText(state.value).getTransformer();
+	let startLine = Number.POSITIVE_INFINITY;
+	let endLine = Number.NEGATIVE_INFINITY;
+	for (const replacement of operation.edit.replacements) {
+		startLine = Math.min(startLine, transformer.getPosition(replacement.replaceRange.start).lineNumber - 1);
+		endLine = Math.max(endLine, transformer.getPosition(replacement.replaceRange.endExclusive).lineNumber - 1);
+	}
+	return { documentId: operation.documentId, startLine, endLine };
 }
 
 function isNoOpDocumentChange(recording: IWorkspaceRecording, operation: Operation): boolean {

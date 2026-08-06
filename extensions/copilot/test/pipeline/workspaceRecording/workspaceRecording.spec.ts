@@ -151,7 +151,7 @@ describe('workspace recording pivot policy', () => {
 		});
 	});
 
-	it('omits an oracle continued after a cursor move', async () => {
+	it('continues a nearby oracle after a cursor move', async () => {
 		const entries = [
 			...documentPrefix(),
 			userEdit(0, 1000, content.length, 'a', 2),
@@ -162,7 +162,16 @@ describe('workspace recording pivot policy', () => {
 		];
 		await withRecording(entries, async recordingPath => {
 			const recording = await loadWorkspaceRecording(recordingPath);
-			expect(selectWorkspaceRecordingSamples(recording, 100).some(sample => sample.pivotOperationIndex === 2)).toBe(false);
+			const sample = selectWorkspaceRecordingSamples(recording, 100).find(sample => sample.pivotOperationIndex === 2);
+			expect({
+				oracleOperationCount: sample?.oracleOperationIndices.length,
+				oracleEdits: sample?.oracleEdits,
+				stopReason: sample?.oracleStopReason,
+			}).toEqual({
+				oracleOperationCount: 2,
+				oracleEdits: [[content.length + 1, content.length + 1, 'set']],
+				stopReason: 'generated-edit',
+			});
 		});
 	});
 
