@@ -6,11 +6,14 @@
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PassThrough } from 'stream';
+import * as fs from 'fs';
+import * as os from 'os';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { sep } from '../../../../../base/common/path.js';
+import { join, sep } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -20,15 +23,18 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
+import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession } from '../../../common/agentService.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
-import { CodexAgent } from '../../../node/codex/codexAgent.js';
+import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
@@ -46,10 +52,17 @@ interface ITestWireRequest {
 		readonly cwd?: string;
 		readonly threadId?: string;
 		readonly runtimeWorkspaceRoots?: readonly string[];
+		readonly model?: string;
+		readonly modelProvider?: string;
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
 		readonly sandboxPolicy?: SandboxPolicy;
+		readonly config?: Record<string, unknown>;
+		readonly developerInstructions?: string;
+		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
 	};
 }
+
+const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
 
 interface ITestPeer {
 	readonly transport: ICodexAppServerTransport;
@@ -207,7 +220,7 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 
 	const folder = URI.file('/repo/folder');
 	const worktree = URI.file('/repo/worktree');
-	const { session } = await agent.createSession({ workingDirectories: [folder], model: { id: 'gpt-test' } });
+	const { session } = await agent.createSession({ workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 	const entry = agent['_sessions'].get(AgentSession.id(session))!;
 	const folderStart = await readNextRequest(peer.outbound);
 
@@ -268,12 +281,143 @@ suite('CodexAgent prewarm eviction', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('routes provider-qualified models independently and switches one session', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+
+		const chatGPTModel = toCodexModelSelectionId('openai', 'gpt-test');
+		agent['_models'].set([
+			{ provider: 'copilot', id: COPILOT_TEST_MODEL, name: 'GPT Test', supportsVision: false },
+			{ provider: 'codex', id: chatGPTModel, name: 'GPT Test', supportsVision: false },
+		], undefined);
+
+		const copilot = await agent.createSession({ workingDirectories: [URI.file('/repo/copilot')], model: { id: COPILOT_TEST_MODEL } });
+		const chatGPT = await agent.createSession({ workingDirectories: [URI.file('/repo/chatgpt')], model: { id: chatGPTModel } });
+		const copilotEntry = agent['_sessions'].get(AgentSession.id(copilot.session))!;
+		const chatGPTEntry = agent['_sessions'].get(AgentSession.id(chatGPT.session))!;
+
+		const materializeCopilot = agent['_materializeIfNeeded'](copilotEntry, false);
+		const copilotStart = await readNextRequest(peer.outbound);
+		peer.push({ id: copilotStart.id, result: { thread: { id: 'thread-copilot' } } });
+		await materializeCopilot;
+
+		const materializeChatGPT = agent['_materializeIfNeeded'](chatGPTEntry, false);
+		const chatGPTStart = await readNextRequest(peer.outbound);
+		peer.push({ id: chatGPTStart.id, result: { thread: { id: 'thread-chatgpt' } } });
+		await materializeChatGPT;
+
+		await agent.chats.changeModel(URI.parse(buildDefaultChatUri(copilot.session)), { id: chatGPTModel });
+		const persistedAfterSwitch = await agent['_metadataStore'].read(copilot.session);
+		const rematerializeCopilot = agent['_materializeIfNeeded'](copilotEntry, false);
+		const switchedStart = await readNextRequest(peer.outbound);
+		peer.push({ id: switchedStart.id, result: { thread: { id: 'thread-copilot-switched' } } });
+		await rematerializeCopilot;
+
+		assert.deepStrictEqual({
+			copilotStart: { model: copilotStart.params.model, provider: copilotStart.params.modelProvider },
+			chatGPTStart: { model: chatGPTStart.params.model, provider: chatGPTStart.params.modelProvider },
+			switchedStart: { model: switchedStart.params.model, provider: switchedStart.params.modelProvider },
+			copilotThread: copilotEntry.threadId,
+			chatGPTThread: chatGPTEntry.threadId,
+			persistedAfterSwitch: persistedAfterSwitch.modelId,
+		}, {
+			copilotStart: { model: 'gpt-test', provider: 'vscode-proxy' },
+			chatGPTStart: { model: 'gpt-test', provider: 'openai' },
+			switchedStart: { model: 'gpt-test', provider: 'openai' },
+			copilotThread: 'thread-copilot-switched',
+			chatGPTThread: 'thread-chatgpt',
+			persistedAfterSwitch: chatGPTModel,
+		});
+
+		peer.exit();
+	});
+
 	test('evicts a completed folder prewarm when the first send resolves to a worktree', async () => {
 		await assertPrewarmEvictedOnSend(disposables, true);
 	});
 
 	test('waits for and evicts an in-flight folder prewarm when the first send resolves to a worktree', async () => {
 		await assertPrewarmEvictedOnSend(disposables, false);
+	});
+
+	test('thread start receives custom agents, instructions, skills, and MCP from client plugins', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo');
+		const pluginDir = URI.file('/plugin');
+		const agentUri = URI.file('/plugin/agents/reviewer.agent.md');
+		const instructionUri = URI.file('/plugin/rules/repo.instructions.md');
+		const skillUri = URI.file('/plugin/skills/greet/SKILL.md');
+		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nReview carefully.'));
+		await agent['_fileService'].writeFile(instructionUri, VSBuffer.fromString('---\ndescription: Repo rules\n---\nRun focused tests.'));
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: greet\ndescription: Greets\n---\nSay hello.'));
+		const parsed: IParsedPlugin = {
+			format: PluginFormat.OpenPlugin,
+			hooks: [],
+			agents: [{ uri: agentUri, name: 'Reviewer', description: 'Reviews changes', customization: { type: CustomizationType.Agent, id: 'agent', uri: agentUri.toString(), name: 'Reviewer' } }],
+			instructions: [{ uri: instructionUri, name: 'repo', customization: { type: CustomizationType.Rule, id: 'rule', uri: instructionUri.toString(), name: 'repo' } }],
+			skills: [{ uri: skillUri, name: 'greet', description: 'Greets', customization: { type: CustomizationType.Skill, id: 'skill', uri: skillUri.toString(), name: 'greet' } }],
+			mcpServers: [{
+				name: 'local',
+				uri: URI.file('/plugin/.mcp.json'),
+				configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
+				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', enabled: true, state: { kind: McpServerStatus.Starting } },
+			}],
+		};
+		const unsafeSession = URI.from({ scheme: 'codex', path: '/../../codex-customization-victim' });
+		const { session } = await agent.createSession({ session: unsafeSession, workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL }, agent: { uri: agentUri.toString() } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.clientCustomizations.setClient('test', [{
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', enabled: true }, pluginDir },
+			parsed,
+		}]);
+
+		const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repo], undefined, 'turn-1');
+		const start = await readNextRequest(peer.outbound);
+		const agents = start.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
+		const roleFile = await fs.promises.readFile(agents.Reviewer.config_file, 'utf8');
+		peer.push({ id: start.id, result: { thread: { id: 'thread-custom' } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await send;
+
+		assert.deepStrictEqual({
+			mcp: start.params.config?.['mcp_servers'],
+			agentDescription: agents.Reviewer.description,
+			developerInstructions: start.params.developerInstructions,
+			turnDeveloperInstructions: turn.params.collaborationMode?.settings.developer_instructions,
+			capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
+			roleFile,
+			roleFileUsesHostGeneratedRoot: agents.Reviewer.config_file.startsWith(join(os.tmpdir(), 'vscode-agent-codex-customizations-')),
+		}, {
+			mcp: { local: { command: 'node', args: ['server.js'] } },
+			agentDescription: 'Reviews changes',
+			developerInstructions: 'Run focused tests.\n\nReview carefully.',
+			turnDeveloperInstructions: 'Run focused tests.\n\nReview carefully.',
+			capabilityPaths: [URI.file('/plugin/skills').fsPath],
+			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
+			roleFileUsesHostGeneratedRoot: true,
+		});
+		peer.exit();
 	});
 
 	test('fresh multi-root start selects only existing secondary skill directories', async () => {
@@ -305,7 +449,7 @@ suite('CodexAgent prewarm eviction', () => {
 		await fileService.createFolder(repoCCodexSkills);
 
 		try {
-			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB, repoC], model: { id: 'gpt-test' } });
+			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB, repoC], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
@@ -357,7 +501,7 @@ suite('CodexAgent prewarm eviction', () => {
 		fileService.failStat(repoBCodexSkills);
 
 		try {
-			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
@@ -400,7 +544,7 @@ suite('CodexAgent prewarm eviction', () => {
 		await fileService.createFolder(repoBAgentsSkills);
 
 		try {
-			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const { session } = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			const firstStart = await readNextRequest(peer.outbound);
 			peer.push({ id: firstStart.id, result: { thread: { id: 'thread-first' } } });
@@ -463,7 +607,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		try {
 			const workingDirectories = [repoA, duplicateRepoA, ...(isWindows ? [caseVariantRepoA] : []), repoB];
-			const { session } = await agent.createSession({ session: sessionUri, workingDirectories, model: { id: 'gpt-test' } });
+			const { session } = await agent.createSession({ session: sessionUri, workingDirectories, model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'thread' }, runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath] } });
@@ -530,6 +674,75 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('consecutive sends replace and remove workspace roots on the existing thread', async () => {
+		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const repoC = URI.file('/repo-c');
+
+		try {
+			const created = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			const firstSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'first', [repoA, repoB], undefined, 'turn-1');
+			const firstTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: firstTurn.id, result: {} });
+			await firstSend;
+
+			const secondSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'second', [repoA, repoC], undefined, 'turn-2');
+			const secondTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: secondTurn.id, result: {} });
+			await secondSend;
+
+			const thirdSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'third', [repoA], undefined, 'turn-3');
+			const thirdTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: thirdTurn.id, result: {} });
+			await thirdSend;
+
+			assert.deepStrictEqual({
+				second: {
+					method: secondTurn.method,
+					threadId: secondTurn.params.threadId,
+					runtimeWorkspaceRoots: secondTurn.params.runtimeWorkspaceRoots,
+					writableRoots: secondTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? secondTurn.params.sandboxPolicy.writableRoots : undefined,
+				},
+				third: {
+					method: thirdTurn.method,
+					threadId: thirdTurn.params.threadId,
+					runtimeWorkspaceRoots: thirdTurn.params.runtimeWorkspaceRoots,
+					writableRoots: thirdTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? thirdTurn.params.sandboxPolicy.writableRoots : undefined,
+				},
+			}, {
+				second: {
+					method: 'turn/start',
+					threadId: 'thread',
+					runtimeWorkspaceRoots: [repoA.fsPath, repoC.fsPath],
+					writableRoots: [repoA.fsPath, repoC.fsPath],
+				},
+				third: {
+					method: 'turn/start',
+					threadId: 'thread',
+					runtimeWorkspaceRoots: [repoA.fsPath],
+					writableRoots: [repoA.fsPath],
+				},
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('disabled multi-root preserves the existing additional-directory payload', async () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'single-root');
@@ -550,7 +763,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const repoB = URI.file('/repo-b');
 
 		try {
-			const { session } = await agent.createSession({ session: sessionUri, workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const { session } = await agent.createSession({ session: sessionUri, workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
@@ -599,7 +812,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const repo = URI.file('/repo');
 
 		try {
-			const { session } = await agent.createSession({ session: sessionUri, workingDirectories: [repo], model: { id: 'gpt-test' } });
+			const { session } = await agent.createSession({ session: sessionUri, workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agent['_sessions'].get(AgentSession.id(session))!;
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
@@ -684,7 +897,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const requestedB = URI.file('/requested-b');
 
 		try {
-			const source = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const source = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
 			const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'source-thread' }, cwd: repoA.fsPath, runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath] } });
@@ -722,6 +935,8 @@ suite('CodexAgent prewarm eviction', () => {
 					method: fork.method,
 					cwd: fork.params.cwd,
 					runtimeWorkspaceRoots: fork.params.runtimeWorkspaceRoots,
+					model: fork.params.model,
+					modelProvider: fork.params.modelProvider,
 					selectedCapabilityRoots: fork.params.selectedCapabilityRoots,
 				},
 				workingDirectories: forkedEntry.workingDirectories?.map(directory => directory.fsPath),
@@ -730,6 +945,8 @@ suite('CodexAgent prewarm eviction', () => {
 					method: 'thread/fork',
 					cwd: repoA.fsPath,
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+					model: 'gpt-test',
+					modelProvider: 'vscode-proxy',
 					selectedCapabilityRoots: undefined,
 				},
 				workingDirectories: [repoA.fsPath, repoB.fsPath],
@@ -756,7 +973,7 @@ suite('CodexAgent prewarm eviction', () => {
 		let peerB: ITestPeer | undefined;
 
 		try {
-			const created = await agentA.createSession({ workingDirectories: [repoA, repoB], model: { id: 'gpt-test' } });
+			const created = await agentA.createSession({ workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
 			const entry = agentA['_sessions'].get(AgentSession.id(created.session))!;
 			const start = await readNextRequest(peerA.outbound);
 			peerA.push({ id: start.id, result: { thread: { id: 'thread' }, cwd: repoA.fsPath, runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath] } });

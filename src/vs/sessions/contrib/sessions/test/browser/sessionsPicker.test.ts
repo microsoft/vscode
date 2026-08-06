@@ -23,15 +23,17 @@ suite('Sessions Picker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('prioritizes needs-input and unread sessions globally while preserving existing order', () => {
+	test('prioritizes needs-input and idle unread sessions globally while preserving existing order', () => {
 		const groups = groupSessionsForPicker([
 			createSession('recent-read', SessionStatus.Completed, true),
 			createSession('recent-unread', SessionStatus.Completed, false),
+			createSession('recent-in-progress-unread', SessionStatus.InProgress, false),
 			createSession('recent-needs-input-read', SessionStatus.NeedsInput, true),
 			createSession('recent-needs-input-unread', SessionStatus.NeedsInput, false),
 		], [
 			createSession('other-needs-input', SessionStatus.NeedsInput, false),
 			createSession('other-unread', SessionStatus.Completed, false),
+			createSession('other-in-progress-unread', SessionStatus.InProgress, false),
 			createSession('other-read', SessionStatus.Completed, true),
 		]);
 
@@ -43,8 +45,8 @@ suite('Sessions Picker', () => {
 		}, {
 			needsInput: ['recent-needs-input-read', 'recent-needs-input-unread', 'other-needs-input'],
 			unread: ['recent-unread', 'other-unread'],
-			recent: ['recent-read'],
-			other: ['other-read'],
+			recent: ['recent-read', 'recent-in-progress-unread'],
+			other: ['other-in-progress-unread', 'other-read'],
 		});
 	});
 

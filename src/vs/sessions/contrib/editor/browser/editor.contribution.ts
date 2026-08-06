@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/editorTabs.css';
+import './media/editorBreadcrumbs.css';
+import './media/editorHeader.css';
 import './diffEditor.sessions.contribution.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
@@ -53,15 +55,10 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-// Single-pane "layout" actions (maximize/restore, hide editor, toggle details)
-// render in the editor-title *layout* cluster (MenuId.EditorTitleLayout), after
-// the editor-title actions and their separator — mirroring the classic layout.
-// The detail-panel toggle is conditional (hidden for tab types with no detail,
-// e.g. browser and search — see `singlePaneLayoutToggleDetailsOrder` in
-// `singlePaneResponsiveSidebarStrategy.ts`) and keeps its trailing position after
-// the hide chevron and maximize/restore.
-const singlePaneLayoutHideEditorOrder = 10;
+// Maximize/restore stays in the editor-title layout cluster. Hide Editor and
+// Toggle Details render together in the trailing editor-header layout group.
 const singlePaneLayoutMaximizeOrder = 20;
+const singlePaneHeaderHideEditorOrder = 20;
 
 // Keybinding scope for the single-pane maximize/restore toggle: active in the
 // main sessions window whenever the single-pane layout is on and the editor
@@ -205,15 +202,14 @@ class HideMainEditorPartAction extends Action2 {
 			title: localize2('hideMainEditorPart', "Hide Editor"),
 			icon: Codicon.chevronRight,
 			f1: false,
+			precondition: AuxiliaryBarVisibleContext,
 			menu: {
-				id: MenuId.EditorTitleLayout,
+				id: Menus.SessionsEditorHeaderLayout,
 				group: 'navigation',
-				order: singlePaneLayoutHideEditorOrder,
+				order: singlePaneHeaderHideEditorOrder,
 				when: ContextKeyExpr.and(
 					editorTitleActionsWhen,
 					singlePaneDetailPanel,
-					EditorMaximizedContext.negate(),
-					AuxiliaryBarVisibleContext,
 					HasDockedDetailsContext,
 					MainEditorAreaVisibleContext)
 			}
@@ -422,7 +418,7 @@ class AddFileAsContextAction extends Action2 {
 			f1: true,
 			precondition,
 			menu: [{
-				id: Menus.SessionsEditorTitle,
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'navigation',
 				order: 100000,
 				when: ContextKeyExpr.and(precondition, singlePaneDetailPanel)
@@ -457,7 +453,7 @@ class AddFileAsContextAction extends Action2 {
 registerAction2(AddFileAsContextAction);
 
 /**
- * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorTitle}
+ * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorHeaderSecondary}
  * so they are not lost in the single-pane layout. See `LAYOUT.md` for details.
  */
 export class EditorTitleMenuBridgeContribution extends Disposable implements IWorkbenchContribution {
@@ -498,7 +494,10 @@ export class EditorTitleMenuBridgeContribution extends Disposable implements IWo
 				? !!item.command.source
 				: item.submenu.id.startsWith(EditorTitleMenuBridgeContribution._extensionSubmenuPrefix);
 			if (isExtensionItem) {
-				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, item));
+				const group = item.group === 'navigation'
+					? 'extension/navigation'
+					: `secondary/extension/${item.group ?? 'other'}`;
+				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, { ...item, group }));
 			}
 		}
 	}

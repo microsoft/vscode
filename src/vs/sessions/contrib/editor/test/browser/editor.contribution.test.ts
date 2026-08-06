@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -13,18 +15,19 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { openNewSearchEditor } from '../../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
-import { EmptyFileEditorInput } from '../../browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
@@ -40,10 +43,45 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	}
 
+	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IWorkbenchLayoutService {
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART && visible;
+			}
+		};
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		return layoutService;
+	}
+
+	function createWorkspace(...workingDirectories: URI[]): ISessionWorkspace {
+		return {
+			uri: URI.file('/repo/workspace.code-workspace'),
+			label: 'workspace',
+			icon: Codicon.rootFolder,
+			folders: workingDirectories.map(workingDirectory => ({
+				root: workingDirectory,
+				workingDirectory,
+				name: workingDirectory.path,
+				description: undefined,
+			})),
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+	}
+
 	test('new file tab action opens pinned empty file editor', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const opened: { editor: EditorInput; options: IEditorOptions | undefined }[] = [];
+		const workspaceFolder = URI.file('/repo/worktree');
+		const workspace = createWorkspace(workspaceFolder);
 		stubEditorGroupCount(instantiationService, 7);
+		stubEditorVisibility(instantiationService, true);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable({
+				workspace: constObservable(workspace)
+			} as IActiveSession);
+		});
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const editor = args[0];
@@ -58,9 +96,70 @@ suite('Sessions - Editor Contribution', () => {
 
 		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
 			isEmptyFileEditor: editor instanceof EmptyFileEditorInput,
+			resource: editor.resource?.toString(),
 			pinned: options?.pinned,
 			index: options?.index
-		})), [{ isEmptyFileEditor: true, pinned: true, index: 7 }]);
+		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
+	});
+
+	test('empty file editor updates its workspace', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const layoutService = stubEditorVisibility(instantiationService, true);
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService));
+		const other = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
+
+		assert.deepStrictEqual({
+			resource: input.resource?.toString(),
+			matchesAnotherEmptyInput: input.matches(other)
+		}, {
+			resource: URI.file('/repo/other').toString(),
+			matchesAnotherEmptyInput: true
+		});
+	});
+
+	test('empty file editor exposes its breadcrumb resource only while the editor area is visible', () => {
+		let editorVisible = false;
+		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART && editorVisible;
+			}
+		};
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService));
+		let labelChanges = 0;
+		store.add(input.onDidChangeLabel(() => labelChanges++));
+
+		const hiddenResource = input.resource;
+		editorVisible = true;
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			hiddenResource,
+			visibleResource: input.resource?.toString(),
+			labelChanges
+		}, {
+			hiddenResource: undefined,
+			visibleResource: URI.file('/repo/worktree').toString(),
+			labelChanges: 1
+		});
+	});
+
+	test('empty file editor serializer preserves the workspace folders', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const layoutService = stubEditorVisibility(instantiationService, false);
+		const serializer = new EmptyFileEditorSerializer();
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService));
+		const restored = serializer.deserialize(instantiationService, serializer.serialize(input) ?? '');
+		if (restored) {
+			store.add(restored);
+		}
+
+		assert.deepStrictEqual(
+			(restored as EmptyFileEditorInput | undefined)?.workspace?.folders.map(folder => folder.workingDirectory.toString()),
+			input.workspace?.folders.map(folder => folder.workingDirectory.toString())
+		);
 	});
 
 	test('new search tab action opens a new search editor', async () => {

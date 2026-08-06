@@ -31,11 +31,34 @@ class TestChatSessionsService extends MockChatSessionsService {
 		return {
 			items: [{
 				insertText: '#roadmap.md',
+				start: { lineNumber: 1, column: 1 },
+				end: { lineNumber: 1, column: 2 },
 				attachment: {
 					kind: 'resource',
 					uri: URI.file('/workspace/roadmap.md'),
 				},
 			}],
+		};
+	}
+}
+
+class OrderedTestChatSessionsService extends MockChatSessionsService {
+	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
+		return {
+			items: [
+				{
+					insertText: '#z-index.ts',
+					start: { lineNumber: 1, column: 1 },
+					end: { lineNumber: 1, column: 11 },
+					attachment: { kind: 'resource', uri: URI.file('/long/workspace/src/index.ts') },
+				},
+				{
+					insertText: '#a-index.ts',
+					start: { lineNumber: 1, column: 1 },
+					end: { lineNumber: 1, column: 11 },
+					attachment: { kind: 'resource', uri: URI.file('/src/index.ts') },
+				},
+			],
 		};
 	}
 }
@@ -87,6 +110,8 @@ suite('AgentHostInputCompletionsBase', () => {
 			suggestions: [{
 				label: '#roadmap.md',
 				insertText: '#roadmap.md',
+				filterText: '#',
+				sortText: '000000',
 				range: new Range(1, 2, 1, 2),
 				kind: CompletionItemKind.File,
 			}],
@@ -107,11 +132,32 @@ suite('AgentHostInputCompletionsBase', () => {
 			suggestions: [{
 				label: '#roadmap.md',
 				insertText: '#roadmap.md',
+				filterText: '#',
+				sortText: '000000',
 				range: new Range(1, 2, 1, 2),
 				kind: CompletionItemKind.Text,
 			}],
 			incomplete: true,
 		});
+	});
+
+	test('uses a common current-token filter score to preserve host order', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new OrderedTestChatSessionsService()));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#src/index', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 11), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
+
+		assert.deepStrictEqual(result?.suggestions.map(item => ({
+			label: item.label,
+			filterText: item.filterText,
+			sortText: item.sortText,
+		})), [
+			{ label: '#z-index.ts', filterText: '#src/index', sortText: '000000' },
+			{ label: '#a-index.ts', filterText: '#src/index', sortText: '000001' },
+		]);
 	});
 });
 
