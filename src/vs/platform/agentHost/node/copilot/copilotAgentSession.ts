@@ -3899,6 +3899,7 @@ export class CopilotAgentSession extends Disposable {
 			const parentToolCallId = streamed?.parentToolCallId ?? this._parentToolCallIdForSubagentEvent(e);
 			const clientToolName = this._clientToolName(e.data.toolName);
 			const isClientTool = this._clientToolNames.has(clientToolName);
+			const isToolSearch = this._isToolSearchActive() && e.data.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
 			const contributor = this._getToolCallContributor(e.data.toolName, e.data.mcpServerName);
 			const intention = getShellIntention(e.data.toolName, parameters);
 			this._activeToolCalls.set(e.data.toolCallId, {
@@ -4011,9 +4012,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			const clientToolAutoApproved = contributor?.kind === ToolCallContributorKind.Client && this._lastAppliedPermissionMode === 'on';
+			if (isToolSearch && clientToolAutoApproved) {
+				meta.autoApproveBySetting = true;
+			}
 			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
 				&& !isAgentCoordinationTool(e.data.toolName)
-				&& !clientToolAutoApproved;
+				&& (isToolSearch || !clientToolAutoApproved);
 			if (shouldWaitForClientToolReady) {
 				return;
 			}

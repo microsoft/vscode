@@ -1152,11 +1152,12 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
-		test('tool-search completion drops candidates while preserving unknown metadata', async () => {
+		test('waits for tool-search candidates and drops them from completion metadata', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testToolSearchTool]);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+			const toolSearchCandidates = [{ name: 'calculator', description: 'Adds numbers' }];
 
 			connection.applySessionAction(chatURI, {
 				type: ActionType.ChatTurnStarted,
@@ -1180,7 +1181,6 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{"query":"calculator"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: {
-					toolSearchCandidates: [{ name: 'calculator', description: 'Adds numbers' }],
 					futureMetadata: { preserve: true },
 				},
 			} as ChatAction);
@@ -1193,7 +1193,32 @@ suite('AgentHostClientTools', () => {
 				invocationMessage: 'Search Tools',
 				toolInput: '{"query":"calculator"}',
 				_meta: {
-					toolSearchCandidates: [{ name: 'calculator', description: 'Adds numbers' }],
+					futureMetadata: { preserve: true },
+				},
+			});
+			await timeout(0);
+			assert.strictEqual(toolsService.invokedToolCalls.length, 0);
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-search-call-1',
+				invocationMessage: 'Search Tools',
+				toolInput: '{"query":"calculator"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: {
+					toolSearchCandidates,
+					futureMetadata: { preserve: true },
+				},
+			} as ChatAction);
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+				toolCallId: 'tool-search-call-1',
+				toolName: RUNTIME_TOOL_SEARCH_TOOL_NAME,
+				displayName: 'Search Tools',
+				invocationMessage: 'Search Tools',
+				toolInput: '{"query":"calculator"}',
+				_meta: {
+					toolSearchCandidates,
 					futureMetadata: { preserve: true },
 				},
 			});
@@ -1210,7 +1235,7 @@ suite('AgentHostClientTools', () => {
 			}, {
 				parameters: {
 					query: 'calculator',
-					candidateTools: [{ name: 'calculator', description: 'Adds numbers' }],
+					candidateTools: toolSearchCandidates,
 				},
 				meta: { futureMetadata: { preserve: true } },
 			});
