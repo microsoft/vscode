@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Application, Chat, Logger } from '../../../../automation';
 import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
@@ -37,6 +39,9 @@ const MODEL_NAME = 'Mock Config Model';
  * generation) that may also carry the conversation history.
  */
 const MODEL_ID = 'mock-config-model';
+const CUSTOM_ENDPOINT_MODEL_NAME = 'Smoke Custom Endpoint';
+const CUSTOM_ENDPOINT_SCENARIO_ID = 'smoke-custom-endpoint-reload';
+const CUSTOM_ENDPOINT_REPLY = 'MOCKED_CUSTOM_ENDPOINT_RELOAD';
 
 /**
  * Combinations of model-configuration picker selections to exercise. Each case
@@ -176,6 +181,7 @@ export function setup(logger: Logger) {
 			// Warm-up scenario: the first message activates the Copilot extension
 			// and registers the models, which populates the model picker.
 			registerScenario('smoke-model-config-warmup', new ScenarioBuilder().emit('MOCKED_WARMUP').build());
+			registerScenario(CUSTOM_ENDPOINT_SCENARIO_ID, new ScenarioBuilder().emit(CUSTOM_ENDPOINT_REPLY).build());
 
 			// One scenario per case, each emitting a distinct reply so the
 			// response-text assertion unambiguously identifies the current turn.
@@ -377,6 +383,46 @@ export function setup(logger: Logger) {
 				throw error;
 			} finally {
 				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+			}
+		});
+
+		it('reloads and invokes a custom endpoint added to chatLanguageModels.json (#328601)', async function () {
+			const app = this.app as Application;
+			const chat = app.workbench.chat;
+			const languageModelsPath = path.join(app.userDataPath, 'User', 'chatLanguageModels.json');
+
+			fs.writeFileSync(languageModelsPath, JSON.stringify([{
+				name: 'Smoke Test',
+				vendor: 'customendpoint',
+				apiType: 'chat-completions',
+				models: [{
+					id: 'smoke-custom-endpoint',
+					name: CUSTOM_ENDPOINT_MODEL_NAME,
+					url: mockServer.url,
+					toolCalling: true,
+					vision: false,
+					maxInputTokens: 128000,
+					maxOutputTokens: 16000,
+				}],
+			}], undefined, '\t'));
+
+			try {
+				await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
+				await chat.waitForChatView();
+				await chat.selectModel(CUSTOM_ENDPOINT_MODEL_NAME);
+
+				const scenarioTag = `[scenario:${CUSTOM_ENDPOINT_SCENARIO_ID}]`;
+				await chat.sendMessage(`test custom endpoint ${scenarioTag}`);
+				const responseText = (await chat.waitForResponseText(CUSTOM_ENDPOINT_REPLY, 120_000)).trim();
+
+				assert.ok(
+					responseText.includes(CUSTOM_ENDPOINT_REPLY),
+					`Expected the custom endpoint response to include "${CUSTOM_ENDPOINT_REPLY}".\n\nResponse:\n${responseText}`
+				);
+			} catch (error) {
+				logger.log(`[Chat Model Config/Custom Endpoint] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Chat Model Configuration - Custom Endpoint');
+				throw error;
 			}
 		});
 	});
