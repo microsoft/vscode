@@ -76,6 +76,7 @@ export interface IModelPickerDelegate {
 	readonly modelConfiguration?: IModelConfigurationAccess;
 	onDidChangeVisibility?(visible: boolean): void | Promise<void>;
 	readonly anchorPosition?: AnchorPosition;
+	readonly actionWidgetContainer?: HTMLElement;
 }
 
 /**

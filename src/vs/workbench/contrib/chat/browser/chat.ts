@@ -320,6 +320,8 @@ export interface IChatWidgetViewOptions {
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
 	inputPickerPosition?: AnchorPosition;
+	inputPickerContainer?: HTMLElement;
+	inputEditorEditContext?: boolean;
 
 	/**
 	 * Whether we are running in the sessions window.

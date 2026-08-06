@@ -577,7 +577,7 @@ export class ModelPickerWidget extends Disposable {
 				items,
 				delegate,
 				anchorElement,
-				undefined,
+				this._delegate.actionWidgetContainer,
 				[],
 				getModelPickerAccessibilityProvider(),
 				listOptions

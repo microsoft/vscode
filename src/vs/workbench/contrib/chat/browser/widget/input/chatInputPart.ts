@@ -256,6 +256,8 @@ export interface IChatInputPartOptions {
 	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
 	inputPickerPosition?: AnchorPosition;
+	inputPickerContainer?: HTMLElement;
+	inputEditorEditContext?: boolean;
 	onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 }
 
@@ -1183,6 +1185,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			modelConfiguration: this._modelConfigStore,
 			onDidChangeVisibility: this.options.onDidChangeModelPickerVisibility,
 			anchorPosition: this.options.inputPickerPosition,
+			actionWidgetContainer: this.options.inputPickerContainer,
 		};
 	}
 
@@ -3072,6 +3075,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
+		if (this.options.inputEditorEditContext !== undefined) {
+			options.editContext = this.options.inputEditorEditContext;
+		}
 		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();

@@ -387,6 +387,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				submitHandler: (query, mode, attachedContext, isVoiceModeInput) => this._routingController?.handleSubmit(query, mode, attachedContext, isVoiceModeInput) ?? Promise.resolve(false),
 				onDidChangeModelPickerVisibility: visible => this._layoutForModelPicker(auxiliaryWindow, visible),
 				inputPickerPosition: AnchorPosition.BELOW,
+				inputPickerContainer: auxiliaryWindow.container,
+				inputEditorEditContext: false,
 			},
 			{
 				inputEditorBackground: inputBackground,

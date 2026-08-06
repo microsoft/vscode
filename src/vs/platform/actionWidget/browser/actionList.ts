@@ -1886,48 +1886,29 @@ export class ActionListWidget<T> extends Disposable {
 
 		// Position: prefer right side, fall back to left if not enough space
 		const viewportWidth = targetWindow.innerWidth;
-		const viewportHeight = targetWindow.innerHeight;
 		const spaceRight = viewportWidth - anchorRect.right;
 		const spaceLeft = parentRect.left;
 		const panelWidth = maxWidth + 10; // account for border/padding
 
-		const margin = 8;
 		const gap = 4;
-		let containerLeft: number;
 		if (spaceRight >= panelWidth || spaceRight >= spaceLeft) {
-			containerLeft = parentRect.right - parentRect.left + gap;
+			this._submenuContainer.style.left = `${parentRect.right - parentRect.left + gap}px`;
 		} else {
-			containerLeft = -panelWidth - gap;
+			this._submenuContainer.style.left = `${-panelWidth - gap}px`;
 		}
-		// Clamp horizontally so the panel stays within the target window even
-		// when it's small (e.g. the floating chat input window), instead of
-		// spilling off the edge and being clipped.
-		let viewportLeft = parentRect.left + containerLeft;
-		if (viewportLeft + panelWidth > viewportWidth - margin) {
-			viewportLeft = viewportWidth - margin - panelWidth;
-		}
-		if (viewportLeft < margin) {
-			viewportLeft = margin;
-		}
-		this._submenuContainer.style.left = `${viewportLeft - parentRect.left}px`;
-
 		const hoverHeaderHeight = hoverHeader ? hoverHeader.offsetHeight : 0;
 		const totalPanelHeight = totalHeight + hoverHeaderHeight;
+		const viewportHeight = targetWindow.innerHeight;
 		const anchorHeight = anchorRect.height;
 		let top = anchorRect.top - parentRect.top + (anchorHeight - totalPanelHeight) / 2;
 		const panelBottom = parentRect.top + top + totalPanelHeight;
 		if (panelBottom > viewportHeight) {
-			top -= (panelBottom - viewportHeight + margin);
+			top -= (panelBottom - viewportHeight + 8);
 		}
-		if (parentRect.top + top < margin) {
-			top = margin - parentRect.top;
+		if (parentRect.top + top < 0) {
+			top = -parentRect.top;
 		}
 		this._submenuContainer.style.top = `${top}px`;
-		// Constrain the panel to the window and let overflowing content scroll,
-		// so a tall hover (e.g. model details) is never cut off by the bounds.
-		this._submenuContainer.style.maxHeight = `${viewportHeight - margin * 2}px`;
-		this._submenuContainer.style.overflowY = 'auto';
-		this._submenuContainer.style.overflowX = 'hidden';
 	}
 
 	private _hideSubmenu(): void {
