@@ -201,6 +201,8 @@ export interface INewChatVoiceControllerOptions {
 	readonly inputContainer: HTMLElement;
 	/** Composer driven by voice. */
 	readonly composer: INewChatVoiceComposer;
+	/** Called with the number of rendered voice actions when they change. */
+	readonly onDidChangeActions?: (actionCount: number) => void;
 }
 
 /**
@@ -236,7 +238,7 @@ export class NewChatVoiceController extends Disposable {
 		const initiatedHereKey = scopedContextKeyService.createKey<boolean>('agentsVoiceInitiatedHere', false);
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
-		this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
+		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, itemOptions) => {
 				// While listening the menu swaps the start action for the
@@ -248,6 +250,17 @@ export class NewChatVoiceController extends Disposable {
 				return undefined;
 			},
 		}));
+		if (options.onDidChangeActions) {
+			const onDidChangeActions = () => {
+				let actionCount = 0;
+				while (toolbar.getItemAction(actionCount)) {
+					actionCount++;
+				}
+				options.onDidChangeActions?.(actionCount);
+			};
+			this._register(toolbar.onDidChangeMenuItems(onDidChangeActions));
+			onDidChangeActions();
+		}
 
 		// Target the active composer before a session exists, or when it opts in
 		// while a session is active. Gate on `isCreated` to exclude drafts.
