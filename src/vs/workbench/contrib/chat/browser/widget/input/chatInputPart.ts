@@ -3558,11 +3558,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.statusToolbar.context = { widget } satisfies IChatExecuteActionContext;
 
 		let inputModel = this.modelService.getModel(this.inputUri);
+		let createdInputModel: ITextModel | undefined;
 		if (!inputModel) {
-			inputModel = this._register(this.modelService.createModel('', null, this.inputUri, false));
+			inputModel = createdInputModel = this.modelService.createModel('', null, this.inputUri, false);
 		}
 
-		this.textModelResolverService.createModelReference(this.inputUri).then(ref => {
+		const inputModelReference = this.textModelResolverService.createModelReference(this.inputUri);
+		if (createdInputModel) {
+			const model = createdInputModel;
+			this._register(toDisposable(() => {
+				// Keep the model alive until reference acquisition settles. Otherwise
+				// immediate widget disposal can remove it while TextResourceEditorModel
+				// is still resolving the existing model handle.
+				void inputModelReference.then(
+					() => model.dispose(),
+					() => model.dispose()
+				);
+			}));
+		}
+		inputModelReference.then(ref => {
 			// make sure to hold a reference so that the model doesn't get disposed by the text model service
 			if (this._store.isDisposed) {
 				ref.dispose();
