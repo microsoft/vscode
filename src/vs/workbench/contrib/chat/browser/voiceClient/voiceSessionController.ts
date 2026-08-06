@@ -1192,11 +1192,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					return;
 				}
 
-				// Telemetry runs only after the staleness guard. The backend accepts
-				// a socket before refusing it (so the refusal can carry a close
-				// code), so every rejection briefly looks like a connection; logging
-				// above the guard would count each one as a session that starts and
-				// never ends, corrupting the very metrics used to judge this.
+				// Must stay below the staleness guard: a refused socket briefly looks
+				// connected, and would otherwise log a session that never ends.
 				// --- Telemetry: session/connect ---
 				const connectMs = this._telemetryConnectStartMs ? now - this._telemetryConnectStartMs : 0;
 				if (this._telemetryFirstConnect) {

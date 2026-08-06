@@ -583,7 +583,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._setConnected(false);
 	}
 
-	/** Clear the retry counter and the give-up deadline. */
 	private _resetReconnectBudget(): void {
 		this._reconnectAttempts = 0;
 		this._reconnectStartedAt = undefined;
