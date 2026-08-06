@@ -152,19 +152,25 @@ export function getFileEditAttributionMarker(content: ToolResultFileEditContent)
 	if (marker.status !== undefined && marker.status !== 'tracked') {
 		return undefined;
 	}
-	return typeof marker.beforeDigest === 'string' &&
-		typeof marker.afterDigest === 'string' &&
-		(marker.source === undefined || (
-			typeof marker.source === 'object' &&
-			marker.source !== null &&
-			!Array.isArray(marker.source) &&
-			(marker.source.modelId === undefined || typeof marker.source.modelId === 'string') &&
-			typeof marker.source.conversationId === 'string' &&
-			typeof marker.source.requestId === 'string' &&
-			typeof marker.source.harness === 'string'
-		))
-		? marker
-		: undefined;
+	if (
+		typeof marker.beforeDigest !== 'string' ||
+		typeof marker.afterDigest !== 'string' ||
+		(marker.source !== undefined && !isFileEditAttributionSource(marker.source))
+	) {
+		return undefined;
+	}
+	return marker;
+}
+
+function isFileEditAttributionSource(source: unknown): source is IFileEditAttributionSource {
+	if (typeof source !== 'object' || source === null || Array.isArray(source)) {
+		return false;
+	}
+	const candidate = source as Partial<IFileEditAttributionSource>;
+	return (candidate.modelId === undefined || typeof candidate.modelId === 'string') &&
+		typeof candidate.conversationId === 'string' &&
+		typeof candidate.requestId === 'string' &&
+		typeof candidate.harness === 'string';
 }
 
 export function createFileEditContentDigest(content: string): string {
