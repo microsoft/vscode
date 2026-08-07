@@ -681,19 +681,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private updateWindowBorder(skipLayout = false) {
 		const theme = this.themeService.getColorTheme();
 		const didHaveMainWindowBorder = this.hasMainWindowBorder();
-
-		if (this.isFloatingPanelsEnabled() && !isHighContrast(theme.type)) {
-			this.state.runtime.mainWindowBorder = false;
-			for (const container of this.containers) {
-				container.classList.remove(LayoutClasses.WINDOW_BORDER);
-				container.style.removeProperty('--window-border-color');
-			}
-
-			if (!skipLayout && didHaveMainWindowBorder) {
-				this.layout();
-			}
-			return;
-		}
+		const suppressMainWindowBorder = this.isFloatingPanelsEnabled() && !isHighContrast(theme.type);
 
 		if (
 			isWeb ||
@@ -715,12 +703,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			const isActiveContainer = this.activeContainer === container;
 
 			let windowBorder = false;
-			if (!this.state.runtime.mainWindowFullscreen && (activeBorder || inactiveBorder)) {
+			if (!(isMainContainer && suppressMainWindowBorder) && !this.state.runtime.mainWindowFullscreen && (activeBorder || inactiveBorder)) {
 				windowBorder = true;
 
 				// If the inactive color is missing, fallback to the active one
 				const borderColor = isActiveContainer && this.state.runtime.hasFocus ? activeBorder : inactiveBorder ?? activeBorder;
 				container.style.setProperty('--window-border-color', borderColor?.toString() ?? 'transparent');
+			} else {
+				container.style.removeProperty('--window-border-color');
 			}
 
 			if (isMainContainer) {
