@@ -45,13 +45,15 @@ export interface IClaudeTransportModeInputs {
  *
  * The result is **not** an input to the Agents window's sign-in gate, and
  * resolving to `proxy` does not by itself make the session type "require
- * GitHub". Claude advertises the Copilot protected resource as `required: false`
- * unconditionally, so `resolveAgentAuthRequirement` separates "usable" from
- * "unusable" on the *model count* instead: in case 4 neither half of the merged
- * catalog can be enumerated, the published catalog is empty, and the type
- * resolves to `Unusable` — surfacing as "no models". The proxy fallback only
- * bites at use time, when a model-less/bare session actually materializes with no
- * proxy handle and `_ensureAuthenticated` raises `AHP_AUTH_REQUIRED`.
+ * GitHub". That answer is `getProtectedResources()`, which marks the Copilot
+ * resource `required: false` on the same `hasExistingSetup` fact used here — so
+ * the two agree by construction: a user with their own Anthropic credential is
+ * not forced to sign in, and one without (case 4) is. `resolveAgentAuthRequirement`
+ * then separates `None` from `Unusable` on the *model count*, since a
+ * `required: false` agent that cannot enumerate a single model must not hold the
+ * window open. The proxy fallback of case 4 only bites at use time, when a
+ * model-less/bare session actually materializes with no proxy handle and
+ * `_ensureAuthenticated` raises `AHP_AUTH_REQUIRED`.
  *
  * There is deliberately no host-global setting to *prefer* a transport. Since
  * the picker offers both providers' models side by side, transport is downstream
@@ -108,9 +110,10 @@ type ClaudeCredentialEnv = NonNullable<ValidatorType<typeof claudeSettingsValida
  *
  * These are the same credential sources the SDK subprocess env is built from
  * (see `buildSubprocessEnv`), so detecting them here means "asking for what we
- * actually need": when a native credential is present the provider never
- * advertises the GitHub Copilot resource, so the server never asks the client
- * for a GitHub token and no sign-in is triggered.
+ * actually need": when a native credential is present the provider advertises
+ * the GitHub Copilot resource as `required: false`, so no sign-in is forced —
+ * while still letting the host silently forward a token to a user who is signed
+ * in anyway.
  *
  * Detection is deliberately conservative — an empty-string value does not count
  * — so it neither misses a real login nor misfires on a leftover blank entry.

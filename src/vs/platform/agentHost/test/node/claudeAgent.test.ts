@@ -1007,7 +1007,7 @@ suite('ClaudeAgent', () => {
 			resource_name: 'GitHub Copilot',
 			authorization_servers: ['https://github.com/login/oauth'],
 			scopes_supported: ['read:user', 'user:email'],
-			required: false,
+			required: true,
 		}, {
 			resource: 'https://api.github.com/repos',
 			resource_name: 'GitHub Repository',
@@ -5711,19 +5711,51 @@ suite('ClaudeAgent — per-session provider', () => {
 		});
 	});
 
-	test('getProtectedResources advertises Copilot as optional even in the proxy default', () => {
-		// Per-session routing means no host-global mode can make Copilot strictly
-		// required — each session's transport comes from its picked model — so the
-		// resource is always advertised optional (mirroring Codex). The proxy-only
-		// session that needs it is gated later, in `_ensureAuthenticated(model)`.
-		const { agent } = createTestContext(disposables);
-		assert.deepStrictEqual(
-			agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
-			[
-				{ resource: 'https://api.github.com', required: false },
-				{ resource: 'https://api.github.com/repos', required: false },
-			],
-		);
+	test('getProtectedResources marks Copilot optional only for a discovered BYO-Anthropic setup', async () => {
+		// Whether GitHub is *required* tracks what the user can run without it. No
+		// local Anthropic credential means every model the merged catalog can offer
+		// is Copilot-routed, so the resource stays strictly required and the window
+		// / session-type gates force sign-in. A discovered credential (here a real
+		// `~/.claude/settings.json` under a temp home, with the signed-out opt-in
+		// on) flips it to `required: false` so a signed-out user is let in. The
+		// resource is never dropped, so the silent token probe survives both ways.
+		const withoutSetup = createTestContext(disposables).agent.getProtectedResources();
+		await withNativeSetup(async userHome => {
+			const { agent } = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+				userHome,
+			});
+			assert.deepStrictEqual({
+				withoutSetup: withoutSetup.map(r => ({ resource: r.resource, required: r.required })),
+				withSetup: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+			}, {
+				withoutSetup: [
+					{ resource: 'https://api.github.com', required: true },
+					{ resource: 'https://api.github.com/repos', required: false },
+				],
+				withSetup: [
+					{ resource: 'https://api.github.com', required: false },
+					{ resource: 'https://api.github.com/repos', required: false },
+				],
+			});
+		});
+	});
+
+	test('getProtectedResources keeps Copilot required for a BYO-Anthropic setup while the opt-in is off', async () => {
+		// The `allowSignedOutWhenUsable` opt-in is the kill switch for the whole
+		// signed-out experience, so with it off a discovered credential must not
+		// lift the sign-in requirement — exactly as the host-default transport
+		// (`resolveClaudeTransportMode` rule 1) stays on the proxy.
+		await withNativeSetup(async userHome => {
+			const { agent } = createTestContext(disposables, { userHome });
+			assert.deepStrictEqual(
+				agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+				[
+					{ resource: 'https://api.github.com', required: true },
+					{ resource: 'https://api.github.com/repos', required: false },
+				],
+			);
+		});
 	});
 
 	test('merged catalog lists both providers, each id provider-qualified', async () => {
