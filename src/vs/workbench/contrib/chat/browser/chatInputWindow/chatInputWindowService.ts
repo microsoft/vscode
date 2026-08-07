@@ -43,7 +43,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
@@ -56,7 +56,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
-import { derivePendingId, getVoiceToolApprovalCommand } from '../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved } from '../../common/voiceClient/voiceClientService.js';
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
@@ -633,9 +633,19 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		skipButton.label = skipLabel;
 		const renderedApprovalTitle = this._windowDisposables.add(new MutableDisposable<IRenderedMarkdown>());
 		let displayedApproval: IChatToolInvocation | undefined;
+		let displayedApprovalOccurrence: string | undefined;
 		let lastActivatedApproval: string | undefined;
 		const confirmDisplayedApproval = (reason: ToolConfirmKind.UserAction | ToolConfirmKind.Skipped) => {
-			IChatToolInvocation.confirmWith(displayedApproval, { type: reason });
+			const approval = displayedApproval;
+			const occurrence = displayedApprovalOccurrence;
+			if (!approval || !occurrence || isPendingIdResolved(occurrence)) {
+				return;
+			}
+			// Retire every rehydrated copy before the provider callback can publish
+			// another model update. Otherwise an older card can remain selectable and
+			// submit the same approval repeatedly.
+			markPendingIdResolved(occurrence);
+			IChatToolInvocation.confirmWith(approval, { type: reason });
 		};
 		this._windowDisposables.add(allowButton.onDidClick(() => confirmDisplayedApproval(ToolConfirmKind.UserAction)));
 		this._windowDisposables.add(skipButton.onDidClick(() => confirmDisplayedApproval(ToolConfirmKind.Skipped)));
@@ -759,6 +769,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				confirmationWidgetLayoutHeight = 0;
 				displayedResource = undefined;
 				displayedApproval = undefined;
+				displayedApprovalOccurrence = undefined;
 				lastActivatedApproval = undefined;
 				allowButton.enabled = false;
 				skipButton.enabled = false;
@@ -791,6 +802,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-summary', !hasPendingQuestion && !!pendingApproval);
 			displayedApproval = pendingApproval?.invocation;
+			displayedApprovalOccurrence = pendingApproval?.occurrence;
 			allowButton.enabled = !!displayedApproval;
 			skipButton.enabled = !!displayedApproval;
 			renderedApprovalTitle.clear();
@@ -847,7 +859,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const currentResource = pendingModels[this._pendingPromptIndex]?.sessionResource.toString();
 			const activeTarget = this.voiceSessionController.targetSession.read(reader)?.toString();
 			pendingModels = [...this.chatService.chatModels.read(reader)]
-				.filter(model => !!model.requestNeedsInput.read(reader))
+				.filter(model => !!model.requestNeedsInput.read(reader) && !this._hasOnlyResolvedPendingTools(model, reader))
 				.sort((a, b) =>
 					Number(b.sessionResource.toString() === activeTarget) - Number(a.sessionResource.toString() === activeTarget)
 					|| Number(this._hasPendingQuestion(b)) - Number(this._hasPendingQuestion(a))
@@ -923,12 +935,48 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed) ?? false;
 	}
 
+	private _hasOnlyResolvedPendingTools(model: IChatModel, reader: IReader): boolean {
+		const request = model.lastRequest;
+		const parts = request?.response?.response.value;
+		if (!request || !parts) {
+			return false;
+		}
+		let sawResolvedTool = false;
+		for (const part of parts) {
+			if (part.kind === 'questionCarousel' && !part.isUsed && !part.answeredExternally) {
+				return false;
+			}
+			if (part.kind === 'elicitation2' && part.state.get() === 'pending') {
+				return false;
+			}
+			if ((part.kind === 'planReview' || part.kind === 'confirmation') && !part.isUsed) {
+				return false;
+			}
+			if (part.kind !== 'toolInvocation') {
+				continue;
+			}
+			const state = part.state.get();
+			if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation
+				&& state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval
+				&& state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
+				continue;
+			}
+			const occurrence = derivePendingId(request.id, part, disposable => this._windowDisposables.add(disposable));
+			if (!isPendingIdResolved(occurrence, reader)) {
+				return false;
+			}
+			sawResolvedTool = true;
+		}
+		return sawResolvedTool;
+	}
+
 	private _getPendingToolApproval(model: IChatModel): { readonly title: string | IMarkdownString; readonly command: string; readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined {
 		const request = model.lastRequest;
 		const parts = request?.response?.response.value;
 		if (!request || !parts) {
 			return undefined;
 		}
+		let candidate: { readonly title: string | IMarkdownString; readonly command: string; readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined;
 		for (const part of parts) {
 			if (part.kind !== 'toolInvocation') {
 				continue;
@@ -943,15 +991,20 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				continue;
 			}
 
+			const occurrence = derivePendingId(request.id, part, disposable => this._windowDisposables.add(disposable));
+			if (isPendingIdResolved(occurrence) || candidate) {
+				continue;
+			}
+
 			const title = state.confirmationMessages?.title ?? part.invocationMessage;
-			return {
+			candidate = {
 				title: renderAsPlaintext(title).trim() ? title : localize('chatInputWindow.pending.approval', "Approval Required"),
 				command,
 				invocation: part,
-				occurrence: derivePendingId(request.id, part, disposable => this._windowDisposables.add(disposable)),
+				occurrence,
 			};
 		}
-		return undefined;
+		return candidate;
 	}
 
 	private async _layoutForModelPicker(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
