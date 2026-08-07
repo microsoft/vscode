@@ -35,7 +35,7 @@ import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/com
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus, SessionTypeAuthRequirement } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -406,6 +406,16 @@ suite('CopilotChatSessionsProvider', () => {
 		const provider = createProvider(disposables, model);
 		assert.strictEqual(provider.id, COPILOT_PROVIDER_ID);
 		assert.strictEqual(provider.sessionTypes.length, 1);
+	});
+
+	test('session types allow signed-out use', () => {
+		assert.deepStrictEqual(
+			[CopilotCLISessionType, CopilotCloudSessionType].map(type => type.authRequirement),
+			[
+				SessionTypeAuthRequirement.None,
+				SessionTypeAuthRequirement.None,
+			],
+		);
 	});
 
 	test('sessionTypes excludes Local', () => {

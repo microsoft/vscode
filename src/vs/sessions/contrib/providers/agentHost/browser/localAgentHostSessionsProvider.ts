@@ -29,7 +29,7 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
+import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
@@ -67,6 +67,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	override get order(): number {
 		return -1;
+	}
+
+	protected override _resolveAgentAuthRequirement(): SessionTypeAuthRequirement {
+		return SessionTypeAuthRequirement.None;
 	}
 
 	constructor(
