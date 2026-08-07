@@ -1,13 +1,13 @@
 {
 	"iconDefinitions": {
 		"_file": {
-			"iconPath": "./images/file-dark.svg"
+			"iconPath": "./images/file.svg"
 		},
 		"_folder": {
-			"iconPath": "./images/folder-dark.svg"
+			"iconPath": "./images/folder.svg"
 		},
 		"_folderOpen": {
-			"iconPath": "./images/folder-open-dark.svg"
+			"iconPath": "./images/folder-open.svg"
 		},
 		"_frame": {
 			"iconPath": "./images/frame.svg"
