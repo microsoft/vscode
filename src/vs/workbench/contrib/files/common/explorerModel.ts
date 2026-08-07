@@ -94,6 +94,8 @@ export class ExplorerItem {
 	public nestedParent: ExplorerItem | undefined;
 	public nestedChildren: ExplorerItem[] | undefined;
 
+	private _currentPageCount = 0;
+
 	constructor(
 		public resource: URI,
 		private readonly fileService: IFileService,
@@ -309,6 +311,26 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
+	/**
+	 * The number of children currently revealed in the Explorer when the folder is paged
+	 * (i.e. has more children than the configured `explorer.fileLimit`). A value of `0`
+	 * means the folder has not been paged yet and only the first page should be shown.
+	 */
+	get currentPageCount(): number {
+		return this._currentPageCount;
+	}
+
+	/**
+	 * Reveals the next page of children by increasing the visible count by the configured
+	 * `explorer.fileLimit`. When the folder has not been paged yet (`_currentPageCount === 0`)
+	 * it is currently showing the first `limit` children, so the first call jumps the count to
+	 * `2 * limit`.
+	 */
+	showNextPage(): void {
+		const limit = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileLimit;
+		this._currentPageCount = (this._currentPageCount || limit) + limit;
+	}
+
 	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
 		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
 
@@ -410,6 +432,7 @@ export class ExplorerItem {
 		this.nestedChildren = undefined;
 		this._isDirectoryResolved = false;
 		this._fileNester = undefined;
+		this._currentPageCount = 0;
 	}
 
 	private getPlatformAwareName(name: string): string {
