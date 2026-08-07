@@ -101,6 +101,14 @@
 	padding-top: 0;
 }
 
+.chat-input-window .interactive-input-part.compact .chat-input-container {
+	align-items: center;
+}
+
+.chat-input-window .chat-input-toolbars {
+	margin-top: 0;
+}
+
 .chat-input-window .chat-input-toolbars .action-item > .codicon-add {
 	display: none;
 }
@@ -135,6 +143,16 @@
 
 .chat-input-window .chat-editor-container {
 	flex: 1 1 auto;
+}
+
+.chat-input-window .voice-transcript-overlay-scrollable {
+	inset: 0;
+}
+
+.chat-input-window .voice-transcript-overlay-scrollable:not(.has-transcript) .voice-transcript-overlay {
+	display: flex;
+	align-items: center;
+	padding-block: 0;
 }
 
 .chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {

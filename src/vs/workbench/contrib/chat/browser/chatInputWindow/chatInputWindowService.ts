@@ -7,6 +7,7 @@ import './media/chatInputWindow.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -31,6 +32,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { localize } from '../../../../../nls.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatMode } from '../../common/chatModes.js';
@@ -115,8 +117,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _desiredOpen = false;
 	private readonly _ownershipId = mainWindow.crypto.randomUUID();
 	private _ownershipClaim: { readonly timestamp: number; readonly id: string } | undefined;
-	private _actionWidgetRestoreHeight: number | undefined;
+	private readonly _actionWidgetWindow = this._register(new MutableDisposable<IAuxiliaryWindow>());
 	private _actionWidgetLayoutGeneration = 0;
+	private _actionWidgetVisibilityCount = 0;
+	private _actionWidgetOpenOperation: Promise<void> | undefined;
+	private _actionWidgetOwner: IAuxiliaryWindow | undefined;
+	private _actionWidgetWindowAnchorY = 0;
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 
@@ -146,6 +152,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
@@ -414,18 +421,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				enableImplicitContext: false,
 				defaultMode: ChatMode.Agent,
 				menus: { telemetrySource: 'chatInputWindow' },
-				sessionTypePickerDelegate: {
-					getActiveSessionProvider: () => AgentSessionProviders.AgentHostCopilot,
-					// Omni new sessions always use Copilot.
-					setActiveSessionProvider: () => { },
-				},
 				// Routing seam: intercept submission before local execution and
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
 				submitHandler: (query, mode, attachedContext, isVoiceModeInput) => this._routingController?.handleSubmit(query, mode, attachedContext, isVoiceModeInput) ?? Promise.resolve(false),
-				onDidChangeModelPickerVisibility: visible => this._layoutForModelPicker(auxiliaryWindow, visible),
+				onDidChangeModelPickerVisibility: visible => this._setModelPickerVisible(auxiliaryWindow, visible),
 				inputPickerPosition: AnchorPosition.BELOW,
-				inputPickerContainer: auxiliaryWindow.container,
+				inputPickerContainer: () => this._actionWidgetWindow.value?.container,
+				inputPickerAnchor: anchor => this._getModelPickerAnchor(anchor),
+				inputPickerOpenOnMouseUp: true,
 			},
 			{
 				inputEditorBackground: inputBackground,
@@ -535,9 +539,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 		};
 		fitWindowToInput = () => {
-			if (this._actionWidgetRestoreHeight !== undefined) {
-				return;
-			}
 			const win = this._window?.window;
 			if (!win || win !== auxiliaryWindow.window) {
 				return;
@@ -1061,42 +1062,98 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return undefined;
 	}
 
-	private async _layoutForModelPicker(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
-		const win = auxiliaryWindow.window;
-		const generation = ++this._actionWidgetLayoutGeneration;
-		const hadFocus = win.document.hasFocus();
-		if (visible) {
-			if (this._actionWidgetRestoreHeight !== undefined) {
-				return;
+	private _setModelPickerVisible(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
+		if (!visible) {
+			if (this._actionWidgetOwner !== auxiliaryWindow) {
+				return Promise.resolve();
 			}
-
-			this._actionWidgetRestoreHeight = win.outerHeight;
-			const desiredHeight = Math.max(win.outerHeight, CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT);
-			const windowChromeHeight = win.outerHeight - win.innerHeight;
-			await auxiliaryWindow.setBounds({ x: win.screenX, y: win.screenY, width: win.outerWidth, height: desiredHeight });
-			await this._waitForWindowHeight(auxiliaryWindow, desiredHeight - windowChromeHeight);
-			if (generation === this._actionWidgetLayoutGeneration
-				&& this._window === auxiliaryWindow
-				&& this._actionWidgetRestoreHeight !== undefined
-				&& hadFocus
-				&& win.document.hasFocus()) {
-				win.focus();
+			this._actionWidgetVisibilityCount = Math.max(0, this._actionWidgetVisibilityCount - 1);
+			if (this._actionWidgetVisibilityCount === 0) {
+				this._actionWidgetLayoutGeneration++;
+				this._actionWidgetOwner = undefined;
+				this._actionWidgetWindow.clear();
 			}
-		} else if (this._actionWidgetRestoreHeight !== undefined) {
-			const restoreHeight = this._actionWidgetRestoreHeight;
-			this._actionWidgetRestoreHeight = undefined;
-			await auxiliaryWindow.setBounds({ x: win.screenX, y: win.screenY, width: win.outerWidth, height: restoreHeight });
-			win.dispatchEvent(new win.Event('resize'));
+			return Promise.resolve();
 		}
+
+		if (this._actionWidgetOwner !== auxiliaryWindow) {
+			this._actionWidgetLayoutGeneration++;
+			this._actionWidgetVisibilityCount = 0;
+			this._actionWidgetOwner = auxiliaryWindow;
+			this._actionWidgetWindow.clear();
+			this._actionWidgetOpenOperation = undefined;
+		}
+		this._actionWidgetVisibilityCount++;
+		if (this._actionWidgetWindow.value) {
+			return Promise.resolve();
+		}
+		if (this._actionWidgetOpenOperation) {
+			return this._actionWidgetOpenOperation;
+		}
+
+		const generation = ++this._actionWidgetLayoutGeneration;
+		const operation = this._openModelPickerWindow(auxiliaryWindow, generation);
+		this._actionWidgetOpenOperation = operation;
+		return operation.finally(() => {
+			if (this._actionWidgetOpenOperation === operation) {
+				this._actionWidgetOpenOperation = undefined;
+			}
+		});
 	}
 
-	private async _waitForWindowHeight(auxiliaryWindow: IAuxiliaryWindow, minimumInnerHeight: number): Promise<void> {
-		for (let attempt = 0; attempt < 30 && this._window === auxiliaryWindow; attempt++) {
-			if (auxiliaryWindow.window.innerHeight >= minimumInnerHeight) {
-				return;
-			}
-			await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, () => resolve()));
+	private async _openModelPickerWindow(auxiliaryWindow: IAuxiliaryWindow, generation: number): Promise<void> {
+		const sourceWindow = auxiliaryWindow.window;
+		const screen = sourceWindow.screen;
+		const display = (await this.hostService.getCursorScreenPoint())?.display ?? {
+			x: sourceWindow.screenX,
+			y: sourceWindow.screenY,
+			width: screen.availWidth,
+			height: screen.availHeight,
+		};
+		const height = Math.min(CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT, display.height);
+		const sourceBottom = sourceWindow.screenY + sourceWindow.outerHeight;
+		const displayBottom = display.y + display.height;
+		const displayRight = display.x + display.width;
+		const placeBelow = sourceBottom + height <= displayBottom;
+		const preferredY = placeBelow
+			? sourceBottom
+			: sourceWindow.screenY - height;
+		const y = Math.min(Math.max(display.y, preferredY), displayBottom - height);
+		const width = Math.min(sourceWindow.outerWidth, display.width);
+		const x = Math.min(Math.max(display.x, sourceWindow.screenX), displayRight - width);
+		const actionWidgetWindow = await this.auxiliaryWindowService.open({
+			bounds: { x, y, width, height },
+			alwaysOnTop: true,
+			frameless: true,
+			transparent: true,
+			notResizable: true,
+			disableFullscreen: true,
+			nativeTitlebar: false,
+			noBackgroundThrottling: true,
+			backgroundColor: '#00000000',
+		});
+		await actionWidgetWindow.whenStylesHaveLoaded;
+		if (generation !== this._actionWidgetLayoutGeneration || this._window !== auxiliaryWindow) {
+			actionWidgetWindow.dispose();
+			return;
 		}
+
+		actionWidgetWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
+		actionWidgetWindow.window.document.body.style.setProperty('margin', '0', 'important');
+		actionWidgetWindow.container.style.backgroundColor = 'transparent';
+		actionWidgetWindow.container.style.overflow = 'hidden';
+		this._actionWidgetWindowAnchorY = placeBelow ? 0 : height;
+		this._actionWidgetWindow.value = actionWidgetWindow;
+	}
+
+	private _getModelPickerAnchor(anchor: HTMLElement): IAnchor {
+		const bounds = anchor.getBoundingClientRect();
+		return {
+			x: bounds.left,
+			y: this._actionWidgetWindowAnchorY,
+			width: bounds.width,
+			height: 1,
+		};
 	}
 
 	private _disposeWidget(): void {
@@ -1110,7 +1167,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._trail = undefined;
 		this._activePendingSessionResource = undefined;
 		this._voiceConfirmationPending.set(false, undefined);
-		this._actionWidgetRestoreHeight = undefined;
+		this._actionWidgetVisibilityCount = 0;
+		this._actionWidgetOwner = undefined;
+		this._actionWidgetOpenOperation = undefined;
+		this._actionWidgetWindow.clear();
 		this._actionWidgetLayoutGeneration++;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;

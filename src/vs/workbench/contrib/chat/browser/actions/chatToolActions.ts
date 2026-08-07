@@ -130,6 +130,7 @@ export class ConfigureToolsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.inChatInputWindow.negate(),
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
