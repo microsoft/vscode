@@ -42,7 +42,7 @@ import { chartsOrange } from '../../../../../platform/theme/common/colors/charts
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -686,41 +686,17 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 			}
 
-			// Status description
-			if (sessionStatus === SessionStatus.InProgress) {
+			const statusMessage = getSessionStatusMessage(sessionStatus, description);
+			if (statusMessage !== undefined) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				if (description) {
-					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
-				} else {
+				if (typeof statusMessage === 'string') {
 					descriptionDisposable.clear();
-					statusEl.textContent = localize('working', "Working...");
-				}
-				parts.push(statusEl);
-			} else if (sessionStatus === SessionStatus.NeedsInput) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
-				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				if (description) {
-					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
+					statusEl.textContent = statusMessage;
 				} else {
-					descriptionDisposable.clear();
-					statusEl.textContent = localize('needsInput', "Input needed");
-				}
-				parts.push(statusEl);
-			} else if (sessionStatus === SessionStatus.Error) {
-				if (parts.length > 0) {
-					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-				}
-				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				if (description) {
-					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
-				} else {
-					descriptionDisposable.clear();
-					statusEl.textContent = localize('failed', "Failed");
+					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
 				}
 				parts.push(statusEl);
 			} else {

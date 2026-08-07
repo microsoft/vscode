@@ -68,6 +68,7 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 		const picker = quickInputService.createQuickPick<IPullRequestQuickPickItem>({ useSeparators: true });
 		const store = new DisposableStore();
 		const pickerCts = store.add(new CancellationTokenSource());
+		let sessionCreated = false;
 		picker.title = localize('createSessionFromPullRequest.title', "Create Session from Pull Request");
 		picker.placeholder = localize('createSessionFromPullRequest.resolvingRepository', "Resolving GitHub repository...");
 		picker.matchOnDescription = true;
@@ -76,7 +77,9 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 		picker.enabled = false;
 		picker.busy = true;
 		store.add(picker.onDidHide(() => {
-			pickerCts.cancel();
+			if (!sessionCreated) {
+				pickerCts.cancel();
+			}
 			store.dispose();
 		}));
 		store.add(picker);
@@ -232,7 +235,7 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 					return;
 				}
 				await createAndOpenPullRequestSession(
-					() => sessionsManagementService.createAndSendNewChatRequest(repository.folderUri, async () => {
+					onSessionCreated => sessionsManagementService.createAndSendNewChatRequest(repository.folderUri, async () => {
 						const pullRequestContext = await gitHubService.getPullRequestContext(repository.owner, repository.repo, pullRequest.number);
 						return {
 							query: createPullRequestBootstrapPrompt(pullRequest),
@@ -244,9 +247,11 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 						isolationMode: 'worktree',
 						branch: pullRequest.headRef,
 						worktreeBranchTrack: true,
+						onSessionCreated,
 					}, pickerCts.token),
-					resource => sessionsService.openSession(resource),
+					resource => sessionsService.showSession(resource),
 					() => {
+						sessionCreated = true;
 						if (!store.isDisposed) {
 							picker.hide();
 						}

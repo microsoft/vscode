@@ -1185,7 +1185,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
-	setTranscriptProgress(message: string | undefined): void {
+	setTranscriptProgress(message: string | undefined, ariaLabel = message): void {
 		if (!this.transcriptProgress) {
 			const container = dom.append(this.listContainer, $('.chat-transcript-progress'));
 			container.hidden = true;
@@ -1195,9 +1195,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			icon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
 			icon.setAttribute('aria-hidden', 'true');
 			const label = dom.append(container, $('span'));
+			label.setAttribute('aria-hidden', 'true');
 			this.transcriptProgress = { container, label };
 		}
 		this.transcriptProgress.label.textContent = message ?? '';
+		this.transcriptProgress.container.setAttribute('aria-label', ariaLabel ?? '');
 		this.transcriptProgress.container.hidden = message === undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 	}

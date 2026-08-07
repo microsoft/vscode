@@ -7,14 +7,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
 export async function createAndOpenPullRequestSession(
-	createSession: () => Promise<ISession | undefined>,
-	openSession: (resource: URI) => Promise<void>,
-	onDidComplete: () => void,
+	createSession: (onSessionCreated: (session: ISession) => void) => Promise<ISession | undefined>,
+	showSession: (resource: URI) => void,
+	onDidShowSession: () => void,
 ): Promise<ISession | undefined> {
-	const session = await createSession();
-	if (session) {
-		await openSession(session.resource);
-	}
-	onDidComplete();
-	return session;
+	return createSession(session => {
+		showSession(session.resource);
+		onDidShowSession();
+	});
 }

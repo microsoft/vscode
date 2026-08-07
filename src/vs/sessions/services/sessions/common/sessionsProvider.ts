@@ -191,6 +191,12 @@ export interface ISessionsProvider {
 	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
 
 	/**
+	 * Mark a new session as preparing its first request before asynchronous
+	 * configuration and request-context resolution begin.
+	 */
+	startNewSessionRequest?(sessionId: string): void;
+
+	/**
 	 * Create a new **quick chat**: a workspace-less session not scoped to any
 	 * folder (`ISession.workspace` resolves to `undefined`). Like
 	 * {@link createNewSession}, the returned session is an untitled draft that

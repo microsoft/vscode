@@ -716,6 +716,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._unlistedNewSessions.set(session.resource, session);
 		try {
 			try {
+				provider.startNewSessionRequest?.(session.sessionId);
 				createOptions?.onSessionCreated?.(session);
 			} catch (error) {
 				provider.deleteNewSession(session.sessionId);

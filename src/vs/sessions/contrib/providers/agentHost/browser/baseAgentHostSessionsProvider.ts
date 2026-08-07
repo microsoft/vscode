@@ -2560,6 +2560,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._createDraftSession(sessionType, workspace, false);
 	}
 
+	startNewSessionRequest(sessionId: string): void {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			throw new Error('Cannot start a session that is no longer pending.');
+		}
+		newSession.setStatus(SessionStatus.InProgress);
+	}
+
 	createQuickChat(sessionTypeId: string): ISession {
 		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
 		if (!sessionType) {

@@ -1027,6 +1027,9 @@ suite('SessionsManagementService', () => {
 				events.push('create');
 				return session;
 			}
+			override startNewSessionRequest(): void {
+				events.push('start');
+			}
 			override async setWorktreeConfiguration(): Promise<void> {
 				events.push('configure');
 				configurationCompleted.complete();
@@ -1036,7 +1039,7 @@ suite('SessionsManagementService', () => {
 				return session;
 			}
 		}(session);
-		const { service } = createSessionsManagementService(session, disposables, provider);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
 
 		const sendPromise = service.createAndSendNewChatRequest(URI.parse('test:///folder'), async () => {
 			events.push('prepare');
@@ -1045,8 +1048,9 @@ suite('SessionsManagementService', () => {
 			return { query: 'prepared' };
 		}, {
 			isolationMode: 'worktree',
-			onSessionCreated: () => {
-				events.push('open');
+			onSessionCreated: created => {
+				view.showSession(created.resource);
+				events.push(`show:${view.activeSession.get()?.sessionId}`);
 			},
 		});
 		await Promise.all([requestPreparationStarted.p, configurationCompleted.p]);
@@ -1058,8 +1062,8 @@ suite('SessionsManagementService', () => {
 			eventsWhilePreparingRequest,
 			events,
 		}, {
-			eventsWhilePreparingRequest: ['create', 'open', 'prepare', 'configure'],
-			events: ['create', 'open', 'prepare', 'configure', 'send:prepared'],
+			eventsWhilePreparingRequest: ['create', 'start', 'show:s1', 'prepare', 'configure'],
+			events: ['create', 'start', 'show:s1', 'prepare', 'configure', 'send:prepared'],
 		});
 	});
 

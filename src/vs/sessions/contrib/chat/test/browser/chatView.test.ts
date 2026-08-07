@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { findTranscriptContextEntry, NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
+import { findTranscriptContextEntry, getGettingReadyMessage, NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -47,6 +47,18 @@ suite('Sessions - Chat View', () => {
 			hiddenPending: true,
 			hiddenComplete: false,
 			visiblePending: false,
+		});
+	});
+
+	test('shows current worktree activity while getting ready', () => {
+		assert.deepStrictEqual({
+			activity: getGettingReadyMessage(true, 'Creating isolated worktree (42%)', 'Getting ready...'),
+			fallback: getGettingReadyMessage(true, undefined, 'Getting ready...'),
+			visibleRequest: getGettingReadyMessage(false, 'Creating isolated worktree (42%)', 'Getting ready...'),
+		}, {
+			activity: 'Creating isolated worktree (42%)',
+			fallback: 'Getting ready...',
+			visibleRequest: undefined,
 		});
 	});
 

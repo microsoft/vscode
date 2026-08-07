@@ -225,7 +225,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			}
 
 			if (session) {
-				view.setChat(session.activeChat.read(reader), session.sessionId);
+				view.setChat(session.activeChat.read(reader), session.sessionId, session);
 			}
 
 			this._header.setSession(session);

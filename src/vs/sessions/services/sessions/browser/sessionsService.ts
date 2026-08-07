@@ -145,6 +145,12 @@ export interface ISessionsService {
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions;
 
 	/**
+	 * Synchronously select an existing session as active and show it in the grid
+	 * without waiting for its provider-backed state to load.
+	 */
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void;
+
+	/**
 	 * Select an existing session as the active session and show it in the grid.
 	 * When `options.preserveFocus` is set, the session is shown without moving
 	 * keyboard focus into it.
@@ -695,10 +701,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 		this._cancelRestore();
 		const token = this._startOpenSession();
-		await this._doOpenSession(sessionResource, token, options);
+		const sessionData = this._showSession(sessionResource, options);
+		await this._waitForOpenSessionToLoad(sessionData, token);
 	}
 
-	private async _doOpenSession(sessionResource: URI, token: CancellationToken, options?: { preserveFocus?: boolean }): Promise<void> {
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
+		this._cancelRestore();
+		this._startOpenSession();
+		this._showSession(sessionResource, options);
+	}
+
+	private _showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): ISession {
 		const t0 = Date.now();
 		const sessionData = this.sessionsManagementService.getSession(sessionResource);
 		if (!sessionData) {
@@ -708,12 +721,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
 
 		this._activate(sessionData, options?.preserveFocus);
+		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+		return sessionData;
+	}
+
+	private async _waitForOpenSessionToLoad(sessionData: ISession, token: CancellationToken): Promise<void> {
+		const t0 = Date.now();
 		if (!await this._waitForSessionToLoad(sessionData, token)) {
-			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionResource.toString()}`);
+			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionData.resource.toString()}`);
 			return;
 		}
 
-		this.logService.trace(`[SessionsView] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+		this.logService.trace(`[SessionsView] openSession loaded total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 
 	unsetNewSession(): void {

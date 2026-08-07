@@ -2292,6 +2292,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
 
+	test('startNewSessionRequest transitions a pending session to in progress', () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/my-project'), provider.sessionTypes[0].id);
+
+		provider.startNewSessionRequest(session.sessionId);
+
+		assert.strictEqual(session.status.get(), SessionStatus.InProgress);
+	});
+
 	// ---- Quick chats (workspace-less sessions) -------
 
 	test('declares quick chat support from the initial agent host setting', () => {

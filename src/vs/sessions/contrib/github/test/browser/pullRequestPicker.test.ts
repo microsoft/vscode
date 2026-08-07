@@ -132,48 +132,42 @@ suite('Create Session from Pull Request', () => {
 		});
 	});
 
-	test('keeps creation pending until the committed session is opened', async () => {
+	test('shows the provisional session before configuration starts', async () => {
 		const resource = URI.parse('test:///session');
 		const session = new class extends mock<ISession>() {
 			override readonly resource = resource;
 		}();
-		const createBarrier = new DeferredPromise<ISession | undefined>();
-		const openBarrier = new DeferredPromise<void>();
-		const openStarted = new DeferredPromise<void>();
+		const commitBarrier = new DeferredPromise<void>();
 		const events: string[] = [];
 
 		const resultPromise = createAndOpenPullRequestSession(
-			async () => {
+			async onSessionCreated => {
 				events.push('create');
-				return createBarrier.p;
+				onSessionCreated(session);
+				events.push('configureWorktree');
+				await commitBarrier.p;
+				events.push('commit');
+				return session;
 			},
-			async openedResource => {
-				events.push(`open:${openedResource.toString()}`);
-				openStarted.complete();
-				await openBarrier.p;
-				events.push('opened');
+			openedResource => {
+				events.push(`show:${openedResource.toString()}`);
 			},
 			() => {
 				events.push('hidePicker');
 			},
 		);
 		await Promise.resolve();
-		const whileCreating = [...events];
-		createBarrier.complete(session);
-		await openStarted.p;
-		const whileOpening = [...events];
-		openBarrier.complete();
+		const whileCreatingWorktree = [...events];
+		commitBarrier.complete();
 		const result = await resultPromise;
 
 		assert.deepStrictEqual({
-			whileCreating,
-			whileOpening,
+			whileCreatingWorktree,
 			events,
 			result: result?.resource.toString(),
 		}, {
-			whileCreating: ['create'],
-			whileOpening: ['create', `open:${resource.toString()}`],
-			events: ['create', `open:${resource.toString()}`, 'opened', 'hidePicker'],
+			whileCreatingWorktree: ['create', `show:${resource.toString()}`, 'hidePicker', 'configureWorktree'],
+			events: ['create', `show:${resource.toString()}`, 'hidePicker', 'configureWorktree', 'commit'],
 			result: resource.toString(),
 		});
 	});
