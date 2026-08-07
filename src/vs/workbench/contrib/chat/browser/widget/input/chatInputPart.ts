@@ -455,6 +455,39 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.chatGettingStartedTipContainer;
 	}
 
+	getChatPetPlatformTop(): number {
+		const inputTop = this.inputContainer.getBoundingClientRect().top;
+		let container = this.container;
+		let previousElement: Element | undefined = this.persistentContentContainer;
+		while (true) {
+			const children = Array.from(container.children);
+			const startIndex = previousElement ? children.indexOf(previousElement) + 1 : 0;
+			let nestedContainer: HTMLElement | undefined;
+			for (let index = startIndex; index < children.length; index++) {
+				const child = children[index];
+				if (!dom.isHTMLElement(child)) {
+					continue;
+				}
+				if (child === this.inputContainer) {
+					return inputTop;
+				}
+				if (child.contains(this.inputContainer)) {
+					nestedContainer = child;
+					break;
+				}
+				const bounds = child.getBoundingClientRect();
+				if (bounds.height > 0 && bounds.top <= inputTop) {
+					return bounds.top;
+				}
+			}
+			if (!nestedContainer) {
+				return inputTop;
+			}
+			container = nestedContainer;
+			previousElement = undefined;
+		}
+	}
+
 	readonly height = observableValue<number>(this, 0);
 
 	private _inputEditor!: CodeEditorWidget;
