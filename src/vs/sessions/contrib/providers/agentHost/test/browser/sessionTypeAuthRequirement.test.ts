@@ -31,11 +31,11 @@ suite('Agent Host - session type auth requirement', () => {
 
 	test('an agent is only usable without GitHub when it drops the requirement AND has models', () => {
 		// Independent source of truth. The `unusable` row is the one that matters:
-		// Claude pinned to native by an explicit `claudeUseCopilotProxy: false`
-		// with no credentials still advertises the Copilot resource as
-		// `required: false`, so the requirement alone would wrongly read as
-		// "usable without GitHub". Its empty model catalog is what distinguishes
-		// it. See the amendment in docs/adr/0001-conditional-agent-window-auth.md.
+		// Claude always advertises the Copilot resource as `required: false`
+		// (per-session routing means no host-global mode can make it strictly
+		// required), so the requirement alone would wrongly read as "usable without
+		// GitHub" even when neither half of the merged catalog could be enumerated.
+		// Its empty model catalog is what distinguishes it.
 		const cases = [
 			{ name: 'unresolved (no resources yet)', agent: agent(undefined, 4) },
 			{ name: 'proxy: Copilot required', agent: agent([copilotRequired], 4) },

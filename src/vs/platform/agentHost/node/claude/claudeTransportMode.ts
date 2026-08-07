@@ -15,15 +15,9 @@ import { vObj, vOptionalProp, vString, type ValidatorType } from '../../../../ba
 export type ClaudeTransportMode = 'proxy' | 'native';
 
 /**
- * The four precedence inputs {@link resolveClaudeTransportMode} decides over.
+ * The three precedence inputs {@link resolveClaudeTransportMode} decides over.
  */
 export interface IClaudeTransportModeInputs {
-	/**
-	 * User/workspace-set value of `claudeUseCopilotProxy`, or `undefined` when
-	 * unset — the distinction between an explicit choice and the default is what
-	 * makes an explicit setting a hard override.
-	 */
-	readonly explicitProxy: boolean | undefined;
 	/** Whether the experimentation flag enabling signed-out-when-usable is on. */
 	readonly allowSignedOutWhenUsable: boolean;
 	/** Whether a GitHub Copilot token has been captured (i.e. signed in). */
@@ -33,25 +27,42 @@ export interface IClaudeTransportModeInputs {
 }
 
 /**
- * Pure decision (ADR 0001, "D4"): which transport should the Claude provider
- * use right now? Precedence, highest first:
+ * Which transport should the Claude provider fall back to right now? Pure
+ * decision; precedence, highest first:
  *
- *  1. An explicit `claudeUseCopilotProxy` setting is a HARD override.
- *  2. Feature flag off means today's default behavior (always proxy).
- *  3. Signed in to GitHub prefers Copilot (proxy).
- *  4. Signed out but with the user's own Claude credentials uses native (no GitHub).
- *  5. Nothing usable falls back to proxy, which surfaces as requires-GitHub and drives the
- *     window sign-in gate.
+ *  1. Feature flag off means today's default behavior (always proxy).
+ *  2. Signed in to GitHub prefers Copilot (proxy).
+ *  3. Signed out but with the user's own Claude credentials uses native (no GitHub).
+ *  4. Nothing usable still falls back to proxy — the safe end, since attempting
+ *     native with no credential would fail inside the SDK rather than at a
+ *     surface that can explain itself.
  *
- * Native mode drops the GitHub Copilot protected resource, so getting this
- * decision right is what lets a signed-out user with their own credentials run
- * without being forced to sign in.
+ * This is only the *fallback* for a session whose model names no provider. A
+ * provider-qualified model routes on its own provider
+ * (`resolveClaudeSessionTransport`), so getting this decision right is what lets
+ * a signed-out user with their own credentials start working without being
+ * forced to sign in.
+ *
+ * The result is **not** an input to the Agents window's sign-in gate, and
+ * resolving to `proxy` does not by itself make the session type "require
+ * GitHub". Claude advertises the Copilot protected resource as `required: false`
+ * unconditionally, so `resolveAgentAuthRequirement` separates "usable" from
+ * "unusable" on the *model count* instead: in case 4 neither half of the merged
+ * catalog can be enumerated, the published catalog is empty, and the type
+ * resolves to `Unusable` — surfacing as "no models". The proxy fallback only
+ * bites at use time, when a model-less/bare session actually materializes with no
+ * proxy handle and `_ensureAuthenticated` raises `AHP_AUTH_REQUIRED`.
+ *
+ * There is deliberately no host-global setting to *prefer* a transport. Since
+ * the picker offers both providers' models side by side, transport is downstream
+ * of the model the user picked; a flag would keep disagreeing with what the
+ * picker shows (it could not stop a Copilot-routed model from being offered or
+ * chosen, because neither model enumeration nor the advertised protected
+ * resources would consult it). Expressing a preference is a *model*-selection
+ * concern — a default/sticky model — not a transport one.
  */
 export function resolveClaudeTransportMode(inputs: IClaudeTransportModeInputs): ClaudeTransportMode {
-	const { explicitProxy, allowSignedOutWhenUsable, hasGitHubToken, hasExistingSetup } = inputs;
-	if (explicitProxy !== undefined) {
-		return explicitProxy ? 'proxy' : 'native';
-	}
+	const { allowSignedOutWhenUsable, hasGitHubToken, hasExistingSetup } = inputs;
 	if (!allowSignedOutWhenUsable) {
 		return 'proxy';
 	}

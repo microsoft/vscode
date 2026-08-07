@@ -271,10 +271,17 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	/**
-	 * Whether the Agents window must fall back to forcing GitHub sign-in. Every
-	 * caller is on a signed-out path, so this is simply the inverse of "can work
-	 * without GitHub" — always true while the opt-in is off, which is today's
-	 * mandatory-sign-in behavior.
+	 * The **window gate**: whether the Agents window must fall back to forcing
+	 * GitHub sign-in before showing any of the sessions UI. Every caller is on a
+	 * signed-out path, so this is simply the inverse of "can work without GitHub"
+	 * — always true while the opt-in is off, which is today's mandatory-sign-in
+	 * behavior.
+	 *
+	 * Deliberately a *last resort*, not the primary gate. The moment any session
+	 * type is usable without GitHub the window opens, and per-type on-demand
+	 * sign-in carries the rest — so this never blocks a user who has their own
+	 * credentials. See `sessionsAuthGate.ts` for the window-gate vs per-type-gate
+	 * distinction.
 	 */
 	private _mustForceGitHubSignIn(): boolean {
 		return !this._usableWithoutGitHub.get();

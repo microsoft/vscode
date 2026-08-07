@@ -10,6 +10,27 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
 
+export function normalizeAgentsVoiceId(value: unknown): string {
+	const voiceId = typeof value === 'string' ? value.trim() : '';
+	switch (voiceId) {
+		case 'harper_neutral':
+		case 'birch_neutral':
+		case 'junho_neutral':
+		case 'oak_neutral':
+			return voiceId;
+		case 'victoria_neutral':
+			return 'harper_neutral';
+		case 'maya_neutral':
+			return 'birch_neutral';
+		case 'daniel_neutral':
+			return 'junho_neutral';
+		case 'kevin_neutral':
+			return 'oak_neutral';
+		default:
+			return 'birch_neutral';
+	}
+}
+
 /**
  * One selectable option on a pending question, positioned in *displayed* order.
  *

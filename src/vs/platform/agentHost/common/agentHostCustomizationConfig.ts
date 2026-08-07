@@ -21,13 +21,6 @@ export const enum AgentHostConfigKey {
 	 */
 	DefaultShell = 'defaultShell',
 	/**
-	 * When true (the default), the Claude provider routes all Anthropic
-	 * `messages` traffic through the local Copilot-CAPI proxy (Copilot-routed
-	 * Claude). When false, the Claude Agent SDK talks to Anthropic directly on
-	 * the user's own credentials (BYO Anthropic — Phase 19).
-	 */
-	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
-	/**
 	 * Experimentation flag for conditional agent-window auth. When true, a
 	 * session type that is usable without GitHub (e.g. Claude in native mode with
 	 * an existing local setup) lets the agent window open for a signed-out user
@@ -97,12 +90,6 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
-	}),
-	[AgentHostConfigKey.ClaudeUseCopilotProxy]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
-		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
-		default: true,
 	}),
 	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
 		type: 'boolean',
