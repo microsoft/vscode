@@ -23,6 +23,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	 * Keyed by session URI string.
 	 */
 	private readonly _sequencer = new SequencerByKey<string>();
+	private readonly _turnStartTrees = new Map<string, Map<string, string>>();
 
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -39,6 +40,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		// directories come from the event because the session has already
 		// been removed from the state manager by this point.
 		this._register(this._sessionDataService.onWillDeleteSessionData(e => {
+			const sessionPrefix = `${e.session.toString()}\0`;
+			for (const key of this._turnStartTrees.keys()) {
+				if (key.startsWith(sessionPrefix)) {
+					this._turnStartTrees.delete(key);
+				}
+			}
 			e.waitUntil(this.deleteCheckpoints(e.session, e.workingDirectories));
 		}));
 	}
@@ -85,6 +92,60 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		}
 	}
 
+	captureTurnStartCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnStartCheckpoint(sessionUri, turnId, workingDirectories));
+	}
+
+	private async _captureTurnStartCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		if (!workingDirectories || workingDirectories.length === 0) {
+			return;
+		}
+
+		const turnKey = this._turnKey(sessionUri, turnId);
+		if (this._turnStartTrees.has(turnKey)) {
+			return;
+		}
+
+		const ref = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			await ref.object.createTurn(turnId);
+			if (await ref.object.getTurnCheckpointRef(turnId)) {
+				return;
+			}
+
+			const trees = new Map<string, string>();
+			for (const workingDirectoryUri of workingDirectories) {
+				try {
+					const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
+					if (!repositoryRootUri || !await this.getBaselineCheckpoint(sessionUri, repositoryRootUri)) {
+						continue;
+					}
+
+					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRootUri);
+					if (tree) {
+						trees.set(repositoryRootUri.toString(), tree);
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn start for ${sessionUri.toString()}/${turnId} in working directory ${workingDirectoryUri.toString()}`, err);
+				}
+			}
+
+			if (trees.size > 0) {
+				this._turnStartTrees.set(turnKey, trees);
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn start for ${sessionUri.toString()}/${turnId}`, err);
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	discardTurnStartCheckpoint(sessionUri: URI, turnId: string): Promise<void> {
+		return this._sequencer.queue(sessionUri.toString(), async () => {
+			this._turnStartTrees.delete(this._turnKey(sessionUri, turnId));
+		});
+	}
+
 	captureTurnCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
 		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnCheckpoint(sessionUri, turnId, workingDirectories));
 	}
@@ -96,6 +157,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		}
 
 		const ref = this._sessionDataService.openDatabase(sessionUri);
+		const turnKey = this._turnKey(sessionUri, turnId);
 
 		try {
 			const sanitized = this._sanitizedSessionId(sessionUri);
@@ -130,10 +192,18 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 					}
 
 					const parentRef = prevTurnCheckpointRef ?? baselineCheckpointRef;
-					const parentCommitOid = await this._gitService.revParse(repositoryRootUri, parentRef);
+					let parentCommitOid = await this._gitService.revParse(repositoryRootUri, parentRef);
 					if (!parentCommitOid) {
 						this._logService.warn(`[AgentHostCheckpoint] Parent ref ${parentRef} missing for session ${sessionUri.toString()} in working directory ${workingDirectoryUri.toString()}`);
 						continue;
+					}
+
+					const startTree = this._turnStartTrees.get(turnKey)?.get(repositoryRootUri.toString());
+					if (startTree) {
+						const startCommitOid = await this._gitService.commitTree(repositoryRootUri, startTree, parentCommitOid, `Agent host session ${sanitized} - turn ${turnNumber} start`);
+						if (startCommitOid) {
+							parentCommitOid = startCommitOid;
+						}
 					}
 
 					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRootUri);
@@ -161,6 +231,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn checkpoint for ${sessionUri.toString()}/${turnId}`, err);
 		} finally {
+			this._turnStartTrees.delete(turnKey);
 			ref.dispose();
 		}
 	}
@@ -170,6 +241,14 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		turnId: string,
 		workingDirectory?: URI
 	): Promise<{ parent: string; current: string } | undefined> {
+		if (!workingDirectory) {
+			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri.toString());
+			if (!workingDirectories || workingDirectories.length === 0) {
+				return undefined;
+			}
+			workingDirectory = URI.parse(workingDirectories[0]);
+		}
+
 		const ref = this._sessionDataService.openDatabase(sessionUri);
 		try {
 			const [currentCheckpointRef, previousCheckpointRef, baselineCheckpointRef] = await Promise.all([
@@ -181,9 +260,18 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				return undefined;
 			}
 
+			if (currentCheckpointRef === previousCheckpointRef) {
+				return { current: currentCheckpointRef, parent: currentCheckpointRef };
+			}
+
+			const parentCheckpoint = await this._gitService.revParse(workingDirectory, `${currentCheckpointRef}^`);
+			if (!parentCheckpoint) {
+				return undefined;
+			}
+
 			return {
 				current: currentCheckpointRef,
-				parent: previousCheckpointRef ?? baselineCheckpointRef
+				parent: parentCheckpoint
 			};
 		} finally {
 			ref.dispose();
@@ -348,5 +436,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 	private _sanitizedSessionId(sessionUri: URI): string {
 		return AgentSession.id(sessionUri).replace(/[^a-zA-Z0-9_.-]/g, '-');
+	}
+
+	private _turnKey(sessionUri: URI, turnId: string): string {
+		return `${sessionUri.toString()}\0${turnId}`;
 	}
 }

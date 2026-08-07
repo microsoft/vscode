@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -847,6 +847,50 @@ suite('AgentSideEffects', () => {
 				lifecycle: SessionLifecycle.CreationFailed,
 				sendMessageCalls: [],
 			});
+		});
+
+		test('captures the turn start before sending the message', async () => {
+			setupProvisionalSession();
+			const workingDirectory = URI.file('/wd');
+			const captureStarted = new DeferredPromise<void>();
+			const releaseCapture = new DeferredPromise<void>();
+			const captures: Array<{ session: string; turnId: string; workingDirectories: readonly string[] | undefined }> = [];
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async (session, turnId, workingDirectories) => {
+					captures.push({ session: session.toString(), turnId, workingDirectories: workingDirectories?.map(uri => uri.toString()) });
+					captureStarted.complete();
+					await releaseCapture.p;
+				},
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await captureStarted.p;
+			assert.deepStrictEqual(agent.sendMessageCalls, []);
+
+			const didSendMessage = Event.toPromise(agent.onDidSendMessage);
+			releaseCapture.complete();
+			await didSendMessage;
+
+			assert.deepStrictEqual(captures, [{
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				workingDirectories: [workingDirectory.toString()],
+			}]);
 		});
 
 		test('AgentSideEffects owns exactly one ChatError when an already-ready session send rejects', async () => {

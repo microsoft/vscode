@@ -879,12 +879,14 @@ export class AgentSideEffects extends Disposable {
 		if (action.type === ActionType.ChatTurnCancelled) {
 			this._turnTracker.turnCompleted(sessionKey, turnId, 'cancelled');
 			this._toolCallTracker.clearSession(sessionKey);
+			void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionUri), turnId);
 			this._markSessionUnread(sessionUri);
 		}
 
 		if (action.type === ActionType.ChatError) {
 			this._turnTracker.turnCompleted(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
+			void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionUri), turnId);
 			this._markSessionUnread(sessionUri);
 		}
 	}
@@ -1880,6 +1882,11 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
+			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), turnId, resolvedWorkingDirectories);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), turnId);
+				return;
+			}
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
@@ -1893,6 +1900,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
+			void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), turnId);
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
 	}
