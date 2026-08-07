@@ -570,8 +570,8 @@ suite('AgentHostCustomizationEnablementService', () => {
 		sessionData.metadataLoad = new Promise(resolve => { resolveLoad = resolve; });
 		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
 		loading.setWorktreeIsolation(worktree);
-		const changes: string[] = [];
-		disposables.add(loading.onDidChange(value => changes.push(value)));
+		const changes: string[][] = [];
+		disposables.add(loading.onDidChange(event => changes.push([...event.sessions])));
 
 		const load = loading.initializeSession(session);
 		assert.deepStrictEqual(loading.resolve(session, plugin), { kind: 'pending', reason: 'session' });
@@ -583,15 +583,15 @@ suite('AgentHostCustomizationEnablementService', () => {
 			changes,
 			resolution: loading.resolve(session, plugin).kind,
 		}, {
-			changes: [session],
+			changes: [[session]],
 			resolution: 'resolved',
 		});
 	});
 
 	test('announces working-directory and worktree-pending transitions', () => {
 		state.deleteSession(session);
-		const changes: string[] = [];
-		disposables.add(service.onDidChange(value => changes.push(value)));
+		const changes: string[][] = [];
+		disposables.add(service.onDidChange(event => changes.push([...event.sessions])));
 		assert.deepStrictEqual(service.resolve(session, plugin), { kind: 'pending', reason: 'workingDirectory' });
 
 		state.createSession(makeSummary(session));
@@ -607,7 +607,7 @@ suite('AgentHostCustomizationEnablementService', () => {
 			changes,
 			resolution: service.resolve(session, plugin).kind,
 		}, {
-			changes: [session, session],
+			changes: [[session], [session]],
 			resolution: 'resolved',
 		});
 	});
@@ -665,12 +665,12 @@ suite('AgentHostCustomizationEnablementService', () => {
 	});
 
 	test('emits once for a decision write and does not emit on a no-op session re-initialization', async () => {
-		const changes: string[] = [];
-		disposables.add(service.onDidChange(value => changes.push(value)));
+		const changes: string[][] = [];
+		disposables.add(service.onDidChange(event => changes.push([...event.sessions])));
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
 		await service.initializeSession(session);
 
-		assert.deepStrictEqual(changes, [session]);
+		assert.deepStrictEqual(changes, [[session]]);
 	});
 
 	test('evicts across global and workspace entries, updating recency only on writes', () => {

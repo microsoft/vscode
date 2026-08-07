@@ -159,6 +159,8 @@ interface ICustomizationEnablementCandidate {
 	readonly owningPlugin: PluginCustomization | undefined;
 }
 
+const MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES = 3;
+
 function getCustomizationEnablementCandidates(customizations: readonly Customization[] | undefined): readonly ICustomizationEnablementCandidate[] {
 	const candidates: ICustomizationEnablementCandidate[] = [];
 	for (const customization of customizations ?? []) {
@@ -227,6 +229,9 @@ export class AgentSideEffects extends Disposable {
 
 	private readonly _subagentChats = new NKeyMap<ISubagentSessionRef, [ProtocolURI, string]>();
 	private readonly _cancelledTurnIds = new Map<ProtocolURI, Set<string>>();
+	/** Serializes refreshes per session so state-based deduplication observes the preceding dispatch. */
+	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
+	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
 
 	/**
 	 * Buffers signals whose `parentToolCallId` references a subagent
@@ -302,11 +307,22 @@ export class AgentSideEffects extends Disposable {
 
 			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
 		}));
+		this._register(this._customizationEnablementService.onDidChange(event => {
+			for (const session of event.sessions) {
+				const agent = this._options.getAgent(session);
+				if (agent === undefined) {
+					this._pendingCustomizationEnablementRefreshes.add(session);
+				} else if (this._stateManager.getSessionState(session)?.customizations !== undefined) {
+					this._publishSessionCustomizationsSoon(agent, session);
+				}
+			}
+		}));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
 			const agents = this._options.agents.read(reader);
 			this._publishAgentInfos(agents, reader);
+			this._publishPendingCustomizationEnablementRefreshes();
 		}));
 
 		// Observe envelopes for side effects that must include server-dispatched
@@ -429,11 +445,12 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
-	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI): Promise<void> {
+	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
 		if (!agent.getSessionCustomizations) {
 			return;
 		}
 
+		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
 		const customizations = await agent.getSessionCustomizations(URI.parse(session));
 
 		// Skip the dispatch when the resolved customizations match what the
@@ -450,6 +467,13 @@ export class AgentSideEffects extends Disposable {
 		// published) never equals a resolved array, so the initial publish
 		// always goes through.
 		const current = this._stateManager.getSessionState(session)?.customizations;
+		// Agent progress received during the fetch is newer than this snapshot.
+		if (current !== currentBeforeFetch) {
+			if (supersededRetries < MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES) {
+				this._publishSessionCustomizationsSoon(agent, session, supersededRetries + 1);
+			}
+			return;
+		}
 		if (current && equals(current, customizations)) {
 			return;
 		}
@@ -460,10 +484,28 @@ export class AgentSideEffects extends Disposable {
 		});
 	}
 
-	private _publishSessionCustomizationsSoon(agent: IAgent, session: ProtocolURI): void {
-		void this._publishSessionCustomizations(agent, session).catch(err => {
+	private _publishSessionCustomizationsSoon(agent: IAgent, session: ProtocolURI, supersededRetries = 0): void {
+		const previous = this._pendingSessionCustomizationPublishes.get(session) ?? Promise.resolve();
+		const publish = previous.then(() => this._publishSessionCustomizations(agent, session, supersededRetries)).catch(err => {
 			this._logService.error('[AgentSideEffects] getSessionCustomizations failed', err);
 		});
+		this._pendingSessionCustomizationPublishes.set(session, publish);
+		void publish.finally(() => {
+			if (this._pendingSessionCustomizationPublishes.get(session) === publish) {
+				this._pendingSessionCustomizationPublishes.delete(session);
+			}
+		});
+	}
+
+	private _publishPendingCustomizationEnablementRefreshes(): void {
+		for (const session of this._pendingCustomizationEnablementRefreshes) {
+			const agent = this._options.getAgent(session);
+			if (agent === undefined) {
+				continue;
+			}
+			this._pendingCustomizationEnablementRefreshes.delete(session);
+			this._publishSessionCustomizationsSoon(agent, session);
+		}
 	}
 
 	private _publishSessionCustomizationsForAgent(agent: IAgent): void {

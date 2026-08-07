@@ -82,11 +82,15 @@ export type CustomizationEnablementResolution =
 	}
 	| { readonly kind: 'pending'; readonly reason: 'session' | 'workingDirectory' };
 
+export interface ICustomizationEnablementChangeEvent {
+	readonly sessions: readonly string[];
+}
+
 export const IAgentHostCustomizationEnablementService = createDecorator<IAgentHostCustomizationEnablementService>('agentHostCustomizationEnablementService');
 
 export interface IAgentHostCustomizationEnablementService {
 	readonly _serviceBrand: undefined;
-	readonly onDidChange: Event<string>;
+	readonly onDidChange: Event<ICustomizationEnablementChangeEvent>;
 	initializeSession(session: string): Promise<void>;
 	getWorkingDirectoryState(session: string): WorkingDirectoryState;
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
@@ -126,7 +130,7 @@ export function getCustomizationEnablementKey(target: ICustomizationEnablementTa
 export class AgentHostCustomizationEnablementService extends Disposable implements IAgentHostCustomizationEnablementService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChange = this._register(new Emitter<string>());
+	private readonly _onDidChange = this._register(new Emitter<ICustomizationEnablementChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
 	private _persistent: IPersistedEnablement;
@@ -165,8 +169,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				this._sessionsById.set(AgentSession.id(session), session);
 				void this.initializeSession(session);
 				if (envelope.action.type === ActionType.SessionWorkingDirectorySet || envelope.action.type === ActionType.SessionWorkingDirectoryRemoved) {
-					this._applyPendingReplacements(session);
-					this._notifyDecisionChanged(session);
+					const affectedSessions = this._applyPendingReplacements(session);
+					affectedSessions.add(session);
+					this._notifyDecisionChanged(affectedSessions);
 				}
 			}
 		}));
@@ -183,7 +188,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				// reads the current pending state, and any later clear is observed.
 				return;
 			}
-			this._notifyDecisionChanged(session);
+			this._notifyDecisionChanged([session]);
 		});
 	}
 
@@ -269,13 +274,17 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution {
+		const before = this._captureDecisionSnapshot(session, target);
 		const resolution = this._replaceEnablement(session, target, { replacementKind: 'scoped', scope: kind, enabled });
-		this._notifyDecisionChanged(session);
+		this._notifyDecisionChanged(this._getAffectedSessions(session, target, before));
 		return resolution;
 	}
 
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
-		return this._replaceEnablement(session, target, { replacementKind: 'full', enablement });
+		const before = this._captureDecisionSnapshot(session, target);
+		const resolution = this._replaceEnablement(session, target, { replacementKind: 'full', enablement });
+		this._notifyDecisionChanged(this._getAffectedSessions(session, target, before));
+		return resolution;
 	}
 
 	private _replaceEnablement(session: string, target: ICustomizationEnablementTarget, replacement: EnablementReplacement): CustomizationEnablementResolution {
@@ -300,7 +309,8 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		return this.resolve(session, target);
 	}
 
-	private _applyPendingReplacements(session: string): void {
+	private _applyPendingReplacements(session: string): Set<string> {
+		const affectedSessions = new Set<string>();
 		for (const [key, replacement] of this._pendingReplacements) {
 			if (!key.startsWith(`${session}\u0000`)) {
 				continue;
@@ -313,9 +323,14 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			for (const scopedReplacement of replacement.scopedReplacements) {
 				enablement = this._replacementEnablement(enablement, resolution.workingDirectory, scopedReplacement);
 			}
+			const before = this._captureDecisionSnapshot(session, replacement.target);
 			this._applyReplacement(session, replacement.target, enablement, resolution.workingDirectory);
+			for (const affectedSession of this._getAffectedSessions(session, replacement.target, before)) {
+				affectedSessions.add(affectedSession);
+			}
 			this._pendingReplacements.delete(key);
 		}
+		return affectedSessions;
 	}
 
 	private _queueReplacement(session: string, target: ICustomizationEnablementTarget, replacement: EnablementReplacement): void {
@@ -404,8 +419,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			reference?.dispose();
 		}
 		if (transitioned) {
-			this._applyPendingReplacements(session);
-			this._notifyDecisionChanged(session);
+			const affectedSessions = this._applyPendingReplacements(session);
+			affectedSessions.add(session);
+			this._notifyDecisionChanged(affectedSessions);
 		}
 	}
 
@@ -609,10 +625,58 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		}
 	}
 
-	private _notifyDecisionChanged(session: string): void {
-		this._onDidChange.fire(session);
-		// TODO Step 5: republish the affected session's customizations here.
+	private _captureDecisionSnapshot(session: string, target: ICustomizationEnablementTarget): IEnablementDecisionSnapshot {
+		const persistentKey = this._persistentKey(target);
+		const workspace = new Map<string, boolean>();
+		for (const [directory, decisions] of Object.entries(this._persistent.workingDirectories ?? {})) {
+			const decision = decisions[persistentKey];
+			if (decision !== undefined) {
+				workspace.set(directory, decision);
+			}
+		}
+		return {
+			global: this._persistent.global?.[persistentKey],
+			workspace,
+			session: this._sessionEnablement.get(session)?.get(this._sessionKey(target)),
+		};
 	}
+
+	private _getAffectedSessions(session: string, target: ICustomizationEnablementTarget, before: IEnablementDecisionSnapshot): Set<string> {
+		const after = this._captureDecisionSnapshot(session, target);
+		const affectedSessions = new Set<string>();
+		if (before.global !== after.global) {
+			for (const candidate of this._sessionState.getSessionUris()) {
+				affectedSessions.add(candidate);
+			}
+		}
+		for (const directory of new Set([...before.workspace.keys(), ...after.workspace.keys()])) {
+			if (before.workspace.get(directory) !== after.workspace.get(directory)) {
+				for (const candidate of this._sessionState.getSessionUris()) {
+					const workingDirectory = this.getWorkingDirectoryState(candidate);
+					if (workingDirectory.kind === 'directory' && workingDirectory.uri.toString() === directory) {
+						affectedSessions.add(candidate);
+					}
+				}
+			}
+		}
+		if (before.session !== after.session) {
+			affectedSessions.add(session);
+		}
+		return affectedSessions;
+	}
+
+	private _notifyDecisionChanged(sessions: Iterable<string>): void {
+		const affectedSessions = [...new Set(sessions)];
+		if (affectedSessions.length > 0) {
+			this._onDidChange.fire({ sessions: affectedSessions });
+		}
+	}
+}
+
+interface IEnablementDecisionSnapshot {
+	readonly global: boolean | undefined;
+	readonly workspace: ReadonlyMap<string, boolean>;
+	readonly session: boolean | undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

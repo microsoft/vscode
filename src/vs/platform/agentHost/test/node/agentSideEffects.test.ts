@@ -44,7 +44,8 @@ import type { IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHos
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -308,6 +309,215 @@ suite('AgentSideEffects', () => {
 			target: 'file:///plugin#mcp=server',
 			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
 		}]);
+	});
+
+	suite('customization enablement refresh', () => {
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugin',
+			name: 'Plugin',
+		};
+		const target = {
+			id: plugin.id,
+			type: plugin.type,
+			name: plugin.name,
+			source: URI.parse(plugin.uri),
+		};
+
+		function setupAdditionalSession(session: URI, workingDirectory: string): void {
+			stateManager.createSession({
+				resource: session.toString(),
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: { uri: workingDirectory, displayName: 'Test Project' },
+				workingDirectories: [workingDirectory],
+			});
+			stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalog(session.toString()));
+			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+		}
+
+		async function createRefreshHarness(sessions: readonly URI[], sessionDataService = createSessionDataService(), initialize = true): Promise<AgentHostCustomizationEnablementService> {
+			const enablementService = disposables.add(new AgentHostCustomizationEnablementService(
+				disposables.add(new AgentHostStorageService(undefined, new NullLogService())),
+				sessionDataService,
+				stateManager,
+				new NullLogService(),
+			));
+			customizationEnablementService = enablementService;
+			createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			});
+			if (initialize) {
+				await Promise.all(sessions.map(session => enablementService.initializeSession(session.toString())));
+			}
+			agent.getSessionCustomizations = async session => {
+				const resolution = enablementService.resolve(session.toString(), target);
+				return [{
+					...plugin,
+					...(resolution.kind === 'resolved' && resolution.enablement.length > 0 ? { enablement: [...resolution.enablement] } : {}),
+				}];
+			};
+			return enablementService;
+		}
+
+		async function publishInitialCustomizations(sessions: readonly URI[]): Promise<void> {
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireCustomizationsChange();
+			await waitForState(stateManager, () => sessions.every(session => stateManager.getSessionState(session.toString())?.customizations !== undefined) ? true : undefined);
+		}
+
+		function customizationEnvelopes(envelopes: readonly ActionEnvelope[]): ActionEnvelope[] {
+			return envelopes.filter(envelope => envelope.action.type === ActionType.SessionCustomizationsChanged);
+		}
+
+		test('republishes customizations after a decision write and dedupes a redundant write', async () => {
+			const otherSession = AgentSession.uri('mock', 'session-2');
+			setupSession('file:///workspace');
+			setupAdditionalSession(otherSession, 'file:///workspace');
+			const enablementService = await createRefreshHarness([sessionUri, otherSession]);
+			await publishInitialCustomizations([sessionUri, otherSession]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Session, false);
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Session, false);
+			await timeout(10);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [{
+				session: sessionUri.toString(),
+				customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }],
+			}]);
+		});
+
+		test('republishes every open session for a global decision once', async () => {
+			const otherSession = AgentSession.uri('mock', 'session-2');
+			setupSession('file:///workspace-a');
+			setupAdditionalSession(otherSession, 'file:///workspace-b');
+			const enablementService = await createRefreshHarness([sessionUri, otherSession]);
+			await publishInitialCustomizations([sessionUri, otherSession]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Global, false);
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 2 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => envelope.channel).sort(), [sessionUri.toString(), otherSession.toString()].sort());
+		});
+
+		test('republishes only sessions sharing a workspace decision working directory', async () => {
+			const sameWorkspaceSession = AgentSession.uri('mock', 'session-2');
+			const otherWorkspaceSession = AgentSession.uri('mock', 'session-3');
+			setupSession('file:///workspace');
+			setupAdditionalSession(sameWorkspaceSession, 'file:///workspace');
+			setupAdditionalSession(otherWorkspaceSession, 'file:///other-workspace');
+			const enablementService = await createRefreshHarness([sessionUri, sameWorkspaceSession, otherWorkspaceSession]);
+			await publishInitialCustomizations([sessionUri, sameWorkspaceSession, otherWorkspaceSession]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Workspace, false);
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 2 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => envelope.channel).sort(), [sessionUri.toString(), sameWorkspaceSession.toString()].sort());
+		});
+
+		test('republishes when session enablement finishes loading', async () => {
+			setupSession('file:///workspace');
+			const database = new TestSessionDatabase();
+			let resolveMetadata!: (value: string | undefined) => void;
+			database.getMetadata = async () => new Promise(resolve => { resolveMetadata = resolve; });
+			const enablementService = await createRefreshHarness([sessionUri], createSessionDataService(database), false);
+			await publishInitialCustomizations([sessionUri]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			const load = enablementService.initializeSession(sessionUri.toString());
+			resolveMetadata('{"plugin":false}');
+			await load;
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [{
+				session: sessionUri.toString(),
+				customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }],
+			}]);
+		});
+
+		test('republishes when a pending working directory becomes known', async () => {
+			setupSession();
+			const enablementService = await createRefreshHarness([sessionUri]);
+			await publishInitialCustomizations([sessionUri]);
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Global, false);
+			await timeout(10);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///workspace' });
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [{
+				session: sessionUri.toString(),
+				customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+			}]);
+		});
+
+		test('retries an enablement refresh superseded by a direct customization update', async () => {
+			setupSession('file:///workspace');
+			const enablementService = await createRefreshHarness([sessionUri]);
+			await publishInitialCustomizations([sessionUri]);
+			let signalFetchStarted!: () => void;
+			const fetchStarted = new Promise<void>(resolve => { signalFetchStarted = resolve; });
+			let releaseFetch!: () => void;
+			let blockFirstFetch = true;
+			agent.getSessionCustomizations = async session => {
+				const resolution = enablementService.resolve(session.toString(), target);
+				if (blockFirstFetch) {
+					blockFirstFetch = false;
+					signalFetchStarted();
+					await new Promise<void>(resolve => { releaseFetch = resolve; });
+				}
+				return [{
+					...plugin,
+					...(resolution.kind === 'resolved' && resolution.enablement.length > 0 ? { enablement: [...resolution.enablement] } : {}),
+				}];
+			};
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Global, false);
+			await fetchStarted;
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [plugin] });
+			releaseFetch();
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).some(envelope => {
+				const customization = envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations[0] : undefined;
+				return customization?.type === CustomizationType.Plugin
+					&& customization.enablement?.some(entry => entry.kind === CustomizationEnablementKind.Global && entry.enabled === false);
+			}) ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [
+				{ session: sessionUri.toString(), customizations: [plugin] },
+				{ session: sessionUri.toString(), customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }] },
+			]);
+		});
 	});
 
 	suite('handleAction — session/turnStarted', () => {
