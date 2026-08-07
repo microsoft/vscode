@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { MANAGED_SETTINGS_REQUEST_CALL_SITE, MANAGED_SETTINGS_REQUEST_CHANNEL } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestService, readHeader } from '../../../../platform/request/common/request.js';
@@ -33,11 +34,11 @@ export class NativeRequestService extends AbstractRequestService implements IReq
 		super(logService);
 		this._register(logger);
 		this._register(logService);
-		this.nodeRequestService = new RequestChannelClient(mainProcessService.getChannel('request'));
+		this.nodeRequestService = new RequestChannelClient(mainProcessService.getChannel(MANAGED_SETTINGS_REQUEST_CHANNEL));
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		if (readHeader(options.headers, 'User-Agent')) {
+		if (options.callSite === MANAGED_SETTINGS_REQUEST_CALL_SITE && readHeader(options.headers, 'User-Agent')) {
 			return this.nodeRequestService.request(options, token);
 		}
 		if (!options.proxyAuthorization) {

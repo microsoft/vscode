@@ -28,6 +28,8 @@ export const GitHubPaths = {
 export type ManagedSettingsFetchStatus = number | 'ok' | 'no-url' | 'no-response' | 'parse-error' | null;
 
 export const MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE = 'copilot_runtime_update_required';
+export const MANAGED_SETTINGS_REQUEST_CHANNEL = 'managedSettingsRequest';
+export const MANAGED_SETTINGS_REQUEST_CALL_SITE = 'defaultAccount.managedSettings';
 
 export interface IManagedSettingsCompatibilityError {
 	readonly errorCode: typeof MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE;

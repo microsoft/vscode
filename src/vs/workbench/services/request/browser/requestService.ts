@@ -6,6 +6,7 @@
 import { IRequestOptions, IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { MANAGED_SETTINGS_REQUEST_CALL_SITE } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { RequestChannelClient } from '../../../../platform/request/common/requestIpc.js';
 import { IRemoteAgentService, IRemoteAgentConnection } from '../../remote/common/remoteAgentService.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -35,7 +36,7 @@ export class BrowserRequestService extends AbstractRequestService implements IRe
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		const connection = this.remoteAgentService.getConnection();
-		if (readHeader(options.headers, 'User-Agent')) {
+		if (options.callSite === MANAGED_SETTINGS_REQUEST_CALL_SITE && readHeader(options.headers, 'User-Agent')) {
 			if (!connection) {
 				throw new Error('Cannot send an explicit User-Agent without a remote request service');
 			}
