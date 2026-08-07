@@ -4491,6 +4491,58 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual((Reflect.get(controller, '_routedRequests') as Map<string, unknown>).size, 0);
 	});
 
+	test('does not mistake an approval acknowledgement for the routed completion', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, ttsPlaybackService, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const sessionId = resource.toString();
+		const lastRequest = {
+			id: 'routed-request',
+			response: {
+				onDidChange: Event.None,
+				isPendingConfirmation: observableValue('pending', undefined),
+				isIncomplete: observableValue('incomplete', true),
+				response: { value: [], getMarkdown: () => '' },
+			},
+		};
+		chatService.setModels([{
+			sessionResource: resource,
+			title: 'Omni target',
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+		} as unknown as IChatModel]);
+		const cacheResponseSummary = Reflect.get(controller, '_cacheResponseSummary') as (sessionId: string, state: string, summary: string | undefined) => void;
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
+
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(resource, 'existing_session');
+		controller.markRoutedRequestPending(resource, lastRequest.id);
+		cacheResponseSummary.call(controller, sessionId, 'thinking', undefined);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'approval accepted',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: 'approval-acknowledgement',
+			transcript: 'Approval accepted.',
+		});
+		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The routed task is complete.', undefined);
+		ttsPlaybackService.stopPlayback();
+
+		assert.deepStrictEqual({
+			narrations: voiceClientService.requests.map(request => ({ kind: request.kind, text: request.text })),
+			routeRetained: (Reflect.get(controller, '_routedRequests') as Map<string, unknown>).has(sessionId),
+		}, {
+			narrations: [{ kind: 'response', text: 'The routed task is complete.' }],
+			routeRetained: true,
+		});
+	});
+
 	test('narrates an omni-routed confirmation when its session is not shown', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);

@@ -1201,8 +1201,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						if (finishedTranscript) {
 							this._lastNarratedText.set(spokenSessionKey, finishedTranscript);
 						}
-						this._clearPendingResponse(spokenSessionKey);
-						this._completeRoutedResponse(spokenSessionId);
+						if (finishedNarration?.kind === 'response') {
+							this._clearPendingResponse(spokenSessionKey);
+							this._completeRoutedResponse(spokenSessionId);
+						} else if (this._routedRequests.has(spokenSessionKey)) {
+							// An untagged voice-backend reply can be a short acknowledgement
+							// after an approval, not the routed chat task's final response. Keep
+							// ownership until the model's completed summary is heard. If that
+							// summary arrived while this audio was playing, resume it now.
+							this._resumeRoutedCompletionAfterPlayback(spokenSessionId);
+						} else {
+							this._clearPendingResponse(spokenSessionKey);
+						}
 					}
 				}
 				// The response actually played to the end: mark it heard (set the
@@ -4151,15 +4161,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// undesirable. A confirmation is current actionable state - two separate
 		// tools can legitimately raise identical prompts ("Allow this command?"),
 		// and each must be narrated, so confirmations are never suppressed here.
-		if (kind === 'response' && this._getLastNarratedText(sessionId) === text) {
+		if (kind === 'response' && this._wasResponseHeard(sessionId, text)) {
 			return false;
-		}
-		if (kind === 'response') {
-			const heard = this._lastHeardTranscriptById.get(sessionKey);
-			const requested = this._normalizeTranscript(text);
-			if (heard && requested && (heard === requested || heard.startsWith(requested) || requested.startsWith(heard))) {
-				return false;
-			}
 		}
 		// Confirmation dedup is per pending occurrence, not per text. Keep it in
 		// the common narration path so watchdog/focus/state retries are all safe:
@@ -4361,6 +4364,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this._routedRequests.delete(sessionKey)) {
 			this.logService.trace(`[voice] completed routed response after playback session=${sessionKey.slice(-32)}`);
 		}
+	}
+
+	private _resumeRoutedCompletionAfterPlayback(sessionId: string): void {
+		const sessionKey = this._sessionKey(sessionId);
+		const summary = this._pendingResponseSummaries.get(sessionKey);
+		if (!summary) {
+			return;
+		}
+		if (this._wasResponseHeard(sessionId, summary)) {
+			this._clearPendingResponse(sessionKey);
+			this._completeRoutedResponse(sessionId);
+			return;
+		}
+		this._narrate(sessionId, 'response', summary);
 	}
 
 	/**
@@ -4811,6 +4828,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *  exactly-once dedupe. */
 	private _getLastNarratedText(sessionId: string): string | undefined {
 		return this._lastNarratedText.get(this._sessionKey(sessionId));
+	}
+
+	private _wasResponseHeard(sessionId: string, text: string): boolean {
+		if (this._getLastNarratedText(sessionId) === text) {
+			return true;
+		}
+		const heard = this._lastHeardTranscriptById.get(this._sessionKey(sessionId));
+		const requested = this._normalizeTranscript(text);
+		return !!heard && !!requested && (heard === requested || heard.startsWith(requested) || requested.startsWith(heard));
 	}
 
 	/** Clear the last-narrated dedupe for a session. */
@@ -5650,7 +5676,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._replyPlayedSinceSend = true;
 			}
 			if (isFinal) {
-				if (sessionId && (narration?.kind === 'response' || narration === undefined)) {
+				if (sessionId && narration?.kind === 'response') {
 					this._completeRoutedResponse(sessionId);
 				}
 				this._currentPlaybackSessionId = null;
@@ -5832,11 +5858,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// The backend's direct response can still be playing when the model
 			// settles to idle. Requesting the summary here queues a second reading
 			// of that same turn, which may surface just before its next prompt.
-			if (!this._hasResponseAudioInFlight(sessionKey)) {
+			if (this._hasResponseAudioInFlight(sessionKey)) {
+				// Playback may be an approval acknowledgement rather than this final
+				// response. Preserve the completed summary so playback completion can
+				// either recognize it as already heard or request its narration.
+				if (routedRequest) {
+					this._pendingResponseSummaries.set(sessionKey, lastResponseSummary);
+				}
+			} else {
 				this._narrate(sessionId, 'response', lastResponseSummary);
-			}
-			if (alreadyNarrated) {
-				this._clearPendingResponse(sessionKey);
+				if (alreadyNarrated || this._wasResponseHeard(sessionId, lastResponseSummary)) {
+					this._clearPendingResponse(sessionKey);
+					this._completeRoutedResponse(sessionId);
+				}
 			}
 		} else if (currentState === 'waiting_for_confirmation' && detail) {
 			this._discardResponsesSupersededByPending(sessionId);
