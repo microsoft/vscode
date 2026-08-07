@@ -82,9 +82,13 @@
 	height: 100%;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left[draggable="true"],
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-inner-container {
 	cursor: grab;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:not([draggable="true"]) {
+	cursor: default;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator .codicon:hover {
