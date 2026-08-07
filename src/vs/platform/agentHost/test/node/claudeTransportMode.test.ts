@@ -15,49 +15,27 @@ suite('claudeTransportMode', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolveClaudeTransportMode precedence over the full input matrix', () => {
-		const explicitValues: readonly (boolean | undefined)[] = [undefined, true, false];
 		const bools: readonly boolean[] = [false, true];
 
 		const actual: Record<string, string> = {};
-		for (const explicitProxy of explicitValues) {
-			for (const allowSignedOutWhenUsable of bools) {
-				for (const hasGitHubToken of bools) {
-					for (const hasExistingSetup of bools) {
-						const key = `explicit=${explicitProxy},flag=${allowSignedOutWhenUsable},token=${hasGitHubToken},setup=${hasExistingSetup}`;
-						actual[key] = resolveClaudeTransportMode({ explicitProxy, allowSignedOutWhenUsable, hasGitHubToken, hasExistingSetup });
-					}
+		for (const allowSignedOutWhenUsable of bools) {
+			for (const hasGitHubToken of bools) {
+				for (const hasExistingSetup of bools) {
+					const key = `flag=${allowSignedOutWhenUsable},token=${hasGitHubToken},setup=${hasExistingSetup}`;
+					actual[key] = resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken, hasExistingSetup });
 				}
 			}
 		}
 
 		assert.deepStrictEqual(actual, {
-			// Explicit unset: the flag/sign-in/setup rules decide.
-			'explicit=undefined,flag=false,token=false,setup=false': 'proxy', // flag off ⇒ today's default
-			'explicit=undefined,flag=false,token=false,setup=true': 'proxy',  // flag off ignores setup
-			'explicit=undefined,flag=false,token=true,setup=false': 'proxy',
-			'explicit=undefined,flag=false,token=true,setup=true': 'proxy',
-			'explicit=undefined,flag=true,token=false,setup=false': 'proxy',  // nothing usable ⇒ requires-GitHub
-			'explicit=undefined,flag=true,token=false,setup=true': 'native',  // signed out + own creds ⇒ native
-			'explicit=undefined,flag=true,token=true,setup=false': 'proxy',   // signed in ⇒ prefer Copilot
-			'explicit=undefined,flag=true,token=true,setup=true': 'proxy',    // signed in wins over setup
-			// Explicit proxy=true: hard override, always proxy.
-			'explicit=true,flag=false,token=false,setup=false': 'proxy',
-			'explicit=true,flag=false,token=false,setup=true': 'proxy',
-			'explicit=true,flag=false,token=true,setup=false': 'proxy',
-			'explicit=true,flag=false,token=true,setup=true': 'proxy',
-			'explicit=true,flag=true,token=false,setup=false': 'proxy',
-			'explicit=true,flag=true,token=false,setup=true': 'proxy',
-			'explicit=true,flag=true,token=true,setup=false': 'proxy',
-			'explicit=true,flag=true,token=true,setup=true': 'proxy',
-			// Explicit proxy=false: hard override, always native.
-			'explicit=false,flag=false,token=false,setup=false': 'native',
-			'explicit=false,flag=false,token=false,setup=true': 'native',
-			'explicit=false,flag=false,token=true,setup=false': 'native',
-			'explicit=false,flag=false,token=true,setup=true': 'native',
-			'explicit=false,flag=true,token=false,setup=false': 'native',
-			'explicit=false,flag=true,token=false,setup=true': 'native',
-			'explicit=false,flag=true,token=true,setup=false': 'native',
-			'explicit=false,flag=true,token=true,setup=true': 'native',
+			'flag=false,token=false,setup=false': 'proxy', // flag off ⇒ today's default
+			'flag=false,token=false,setup=true': 'proxy',  // flag off ignores setup
+			'flag=false,token=true,setup=false': 'proxy',
+			'flag=false,token=true,setup=true': 'proxy',
+			'flag=true,token=false,setup=false': 'proxy',  // nothing usable ⇒ safe end (fails at use, not here)
+			'flag=true,token=false,setup=true': 'native',  // signed out + own creds ⇒ native
+			'flag=true,token=true,setup=false': 'proxy',   // signed in ⇒ prefer Copilot
+			'flag=true,token=true,setup=true': 'proxy',    // signed in wins over setup
 		});
 	});
 
