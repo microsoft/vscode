@@ -8,6 +8,7 @@ import './media/chatInputMobile.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -100,6 +101,8 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
+import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
+import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -324,6 +327,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
 	private _sessionControlsContainer: HTMLElement | undefined;
+	private readonly _promptTemplatePlaceholder = this._register(new MutableDisposable<PromptTemplatePlaceholderController>());
 
 	// Send button
 	private _sendButton: Button | undefined;
@@ -332,6 +336,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Loading state
 	private _loadingSpinner: HTMLElement | undefined;
 	private readonly _loadingDelayDisposable = this._register(new MutableDisposable());
+	private readonly _promptTypingAnimation = this._register(new MutableDisposable<IPromptTypingAnimation>());
 
 	// Attached context
 	private readonly _contextAttachments: NewChatContextAttachments;
@@ -652,6 +657,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			CodeEditorWidget, editorContainer, editorOptions, widgetOptions,
 		));
 		this._editor.setModel(textModel);
+		this._promptTemplatePlaceholder.value = new PromptTemplatePlaceholderController(this._editor, () => this._promptTypingAnimation.value?.complete());
 		this._register(autorun(reader => {
 			// Re-evaluate when the attached session changes; content changes are
 			// handled by the model-content listener below.
@@ -692,6 +698,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		this._register(this._editor.onKeyDown(e => {
+			if (e.browserEvent.defaultPrevented) {
+				return;
+			}
+			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && !e.altKey && this._promptTemplatePlaceholder.value?.replaceAtCursor()) {
+				e.preventDefault();
+				e.stopPropagation();
+				return;
+			}
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && !e.altKey) {
 				// Don't send if the suggest widget is visible (let it accept the completion)
 				if (this._editor.contextKeyService.getContextKeyValue<boolean>('suggestWidgetVisible')) {
@@ -1271,6 +1285,46 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	focus(): void {
 		this._editor?.focus();
+	}
+
+	async animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean> {
+		const editor = this._editor;
+		const model = editor?.getModel();
+		if (!editor || !model || !text || model.getValue() || token.isCancellationRequested) {
+			return false;
+		}
+
+		this._promptTemplatePlaceholder.value?.setPlaceholder(placeholder);
+		const targetWindow = dom.getWindow(this._editorContainer);
+		const effectiveDuration = this.accessibilityService.isMotionReduced() || this.accessibilityService.isScreenReaderOptimized() ? 0 : durationMs;
+		const animation = animatePromptTyping({
+			getValue: () => model.getValue(),
+			setValue: value => {
+				model.setValue(value);
+				const lastLine = model.getLineCount();
+				editor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
+			},
+			onDidChange: listener => model.onDidChangeContent(() => listener()),
+		}, text, effectiveDuration, {
+			now: () => targetWindow.performance.now(),
+			schedule: callback => dom.scheduleAtNextAnimationFrame(targetWindow, callback),
+		});
+		this._promptTypingAnimation.value = animation;
+		const cancellationListener = token.onCancellationRequested(() => {
+			if (this._promptTypingAnimation.value === animation) {
+				this._promptTypingAnimation.clear();
+			} else {
+				animation.dispose();
+			}
+		});
+		try {
+			return (await animation.result).didWrite;
+		} finally {
+			cancellationListener.dispose();
+			if (this._promptTypingAnimation.value === animation) {
+				this._promptTypingAnimation.clear();
+			}
+		}
 	}
 
 	/** See {@link INewChatVoiceComposer.routesWhileSessionActive}. */

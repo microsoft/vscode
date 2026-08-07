@@ -464,7 +464,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	const content = $('.content');
 	const groupContainer = $(isGroupActive ? '.editor-group-container.active' : '.editor-group-container');
 	const titleContainer = $('.title');
-	container.classList.toggle('style-override', options.modernUI);
+	container.classList.toggle('modern-ui-tabs', options.modernUI);
 	titleContainer.classList.toggle('tabs', partOptions.showTabs === 'multiple');
 	titleContainer.classList.toggle('show-file-icons', partOptions.showIcons);
 

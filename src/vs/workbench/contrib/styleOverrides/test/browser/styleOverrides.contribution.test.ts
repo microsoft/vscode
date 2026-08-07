@@ -71,7 +71,9 @@ suite('StyleOverridesContribution', () => {
 
 		const startupState = {
 			mainEnabled: layoutService.mainContainer.classList.contains('style-override'),
+			mainTabsEnabled: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
 			auxiliaryEnabled: auxiliaryContainer.classList.contains('style-override'),
+			auxiliaryTabsEnabled: auxiliaryContainer.classList.contains('modern-ui-tabs'),
 			paneHeaderSize: pane.minimumSize,
 			paneHeaderLineHeight: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			paneHeaderInlineLineHeight: pane.draggableElement!.style.lineHeight,
@@ -89,7 +91,9 @@ suite('StyleOverridesContribution', () => {
 		assert.deepStrictEqual({
 			startupState,
 			mainEnabledAfterToggle: layoutService.mainContainer.classList.contains('style-override'),
+			mainTabsEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
 			auxiliaryEnabledAfterToggle: auxiliaryContainer.classList.contains('style-override'),
+			auxiliaryTabsEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui-tabs'),
 			paneHeaderSizeAfterToggle: pane.minimumSize,
 			paneHeaderLineHeightAfterToggle: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			paneHeaderInlineLineHeightAfterToggle: pane.draggableElement!.style.lineHeight,
@@ -97,14 +101,18 @@ suite('StyleOverridesContribution', () => {
 		}, {
 			startupState: {
 				mainEnabled: true,
+				mainTabsEnabled: true,
 				auxiliaryEnabled: true,
+				auxiliaryTabsEnabled: true,
 				paneHeaderSize: 28,
 				paneHeaderLineHeight: '28px',
 				paneHeaderInlineLineHeight: '',
 				layoutCount: 0,
 			},
 			mainEnabledAfterToggle: false,
+			mainTabsEnabledAfterToggle: false,
 			auxiliaryEnabledAfterToggle: false,
+			auxiliaryTabsEnabledAfterToggle: false,
 			paneHeaderSizeAfterToggle: 22,
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, findNodeOffsetById, taskCheckboxRange, type CodeBlockAstNode } from '@vscode/markdown-editor';
+import { AsyncClipboardStrategy, CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, taskCheckboxRange, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode } from '@vscode/markdown-editor';
 import { Disposable, autorun, observableValue } from '@vscode/markdown-editor/observables';
 import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import mermaid from 'mermaid';
@@ -48,6 +48,7 @@ class Editor extends Disposable {
 	#codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] = [];
 	#nextCodeBlockEditorRequestId = 1;
 	readonly #codeBlockEditorRequests = new Map<number, (descriptor: ResolvedIframeEmbeddedEditor | undefined) => void>();
+	#controller: EditorController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: VirtualizedIframeEmbeddedEditorFactory | undefined;
 
@@ -55,17 +56,25 @@ class Editor extends Disposable {
 	#commentsView: VsCodeV2CommentsView | undefined;
 	/** Whether the workbench feedback store currently accepts new comments for this resource. */
 	readonly #acceptsComments = observableValue<boolean>('acceptsComments', false);
+	// the message secret allows to distinguish vscode sending us a message vs a nested iframe
+	readonly #messageSecret: string;
 	readonly #vscode = acquireVsCodeApi();
 	readonly #syntaxHighlighter = new WebviewSyntaxHighlighter((message) => this.#vscode.postMessage(message));
 
 	constructor(host: HTMLElement) {
 		super();
 
+		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
+		if (!messageSecret) {
+			throw new Error('Missing Markdown editor message secret');
+		}
+		this.#messageSecret = messageSecret;
+
 		mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
 		window.addEventListener('message', (event) => {
 			const message = event.data;
-			if (!message || typeof message !== 'object') {
+			if (!message || typeof message !== 'object' || message.messageSecret !== this.#messageSecret) {
 				return;
 			}
 			if (this.#syntaxHighlighter.handleMessage(message)) {
@@ -129,6 +138,13 @@ class Editor extends Disposable {
 				}
 				case 'revealComment': {
 					this.#commentsView?.revealComment(message.id);
+					break;
+				}
+				case 'command': {
+					const command = commands.find(command => command.id === message.command);
+					if (command) {
+						this.#controller?.executeCommand(command);
+					}
 					break;
 				}
 			}
@@ -232,13 +248,39 @@ class Editor extends Disposable {
 		// backing TextDocument's own undo stack. `record` is deliberately omitted:
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
-		this._register(new EditorController(model, view, {
+		this.#controller = this._register(new EditorController(model, view, {
+			clipboardStrategy: new AsyncClipboardStrategy(),
+			keyboardProfile: vscodeLocalKeyboardProfile,
+			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
 				undo: () => this.#vscode.postMessage({ type: 'history', command: 'undo' }),
 				redo: () => this.#vscode.postMessage({ type: 'history', command: 'redo' }),
 			},
 		}));
+		let lastEditorFocus: boolean | undefined;
+		const postEditorFocus = (): void => {
+			const focused = document.hasFocus() && document.activeElement === view.element;
+			if (focused === lastEditorFocus) {
+				return;
+			}
+			lastEditorFocus = focused;
+			this.#vscode.postMessage({ type: 'editorFocusChanged', focused });
+		};
+		const onFocusOut = (): void => queueMicrotask(postEditorFocus);
+		document.addEventListener('focusin', postEditorFocus);
+		document.addEventListener('focusout', onFocusOut);
+		window.addEventListener('focus', postEditorFocus);
+		window.addEventListener('blur', postEditorFocus);
+		this._register({
+			dispose: () => {
+				document.removeEventListener('focusin', postEditorFocus);
+				document.removeEventListener('focusout', onFocusOut);
+				window.removeEventListener('focus', postEditorFocus);
+				window.removeEventListener('blur', postEditorFocus);
+			},
+		});
 		host.appendChild(view.element);
+		postEditorFocus();
 
 		// Render comments as the VS Code V2 markdown cards. The card colours come
 		// from the webview's own `--vscode-*` theme variables; `theme` only picks
