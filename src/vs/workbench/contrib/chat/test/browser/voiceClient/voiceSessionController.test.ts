@@ -446,6 +446,7 @@ function completedResponseModel(markdown: string, errorMessage?: string, isCance
 
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
+	override readonly onDidChangeWidgetVisibility = Event.None;
 	override readonly onDidAddWidget = Event.None;
 	override getAllWidgets() { return []; }
 	override getWidgetBySessionResource(): undefined { return undefined; }
@@ -4955,6 +4956,7 @@ suite('VoiceSessionController live transcription', () => {
 			lastFocusedWidget: undefined,
 			onDidAddWidget: Event.None,
 			onDidChangeFocusedSession: Event.None,
+			onDidChangeWidgetVisibility: Event.None,
 			getAllWidgets: () => [],
 		});
 		const chatEntitlementService = new TestChatEntitlementService();
