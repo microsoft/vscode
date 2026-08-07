@@ -85,6 +85,7 @@ import { ICustomViewService } from '../services/customView/browser/customViewSer
 import { ICustomViewGridPartService } from '../services/customView/browser/customViewGridPartService.js';
 import { ICustomViewDescriptor } from '../services/customView/browser/customView.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 
 //#region Workbench Options
 
@@ -1877,8 +1878,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
 		// Keep in sync with the desktop grid margin in workbench.css.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone ? 0 : this.partVisibility.sidebar ? 14 : 20;
-		const gridGutterH = isPhone ? 0 : 10;
+		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP + (this.partVisibility.sidebar ? 4 : AGENTS_FLOATING_PANEL_GAP);
+		const gridGutterH = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
 			this._mainContainerDimension.height - mobileTopBarHeight - gridGutterH
