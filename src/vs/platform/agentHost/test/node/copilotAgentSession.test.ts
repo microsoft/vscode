@@ -948,25 +948,31 @@ suite('CopilotAgentSession', () => {
 
 	test('injects the recoverable error only for the exact development test prompt', async () => {
 		const development = await createAgentSession(disposables);
+		const developmentPlainError = await createAgentSession(disposables);
 		const built = await createAgentSession(disposables, { isBuilt: true });
 
-		await development.session.send('error', undefined, 'turn-1');
-		await built.session.send('error', undefined, 'turn-2');
+		await development.session.send('$error', undefined, 'turn-1');
+		await developmentPlainError.session.send('error', undefined, 'turn-2');
+		await built.session.send('$error', undefined, 'turn-3');
 
 		assert.deepStrictEqual({
 			developmentSendRequests: development.mockSession.sendRequests,
 			developmentSendMessagesRequests: development.mockSession.sendMessagesRequests,
+			developmentPlainErrorSendRequests: developmentPlainError.mockSession.sendRequests,
+			developmentPlainErrorSendMessagesRequests: developmentPlainError.mockSession.sendMessagesRequests,
 			builtSendRequests: built.mockSession.sendRequests,
 			builtSendMessagesRequests: built.mockSession.sendMessagesRequests,
 		}, {
 			developmentSendRequests: [],
 			developmentSendMessagesRequests: [{
-				messages: [{ prompt: 'error' }],
+				messages: [{ prompt: '$error' }],
 				requestHeaders: {
 					Authorization: 'Bearer vscode-recoverable-error-test',
 				},
 			}],
-			builtSendRequests: [{ prompt: 'error', attachments: undefined }],
+			developmentPlainErrorSendRequests: [{ prompt: 'error', attachments: undefined }],
+			developmentPlainErrorSendMessagesRequests: [],
+			builtSendRequests: [{ prompt: '$error', attachments: undefined }],
 			builtSendMessagesRequests: [],
 		});
 	});

@@ -2146,7 +2146,7 @@ export class CopilotAgentSession extends Disposable {
 		await this._prepareSdkTurn(mode);
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
 		await this._otelService.withTraceContext(traceContext, () => {
-			if (!this._environmentService.isBuilt && prompt === 'error' && !sdkAttachments?.length) {
+			if (!this._environmentService.isBuilt && prompt === '$error' && !sdkAttachments?.length) {
 				return this._wrapper.session.rpc.sendMessages({
 					messages: [{ prompt }],
 					requestHeaders: {
