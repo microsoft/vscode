@@ -321,13 +321,13 @@
 	background-color: transparent;
 }
 
-/* Window Controls Container Web: Apply WCO environment variables (https://developer.mozilla.org/en-US/docs/Web/CSS/env#titlebar-area-x) */
-.monaco-workbench.web .part.titlebar .titlebar-right .window-controls-container {
+/* Window Controls Container: Apply WCO environment variables (https://developer.mozilla.org/en-US/docs/Web/CSS/env#titlebar-area-x) */
+.monaco-workbench:not(.mac) .part.titlebar .titlebar-right .window-controls-container {
 	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
 	height: env(titlebar-area-height, 35px);
 }
 
-.monaco-workbench.web .part.titlebar .titlebar-left .window-controls-container {
+.monaco-workbench:not(.mac) .part.titlebar .titlebar-left .window-controls-container {
 	width: env(titlebar-area-x, 0px);
 	height: env(titlebar-area-height, 35px);
 }
@@ -338,15 +338,6 @@
 
 .monaco-workbench.web.mac .part.titlebar .titlebar-right .window-controls-container {
 	order: 1;
-}
-
-/* Window Controls Container Desktop: apply zoom friendly size */
-.monaco-workbench:not(.web):not(.mac) .part.titlebar .window-controls-container {
-	width: calc(138px / var(--zoom-factor, 1));
-}
-
-.monaco-workbench:not(.web):not(.mac) .part.titlebar .titlebar-container.counter-zoom .window-controls-container {
-	width: 138px;
 }
 
 .monaco-workbench.linux:not(.web) .part.titlebar .window-controls-container.wco-enabled {
