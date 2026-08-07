@@ -477,7 +477,12 @@ export class Git {
 		};
 
 		try {
-			const command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
+			// Only encode remote URLs with a protocol scheme. Local paths
+			// should not be encoded since cp.spawn handles spaces in
+			// arguments correctly without shell interpretation.
+			const isRemoteUrl = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url);
+			const cloneUrl = url.includes(' ') && isRemoteUrl ? encodeURI(url) : url;
+			const command = ['clone', cloneUrl, folderPath, '--progress'];
 			if (options.recursive) {
 				command.push('--recursive');
 			}
