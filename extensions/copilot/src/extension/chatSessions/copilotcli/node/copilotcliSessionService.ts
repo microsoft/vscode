@@ -13,7 +13,6 @@ import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/ch
 import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement';
-import { INativeEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../../platform/filesystem/common/fileTypes';
@@ -158,7 +157,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@ILogService protected readonly logService: ILogService,
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@INativeEnvService _nativeEnvService: INativeEnvService,
 		@IFileSystemService private readonly fileSystem: IFileSystemService,
 		@ICopilotCLIMCPHandler private readonly mcpHandler: ICopilotCLIMCPHandler,
 		@ICopilotCLIAgents private readonly agents: ICopilotCLIAgents,
