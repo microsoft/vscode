@@ -39,7 +39,7 @@ suite('agentHostBootstrap', () => {
 
 	test('loads configuration from appSettingsHome', async () => {
 		const testDisposables = disposables.add(new DisposableStore());
-		const environmentService = new TestEnvironmentService(parseArgs(['--force-disable-user-env'], OPTIONS), product);
+		const environmentService = new TestEnvironmentService(parseArgs(['--force-disable-user-env'], OPTIONS), { _serviceBrand: undefined, ...product });
 		const fileService = createFileService(testDisposables);
 
 		await fileService.createFolder(environmentService.appSettingsHome);
