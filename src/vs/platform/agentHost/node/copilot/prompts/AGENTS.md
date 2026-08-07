@@ -87,10 +87,7 @@ non-core client tools behind the runtime's `tool_search_tool`:
   live deferred-tool metadata to the override handler; Agent Host carries that
   corpus as transient tool-call metadata and injects it only into the local
   `toolSearch` invocation, so embeddings rank the runtime/MCP tools rather than
-  the extension's registry. Client results are canonicalized against that live
-  metadata before Agent Host returns both the model-visible result and runtime
-  tool references; unmatched extension-registry names are omitted. The corpus is
-  never added to model-facing tool input.
+  the extension's registry. The corpus is never added to model-facing tool input.
   Every other client tool gets
   `defer: 'never'` if it is in `NON_DEFERRED_CLIENT_TOOL_NAMES`
   (`runTests`, `rename`, `usages`), else `defer: 'auto'`. Built-in runtime tools

@@ -7010,6 +7010,28 @@ suite('CopilotAgentSession', () => {
 			return created;
 		}
 
+		async function runToolSearch(clientResultText: string, availableTools: CurrentToolMetadata[], query = 'search tools', success = true): Promise<ToolResultObject> {
+			const { session, runtime, mockSession } = await createToolSearchSession(false);
+			const [override] = runtime.createClientSdkTools();
+			const toolCallId = 'tc-tool-search-result';
+			const args = query ? { query } : {};
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId,
+				toolName: 'tool_search_tool',
+				arguments: args,
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const handlerPromise = invokeClientToolHandler(override, toolCallId, args, availableTools);
+			session.handleClientToolCallComplete(toolCallId, {
+				success,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: clientResultText }],
+				...(success ? {} : { error: { message: 'Tool search failed' } }),
+			});
+			return handlerPromise;
+		}
+
 		test('tool-search override routes to the client and injects deferred candidates', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(false);
 
@@ -7067,98 +7089,70 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('tool-search override hides unvalidated client-registry names from the model', async () => {
-			const { session, runtime, mockSession } = await createToolSearchSession(false);
-			const [override] = runtime.createClientSdkTools();
-			const toolCallId = 'tc-tool-search-unvalidated';
+		test('tool-search override aligns model-visible names with runtime references', async () => {
+			const cases: { clientResultText: string; availableTools: CurrentToolMetadata[]; expected: string[] }[] = [
+				{
+					clientResultText: '["github-pull-request_create_pull_request","github-pull-request_doSearch"]',
+					availableTools: [
+						{ name: 'create_pull_request', description: 'Create a pull request', deferLoading: true },
+						{ name: 'doSearch', description: 'Search GitHub', deferLoading: true },
+					],
+					expected: [],
+				},
+				{
+					clientResultText: '["github-pull-request/create_pull_request","github-pull-request/create_pull_request"]',
+					availableTools: [
+						{ name: 'create_pull_request', namespacedName: 'github-pull-request/create_pull_request', description: 'Create a pull request', deferLoading: true },
+					],
+					expected: ['create_pull_request'],
+				},
+			];
 
-			mockSession.fire('tool.execution_start', {
-				toolCallId,
-				toolName: 'tool_search_tool',
-				arguments: { query: 'create github pull request draft' },
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-
-			const handlerPromise = invokeClientToolHandler(override, toolCallId, { query: 'create github pull request draft' }, [
-				{ name: 'create_pull_request', description: 'Create a pull request', deferLoading: true },
-				{ name: 'doSearch', description: 'Search GitHub', deferLoading: true },
-				{ name: 'issue_fetch', description: 'Fetch an issue', deferLoading: true },
-				{ name: 'pullRequestInViewport', description: 'Get the pull request in the viewport', deferLoading: true },
-				{ name: 'pullRequestStatusChecks', description: 'Get pull request status checks', deferLoading: true },
-			]);
-			session.handleClientToolCallComplete(toolCallId, {
-				success: true,
-				pastTenseMessage: 'Searched tools',
-				content: [{
-					type: ToolResultContentType.Text,
-					text: '["github-pull-request_create_pull_request","github-pull-request_doSearch","github-pull-request_issue_fetch","github-pull-request_pullRequestInViewport","github-pull-request_pullRequestStatusChecks"]',
-				}],
-			});
-
-			const result = await handlerPromise;
-			assert.deepStrictEqual({
-				textResultForLlm: result.textResultForLlm,
-				toolReferences: result.toolReferences,
-			}, {
-				textResultForLlm: '[]',
-				toolReferences: [],
-			});
-		});
-
-		test('tool-search override canonicalizes namespaced aliases for the model and runtime', async () => {
-			const { session, runtime, mockSession } = await createToolSearchSession(false);
-			const [override] = runtime.createClientSdkTools();
-			const toolCallId = 'tc-tool-search-alias';
-
-			mockSession.fire('tool.execution_start', {
-				toolCallId,
-				toolName: 'tool_search_tool',
-				arguments: { query: 'create pull request' },
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-
-			const handlerPromise = invokeClientToolHandler(override, toolCallId, { query: 'create pull request' }, [
-				{ name: 'create_pull_request', namespacedName: 'github-pull-request/create_pull_request', description: 'Create a pull request', deferLoading: true },
-			]);
-			session.handleClientToolCallComplete(toolCallId, {
-				success: true,
-				pastTenseMessage: 'Searched tools',
-				content: [{ type: ToolResultContentType.Text, text: '["github-pull-request/create_pull_request","create_pull_request"]' }],
-			});
-
-			const result = await handlerPromise;
-			assert.deepStrictEqual({
-				textResultForLlm: result.textResultForLlm,
-				toolReferences: result.toolReferences,
-			}, {
-				textResultForLlm: '["create_pull_request"]',
-				toolReferences: ['create_pull_request'],
-			});
+			const results = [];
+			for (const testCase of cases) {
+				const result = await runToolSearch(testCase.clientResultText, testCase.availableTools);
+				results.push({
+					textResultForLlm: result.textResultForLlm,
+					toolReferences: result.toolReferences,
+				});
+			}
+			assert.deepStrictEqual(results, cases.map(testCase => ({
+				textResultForLlm: JSON.stringify(testCase.expected),
+				toolReferences: testCase.expected,
+			})));
 		});
 
 		test('tool-search override preserves non-list client result text', async () => {
-			const { session, runtime, mockSession } = await createToolSearchSession(false);
-			const [override] = runtime.createClientSdkTools();
-			const toolCallId = 'tc-tool-search-error-text';
+			const texts = ['Error: query parameter is required', '"create_pull_request"'];
+			const results = [];
+			for (const text of texts) {
+				const result = await runToolSearch(text, [], '');
+				results.push({
+					textResultForLlm: result.textResultForLlm,
+					toolReferences: result.toolReferences,
+				});
+			}
+			assert.deepStrictEqual(results, texts.map(text => ({
+				textResultForLlm: text,
+				toolReferences: [],
+			})));
+		});
 
-			mockSession.fire('tool.execution_start', {
-				toolCallId,
-				toolName: 'tool_search_tool',
-				arguments: {},
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-
-			const handlerPromise = invokeClientToolHandler(override, toolCallId);
-			session.handleClientToolCallComplete(toolCallId, {
-				success: true,
-				pastTenseMessage: 'Searched tools',
-				content: [{ type: ToolResultContentType.Text, text: 'Error: query parameter is required' }],
-			});
-
-			const result = await handlerPromise;
+		test('tool-search override preserves failed client result text', async () => {
+			const result = await runToolSearch(
+				'["github-pull-request/create_pull_request"]',
+				[{ name: 'create_pull_request', namespacedName: 'github-pull-request/create_pull_request', description: 'Create a pull request', deferLoading: true }],
+				'create pull request',
+				false,
+			);
 			assert.deepStrictEqual({
+				resultType: result.resultType,
 				textResultForLlm: result.textResultForLlm,
 				toolReferences: result.toolReferences,
 			}, {
-				textResultForLlm: 'Error: query parameter is required',
-				toolReferences: [],
+				resultType: 'failure',
+				textResultForLlm: '["github-pull-request/create_pull_request"]',
+				toolReferences: ['create_pull_request'],
 			});
 		});
 
