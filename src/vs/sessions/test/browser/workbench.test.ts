@@ -74,6 +74,7 @@ suite('Sessions - Workbench', () => {
 		_editorRevealedExplicitly: boolean;
 		_editorPartAutoVisibilitySuppressionCount: number;
 		_restoreAttachedEditorMaximizedOnShow: boolean;
+		_restoreSidePaneEditorMaximizedOnShow: boolean;
 		_hasAppliedInitialEditorSplit: boolean;
 		_dockedAuxiliaryBarWidth: number;
 		_detailHiddenForEditorResize: boolean;
@@ -252,6 +253,7 @@ suite('Sessions - Workbench', () => {
 			_editorMaximized: false,
 			_editorPartAutoVisibilitySuppressionCount: options.suppressionCount ?? 0,
 			_restoreAttachedEditorMaximizedOnShow: false,
+			_restoreSidePaneEditorMaximizedOnShow: false,
 			editorGroupService: options.editorGroupService,
 			paneCompositeService: {
 				getActivePaneComposite: () => undefined,
@@ -435,7 +437,7 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('single-pane side pane toggle closes the whole side pane while maximized', () => {
+	test('single-pane side pane toggle closes the whole side pane and restores maximization when reopened', () => {
 		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true } });
 		const maximizedStates: boolean[] = [];
 		host._editorMaximized = true;
@@ -444,18 +446,34 @@ suite('Sessions - Workbench', () => {
 			host._editorMaximized = maximized;
 		};
 
-		const visible = toggleSidePane.call(host);
-
-		assert.deepStrictEqual({
-			visible,
+		const visibleAfterHide = toggleSidePane.call(host);
+		const hiddenState = {
+			visible: visibleAfterHide,
 			editorVisible: host.partVisibility.editor,
 			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			editorMaximized: host._editorMaximized,
+		};
+		const visibleAfterShow = toggleSidePane.call(host);
+
+		assert.deepStrictEqual({
+			hiddenState,
+			visibleAfterShow,
+			restoredEditorVisible: host.partVisibility.editor,
+			restoredAuxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			editorMaximized: host._editorMaximized,
 			maximizedStates,
 		}, {
-			visible: false,
-			editorVisible: false,
-			auxiliaryBarVisible: false,
-			maximizedStates: [false],
+			hiddenState: {
+				visible: false,
+				editorVisible: false,
+				auxiliaryBarVisible: false,
+				editorMaximized: false,
+			},
+			visibleAfterShow: true,
+			restoredEditorVisible: true,
+			restoredAuxiliaryBarVisible: true,
+			editorMaximized: true,
+			maximizedStates: [false, true],
 		});
 	});
 

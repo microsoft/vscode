@@ -99,6 +99,7 @@ import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationP
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
+import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -135,7 +136,7 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: ContextKeyExpr.and(
 		SessionsChatInputHasDictationFocus,
-		ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		AGENTS_VOICE_ENABLED,
 	),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 });
@@ -1290,6 +1291,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	attach(uris: URI[]): void {
 		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
+	}
+
+	getVoiceModels() {
+		return this._sessionModelSelectionModel.state.get().models;
+	}
+
+	selectVoiceModel(identifier: string): boolean {
+		return this._sessionModelSelectionModel.selectModel(identifier);
 	}
 }
 

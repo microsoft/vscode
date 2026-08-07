@@ -57,6 +57,40 @@ function createModel(options?: { readonly omitEffortDefault?: boolean; readonly 
 }
 
 /**
+ * Builds a model shaped like Copilot's Auto entry: a single navigation group
+ * that names itself "Tier" instead of reusing the thinking-effort wording.
+ */
+function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		identifier: 'copilot/auto',
+		metadata: {
+			extension: new ExtensionIdentifier('test.extension'),
+			id: 'auto',
+			name: 'Auto',
+			vendor: 'copilot',
+			version: '1.0',
+			family: 'auto',
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			configurationSchema: {
+				properties: {
+					tier: {
+						type: 'string',
+						title: 'Tier',
+						group: 'navigation',
+						enum: ['eco', 'balanced', 'max'],
+						enumItemLabels: ['Eco', 'Balanced', 'Max'],
+						enumDescriptions: ['Cheaper models', 'Balances capability and cost', 'Most capable models'],
+						default: 'balanced',
+					},
+				},
+			},
+		} as ILanguageModelChatMetadata,
+	};
+}
+
+/**
  * Renders the configuration button and opens the dropdown for `model`, then
  * returns a snapshot of everything the user can see: the button label, its
  * accessible name, the list options and the option rows.
@@ -167,6 +201,24 @@ suite('ModelPickerConfiguration', () => {
 		assert.deepStrictEqual({ label: rendered.label, ariaLabel: rendered.ariaLabel }, {
 			label: 'Configure',
 			ariaLabel: 'Configure',
+		});
+	});
+
+	// The navigation group is generic: Copilot's Auto model uses it for the
+	// routing tier rather than thinking effort, and names it through `title`.
+	test('names the navigation group after the schema title when one is given', () => {
+		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }), {
+			label: 'Max',
+			ariaLabel: 'Tier: Max',
+			listOptions: {
+				reserveSubmenuSpace: false,
+			},
+			sections: [
+				{ kind: ActionListItemKind.Header, label: 'Tier' },
+				{ className: 'chat-model-picker-config-option', label: 'Eco', checked: false, ariaDescription: 'Cheaper models' },
+				{ className: 'chat-model-picker-config-option', label: 'Balanced', checked: false, ariaDescription: 'Default, Balances capability and cost' },
+				{ className: 'chat-model-picker-config-option', label: 'Max', checked: true, ariaDescription: 'Most capable models' },
+			],
 		});
 	});
 });

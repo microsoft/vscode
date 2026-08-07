@@ -560,6 +560,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
+	/** Models the current input can select, for frontend-owned voice actions. */
+	get availableLanguageModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		return this.getModels();
+	}
+
 	private _onDidChangeCurrentChatMode: Emitter<IChatModeChangeEvent> = this._register(new Emitter<IChatModeChangeEvent>());
 	readonly onDidChangeCurrentChatMode: Event<IChatModeChangeEvent> = this._onDidChangeCurrentChatMode.event;
 

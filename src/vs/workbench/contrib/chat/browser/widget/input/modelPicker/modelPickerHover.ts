@@ -168,7 +168,9 @@ export function getModelHoverContent(
 		container.appendChild(contextSection);
 	}
 
-	if (!isAuto && model.metadata.configurationSchema?.properties) {
+	// Auto has no per-model pricing to show, but it does expose a routing tier,
+	// so the configurable section is not gated on `isAuto`.
+	if (model.metadata.configurationSchema?.properties) {
 		const configButtons: { group: string; label: string }[] = [];
 		const seenGroups = new Set<string>();
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
