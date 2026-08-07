@@ -34,6 +34,12 @@ export interface ISendRequestOptions {
 	readonly hideFromTranscript?: boolean;
 }
 
+/** Provider options applied when creating a new session draft. */
+export interface ISessionsProviderCreateSessionOptions {
+	/** Initial provider metadata to associate with the session. */
+	readonly metadata?: Record<string, unknown>;
+}
+
 /** Programmatic worktree settings applied together before a new session starts. */
 export interface ISessionWorktreeConfiguration {
 	readonly isolationMode?: string;
@@ -187,8 +193,9 @@ export interface ISessionsProvider {
 	 * into the session list) or disposed via {@link deleteNewSession}.
 	 * @param workspaceUri The URI of the repository to create the session for.
 	 * @param sessionTypeId The ID of the session type to create.
+	 * @param options Optional metadata and other provider creation inputs.
 	 */
-	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
+	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
 	/**
 	 * Mark a new session as preparing its first request before asynchronous

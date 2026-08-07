@@ -34,7 +34,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type ChatOrigin, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
@@ -1405,6 +1405,10 @@ export class AgentService extends Disposable implements IAgentService {
 			// don't see `Ready` until the agent actually has an SDK
 			// session, working directory, etc.
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+			const gitHubState = readSessionGitHubState(this._stateManager.getSessionSummary(session.toString())?._meta);
+			if (gitHubState) {
+				await this._gitStateService.setSessionGitHubState(session.toString(), gitHubState);
+			}
 		}
 
 		// Refresh the git state for the session's process root.
@@ -1835,11 +1839,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; resolvedWorkingDirectory?: URI }, title: string): SessionSummary {
 		const now = new Date().toISOString();
+		const explicitGitHubState = readSessionGitHubState(config?._meta);
 		const explicitMultiRoot = readSessionMultiRootMetadata(config?._meta);
 		const inheritedMultiRoot = config?.fork
 			? readSessionMultiRootMetadata(this._stateManager.getSessionSummary(config.fork.session.toString())?._meta)
 			: undefined;
-		let _meta = withSessionMultiRootMetadata(undefined, explicitMultiRoot ?? inheritedMultiRoot);
+		let _meta = withSessionGitHubState(undefined, explicitGitHubState);
+		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot ?? inheritedMultiRoot);
 		_meta = !config?.fork && !config?.workingDirectories
 			? withSessionWorkspaceless(_meta, true)
 			: _meta;
@@ -1921,6 +1927,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		const gitHubState = readSessionGitHubState(summary._meta);
+		if (gitHubState) {
+			void this._gitStateService.setSessionGitHubState(sessionKey, gitHubState);
+		}
 
 		// Attach git state for the resolved process root (index 0), if present.
 		void this._gitStateService.refreshSessionGitState(e.session.toString(), e.workingDirectories?.[0]);

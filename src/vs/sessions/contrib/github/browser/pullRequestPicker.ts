@@ -9,6 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
+import { ISessionGitHubState, withSessionGitHubState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
 import { IGitHubPullRequestContext, IGitHubPullRequestSummary } from '../common/types.js';
@@ -139,6 +140,16 @@ export function pullRequestMatchesQuery(pullRequest: IGitHubPullRequestSummary, 
 
 export function createPullRequestBootstrapPrompt(pullRequest: IGitHubPullRequestSummary): string {
 	return `Initialize this session for pull request #${pullRequest.number}, "${pullRequest.title}". The attached JSON is a complete pull request snapshot. For future questions about this pull request, use the attached snapshot as the primary source and do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from the snapshot. Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".`;
+}
+
+export function createPullRequestSessionMetadata(owner: string, repo: string, pullRequest: IGitHubPullRequestSummary): Record<string, unknown> {
+	const pullRequestUrl = URI.from({ scheme: 'https', authority: 'github.com', path: `/${owner}/${repo}/pull/${pullRequest.number}` }).toString();
+	return withSessionGitHubState(undefined, {
+		owner,
+		repo,
+		pullRequestUrl,
+		pullRequestBranchName: pullRequest.headRef,
+	} satisfies ISessionGitHubState)!;
 }
 
 export function createPullRequestContextAttachment(context: IGitHubPullRequestContext): IChatRequestTranscriptContextVariableEntry {

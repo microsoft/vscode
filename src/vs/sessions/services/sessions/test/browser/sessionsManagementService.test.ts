@@ -31,7 +31,7 @@ import { PreferredGroup } from '../../../../../workbench/services/editor/common/
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
@@ -1012,6 +1012,7 @@ suite('SessionsManagementService', () => {
 		const requestPreparationStarted = new DeferredPromise<void>();
 		const configurationCompleted = new DeferredPromise<void>();
 		const events: string[] = [];
+		let createMetadata: Record<string, unknown> | undefined;
 		const provider = new class extends TestSessionsProvider {
 			override resolveWorkspace(): ISessionWorkspace {
 				return {
@@ -1023,7 +1024,8 @@ suite('SessionsManagementService', () => {
 					isVirtualWorkspace: false,
 				};
 			}
-			override createNewSession(): ISession {
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				createMetadata = options?.metadata;
 				events.push('create');
 				return session;
 			}
@@ -1048,6 +1050,7 @@ suite('SessionsManagementService', () => {
 			return { query: 'prepared' };
 		}, {
 			isolationMode: 'worktree',
+			metadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
 			onSessionCreated: created => {
 				view.showSession(created.resource);
 				events.push(`show:${view.activeSession.get()?.sessionId}`);
@@ -1061,9 +1064,11 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({
 			eventsWhilePreparingRequest,
 			events,
+			createMetadata,
 		}, {
 			eventsWhilePreparingRequest: ['create', 'start', 'show:s1', 'prepare', 'configure'],
 			events: ['create', 'start', 'show:s1', 'prepare', 'configure', 'send:prepared'],
+			createMetadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
 		});
 	});
 

@@ -157,7 +157,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	public createdSessionUris: URI[] = [];
-	public createSessionConfigs: { config?: Record<string, unknown>; workingDirectory?: URI }[] = [];
+	public createSessionConfigs: { config?: Record<string, unknown>; metadata?: Record<string, unknown>; workingDirectory?: URI }[] = [];
 	/**
 	 * Per-call hook used by tests to interleave operations across the
 	 * `createSession` await — e.g. to verify that no subscription is opened
@@ -173,7 +173,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public wireOps: string[] = [];
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
-		this.createSessionConfigs.push({ config: config?.config, workingDirectory: config?.workingDirectories?.[0] });
+		this.createSessionConfigs.push({
+			config: config?.config,
+			...(config?._meta ? { metadata: config._meta } : {}),
+			workingDirectory: config?.workingDirectories?.[0],
+		});
 		this.wireOps.push(`createSession:${uri.toString()}`);
 		this.createdSessionUris.push(uri);
 		const hook = this.onCreateSession;
@@ -2299,6 +2303,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.startNewSessionRequest(session.sessionId);
 
 		assert.strictEqual(session.status.get(), SessionStatus.InProgress);
+	});
+
+	test('createNewSession forwards initial metadata to the agent host', async () => {
+		const provider = createProvider(disposables, agentHost);
+		provider.createNewSession(URI.parse('file:///home/user/my-project'), provider.sessionTypes[0].id, {
+			metadata: { github: { owner: 'microsoft', repo: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42' } },
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.createSessionConfigs.at(-1)?.metadata, {
+			github: { owner: 'microsoft', repo: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42' },
+		});
 	});
 
 	// ---- Quick chats (workspace-less sessions) -------

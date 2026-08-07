@@ -453,7 +453,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 
 		const previousNewSession = this._newSession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId);
+		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: options?.metadata });
 
 		// Providers no longer dispose the previous new session implicitly, so
 		// dispose the one this composer just replaced. Use its own provider
@@ -712,7 +712,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new WorkspaceNotTrustedError();
 			}
 		}
-		const session = provider.createNewSession(folderUri, sessionTypeId);
+		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: createOptions?.metadata });
 		this._unlistedNewSessions.set(session.resource, session);
 		try {
 			try {

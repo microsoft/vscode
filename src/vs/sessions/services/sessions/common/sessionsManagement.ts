@@ -66,6 +66,8 @@ export interface ICreateNewSessionOptions {
 	 * chosen provider advertises for the folder URI.
 	 */
 	readonly sessionTypeId?: string;
+	/** Initial provider metadata to associate with the session. */
+	readonly metadata?: Record<string, unknown>;
 	/**
 	 * Optional model identifier to apply to the new session via
 	 * {@link ISessionsProvider.setModel}. If the provider throws, the

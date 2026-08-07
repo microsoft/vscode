@@ -11,8 +11,9 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { readSessionGitHubState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, getExistingPullRequests, getGitHubRepositoryFromRemotes, IPullRequestQuickPickItem, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, IPullRequestQuickPickItem, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
@@ -78,6 +79,18 @@ suite('Create Session from Pull Request', () => {
 		assert.strictEqual(
 			createPullRequestBootstrapPrompt(pullRequest(42, { title: 'Improve pull request picker' })),
 			'Initialize this session for pull request #42, "Improve pull request picker". The attached JSON is a complete pull request snapshot. For future questions about this pull request, use the attached snapshot as the primary source and do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from the snapshot. Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".',
+		);
+	});
+
+	test('creates session metadata with the selected pull request identity', () => {
+		assert.deepStrictEqual(
+			readSessionGitHubState(createPullRequestSessionMetadata('microsoft', 'vscode', pullRequest(42, { headRef: 'feature' }))),
+			{
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+				pullRequestBranchName: 'feature',
+			},
 		);
 	});
 
