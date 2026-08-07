@@ -122,5 +122,4 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			},
 		}]);
 	});
-
 });
