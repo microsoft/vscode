@@ -10,7 +10,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
-import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getCustomizationDisabledReason, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
@@ -32,7 +32,7 @@ const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
 
 
-type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
+type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; disabledReason: CustomizationDisabledReason | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
 
 
 export class AgentCustomizationItemProvider extends Disposable implements ICustomizationItemProvider {
@@ -115,6 +115,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			status: toStatusString(customization.load),
 			statusMessage: toStatusMessage(customization.load),
 			enabled: isCustomizationEnabled(customization),
+			disabledReason: getCustomizationDisabledReason(customization),
 			badge: badge.badge,
 			badgeTooltip: badge.badgeTooltip,
 			groupKey: badge.groupKey,
@@ -289,6 +290,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					status: toStatusString(sessionCustomization.load),
 					statusMessage: toStatusMessage(sessionCustomization.load),
 					enabled: isCustomizationEnabled(sessionCustomization),
+					disabledReason: getCustomizationDisabledReason(sessionCustomization),
 					childGroupKey,
 					isBundleItem,
 					pluginLabel: isBundleItem ? undefined : item.name,
@@ -318,6 +320,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					status: p.status,
 					statusMessage: p.statusMessage,
 					enabled: p.enabled,
+					disabledReason: p.disabledReason,
 				});
 			}
 		}

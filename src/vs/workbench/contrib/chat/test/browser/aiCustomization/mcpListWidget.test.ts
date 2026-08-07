@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DisposableStore, isDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -23,6 +23,7 @@ import {
 	getAgentHostMcpServerEnablementActions,
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
+	getMcpStatusPresentation,
 	getSessionEnablementAction,
 	registerMcpInlineButtonAction,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
@@ -88,6 +89,22 @@ suite('mcpListWidget', () => {
 			type: 'session-server-item',
 			server,
 		}]);
+	});
+
+	test('renders host-published disabled reasons without changing legacy rows', () => {
+		assert.deepStrictEqual([
+			getMcpStatusPresentation('disabled', { source: 'scope', scope: CustomizationEnablementKind.Global })?.label,
+			getMcpStatusPresentation('disabled', { source: 'scope', scope: CustomizationEnablementKind.Workspace })?.label,
+			getMcpStatusPresentation('disabled', { source: 'scope', scope: CustomizationEnablementKind.Session })?.label,
+			getMcpStatusPresentation(McpServerStatus.Ready)?.label,
+			getMcpStatusPresentation('disabled')?.label,
+		], [
+			'Disabled',
+			'Disabled (Workspace)',
+			'Disabled (Session)',
+			'Running',
+			'Disabled',
+		]);
 	});
 
 	suite('getSessionEnablementAction', () => {

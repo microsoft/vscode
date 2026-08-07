@@ -12,13 +12,31 @@ import { CustomizationEnablementKind, type CustomizationEnablement } from './sta
  */
 export const DEFAULT_CUSTOMIZATION_ENABLED = true;
 
+export type CustomizationDisabledReason = {
+	readonly source: 'scope';
+	readonly scope: CustomizationEnablementKind;
+};
+
+// TODO step 9 (container cascade): extend CustomizationDisabledReason with a plugin source.
+
+/** Returns the decisive explicit enablement decision, if one exists. */
+export function getCustomizationEnablementDecision(customization: { readonly enablement?: readonly CustomizationEnablement[] }): CustomizationEnablement | undefined {
+	return customization.enablement?.[0];
+}
+
 /**
  * Effective enablement of a customization, derived from its explicit decisions.
  * The most specific decision is first, so `enablement[0]` decides; no explicit
  * decision anywhere means enabled.
  */
 export function isCustomizationEnabled(customization: { readonly enablement?: readonly CustomizationEnablement[] }): boolean {
-	return customization.enablement?.[0]?.enabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
+	return getCustomizationEnablementDecision(customization)?.enabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
+}
+
+/** Returns the published reason when the decisive enablement decision disables a customization. */
+export function getCustomizationDisabledReason(customization: { readonly enablement?: readonly CustomizationEnablement[] }): CustomizationDisabledReason | undefined {
+	const decision = getCustomizationEnablementDecision(customization);
+	return decision?.enabled === false ? { source: 'scope', scope: decision.kind } : undefined;
 }
 
 function customizationEnablementOrder(kind: CustomizationEnablementKind): number {

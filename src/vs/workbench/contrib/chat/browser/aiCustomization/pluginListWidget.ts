@@ -37,7 +37,7 @@ import { pluginIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
@@ -222,7 +222,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		templateData.container.classList.toggle('disabled', element.item.enabled === false);
 		templateData.status.className = 'mcp-server-status';
 		if (element.item.enabled === false) {
-			templateData.status.textContent = localize('remotePluginDisabled', "Disabled");
+			templateData.status.textContent = getRemotePluginDisabledLabel(element.item);
 			templateData.status.classList.add('disabled');
 			return;
 		}
@@ -251,6 +251,10 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 	}
 
 	disposeTemplate(_templateData: IPluginRemoteItemTemplateData): void { }
+}
+
+export function getRemotePluginDisabledLabel(item: Pick<ICustomizationItem, 'disabledReason'>): string {
+	return getCustomizationDisabledLabel(item.disabledReason);
 }
 
 //#endregion

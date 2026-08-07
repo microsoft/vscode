@@ -12,7 +12,7 @@ import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../.
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getCustomizationDisabledReason, isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type McpServerState, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -188,6 +188,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				id: this._scopedMcpServerId(sessionResource, c.id),
 				name: c.name,
 				enabled: isCustomizationEnabled(c),
+				disabledReason: getCustomizationDisabledReason(c),
 				status: c.state.kind,
 				state: c.state,
 				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), c.id),

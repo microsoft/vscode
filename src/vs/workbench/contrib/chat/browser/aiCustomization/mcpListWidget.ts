@@ -43,11 +43,12 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 
 const $ = DOM.$;
 
@@ -115,7 +116,7 @@ export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHost
 
 type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
 
-type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
+export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
 
 /**
  * Delegate for the MCP server list.
@@ -283,21 +284,21 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			const localDisabled = element.localServer ? isContributionDisabled(element.localServer.enablement.read(reader)) : false;
 			const activeSessionServer = element.activeSessionServer;
 			templateData.container.classList.toggle('disabled', localDisabled || activeSessionServer?.enabled === false);
-			this.updateStatus(templateData, element, localDisabled ? 'disabled' : activeSessionServer ? (activeSessionServer.enabled ? activeSessionServer.status : 'disabled') : undefined);
+			this.updateStatus(templateData, element, localDisabled ? 'disabled' : activeSessionServer ? (activeSessionServer.enabled ? activeSessionServer.status : 'disabled') : undefined, localDisabled ? undefined : activeSessionServer?.disabledReason);
 		}));
 	}
 
 	private updateActiveSessionStatus(templateData: IMcpServerItemTemplateData, element: IMcpSessionServerItemEntry): void {
 		const disabled = element.server.enabled === false;
 		templateData.container.classList.toggle('disabled', disabled);
-		this.updateStatus(templateData, element, disabled ? 'disabled' : element.server.status);
+		this.updateStatus(templateData, element, disabled ? 'disabled' : element.server.status, element.server.disabledReason);
 	}
 
-	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, state: McpStatusKind | undefined): void {
+	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, state: McpStatusKind | undefined, disabledReason?: CustomizationDisabledReason): void {
 		templateData.actionDisposables.clear();
 		DOM.clearNode(templateData.actions);
 
-		const presentation = getMcpStatusPresentation(state);
+		const presentation = getMcpStatusPresentation(state, disabledReason);
 		if (!presentation) {
 			return;
 		}
@@ -395,18 +396,18 @@ export function getMcpServerOutputHandler(outputService: Pick<IOutputService, 's
 	return undefined;
 }
 
-interface IMcpStatusPresentation {
+export interface IMcpStatusPresentation {
 	readonly label: string;
 	readonly className: string;
 	readonly icon?: ThemeIcon;
 }
 
-function getMcpStatusPresentation(state: McpStatusKind | undefined): IMcpStatusPresentation | undefined {
+export function getMcpStatusPresentation(state: McpStatusKind | undefined, disabledReason?: CustomizationDisabledReason): IMcpStatusPresentation | undefined {
 	if (state === undefined) {
 		return undefined;
 	}
 	if (state === 'disabled') {
-		return { label: localize('disabled', "Disabled"), className: 'disabled', icon: Codicon.circleSlash };
+		return { label: getCustomizationDisabledLabel(disabledReason), className: 'disabled', icon: Codicon.circleSlash };
 	}
 	switch (state) {
 		case McpConnectionState.Kind.Running:
@@ -460,10 +461,22 @@ function getMcpEntryAriaLabel(element: IMcpListEntry, isSessionsWindow: boolean)
 		return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 	}
 	const label = getMcpEntryLabel(element);
-	const status = getMcpStatusPresentation(getMcpStatusKind(element, isSessionsWindow));
+	const statusKind = getMcpStatusKind(element, isSessionsWindow);
+	const disabledReason = statusKind === 'disabled' ? getMcpDisabledReason(element) : undefined;
+	const status = getMcpStatusPresentation(statusKind, disabledReason);
 	return status
 		? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", label, status.label)
 		: label;
+}
+
+function getMcpDisabledReason(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): CustomizationDisabledReason | undefined {
+	if (entry.type === 'session-server-item') {
+		return entry.server.disabledReason;
+	}
+	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.get())) {
+		return undefined;
+	}
+	return entry.activeSessionServer?.disabledReason;
 }
 
 function normalizeMcpMatchKey(value: string | undefined): string | undefined {

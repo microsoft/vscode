@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationType, McpServerCustomization, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
@@ -102,5 +102,27 @@ suite('AbstractAgentHostCustomizationService', () => {
 		const [second] = sut.getMcpServers(session);
 
 		assert.strictEqual(second.logOutputChannelId, first.logOutputChannelId);
+	});
+
+	test('surfaces the host-published winning disabled reason for MCP servers', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		sut.setTarget(session, new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			enablement: [
+				{ kind: CustomizationEnablementKind.Session, enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			],
+		}]));
+
+		const [server] = sut.getMcpServers(session);
+
+		assert.deepStrictEqual({
+			enabled: server.enabled,
+			disabledReason: server.disabledReason,
+		}, {
+			enabled: false,
+			disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session },
+		});
 	});
 });
