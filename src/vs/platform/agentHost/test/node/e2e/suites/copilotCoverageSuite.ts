@@ -585,7 +585,15 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			const terminal = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const terminalState = terminal.snapshot!.state as TerminalState;
 			const command = terminalState.content.find((part): part is TerminalCommandPart => part.type === 'command' && part.commandLine.includes('process.exit(9)'));
-			assert.strictEqual(command?.exitCode, 9);
+			assert.deepStrictEqual({
+				supportsCommandDetection: terminalState.supportsCommandDetection,
+				isComplete: command?.isComplete,
+				exitCode: command?.exitCode,
+			}, {
+				supportsCommandDetection: true,
+				isComplete: true,
+				exitCode: 9,
+			});
 		} finally {
 			await setRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: false }, 101);
 		}
