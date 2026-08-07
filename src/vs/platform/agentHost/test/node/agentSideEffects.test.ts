@@ -1308,69 +1308,6 @@ suite('AgentSideEffects', () => {
 			}
 		});
 
-		test('sends a hidden session rename reminder without changing the visible message', async () => {
-			setupDefaultSession();
-			const action: ChatAction = {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-1',
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'Fix the login bug', origin: { kind: MessageKind.User } },
-			};
-			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-
-			sideEffects.handleAction(defaultChatUri, action);
-			await waitForSendMessageCalls(1);
-
-			assert.strictEqual(stateManager.getChatState(defaultChatUri)?.activeTurn?.message.text, 'Fix the login bug');
-			assert.ok(agent.sendMessageCalls[0].prompt.startsWith('Fix the login bug\n\n<system_notification>'));
-			assert.ok(agent.sendMessageCalls[0].prompt.includes('`rename_session`'));
-		});
-
-		test('sends a hidden peer-chat rename reminder', async () => {
-			setupSession();
-			const peerChatUri = buildChatUri(sessionUri, 'peer-title');
-			stateManager.addChat(sessionUri.toString(), peerChatUri, {});
-			const action: ChatAction = {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-peer',
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'Investigate flaky tests', origin: { kind: MessageKind.User } },
-			};
-			stateManager.dispatchClientAction(peerChatUri, action, { clientId: 'test', clientSeq: 1 });
-
-			sideEffects.handleAction(peerChatUri, action);
-			await waitForSendMessageCalls(1);
-
-			assert.strictEqual(stateManager.getChatState(peerChatUri)?.activeTurn?.message.text, 'Investigate flaky tests');
-			assert.ok(agent.sendMessageCalls[0].prompt.includes('`rename_chat`'));
-			assert.ok(!agent.sendMessageCalls[0].prompt.includes('`rename_session`'));
-		});
-
-		test('user rename suppresses later reminders', async () => {
-			setupDefaultSession();
-			const firstAction: ChatAction = {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-1',
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'Fix the login bug', origin: { kind: MessageKind.User } },
-			};
-			sideEffects.handleAction(defaultChatUri, firstAction);
-			await waitForSendMessageCalls(1);
-			assert.ok(agent.sendMessageCalls[0].prompt.includes('`rename_session`'));
-
-			sideEffects.handleAction(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Login bug investigation' });
-			const secondAction: ChatAction = {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-2',
-				startedAt: '2025-01-01T00:01:00.000Z',
-				message: { text: 'Continue', origin: { kind: MessageKind.User } },
-			};
-			sideEffects.handleAction(defaultChatUri, secondAction);
-			await waitForSendMessageCalls(2);
-
-			assert.strictEqual(agent.sendMessageCalls[1].prompt, 'Continue');
-		});
-
 		test('does not dispatch titleChanged when message is whitespace', () => {
 			setupDefaultSession();
 
@@ -2566,13 +2503,11 @@ suite('AgentSideEffects', () => {
 			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual({
-				promptStartsWithMessage: agent.sendMessageCalls[0].prompt.startsWith('Explain the build\n\n<system_notification>'),
-				hasRenameReminder: agent.sendMessageCalls[0].prompt.includes('`rename_session`'),
+				prompt: agent.sendMessageCalls[0].prompt,
 				title: stateManager.getSessionState(sessionUri.toString())?.title,
 				persistedTitle: await db.getMetadata('customTitle'),
 			}, {
-				promptStartsWithMessage: true,
-				hasRenameReminder: true,
+				prompt: 'Explain the build',
 				title: 'Explain the build',
 				persistedTitle: 'Explain the build',
 			});

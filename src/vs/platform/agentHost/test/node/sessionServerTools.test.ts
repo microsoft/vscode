@@ -52,6 +52,7 @@ suite('SessionServerTools', () => {
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: IAgentModelInfo }) => void; onRenameSession?: (session: URI, title: string) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
+			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
@@ -85,6 +86,23 @@ suite('SessionServerTools', () => {
 			{ type: 'string', description: 'Short, descriptive session title, ideally 1-4 words.', maxLength: 40 },
 			{ type: 'string', description: 'Short, descriptive chat title, ideally 1-4 words.', maxLength: 40 },
 		]);
+	});
+
+	test('runtime definitions omit rename tools when active-agent title generation is disabled', () => {
+		const group = createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => false }));
+		assert.ok(!group.definitions.some(definition => definition.name === SessionServerToolName.RenameSession));
+		assert.ok(!group.definitions.some(definition => definition.name === SessionServerToolName.RenameChat));
+	});
+
+	test('rename execution rejects a stale disabled tool', async () => {
+		let enabled = true;
+		const group = createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => enabled }));
+		enabled = false;
+
+		await assert.rejects(
+			async () => group.execute(undefined!, 'ahp-chat://default/copilot%3A%2Fs1', SessionServerToolName.RenameSession, { title: 'New title' }),
+			/active-agent title generation is not enabled/,
+		);
 	});
 
 	test('serializeSessions produces compact metadata', () => {

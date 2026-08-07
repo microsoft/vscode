@@ -77,7 +77,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -526,6 +526,21 @@ export class AgentService extends Disposable implements IAgentService {
 			sessionDataService: this._sessionDataService,
 			localTurns: this._localTurns,
 			agents: this._agents,
+			copilotApiService: effectiveCopilotApiService,
+			getGitHubCopilotToken: () => {
+				return this.getAuthToken({
+					resource: this._gitHubEndpointService.getCopilotResource().resource,
+					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
+				});
+			},
+			getGitHubToken: () => {
+				return this.getAuthToken({
+					resource: this._gitHubEndpointService.getRepoResource().resource,
+					scopes: this._gitHubEndpointService.getRepoResource().scopes_supported,
+				});
+			},
+			getGitHubHost: () => this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
+			octoKitService: agentHostOctoKitService,
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			onTurnComplete: session => {
@@ -809,6 +824,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _createSessionServerToolAccessor(): ISessionServerToolAccessor {
 		return {
+			isActiveAgentTitleGenerationEnabled: () => this._isActiveAgentTitleGenerationEnabled(),
 			listSessions: () => this.listSessions(),
 			createSession: config => this.createSession(config),
 			getModels: () => {
@@ -834,6 +850,10 @@ export class AgentService extends Disposable implements IAgentService {
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
 		};
+	}
+
+	private _isActiveAgentTitleGenerationEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true;
 	}
 
 	/**
@@ -1433,7 +1453,9 @@ export class AgentService extends Disposable implements IAgentService {
 				state.customizations = [...initialCustomizations];
 			}
 
-			this._sideEffects.markTitleAuto(summary.resource, undefined, forkedTitle);
+			if (sourceTurns.length > 0) {
+				this._sideEffects.generateForkedTitle(summary.resource, undefined, sourceTurns, forkedTitle, sourceTitle);
+			}
 		} else if (config?.importConversation) {
 			// An imported conversation arrives with pre-existing turns (assigned
 			// fresh UUID ids above). Seed them into the new session's protocol
@@ -1451,7 +1473,9 @@ export class AgentService extends Disposable implements IAgentService {
 				state.customizations = [...initialCustomizations];
 			}
 
-			this._sideEffects.markTitleAuto(summary.resource, undefined, importedTitle);
+			if (importedTurns.length > 0) {
+				this._sideEffects.generateForkedTitle(summary.resource, undefined, importedTurns, importedTitle);
+			}
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
 			// the `SessionReady` lifecycle transition until the agent fires
@@ -1517,6 +1541,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// the new chat surface the forked history immediately.
 		let forkedTurns: Turn[] | undefined;
 		let forkedTitle: string | undefined;
+		let forkedSourceTitle: string | undefined;
 		let createOptions = options;
 		// Side chats validate and persist their provenance without seeding host-visible turns.
 		let sideChatOrigin: ChatOrigin | undefined;
@@ -1557,9 +1582,9 @@ export class AgentService extends Disposable implements IAgentService {
 				this._persistForkedLocalTurns(sessionKey, sourceChatKey, chat.toString(), slice, forkedTurns, turnIdMapping);
 
 				const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
-				const sourceTitle = sourceState?.title || this._stateManager.getSessionState(sourceSessionKey)?.title;
-				forkedTitle = sourceTitle
-					? (sourceTitle.startsWith(forkedTitlePrefix) ? sourceTitle : `${forkedTitlePrefix}${sourceTitle}`)
+				forkedSourceTitle = sourceState?.title || this._stateManager.getSessionState(sourceSessionKey)?.title;
+				forkedTitle = forkedSourceTitle
+					? (forkedSourceTitle.startsWith(forkedTitlePrefix) ? forkedSourceTitle : `${forkedTitlePrefix}${forkedSourceTitle}`)
 					: localize('agentHost.forkedChatFallback', "Forked Chat");
 				// The SDK fork boundary must be a concrete (SDK-backed) turn. When
 				// the client forked at a host-injected local turn, redirect the
@@ -1596,8 +1621,8 @@ export class AgentService extends Disposable implements IAgentService {
 			this._markPeerChatBacking(createResult.backingSession, chat);
 		}
 
-		if (forkedTitle !== undefined) {
-			this._sideEffects.markTitleAuto(sessionKey, chat.toString(), forkedTitle);
+		if (forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
+			this._sideEffects.generateForkedTitle(sessionKey, chat.toString(), forkedTurns, forkedTitle, forkedSourceTitle);
 		}
 	}
 
@@ -2245,6 +2270,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// agents stay unaware).
 		await this._worktree?.removeCreatedWorktree(AgentSession.id(session));
 		this._changesetCoordinator.onSessionDisposed(session.toString());
+		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			this._sideEffects.clearQueuedMessageSenders(chat.resource);
 		}

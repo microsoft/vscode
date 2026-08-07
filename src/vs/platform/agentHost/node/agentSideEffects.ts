@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import type { SessionMode } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, type SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
@@ -36,6 +36,7 @@ import {
 	getToolFileEdits,
 	getInlineToolInput,
 	isAhpChatChannel,
+	isDefaultChatUri,
 	isSubagentChatUri,
 	isChatReadOnly,
 	AH_META_IS_ARCHIVED_DB_KEY,
@@ -74,6 +75,8 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
@@ -90,6 +93,11 @@ export interface IAgentSideEffectsOptions {
 	readonly sessionDataService: ISessionDataService;
 	/** Registry that persists host-injected `/rename` and `!command` turns. */
 	readonly localTurns: AgentHostLocalTurns;
+	readonly getGitHubCopilotToken?: () => string | undefined;
+	readonly getGitHubToken?: () => string | undefined;
+	readonly getGitHubHost?: () => string | undefined;
+	readonly octoKitService?: IAgentHostOctoKitService;
+	readonly copilotApiService?: ICopilotApiService;
 	/**
 	 * Host-owned working-directory resolution hook, awaited before the agent's
 	 * first send so the session's working directory (an isolated worktree created
@@ -232,6 +240,12 @@ export class AgentSideEffects extends Disposable {
 		));
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
+			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
+			getGitHubToken: this._options.getGitHubToken,
+			getGitHubHost: this._options.getGitHubHost,
+			octoKitService: this._options.octoKitService,
+			copilotApiService: this._options.copilotApiService,
+			isActiveAgentTitleGenerationEnabled: () => this._agentConfigService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
@@ -912,6 +926,9 @@ export class AgentSideEffects extends Disposable {
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionUri);
 
+		const titleChatChannel = isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey) ? sessionKey : undefined;
+		this._titleController.refineTitleFromFirstTurn(sessionUri, titleChatChannel);
+
 		// A completed turn produces new output the user may not have seen. Route
 		// subagent turns to their owning session too (a background subagent can
 		// complete after the parent turn). Each client keeps its active session
@@ -1546,6 +1563,14 @@ export class AgentSideEffects extends Disposable {
 
 	clearQueuedMessageSenders(chat: ProtocolURI): void {
 		this._queuedMessageSenders.deleteAll(chat);
+	}
+
+	cancelSessionTitleGeneration(session: ProtocolURI): void {
+		this._titleController.cancelTitleGeneration(session);
+	}
+
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
+		this._titleController.generateForkedTitle(channel, chatChannel, turns, fallbackTitle, sourceTitle);
 	}
 
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void {

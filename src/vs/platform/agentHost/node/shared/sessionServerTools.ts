@@ -225,6 +225,7 @@ export interface IResolvedCreateSessionArgs {
 
 /** Minimal dependency surface needed by the session server-tool group. */
 export interface ISessionServerToolAccessor {
+	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
@@ -1284,8 +1285,11 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 	let createdSessionCount = 0;
 	let createdChatCount = 0;
 	let sentMessageCount = 0;
+	const definitions = accessor?.isActiveAgentTitleGenerationEnabled() === false
+		? sessionServerToolDefinitions.filter(definition => definition.name !== SessionServerToolName.RenameSession && definition.name !== SessionServerToolName.RenameChat)
+		: sessionServerToolDefinitions;
 	const group: IServerToolGroup = {
-		definitions: sessionServerToolDefinitions,
+		definitions,
 		requiresConfirmation(toolName: string): boolean {
 			return sessionToolRequiresConfirmation(toolName);
 		},
@@ -1318,8 +1322,14 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					return formatCreateChatResult(result);
 				}
 				case SessionServerToolName.RenameSession:
+					if (!accessor.isActiveAgentTitleGenerationEnabled()) {
+						throw new Error(`${SessionServerToolName.RenameSession} is disabled because active-agent title generation is not enabled.`);
+					}
 					return applyRenameSessionTool(accessor, rawArgs, currentSessionUri(sessionUri));
 				case SessionServerToolName.RenameChat:
+					if (!accessor.isActiveAgentTitleGenerationEnabled()) {
+						throw new Error(`${SessionServerToolName.RenameChat} is disabled because active-agent title generation is not enabled.`);
+					}
 					return applyRenameChatTool(accessor, rawArgs, sessionUri);
 				case SessionServerToolName.SendMessage: {
 					if (sentMessageCount >= maxSentMessages) {

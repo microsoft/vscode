@@ -315,9 +315,13 @@ The orchestrator resolves the owning **session** from the session URI for sessio
 
 ### 5f. Session and Chat Naming
 
-The first real prompt gives an untitled session or peer chat an immediate deterministic fallback title. The host persists both that title and its `auto` provenance; fork and import fallbacks use the same provenance. Naming never invokes a separate utility model.
+`chat.agentHost.experimental.activeAgentTitleGeneration` is an Application-scoped startup experiment and defaults to `false`. Its value is synchronized into the Agent Host root config as `activeAgentTitleGeneration`; changing it requires an Agent Host restart or window reload.
 
-Before `AgentSideEffects` calls `agent.chats.sendMessage`, it checks the persisted title source. An `auto` session title appends a model-only `<system-reminder>` asking the active agent to call `rename_session`; an `auto` peer-chat title asks for `rename_chat`. The protocol action and stored turn retain the original user text. A successful user or agent rename persists `user` or `agent` provenance and suppresses later reminders.
+When the experiment is off, the first real prompt gets an immediate fallback and starts utility-model title generation. The completed first turn refines that title from the request and textual response. GitHub issue and pull request URLs enrich first-message generation, and forked or imported conversations generate titles from their inherited context. Generation is cancellable, concurrency-bounded where external context is fetched, and never overwrites a manual rename.
+
+When the experiment is on, the first real prompt gets an immediate 40-character fallback without a utility-model call. Before `AgentSideEffects` sends the prompt, an `auto` session or peer-chat title appends a hidden `<system_notification>` asking the active agent to call `rename_session` or `rename_chat`. Fork and import paths keep deterministic fallbacks. The protocol action and stored turn retain the original user text.
+
+Both paths persist `auto` provenance for generated or fallback titles. User and agent renames persist `user` and `agent` provenance and prevent later automatic replacement or reminders. The rename server tools are advertised and executable only when the experiment is enabled, while their pure display definitions remain registered so historical tool calls still render correctly. Manual `/rename` is independent of the experiment.
 
 ---
 
