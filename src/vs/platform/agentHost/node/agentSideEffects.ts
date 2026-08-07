@@ -19,6 +19,7 @@ import { IAgentHostChangesetService } from '../common/agentHostChangesetService.
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -34,6 +35,7 @@ import {
 	buildSubagentChatUri,
 	chatStorageUri,
 	getToolFileEdits,
+	getInlineToolInput,
 	isAhpChatChannel,
 	isDefaultChatUri,
 	isSubagentChatUri,
@@ -74,6 +76,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
+import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
@@ -93,6 +96,12 @@ export interface IAgentSideEffectsOptions {
 	readonly localTurns: AgentHostLocalTurns;
 	/** Get the GitHub token used for Copilot utility title generation. */
 	readonly getGitHubCopilotToken?: () => string | undefined;
+	/** Get the GitHub repository token used to fetch issue and pull request context. */
+	readonly getGitHubToken?: () => string | undefined;
+	/** Get the configured GitHub host used to validate issue and pull request URLs. */
+	readonly getGitHubHost?: () => string | undefined;
+	/** GitHub REST client used to fetch issue and pull request context. */
+	readonly octoKitService?: IAgentHostOctoKitService;
 	/** CAPI service used for Copilot utility title generation. */
 	readonly copilotApiService?: ICopilotApiService;
 	/**
@@ -118,11 +127,13 @@ export interface IAgentSideEffectsOptions {
 	 * GitHub issues the message references).
 	 */
 	readonly onUserMessage?: (session: ProtocolURI, text: string) => void;
+	/** Process launcher used when client-origin metadata is unavailable. */
+	readonly hostLaunchKind?: AgentHostLaunchKind;
 }
 
 interface IQueuedMessageSender {
 	readonly clientId: string | undefined;
-	readonly clientType: AgentHostClientType;
+	readonly clientContext: IAgentHostClientTelemetryContext;
 }
 
 /** A signal that was deferred because its subagent session does not exist yet. */
@@ -238,6 +249,9 @@ export class AgentSideEffects extends Disposable {
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
 			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
+			getGitHubToken: this._options.getGitHubToken,
+			getGitHubHost: this._options.getGitHubHost,
+			octoKitService: this._options.octoKitService,
 			copilotApiService: this._options.copilotApiService,
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
@@ -1224,7 +1238,7 @@ export class AgentSideEffects extends Disposable {
 			session: e.chat,
 			permissionKind: e.permissionKind,
 			permissionPath: e.permissionPath,
-			toolInput: e.state.toolInput,
+			toolInput: getInlineToolInput(e.state.toolInput),
 			requestSandboxBypass: e.requestSandboxBypass,
 			shellLanguage: e.shellLanguage,
 		};
@@ -1279,7 +1293,13 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(sessionKey, readyAction);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientType = AgentHostClientType.Unknown): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
+		let clientContext = typeof clientContextOrType === 'string'
+			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
+			: clientContextOrType;
+		if (this._options.hostLaunchKind !== undefined) {
+			clientContext = { ...clientContext, hostLaunchKind: this._options.hostLaunchKind };
+		}
 		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
 		switch (action.type) {
@@ -1320,7 +1340,7 @@ export class AgentSideEffects extends Disposable {
 					return;
 				}
 				const attachments = action.message.attachments;
-				this._telemetryReporter.userMessageSent(agent.id, clientType, channel, state, 'direct', attachments);
+				this._telemetryReporter.userMessageSent(agent.id, clientId, clientContext, channel, state, 'direct', attachments);
 				const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
 				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel);
 				void this._sendTurnMessage({
@@ -1331,7 +1351,7 @@ export class AgentSideEffects extends Disposable {
 					message: action.message,
 					turnId: action.turnId,
 					senderClientId: clientId,
-					clientType,
+					clientType: clientContext.clientType,
 					turnStopWatch,
 				});
 				break;
@@ -1409,7 +1429,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const queuedMessageExists = this._stateManager.getChatState(channel)?.queuedMessages?.some(message => message.id === action.id) === true;
 				if (action.kind === PendingMessageKind.Queued && queuedMessageExists) {
-					this._queuedMessageSenders.set({ clientId, clientType }, channel, action.id);
+					this._queuedMessageSenders.set({ clientId, clientContext }, channel, action.id);
 				}
 				this._syncPendingMessages(channel);
 				break;
@@ -1692,7 +1712,13 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const msg = state.queuedMessages[0];
-		const sender = this._queuedMessageSenders.get(session, msg.id) ?? { clientId: undefined, clientType: AgentHostClientType.Unknown };
+		const sender = this._queuedMessageSenders.get(session, msg.id) ?? {
+			clientId: undefined,
+			clientContext: {
+				...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
+				hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
+			},
+		};
 		this._queuedMessageSenders.delete(session, msg.id);
 		const turnId = generateUuid();
 
@@ -1740,7 +1766,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
-		this._telemetryReporter.userMessageSent(agent.id, sender.clientType, session, queuedState, 'queued', attachments);
+		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, session, queuedState, 'queued', attachments);
 		const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
 		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel);
 		// Selection travels on the queued message; it is applied before sending.
@@ -1752,7 +1778,7 @@ export class AgentSideEffects extends Disposable {
 			message: msg.message,
 			turnId,
 			senderClientId: sender.clientId,
-			clientType: sender.clientType,
+			clientType: sender.clientContext.clientType,
 			turnStopWatch,
 		});
 	}

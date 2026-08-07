@@ -36,6 +36,7 @@ suite('Sessions - Chat View', () => {
 		assert.doesNotThrow(() => view.setVisible(false));
 	});
 
+
 	test('shows getting ready until a hidden bootstrap completes or visible content appears', () => {
 		assert.deepStrictEqual({
 			empty: shouldShowGettingReady(0, 0, undefined),

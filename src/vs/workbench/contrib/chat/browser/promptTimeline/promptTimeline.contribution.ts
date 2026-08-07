@@ -39,7 +39,7 @@ configurationRegistry.registerConfiguration({
 				localize('sessions.promptTimeline.rail.ruler', "Show an overview ruler beside the transcript scrollbar that fans into prompt pills on engagement."),
 				localize('sessions.promptTimeline.rail.dock', "Show a minimal handle on the transcript's left edge that opens a list of prompts on hover."),
 			],
-			default: 'off',
+			default: product.quality !== 'stable' ? 'dock' : 'off',
 			description: localize('sessions.promptTimeline.rail', "Controls whether the prompt timeline is shown next to the chat transcript in the Agents window."),
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },

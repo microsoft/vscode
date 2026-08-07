@@ -12,6 +12,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -38,13 +39,13 @@ import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar, ChangesActionsBarActionViewItem, CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
+import { ChangesActionsBar } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { IActionViewItemOptions, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -70,6 +71,8 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
+		@ICommandService private readonly commandService: ICommandService,
+		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
@@ -77,6 +80,20 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 		const label = this.instantiationService.createInstance(ResourceLabel, element, {});
 		const showDiffStats = kind === MultiDiffEditorItemLabelKind.Primary;
 		return new SessionChangesResourceLabel(label, element, showDiffStats, this.changesObs);
+	}
+
+	handleHeaderMiddleClick(resource: URI): boolean {
+		if (this.changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
+			return false;
+		}
+
+		// `changesObs` can retain a stale row during a session switch; validate against the active changeset.
+		if (!getChangesEditorFileStats(resource, this.changesViewService.activeSessionChangesObs.get())) {
+			return false;
+		}
+
+		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource);
+		return true;
 	}
 
 	createToolbarActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
@@ -276,17 +293,6 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	get scopedInstantiationService(): IInstantiationService | undefined {
 		return this._singlePane ? this._scopedInstantiationService : undefined;
-	}
-
-	/**
-	 * In single-pane, render the Create Pull Request button bar ({@link ChangesActionsBar})
-	 * as the editor tabs title anchor action ({@link CHANGES_HEADER_ACTIONS_ID}).
-	 */
-	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
-		if (this._singlePane && action.id === CHANGES_HEADER_ACTIONS_ID) {
-			return this.instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
-		}
-		return super.getActionViewItem(action, options);
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

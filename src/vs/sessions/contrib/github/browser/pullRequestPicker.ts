@@ -178,7 +178,7 @@ export function createPullRequestSessionMetadata(owner: string, repo: string, pu
 	return withSessionGitHubState(undefined, {
 		owner,
 		repo,
-		pullRequestUrl,
+		pullRequestUrls: [pullRequestUrl],
 		pullRequestBranchName: pullRequest.headRef,
 	} satisfies ISessionGitHubState)!;
 }

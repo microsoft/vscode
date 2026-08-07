@@ -17,9 +17,8 @@ class AgentHostTestConfigurationService extends TestConfigurationService {
 
 	private readonly values = new Map<string, boolean>();
 
-	constructor(agentHostEnabled: boolean, aiDisabled = false) {
+	constructor(aiDisabled = false) {
 		super();
-		this.values.set('chat.agentHost.enabled', agentHostEnabled);
 		this.values.set(ChatAIDisabledSettingId, aiDisabled);
 	}
 
@@ -42,20 +41,20 @@ class AgentHostTestConfigurationService extends TestConfigurationService {
 suite('AgentHostEnablementService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(enabled: boolean, aiDisabled = false, runtimeAvailable = true): {
+	function createService(aiDisabled = false, runtimeAvailable = true): {
 		readonly service: AgentHostEnablementService;
 		readonly configurationService: AgentHostTestConfigurationService;
 		readonly contextKeyService: MockContextKeyService;
 	} {
-		const configurationService = new AgentHostTestConfigurationService(enabled, aiDisabled);
+		const configurationService = new AgentHostTestConfigurationService(aiDisabled);
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const service = disposables.add(new AgentHostEnablementService(runtimeAvailable, configurationService, contextKeyService));
 		return { service, configurationService, contextKeyService };
 	}
 
-	test('uses the initial configuration value', () => {
-		const { service, contextKeyService } = createService(true);
+	test('is enabled when the runtime is available', () => {
+		const { service, contextKeyService } = createService();
 		assert.deepStrictEqual({
 			enabled: service.enabled.get(),
 			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
@@ -66,7 +65,7 @@ suite('AgentHostEnablementService', () => {
 	});
 
 	test('is disabled when AI features are disabled', () => {
-		const { service, contextKeyService } = createService(true, true);
+		const { service, contextKeyService } = createService(true);
 		assert.deepStrictEqual({
 			enabled: service.enabled.get(),
 			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
@@ -77,72 +76,18 @@ suite('AgentHostEnablementService', () => {
 	});
 
 	test('is disabled when the runtime is unavailable', () => {
-		const { service, contextKeyService } = createService(true, false, false);
+		const { service, contextKeyService } = createService(false, false);
 		assert.deepStrictEqual({
 			enabled: service.enabled.get(),
 			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
 		}, {
 			enabled: false,
 			contextKey: false,
-		});
-	});
-
-	test('updates when an experiment default changes', () => {
-		const { service, configurationService, contextKeyService } = createService(false);
-		const changes: boolean[] = [];
-		disposables.add(autorun(reader => changes.push(service.enabled.read(reader))));
-
-		configurationService.setValue('chat.agentHost.enabled', true, ConfigurationTarget.DEFAULT);
-
-		assert.deepStrictEqual({
-			enabled: service.enabled.get(),
-			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
-			changes,
-		}, {
-			enabled: true,
-			contextKey: true,
-			changes: [false, true],
-		});
-	});
-
-	test('ignores user configuration changes after startup', () => {
-		const { service, configurationService, contextKeyService } = createService(false);
-		const changes: boolean[] = [];
-		disposables.add(autorun(reader => changes.push(service.enabled.read(reader))));
-
-		configurationService.setValue('chat.agentHost.enabled', true, ConfigurationTarget.USER);
-
-		assert.deepStrictEqual({
-			enabled: service.enabled.get(),
-			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
-			changes,
-		}, {
-			enabled: false,
-			contextKey: false,
-			changes: [false],
-		});
-	});
-
-	test('does not enable from experiment while AI features are disabled', () => {
-		const { service, configurationService, contextKeyService } = createService(false, true);
-		const changes: boolean[] = [];
-		disposables.add(autorun(reader => changes.push(service.enabled.read(reader))));
-
-		configurationService.setValue('chat.agentHost.enabled', true, ConfigurationTarget.DEFAULT);
-
-		assert.deepStrictEqual({
-			enabled: service.enabled.get(),
-			contextKey: contextKeyService.getContextKeyValue(AGENT_HOST_ENABLED_CONTEXT_KEY.key),
-			changes,
-		}, {
-			enabled: false,
-			contextKey: false,
-			changes: [false],
 		});
 	});
 
 	test('can enable when AI features are re-enabled', () => {
-		const { service, configurationService, contextKeyService } = createService(true, true);
+		const { service, configurationService, contextKeyService } = createService(true);
 		const changes: boolean[] = [];
 		disposables.add(autorun(reader => changes.push(service.enabled.read(reader))));
 

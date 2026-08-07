@@ -52,6 +52,17 @@ export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY = 'allowManagedMcpServer
 /** Managed-settings key that allows hooks only from managed sources. */
 export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
 
+/** Managed-settings transport control that requires a fresh server fetch on startup. */
+export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
+
+/**
+ * Managed-settings controls consumed by the delivery pipeline itself rather than by a
+ * configuration policy. Native MDM must watch these even though no setting declares them.
+ */
+export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
+	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+};
+
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
 export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG = 'chat.customizations.strictPluginOnlyCustomization';
 
@@ -124,6 +135,18 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 	return callback;
 }
 
+/**
+ * Resolves the startup refresh control with native MDM taking precedence over the cached server
+ * response. A malformed native value is treated as absent, matching the managed-settings schema.
+ */
+export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
+	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
+	if (typeof nativeValue === 'boolean') {
+		return nativeValue;
+	}
+	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+}
+
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
 
 /**
@@ -155,6 +178,7 @@ export interface INativeManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly managedSettings: ManagedSettingsData;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	initialize(): Promise<ManagedSettingsData>;
 	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData>;
 }
 
@@ -163,6 +187,7 @@ export class NullNativeManagedSettingsService implements INativeManagedSettingsS
 	readonly managedSettings: ManagedSettingsData = {};
 	readonly onDidChangeManagedSettings = Event.None;
 
+	async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 	async updatePolicyDefinitions(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }
 
@@ -195,9 +220,9 @@ function isManagedSettingsObject(value: unknown): value is Record<string, unknow
 
 /**
  * Aggregate the `managedSettings` declarations of every policy definition into a single
- * key -> definition map. This is the single source of truth for which Copilot managed-settings
- * keys (and their value types) are honored, and it drives both delivery channels: the native
- * MDM watcher and the server `managed_settings` endpoint projection.
+ * key -> definition map. This is the single source of truth for policy-backed Copilot
+ * managed-settings keys and drives both server projection and the declaration-driven portion of
+ * the native MDM watcher. Transport controls are declared separately.
  */
 export function collectManagedSettingsDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): IManagedSettingsPolicyDefinitions {
 	const definitions: Record<string, IManagedSettingPolicyDefinition> = {};
@@ -214,8 +239,9 @@ export function collectManagedSettingsDefinitions(policyDefinitions: IStringDict
 
 /**
  * Whether any policy in `policyDefinitions` declares at least one managed-settings key. Cheap
- * existence check (short-circuits) used to decide whether the native MDM watcher is needed at all,
- * without aggregating the full {@link collectManagedSettingsDefinitions} map.
+ * existence check (short-circuits) used to decide whether the declaration-driven portion of the
+ * native MDM watcher needs updating, without aggregating the full
+ * {@link collectManagedSettingsDefinitions} map.
  */
 export function hasManagedSettingsDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
 	for (const policyName in policyDefinitions) {

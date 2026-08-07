@@ -34,6 +34,7 @@ import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConf
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -238,6 +239,7 @@ suite('AgentSideEffects', () => {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService: createNullSessionDataService(),
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 			onTurnComplete: () => { },
 		}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
 
@@ -321,13 +323,22 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello world', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'direct.ts', displayKind: 'document' }] },
-			}, 'client-agents', AgentHostClientType.AgentsWindow);
+			}, 'client-agents', {
+				clientType: AgentHostClientType.AgentsWindow,
+				connectionKind: AgentHostClientConnectionKind.DevTunnel,
+				transportKind: AgentHostTransportKind.WebSocket,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			});
 
 			assert.deepStrictEqual(telemetryService.events, [{
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					hostLaunchKind: 'vscode_main_process',
+					initiatorClientId: 'client-agents',
 					initiatorClientType: 'agents_window',
+					initiatorConnectionKind: 'dev_tunnel',
+					initiatorTransportKind: 'websocket',
 					agentSessionId: 'session-1',
 					source: 'direct',
 					isSubagentSession: false,
@@ -838,7 +849,7 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('does not fail creation when an already-ready session send rejects', async () => {
+		test('AgentSideEffects owns exactly one ChatError when an already-ready session send rejects', async () => {
 			setupSession(); // dispatches SessionReady -> lifecycle Ready
 			agent.sendMessageError = new Error('transient send failure');
 
@@ -855,14 +866,51 @@ suite('AgentSideEffects', () => {
 			await waitForState(stateManager, () => envelopes.some(e => e.action.type === ActionType.ChatError) || undefined);
 
 			assert.deepStrictEqual({
-				chatError: envelopes.some(e => e.action.type === ActionType.ChatError),
+				chatErrors: envelopes.filter(e => e.action.type === ActionType.ChatError).length,
 				creationFailed: envelopes.some(e => e.action.type === ActionType.SessionCreationFailed),
 				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
 			}, {
-				chatError: true,
+				chatErrors: 1,
 				creationFailed: false,
 				lifecycle: SessionLifecycle.Ready,
 			});
+		});
+
+		test('does not duplicate a Codex provider-owned failure when sendMessage resolves', async () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const originalSendMessage = agent.sendMessage.bind(agent);
+			agent.sendMessage = async (...args) => {
+				await originalSendMessage(...args);
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 1, error: { errorType: 'CodexMaterializeFailed', message: 'workspace root rejected' } },
+				});
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 },
+				});
+			};
+
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForState(stateManager, () => envelopes.some(e => e.action.type === ActionType.ChatTurnComplete) || undefined);
+
+			assert.deepStrictEqual(
+				envelopes
+					.filter(e => e.action.type === ActionType.ChatError || e.action.type === ActionType.ChatTurnComplete)
+					.map(e => e.action.type),
+				[ActionType.ChatError, ActionType.ChatTurnComplete],
+			);
 		});
 	});
 
@@ -2174,7 +2222,11 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					hostLaunchKind: 'vscode_main_process',
+					initiatorClientId: undefined,
 					initiatorClientType: 'unknown',
+					initiatorConnectionKind: 'unknown',
+					initiatorTransportKind: 'unknown',
 					agentSessionId: 'session-1',
 					source: 'queued',
 					isSubagentSession: false,

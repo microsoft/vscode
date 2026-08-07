@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/copilot-sdk';
+import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
 import { Schemas } from '../../../../base/common/network.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,7 +15,6 @@ import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedH
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
 import { dirname } from '../../../../base/common/path.js';
 
-type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];

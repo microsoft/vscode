@@ -31,7 +31,7 @@ class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
 
 	constructor(
-		private readonly sessionItems: readonly IChatSessionItem[],
+		private sessionItems: readonly IChatSessionItem[],
 	) { }
 
 	get items(): readonly IChatSessionItem[] {
@@ -39,6 +39,10 @@ class StaticChatSessionItemController implements IChatSessionItemController {
 	}
 
 	async refresh(): Promise<void> { }
+
+	setItems(sessionItems: readonly IChatSessionItem[]): void {
+		this.sessionItems = sessionItems;
+	}
 }
 
 
@@ -104,6 +108,47 @@ suite('AgentSessions', () => {
 				assert.strictEqual(viewModel.sessions[0].label, 'Test Session 1');
 				assert.strictEqual(viewModel.sessions[1].resource.toString(), `${chatSessionTestType}://session-2`);
 				assert.strictEqual(viewModel.sessions[1].label, 'Test Session 2');
+			});
+		});
+
+		test('should preserve change summaries when lazy refresh omits changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						changes: { files: 2, insertions: 8, deletions: 3 },
+					}),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				controller.setItems([makeSimpleSessionItem('session-1', { changes: undefined })]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(viewModel.sessions[0].changes, { files: 2, insertions: 8, deletions: 3 });
+			});
+		});
+
+		test('should demote hydrated changes when lazy refresh omits changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						changes: [
+							{ modifiedUri: URI.file('/first'), insertions: 3, deletions: 1 },
+							{ modifiedUri: URI.file('/second'), insertions: 5, deletions: 2 },
+						],
+					}),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				controller.setItems([makeSimpleSessionItem('session-1', { changes: undefined })]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(viewModel.sessions[0].changes, { files: 2, insertions: 8, deletions: 3 });
 			});
 		});
 

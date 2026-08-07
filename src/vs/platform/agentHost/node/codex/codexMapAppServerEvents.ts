@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize } from '../../../../nls.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
@@ -284,6 +285,14 @@ export function describeFileChange(changes: readonly FileUpdateChange[]): string
 
 export function fileChangeOutput(changes: readonly FileUpdateChange[]): string {
 	return changes.map(change => `${describeFileChange([change])}\n${change.diff}`.trim()).join('\n\n');
+}
+
+export function codexCompactionLabels(): { readonly displayName: string; readonly invocationMessage: string; readonly pastTenseMessage: string } {
+	return {
+		displayName: localize('codex.compaction.displayName', "Compact conversation"),
+		invocationMessage: localize('codex.compaction.inProgress', "Compacting conversation"),
+		pastTenseMessage: localize('codex.compaction.completed', "Compacted conversation"),
+	};
 }
 
 function jsonValueToText(value: JsonValue): string {
@@ -796,6 +805,32 @@ function mapItemStartedBody(
 			},
 		];
 	}
+	if (params.item.type === 'contextCompaction') {
+		const toolCallId = generateUuid();
+		const labels = codexCompactionLabels();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'compact',
+			output: '',
+		});
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'compact',
+				displayName: labels.displayName,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: labels.invocationMessage,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+		];
+	}
 	return [];
 }
 
@@ -922,6 +957,17 @@ export function mapItemCompleted(
 	}
 	state.itemToToolCall.delete(params.item.id);
 	const declined = state.declinedToolCalls.delete(entry.toolCallId);
+	if (params.item.type === 'contextCompaction') {
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: codexCompactionLabels().pastTenseMessage,
+			},
+		}];
+	}
 	if (params.item.type === 'commandExecution') {
 		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
 		const output = params.item.aggregatedOutput ?? entry.output;

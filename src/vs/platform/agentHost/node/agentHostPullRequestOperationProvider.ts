@@ -8,7 +8,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readSessionGitHubState, SessionLifecycle, withMostRecentSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
@@ -64,7 +64,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		return [{
 			id: 'create-pr',
-			label: localize('agentHost.changeset.createPR', "Create Pull Request"),
+			label: localize('agentHost.changeset.createPR', "Create PR"),
 			icon: 'git-pull-request-create',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -72,7 +72,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		},
 		{
 			id: 'create-pr-auto-merge',
-			label: localize('agentHost.changeset.createPRAutoMerge', "Create Pull Request (Auto-Merge)"),
+			label: localize('agentHost.changeset.createPRAutoMerge', "Create PR (Auto-Merge)"),
 			icon: 'git-merge',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -80,7 +80,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		},
 		{
 			id: 'create-pr-auto-squash',
-			label: localize('agentHost.changeset.createPRAutoSquash', "Create Pull Request (Auto-Squash)"),
+			label: localize('agentHost.changeset.createPRAutoSquash', "Create PR (Auto-Squash)"),
 			icon: 'git-merge',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -88,7 +88,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		},
 		{
 			id: 'create-pr-auto-rebase',
-			label: localize('agentHost.changeset.createPRAutoRebase', "Create Pull Request (Auto-Rebase)"),
+			label: localize('agentHost.changeset.createPRAutoRebase', "Create PR (Auto-Rebase)"),
 			icon: 'git-merge',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -96,7 +96,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		},
 		{
 			id: 'create-draft-pr',
-			label: localize('agentHost.changeset.createDraftPR', "Create Draft Pull Request"),
+			label: localize('agentHost.changeset.createDraftPR', "Create Draft PR"),
 			icon: 'git-pull-request-draft',
 			group: 'pull-request_draft',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -110,9 +110,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		this._registry?.onDidChangeOperations(sessionKey);
 		this._registry?.refreshSessionGitState(sessionKey);
 
-		this._gitStateService.setSessionGitHubState(sessionKey, {
-			pullRequestUrl: event.pullRequestUrl,
-			pullRequestBranchName: event.branchName
-		});
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		this._gitStateService.setSessionGitHubState(sessionKey, withMostRecentSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));
 	}
 }
