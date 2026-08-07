@@ -265,6 +265,7 @@ async function getValidatedProfile(
 	validatedProfile.isAutoDetected = profile.isAutoDetected;
 	validatedProfile.icon = icon;
 	validatedProfile.color = profile.color;
+	validatedProfile.shellType = profile.shellType;
 	return validatedProfile;
 }
 

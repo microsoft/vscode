@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, fail, ok, strictEqual } from 'assert';
 import { isWindows } from '../../../../../base/common/platform.js';
-import { ITerminalProfile, ProfileSource } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalProfile, ProfileSource, GeneralShellType, PosixShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalConfiguration, ITerminalProfiles } from '../../common/terminal.js';
 import { detectAvailableProfiles, IFsProvider } from '../../../../../platform/terminal/node/terminalProfiles.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -148,6 +148,23 @@ suite('Workbench - TerminalProfiles', () => {
 					strictEqual(profiles[0].profileName, 'PowerShell');
 				});
 			});
+                        test('should preserve shellType from profile', async () => {
+                                const config = {
+                                        profiles: {
+                                                windows: {
+                                                        'PowerShell': { path: 'C:\\pwsh.exe', shellType: GeneralShellType.PowerShell }
+                                                },
+                                                linux: {},
+                                                osx: {}
+                                        },
+                                        useWslProfiles: false
+                                } as ITestTerminalConfig as ITerminalConfiguration;
+                                const fsProvider = createFsProvider(['C:\\pwsh.exe']);
+                                const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
+                                const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, undefined);
+                                const expected = [{ profileName: 'PowerShell', path: 'C:\\pwsh.exe', isDefault: true, shellType: GeneralShellType.PowerShell }];
+                                profilesEqual(profiles, expected);
+                        });
 		} else {
 			const absoluteConfig = ({
 				profiles: {
@@ -220,6 +237,28 @@ suite('Workbench - TerminalProfiles', () => {
 				];
 				profilesEqual(profiles, expected);
 			});
+
+                        test('should preserve shellType from profile', async () => {
+                                const config = {
+                                        profiles: {
+                                                windows: {},
+                                                linux: {
+                                                        'fakeshell1': { path: '/bin/fakeshell1', shellType: PosixShellType.Sh }
+                                                },
+                                                osx: {
+                                                        'fakeshell1': { path: '/bin/fakeshell1', shellType: PosixShellType.Sh }
+                                                }
+                                        },
+                                        useWslProfiles: false
+                                } as ITestTerminalConfig as ITerminalConfiguration;
+                                const fsProvider = createFsProvider(['/bin/fakeshell1']);
+                                const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
+                                const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, undefined);
+                                const expected: ITerminalProfile[] = [
+                                        { profileName: 'fakeshell1', path: '/bin/fakeshell1', isDefault: true, shellType: PosixShellType.Sh }
+                                ];
+                                profilesEqual(profiles, expected);
+                        });
 		}
 	});
 

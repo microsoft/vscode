@@ -207,6 +207,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			forceShellIntegration: args.shellLaunchConfig.forceShellIntegration,
 			tabActions: args.shellLaunchConfig.tabActions,
 			shellIntegrationEnvironmentReporting: args.shellLaunchConfig.shellIntegrationEnvironmentReporting,
+			shellType: args.shellLaunchConfig.shellType
 		};
 
 
