@@ -288,7 +288,28 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		});
 	}
 
-	async removeAutomationForMigration(id: string): Promise<void> {
+	async storeAutomationForTransfer(automation: IAutomation, runs: readonly IAutomationRun[], mutationGuard?: AutomationMutationGuard): Promise<void> {
+		await this.mutateLedger(ledger => {
+			const existing = ledger.automations.find(candidate => candidate.id === automation.id);
+			const existingRunIds = new Set(ledger.runs.map(run => run.id));
+			const missingRuns = runs.filter(run => !existingRunIds.has(run.id));
+			if (existing && JSON.stringify(serializeAutomation(existing)) === JSON.stringify(serializeAutomation(automation)) && missingRuns.length === 0) {
+				return { kind: 'noChange', result: undefined };
+			}
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: existing
+						? ledger.automations.map(candidate => candidate.id === automation.id ? automation : candidate)
+						: [automation, ...ledger.automations],
+					runs: [...missingRuns, ...ledger.runs],
+				},
+				result: undefined,
+			};
+		}, mutationGuard);
+	}
+
+	async removeAutomationForTransfer(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
 		await this.mutateLedger(ledger => {
 			if (!ledger.automations.some(automation => automation.id === id)) {
 				return { kind: 'noChange', result: undefined };
@@ -301,7 +322,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 				},
 				result: undefined,
 			};
-		});
+		}, mutationGuard);
 		this._runsForCache.delete(id);
 	}
 

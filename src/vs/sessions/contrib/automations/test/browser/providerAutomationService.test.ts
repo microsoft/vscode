@@ -41,10 +41,16 @@ class PartiallyFailingMigrationAutomationStore extends AutomationStore {
 	}
 }
 
+class FailingTransferAutomationStore extends AutomationStore {
+	override async storeAutomationForTransfer(): Promise<void> {
+		throw new Error('Transfer failed.');
+	}
+}
+
 suite('ProviderAutomationService', () => {
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration'): {
+	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer'): {
 		readonly service: ProviderAutomationService;
 		readonly providerStore: AutomationStore;
 		readonly storage: InMemoryStorageService;
@@ -57,11 +63,22 @@ suite('ProviderAutomationService', () => {
 			storage.store(providerAutomationStorageKey(PROVIDER_ID), providerRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 		const automationStorage = new TestAutomationStorageService(storage);
-		const providerStore = teardown.add(providerFailure === 'staleRunRecovery'
-			? new FailingStaleRunRecoveryAutomationStore(providerAutomationStorageKey(PROVIDER_ID), storage, new NullLogService(), NullTelemetryService, automationStorage)
-			: providerFailure === 'migration'
-				? new PartiallyFailingMigrationAutomationStore(providerAutomationStorageKey(PROVIDER_ID), storage, new NullLogService(), NullTelemetryService, automationStorage)
-			: new AutomationStore(providerAutomationStorageKey(PROVIDER_ID), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const storageKey = providerAutomationStorageKey(PROVIDER_ID);
+		let providerStore: AutomationStore;
+		switch (providerFailure) {
+			case 'staleRunRecovery':
+				providerStore = new FailingStaleRunRecoveryAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				break;
+			case 'migration':
+				providerStore = new PartiallyFailingMigrationAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				break;
+			case 'transfer':
+				providerStore = new FailingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				break;
+			default:
+				providerStore = new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+		}
+		teardown.add(providerStore);
 		const provider = upcastPartial<ISessionsProvider>({
 			id: PROVIDER_ID,
 			order: 0,
@@ -103,6 +120,104 @@ suite('ProviderAutomationService', () => {
 			aggregate: ['Provider owned'],
 			provider: ['Provider owned'],
 			legacy: undefined,
+		});
+	});
+
+	test('transfers Automations and runs when updates change store ownership', async () => {
+		const { service, providerStore, storage } = createService();
+		const legacyTarget = { kind: 'workspace', folderUri: FOLDER, providerId: 'provider-without-storage', sessionTypeId: 'other', isolation: { kind: 'default' } } as const;
+		const providerTarget = { kind: 'workspace', folderUri: FOLDER, providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } } as const;
+		const created = await service.createAutomation({
+			name: 'Transferred',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: legacyTarget,
+		});
+		const claim = await service.recordRunStart(created.id, 'manual', 1);
+
+		const transferToProvider = await service.updateAutomationIfUnchanged(created.id, { target: providerTarget }, created);
+		const afterProviderTransfer = {
+			result: transferToProvider.kind,
+			providerTarget: providerStore.getAutomation(created.id)?.target,
+			providerRunIds: providerStore.runs.get().map(run => run.id),
+			legacyAutomationIds: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations.map((automation: { id: string }) => automation.id),
+		};
+
+		await service.updateAutomation(created.id, { target: legacyTarget });
+		const legacyLedger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!);
+
+		assert.deepStrictEqual({
+			claimRunId: claim.run.id,
+			afterProviderTransfer,
+			finalProviderAutomation: providerStore.getAutomation(created.id),
+			finalProviderRunIds: providerStore.runs.get().map(run => run.id),
+			finalLegacyTarget: legacyLedger.automations.find((automation: { id: string }) => automation.id === created.id)?.target,
+			finalLegacyRunIds: legacyLedger.runs.map((run: { id: string }) => run.id),
+		}, {
+			claimRunId: claim.run.id,
+			afterProviderTransfer: {
+				result: 'updated',
+				providerTarget,
+				providerRunIds: [claim.run.id],
+				legacyAutomationIds: [],
+			},
+			finalProviderAutomation: undefined,
+			finalProviderRunIds: [],
+			finalLegacyTarget: {
+				kind: 'workspace',
+				folderUri: FOLDER.toJSON(),
+				providerId: 'provider-without-storage',
+				sessionTypeId: 'other',
+				isolation: { kind: 'default' },
+			},
+			finalLegacyRunIds: [claim.run.id],
+		});
+	});
+
+	test('does not transfer an Automation when a guarded update conflicts', async () => {
+		const { service, providerStore, storage } = createService();
+		const created = await service.createAutomation({
+			name: 'Provider owned',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+		});
+
+		const result = await service.updateAutomationIfUnchanged(created.id, {
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: 'provider-without-storage', sessionTypeId: 'other', isolation: { kind: 'default' } },
+		}, { ...created, name: 'Stale' });
+
+		assert.deepStrictEqual({
+			result: result.kind,
+			providerAutomationId: providerStore.getAutomation(created.id)?.id,
+			legacy: storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION),
+		}, {
+			result: 'conflict',
+			providerAutomationId: created.id,
+			legacy: undefined,
+		});
+	});
+
+	test('retains the source Automation when ownership transfer fails', async () => {
+		const { service, providerStore, storage } = createService(undefined, undefined, 'transfer');
+		const created = await service.createAutomation({
+			name: 'Legacy',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: 'provider-without-storage', sessionTypeId: 'other', isolation: { kind: 'default' } },
+		});
+
+		await assert.rejects(service.updateAutomation(created.id, {
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+		}), /Transfer failed/);
+		const legacyLedger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!);
+
+		assert.deepStrictEqual({
+			providerAutomation: providerStore.getAutomation(created.id),
+			legacyAutomationIds: legacyLedger.automations.map((automation: { id: string }) => automation.id),
+		}, {
+			providerAutomation: undefined,
+			legacyAutomationIds: [created.id],
 		});
 	});
 

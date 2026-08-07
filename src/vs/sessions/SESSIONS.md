@@ -117,6 +117,7 @@ src/vs/sessions/contrib/providers/
 ```
 
 Providers can expose `automations` to own durable Automation entities and run history. `ProviderAutomationService` aggregates these stores behind `IAutomationService`, routes mutations to the owning store, and keeps the legacy global ledger mounted while entries migrate idempotently by Automation and run ID.
+When an update changes the resolved owning provider, the aggregate service transfers the updated Automation and run history before removing the source copy.
 Startup recovery attempts every available store independently, so one unavailable provider does not block stale-run recovery in the remaining stores.
 Legacy migration also isolates failures by Automation, leaving failed entries in legacy storage while continuing with later entries.
 

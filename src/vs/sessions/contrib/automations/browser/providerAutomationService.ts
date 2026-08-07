@@ -77,12 +77,20 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return this.getCreationStore(options).createAutomation(options, mutationGuard);
 	}
 
-	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
-		return this.requireAutomationStore(id).updateAutomation(id, patch);
+	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+		const source = this.requireAutomationStore(id);
+		const updated = await source.updateAutomation(id, patch);
+		await this.transferAutomationIfNeeded(source, updated);
+		return updated;
 	}
 
-	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
-		return this.requireAutomationStore(id).updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
+	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
+		const source = this.requireAutomationStore(id);
+		const result = await source.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
+		if (result.kind === 'updated') {
+			await this.transferAutomationIfNeeded(source, result.automation, mutationGuard);
+		}
+		return result;
 	}
 
 	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
@@ -133,7 +141,10 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	}
 
 	private getCreationStore(options: ICreateAutomationOptions): ISessionsProviderAutomations {
-		const providerId = options.target.providerId;
+		return this.getTargetStore(options.target.providerId);
+	}
+
+	private getTargetStore(providerId: string | undefined): ISessionsProviderAutomations {
 		if (providerId) {
 			const providerStore = this.sessionsProvidersService.getProvider(providerId)?.automations;
 			if (providerStore) {
@@ -142,6 +153,16 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		}
 
 		return this.legacyStore;
+	}
+
+	private async transferAutomationIfNeeded(source: ISessionsProviderAutomations, automation: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<void> {
+		const destination = this.getTargetStore(automation.target.providerId);
+		if (source === destination) {
+			return;
+		}
+
+		await destination.storeAutomationForTransfer(automation, source.runsFor(automation.id).get(), mutationGuard);
+		await source.removeAutomationForTransfer(automation.id, mutationGuard);
 	}
 
 	private findAutomationStore(id: string): IAutomationStoreEntry | undefined {
@@ -178,7 +199,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			}
 			try {
 				await providerStore.importAutomation(automation, this.legacyStore.runsFor(automation.id).get());
-				await this.legacyStore.removeAutomationForMigration(automation.id);
+				await this.legacyStore.removeAutomationForTransfer(automation.id);
 			} catch (error) {
 				this.logService.error(`[ProviderAutomationService] Failed to migrate Automation '${automation.id}' to provider '${providerId}'.`, error);
 			}
