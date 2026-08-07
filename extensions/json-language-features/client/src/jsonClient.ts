@@ -23,6 +23,7 @@ import { hash } from './utils/hash';
 import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem, createSchemaLoadIssueItem, createSchemaLoadStatusItem } from './languageStatus';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 import { matchesUrlPattern } from './utils/urlMatch';
+import { escapeGlobCharacters } from './utils/strings';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -922,16 +923,46 @@ function computeSettings(): Settings {
 	};
 
 	/*
+	 * Expand a leading `${workspaceFolder}` (also after a `!` exclusion prefix) to the workspace
+	 * folder path, anchoring the pattern to the folder.
+	 */
+	const expandWorkspaceFolder = (fileMatch: string[] | undefined, workspaceFolder: Uri | undefined): string[] | undefined => {
+		if (!Array.isArray(fileMatch) || !workspaceFolder) {
+			return fileMatch;
+		}
+		// Lowercase a drive letter and percent-encode `#` and `?`, like the server's uri
+		// normalization does, so that the folder is spelled the way the document uris are.
+		const folderPath = escapeGlobCharacters(workspaceFolder.path
+			.replace(/^\/[A-Z]:/, s => s.toLowerCase())
+			.replace(/[#?]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+			.replace(/\/$/, ''));
+		const prefix = '${workspaceFolder}/';
+		return fileMatch.map(fm => {
+			if (typeof fm !== 'string') {
+				return fm;
+			}
+			const exclusion = fm.startsWith('!') ? '!' : '';
+			const pattern = fm.substring(exclusion.length);
+			if (!pattern.startsWith(prefix)) {
+				return fm;
+			}
+			return exclusion + folderPath + '/' + pattern.substring(prefix.length);
+		});
+	};
+
+	/*
 	 * Add schemas from the settings
 	 * folderUri to which folder the setting is scoped to. `undefined` means global (also external files)
 	 * settingsLocation against which path relative schema URLs are resolved
+	 * workspaceFolder the folder `${workspaceFolder}` in fileMatch patterns expands to. `undefined`
+	 * where no single folder applies (user settings, multi-root workspace file settings)
 	 */
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined) => {
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined, workspaceFolder?: Uri) => {
 		if (schemaSettings) {
 			for (const setting of schemaSettings) {
 				const url = getSchemaId(setting, settingsLocation);
 				if (url) {
-					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri, schema: setting.schema };
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: expandWorkspaceFolder(setting.fileMatch, workspaceFolder), folderUri, schema: setting.schema };
 					schemas.push(schemaSetting);
 				}
 			}
@@ -953,12 +984,12 @@ function computeSettings(): Settings {
 			for (const folder of folders) {
 				const folderUri = folder.uri;
 				const folderSchemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri);
+				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri, folderUri);
 			}
 		} else {
 			if (schemaConfigInfo.workspaceValue && folders.length === 1) {
 				// single folder workspace: settings apply to all files (also external files)
-				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri);
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri, folders[0].uri);
 			}
 		}
 	}
