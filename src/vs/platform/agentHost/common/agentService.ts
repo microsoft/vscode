@@ -1757,7 +1757,7 @@ export interface IAgent {
 	releaseSession?(session: URI): Promise<void>;
 
 	/** Respond to a pending permission request from the SDK. */
-	respondToPermissionRequest(requestId: string, approved: boolean): void;
+	respondToPermissionRequest(requestId: string, approved: boolean, options?: IAgentPermissionResponseOptions): void;
 
 	/** Respond to a pending user input request from the SDK's ask_user tool. */
 	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
@@ -1951,6 +1951,12 @@ export interface IAgent {
 
 	/** Dispose this provider and all its resources. */
 	dispose(): void;
+}
+
+/** Additional information about how a permission request was resolved. */
+export interface IAgentPermissionResponseOptions {
+	/** Whether the approval was granted without user interaction. */
+	readonly autoApproved?: boolean;
 }
 
 // ---- Service interfaces -----------------------------------------------------

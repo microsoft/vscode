@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { FEEDBACK_ANNOTATION_META_KEY } from '../../common/meta/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -168,6 +168,38 @@ suite('AgentFeedbackServerTools', () => {
 		});
 	});
 
+	test('auto-approved viewUnreviewedComments submits and returns every unreviewed review comment', () => {
+		const state = stateWith(
+			annotation('pr1', 'created', false, 'new pr', 'prReview'),
+			annotation('cr1', 'created', false, 'new code review', 'codeReview', true),
+			annotation('pr2', 'accepted', false, 'already accepted', 'prReview'),
+			annotation('u1', 'created', false, 'user comment', 'user'),
+		);
+		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {}, { autoApproved: true });
+		const submitted = outcome.actions.map(action => {
+			const annotation = (action as Extract<typeof action, { type: ActionType.AnnotationsSet }>).annotation;
+			const meta = annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
+			return {
+				id: annotation.id,
+				kind: meta?.kind,
+				state: meta?.state,
+				sessionResource: meta?.sessionResource,
+				pendingAgentReveal: meta?.pendingAgentReveal,
+			};
+		});
+
+		assert.deepStrictEqual({
+			returnedIds: JSON.parse(outcome.result).comments.map((comment: { id: string }) => comment.id),
+			submitted,
+		}, {
+			returnedIds: ['pr1', 'cr1'],
+			submitted: [
+				{ id: 'pr1', kind: 'prReview', state: 'submitted', sessionResource, pendingAgentReveal: undefined },
+				{ id: 'cr1', kind: 'codeReview', state: 'submitted', sessionResource, pendingAgentReveal: undefined },
+			],
+		});
+	});
+
 	test('viewUnreviewedComments requires confirmation; the read/mutate tools do not', () => {
 		assert.deepStrictEqual({
 			view: feedbackToolRequiresConfirmation(viewUnreviewedCommentsToolName),
@@ -279,6 +311,26 @@ suite('AgentFeedbackServerTools', () => {
 			}, {
 				text: 'from a peer chat',
 				sessionResource,
+			});
+		});
+
+		test('executeTool forwards auto approval context to the feedback tool', async () => {
+			const annotationsUri = buildAnnotationsUri(sessionResource);
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('auto-submit', 'created', false, 'submit me', 'prReview'),
+			});
+
+			const result = await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {}, { autoApproved: true });
+			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
+			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta;
+
+			assert.deepStrictEqual({
+				returnedIds: JSON.parse(result).comments.map((comment: { id: string }) => comment.id),
+				state: meta.state,
+			}, {
+				returnedIds: ['auto-submit'],
+				state: 'submitted',
 			});
 		});
 

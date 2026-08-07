@@ -36,7 +36,7 @@ import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentPermissionResponseOptions, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -4304,9 +4304,9 @@ suite('CopilotAgent', () => {
 			const events: string[] = [];
 			let disposed = false;
 			const stub = {
-				respondToPermissionRequest(requestId: string, approved: boolean): boolean {
+				respondToPermissionRequest(requestId: string, approved: boolean, permissionOptions?: IAgentPermissionResponseOptions): boolean {
 					if (options?.permissionOwner === requestId) {
-						events.push(`perm:${requestId}:${approved}`);
+						events.push(`perm:${requestId}:${approved}:${permissionOptions?.autoApproved === true}`);
 						return true;
 					}
 					return false;
@@ -4332,9 +4332,9 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-perm'));
 				const chat = installStubChat(agent, chatUri, { permissionOwner: 'req-1' });
 
-				agent.respondToPermissionRequest('req-1', true);
+				agent.respondToPermissionRequest('req-1', true, { autoApproved: true });
 
-				assert.deepStrictEqual(chat.events, ['perm:req-1:true']);
+				assert.deepStrictEqual(chat.events, ['perm:req-1:true:true']);
 			} finally {
 				await disposeAgent(agent);
 			}

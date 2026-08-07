@@ -5,6 +5,12 @@
 
 import type { ToolDefinition, URI } from './state/sessionState.js';
 
+/** Execution details supplied by the provider when invoking a server tool. */
+export interface IAgentServerToolExecutionContext {
+	/** Whether a confirmation-required tool was approved without user interaction. */
+	readonly autoApproved: boolean;
+}
+
 /**
  * Server-side host for the agent host's **server tools** — tools that the
  * agent host owns and executes in-process (against a session's own state
@@ -28,9 +34,9 @@ export interface IAgentServerToolHost {
 	advertise(sessionUri: URI): void;
 	/**
 	 * Whether {@link toolName} must be confirmed by the user before it runs.
-	 * Providers exclude such tools from their server-tool auto-approve lists so
-	 * the call surfaces a confirmation instead of executing silently. Returns
-	 * `false` for unknown tools and for tools that are auto-approved.
+	 * Providers can still bypass the confirmation under an explicit auto-approve
+	 * policy and report that through {@link IAgentServerToolExecutionContext}.
+	 * Returns `false` for unknown tools and tools without a confirmation UI.
 	 */
 	requiresConfirmation(toolName: string): boolean;
 	/**
@@ -40,5 +46,5 @@ export interface IAgentServerToolHost {
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown, context?: IAgentServerToolExecutionContext): string | Promise<string>;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { raceCancellation, RunOnceScheduler, Sequencer, Throttler } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -33,7 +33,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from 
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle, type IAgentPermissionResponseOptions, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
@@ -661,6 +661,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult, {
 		readonly managedApprovalRequired: boolean;
 	}>();
+	/** Tool calls approved through an interactive permission response. */
+	private readonly _interactivelyApprovedToolCalls = new Set<string>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/**
@@ -1687,9 +1689,13 @@ export class CopilotAgentSession extends Disposable {
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 			defer: 'never' as const,
-			handler: async (args: Record<string, unknown>): Promise<ToolResultObject> => {
+			handler: async (args: Record<string, unknown>, { toolCallId }: ToolInvocation): Promise<ToolResultObject> => {
 				try {
-					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
+					const interactivelyApproved = this._interactivelyApprovedToolCalls.delete(toolCallId);
+					const context = host.requiresConfirmation(def.name) && !interactivelyApproved
+						? { autoApproved: true }
+						: undefined;
+					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args, context);
 					return { textResultForLlm: await text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -3174,8 +3180,13 @@ export class CopilotAgentSession extends Disposable {
 		return { items: [edit] };
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean): boolean {
+	respondToPermissionRequest(requestId: string, approved: boolean, options?: IAgentPermissionResponseOptions): boolean {
 		if (this._pendingPermissions.respond(requestId, approved ? { kind: 'approve-once' } : { kind: 'denied-interactively-by-user' })) {
+			if (approved && !options?.autoApproved) {
+				this._interactivelyApprovedToolCalls.add(requestId);
+			} else {
+				this._interactivelyApprovedToolCalls.delete(requestId);
+			}
 			this._deletePendingEditContent(requestId);
 			return true;
 		}
@@ -4050,6 +4061,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onToolComplete(async e => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
+			this._interactivelyApprovedToolCalls.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
 				this._unroutableSubagentToolCallIds.delete(e.data.toolCallId);
@@ -5380,6 +5392,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._pendingPermissions.denyAll({ kind: 'reject' });
 		this._approvedDuplicablePermissionSignatures.clear();
+		this._interactivelyApprovedToolCalls.clear();
 	}
 
 	/**

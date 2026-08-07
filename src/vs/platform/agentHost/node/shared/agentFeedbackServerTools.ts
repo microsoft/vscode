@@ -5,6 +5,7 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import type { IAgentServerToolExecutionContext } from '../../common/agentServerTools.js';
 import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, ADD_COMMENT_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
@@ -43,14 +44,12 @@ export const viewUnreviewedCommentsToolName = VIEW_UNREVIEWED_COMMENTS_TOOL_NAME
 const REVIEWABLE_FEEDBACK_KINDS: ReadonlySet<string> = new Set(['prReview', 'codeReview']);
 
 /**
- * Server tools that must not be auto-approved: invoking them surfaces a
- * confirmation to the user (rendered by a custom client content part) before
- * the tool body runs. Providers consult {@link feedbackToolRequiresConfirmation}
- * (via the host) to exclude these from their server-tool auto-approve lists.
+ * Server tools with a confirmation UI. An explicit auto-approve policy can
+ * bypass the UI and is reported to the executor through its execution context.
  */
 const feedbackConfirmationToolNames: ReadonlySet<string> = new Set([viewUnreviewedCommentsToolName]);
 
-/** Whether the given feedback server tool requires user confirmation before it runs. */
+/** Whether the feedback server tool has a confirmation UI when not auto-approved. */
 export function feedbackToolRequiresConfirmation(toolName: string): boolean {
 	return feedbackConfirmationToolNames.has(toolName);
 }
@@ -139,9 +138,9 @@ export const feedbackServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: viewUnreviewedCommentsToolName,
 		title: 'View Unreviewed Comments (Agent Feedback)',
-		description: 'View pull request or code review comments that the user has not reviewed yet. Calling this asks the user to choose which of those comments to reveal; only the comments the user reveals are returned.',
+		description: 'View pull request or code review comments that the user has not reviewed yet. If confirmation is required, only the comments selected by the user are returned. When auto-approved, all unreviewed comments are submitted and returned.',
 		inputSchema: viewUnreviewedCommentsInputSchema,
-		annotations: { readOnlyHint: true },
+		annotations: { readOnlyHint: false },
 	},
 ];
 
@@ -326,6 +325,16 @@ function clearPendingReveal(annotation: Annotation): Annotation {
 	return { ...annotation, _meta: { ...annotation._meta, [FEEDBACK_ANNOTATION_META_KEY]: nextMeta } };
 }
 
+/** Returns a copy of {@link annotation} in the submitted state. */
+function markSubmitted(annotation: Annotation): Annotation {
+	const meta = readMeta(annotation);
+	if (!meta) {
+		return annotation;
+	}
+	const nextMeta: IFeedbackAnnotationMeta = { ...meta, state: 'submitted', pendingAgentReveal: undefined };
+	return { ...annotation, _meta: { ...annotation._meta, [FEEDBACK_ANNOTATION_META_KEY]: nextMeta } };
+}
+
 /**
  * Reviewable (PR / code review) feedback annotations the user has not reviewed
  * yet, i.e. still in the `created` state. Used to build the
@@ -392,7 +401,7 @@ export interface IFeedbackToolOutcome {
  *
  * @throws if {@link toolName} is unknown or the arguments are invalid.
  */
-export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown): IFeedbackToolOutcome {
+export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown, context?: IAgentServerToolExecutionContext): IFeedbackToolOutcome {
 	switch (toolName) {
 		case addCommentToolName: {
 			const { resourceUri, range, text } = getAddCommentArgs(rawArgs);
@@ -425,6 +434,17 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			return { actions: [], result: JSON.stringify(payload, undefined, 2) };
 		}
 		case viewUnreviewedCommentsToolName: {
+			if (context?.autoApproved) {
+				const unreviewed = createdReviewableAnnotations(state);
+				const actions: AnnotationsAction[] = unreviewed.map(annotation => ({
+					type: ActionType.AnnotationsSet,
+					annotation: markSubmitted(annotation),
+				}));
+				return {
+					actions,
+					result: JSON.stringify({ comments: unreviewed.map(serializeComment) }, undefined, 2),
+				};
+			}
 			// The confirmation gate runs before this body. When the user accepts
 			// the confirmation, the client flags exactly the comments they chose
 			// to reveal with `pendingAgentReveal` on the shared annotations
@@ -593,7 +613,7 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 		return getFeedbackToolDisplay(toolName, args, result);
 	},
-	execute(stateManager, chatUri, toolName, rawArgs): string {
+	execute(stateManager, chatUri, toolName, rawArgs, context): string {
 		// A session can contain multiple chats, each addressed by its own
 		// `ahp-chat` URI but sharing the same context/workspace. Comments belong
 		// to the session as a whole, so always resolve a chat URI back to its
@@ -602,7 +622,7 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 		const annotationsUri = buildAnnotationsUri(mainSessionUri);
 		const snapshot = stateManager.getSnapshot(annotationsUri);
 		const state: AnnotationsState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
-		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
+		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs, context);
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);
 		}
