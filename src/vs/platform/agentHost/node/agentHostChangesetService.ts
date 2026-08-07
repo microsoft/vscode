@@ -58,6 +58,24 @@ function persistKeyFor(kind: StaticChangesetKind): string {
 }
 
 /**
+ * Computes session diffs against a repository's default branch, or returns `undefined` when no default branch is available.
+ */
+export async function computeSessionFileDiffsAgainstDefaultBranch(
+	gitService: Pick<IAgentHostGitService, 'getDefaultBranch' | 'computeSessionFileDiffs'>,
+	repositoryRoot: URI,
+	session: ProtocolURI,
+): Promise<readonly ISessionFileDiff[] | undefined> {
+	const defaultBranch = await gitService.getDefaultBranch(repositoryRoot);
+	if (!defaultBranch) {
+		return undefined;
+	}
+	return gitService.computeSessionFileDiffs(repositoryRoot, {
+		sessionUri: session,
+		baseBranch: defaultBranch.name,
+	});
+}
+
+/**
  * Sums the per-file diff counts into the {@link ChangesSummary} shape
  * that lives on `summary.changes`. Returns `undefined` for an undefined
  * input so callers can distinguish "no data yet" from "data, zero changes".
@@ -184,15 +202,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return !!this._configurationService.getEffectiveWorkingDirectory(session);
 	}
 
-	/**
-	 * Returns the session's effective working directories as URIs when the
-	 * multi-root changeset behaviour applies — the session's agent is Copilot
-	 * (`copilotcli`) AND it has more than one effective working directory — else
-	 * `undefined`. This is the single gate for all multi-root changeset behaviour
-	 * (per-turn all-folder diffs, independent all-folder summary, empty turn
-	 * operations). Single-folder and non-Copilot sessions return `undefined` and
-	 * keep the legacy primary-only paths byte-for-byte.
-	 */
+	/** Returns effective working-directory URIs for multi-folder Copilot sessions. */
 	private _multiFolderWorkingDirectories(session: ProtocolURI): URI[] | undefined {
 		if (AgentSession.provider(session) !== 'copilotcli') {
 			return undefined;
@@ -207,7 +217,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				uris.push(URI.parse(dir));
 			} catch {
 				// Skip unparseable entries — a malformed dir must not fail the
-				// whole compute (graceful, per Q2).
+				// whole compute.
 			}
 		}
 		return uris.length > 1 ? uris : undefined;
@@ -647,13 +657,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return computeTurnDiffs(session, db, this._diffComputeService, turnId);
 	}
 
-	/**
-	 * Computes the per-turn diff across ALL effective working directories of a
-	 * multi-root Copilot session, via the shared multi-root orchestrator:
-	 * per unique git repo, the turn's parent→current checkpoint git diff; non-git
-	 * folders (and any git repo whose diff fails) use the DB edit-tracker fallback
-	 * restricted to those roots. Never hard-fails — per-folder failures are logged.
-	 */
+	/** Computes a turn diff across every effective working directory of a multi-folder Copilot session. */
 	private async _computeMultiFolderTurnDiffs(session: ProtocolURI, db: ISessionDatabase, turnId: string, dirs: readonly URI[]): Promise<readonly ISessionFileDiff[]> {
 		const sessionUri = URI.parse(session);
 		const ctx: IMultiRootDiffContext = {
@@ -792,44 +796,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this.computeUncommittedChangeset(session).then(() => undefined));
 	}
 
-	/**
-	 * Computes the branch changeset AND the all-folder session-list summary for a
-	 * multi-root Copilot session in a single pass (Problem 2), folded together so
-	 * the primary repository is diffed exactly once and every folder is diffed in
-	 * parallel.
-	 *
-	 * - **Branch changeset** stays primary-repository-only (unchanged shape):
-	 *   published/persisted from the primary repo's branch diff, with review
-	 *   overlay. When the primary git diff is unavailable the cached changeset is
-	 *   preserved (matching the single-folder path).
-	 * - **Summary** (`summary.changes`) is the all-folder aggregate. Per unique git
-	 *   repo it uses **branch semantics** (`computeSessionFileDiffs`) so the primary
-	 *   folder's contribution matches the single-folder branch-derived summary —
-	 *   going 1→2 folders only *adds* the other folders. The primary repo reuses the
-	 *   branch changeset's diff (session's configured base branch); other repos
-	 *   resolve their own default branch. Non-git / failed-git roots use the DB
-	 *   edit-tracker fallback.
-	 *
-	 * Runs inside {@link _doComputeStaticChangeset} on the `branch` sequencer key,
-	 * so it inherits that method's error handling and db-ref lifetime. Never
-	 * hard-fails a turn.
-	 */
+	/** Computes the primary-only branch changeset and all-folder summary in parallel while sharing the primary repository diff. */
 	private async _computeMultiFolderBranchAndSummary(session: ProtocolURI, db: ISessionDatabase, changesetUri: ProtocolURI, statusBeforeCompute: ChangesetStatus | undefined, dirs: readonly URI[]): Promise<void> {
 		const primaryRepoRoot = await this._gitService.getRepositoryRoot(dirs[0]);
-		// Compute the primary repo's branch diff exactly once. The orchestrator's
-		// primary target reuses this same in-flight promise (see computeGitDiff
-		// below), so the primary is diffed concurrently with — not before — the
-		// other folders.
 		const primaryDiffsPromise = this._tryComputeGitDiffs(session, db, ChangesetKind.Branch);
 		const ctx: IMultiRootDiffContext = {
 			session,
 			logService: this._logService,
 			getRepositoryRoot: dir => this._gitService.getRepositoryRoot(dir),
-			// The primary repo reuses the branch changeset's diff (configured base
-			// branch); other repos resolve their own default branch.
 			computeGitDiff: repoRoot => primaryRepoRoot && extUriBiasedIgnorePathCase.isEqual(repoRoot, primaryRepoRoot)
 				? primaryDiffsPromise
-				: this._gitService.computeSessionFileDiffs(repoRoot, { sessionUri: session }),
+				: computeSessionFileDiffsAgainstDefaultBranch(this._gitService, repoRoot, session),
 			computeFallbackDiff: roots => computeUnionedDiffs([{ sessionUri: session, db }], this._diffComputeService, { includeUnder: roots }),
 		};
 		const [primaryDiffs, aggregate, reviewed] = await Promise.all([
@@ -838,9 +815,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._computeReviewedInfo(session, db),
 		]);
 
-		// Branch changeset — primary repository only (unchanged shape). Preserve
-		// the cached changeset when the primary git diff is unavailable, exactly
-		// as the single-folder branch path does.
 		if (primaryDiffs) {
 			this._publishChangesetDiffs(session, changesetUri, primaryDiffs, reviewed);
 			this._persistSessionFlag(session, META_CHANGESET_BRANCH, JSON.stringify(primaryDiffs));
@@ -850,7 +824,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 		}
 
-		// Session-list summary — all folders (Problem 2).
 		const changesSummary = summariseDiffs(aggregate) ?? { additions: 0, deletions: 0, files: 0 };
 		this.persistChangesSummary(session, changesSummary);
 		this._stateManager.setSessionSummaryChanges(session, changesSummary);

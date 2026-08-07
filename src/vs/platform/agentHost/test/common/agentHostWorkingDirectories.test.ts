@@ -25,7 +25,7 @@ suite('agentHostWorkingDirectories', () => {
 		});
 	});
 
-	suite('selectRepositoryRootForBlobPath (git-blob Option A)', () => {
+	suite('selectRepositoryRootForBlobPath (git-blob owning-root resolution)', () => {
 		test('selects the repository root that owns the blob path', () => {
 			const root = selectRepositoryRootForBlobPath('/repoB/y.ts', [URI.file('/repoA'), URI.file('/repoB')]);
 			assert.strictEqual(root?.toString(), URI.file('/repoB').toString());

@@ -4,82 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionFileDiff } from '../common/state/sessionState.js';
 
-/**
- * Maximum number of unique diff targets (git repositories + non-git folders)
- * processed for a single multi-root changeset compute. A safety valve for
- * pathological workspaces; folders beyond the cap are skipped with a warning.
- */
+/** Maximum unique repositories and non-git folders processed by one multi-root diff. */
 export const MAX_MULTI_ROOT_DIFF_TARGETS = 20;
 
-/**
- * A resolved diff target: either a unique git repository root (diffed once,
- * however many working directories mapped to it) or a non-git folder (whose
- * changes come from the DB edit-tracker fallback).
- */
 type IMultiRootDiffTarget =
 	| { readonly kind: 'git'; readonly repoRoot: URI }
 	| { readonly kind: 'nonGit'; readonly dir: URI };
 
 /**
- * Callbacks + context the {@link computeDiffsAcrossWorkingDirectories}
- * orchestrator needs. Kept changeset-kind-agnostic so the turn changeset
- * (parent→current checkpoint refs) and the independent all-folder summary
- * (per-repo branch diffs) can share the same grouping / cap / parallelism /
- * fallback / dedup machinery, and so future multi-root branch/session/uncommitted
- * work can reuse it by supplying a different {@link computeGitDiff}.
+ * Supplies repository resolution and diff callbacks for {@link computeDiffsAcrossWorkingDirectories}.
  */
 export interface IMultiRootDiffContext {
-	/** Session URI string, for log messages. */
 	readonly session: string;
 	readonly logService: ILogService;
 
-	/** Resolves a working directory to its git repository root, or `undefined` when the directory is not a git work tree. */
 	getRepositoryRoot(dir: URI): Promise<URI | undefined>;
 
 	/**
-	 * Computes the git diff for one unique repository root. Return `undefined`
-	 * to signal a git failure (missing checkpoint/ref, git error) — the
-	 * orchestrator then falls back to the DB edit-tracker for that repo and logs
-	 * an error. Return `[]` for a successful compute that found no changes.
+	 * Computes one repository diff; `undefined` requests edit-tracker fallback.
 	 */
 	computeGitDiff(repoRoot: URI): Promise<readonly ISessionFileDiff[] | undefined>;
 
 	/**
-	 * Computes the DB edit-tracker fallback restricted to the given roots (the
-	 * union of non-git folders and any git repos whose {@link computeGitDiff}
-	 * failed). Called at most once.
+	 * Computes edit-tracker fallback for non-git and failed-git roots.
 	 */
 	computeFallbackDiff(roots: readonly URI[]): Promise<readonly ISessionFileDiff[]>;
 }
 
 /**
- * Computes file diffs across every effective working directory of a multi-root
- * session and aggregates them into one flat list.
- *
- * Implements the shared multi-root rules:
- * - **Q3 dedup:** working directories that resolve to the same git repository
- *   root are diffed once (grouped by repo-root comparison key); non-git folders
- *   are separate targets. Effective-directory order is preserved.
- * - **Q4 cap:** at most {@link MAX_MULTI_ROOT_DIFF_TARGETS} targets; excess are
- *   skipped with a single warning.
- * - **Parallel:** all git-repo diffs run concurrently.
- * - **Q2 graceful fallback:** a git failure (or non-git folder) routes that
- *   target to the DB edit-tracker fallback; each git failure is logged as an
- *   error. The aggregate never rejects — a failing fallback logs and returns the
- *   successful git results.
- * - Final defensive dedup by `after.uri ?? before.uri` (the changeset reducer
- *   does not enforce id uniqueness).
+ * Computes parallel per-repository diffs with bounded targets and edit-tracker fallback.
+ * Results are deduplicated by platform-aware file-resource identity.
  */
 export async function computeDiffsAcrossWorkingDirectories(
 	workingDirectories: readonly URI[],
 	ctx: IMultiRootDiffContext,
 ): Promise<readonly ISessionFileDiff[]> {
-	// 1. Resolve each working directory to a repository root (parallel). A thrown
-	//    probe is treated as non-git (it will route to the DB fallback).
 	const resolved = await Promise.all(workingDirectories.map(async dir => {
 		try {
 			return { dir, repoRoot: await ctx.getRepositoryRoot(dir) };
@@ -89,8 +53,6 @@ export async function computeDiffsAcrossWorkingDirectories(
 		}
 	}));
 
-	// 2. Build ordered unique targets: dedup git repos by repo-root key; keep
-	//    non-git folders as separate targets. Preserve effective-directory order.
 	const targets: IMultiRootDiffTarget[] = [];
 	const seenRepoKeys = new Set<string>();
 	for (const { dir, repoRoot } of resolved) {
@@ -106,7 +68,6 @@ export async function computeDiffsAcrossWorkingDirectories(
 		}
 	}
 
-	// 3. Cap.
 	let effectiveTargets = targets;
 	if (targets.length > MAX_MULTI_ROOT_DIFF_TARGETS) {
 		const skipped = targets.length - MAX_MULTI_ROOT_DIFF_TARGETS;
@@ -114,7 +75,6 @@ export async function computeDiffsAcrossWorkingDirectories(
 		effectiveTargets = targets.slice(0, MAX_MULTI_ROOT_DIFF_TARGETS);
 	}
 
-	// 4. Run git diffs in parallel; collect fallback roots for failures.
 	const fallbackRoots: URI[] = [];
 	const gitResults: ISessionFileDiff[] = [];
 	const gitTargets = effectiveTargets.filter((t): t is { kind: 'git'; repoRoot: URI } => t.kind === 'git');
@@ -123,7 +83,6 @@ export async function computeDiffsAcrossWorkingDirectories(
 		try {
 			const diff = await ctx.computeGitDiff(repoRoot);
 			if (diff === undefined) {
-				// 5. Q2: git failure → DB fallback for this repo, logged as error.
 				ctx.logService.error(`[MultiRootDiff] Git diff unavailable for ${repoRoot.toString()} in ${ctx.session}; falling back to edit-tracker.`);
 				fallbackRoots.push(repoRoot);
 				return;
@@ -135,7 +94,6 @@ export async function computeDiffsAcrossWorkingDirectories(
 		}
 	}));
 
-	// 6. Non-git folders always use the DB fallback (no error log — expected).
 	for (const t of effectiveTargets) {
 		if (t.kind === 'nonGit') {
 			fallbackRoots.push(t.dir);
@@ -152,14 +110,17 @@ export async function computeDiffsAcrossWorkingDirectories(
 		}
 	}
 
-	// 7. Flatten + defensive dedup by file id (after.uri ?? before.uri).
 	const byId = new Map<string, ISessionFileDiff>();
 	for (const diff of [...gitResults, ...fallbackResults]) {
 		const id = diff.after?.uri ?? diff.before?.uri;
 		if (!id) {
 			continue;
 		}
-		byId.set(id, diff);
+		const resource = URI.parse(id);
+		const key = resource.scheme === Schemas.file
+			? extUriBiasedIgnorePathCase.getComparisonKey(resource)
+			: id;
+		byId.set(key, diff);
 	}
 	return [...byId.values()];
 }

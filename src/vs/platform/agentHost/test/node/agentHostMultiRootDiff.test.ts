@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -29,7 +30,7 @@ suite('computeDiffsAcrossWorkingDirectories', () => {
 
 	const session = 'copilotcli:/session-1';
 
-	test('dedups working directories that resolve to the same repository root (Q3)', async () => {
+	test('dedups working directories that resolve to the same repository root', async () => {
 		const repoRoot = URI.file('/repo');
 		const gitCalls: string[] = [];
 		const log = new CapturingLogService();
@@ -52,7 +53,7 @@ suite('computeDiffsAcrossWorkingDirectories', () => {
 		});
 	});
 
-	test('partitions git vs non-git folders; DB fallback only covers non-git roots (Q1)', async () => {
+	test('partitions git vs non-git folders; DB fallback only covers non-git roots', async () => {
 		const gitRoot = URI.file('/git-repo');
 		const nonGitDir = URI.file('/plain-folder');
 		let fallbackRoots: readonly URI[] = [];
@@ -75,7 +76,7 @@ suite('computeDiffsAcrossWorkingDirectories', () => {
 		});
 	});
 
-	test('caps targets at the maximum and warns once (Q4)', async () => {
+	test('caps targets at the maximum and warns once', async () => {
 		const gitCalls: string[] = [];
 		const log = new CapturingLogService();
 		const dirs = Array.from({ length: MAX_MULTI_ROOT_DIFF_TARGETS + 1 }, (_, i) => URI.file(`/repo-${i}`));
@@ -121,7 +122,7 @@ suite('computeDiffsAcrossWorkingDirectories', () => {
 		assert.strictEqual(result.length, 3);
 	});
 
-	test('falls back per-folder and logs an error when a git diff fails or is unavailable (Q2)', async () => {
+	test('falls back per-folder and logs an error when a git diff fails or is unavailable', async () => {
 		const okRoot = URI.file('/ok');
 		const failRoot = URI.file('/fail-undefined');
 		const throwRoot = URI.file('/fail-throw');
@@ -166,6 +167,40 @@ suite('computeDiffsAcrossWorkingDirectories', () => {
 		assert.deepStrictEqual(result.map(r => ({ uri: r.after?.uri, added: r.diff?.added })), [
 			{ uri: 'file:///dup.ts', added: 9 }, // last wins, single entry
 		]);
+	});
+
+	test('dedups file resources according to platform path casing', async () => {
+		const ctx: IMultiRootDiffContext = {
+			session,
+			logService: new CapturingLogService(),
+			getRepositoryRoot: async dir => dir,
+			computeGitDiff: async () => [
+				fileDiff(URI.file('/repo/File.ts').toString(), 1),
+				fileDiff(URI.file('/repo/file.ts').toString(), 2),
+			],
+			computeFallbackDiff: async () => [],
+		};
+
+		const result = await computeDiffsAcrossWorkingDirectories([URI.file('/repo')], ctx);
+
+		assert.deepStrictEqual(result.map(diff => diff.diff?.added), isLinux ? [1, 2] : [2]);
+	});
+
+	test('does not case-fold non-file resource identities', async () => {
+		const ctx: IMultiRootDiffContext = {
+			session,
+			logService: new CapturingLogService(),
+			getRepositoryRoot: async dir => dir,
+			computeGitDiff: async () => [
+				fileDiff('custom:/Repo/File.ts', 1),
+				fileDiff('custom:/repo/file.ts', 2),
+			],
+			computeFallbackDiff: async () => [],
+		};
+
+		const result = await computeDiffsAcrossWorkingDirectories([URI.file('/repo')], ctx);
+
+		assert.deepStrictEqual(result.map(diff => diff.diff?.added), [1, 2]);
 	});
 
 	test('never rejects when the fallback fails — returns git results and logs an error', async () => {

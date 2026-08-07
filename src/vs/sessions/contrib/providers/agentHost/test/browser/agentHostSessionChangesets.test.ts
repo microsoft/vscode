@@ -34,7 +34,7 @@ function uris(changes: readonly ISessionFileChange[]): string[] {
 	return changes.map(c => (isIChatSessionFileChange2(c) ? c.uri : c.modifiedUri).toString());
 }
 
-suite('filterChangesToPrimaryRepoRoot (Q6b)', () => {
+suite('filterChangesToPrimaryRepoRoot', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('multi-folder: keeps only files under the primary folder, drops secondary-folder files', () => {

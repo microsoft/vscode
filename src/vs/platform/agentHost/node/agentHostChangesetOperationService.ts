@@ -68,13 +68,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			return [];
 		}
 
-		// Turn and compare-turns changesets in multi-root Copilot sessions advertise
-		// NO operations: both aggregate files across repositories, so primary-repo-
-		// scoped git operations (commit / create-pr / sync) would be misleading.
-		// Enforced here — the single source of advertised operations — so BOTH
-		// `_publishChangesetDiffs` (publish time) and `updateOperations` (re-dispatched
-		// on git-state / active-turn changes) honour the rule and cannot repopulate
-		// these changesets' operations.
+		// Turn spans repositories; Compare stays primary-only but intentionally also exposes no operations in multi-root sessions.
 		if ((parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Compare) && this._isMultiFolderCopilot(sessionKey)) {
 			return [];
 		}
@@ -88,11 +82,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	/**
-	 * Whether `sessionKey` is a multi-root Copilot session — the gate for
-	 * suppressing turn-changeset operations. Mirrors the changeset service's
-	 * multi-folder gate (Copilot provider + more than one working directory).
-	 */
+	/** Checks whether operation suppression applies to this Copilot session. */
 	private _isMultiFolderCopilot(sessionKey: string): boolean {
 		if (AgentSession.provider(sessionKey) !== 'copilotcli') {
 			return false;

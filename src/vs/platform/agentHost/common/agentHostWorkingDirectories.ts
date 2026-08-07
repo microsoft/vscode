@@ -20,14 +20,7 @@ export function findDeepestContainingWorkingDirectory(resource: URI, workingDire
 	return deepestMatch;
 }
 
-/**
- * Selects the repository root that owns a `git-blob:` URI's absolute path, for
- * multi-root sessions. Reconstructs the file URI from `absolutePath` (which is an
- * already-URI-encoded file path carried in the git-blob URI — avoid `URI.file` on
- * it so Windows drive paths aren't mis-normalized), then returns the deepest
- * containing repository root (so nested repos resolve deterministically). Returns
- * `undefined` when no root contains the path.
- */
+/** Selects the deepest repository root containing the absolute URI path from a `git-blob:` resource. */
 export function selectRepositoryRootForBlobPath(absolutePath: string, repositoryRoots: readonly URI[]): URI | undefined {
 	const fileUri = URI.from({ scheme: Schemas.file, path: absolutePath });
 	return findDeepestContainingWorkingDirectory(fileUri, repositoryRoots);

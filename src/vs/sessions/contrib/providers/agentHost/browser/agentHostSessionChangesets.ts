@@ -22,16 +22,7 @@ import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOper
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
-/**
- * Filters a changeset's file changes to those under the workspace's **primary
- * repository root** — the Q6b rule for the Agents Window Changes panel, whose
- * tree is single-root. For single-folder workspaces (or none) this is identity.
- * The primary root is the primary folder's git worktree root when known (so a
- * session opened from a repository subdirectory still keeps its whole repo's
- * files), else the primary folder's `root`.
- *
- * Exported for unit testing; used by {@link AgentHostLastTurnChangeset}.
- */
+/** Filters multi-folder changes to the primary repository root used by the single-root Agents Window Changes panel. */
 export function filterChangesToPrimaryRepoRoot(changes: readonly ISessionFileChange[], workspace: ISessionWorkspace | undefined): readonly ISessionFileChange[] {
 	if (!workspace || workspace.folders.length <= 1) {
 		return changes;
@@ -293,13 +284,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		});
 	}
 
-	/**
-	 * Hook applied to the changeset's file list before it is exposed via
-	 * {@link changes}. The default is identity (no filtering). Subclasses override
-	 * it to adjust the exposed changes — see {@link AgentHostLastTurnChangeset},
-	 * which filters to the primary repository root for multi-folder sessions (Q6b)
-	 * so the single-root Agents Window Changes panel stays consistent.
-	 */
+	/** Maps file changes before exposing them to consumers. */
 	protected _mapChanges(changes: readonly ISessionFileChange[], _reader: IReader): readonly ISessionFileChange[] {
 		return changes;
 	}
@@ -501,18 +486,6 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		this.isEnabled = derived(reader => this.channelUriObs.read(reader) !== undefined);
 	}
 
-	/**
-	 * Q6b: for a multi-folder session, the per-turn changeset returns files from
-	 * ALL working folders (Problem 1), but the Agents Window Changes panel renders
-	 * a single-root tree. Filter the exposed changes to the primary repository root
-	 * so the panel stays consistent (tree, stats, open actions all derive from
-	 * this observable). Single-folder sessions are unaffected (identity). The
-	 * shared chat per-turn summary is a different surface and stays all-folder.
-	 *
-	 * The primary root is the primary folder's git worktree root when known (so a
-	 * session opened from a repository subdirectory still keeps its whole repo's
-	 * files), else the primary folder's root.
-	 */
 	protected override _mapChanges(changes: readonly ISessionFileChange[], reader: IReader): readonly ISessionFileChange[] {
 		return filterChangesToPrimaryRepoRoot(changes, this._workspaceObs.read(reader));
 	}

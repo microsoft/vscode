@@ -4191,18 +4191,7 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	/**
-	 * Resolves the working directory to run `git show` from for a `git-blob:` URI.
-	 *
-	 * Single-folder / non-Copilot sessions use the primary working directory
-	 * (`workingDirectories[0]`), unchanged. Multi-root Copilot sessions derive the
-	 * owning repository **server-side** (Option A) by matching the blob's absolute
-	 * path (carried in the URI) against the session's repository roots, so a
-	 * non-primary folder's diff opens correctly. The cwd is always chosen from
-	 * server-trusted session state — never from the client-held URI — and repo
-	 * roots are re-derived per fetch (so worktree remaps / removed roots are
-	 * handled). Returns `undefined` when no owning root is found (→ NotFound).
-	 */
+	/** Resolves the server-trusted repository root used to read a `git-blob:` resource. */
 	private async _resolveGitBlobWorkingDirectory(fields: IGitBlobUriFields): Promise<URI | undefined> {
 		const dirs = this._configurationService.getEffectiveWorkingDirectories(fields.sessionUri);
 		const isMultiFolderCopilot = AgentSession.provider(fields.sessionUri) === 'copilotcli' && !!dirs && dirs.length > 1;
@@ -4212,9 +4201,6 @@ export class AgentService extends Disposable implements IAgentService {
 			return primary ? URI.parse(primary) : undefined;
 		}
 
-		// Resolve unique repository roots from the session's effective working
-		// directories (parallel, deduped). Non-git dirs are skipped — their
-		// content is served from the `session-db:` path, not git-blob.
 		const repoRoots: URI[] = [];
 		const seen = new Set<string>();
 		await Promise.all(dirs!.map(async dir => {
@@ -4228,14 +4214,12 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 				}
 			} catch {
-				// Skip a dir whose repo-root probe fails; another root may own the blob.
+				// Another repository root may still own the blob.
 			}
 		}));
 		if (repoRoots.length === 0) {
 			return undefined;
 		}
-		// Pick the deepest repository root that contains the blob's absolute path
-		// (server-derived roots only — never a client-supplied cwd).
 		return selectRepositoryRootForBlobPath(fields.absolutePath, repoRoots);
 	}
 
