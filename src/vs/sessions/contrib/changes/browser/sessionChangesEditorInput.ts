@@ -85,7 +85,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 		return this.innerInput.getViewModel();
 	}
 
-	releaseResolvedModel(): void {
+	clear(): void {
 		this._innerInput.clear();
 	}
 

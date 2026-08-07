@@ -382,7 +382,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this.viewModel = undefined;
 		this.widget?.setViewModel(undefined);
 		if (input instanceof SessionChangesEditorInput) {
-			input.releaseResolvedModel();
+			input.clear();
 		}
 	}
 

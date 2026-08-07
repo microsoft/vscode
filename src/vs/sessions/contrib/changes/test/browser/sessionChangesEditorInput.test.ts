@@ -37,7 +37,7 @@ suite('SessionChangesEditorInput', () => {
 			instantiationService,
 		));
 		await input.getViewModel();
-		input.releaseResolvedModel();
+		input.clear();
 
 		let secondModelResolved = false;
 		instantiationService.stubInstance(MultiDiffEditorInput, {
@@ -70,9 +70,9 @@ suite('SessionChangesEditorInput', () => {
 		class TestSessionChangesEditorInput extends SessionChangesEditorInput {
 			released = false;
 
-			override releaseResolvedModel(): void {
+			override clear(): void {
 				this.released = true;
-				super.releaseResolvedModel();
+				super.clear();
 			}
 		}
 
