@@ -1259,13 +1259,15 @@ function getTerminalOutput(tc: ToolCallState) {
 
 	const terminalContent = getTerminalContent(tc.content);
 	const terminalResult = getTerminalCommandResult(tc);
+	const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 
-	// Prefer the structured terminal snapshot. Text content is a compatibility
-	// fallback for older/restored results and can include legacy bookkeeping.
-	let text = terminalResult?.preview;
+	// A truncated preview omits the completion text that tells the user where the full output was saved.
+	// TODO: Use an SDK API for the large-output file path instead of relying on the tool completion display text.
+	let text = terminalResult?.truncated === true && fallbackText !== undefined
+		? stripLegacyTerminalExitMarkers(fallbackText)
+		: terminalResult?.preview;
 	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
 	if (text === undefined && terminalContent?.isPty !== false) {
-		const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
 	}
 	if (text === undefined || (!text && !hasRetainedNonPtySnapshot && terminalResult?.truncated !== true)) {
