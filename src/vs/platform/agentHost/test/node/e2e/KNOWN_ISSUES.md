@@ -548,14 +548,16 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Tests:
   - `reads a file from a nested directory`
   - `reads a value from JSON`
+  - `counts lines in a file`
 - Scope: Codex.
 - Expected: successful file-read tool completions include the file contents in their result text.
 - Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
-- Gate: these two tests remain enabled for other providers and are skipped for Codex.
+- Gate: these three tests remain enabled for other providers and are skipped for Codex.
 - Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
 - Failing runs:
   - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
   - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
+  - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
 
 ### Claude subagent replay on Windows
 
