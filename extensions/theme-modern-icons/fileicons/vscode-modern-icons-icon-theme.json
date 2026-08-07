@@ -691,6 +691,7 @@
 	"rootFolderNamesExpanded": {},
 	"light": {},
 	"highContrast": {},
+	"usesCurrentColor": true,
 	"hidesExplorerArrows": false,
 	"showLanguageModeIcons": false
 }

@@ -189,6 +189,7 @@ interface IconThemeDocument extends IconsAssociation {
 	fonts: FontDefinition[];
 	light?: IconsAssociation;
 	highContrast?: IconsAssociation;
+	usesCurrentColor?: boolean;
 	hidesExplorerArrows?: boolean;
 	showLanguageModeIcons?: boolean;
 }
@@ -419,7 +420,12 @@ export class FileIconThemeLoader {
 			const definition = iconThemeDocument.iconDefinitions[defId];
 			if (definition) {
 				if (definition.iconPath) {
-					cssRules.push(css.inline`${selectors.join(', ')} { content: ${emQuad}; background-image: ${css.asCSSUrl(resolvePath(definition.iconPath))}; }`);
+					const iconPath = css.asCSSUrl(resolvePath(definition.iconPath));
+					if (iconThemeDocument.usesCurrentColor) {
+						cssRules.push(css.inline`${selectors.join(', ')} { content: ${emQuad}; background-color: currentColor; background-image: none; mask: ${iconPath} no-repeat 50% 50%; mask-size: 16px; -webkit-mask: ${iconPath} no-repeat 50% 50%; -webkit-mask-size: 16px; }`);
+					} else {
+						cssRules.push(css.inline`${selectors.join(', ')} { content: ${emQuad}; background-image: ${iconPath}; }`);
+					}
 				} else if (definition.fontCharacter || definition.fontColor) {
 					const body = new css.Builder();
 					if (definition.fontColor && definition.fontColor.match(fontColorRegex)) {

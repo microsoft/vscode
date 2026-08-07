@@ -230,6 +230,10 @@ const schema: IJSONSchema = {
 				}
 			}
 		},
+		usesCurrentColor: {
+			type: 'boolean',
+			description: nls.localize('schema.usesCurrentColor', 'Whether image icons use their alpha channel as a mask filled with the current text color.')
+		},
 		folderExpanded: {
 			$ref: '#/definitions/folderExpanded'
 		},

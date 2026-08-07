@@ -14,7 +14,7 @@ The A group comes from [Ticket 1862 - VSCode 3rd Party Seti](https://www.figma.c
 ## Asset format
 
 - Use standalone SVG files with a `16 16` view box and a transparent background.
-- Use explicit fill and stroke colors. External SVG background images do not inherit VS Code theme colors.
+- Use `currentColor` for monochrome fill and stroke colors. This theme renders image icons as masks so they inherit the surrounding VS Code foreground color.
 - Do not include scripts, external resources, embedded fonts, CSS variables, or raster images inside SVG files.
 - Optimize paths and align strokes to the 16-pixel canvas.
 - Add dark, light, and high-contrast variants when a single color does not provide sufficient contrast.
