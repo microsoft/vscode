@@ -18,12 +18,12 @@ function change(uri: string): IChatSessionFileChange2 {
 	return { uri: u, modifiedUri: u, insertions: 1, deletions: 0 };
 }
 
-function folder(root: string, workTreeUri?: string): ISessionFolder {
+function folder(root: string, options?: { readonly workingDirectory?: string; readonly workTreeUri?: string }): ISessionFolder {
 	const rootUri = URI.file(root);
-	const gitRepository: ISessionGitRepository | undefined = workTreeUri
-		? { uri: rootUri, workTreeUri: URI.file(workTreeUri), baseBranchName: undefined, gitHubInfo: constObservable(undefined) }
+	const gitRepository: ISessionGitRepository | undefined = options?.workTreeUri
+		? { uri: rootUri, workTreeUri: URI.file(options.workTreeUri), baseBranchName: undefined, gitHubInfo: constObservable(undefined) }
 		: undefined;
-	return { root: rootUri, workingDirectory: rootUri, name: root, description: undefined, gitRepository };
+	return { root: rootUri, workingDirectory: URI.file(options?.workingDirectory ?? root), name: root, description: undefined, gitRepository };
 }
 
 function workspace(folders: ISessionFolder[]): ISessionWorkspace {
@@ -43,15 +43,25 @@ suite('filterChangesToPrimaryRepoRoot', () => {
 		assert.deepStrictEqual(uris(result), [URI.file('/repoA/a.ts').toString(), URI.file('/repoA/sub/c.ts').toString()]);
 	});
 
-	test('multi-folder: uses the primary git worktree root (repo-subdirectory session keeps its whole repo)', () => {
-		// Primary folder is /repo/packages/app but its git worktree root is /repo,
-		// so a change elsewhere in the repo (/repo/packages/lib) is retained.
+	test('multi-folder: a primary cwd inside the repository keeps the whole repository', () => {
 		const changes = [change('/repo/packages/app/a.ts'), change('/repo/packages/lib/b.ts'), change('/other/c.ts')];
-		const result = filterChangesToPrimaryRepoRoot(changes, workspace([folder('/repo/packages/app', '/repo'), folder('/elsewhere')]));
+		const result = filterChangesToPrimaryRepoRoot(changes, workspace([
+			folder('/repo', { workingDirectory: '/repo/packages/app', workTreeUri: '/repo/packages/app' }),
+			folder('/elsewhere'),
+		]));
 		assert.deepStrictEqual(uris(result), [
 			URI.file('/repo/packages/app/a.ts').toString(),
 			URI.file('/repo/packages/lib/b.ts').toString(),
 		]);
+	});
+
+	test('multi-folder: a separate primary worktree excludes the source repository', () => {
+		const changes = [change('/repo.worktrees/feature/a.ts'), change('/repo/src/b.ts'), change('/other/c.ts')];
+		const result = filterChangesToPrimaryRepoRoot(changes, workspace([
+			folder('/repo', { workingDirectory: '/repo.worktrees/feature', workTreeUri: '/repo.worktrees/feature' }),
+			folder('/elsewhere'),
+		]));
+		assert.deepStrictEqual(uris(result), [URI.file('/repo.worktrees/feature/a.ts').toString()]);
 	});
 
 	test('single-folder: returns changes unchanged (identity)', () => {

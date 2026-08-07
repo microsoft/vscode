@@ -345,6 +345,10 @@ the same per-session classification from its response-file provider. The preview
 pill itself stays a compact resource label (file icon + name); preview wording is
 kept to tooltips and actions, not rendered as visible pill text.
 
+The single-root Agents Changes panel filters multi-folder Last Turn Changes to the
+primary repository checkout. A working directory nested inside the repository uses the
+repository root so sibling files remain visible; a separate worktree uses its worktree URI.
+
 Explicit user-initiated "new session" gestures (Ctrl/Cmd+N, the **New** button,
 the mobile titlebar "+" button, and the sessions quick picker's "New Session"
 item) call `ISessionsService.openNewSession()`. With no `folderUri` this

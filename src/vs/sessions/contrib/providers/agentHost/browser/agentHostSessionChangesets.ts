@@ -22,13 +22,16 @@ import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOper
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
-/** Filters multi-folder changes to the primary repository root used by the single-root Agents Window Changes panel. */
+/** Filters multi-folder changes to the primary repository checkout represented by the single-root Agents Window Changes panel. */
 export function filterChangesToPrimaryRepoRoot(changes: readonly ISessionFileChange[], workspace: ISessionWorkspace | undefined): readonly ISessionFileChange[] {
 	if (!workspace || workspace.folders.length <= 1) {
 		return changes;
 	}
 	const primaryFolder = workspace.folders[0];
-	const primaryRoot = primaryFolder.gitRepository?.workTreeUri ?? primaryFolder.root;
+	const workTreeUri = primaryFolder.gitRepository?.workTreeUri;
+	const primaryRoot = workTreeUri && !extUriBiasedIgnorePathCase.isEqualOrParent(workTreeUri, primaryFolder.root)
+		? workTreeUri
+		: primaryFolder.root;
 	return changes.filter(change => {
 		const resource = isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
 		return extUriBiasedIgnorePathCase.isEqualOrParent(resource, primaryRoot);
