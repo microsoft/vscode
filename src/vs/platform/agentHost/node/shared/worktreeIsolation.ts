@@ -326,6 +326,7 @@ export class WorktreeIsolation extends Disposable {
 
 	/** Worktrees materialized during this host process, keyed by sessionId. */
 	private readonly _materializedWorktrees = new Map<string, ISessionWorktree>();
+	private readonly _worktreeDeletionRetries = new Map<string, ISessionWorktree>();
 
 	/**
 	 * Per-session announcement (markdown) emitted as a synthetic streaming
@@ -725,21 +726,23 @@ export class WorktreeIsolation extends Disposable {
 	/** Resolves the worktree to remove before the session database is deleted. */
 	async prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<ISessionWorktree | undefined> {
 		return this._sequencer.queue(sessionId, async () => {
+			const deletionRetry = this._worktreeDeletionRetries.get(sessionId);
+			if (deletionRetry) {
+				return deletionRetry;
+			}
 			const materializedWorktree = this._materializedWorktrees.get(sessionId);
 			if (materializedWorktree) {
 				return materializedWorktree;
 			}
-			let meta: IWorktreeMetadata | undefined;
 			try {
-				meta = await this._readWorktreeMetadata(sessionUri);
+				const meta = await this._readWorktreeMetadata(sessionUri);
+				return meta?.worktreePath && meta.repositoryRoot
+					? { repositoryRoot: meta.repositoryRoot, worktree: meta.worktreePath }
+					: undefined;
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to read worktree metadata before session deletion: ${errorMessage(error)}`);
-				return;
+				throw error;
 			}
-			if (meta?.worktreePath && meta.repositoryRoot) {
-				return { repositoryRoot: meta.repositoryRoot, worktree: meta.worktreePath };
-			}
-			return undefined;
 		});
 	}
 
@@ -756,8 +759,11 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await this._gitService.removeWorktree(worktree.repositoryRoot, worktree.worktree, { force: true });
 			this._materializedWorktrees.delete(sessionId);
+			this._worktreeDeletionRetries.delete(sessionId);
 		} catch (error) {
+			this._worktreeDeletionRetries.set(sessionId, worktree);
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktree.worktree.fsPath}': ${errorMessage(error)}`);
+			throw error;
 		}
 	}
 

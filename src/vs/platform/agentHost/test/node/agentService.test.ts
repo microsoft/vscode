@@ -1576,6 +1576,24 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree:/worktree']);
 		});
+
+		test('preserves session data when worktree metadata cannot be read', async () => {
+			let deletedSessionData = false;
+			const sessionDataService: ISessionDataService = {
+				...nullSessionDataService,
+				deleteSessionData: async () => { deletedSessionData = true; },
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			svc.setWorktreeIsolation({
+				prepareSessionDeletion: async () => { throw new Error('metadata unavailable'); },
+			} as unknown as WorktreeIsolation);
+
+			await assert.rejects(() => svc.disposeSession(session), /metadata unavailable/);
+
+			assert.strictEqual(deletedSessionData, false);
+		});
 	});
 
 	// ---- listSessions / listModels --------------------------------------

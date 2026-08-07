@@ -811,15 +811,27 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('failed worktree removal preserves the materialized worktree cache', async () => {
+	test('failed worktree removal rejects and remains available for retry', async () => {
 		const gitService = createGitService();
 		gitService.removeWorktree = async () => { throw new Error('remove failed'); };
 		const isolation = createIsolation(disposables, { gitService });
-		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		const worktree = URI.joinPath(worktreesRoot, 'persisted-worktree');
+		await Promise.all([
+			db.setMetadata('copilot.worktree.branchName', 'feature/x'),
+			db.setMetadata('copilot.worktree.path', worktree.toString()),
+			db.setMetadata('copilot.worktree.repositoryRoot', repoRoot.toString()),
+		]);
 
-		const worktree = await isolation.prepareSessionDeletion(sessionUri, sessionId);
-		await isolation.removeSessionWorktree(sessionId, worktree);
+		const worktreeToRemove = await isolation.prepareSessionDeletion(sessionUri, sessionId);
+		await assert.rejects(() => isolation.removeSessionWorktree(sessionId, worktreeToRemove), /remove failed/);
+		const retry = await isolation.prepareSessionDeletion(sessionUri, sessionId);
 
-		assert.strictEqual(isolation.getResolvedWorktree(sessionId)?.toString(), worktree?.worktree.toString());
+		assert.deepStrictEqual({
+			retryRepositoryRoot: retry?.repositoryRoot.toString(),
+			retryWorktree: retry?.worktree.toString(),
+		}, {
+			retryRepositoryRoot: repoRoot.toString(),
+			retryWorktree: worktree.toString(),
+		});
 	});
 });
