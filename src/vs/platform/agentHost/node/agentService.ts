@@ -2598,8 +2598,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * todo@connor4312: we can drop this when sending a message become a command
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
+	/** Invalidates queued actions when a client's reconnect grace expires. */
+	private readonly _clientDispatchGenerations = new Map<string, number>();
 
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
+		const clientDispatchGeneration = this._clientDispatchGenerations.get(clientId) ?? 0;
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -2620,10 +2623,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const pending = this._clientDispatchQueues.get(clientId);
 		if (!pending && !requiresPeerResolution && !requiresAttachmentRewrite) {
-			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
+			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext, clientDispatchGeneration);
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
+			if (!this._isClientDispatchGenerationCurrent(clientId, clientDispatchGeneration)) {
+				return;
+			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
 			}
@@ -2638,16 +2644,20 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				this._changesets.refreshBranchChangeset(changeset.sessionUri);
 			}
-			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
+			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext, clientDispatchGeneration);
 		}).catch(err => {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 		});
 
-		this._clientDispatchQueues.set(clientId, next.finally(() => {
-			if (this._clientDispatchQueues.get(clientId) === next) {
+		const queue = next.finally(() => {
+			if (this._clientDispatchQueues.get(clientId) === queue) {
 				this._clientDispatchQueues.delete(clientId);
+				if (!this._managedPermissionsByClient.has(clientId)) {
+					this._clientDispatchGenerations.delete(clientId);
+				}
 			}
-		}));
+		});
+		this._clientDispatchQueues.set(clientId, queue);
 	}
 
 	/**
@@ -2680,7 +2690,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return resolveSessionWorkingDirectoryAction(action, state.workingDirectories, capability.immutablePrimary === true);
 	}
 
-	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
+	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext, clientDispatchGeneration: number): void {
+		if (!this._isClientDispatchGenerationCurrent(clientId, clientDispatchGeneration)) {
+			return;
+		}
 		const origin = { clientId, clientSeq };
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
@@ -2729,12 +2742,19 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	removeClientManagedPermissions(clientId: string): void {
-		if (!this._managedPermissionsByClient.delete(clientId)) {
-			return;
+		this._clientDispatchGenerations.set(clientId, (this._clientDispatchGenerations.get(clientId) ?? 0) + 1);
+		if (this._managedPermissionsByClient.delete(clientId)) {
+			this._configurationService.publishRootTransientValues({
+				[AgentHostManagedPermissionsConfigKey]: this._getEffectiveManagedPermissions() ?? {},
+			});
 		}
-		this._configurationService.publishRootTransientValues({
-			[AgentHostManagedPermissionsConfigKey]: this._getEffectiveManagedPermissions() ?? {},
-		});
+		if (!this._clientDispatchQueues.has(clientId)) {
+			this._clientDispatchGenerations.delete(clientId);
+		}
+	}
+
+	private _isClientDispatchGenerationCurrent(clientId: string, generation: number): boolean {
+		return (this._clientDispatchGenerations.get(clientId) ?? 0) === generation;
 	}
 
 	private _setClientManagedPermissions(clientId: string, permissions: IManagedPermissions | undefined): IManagedPermissions | undefined {

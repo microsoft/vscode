@@ -1586,23 +1586,59 @@ suite('ProtocolServerHandler', () => {
 		await assert.rejects(readPromise, /Client client-fs-overlap-close disconnected/);
 	});
 
-	test('client disconnect cleans up', () => {
-		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+	test('client disconnect retains managed permissions through grace and removes them after expiry', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
-		const transport = connectClient('client-d', [sessionUri]);
-		transport.sent.length = 0;
+			const transport = connectClient('client-d', [sessionUri]);
+			transport.sent.length = 0;
+			transport.simulateClose();
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'After Disconnect' });
 
-		transport.simulateClose();
+			await new Promise(resolve => setTimeout(resolve, 29_999));
+			const beforeGraceExpiry = [...agentService.removedManagedPermissionClients];
+			await new Promise(resolve => setTimeout(resolve, 2));
 
-		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'After Disconnect' });
+			assert.deepStrictEqual({
+				sentMessages: transport.sent.length,
+				beforeGraceExpiry,
+				afterGraceExpiry: agentService.removedManagedPermissionClients,
+			}, {
+				sentMessages: 0,
+				beforeGraceExpiry: [],
+				afterGraceExpiry: ['client-d'],
+			});
+		});
+	});
 
-		assert.deepStrictEqual({
-			sentMessages: transport.sent.length,
-			removedManagedPermissionClients: agentService.removedManagedPermissionClients,
-		}, {
-			sentMessages: 0,
-			removedManagedPermissionClients: ['client-d'],
+	test('reconnect during grace preserves managed permissions', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const transport1 = connectClient('client-managed-reconnect');
+			const initializeResponse = findResponse(transport1.sent, 1) as { result: InitializeResult };
+			transport1.simulateClose();
+
+			await new Promise(resolve => setTimeout(resolve, 15_000));
+			const duringGrace = [...agentService.removedManagedPermissionClients];
+
+			const transport2 = new MockProtocolTransport();
+			server.simulateConnection(transport2);
+			const reconnectResponse = waitForResponse(transport2, 1);
+			transport2.simulateMessage(request(1, 'reconnect', {
+				clientId: 'client-managed-reconnect',
+				lastSeenServerSeq: initializeResponse.result.serverSeq,
+				subscriptions: [],
+			}));
+			await reconnectResponse;
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+
+			assert.deepStrictEqual({
+				duringGrace,
+				afterOriginalGraceExpiry: agentService.removedManagedPermissionClients,
+			}, {
+				duringGrace: [],
+				afterOriginalGraceExpiry: [],
+			});
 		});
 	});
 

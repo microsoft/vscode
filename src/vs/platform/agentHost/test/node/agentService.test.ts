@@ -891,6 +891,69 @@ suite('AgentService (node dispatcher)', () => {
 			listener.dispose();
 		});
 
+		test('does not apply a queued action from a disconnected client generation', async () => {
+			const { svc, session } = await createDynamicWorkingDirectorySession();
+			const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/stale-source.txt' });
+			await fileService.writeFile(source, VSBuffer.fromString('contents'));
+			const readStarted = new DeferredPromise<void>();
+			const readGate = new DeferredPromise<void>();
+			const originalReadFile = fileService.readFile.bind(fileService);
+			fileService.readFile = async resource => {
+				if (resource.toString() === source.toString()) {
+					readStarted.complete();
+					await readGate.p;
+				}
+				return originalReadFile(resource);
+			};
+			disposables.add(toDisposable(() => fileService.readFile = originalReadFile));
+			const clientId = 'disconnected-client';
+			const dispatchedClientSequences: number[] = [];
+			const listener = svc.onDidAction(envelope => {
+				if (envelope.origin?.clientId === clientId) {
+					dispatchedClientSequences.push(envelope.origin.clientSeq);
+				}
+			});
+
+			svc.dispatchAction(buildDefaultChatUri(session.toString()), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'hello',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: source.toString(),
+						label: 'stale-source.txt',
+						displayKind: 'document',
+					}],
+				},
+			}, clientId, 1, AgentHostClientType.EditorWindow);
+			await readStarted.p;
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostManagedPermissionsConfigKey]: { ask: ['Shell(*)'] } },
+			}, clientId, 2);
+			svc.removeClientManagedPermissions(clientId);
+			const queueDrained = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientId === clientId && envelope.origin.clientSeq === 3));
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, clientId, 3, AgentHostClientType.EditorWindow);
+
+			readGate.complete();
+			await queueDrained;
+
+			assert.deepStrictEqual({
+				dispatchedClientSequences,
+				managedPermissions: svc.stateManager.rootState.config?.values[AgentHostManagedPermissionsConfigKey],
+			}, {
+				dispatchedClientSequences: [3],
+				managedPermissions: undefined,
+			});
+			listener.dispose();
+		});
+
 		test('reduces working-directory mutations synchronously in dispatch order', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const added = URI.file('/workspace/added');
