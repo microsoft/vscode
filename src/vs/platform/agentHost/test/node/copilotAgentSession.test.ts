@@ -2983,7 +2983,6 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
 				enabled: true,
-				allowBypass: true,
 				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
 			});
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['off']);
@@ -3427,7 +3426,6 @@ suite('CopilotAgentSession', () => {
 				permissionModes: ['off'],
 				sandbox: {
 					enabled: true,
-					allowBypass: true,
 					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
 				},
 			});
@@ -3446,15 +3444,18 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
 		});
 
-		test('per-request sandbox: explicitly disabled on Windows', async () => {
+		test('per-request sandbox: applies the configured policy on Windows', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On } },
 				platform: 'win32',
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
+				enabled: true,
+				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
+			});
 		});
 
 		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {

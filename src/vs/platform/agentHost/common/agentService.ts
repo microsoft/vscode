@@ -205,20 +205,31 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
  * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
- * is `false`). Values mirror {@link AgentSandboxEnabledValue}:
+ * is `false`). Supported values are:
  *
  *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
  *    path \u2014 commands run unsandboxed.
  *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
  *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
- *    Outbound network is enforced via the user's allow/deny host lists.
- *  - `'allowNetwork'`: same as `'on'` but with unrestricted outbound network.
+ *    Outbound network is blocked.
+ *
+ * Unrestricted outbound network is controlled separately by
+ * `chat.agent.sandbox.allowNetwork`.
  *
  * Has no effect when `AgentHostCustomTerminalToolEnabledSettingId` is
  * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
  * commands and reads `chat.agent.sandbox.enabled` directly.
  */
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
+
+/**
+ * Configuration key that controls the sandbox mode for the Copilot SDK's
+ * built-in shell tool on Windows. This is independent of
+ * {@link AgentHostSdkSandboxEnabledSettingId} so Windows support can be rolled
+ * out separately. Supported values are `'off'` and `'on'`; the default is
+ * `'off'`.
+ */
+export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
 
 /**
  * Selects which Claude integration fulfills Claude sessions opened from the

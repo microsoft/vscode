@@ -12,7 +12,7 @@ import { PolicyCategory } from '../../../../base/common/policy.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
@@ -1571,13 +1571,26 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostSdkSandboxEnabledSettingId]: {
 			type: 'string',
-			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 			enumDescriptions: [
 				nls.localize('chat.agentHost.sdkSandbox.enabled.off', "No sandbox policy is forwarded for the SDK's built-in shell tool — commands run unsandboxed."),
-				nls.localize('chat.agentHost.sdkSandbox.enabled.on', "The SDK's built-in shell tool runs inside a sandbox using the configured filesystem policy and host-list-restricted network."),
-				nls.localize('chat.agentHost.sdkSandbox.enabled.allowNetwork', "The SDK's built-in shell tool runs inside a sandbox with unrestricted outbound network access."),
+				nls.localize('chat.agentHost.sdkSandbox.enabled.on', "The SDK's built-in shell tool runs inside a sandbox using the configured filesystem policy with outbound network blocked."),
 			],
-			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`. The sandbox applies only to requests that run with default permissions — not when approvals are bypassed — and is not supported on Windows yet."),
+			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool on macOS and Linux. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`. The sandbox applies only to requests that run with default permissions — not when approvals are bypassed. Unrestricted network is controlled by `#chat.agent.sandbox.allowNetwork#`. Use `#chat.agentHost.sdkSandbox.enabledWindows#` on Windows."),
+			default: AgentSandboxEnabledValue.Off,
+			tags: ['experimental', 'advanced'],
+			experiment: {
+				mode: 'auto'
+			},
+		},
+		[AgentHostSdkSandboxWindowsEnabledSettingId]: {
+			type: 'string',
+			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.sdkSandbox.enabledWindows.off', "No sandbox policy is forwarded for the SDK's built-in shell tool on Windows — commands run unsandboxed."),
+				nls.localize('chat.agentHost.sdkSandbox.enabledWindows.on', "The SDK's built-in shell tool runs inside the Windows sandbox using the configured filesystem policy."),
+			],
+			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabledWindows', "Sandbox mode for the Copilot SDK's built-in shell tool on Windows. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`. This setting is independent of `#chat.agentHost.sdkSandbox.enabled#` so Windows sandbox support can be enabled separately. Unrestricted network is controlled by `#chat.agent.sandbox.allowNetwork#`."),
 			default: AgentSandboxEnabledValue.Off,
 			tags: ['experimental', 'advanced'],
 			experiment: {
