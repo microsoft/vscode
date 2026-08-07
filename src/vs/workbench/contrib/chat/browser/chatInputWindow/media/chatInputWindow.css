@@ -137,6 +137,10 @@
 	flex: 1 1 auto;
 }
 
+.chat-input-window .voice-transcript-overlay-scrollable {
+	inset: 0;
+}
+
 .chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
 	background: none !important;
 	color: var(--vscode-icon-foreground) !important;
