@@ -19,7 +19,6 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	interactiveInputPrompt: 'Call ask_user exactly once to ask "Which fruit?" with choices "Apple" and "Banana". After the answer, reply with only the selected fruit.',
 	cancelledInputPrompt: 'Call ask_user exactly once to ask "Continue?" with choices "Yes" and "No". If the request is cancelled, reply exactly "cancelled".',
 	textInputPrompt: 'Call ask_user exactly once to ask "What word?" with no choices. After the answer, reply with only the answer.',
-	multiSelectInputPrompt: 'Call ask_user exactly once to ask "Which colors?" with choices "Red" and "Blue" and allow multiple selections. After the answer, reply with only the selected colors.',
 	supportsWorkspacelessE2E: true,
 	supportsRuntimeSlashCommandsE2E: true,
 	supportsAttachmentsE2E: true,

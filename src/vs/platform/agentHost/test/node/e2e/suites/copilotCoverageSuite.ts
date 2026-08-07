@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -20,7 +20,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
-import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -480,17 +480,30 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const turnId = 'turn-grep-tool';
 		await driveTurnToCompletion(context.client, sessionUri, turnId, 'Use grep exactly once to find COPILOT_E2E_NEEDLE in the workspace, then reply exactly "found".', 1);
 
-		assert.ok(startedToolNames(context, turnId).includes('grep'));
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId,
+			toolNames: ['grep'],
+			workspace,
+			expected: [/needle\.txt/],
+		});
 	});
 
 	test('glob finds a nested workspace file through the provider tool', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('glob-tool');
-		writeFileSync(join(workspace, 'glob-target.unique'), 'target\n');
+		mkdirSync(join(workspace, 'nested'));
+		writeFileSync(join(workspace, 'nested', 'glob-target.unique'), 'target\n');
 		const turnId = 'turn-glob-tool';
 		await driveTurnToCompletion(context.client, sessionUri, turnId, 'Use glob exactly once to find files matching **/*.unique, then reply exactly "found".', 1);
 
-		assert.ok(startedToolNames(context, turnId).includes('glob'));
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId,
+			toolNames: ['glob'],
+			workspace,
+			expected: [/nested\/glob-target\.unique/],
+		});
 	});
 
 	test('shell failure preserves the real nonzero exit code', async function () {

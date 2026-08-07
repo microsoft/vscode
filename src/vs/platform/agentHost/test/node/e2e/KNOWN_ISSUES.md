@@ -69,7 +69,7 @@ A user can start a shell command in the background, inspect or list the running 
 - Reproduce:
 
   ```bash
-  ./scripts/test-integration.sh --run \
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "managed shell|custom terminal tool manages"
   ```
@@ -88,7 +88,7 @@ A Copilot session can defer client-provided tools, search for the relevant tool 
 - Reproduce:
 
   ```bash
-  ./scripts/test-integration.sh --run \
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "tool search"
   ```
