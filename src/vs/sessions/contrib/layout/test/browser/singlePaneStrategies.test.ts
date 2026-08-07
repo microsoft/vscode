@@ -4,26 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
 import { derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionViewState } from '../../browser/baseSessionLayoutController.js';
 import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
-import { SinglePaneNewSessionRulesStrategy } from '../../browser/singlePane/singlePaneNewSessionRulesStrategy.js';
-import { SinglePaneQuickChatEditorHideStrategy } from '../../browser/singlePane/singlePaneQuickChatEditorHideStrategy.js';
-import { SinglePaneDetailVisibilityStrategy } from '../../browser/singlePane/singlePaneDetailVisibilityStrategy.js';
+import { SinglePaneDetailsStrategy } from '../../browser/singlePane/singlePaneDetailsStrategy.js';
 import { SinglePaneDetailPanelStrategy } from '../../browser/singlePane/singlePaneDetailPanelStrategy.js';
 import { SinglePaneManagedTabsStrategy } from '../../browser/singlePane/singlePaneManagedTabsStrategy.js';
 import { SinglePaneEditorAreaCollapseStrategy } from '../../browser/singlePane/singlePaneEditorAreaCollapseStrategy.js';
-import { SinglePaneResponsiveSidebarStrategy } from '../../browser/singlePane/singlePaneResponsiveSidebarStrategy.js';
 import { SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { CHANGES_VIEW_ID, CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -31,13 +27,13 @@ import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, Tes
 
 /**
  * Mutable state backing a test {@link ISinglePaneLayoutContext}. Tests flip these
- * flags / seed the map to reproduce the coordination the real controller drives.
+ * flags to reproduce the coordination the real controller drives.
  */
 interface ITestContextState {
 	isRestoringSessionLayout: boolean;
 	togglingSidePane: boolean;
-	hidingAuxiliaryBarForRestore: boolean;
-	readonly viewStateBySession: ResourceMap<ISessionViewState>;
+	/** Fires the settled-restore signal strategies reconcile off ([Trigger D]). */
+	endSessionLayoutRestore(): void;
 }
 
 /**
@@ -46,12 +42,12 @@ interface ITestContextState {
  * The returned `state` lets tests toggle the coordination flags the controller
  * would otherwise own.
  */
-function createStrategyTestContext(harness: ITestLayoutHarness): { readonly ctx: ISinglePaneLayoutContext; readonly state: ITestContextState } {
+function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutHarness): { readonly ctx: ISinglePaneLayoutContext; readonly state: ITestContextState } {
+	const onDidEndSessionLayoutRestore = store.add(new Emitter<void>());
 	const state: ITestContextState = {
 		isRestoringSessionLayout: false,
 		togglingSidePane: false,
-		hidingAuxiliaryBarForRestore: false,
-		viewStateBySession: new ResourceMap<ISessionViewState>(),
+		endSessionLayoutRestore: () => onDidEndSessionLayoutRestore.fire(),
 	};
 
 	const activeSessionResourceObs = derived(reader => harness.activeSessionObs.read(reader)?.resource);
@@ -62,32 +58,26 @@ function createStrategyTestContext(harness: ITestLayoutHarness): { readonly ctx:
 		withSessionLayoutRestore: work => {
 			const wasRestoring = state.isRestoringSessionLayout;
 			state.isRestoringSessionLayout = true;
+			const done = () => {
+				state.isRestoringSessionLayout = wasRestoring;
+				onDidEndSessionLayoutRestore.fire();
+			};
 			try {
 				const result = work();
 				if (result instanceof Promise) {
-					result.finally(() => { state.isRestoringSessionLayout = wasRestoring; });
+					result.finally(done);
 				} else {
-					state.isRestoringSessionLayout = wasRestoring;
+					done();
 				}
 			} catch (e) {
-				state.isRestoringSessionLayout = wasRestoring;
+				done();
 				throw e;
 			}
 		},
+		onDidEndSessionLayoutRestore: onDidEndSessionLayoutRestore.event,
 		get togglingSidePane() { return state.togglingSidePane; },
 		multipleSessionsVisibleObs,
 		activeSessionResourceObs,
-		viewStateBySession: state.viewStateBySession,
-		get hidingAuxiliaryBarForRestore() { return state.hidingAuxiliaryBarForRestore; },
-		hideAuxiliaryBarForRestore: () => {
-			state.hidingAuxiliaryBarForRestore = true;
-			try {
-				harness.setPartHiddenCalls.push({ hidden: true, part: Parts.AUXILIARYBAR_PART });
-				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			} finally {
-				state.hidingAuxiliaryBarForRestore = false;
-			}
-		},
 	};
 
 	return { ctx, state };
@@ -103,27 +93,13 @@ suite('SinglePane layout strategies', () => {
 
 	function setup(options: ICreateOptions = {}): { readonly ctx: ISinglePaneLayoutContext; readonly state: ITestContextState } {
 		harness = createTestHarness(store, options);
-		return createStrategyTestContext(harness);
+		return createStrategyTestContext(store, harness);
 	}
 
 	/** Makes the given session the single active + visible session. */
 	function activate(session: IActiveSession | undefined): void {
 		harness.activeSessionObs.set(session, undefined);
 		harness.visibleSessionsObs.set(session ? [session] : [], undefined);
-	}
-
-	/** Sets editor part visibility, firing the part-visibility change like production. */
-	function setEditorVisible(visible: boolean): void {
-		const wasVisible = harness.partVisibility.get(Parts.EDITOR_PART) ?? true;
-		harness.partVisibility.set(Parts.EDITOR_PART, visible);
-		if (wasVisible !== visible) {
-			harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible });
-		}
-	}
-
-	/** The last `setPartHidden` call recorded, or `undefined`. */
-	function lastHiddenCall() {
-		return harness.setPartHiddenCalls.at(-1);
 	}
 
 	/** Flushes the shared docked-tab / detail sequencers (several chained microtasks). */
@@ -133,313 +109,40 @@ suite('SinglePane layout strategies', () => {
 		}
 	}
 
-	// --- [R1] New-session editor stays closed by default ---
-	suite('NewSessionRulesStrategy', () => {
+	// --- Toggle Details owns only the detail panel (the sessions list is never touched) ---
+	suite('DetailsStrategy', () => {
 
 		function create(ctx: ISinglePaneLayoutContext) {
-			return store.add(harness.instaService.createInstance(SinglePaneNewSessionRulesStrategy, ctx));
+			return store.add(harness.instaService.createInstance(SinglePaneDetailsStrategy, ctx));
 		}
 
-		test('hides the editor when it becomes visible in the new-session view', () => {
+		test('toggleDetails reveals a hidden detail without touching the sessions list', () => {
 			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			create(ctx);
-			activate(makeSession(URI.parse('session:/a'), { status: SessionStatus.Untitled }));
-
-			setEditorVisible(true);
-
-			assert.deepStrictEqual(lastHiddenCall(), { hidden: true, part: Parts.EDITOR_PART });
-		});
-
-		test('hides an inherited-visible editor when the new-session view is entered', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			create(ctx);
-
-			activate(makeSession(URI.parse('session:/a'), { status: SessionStatus.Untitled }));
-
-			assert.deepStrictEqual(lastHiddenCall(), { hidden: true, part: Parts.EDITOR_PART });
-		});
-
-		test('respects an explicit in-session reveal', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			create(ctx);
-			activate(makeSession(URI.parse('session:/a'), { status: SessionStatus.Untitled }));
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+			harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+			const strategy = create(ctx);
 			harness.setPartHiddenCalls.length = 0;
 
-			harness.editorRevealedExplicitly = true;
-			setEditorVisible(true);
+			const nowVisible = strategy.toggleDetails();
 
-			assert.strictEqual(lastHiddenCall(), undefined);
-		});
-
-		test('does not act for a created (committed) session', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			create(ctx);
-			activate(makeSession(URI.parse('session:/a'), { status: SessionStatus.Completed, isCreated: true }));
-
-			setEditorVisible(true);
-
-			assert.strictEqual(lastHiddenCall(), undefined);
-		});
-
-		test('does not act for a quick chat', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			create(ctx);
-			activate(makeSession(URI.parse('session:/a'), { status: SessionStatus.Untitled, isQuickChat: true }));
-
-			setEditorVisible(true);
-
-			assert.strictEqual(lastHiddenCall(), undefined);
-		});
-
-		test('does not act while multiple sessions are visible', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			create(ctx);
-			const a = makeSession(URI.parse('session:/a'), { status: SessionStatus.Untitled });
-			const b = makeSession(URI.parse('session:/b'), { status: SessionStatus.Untitled });
-			harness.activeSessionObs.set(a, undefined);
-			harness.visibleSessionsObs.set([a, b], undefined);
-
-			setEditorVisible(true);
-
-			assert.strictEqual(lastHiddenCall(), undefined);
-		});
-	});
-
-	// --- Quick-chat: collapse the empty docked editor part ---
-	suite('QuickChatEditorHideStrategy', () => {
-
-		function create(ctx: ISinglePaneLayoutContext) {
-			return store.add(harness.instaService.createInstance(SinglePaneQuickChatEditorHideStrategy, ctx));
-		}
-
-		test('hides the editor part while a quick chat has an empty group', () => {
-			const { ctx } = setup();
-			harness.editorGroupsHaveContent = false;
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			create(ctx);
-
-			activate(makeSession(URI.parse('session:/qc'), { isQuickChat: true }));
-			harness.onDidActiveEditorChange.fire();
-
-			assert.deepStrictEqual(lastHiddenCall(), { hidden: true, part: Parts.EDITOR_PART });
-		});
-
-		test('does not hide when the quick chat has a real editor open', () => {
-			const { ctx } = setup();
-			harness.editorGroupsHaveContent = true;
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			create(ctx);
-
-			activate(makeSession(URI.parse('session:/qc'), { isQuickChat: true }));
-			harness.onDidActiveEditorChange.fire();
-
-			assert.strictEqual(lastHiddenCall(), undefined);
-		});
-
-		test('does not act for a non quick-chat session', () => {
-			const { ctx } = setup();
-			harness.editorGroupsHaveContent = false;
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			create(ctx);
-
-			activate(makeSession(URI.parse('session:/a'), { isQuickChat: false }));
-			harness.onDidActiveEditorChange.fire();
-
-			assert.strictEqual(lastHiddenCall(), undefined);
-		});
-
-		test('does not act when the editor part is already hidden', () => {
-			const { ctx } = setup();
-			harness.editorGroupsHaveContent = false;
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			create(ctx);
-
-			activate(makeSession(URI.parse('session:/qc'), { isQuickChat: true }));
-			harness.onDidActiveEditorChange.fire();
-
-			assert.strictEqual(lastHiddenCall(), undefined);
-		});
-	});
-
-	// --- [D1]/[D2]/[D3]/[D4] Per-session detail (aux-bar) visibility ---
-	suite('DetailVisibilityStrategy', () => {
-
-		const A = URI.parse('session:/a');
-		const B = URI.parse('session:/b');
-
-		function create(ctx: ISinglePaneLayoutContext) {
-			return store.add(harness.instaService.createInstance(SinglePaneDetailVisibilityStrategy, ctx));
-		}
-
-		function setAuxVisible(visible: boolean): void {
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, visible);
-		}
-
-		function auxHiddenCalls() {
-			return harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART);
-		}
-
-		test('[D1] captures detail visibility for the session switched away from', () => {
-			const { ctx, state } = setup();
-			create(ctx);
-			activate(makeSession(A, { isCreated: true }));
-			setAuxVisible(true);
-
-			activate(makeSession(B, { isCreated: true }));
-
-			assert.deepStrictEqual(state.viewStateBySession.get(A), {
-				auxiliaryBarVisible: true,
-				auxiliaryBarActiveViewContainerId: undefined,
+			assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
+				nowVisible: true,
+				calls: [{ hidden: false, part: Parts.AUXILIARYBAR_PART }],
 			});
 		});
 
-		test('[D2] live-captures a created session detail hide', () => {
-			const { ctx, state } = setup();
-			create(ctx);
-			activate(makeSession(A, { isCreated: true }));
-			setAuxVisible(false);
-
-			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-			assert.deepStrictEqual(state.viewStateBySession.get(A), {
-				auxiliaryBarVisible: false,
-				auxiliaryBarActiveViewContainerId: undefined,
-			});
-		});
-
-		test('[D2] updates the shared new-session state for an uncreated session', () => {
+		test('toggleDetails hides a visible detail without touching the sessions list', () => {
 			const { ctx } = setup();
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+			harness.partVisibility.set(Parts.SIDEBAR_PART, true);
 			const strategy = create(ctx);
-			activate(makeSession(A, { status: SessionStatus.Untitled }));
-			setAuxVisible(false);
+			harness.setPartHiddenCalls.length = 0;
 
-			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+			const nowVisible = strategy.toggleDetails();
 
-			assert.strictEqual(strategy.newSessionAuxiliaryBarVisible, false);
-		});
-
-		test('[D2] ignores a change while restoring session layout', () => {
-			const { ctx, state } = setup();
-			create(ctx);
-			activate(makeSession(A, { isCreated: true }));
-			state.viewStateBySession.clear();
-			state.isRestoringSessionLayout = true;
-
-			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-			assert.strictEqual(state.viewStateBySession.get(A), undefined);
-		});
-
-		test('[D2] ignores a change while toggling the whole side pane', () => {
-			const { ctx, state } = setup();
-			create(ctx);
-			activate(makeSession(A, { isCreated: true }));
-			state.viewStateBySession.clear();
-			state.togglingSidePane = true;
-
-			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-			assert.strictEqual(state.viewStateBySession.get(A), undefined);
-		});
-
-		test('[D3b] reveals the detail for a new-session view with no saved state', () => {
-			const { ctx } = setup();
-			create(ctx);
-
-			activate(makeSession(A, { status: SessionStatus.Untitled }));
-
-			assert.deepStrictEqual(auxHiddenCalls(), [{ hidden: false, part: Parts.AUXILIARYBAR_PART }]);
-		});
-
-		test('[D3b] hides the detail when the user previously hid the new-session detail', () => {
-			const { ctx } = setup({ newSessionViewState: { auxiliaryBarVisible: false } });
-			create(ctx);
-
-			activate(makeSession(A, { status: SessionStatus.Untitled }));
-
-			assert.deepStrictEqual(auxHiddenCalls(), [{ hidden: true, part: Parts.AUXILIARYBAR_PART }]);
-		});
-
-		test('[D3c] leaves a first-seen created session as-is (no saved state)', () => {
-			const { ctx } = setup();
-			create(ctx);
-
-			activate(makeSession(A, { isCreated: true }));
-
-			assert.deepStrictEqual(auxHiddenCalls(), []);
-		});
-
-		test('[D3c] restores a saved hidden detail for a created session', () => {
-			const { ctx, state } = setup();
-			state.viewStateBySession.set(A, { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined });
-			create(ctx);
-
-			activate(makeSession(A, { isCreated: true }));
-
-			assert.deepStrictEqual(auxHiddenCalls(), [{ hidden: true, part: Parts.AUXILIARYBAR_PART }]);
-		});
-
-		test('[D3c] restores a saved visible detail for a created session', () => {
-			const { ctx, state } = setup();
-			state.viewStateBySession.set(A, { auxiliaryBarVisible: true, auxiliaryBarActiveViewContainerId: undefined });
-			create(ctx);
-
-			activate(makeSession(A, { isCreated: true }));
-
-			assert.deepStrictEqual(auxHiddenCalls(), [{ hidden: false, part: Parts.AUXILIARYBAR_PART }]);
-		});
-
-		test('[D4] submit keeps the visible detail and reveals Changes', () => {
-			const { ctx, state } = setup();
-			create(ctx);
-			activate(makeSession(A, { status: SessionStatus.Untitled }));
-			setAuxVisible(true);
-
-			activate(makeSession(B, { isCreated: true }));
-
-			assert.deepStrictEqual({
-				viewState: state.viewStateBySession.get(B),
-				openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-			}, {
-				viewState: { auxiliaryBarVisible: true, auxiliaryBarActiveViewContainerId: undefined },
-				openedChanges: true,
-			});
-		});
-
-		test('[D4] submit with hidden detail does not reveal Changes', () => {
-			const { ctx, state } = setup();
-			create(ctx);
-			activate(makeSession(A, { status: SessionStatus.Untitled }));
-			setAuxVisible(false);
-
-			activate(makeSession(B, { isCreated: true }));
-
-			assert.deepStrictEqual({
-				viewState: state.viewStateBySession.get(B),
-				openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-			}, {
-				viewState: { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined },
-				openedChanges: false,
-			});
-		});
-
-		test('onSidePaneToggled marks a created-session collapse', () => {
-			const { ctx, state } = setup();
-			const strategy = create(ctx);
-			activate(makeSession(A, { isCreated: true }));
-
-			strategy.onSidePaneToggled(true, true);
-
-			assert.deepStrictEqual(state.viewStateBySession.get(A), {
-				auxiliaryBarVisible: false,
-				auxiliaryBarActiveViewContainerId: undefined,
-				auxiliaryBarHiddenByCollapse: true,
+			assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
+				nowVisible: false,
+				calls: [{ hidden: true, part: Parts.AUXILIARYBAR_PART }],
 			});
 		});
 	});
@@ -539,7 +242,7 @@ suite('SinglePane layout strategies', () => {
 			const { ctx } = setup();
 			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 			harness.editorGroupsHaveContent = true;
-			harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+			harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
 			create(ctx);
 
 			activate(makeSession(S, { isCreated: true }));
@@ -609,14 +312,14 @@ suite('SinglePane layout strategies', () => {
 			assert.deepStrictEqual(editorKinds(), ['changes', 'files']);
 		});
 
-		test('ensures only the Files tab for an uncreated session', async () => {
+		test('ensures the Changes and Files tabs for an uncreated (new-session) view', async () => {
 			const { ctx } = setup();
 			create(ctx);
 
 			activate(makeSession(S, { status: SessionStatus.Untitled }));
 			await settle();
 
-			assert.deepStrictEqual(editorKinds(), ['files']);
+			assert.deepStrictEqual(editorKinds(), ['changes', 'files']);
 		});
 
 		test('ensures no managed tabs for a quick chat', async () => {
@@ -676,7 +379,10 @@ suite('SinglePane layout strategies', () => {
 			await settle();
 
 			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			harness.activeGroupEditors.push(store.add(new TestStubEditorInput(URI.file('/repo/a.ts'))));
+			const file = store.add(new TestStubEditorInput(URI.file('/repo/a.ts')));
+			// The tidy strip reacts to a genuinely new file open, not to the group contents.
+			harness.onWillOpenEditor.fire({ groupId: 1, editor: file });
+			harness.activeGroupEditors.push(file);
 			harness.onDidEditorsChange.fire();
 			await settle();
 
@@ -746,7 +452,7 @@ suite('SinglePane layout strategies', () => {
 			const { ctx } = setup();
 			harness.partVisibility.set(Parts.EDITOR_PART, true);
 			const { coordinator } = create(ctx);
-			harness.activeGroupEditors.push(store.add(new EmptyFileEditorInput()));
+			harness.activeGroupEditors.push(store.add(new EmptyFileEditorInput(undefined, harness.layoutService)));
 
 			hideEditorArea();
 			await settle();
@@ -755,79 +461,4 @@ suite('SinglePane layout strategies', () => {
 		});
 	});
 
-	// --- [D7] Responsive sessions list (auto-hide to free room for the side pane) ---
-	suite('ResponsiveSidebarStrategy', () => {
-
-		function create(ctx: ISinglePaneLayoutContext) {
-			return store.add(harness.instaService.createInstance(SinglePaneResponsiveSidebarStrategy, ctx));
-		}
-
-		test('toggleDetails opens the detail and auto-hides the sessions list', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.partVisibility.set(Parts.SIDEBAR_PART, true);
-			const strategy = create(ctx);
-			harness.setPartHiddenCalls.length = 0;
-
-			const nowVisible = strategy.toggleDetails();
-
-			assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
-				nowVisible: true,
-				calls: [{ hidden: false, part: Parts.AUXILIARYBAR_PART }, { hidden: true, part: Parts.SIDEBAR_PART }],
-			});
-		});
-
-		test('toggleDetails closes the detail and restores the auto-hidden list', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.partVisibility.set(Parts.SIDEBAR_PART, true);
-			const strategy = create(ctx);
-			strategy.toggleDetails();
-			harness.setPartHiddenCalls.length = 0;
-
-			const nowVisible = strategy.toggleDetails();
-
-			assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
-				nowVisible: false,
-				calls: [{ hidden: true, part: Parts.AUXILIARYBAR_PART }, { hidden: false, part: Parts.SIDEBAR_PART }],
-			});
-		});
-
-		test('restores the auto-hidden list once the side pane is fully hidden', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.partVisibility.set(Parts.SIDEBAR_PART, true);
-			const strategy = create(ctx);
-			strategy.toggleDetails();
-			harness.setPartHiddenCalls.length = 0;
-
-			// Fully hide the side pane (editor + aux).
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-			assert.deepStrictEqual(harness.setPartHiddenCalls.filter(c => c.part === Parts.SIDEBAR_PART), [{ hidden: false, part: Parts.SIDEBAR_PART }]);
-		});
-
-		test('a manual sessions-list toggle hands control back (no auto-restore)', () => {
-			const { ctx } = setup();
-			harness.partVisibility.set(Parts.EDITOR_PART, true);
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.partVisibility.set(Parts.SIDEBAR_PART, true);
-			const strategy = create(ctx);
-			strategy.toggleDetails();
-
-			// User manually re-shows the sessions list.
-			harness.onDidChangePartVisibility.fire({ partId: Parts.SIDEBAR_PART, visible: true });
-			harness.setPartHiddenCalls.length = 0;
-
-			// Fully hide the side pane — the list must not be auto-restored.
-			harness.partVisibility.set(Parts.EDITOR_PART, false);
-			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-			assert.deepStrictEqual(harness.setPartHiddenCalls.filter(c => c.part === Parts.SIDEBAR_PART), []);
-		});
-	});
 });
