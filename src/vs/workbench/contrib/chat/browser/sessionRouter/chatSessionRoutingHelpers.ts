@@ -97,12 +97,16 @@ function folderMentionedInUtterance(utterance: string, folders: readonly IWorksp
 				continue;
 			}
 			const normalizedName = name.toLocaleLowerCase();
-			const start = normalizedUtterance.indexOf(normalizedName);
-			if (start >= 0
-				&& isWordBoundary(normalizedUtterance[start - 1])
-				&& isWordBoundary(normalizedUtterance[start + normalizedName.length])
-				&& (!best || normalizedName.length > best.length)) {
-				best = { folder, length: normalizedName.length };
+			let start = normalizedUtterance.indexOf(normalizedName);
+			while (start >= 0) {
+				if (isWordBoundary(normalizedUtterance[start - 1])
+					&& isWordBoundary(normalizedUtterance[start + normalizedName.length])) {
+					if (!best || normalizedName.length > best.length) {
+						best = { folder, length: normalizedName.length };
+					}
+					break;
+				}
+				start = normalizedUtterance.indexOf(normalizedName, start + normalizedName.length);
 			}
 		}
 	}
