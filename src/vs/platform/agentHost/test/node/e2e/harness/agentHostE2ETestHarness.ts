@@ -31,7 +31,7 @@ import {
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
-import { CapiReplayMode } from './capiReplayProxy.js';
+import { CapiReplayMode, type ICapiReplayRecordingModelFailure } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
@@ -195,6 +195,20 @@ const STALE_RECORDED_REQUEST_EXCEPTIONS = new Set<string>([
 	'claude:side chat receives bounded source context without copied history',
 ]);
 
+/** First model response to record for tests that exercise provider error recovery. */
+const RECORDING_MODEL_FAILURES = new Map<string, ICapiReplayRecordingModelFailure>([
+	['copilotcli:resumes a failed turn without adding a message', {
+		status: 400,
+		body: JSON.stringify({
+			error: {
+				message: 'Injected recoverable E2E failure.',
+				type: 'invalid_request_error',
+				code: 'invalid_request_error',
+			},
+		}),
+	}],
+]);
+
 /** Identifies one provider's capture of a test, matching `fixturePathFor`. */
 function captureKey(provider: string, testTitle: string): string {
 	return `${provider}:${testTitle}`;
@@ -206,14 +220,14 @@ function captureKey(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean; allowStaleRecordedRequest: boolean; recordingModelFailure?: ICapiReplayRecordingModelFailure } {
 	const key = captureKey(provider, testTitle);
 	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(key);
 	const allowStaleRecordedRequest = STALE_RECORDED_REQUEST_EXCEPTIONS.has(key);
 	if (modelTraffic === 'none') {
 		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands, allowStaleRecordedRequest };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands, allowStaleRecordedRequest, recordingModelFailure: RECORDING_MODEL_FAILURES.get(key) };
 }
 
 // #endregion
@@ -346,6 +360,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsChatFork: boolean;
 	/** Whether provider-backed fork context can be tested end-to-end. */
 	readonly supportsChatForkE2E: boolean;
+	/** Whether the provider supports resuming a failed turn without a new message. */
+	readonly supportsFailedTurnResumeE2E?: boolean;
 
 	/**
 	 * The github token to use. If not provided, the test will attempt to resolve it from the environment or `gh auth token`.

@@ -429,9 +429,11 @@ function projectAction(
 					errorType: action.error.errorType,
 					message: action.error.message,
 				},
+				...(action.resumable === true ? { resumable: true } : {}),
 			} : { type: action.type };
 		case ActionType.ChatUsage:
 		case ActionType.ChatTurnComplete:
+		case ActionType.ChatTurnResumed:
 			return { type: action.type, turnId: normalizeIdentifier(action.turnId, 'turn', turns) };
 		default:
 			return { type: action.type };

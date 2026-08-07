@@ -21,6 +21,7 @@ import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
+import { defineFailedTurnResumeTests } from './failedTurnResumeSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const isLinux = process.platform === 'linux';
@@ -151,6 +152,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineTurnLifecycleTests(context);
 			defineWorkspaceTests(context);
 			defineSubagentTests(context);
+			defineFailedTurnResumeTests(context);
 		}
 
 		// Mixed: peer-catalog semantics are host-owned (conformance) while

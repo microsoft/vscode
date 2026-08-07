@@ -11,13 +11,11 @@ import {
 	ToolCallConfirmationReason,
 	ToolCallStatus,
 	ToolResultContentType,
-	TurnState,
 	type ResponsePart,
 	type ToolCallResponsePart,
 	type ToolResultContent,
 	type Turn,
 } from '../../common/state/sessionState.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import {
 	describeFileChange,
 	describeWebSearch,
@@ -51,35 +49,15 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  * pre-flight coalescing (see {@link codexMapAppServerEvents}) — so restored
  * sessions render identically to active ones.
  */
-export interface ICodexReplayResult {
-	readonly turns: Turn[];
-	readonly codexTurnIdByHostTurnId: ReadonlyMap<string, string>;
-}
-
-export function replayThread(thread: Thread): ICodexReplayResult {
+export function replayThreadToTurns(thread: Thread): Turn[] {
 	const turns: Turn[] = [];
-	const codexTurnIdByHostTurnId = new Map<string, string>();
 	for (const codexTurn of thread.turns ?? []) {
 		const replayed = replayTurnToTurn(codexTurn);
-		if (!replayed) {
-			continue;
-		}
-		if (replayed.hasUserMessage) {
+		if (replayed?.hasUserMessage) {
 			turns.push(replayed.turn);
-			codexTurnIdByHostTurnId.set(replayed.turn.id, codexTurn.id);
-			continue;
-		}
-		const previous = turns.at(-1);
-		if (previous) {
-			turns[turns.length - 1] = mergeContinuedTurn(previous, replayed.turn);
-			codexTurnIdByHostTurnId.set(previous.id, codexTurn.id);
 		}
 	}
-	return { turns, codexTurnIdByHostTurnId };
-}
-
-export function replayThreadToTurns(thread: Thread): Turn[] {
-	return replayThread(thread).turns;
+	return turns;
 }
 
 /** A completed `commandExecution` item narrowed to its terminal fields. */
@@ -174,11 +152,9 @@ function replayTurnToTurn(codexTurn: CodexTurn): IReplayedTurn | undefined {
 
 	// If we got nothing recognizable, drop the turn — there's nothing for
 	// the UI to render.
-	if (hasUserMessage && !userText && parts.length === 0) {
+	if (!userText && parts.length === 0) {
 		return undefined;
 	}
-	const state = turnStateFromStatus(codexTurn.status);
-	const errorMessage = state === TurnState.Error ? codexTurn.error?.message ?? 'Codex turn failed' : undefined;
 	return {
 		hasUserMessage,
 		turn: {
@@ -187,29 +163,8 @@ function replayTurnToTurn(codexTurn: CodexTurn): IReplayedTurn | undefined {
 			message: { text: userText, origin: { kind: MessageKind.User } },
 			responseParts: parts,
 			usage: undefined,
-			state,
-			...(errorMessage ? {
-				error: {
-					errorType: 'CodexError',
-					...extractForwardedErrorInfo(errorMessage),
-				},
-				resumable: true,
-			} : {}),
+			state: turnStateFromStatus(codexTurn.status),
 		},
-	};
-}
-
-function mergeContinuedTurn(previous: Turn, continuation: Turn): Turn {
-	return {
-		id: previous.id,
-		...(previous.startedAt ? { startedAt: previous.startedAt } : {}),
-		...(continuation.duration !== undefined ? { duration: continuation.duration } : previous.duration !== undefined ? { duration: previous.duration } : {}),
-		message: previous.message,
-		responseParts: [...previous.responseParts, ...continuation.responseParts],
-		usage: continuation.usage ?? previous.usage,
-		state: continuation.state,
-		...(continuation.error ? { error: continuation.error } : {}),
-		...(continuation.resumable === true ? { resumable: true } : {}),
 	};
 }
 

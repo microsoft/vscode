@@ -26,4 +26,5 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChats: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
+	supportsFailedTurnResumeE2E: true,
 };

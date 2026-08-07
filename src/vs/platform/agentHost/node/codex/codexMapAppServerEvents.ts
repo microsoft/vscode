@@ -1099,7 +1099,6 @@ export function mapTurnCompleted(
 	state: ICodexSessionMapState,
 	params: TurnCompletedNotification,
 	fallbackDuration?: number,
-	resumable = false,
 ): (SessionAction | ChatAction)[] {
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
@@ -1148,7 +1147,6 @@ export function mapTurnCompleted(
 					errorType: 'CodexError',
 					...extractForwardedErrorInfo(errMessage),
 				},
-				...(resumable ? { resumable: true } : {}),
 			},
 			{
 				type: ActionType.ChatTurnComplete,

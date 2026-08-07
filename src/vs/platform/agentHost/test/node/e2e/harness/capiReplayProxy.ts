@@ -106,6 +106,13 @@ const GITHUB_API_PREFIXES = ['/copilot_internal', '/telemetry', '/copilot/mcp_re
 
 export type CapiReplayMode = 'record' | 'replay';
 
+/** Synthetic model response captured during a recording pass. */
+export interface ICapiReplayRecordingModelFailure {
+	readonly status: number;
+	readonly headers?: Readonly<Record<string, string>>;
+	readonly body: string;
+}
+
 interface IRecordedResponse {
 	readonly status: number;
 	readonly headers: Readonly<Record<string, string>>;
@@ -154,10 +161,10 @@ interface ITurnExchange {
 }
 
 /**
- * A raw ancillary exchange served verbatim on replay. Carries its own
- * `(method, path)` since it is not tied to the fixture dialect. Not produced by
- * the current recorder — model turns cover every captured exchange — but the
- * loader still honours it if a fixture contains one.
+ * A raw exchange served verbatim on replay. Carries its own `(method, path)`
+ * since it is not tied to the fixture dialect. Recording normally produces
+ * readable model turns, except for injected model failures whose non-SSE
+ * response must remain raw.
  */
 interface IRawFixtureExchange {
 	readonly method: string;
@@ -220,6 +227,8 @@ export interface ICapiReplayProxyOptions {
 	 * `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts`.
 	 */
 	readonly allowStaleRecordedRequest?: boolean;
+	/** Synthetic response recorded for the first model request instead of contacting CAPI. */
+	readonly recordingModelFailure?: ICapiReplayRecordingModelFailure;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
@@ -251,6 +260,7 @@ export class CapiReplayProxy {
 	private readonly _requestMismatches: string[] = [];
 	private readonly _replayPlaceholderValues = new Map<string, string>();
 	private _modelTurnCount = 0;
+	private _recordingModelFailureConsumed = false;
 	private _workingDirectory: string | undefined;
 
 	/**
@@ -553,6 +563,25 @@ export class CapiReplayProxy {
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
 		if (MODEL_ENDPOINTS.has(path)) {
 			this._observedModelRequestBodies.push(this._normalize(body));
+			const failure = this._options.recordingModelFailure;
+			if (failure && !this._recordingModelFailureConsumed) {
+				this._recordingModelFailureConsumed = true;
+				const headers = { 'content-type': 'application/json', ...failure.headers };
+				const response = {
+					status: failure.status,
+					headers,
+					body: this._normalize(failure.body),
+				};
+				this._recorded.push({
+					method,
+					path,
+					requestBody: this._normalize(body),
+					response,
+				});
+				res.writeHead(response.status, response.headers);
+				res.end(response.body);
+				return;
+			}
 		}
 		const upstreamBase = this._upstreamFor(path);
 		const upstream = new URL(req.url ?? '/', upstreamBase);
