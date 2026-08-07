@@ -735,7 +735,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
-				const changes = session.changes;
+				// A lazy provider refresh omits changes. Keep only the previous aggregate
+				// summary so cached counts survive without retaining hydrated file arrays.
+				const changes = session.changes ?? getAgentChangesSummary(this._sessions.get(session.resource)?.changes);
 				const normalizedChanges = changes && !(changes instanceof Array)
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
@@ -1139,7 +1141,7 @@ interface ISerializedAgentSessionState extends IAgentSessionState {
 	readonly resource: UriComponents /* old shape */ | string /* new shape that is more compact */;
 }
 
-class AgentSessionsCache {
+export class AgentSessionsCache {
 
 	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.model.cache';
 	private static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
@@ -1169,7 +1171,7 @@ class AgentSessionsCache {
 
 			timing: session.timing,
 
-			changes: session.changes,
+			changes: getAgentChangesSummary(session.changes),
 			metadata: session.metadata,
 			legacyResource: session.legacyResource?.toString()
 		} satisfies ISerializedAgentSession));
@@ -1207,12 +1209,7 @@ class AgentSessionsCache {
 					lastRequestEnded: session.timing.lastRequestEnded,
 				},
 
-				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({
-					modifiedUri: URI.revive(change.modifiedUri),
-					originalUri: change.originalUri ? URI.revive(change.originalUri) : undefined,
-					insertions: change.insertions,
-					deletions: change.deletions,
-				})) : session.changes,
+				changes: getAgentChangesSummary(session.changes),
 				metadata: session.metadata,
 				legacyResource: session.legacyResource ? URI.parse(session.legacyResource) : undefined,
 			}));
