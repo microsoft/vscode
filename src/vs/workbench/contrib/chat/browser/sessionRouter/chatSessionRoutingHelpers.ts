@@ -8,7 +8,7 @@ import { IWorkspaceFolder } from '../../../../../platform/workspace/common/works
 import { IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult } from '../../common/sessionRouter.js';
 
 /** Number of top-ranked candidates whose conversation content should be resolved. */
-const ROUTE_ENRICH_MAX_CANDIDATES = 12;
+export const ROUTE_ENRICH_MAX_CANDIDATES = 12;
 const RELATED_SESSION_FOLDER_CONFIDENCE = 0.35;
 
 /**
