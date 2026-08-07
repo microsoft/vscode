@@ -9,6 +9,7 @@ import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, Markdo
 interface LineChanges {
 	readonly added: readonly number[];
 	readonly deleted: readonly number[];
+	readonly changedLineRanges: readonly ChangedLineRange[];
 	readonly originalToModified: readonly number[];
 	readonly modifiedToOriginal: readonly number[];
 	readonly originalInnerChanges: readonly MarkdownPreviewInnerChange[];
@@ -21,7 +22,7 @@ interface LineMappings {
 	readonly modifiedToOriginal: number[];
 }
 
-type ChangedLineRange = Pick<vscode.TextDiffChange, 'originalRange' | 'modifiedRange'>;
+export type ChangedLineRange = Pick<vscode.TextDiffChange, 'originalRange' | 'modifiedRange'>;
 
 export class MarkdownPreviewLineDiffProvider {
 
@@ -53,6 +54,10 @@ export class MarkdownPreviewLineDiffProvider {
 		const innerChanges = changes.modifiedInnerChanges;
 		const changeIndicators = options?.includeChangeIndicators === false ? [] : changes.changeIndicators;
 		return added.length || innerChanges.length || changeIndicators.length ? { added, innerChanges, changeIndicators } : undefined;
+	}
+
+	public async getChangedLineRanges(): Promise<readonly ChangedLineRange[]> {
+		return (await this.#getLineChanges()).changedLineRanges;
 	}
 
 	public async translateOriginalLineToModified(line: number): Promise<number> {
@@ -143,7 +148,7 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	const splitChangedLineRanges = splitChangedLineRangesByMarkdownBlocks(changedLineRanges, originalDocument, modifiedDocument);
 	const changeIndicators = createChangeIndicators(splitChangedLineRanges, originalDocument, modifiedDocument, originalInnerChanges, modifiedInnerChanges);
 
-	return { added, deleted, originalInnerChanges, modifiedInnerChanges, changeIndicators, ...mappings };
+	return { added, deleted, changedLineRanges, originalInnerChanges, modifiedInnerChanges, changeIndicators, ...mappings };
 }
 
 function createChangeIndicators(ranges: readonly ChangedLineRange[], originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, originalInnerChanges: readonly MarkdownPreviewInnerChange[], modifiedInnerChanges: readonly MarkdownPreviewInnerChange[]): MarkdownPreviewChangeIndicator[] {

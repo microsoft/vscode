@@ -16,6 +16,15 @@
 		"typeRoots": [
 			"../node_modules/@types"
 		],
+		"preserveSymlinks": true,
+		"paths": {
+			"@vscode/markdown-editor": [
+				"../node_modules/@vscode/markdown-editor/dist/index.d.ts"
+			],
+			"@vscode/markdown-editor/observables": [
+				"../node_modules/@vscode/markdown-editor/dist/observables.d.ts"
+			]
+		},
 		"skipLibCheck": true,
 		"noEmit": true
 	},

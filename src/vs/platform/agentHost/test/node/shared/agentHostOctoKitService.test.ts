@@ -107,6 +107,32 @@ suite('AgentHostOctoKitService', () => {
 		});
 	});
 
+	test('findPullRequestByHeadBranch qualifies a fork branch with its head owner', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]));
+		const service = makeService(fetch);
+
+		await service.findPullRequestByHeadBranch('o', 'r', 'feature/test', 'tok', signal(), 'fork-owner');
+
+		assert.strictEqual(captured().url, 'https://api.github.com/repos/o/r/pulls?head=fork-owner%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1');
+	});
+
+	test('getIssueOrPullRequest fetches the title and body from the issues endpoint', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse({ title: 'Issue title', body: 'Issue body' }));
+		const service = makeService(fetch);
+
+		const result = await service.getIssueOrPullRequest('o', 'r', 42, 'tok', signal());
+
+		assert.deepStrictEqual({
+			result,
+			url: captured().url,
+			method: captured().init?.method,
+		}, {
+			result: { title: 'Issue title', body: 'Issue body' },
+			url: 'https://api.github.com/repos/o/r/issues/42',
+			method: 'GET',
+		});
+	});
+
 	test('createPullRequest throws on non-OK response', async () => {
 		const service = makeService(capturingFetch(new Response('{"message":"Validation Failed"}', { status: 422, statusText: 'Unprocessable Entity' })).fetch);
 

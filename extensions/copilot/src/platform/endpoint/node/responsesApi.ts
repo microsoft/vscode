@@ -45,14 +45,18 @@ export function getResponsesApiCompactionThreshold(configService: IConfiguration
 		: 50000;
 }
 
+export function getVerbosityForModelSyncBasedOnExp(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
+	return getVerbosityForModelSync(endpoint, configService.getExperimentBasedConfig(ConfigKey.EnableGpt56Verbosity, expService));
+}
+
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
-	const verbosity = getVerbosityForModelSync(endpoint);
+	const verbosity = getVerbosityForModelSyncBasedOnExp(configService, expService, endpoint);
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 
-	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options);
+	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options, model);
 	// When WebSocket is in use, always defer to the WebSocket marker (which may be
 	// undefined if the connection is new or the summary state changed). Never fall
 	// back to the HTTP marker lookup in that case.
@@ -124,14 +128,15 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
 	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
-
+	const modelSupportsCacheBreakpoints = modelSupportCacheBreakPoints(endpoint);
+	const supportsCacheBreakpoints = promptCacheBreakpointsEnabled && modelSupportsCacheBreakpoints;
 	const body: IEndpointBody = {
 		model,
 		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, {
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
-			supportsCacheBreakpoints: promptCacheBreakpointsEnabled && modelSupportCacheBreakPoints(endpoint),
+			supportsCacheBreakpoints,
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -144,6 +149,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		top_logprobs: options.postOptions.logprobs ? 3 : undefined,
 		store: false,
 		text: verbosity ? { verbosity } : undefined,
+		prompt_cache_options: modelSupportsCacheBreakpoints ? { mode: supportsCacheBreakpoints ? 'explicit' : 'implicit' } : undefined,
 	};
 
 	if (compactThreshold !== undefined) {
@@ -281,19 +287,20 @@ interface ResponseStreamEventWithResponseOutput {
 	};
 }
 
-function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions): string | undefined {
+function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, modelId: string): string | undefined {
 	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
 		return undefined;
 	}
 	const wsManager = accessor.get(IChatWebSocketManager);
+	const connectionKey = { conversationId: options.conversationId, modelId, connectionId: options.webSocketConnectionId };
 	// If client-side summarization state changed since the stateful marker
 	// was stored (new summary, or rollback removing a summary), the server's
 	// state no longer matches. Skip the marker so the full history is sent.
-	const connSummarizedAt = wsManager.getSummarizedAtRoundId(options.conversationId);
+	const connSummarizedAt = wsManager.getSummarizedAtRoundId(connectionKey);
 	if (options.summarizedAtRoundId !== connSummarizedAt) {
 		return undefined;
 	}
-	return wsManager.getStatefulMarker(options.conversationId);
+	return wsManager.getStatefulMarker(connectionKey);
 }
 
 interface RawMessagesToResponseAPIOptions {
@@ -375,7 +382,6 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
 	for (const message of messages) {
-		const inputStartIndex = input.length;
 		switch (message.role) {
 			case Raw.ChatRole.Assistant:
 				if (message.content.length) {
@@ -436,6 +442,15 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							tools: loadedTools,
 						} satisfies ResponsesToolSearchOutputInput as unknown as OpenAI.Responses.ResponseInputItem);
 					} else {
+						if (supportsCacheBreakpoints) {
+							input.push({
+								type: 'function_call_output',
+								call_id: message.toolCallId,
+								output: rawContentToResponsesContentList(message.content, true),
+							});
+							break;
+						}
+
 						const asText = message.content
 							.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
 							.map(c => c.text)
@@ -452,33 +467,24 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 							.map(rawDocumentToResponsesInputFile)
 							.filter(isDefined);
 
-						// todod@connor4312: hack while responses API only supports text output from tools
+						// Preserve the legacy string output and synthetic media messages unless explicit
+						// prompt cache breakpoints are both enabled and supported by the model.
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
 						}
 						if (asFiles.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
 						}
 					}
 				}
 				break;
 			case Raw.ChatRole.User:
-				input.push({ role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'user', content: rawContentToResponsesContentList(message.content, supportsCacheBreakpoints) });
 				break;
 			case Raw.ChatRole.System:
-				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'system', content: rawContentToResponsesContentList(message.content, supportsCacheBreakpoints) });
 				break;
-		}
-
-		if (supportsCacheBreakpoints && input.length > inputStartIndex && hasCacheBreakpoint(message)) {
-			// Attach the prompt-cache marker to the last item this message produced, scanning back past
-			// reasoning/compaction items that cannot carry it.
-			for (let inputIndex = input.length - 1; inputIndex >= inputStartIndex; inputIndex--) {
-				if (tryApplyPromptCacheBreakpoint(input[inputIndex])) {
-					break;
-				}
-			}
 		}
 	}
 
@@ -552,7 +558,9 @@ function rawDocumentToResponsesInputFile(part: RawDocumentContentPart): OpenAI.R
 	};
 }
 
-function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): OpenAI.Responses.ResponseInputContent | undefined {
+type ResponsesConvertibleContent = OpenAI.Responses.ResponseInputText | OpenAI.Responses.ResponseInputImage | OpenAI.Responses.ResponseInputFile;
+
+function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): ResponsesConvertibleContent | undefined {
 	switch (part.type) {
 		case Raw.ChatCompletionContentPartKind.Text:
 			return { type: 'input_text', text: part.text };
@@ -561,7 +569,7 @@ function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): Open
 		case Raw.ChatCompletionContentPartKind.Document:
 			return rawDocumentToResponsesInputFile(part);
 		case Raw.ChatCompletionContentPartKind.Opaque: {
-			const maybeCast = part.value as OpenAI.Responses.ResponseInputContent;
+			const maybeCast = part.value as ResponsesConvertibleContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {
 				return maybeCast;
 			}
@@ -582,50 +590,32 @@ interface ResponsesPromptCacheBreakpoint {
 	readonly mode: 'explicit';
 }
 
+type ResponsesCacheableContent = ResponsesConvertibleContent & {
+	prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint;
+};
+
 const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
 
-/**
- * Whether a raw message carries one or more prompt-cache breakpoints. The Responses content
- * converters drop `CacheBreakpoint` parts, so we detect them at the message level and later attach
- * `prompt_cache_breakpoint` to the appropriate Responses input item/content block.
- */
-function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
-	return message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
-}
-
-/**
- * Attaches a prompt-cache marker (`prompt_cache_breakpoint: { mode: 'explicit' }`) to a single
- * Responses API input item.
- *
- * Items that carry a non-empty `content` array (user/system/assistant messages) receive the marker
- * on their last content block. Items without a content array (`function_call`,
- * `function_call_output`, `tool_search_*`) receive the marker at the item level. Returns whether a
- * marker was applied.
- */
-function tryApplyPromptCacheBreakpoint(item: OpenAI.Responses.ResponseInputItem): boolean {
-	const content = (item as { content?: unknown }).content;
-	if (Array.isArray(content)) {
-		const lastContentBlock = content.at(-1) as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint } | undefined;
-		if (!lastContentBlock) {
-			return false;
+function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionContentPart[], supportsCacheBreakpoints: boolean): ResponsesConvertibleContent[] {
+	const content: ResponsesCacheableContent[] = [];
+	let target: ResponsesCacheableContent | undefined;
+	for (const part of parts) {
+		if (part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint) {
+			if (supportsCacheBreakpoints && target) {
+				target.prompt_cache_breakpoint = promptCacheBreakpoint;
+			}
+			continue;
 		}
 
-		lastContentBlock.prompt_cache_breakpoint = promptCacheBreakpoint;
-		return true;
+		const converted = rawContentToResponsesContent(part);
+		if (converted) {
+			target = converted;
+			content.push(target);
+		} else {
+			target = undefined;
+		}
 	}
-
-	const itemType = (item as { type?: string }).type;
-	if (
-		itemType === 'function_call'
-		|| itemType === 'function_call_output'
-		|| itemType === 'tool_search_call'
-		|| itemType === 'tool_search_output'
-	) {
-		(item as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint }).prompt_cache_breakpoint = promptCacheBreakpoint;
-		return true;
-	}
-
-	return false;
+	return content;
 }
 
 /**

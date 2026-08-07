@@ -20,6 +20,7 @@ export const COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS = [
 	'- Folder: links to folders are also supported, with an absolute path to the folder as the target, for example [src/](/path/to/src).',
 	'- Symbol: link to symbols by using the containing file path with a 1-based line number as the target, for example [myMethod](/path/to/foo.ts:42).',
 	'- Use `/` path separators in link targets, including on Windows (`C:/path/to/foo.ts`).',
+	'- If a file path has spaces, wrap the target in angle brackets: [foo bar.ts](</path/to/foo bar.ts>).',
 	'- Use absolute filesystem paths rather than `file://` URIs.',
 	'- Do not provide line ranges.',
 	'- Use a markdown link format every time you refer to a file, folder, or symbol, not just the first time.',

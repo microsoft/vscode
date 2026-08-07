@@ -7,10 +7,12 @@ import { assert, describe, expect, it, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
+import { PromptSectionTokenCounts } from '../../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { IXtabHistoryRejectedEditEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { Result } from '../../../../util/common/result';
 import { LineEdit } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -613,6 +615,7 @@ describe('getUserPrompt', () => {
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
 		aggressivenessLevel?: AggressivenessLevel;
+		rejectedEditsMemory?: RejectedEditsMemoryMode;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -633,12 +636,19 @@ describe('getUserPrompt', () => {
 			...DEFAULT_OPTIONS,
 			promptingStrategy: opts.strategy,
 			...(opts.includePostScript !== undefined ? { includePostScript: opts.includePostScript } : {}),
+			...(opts.rejectedEditsMemory !== undefined ? { memory: { rejectedEdits: opts.rejectedEditsMemory } } : {}),
 			currentFile: {
 				...DEFAULT_OPTIONS.currentFile,
 				maxTokens: 10000,
 				...(opts.includeLineNumbers !== undefined ? { includeLineNumbers: opts.includeLineNumbers } : {}),
 			},
 		};
+		const rejectedEditHistory: IXtabHistoryRejectedEditEntry[] = [{
+			kind: 'rejectedEdit',
+			docId: documentId,
+			hunks: [{ startLineNumber: 1, oldLines: ['  const x = 1;'], newLines: ['  const x = 2;'] }],
+			ordinal: 0,
+		}];
 
 		return new PromptPieces(
 			currentDocument,
@@ -653,6 +663,9 @@ describe('getUserPrompt', () => {
 			new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			rejectedEditHistory,
+			undefined,
+			undefined,
 		);
 	}
 
@@ -677,6 +690,48 @@ describe('getUserPrompt', () => {
 
 		// Includes postscript (includePostScript defaults to true)
 		expect(prompt).toContain('developer was working on a section of code');
+		expect(prompt).not.toContain('<|rejected/|>');
+	});
+
+	test('PatchBased02 adds rejected edit annotations only when memory is enabled', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('@@ -1,1 +1,1 @@ <|rejected/|>');
+		expect(prompt).toContain('are previous suggestions the developer rejected');
+	});
+
+	test('rejected edit memory applies independently of the prompting strategy', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02WithRecentLineNumbers,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('<|rejected/|>');
+		expect(prompt).toContain('previous suggestions the developer rejected');
+	});
+
+	test('explains rejection annotations when the standard postscript is disabled', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+			includePostScript: false,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('<|rejected/|>');
+		expect(prompt).toContain('are previous suggestions the developer rejected');
+		expect(prompt).not.toContain('Output a modified diff format');
 	});
 
 	test('PatchBased02 with includePostScript=false omits postscript', () => {
@@ -821,6 +876,71 @@ describe('getUserPrompt', () => {
 			expect(prompt).toContain('<|aggressive|>medium<|/aggressive|>');
 		});
 	});
+
+	describe('sectionTokens', () => {
+
+		const sectionsSum = (t: PromptSectionTokenCounts): number =>
+			t.recentlyViewed + t.currentFile + t.lintErrors + t.editHistory +
+			t.areaAroundCodeToEdit + t.cursorLocation + t.relatedInformation + t.postScript;
+
+		test('total matches the assembled prompt, counts reconcile, and systemPrompt is left at 0 across strategies', () => {
+			const summary = [PromptingStrategy.PatchBased01, PromptingStrategy.PatchBased02, undefined].map(strategy => {
+				const { prompt, sectionTokens } = getUserPrompt(createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy }));
+				return {
+					totalMatchesPrompt: sectionTokens.userPromptTotal === computeTokens(prompt),
+					reconciles: sectionsSum(sectionTokens) + sectionTokens.overhead === sectionTokens.userPromptTotal,
+					systemPromptZero: sectionTokens.systemPrompt === 0,
+				};
+			});
+
+			assert.deepStrictEqual(summary, [
+				{ totalMatchesPrompt: true, reconciles: true, systemPromptZero: true },
+				{ totalMatchesPrompt: true, reconciles: true, systemPromptZero: true },
+				{ totalMatchesPrompt: true, reconciles: true, systemPromptZero: true },
+			]);
+		});
+
+		test('reports the strategy-dependent tail section (area vs cursor) mutually exclusively', () => {
+			const tailShape = (strategy: PromptingStrategy | undefined) => {
+				const { sectionTokens } = getUserPrompt(createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy }));
+				return { areaPresent: sectionTokens.areaAroundCodeToEdit > 0, cursorPresent: sectionTokens.cursorLocation > 0 };
+			};
+
+			assert.deepStrictEqual(
+				{
+					patchBased01: tailShape(PromptingStrategy.PatchBased01),
+					patchBased02: tailShape(PromptingStrategy.PatchBased02),
+					default: tailShape(undefined),
+				},
+				{
+					patchBased01: { areaPresent: false, cursorPresent: false },
+					patchBased02: { areaPresent: false, cursorPresent: true },
+					default: { areaPresent: true, cursorPresent: false },
+				},
+			);
+		});
+
+		test('reports 0 for absent optional sections and non-zero for present ones', () => {
+			// Fixture has no language context (relatedInformation empty) and always renders a current file.
+			const withPostScript = getUserPrompt(createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy: PromptingStrategy.PatchBased02 })).sectionTokens;
+			const withoutPostScript = getUserPrompt(createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy: PromptingStrategy.PatchBased02, includePostScript: false })).sectionTokens;
+
+			assert.deepStrictEqual(
+				{
+					relatedInformation: withPostScript.relatedInformation,
+					currentFilePresent: withPostScript.currentFile > 0,
+					postScriptPresent: withPostScript.postScript > 0,
+					postScriptAbsent: withoutPostScript.postScript,
+				},
+				{
+					relatedInformation: 0,
+					currentFilePresent: true,
+					postScriptPresent: true,
+					postScriptAbsent: 0,
+				},
+			);
+		});
+	});
 });
 
 describe('getUserPrompt — globalBudget cascade', () => {
@@ -862,6 +982,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			new LintErrors(activeDoc.id, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			[],
 			undefined,
 			extra?.precomputedCascade,
 		);
@@ -958,7 +1079,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 	function runCascade(globalBudget: GlobalBudgetOptions, extra?: { langCtx?: LanguageContextResponse }) {
 		const { activeDoc } = makeActiveDoc();
 		const opts: PromptOptions = { ...DEFAULT_OPTIONS, globalBudget };
-		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget);
+		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget, []);
 	}
 
 	test('finalSurplus carries the full unused pool when no cascade part consumes budget', () => {
@@ -1005,5 +1126,36 @@ describe('getUserPrompt — globalBudget cascade', () => {
 
 		expect(precomputed.prompt).toBe(internal.prompt);
 		expect(precomputed.nDiffsInPrompt).toBe(internal.nDiffsInPrompt);
+	});
+
+	test('reports the recently-viewed subsection token breakdown, matching the legacy path', () => {
+		// Empty history and disabled neighbor files leave the recently-viewed-files
+		// and neighbor-files subsections at 0; the language-context snippet populates
+		// the language-context subsection. Large budgets keep the two assembly paths
+		// (cascade vs legacy `getRecentCodeSnippets`) byte-identical, so their
+		// subsection counts must match.
+		const snippet = 'const sharedCtxMarker = 42;';
+		const globalBudget: PromptOptions['globalBudget'] = {
+			totalTokens: 100000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		};
+		const cascaded = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) })).sectionTokens.recentlyViewedSubsections;
+		const legacy = getUserPrompt(makePieces(undefined, { langCtx: makeLangCtxWithSnippet(snippet) })).sectionTokens.recentlyViewedSubsections;
+
+		assert.deepStrictEqual(
+			{
+				recentlyViewedFilesZero: cascaded.recentlyViewedFiles === 0,
+				languageContextPopulated: cascaded.languageContext > 0,
+				neighborFilesZero: cascaded.neighborFiles === 0,
+				legacyEqualsCascade: JSON.stringify(legacy) === JSON.stringify(cascaded),
+			},
+			{
+				recentlyViewedFilesZero: true,
+				languageContextPopulated: true,
+				neighborFilesZero: true,
+				legacyEqualsCascade: true,
+			},
+		);
 	});
 });

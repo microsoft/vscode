@@ -51,6 +51,7 @@ import './api/browser/viewsExtensionPoint.js';
 //#region --- workbench parts
 
 import './browser/parts/editor/editor.contribution.js';
+import './browser/parts/editor/diffEditor.workbench.contribution.js';
 import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
@@ -204,6 +205,9 @@ import './services/accounts/browser/defaultAccount.js';
 // Account Policy Gate
 import './services/policies/browser/accountPolicyGate.contribution.js';
 
+// Policy Telemetry
+import './services/policies/browser/policyTelemetry.contribution.js';
+
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
 
@@ -229,6 +233,9 @@ import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
 // Copilot Voice
 import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
+
+// Floating Chat Input Window
+import './contrib/chat/browser/chatInputWindow/chatInputWindow.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';

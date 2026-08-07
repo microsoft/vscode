@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -19,6 +20,8 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
+	/** Whether new sessions of this type support Worktree isolation and base-branch selection. */
+	readonly supportsWorktreeConfiguration?: boolean;
 	/**
 	 * The workbench chat session type (contribution id) this session type maps
 	 * to, when it differs from {@link id}. Agent-host providers use a bare agent
@@ -28,6 +31,35 @@ export interface ISessionType {
 	 * to {@link id} when omitted.
 	 */
 	readonly chatSessionType?: string;
+	/**
+	 * Whether this session type can run right now, and if it needs GitHub to do
+	 * so. Providers resolve this from what their agent advertises; it is not a
+	 * fixed trait (Claude and Codex both move between values as their own
+	 * credentials come and go).
+	 */
+	readonly authRequirement: SessionTypeAuthRequirement;
+}
+
+/**
+ * What a session type needs before it can serve a request.
+ *
+ * Deliberately three states rather than a boolean. A boolean collapses
+ * {@link Unusable} into {@link GitHub}, which turns "this agent cannot run" into
+ * a sign-in prompt that would not fix anything — the user signs in, and the type
+ * is still broken. Providers resolve the value from what their agent advertises,
+ * so it moves as credentials come and go rather than being a fixed trait.
+ */
+export const enum SessionTypeAuthRequirement {
+	/** Runs on the user's own credentials — usable while signed out of GitHub. */
+	None = 'none',
+	/** Needs a GitHub Copilot account. Also the assumption until an agent resolves. */
+	GitHub = 'github',
+	/**
+	 * Cannot run at all right now, and signing in to GitHub would not help — e.g.
+	 * Claude advertising the Copilot resource as optional but publishing an empty
+	 * model catalog. Surfaces as "no models", not a sign-in prompt.
+	 */
+	Unusable = 'unusable',
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -48,6 +80,11 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
+/** Whether a session still has active work, including work blocked on user input. */
+export function isActiveSessionStatus(status: SessionStatus): boolean {
+	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
+}
+
 /**
  * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
  * host protocol's notion of chat interactivity but is decoupled from it so that
@@ -64,6 +101,21 @@ export const enum ChatInteractivity {
 	ReadOnly = 'read-only',
 	/** The chat is an internal worker that should not be shown in the UI at all. */
 	Hidden = 'hidden',
+}
+
+/**
+ * The effective interactivity of a chat given its session's archived state.
+ *
+ * An archived session is read-only: its interactive chats must hide their
+ * composer. `Hidden` chats are internal workers filtered out of the UI, so they
+ * stay hidden — archiving only downgrades `Full` chats to `ReadOnly`. When not
+ * archived, the chat keeps its own interactivity.
+ */
+export function effectiveChatInteractivity(isArchived: boolean, interactivity: ChatInteractivity): ChatInteractivity {
+	if (interactivity === ChatInteractivity.Hidden) {
+		return ChatInteractivity.Hidden;
+	}
+	return isArchived ? ChatInteractivity.ReadOnly : interactivity;
 }
 
 export interface ISessionGitRepository {
@@ -139,6 +191,30 @@ export interface ISessionWorkspace {
 }
 
 /**
+ * How a session's workspace should be presented: a virtual (cloud) workspace,
+ * the repository checkout itself, or an isolated git worktree.
+ */
+export const enum SessionWorkspaceKind {
+	Virtual = 'virtual',
+	Folder = 'folder',
+	Worktree = 'worktree',
+}
+
+/**
+ * Classifies a session's workspace for presentation (icon, hover). A session whose
+ * worktree is still pending is already reported as {@link SessionWorkspaceKind.Worktree}.
+ */
+export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined, worktreePending = false): SessionWorkspaceKind {
+	if (workspace?.isVirtualWorkspace) {
+		return SessionWorkspaceKind.Virtual;
+	}
+	if (!worktreePending && workspace && workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined) {
+		return SessionWorkspaceKind.Folder;
+	}
+	return SessionWorkspaceKind.Worktree;
+}
+
+/**
  * GitHub information associated with a session.
  */
 export interface IGitHubInfo {
@@ -146,6 +222,8 @@ export interface IGitHubInfo {
 	readonly owner: string;
 	/** GitHub repository name. */
 	readonly repo: string;
+	/** Pull requests associated with this session, most recent first. */
+	readonly pullRequests?: readonly IGitHubPullRequestRef[];
 	/** Pull request associated with this session, if any. */
 	readonly pullRequest?: {
 		/** Pull request number. */
@@ -159,6 +237,37 @@ export interface IGitHubInfo {
 		/** Object ID of the head ref (PR branch) commit. */
 		readonly headRefOid?: string;
 	};
+	/**
+	 * GitHub issues referenced by this session, in the order they were first
+	 * mentioned. Issues may live in a different repository than {@link owner}/{@link repo}.
+	 */
+	readonly issues?: readonly IGitHubIssueRef[];
+}
+
+/** A GitHub pull request associated with a session. */
+export interface IGitHubPullRequestRef {
+	/** GitHub repository owner of the pull request. */
+	readonly owner: string;
+	/** GitHub repository name of the pull request. */
+	readonly repo: string;
+	/** Pull request number. */
+	readonly number: number;
+	/** URI of the pull request. */
+	readonly uri: URI;
+	/** Icon reflecting the last known PR state. */
+	readonly icon?: ThemeIcon;
+}
+
+/** A GitHub issue referenced by a session. */
+export interface IGitHubIssueRef {
+	/** GitHub repository owner of the issue. */
+	readonly owner: string;
+	/** GitHub repository name of the issue. */
+	readonly repo: string;
+	/** Issue number. */
+	readonly number: number;
+	/** URI of the issue. */
+	readonly uri: URI;
 }
 
 export interface ISessionChangesSummary {
@@ -168,6 +277,11 @@ export interface ISessionChangesSummary {
 }
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+/** A last-turn file change classified against its owning session workspace. */
+export type ISessionTurnFileChange = ISessionFileChange & {
+	readonly isOutsideWorkspace: boolean;
+};
 
 /**
  * The kind of change applied to a {@link ISessionFile}.
@@ -252,6 +366,9 @@ export interface ISessionChangeset {
 	readonly originalCheckpointRef: IObservable<string | undefined>;
 	/** Reference to the modified checkpoint for this changeset. */
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+	/** The capabilities of this changeset. */
+	readonly capabilities?: ISessionChangesetCapabilities;
+
 	/**
 	 * Invoke an operation declared in {@link operations}. `target` must be
 	 * provided for resource-scoped operations and omitted for changeset-
@@ -259,6 +376,11 @@ export interface ISessionChangeset {
 	 * the corresponding {@link ISessionChangesetOperation.scopes}.
 	 */
 	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void>;
+
+	/**
+	 * Sets the review state for a list of resources when the changeset supports review.
+	 */
+	setReviewState?(resources: readonly URI[], reviewed: boolean): void;
 }
 
 export type ISessionChangesetOperationTarget =
@@ -311,6 +433,11 @@ export interface ISessionChangesetOperation {
 	readonly confirmation?: string | IMarkdownString;
 }
 
+export interface ISessionChangesetCapabilities {
+	/** Whether the changeset supports review workflow. */
+	readonly review?: boolean;
+}
+
 /**
  * A custom agent reference used by session-level selection. Mirrors the Agent
  * Host protocol's `AgentSelection` shape but lives in the sessions layer so the
@@ -335,6 +462,12 @@ export const enum ChatOriginKind {
 	Tool = 'tool',
 	User = 'user',
 	Fork = 'fork',
+	SideChat = 'sideChat',
+}
+
+export interface ISideChatSelection {
+	readonly text: string;
+	readonly responsePartId?: string;
 }
 
 export interface IChatOrigin {
@@ -345,6 +478,13 @@ export interface IChatOrigin {
 	 * resource of the chat that spawned it. Undefined for user-originated chats.
 	 */
 	readonly parentChat?: URI;
+	/**
+	 * For a {@link ChatOriginKind.Fork} or {@link ChatOriginKind.SideChat}, the
+	 * id of the turn in {@link parentChat} the chat branched from. Undefined for
+	 * other origins.
+	 */
+	readonly turnId?: string;
+	readonly selection?: ISideChatSelection;
 }
 
 /**
@@ -382,6 +522,14 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * File changes produced by the chat's **last turn** only (as opposed to the
+	 * cumulative chat {@link changes}). Derived from the chat's live output
+	 * stream so consumers — e.g. the chat input status pills — can reflect just
+	 * what the most recent request produced. Each change is classified against
+	 * this session's workspace. Providers that cannot determine this omit the observable.
+	 */
+	readonly lastTurnChanges?: IObservable<readonly ISessionTurnFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -452,6 +600,13 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Whether the session has a usable Git repository. Providers may refine this beyond workspace metadata. */
+	readonly hasGitRepository?: IObservable<boolean>;
+	/**
+	 * Whether the session's isolated git worktree does not exist yet, so {@link workspace}
+	 * still describes the checkout it was started from. Absent means `false`.
+	 */
+	readonly worktreePending?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
 
@@ -502,6 +657,18 @@ export interface ISession {
 	readonly capabilities: IObservable<ISessionCapabilities>;
 }
 
+/** Returns whether any chat or session-level fallback reports file changes. */
+export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
+	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
+		return true;
+	}
+	const changesSummary = session.changesSummary?.read(reader);
+	if (changesSummary !== undefined) {
+		return changesSummary.files > 0;
+	}
+	return session.changes.read(reader).length > 0;
+}
+
 /**
  * Build the canonical {@link ISession.sessionId} from a provider id and
  * session resource URI.
@@ -531,6 +698,13 @@ export interface ISessionCapabilities {
 	 * it. Defaults to falsy (no fork) when omitted.
 	 */
 	readonly supportsFork?: boolean;
+	/**
+	 * Whether this session supports creating a side chat from a turn (via
+	 * `/btw`). Side chats inherit the source chat's model/agent and are shown
+	 * as ordinary peer chats in the session's standard chat tabs. Defaults to
+	 * falsy (no side chat) when omitted.
+	 */
+	readonly supportsSideChat?: boolean;
 	/**
 	 * Whether this session's title can be renamed. The agents-window UI
 	 * (session header inline edit, sessions-list `Rename...` action) gates
@@ -665,6 +839,11 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 	return true;
 }
 
+/** Structural equality for arrays of {@link ISessionTurnFileChange}. */
+export function sessionTurnFileChangesEqual(a: readonly ISessionTurnFileChange[], b: readonly ISessionTurnFileChange[]): boolean {
+	return sessionFileChangesEqual(a, b) && a.every((change, index) => change.isOutsideWorkspace === b[index].isOutsideWorkspace);
+}
+
 /**
  * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
  * so that providers can re-publish updated info without notifying observers when the underlying GitHub
@@ -684,6 +863,12 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 
 	return a.owner === b.owner &&
 		a.repo === b.repo &&
+		arrayEquals(a.pullRequests ?? [], b.pullRequests ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&

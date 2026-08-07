@@ -6,6 +6,7 @@
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
 
 /**
@@ -22,6 +23,7 @@ export interface IPendingSdkMessage {
 	readonly sdkMessage: SDKUserMessage;
 	readonly sdkUuid: string;
 	readonly turnId: string;
+	readonly stopWatch: StopWatch;
 	readonly deferred: DeferredPromise<void>;
 	readonly steeringPendingId?: string;
 }

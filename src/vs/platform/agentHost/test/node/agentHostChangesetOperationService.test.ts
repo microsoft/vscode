@@ -75,6 +75,7 @@ class TestGitStateService implements IAgentHostGitStateService {
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
+	async attachSessionGitHubIssues(_sessionKey: string, _text: string): Promise<void> { }
 }
 
 suite('AgentHostChangesetOperationService', () => {
@@ -183,6 +184,7 @@ suite('AgentHostChangesetOperationService', () => {
 		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hi', origin: { kind: MessageKind.User } },
 		});
 

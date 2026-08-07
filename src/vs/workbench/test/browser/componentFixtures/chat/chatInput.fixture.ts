@@ -7,9 +7,12 @@ import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
+import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
 import { defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { renderChatInput } from './renderChatInput.js';
 
@@ -58,9 +61,28 @@ const sampleTodos: IChatTodo[] = [
 	{ id: 3, title: 'Add unit tests', status: 'not-started' },
 ];
 
+const sampleModels: ILanguageModelChatMetadataAndIdentifier[] = [
+	{
+		identifier: 'openai-gpt-5.3-codex',
+		metadata: {
+			extension: new ExtensionIdentifier('fixture.extension'),
+			id: 'gpt-5.3-codex',
+			name: 'GPT-5.3-Codex',
+			vendor: 'openai',
+			family: 'gpt',
+			version: '1',
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		},
+	},
+];
+
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
+	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
+	CompactWithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels, width: 260 }) }),
 	WithArtifacts: defineComponentFixture({ render: context => renderChatInput(context, { artifacts: sampleArtifacts }) }),
 	WithFileChanges: defineComponentFixture({
 		render: context => renderChatInput(context, { editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/fibon.ts', added: 21, removed: 1 }]) })
@@ -81,4 +103,15 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 			todos: sampleTodos,
 		})
 	}),
+	// Standalone dictation / Voice Mode controls, shown when the segmented voice
+	// pill isn't active. Each state changes part of the border / color / glow
+	// cascade, so they are covered individually.
+	VoiceDictationIdle: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'dictationIdle' }) }),
+	VoiceDictationRecording: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'dictationRecording' }) }),
+	VoiceDictationPreparing: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'dictationPreparing' }) }),
+	VoiceModeIdle: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceIdle' }) }),
+	VoiceModeConnecting: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceConnecting' }) }),
+	VoiceModeListening: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceListening' }) }),
+	VoiceModeSpeaking: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceSpeaking' }) }),
+	VoiceModeDisconnect: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceDisconnect' }) }),
 });

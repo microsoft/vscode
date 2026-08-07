@@ -15,7 +15,8 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../../../../base/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -209,12 +210,12 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 	const defaultAccountService = new MockDefaultAccountService();
 	disposables.add({ dispose: () => defaultAccountService.dispose() });
 	const configurationService = new TestConfigurationService({
-		[AgentHostEnabledSettingId]: agentHostEnabled,
 		[AgentHostCustomTerminalToolEnabledSettingId]: true,
 	});
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: observableValue('agentHostEnabled', agentHostEnabled) });
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
@@ -244,7 +245,7 @@ suite('AgentHostTerminalContribution', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('does not dispatch when chat.agentHost.enabled is false', async () => {
+	test('does not dispatch when Agent Host is unavailable', async () => {
 		const { agentHostService } = setup(disposables, /*agentHostEnabled*/ false);
 
 		// Even with a fully-hydrated rootState, nothing should fire because
@@ -525,4 +526,3 @@ suite('AgentHostTerminalContribution', () => {
 		});
 	});
 });
-

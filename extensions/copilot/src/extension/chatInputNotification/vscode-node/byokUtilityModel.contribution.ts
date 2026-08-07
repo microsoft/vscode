@@ -21,8 +21,8 @@ const MAIN_AGENT_BYOK_UTILITY_MODEL_DEFAULT = 'mainAgent';
  * settings are still defaults. Some utility flows are unavailable until the
  * user points them at a BYOK model or selects the main agent model as the BYOK utility default.
  *
- * The notification hides automatically once the user signs in, BYOK models
- * disappear, both utility settings are configured, or the main agent model is the BYOK utility default.
+ * The notification is not shown in the Agents window. Elsewhere, it hides automatically once the user
+ * signs in, BYOK models disappear, both utility settings are configured, or the main agent model is the BYOK utility default.
  */
 export class ByokUtilityModelNotificationContribution extends Disposable {
 
@@ -36,6 +36,10 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		if (vscode.workspace.isAgentSessionsWorkspace) {
+			return;
+		}
 
 		this._register(this._authService.onDidAuthenticationChange(() => this._update()));
 		this._register(vscode.lm.onDidChangeChatModels(() => this._update()));

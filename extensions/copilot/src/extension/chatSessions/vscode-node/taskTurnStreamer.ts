@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AgentTaskGetResponse, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
+import type { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
@@ -13,15 +13,17 @@ import {
 	ResponseEventRenderContext,
 } from '../common/sessionEventRenderer';
 import { TaskCloudAgentBackend } from '../vscode/cloudAgentBackend';
-import { ChatSessionContentBuilder } from './copilotCloudSessionContentBuilder';
+import { isActiveTaskState, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
+import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from './copilotCloudSessionContentBuilder';
 
 /**
  * Phase of a single Task turn. The Task API uses `queued | in_progress | idle |
  * waiting_for_user` to mean "the agent still owns the turn"; the rest are terminal.
+ * Shared with the detail view and the `activeResponseCallback` gate via
+ * {@link isActiveTaskState}.
  */
-const ACTIVE_STATES = new Set<AgentTaskState>(['queued', 'in_progress', 'idle', 'waiting_for_user']);
-function isActiveState(state: AgentTaskState | undefined): boolean {
-	return state !== undefined && ACTIVE_STATES.has(state);
+function isActiveState(state: AgentTaskGetResponse['state'] | undefined): boolean {
+	return state !== undefined && isActiveTaskState(state);
 }
 
 /**
@@ -106,6 +108,7 @@ export class TaskTurnStreamer {
 			currentIntent: null,
 			assistantMessageContent: new Map<string, string>(),
 			activeMessageId: null,
+			renderedError: false,
 		};
 		let lastProgressLabel: string | undefined;
 
@@ -149,6 +152,22 @@ export class TaskTurnStreamer {
 
 				const sessions = task?.sessions;
 				const latestTurn = sessions?.[sessions.length - 1];
+				// Settle when the task itself reached a terminal state, even if its latest turn's
+				// session state is still active. A task that failed to launch (e.g. "Failed to
+				// launch agent") never advances the turn out of `queued`/`in_progress`, so the
+				// per-turn check below would otherwise poll forever.
+				if (task !== undefined && !isActiveState(task.state)) {
+					if (isFailedTaskState(task.state)) {
+						// Surface the stop in-stream too, so it shows even after partial content
+						// streamed. Skip the concrete detail if a `session.error` already rendered it.
+						sink.flush();
+						const detail = state.renderedError ? undefined : extractTaskErrorDetail(events);
+						this._logService.trace(`[TaskTurnStreamer] task ${taskId} settled stopped (state=${task.state}); renderedError=${state.renderedError}; errorDetail=${detail ?? 'none'}`);
+						stream.markdown(formatTaskStoppedMessage(task.state, detail));
+					}
+					state.isWorking = false;
+					return;
+				}
 				if (latestTurn && !isActiveState(latestTurn.state)) {
 					state.isWorking = false;
 					return;
@@ -236,6 +255,12 @@ export class TaskTurnStreamer {
 
 		if (event.dismissed) {
 			return;
+		}
+
+		if (event.type === 'session.error') {
+			// A `session.error` renders inline via the default path below; remember it so the
+			// terminal-failure notice on settle doesn't repeat the same detail.
+			state.renderedError = true;
 		}
 
 		// Skip `tool.execution_complete` for tool calls we already rendered eagerly
@@ -385,6 +410,9 @@ interface IngestState {
 	assistantMessageContent: Map<string, string>;
 	/** The messageId currently accumulating chunks in the render context, for flushing on boundaries. */
 	activeMessageId: string | null;
+	/** Whether a non-dismissed `session.error` was already rendered into the stream, so the terminal
+	 * failure notice doesn't repeat the same error detail. */
+	renderedError: boolean;
 }
 
 interface ToolRequest {

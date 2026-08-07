@@ -17,6 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentFeedbackAttachmentContribution } from '../../browser/agentFeedbackAttachment.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { buildNewSessionPrompt } from '../../browser/agentFeedbackAttachmentEntry.js';
 
 suite('AgentFeedbackAttachmentContribution', () => {
 	const store = new DisposableStore();
@@ -66,5 +67,36 @@ suite('AgentFeedbackAttachmentContribution', () => {
 		listener!({ sessionResource, feedbackItems: [feedback] });
 
 		assert.strictEqual(getWidgetCallCount, 0);
+	});
+
+	test('formats new-session prompts with comment locations and nested replies', () => {
+		const sessionResource = URI.parse('agent-feedback:/new-session');
+		const feedback = (id: string, text: string, path: string, range: Range, replies?: readonly string[]): IAgentFeedback => ({
+			id,
+			text,
+			resourceUri: URI.file(path),
+			range,
+			sessionResource,
+			kind: AgentFeedbackKind.UserReview,
+			state: AgentFeedbackState.Accepted,
+			replies,
+		});
+		const roots = [URI.file('/workspace'), URI.file('/second-root')];
+		const first = feedback('one', 'Fix this', '/workspace/src/a.ts', new Range(10, 2, 12, 4), ['Also cover null', 'Keep the\nerror detail']);
+		const second = feedback('two', 'Rename this', '/workspace/src/b.ts', new Range(3, 1, 3, 8));
+		const inSecondRoot = feedback('three', 'Update this', '/second-root/lib/c.ts', new Range(7, 1, 7, 5));
+		const outsideWorkspace = feedback('four', 'Check this', '/elsewhere/d.ts', new Range(1, 1, 1, 2));
+
+		assert.deepStrictEqual({
+			promptAndComments: buildNewSessionPrompt('Implement the change', [first, second], roots),
+			singleComment: buildNewSessionPrompt('', [first], roots),
+			multipleComments: buildNewSessionPrompt('', [first, second], roots),
+			multiRoot: buildNewSessionPrompt('', [second, inSecondRoot, outsideWorkspace], roots),
+		}, {
+			promptAndComments: 'Implement the change\n- Fix this (src/a.ts:10:2-12:4)\n  - reply: Also cover null\n  - reply: Keep the\n    error detail\n- Rename this (src/b.ts:3:1-3:8)',
+			singleComment: 'Fix this (src/a.ts:10:2-12:4)\n  - reply: Also cover null\n  - reply: Keep the\n    error detail',
+			multipleComments: '- Fix this (src/a.ts:10:2-12:4)\n  - reply: Also cover null\n  - reply: Keep the\n    error detail\n- Rename this (src/b.ts:3:1-3:8)',
+			multiRoot: '- Rename this (src/b.ts:3:1-3:8)\n- Update this (lib/c.ts:7:1-7:5)\n- Check this (/elsewhere/d.ts:1:1-1:2)',
+		});
 	});
 });

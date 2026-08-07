@@ -45,7 +45,7 @@ function stripSystemReminders(text: string): string {
  */
 function computeSessionLabel(info: SDKSessionInfo): string {
 	if (info.customTitle) {
-		return info.customTitle;
+		return truncateLabel(info.customTitle);
 	}
 
 	const summary = info.summary ? stripSystemReminders(info.summary) : '';

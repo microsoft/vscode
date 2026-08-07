@@ -27,6 +27,16 @@ export const ClaudeSdkPackage: IAgentSdkPackage = {
 	hasSeparateMuslLinuxPackage: true,
 };
 
+/**
+ * SDK escape hatch for its "precompact skip" optimization. Above a ~5 MB
+ * transcript the SDK reads back only the bytes AFTER the last compact
+ * boundary, which silently truncates the history `getSessionMessages`
+ * returns — the slice can begin mid-turn, or contain no user prompt at all.
+ * Replay then reconstructs a partial (or empty) conversation, so we opt out
+ * and pay the full read. Read by the SDK from `process.env` on every call.
+ */
+const ClaudeDisablePrecompactSkipEnvVar = 'CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP';
+
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 
 /**
@@ -138,7 +148,14 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IAgentSdkDownloader private readonly _downloader: IAgentSdkDownloader,
-	) { }
+	) {
+		// Set before any SDK call so full transcripts are always read back.
+		// An explicit value from the environment wins so the optimization can
+		// still be re-enabled from outside.
+		if (process.env[ClaudeDisablePrecompactSkipEnvVar] === undefined) {
+			process.env[ClaudeDisablePrecompactSkipEnvVar] = '1';
+		}
+	}
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
 		const sdk = await this._getSdk();

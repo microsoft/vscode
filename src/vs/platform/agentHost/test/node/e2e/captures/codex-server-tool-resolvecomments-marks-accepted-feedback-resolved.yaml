@@ -1,0 +1,65 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call resolveComments exactly once with commentIds ["resolve-me"], then reply exactly "resolved".
+    response:
+      content:
+        - type: text
+          text: Resolving the specified comment now with a single `resolveComments` call, then I will return the exact requested response.
+        - type: tool_use
+          id: toolcall_0
+          name: resolveComments
+          input:
+            commentIds:
+              - resolve-me
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call resolveComments exactly once with commentIds ["resolve-me"], then reply exactly "resolved".
+        - role: assistant
+          content: Resolving the specified comment now with a single `resolveComments` call, then I will return the exact requested response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: resolveComments
+              input:
+                commentIds:
+                  - resolve-me
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                {
+                  "resolved": true,
+                  "updatedCommentIds": [
+                    "resolve-me"
+                  ],
+                  "notFoundCommentIds": [],
+                  "comments": [
+                    {
+                      "id": "resolve-me",
+                      "resourceUri": "untitled://server-tools/reviewed.ts",
+                      "range": {
+                        "startLineNumber": 2,
+                        "startColumn": 3,
+                        "endLineNumber": 2,
+                        "endColumn": 9
+                      },
+                      "text": "resolve",
+                      "kind": "codeReview",
+                      "resolved": true
+                    }
+                  ]
+                }
+    response:
+      content: resolved
+      stopReason: end_turn

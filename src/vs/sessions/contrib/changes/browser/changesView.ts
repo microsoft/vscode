@@ -30,7 +30,7 @@ import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -39,10 +39,13 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
@@ -57,6 +60,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -82,9 +86,9 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
-import { EditorHeaderPrimaryMenuId, EditorHeaderSecondaryMenuId } from '../../../browser/parts/singlePaneEditorPart.js';
+import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 
 const $ = dom.$;
@@ -94,17 +98,36 @@ const $ = dom.$;
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const DIFF_STATS_ACTION_ID = 'workbench.changesView.action.viewChanges';
+const singlePaneChangesEditorHeader = ContextKeyExpr.and(
+	SinglePaneLayoutEnabledContext,
+	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID)
+);
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
-
-/** Maximum number of file rows the tree pane's minimum size grows to accommodate. */
-const TREE_PANE_MIN_SIZE_MAX_ROWS = 13;
 
 /** Breathing room rendered beneath the last file row when the whole list fits. */
 const TREE_PANE_LIST_BOTTOM_PADDING = 12;
 
 // --- ButtonBar widget
 
-class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
+/**
+ * Common surface for the changes action button-bar widgets so hosts (e.g. the
+ * editor-title actions bar) can react to and query whether any action rendered.
+ */
+interface IChangesButtonBarWidget extends IDisposable {
+	/** Fires whenever the rendered actions change. */
+	readonly onDidChangeActions: Event<void>;
+	/** Whether the widget currently renders at least one action. */
+	readonly hasActions: boolean;
+}
+
+class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
+
+	private readonly _onDidChangeActions = this._register(new Emitter<void>());
+	readonly onDidChangeActions = this._onDidChangeActions.event;
+
+	private _currentButtonBar: MenuWorkbenchButtonBar | undefined;
+	get hasActions(): boolean { return (this._currentButtonBar?.buttons.length ?? 0) > 0; }
+
 	constructor(
 		container: HTMLElement,
 		hasGitOperationInProgressObs: IObservable<boolean>,
@@ -157,6 +180,10 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 
 			// Set the running label override
 			reader.store.add(buttonBar.onWillRun(e => runningLabelObs.set(e.action.label, undefined)));
+
+			this._currentButtonBar = buttonBar;
+			reader.store.add(buttonBar.onDidChange(() => this._onDidChangeActions.fire()));
+			this._onDidChangeActions.fire();
 
 			reader.store.add(buttonBar);
 		}));
@@ -216,7 +243,6 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
 			action.id === 'github.copilot.claude.sessions.commit' ||
 			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
-			action.id === 'agentSession.markAsDone' ||
 			action.id === 'agentSession.restore' ||
 			action.id === 'sessions.action.fixCIChecks' ||
 			isAgentHostSkillButtonId(action.id)
@@ -240,7 +266,12 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 
 // --- ButtonBar widget (Agent Host)
 
-class ChangesWorkbenchButtonBarWidget extends Disposable {
+class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
+
+	private readonly _buttonBar: WorkbenchButtonBar;
+	readonly onDidChangeActions: Event<void>;
+	get hasActions(): boolean { return this._buttonBar.buttons.length > 0; }
+
 	constructor(
 		container: HTMLElement,
 		@IMenuService menuService: IMenuService,
@@ -252,7 +283,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
 
-		const buttonBar = this._register(instantiationService.createInstance(
+		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
 			container,
 			{
@@ -262,6 +293,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 				}
 			}
 		));
+		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
 
 		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
 			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
@@ -286,7 +318,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 					: op.status === SessionChangesetOperationStatus.Running
 						? `$(loading) ${op.label}`
 						: op.label,
-				tooltip: op.description,
+				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => changeset.invokeOperation(op.id),
 			});
@@ -393,6 +425,12 @@ export class ChangesActionsBar extends Disposable {
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
+		let currentWidget: IChangesButtonBarWidget | undefined;
+		const updateVisibility = () => {
+			const visible = currentWidget?.hasActions ?? false;
+			dom.setVisibility(visible, container);
+		};
+
 		this._register(autorun(reader => {
 			dom.clearNode(container);
 
@@ -400,39 +438,26 @@ export class ChangesActionsBar extends Disposable {
 				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
 				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
 			reader.store.add(widget);
+			currentWidget = widget;
+			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
+			updateVisibility();
 		}));
 
 		this._register(autorun(reader => {
-			const status = sessionsService.activeSession.read(reader)?.status.read(reader);
-			dom.setVisibility(status !== SessionStatus.Untitled, container);
+			sessionsService.activeSession.read(reader)?.status.read(reader);
+			updateVisibility();
 		}));
 	}
+
 }
 
-// --- Editor header menus (single-pane): the Changes editor declares
-// EditorHeaderPrimaryMenuId (Branch Changes picker + diff stats) and
-// EditorHeaderSecondaryMenuId (the actions bar) and the editor group renders
-// them. The custom action view items below are registered globally by menu id so
-// the group's generic toolbars render them.
+// --- Editor header menus (single-pane): actions contribute to the group-owned
+// primary/secondary header menus and gate themselves to the Changes editor.
 
-const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
+export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
-/** Anchor action for the trailing header toolbar; rendered as the {@link ChangesActionsBar}. */
-class ChangesHeaderActionsAction extends Action2 {
-	constructor() {
-		super({
-			id: CHANGES_HEADER_ACTIONS_ID,
-			title: localize2('changesView.headerActions', 'Changes Actions'),
-			f1: false,
-			menu: { id: EditorHeaderSecondaryMenuId, group: 'navigation', order: 1 },
-		});
-	}
-	override async run(): Promise<void> { }
-}
-registerAction2(ChangesHeaderActionsAction);
-
-/** Renders the {@link ChangesActionsBar} widget as the trailing header action item. */
-class ChangesActionsBarActionViewItem extends BaseActionViewItem {
+/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request title-bar action item. */
+export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
@@ -447,8 +472,8 @@ class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-/** Registers the Changes editor-header action view items keyed by the editor-header menu ids. */
-class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchContribution {
+/** Registers custom Changes action view items. */
+class ChangesActionViewItemsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.changesEditorHeader';
 
@@ -459,28 +484,34 @@ class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchCo
 
 		const onDidRegister = this._register(new Emitter<void>());
 
-		this._register(actionViewItemService.register(EditorHeaderPrimaryMenuId, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(ChangesPickerActionItem, action);
 		}, onDidRegister.event));
 
-		this._register(actionViewItemService.register(EditorHeaderPrimaryMenuId, DIFF_STATS_ACTION_ID, (action, options, instantiationService) => {
+		// Always rendered, whether the editor area is visible or collapsed: the same
+		// diff-stats action as the classic Changes view header (clicking it opens the
+		// Changes editor), but with the richer "N files +X -Y" rendering.
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, DIFF_STATS_ACTION_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(SinglePaneChangesDiffStatsActionItem, action, options);
 		}, onDidRegister.event));
 
-		this._register(actionViewItemService.register(EditorHeaderSecondaryMenuId, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
 			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
 		}, onDidRegister.event));
 
 		onDidRegister.fire();
 	}
 }
-registerWorkbenchContribution2(ChangesEditorHeaderContribution.ID, ChangesEditorHeaderContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChangesActionViewItemsContribution.ID, ChangesActionViewItemsContribution, WorkbenchPhase.BlockRestore);
 
 // --- View Pane
 
@@ -502,6 +533,8 @@ export class ChangesViewPane extends ViewPane {
 	private splitView: SplitView | undefined;
 	private splitViewContainer: HTMLElement | undefined;
 	private readonly treePaneSizeChange = this._register(new Emitter<number | undefined>());
+	private rebalanceSectionPanes: (() => void) | undefined;
+	private sectionPanesUserResized = false;
 
 	private readonly isMergeBaseBranchProtectedContextKey: IContextKey<boolean>;
 	private readonly isolationModeContextKey: IContextKey<IsolationMode>;
@@ -666,19 +699,37 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		// Shared constants for pane sizing
+		const sessionFilesWidget = this.sessionFilesWidget;
+		const ciWidget = this.ciStatusWidget;
 		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
 		const sessionFilesMinHeight = SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.MIN_BODY_HEIGHT;
-		const getSessionFilesContentHeight = () => Math.max(SessionFilesWidget.HEADER_HEIGHT, this.sessionFilesWidget?.desiredHeight ?? 0);
-		const getSessionFilesMinimumHeight = () => this.sessionFilesWidget?.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Math.min(sessionFilesMinHeight, getSessionFilesContentHeight());
-		const getSessionFilesPreferredHeight = () => Math.max(getSessionFilesMinimumHeight(), SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT);
-		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, this.ciStatusWidget?.desiredHeight ?? 0);
-		const getCIMinimumHeight = () => this.ciStatusWidget?.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
+		const getSessionFilesContentHeight = () => Math.max(SessionFilesWidget.HEADER_HEIGHT, sessionFilesWidget.desiredHeight);
+		const getSessionFilesMinimumHeight = () => sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Math.min(sessionFilesMinHeight, getSessionFilesContentHeight());
+		const getSessionFilesPreferredHeight = () => Math.max(
+			getSessionFilesMinimumHeight(),
+			Math.min(getSessionFilesContentHeight(), SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT)
+		);
+		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, ciWidget.desiredHeight);
+		const getCIMinimumHeight = () => ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
+		const getCIPreferredHeight = () => Math.max(
+			getCIMinimumHeight(),
+			Math.min(getCIContentHeight(), CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT)
+		);
+		const getReservedSectionHeight = () =>
+			(sessionFilesWidget.visible ? getSessionFilesMinimumHeight() : 0) +
+			(ciWidget.visible ? getCIMinimumHeight() : 0);
+		this.rebalanceSectionPanes = () => {
+			if (!this.splitView || this.sectionPanesUserResized || !ciWidget.visible || ciWidget.collapsed) {
+				return;
+			}
+			this.splitView.resizeView(2, getCIMinimumHeight());
+		};
 		const thisView = this;
 
 		// Top pane: file tree
 		const treePane: IView = {
 			element: this.contentContainer,
-			get minimumSize() { return thisView.getTreePaneMinimumSize(); },
+			get minimumSize() { return thisView.getTreePaneMinimumSize(getReservedSectionHeight()); },
 			get maximumSize() { return thisView.getTreePaneMaximumSize(); },
 			onDidChange: this.treePaneSizeChange.event,
 			layout: (height) => {
@@ -689,11 +740,10 @@ export class ChangesViewPane extends ViewPane {
 
 		// Middle pane: other files
 		const sessionFilesElement = this.sessionFilesWidget.element;
-		const sessionFilesWidget = this.sessionFilesWidget;
 		const sessionFilesPane: IView = {
 			element: sessionFilesElement,
 			get minimumSize() { return getSessionFilesMinimumHeight(); },
-			get maximumSize() { return sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Number.POSITIVE_INFINITY; },
+			get maximumSize() { return sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : getSessionFilesContentHeight(); },
 			priority: LayoutPriority.High,
 			onDidChange: Event.map(this.sessionFilesWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
@@ -705,13 +755,12 @@ export class ChangesViewPane extends ViewPane {
 
 		// Bottom pane: CI checks
 		const ciElement = this.ciStatusWidget.element;
-		const ciWidget = this.ciStatusWidget;
 		const ciPane: IView = {
 			element: ciElement,
 			get minimumSize() { return getCIMinimumHeight(); },
 			get maximumSize() { return ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : getCIContentHeight(); },
 			priority: LayoutPriority.Low,
-			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => getCIContentHeight()),
+			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
 				ciElement.style.height = `${height}px`;
 				const bodyHeight = Math.max(0, height - CIStatusWidget.HEADER_HEIGHT);
@@ -730,6 +779,7 @@ export class ChangesViewPane extends ViewPane {
 		};
 		updateSplitViewStyles();
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
+		this._register(this.splitView.onDidSashChange(() => this.sectionPanesUserResized = true));
 
 		// Initially hide the other files and CI panes until content arrives
 		this.splitView.setViewVisible(1, false);
@@ -740,7 +790,15 @@ export class ChangesViewPane extends ViewPane {
 		this._register(this.sessionFilesWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
 
 		// CI checks pane (index 2)
-		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIContentHeight);
+		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight);
+		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
+		this._register(autorun(reader => {
+			const state = this.changesViewService.activeSessionSectionCollapseStateObs.read(reader);
+			sessionFilesWidget.setCollapsed(state.otherFiles);
+			ciWidget.setCollapsed(state.checks);
+		}));
+		this._register(sessionFilesWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('otherFiles', collapsed)));
+		this._register(ciWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('checks', collapsed)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -879,14 +937,9 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
-				if (this.shouldRevealFileInMultiDiffEditor()) {
-					void this._openMultiFileDiffEditor(e.element.uri);
-					return;
-				}
-
 				// Holding Alt inverts the configured single/multi file diff behavior.
 				const altKey = !!(e.browserEvent as MouseEvent | KeyboardEvent | undefined)?.altKey;
-				const openSingleFileDiff = this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING) !== altKey;
+				const openSingleFileDiff = this.shouldOpenSingleFileDiffByDefault() !== altKey;
 				if (openSingleFileDiff) {
 					// Alt here only switches the diff mode, not the target group.
 					const sideBySide = e.sideBySide && !altKey;
@@ -1003,34 +1056,45 @@ export class ChangesViewPane extends ViewPane {
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 	}
 
-	private getTreePaneMinimumSize(): number {
+	private getTreePaneMinimumSize(reservedSectionHeight: number): number {
 		if (this.listContainer?.style.display === 'none') {
 			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
 
-		// Grow the minimum size to fit the file list (capped at TREE_PANE_MIN_SIZE_MAX_ROWS rows) plus header chrome.
-		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
-		const treeContentHeight = this.tree?.contentHeight ?? 0;
-		const maxRowsHeight = TREE_PANE_MIN_SIZE_MAX_ROWS * ChangesTreeDelegate.ROW_HEIGHT;
-		const cappedContentHeight = Math.min(treeContentHeight, maxRowsHeight);
-		const bottomPadding = treeContentHeight <= maxRowsHeight ? TREE_PANE_LIST_BOTTOM_PADDING : 0;
-
-		return Math.max(EMPTY_FILE_CHANGES_MIN_HEIGHT, filesHeaderHeight + cappedContentHeight + bottomPadding);
+		const desiredSize = this.getTreePaneDesiredSize();
+		const availableSize = this.getSplitViewAvailableHeight() - reservedSectionHeight;
+		return Math.min(desiredSize, Math.max(EMPTY_FILE_CHANGES_MIN_HEIGHT, availableSize));
 	}
 
-	private getTreePaneMaximumSize(): number {
-		if (!this.sessionFilesWidget?.visible || this.sessionFilesWidget.collapsed) {
-			return Number.POSITIVE_INFINITY;
+	private getTreePaneDesiredSize(): number {
+		if (this.listContainer?.style.display === 'none') {
+			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
 
 		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
-		const treeContentHeight = this.listContainer?.style.display === 'none' ? 0 : this.tree?.contentHeight ?? 0;
+		const treeContentHeight = this.tree?.contentHeight ?? 0;
 		const bottomPadding = treeContentHeight > 0 ? TREE_PANE_LIST_BOTTOM_PADDING : 0;
-		return Math.max(this.getTreePaneMinimumSize(), filesHeaderHeight + treeContentHeight + bottomPadding);
+		return filesHeaderHeight + treeContentHeight + bottomPadding;
+	}
+
+	private getTreePaneMaximumSize(): number {
+		return this.getTreePaneDesiredSize();
 	}
 
 	private fireTreePaneSizeChange(): void {
 		this.treePaneSizeChange.fire(undefined);
+	}
+
+	/** Compute the height available to the SplitView within the body. */
+	private getSplitViewAvailableHeight(): number {
+		const bodyHeight = this.currentBodyHeight;
+		if (bodyHeight <= 0) {
+			return 0;
+		}
+		const bodyPadding = 16;
+		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
+		const actionsMargin = actionsHeight > 0 ? 8 : 0;
+		return Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
 	}
 
 	/** Layout the SplitView to fill available body space. */
@@ -1038,16 +1102,13 @@ export class ChangesViewPane extends ViewPane {
 		if (!this.splitView || !this.splitViewContainer) {
 			return;
 		}
-		const bodyHeight = this.currentBodyHeight;
-		if (bodyHeight <= 0) {
+		const availableHeight = this.getSplitViewAvailableHeight();
+		if (availableHeight <= 0) {
 			return;
 		}
-		const bodyPadding = 16; // 8px top + 8px bottom from .changes-view-body
-		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
-		const actionsMargin = actionsHeight > 0 ? 8 : 0;
-		const availableHeight = Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
 		this.splitViewContainer.style.height = `${availableHeight}px`;
 		this.splitView.layout(availableHeight);
+		this.rebalanceSectionPanes?.();
 	}
 
 	/**
@@ -1090,13 +1151,20 @@ export class ChangesViewPane extends ViewPane {
 			const isCurrentlyVisible = this.splitView.isViewVisible(paneIndex);
 			if (visible !== isCurrentlyVisible) {
 				this.splitView.setViewVisible(paneIndex, visible);
-				if (visible && !widget.collapsed) {
+				if (visible && !widget.collapsed && !this.sectionPanesUserResized) {
 					savedPaneHeight = getPreferredHeight();
 					this.splitView.resizeView(paneIndex, savedPaneHeight);
 				}
 			}
 			this.layoutSplitView();
 		}));
+	}
+
+	private setActiveSectionCollapsed(section: ChangesViewSection, collapsed: boolean): void {
+		const sessionResource = this.changesViewService.activeSessionResourceObs.get();
+		if (sessionResource) {
+			this.changesViewService.setSectionCollapsed(sessionResource, section, collapsed);
+		}
 	}
 
 	private getTreeSelection(): IChangesFileItem[] {
@@ -1402,16 +1470,19 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	/**
-	 * Whether clicking a file opens the modal single-file diff (vs the multi-file
-	 * diff editor). Standard layout honors the `workbench.editor.useModal` setting;
-	 * {@link SinglePaneChangesViewPane} always opens the multi-file diff.
+	 * Whether clicking a file opens the modal single-file diff. {@link SinglePaneChangesViewPane}
+	 * never uses the modal editor.
 	 */
 	protected shouldOpenModalDiff(): boolean {
 		return this.configurationService.getValue<string>('workbench.editor.useModal') === 'all';
 	}
 
-	protected shouldRevealFileInMultiDiffEditor(): boolean {
-		return false;
+	/**
+	 * Whether clicking a file opens a single-file diff by default (vs the
+	 * multi-file diff editor). Alt inverts this.
+	 */
+	protected shouldOpenSingleFileDiffByDefault(): boolean {
+		return this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING);
 	}
 
 	/**
@@ -1485,12 +1556,32 @@ export class ChangesViewPane extends ViewPane {
 		// (no modified) are shown as a diff against an empty side, matching the
 		// "Open Changes" action.
 		const modifiedUri = isDeletion ? undefined : uri;
-		await this.editorService.openEditor({
+		const pane = await this.editorService.openEditor({
 			original: { resource: originalUri },
 			modified: { resource: modifiedUri },
 			...labels,
 			options: { preserveFocus, pinned }
 		}, group);
+
+		// Show the whole file rather than folding unchanged regions, since this
+		// diff is opened to review one specific file. No open-call option exists
+		// for this, so apply it via updateOptions() once the pane resolves - but
+		// the pane's diff editor control is reused across different inputs, so
+		// restore the configured value once this input is no longer active,
+		// rather than leaving the override stuck for whatever opens next.
+		const control = pane?.getControl();
+		if (pane && isDiffEditor(control)) {
+			const openedInput = pane.input;
+			control.updateOptions({ hideUnchangedRegions: { enabled: false } });
+			const listener = pane.group.onDidActiveEditorChange(() => {
+				if (pane.group.activeEditor === openedInput) {
+					return;
+				}
+				listener.dispose();
+				control.updateOptions({ hideUnchangedRegions: { enabled: this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled') } });
+			});
+			this._register(listener);
+		}
 	}
 
 	private async _openMultiFileDiffEditor(reveal?: URI): Promise<void> {
@@ -1542,7 +1633,7 @@ export class ChangesViewPane extends ViewPane {
  * Changes view for the single-pane layout: the files list lives in the docked
  * detail panel while the Branch Changes header, Create-PR actions, and diffs are
  * shown in the custom Changes editor. Overrides the standard hooks to omit the
- * in-panel header/actions and always open the multi-file diff.
+ * in-panel header/actions.
  */
 export class SinglePaneChangesViewPane extends ChangesViewPane {
 
@@ -1559,11 +1650,8 @@ export class SinglePaneChangesViewPane extends ChangesViewPane {
 	}
 
 	protected override shouldOpenModalDiff(): boolean {
+		// Single-pane never uses the modal editor.
 		return false;
-	}
-
-	protected override shouldRevealFileInMultiDiffEditor(): boolean {
-		return true;
 	}
 }
 
@@ -1678,7 +1766,7 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 			title: localize('setListViewMode', "View as List"),
 			viewId: CHANGES_VIEW_ID,
 			f1: false,
-			icon: Codicon.listTree,
+			icon: Codicon.listFlat,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
 			menu: {
 				id: MenuId.ChatEditingSessionTitleToolbar,
@@ -1701,7 +1789,7 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 			title: localize('setTreeViewMode', "View as Tree"),
 			viewId: CHANGES_VIEW_ID,
 			f1: false,
-			icon: Codicon.listFlat,
+			icon: Codicon.listTree,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
 			menu: {
 				id: MenuId.ChatEditingSessionTitleToolbar,
@@ -1738,10 +1826,10 @@ class VersionsPickerAction extends Action2 {
 				order: 9,
 				when: ActiveSessionContextKeys.HasGitRepository,
 			}, {
-				id: EditorHeaderPrimaryMenuId,
+				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
-				when: ActiveSessionContextKeys.HasGitRepository,
+				when: ContextKeyExpr.and(singlePaneChangesEditorHeader, ActiveSessionContextKeys.HasGitRepository),
 			}],
 		});
 	}
@@ -1812,7 +1900,14 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	}
 }
 
-// --- Diff Stats Action
+// --- Diff Stats Actions
+//
+// The editor-group header's left title bar (SessionsEditorHeaderPrimary) always renders
+// the same diff-stats action (ChangesDiffStatsAction) that the classic Changes view
+// header uses — the one otherwise shown only while the editor area is collapsed —
+// whether the editor area is visible or closed. Clicking it opens (or re-opens) the
+// Changes editor. It uses SinglePaneChangesDiffStatsActionItem, a richer "N files +X -Y"
+// rendering (the detail-panel header uses the compact animated base rendering instead).
 
 class ChangesDiffStatsAction extends Action2 {
 	static readonly ID = 'workbench.changesView.action.viewChanges';
@@ -1828,10 +1923,10 @@ class ChangesDiffStatsAction extends Action2 {
 				order: 1,
 				when: ChatContextKeys.hasAgentSessionChanges
 			}, {
-				id: EditorHeaderPrimaryMenuId,
+				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 2,
-				when: ChatContextKeys.hasAgentSessionChanges
+				when: ContextKeyExpr.and(singlePaneChangesEditorHeader, ChatContextKeys.hasAgentSessionChanges)
 			}],
 		});
 	}
@@ -1922,31 +2017,20 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 }
 
 /**
- * Diff-stats label for the single-pane Changes editor header: a richer
- * "$(diff-multiple) N files +X -Y" rendering (the detail-panel header uses the
- * compact animated base rendering). Adds the `changes-diff-stats-action-rich`
- * marker class so its styling applies wherever it renders (the classic internal
- * header or the single-pane editor-group header).
+ * Diff-stats action item for the single-pane Changes editor header: a richer
+ * "N files +X -Y" rendering (the detail-panel header uses the compact animated
+ * base rendering). Unlike the base item this remains fully interactive — clicking
+ * it runs the action (opens the Changes editor) the same as the base rendering.
+ * Adds the `changes-diff-stats-action-rich` marker class so its styling applies
+ * wherever it renders (the classic internal header or the single-pane editor-group
+ * header).
  */
 export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsActionItem {
 
 	override render(container: HTMLElement): void {
-		this.element = container;
-		container.classList.add('changes-diff-stats-action', 'changes-diff-stats-action-rich');
-
-		const label = dom.append(container, dom.$('span.action-label'));
-		this.label = label;
-		this.renderLabelContents(label);
-		this.updateTooltip();
+		super.render(container);
+		container.classList.add('changes-diff-stats-action-rich');
 	}
-
-	override onClick(event: dom.EventLike): void {
-		dom.EventHelper.stop(event, true);
-	}
-
-	override focus(): void { }
-
-	override setFocusable(_focusable: boolean): void { }
 
 	protected override renderLabelContents(label: HTMLElement): void {
 		this._register(autorun(reader => {
@@ -1962,7 +2046,6 @@ export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsAction
 
 			dom.reset(
 				label,
-				...renderLabelWithIcons('$(diff-multiple)'),
 				dom.$('span.changes-diff-stats-files', undefined, filesLabel),
 				dom.$('span.working-set-lines-added', undefined, `+${additions}`),
 				dom.$('span.working-set-lines-removed', undefined, `-${deletions}`)

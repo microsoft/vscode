@@ -7,8 +7,10 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -19,6 +21,7 @@ import { AICustomizationSource, AICustomizationSources } from '../../../common/a
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
 import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { localize } from '../../../../../../nls.js';
@@ -38,10 +41,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	/** Cache: pluginUri → last expansion (keyed by nonce and label so we re-fetch on content or display-name changes). */
 	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
 	private readonly _contentExpander: AgentCustomizationContentExpander;
+	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
+	private _draftCustomizations: IObservable<readonly ClientPluginCustomization[]> | undefined;
 
 	constructor(
 		private readonly _connectionAuthority: string,
 		private readonly _getItemActions: ((customization: PluginCustomization, clientId: string | undefined) => ICustomizationItemAction[] | undefined) | undefined,
+		private readonly _resolveSyncedOrigin: ((syncedUri: URI) => ISyncedCustomizationOrigin | undefined) | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostCustomizationService private readonly _customAgentsService: IAgentHostCustomizationService,
@@ -50,6 +56,22 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		this._contentExpander = new AgentCustomizationContentExpander(this._fileService, this._logService);
 
 		this._register(this._customAgentsService.onDidChangeCustomizations(() => {
+			this._onDidChange.fire();
+		}));
+	}
+
+	setDraftCustomAgents(customAgents: IObservable<readonly AgentCustomization[]>): void {
+		this._draftCustomAgents = customAgents;
+		this._register(autorun(reader => {
+			customAgents.read(reader);
+			this._onDidChange.fire();
+		}));
+	}
+
+	setDraftCustomizations(customizations: IObservable<readonly ClientPluginCustomization[]>): void {
+		this._draftCustomizations = customizations;
+		this._register(autorun(reader => {
+			customizations.read(reader);
 			this._onDidChange.fire();
 		}));
 	}
@@ -159,6 +181,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	async provideSourceFolders(sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
+
 		const folders: ICustomizationSourceFolder[] = [];
 		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
 			if (!isDirectoryCustomization(customization) || !customization.writable) {
@@ -167,16 +191,18 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			if (toPromptsType(customization.contents) !== type) {
 				continue;
 			}
+			const source = isUnderAnyRoot(workingDirectories, customization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			folders.push({
 				uri: this.toRemoteUri(customization.uri),
 				label: customization.name,
+				source,
 			});
 		}
 		return folders;
 	}
 
 	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomAgent[]> {
-		const agents = this._customAgentsService.getCustomAgents(sessionResource);
+		const agents = this.getCustomAgents(sessionResource);
 		const sessionTypes = [getChatSessionType(sessionResource)];
 		return agents.map(agent => ({
 			id: agent.uri,
@@ -206,13 +232,30 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationItem>();
+		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
+
+		for (const agent of this.getCustomAgents(sessionResource)) {
+			const source = isUnderAnyRoot(workingDirectories, agent.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			items.set(agent.id, {
+				itemKey: agent.id,
+				uri: this.toRemoteUri(agent.uri),
+				type: PromptsType.agent,
+				name: agent.name,
+				description: agent.description,
+				source,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: agent.enabled !== false,
+				userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false,
+			});
+		}
 
 		// Build parent plugin items keyed by customization ref
 		const plugins: PluginMeta[] = [];
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
 
 
-		const customizations = this._customAgentsService.getCustomizations(sessionResource);
+		const customizations = this.getCustomizations(sessionResource);
 
 		const directoryCustomizations = [];
 		for (const sessionCustomization of customizations) {
@@ -264,9 +307,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		for (let i = 0; i < plugins.length; i++) {
 			const p = plugins[i];
 			for (const child of expansions[i]) {
+				// Files flattened into the synthetic bundle lost their original
+				// provenance; recover it (extension/plugin/built-in and source
+				// location) so the item reflects where it actually came from.
+				const enriched = p.isBundleItem ? this._applySyncedOrigin(child) : child;
 				// Children inherit the parent plugin's status/enabled state.
-				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${child.type}::${child.name}`, {
-					...child,
+				items.set(enriched.uri.toString(), {
+					...enriched,
 					status: p.status,
 					statusMessage: p.statusMessage,
 					enabled: p.enabled,
@@ -274,10 +321,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
-		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
-
 		for (const sessionCustomization of directoryCustomizations) {
-			const source = workingDirectory && isParentOrEqual(workingDirectory, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			const isRemote = sessionCustomization.clientId !== undefined;
 			for (const child of this.toDirectoryItems(sessionCustomization, source, isRemote)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
@@ -289,6 +334,47 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 		return [...items.values()];
+	}
+
+	private getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
+		const sessionAgents = this._customAgentsService.getCustomAgents(sessionResource);
+		return sessionAgents.length > 0 ? sessionAgents : this._draftCustomAgents?.get() ?? [];
+	}
+
+	private getCustomizations(sessionResource: URI): readonly Customization[] {
+		const sessionCustomizations = this._customAgentsService.getCustomizations(sessionResource);
+		const draftCustomizations = this._draftCustomizations?.get() ?? [];
+		if (draftCustomizations.length === 0) {
+			return sessionCustomizations;
+		}
+
+		const sessionKeys = new Set(sessionCustomizations.map(customization => `${customization.type}:${customization.uri}`));
+		return [
+			...sessionCustomizations,
+			...draftCustomizations.filter(customization => !sessionKeys.has(`${customization.type}:${customization.uri}`)),
+		];
+	}
+
+	/**
+	 * Rewrites a bundle child item to reflect the original source location of
+	 * the flattened file, when it can be recovered from the synthetic bundle's
+	 * reverse map. The synced (in-memory) URI is replaced with the real local
+	 * URI so the item points at its true origin, and the source/extension/plugin
+	 * metadata is restored. Returns the item unchanged when no origin is known.
+	 */
+	private _applySyncedOrigin(child: ICustomizationItem): ICustomizationItem {
+		const origin = this._resolveSyncedOrigin?.(child.uri);
+		if (!origin) {
+			return child;
+		}
+		return {
+			...child,
+			uri: origin.uri,
+			source: origin.source,
+			extensionId: origin.extensionId,
+			pluginUri: origin.pluginUri,
+			groupKey: origin.source === AICustomizationSources.user ? child.groupKey : undefined,
+		};
 	}
 
 	/**
@@ -307,7 +393,16 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 }
 function isParentOrEqual(folderURI: string, childURI: string): boolean {
-	return childURI === folderURI || childURI.startsWith(folderURI + '/');
+	try {
+		return extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(childURI), URI.parse(folderURI));
+	} catch {
+		return childURI === folderURI || childURI.startsWith(folderURI + '/');
+	}
+}
+
+/** True when `childURI` is contained by (or equal to) any of the workspace roots. */
+function isUnderAnyRoot(roots: readonly string[], childURI: string): boolean {
+	return roots.some(root => isParentOrEqual(root, childURI));
 }
 
 function toStatusString(load: CustomizationLoadState | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {

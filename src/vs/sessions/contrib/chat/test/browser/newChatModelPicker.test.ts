@@ -4,25 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 
 suite('NewChatModelPickerService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('opens only a picker registered for that input scope', () => {
-		const disposables = new DisposableStore();
 		const firstInputPickers = new NewChatModelPickerService();
 		const secondInputPickers = new NewChatModelPickerService();
 		const opened: string[] = [];
 
-		disposables.add(firstInputPickers.registerModelPicker(() => opened.push('first')));
-		disposables.add(secondInputPickers.registerModelPicker(() => opened.push('second')));
+		disposables.add(firstInputPickers.registerModelPicker({ open: () => opened.push('first'), switchToModel: () => false }));
+		disposables.add(secondInputPickers.registerModelPicker({ open: () => opened.push('second'), switchToModel: () => false }));
 
 		firstInputPickers.openModelPicker();
 
 		assert.deepStrictEqual(opened, ['first']);
-		disposables.dispose();
 	});
+
+	test('uses one active picker for opening and switching models', () => {
+		const modelPickers = new NewChatModelPickerService();
+		const events: string[] = [];
+
+		disposables.add(modelPickers.registerModelPicker({
+			open: () => events.push('desktop-open'),
+			switchToModel: modelIdentifier => {
+				events.push(`switch:${modelIdentifier}`);
+				return true;
+			},
+		}));
+		disposables.add(modelPickers.registerModelPicker({
+			open: () => events.push('phone-open'),
+			switchToModel: modelIdentifier => {
+				events.push(`phone-switch:${modelIdentifier}`);
+				return true;
+			},
+		}));
+
+		const switched = modelPickers.switchToModel('vendor/model');
+		modelPickers.openModelPicker();
+
+		assert.deepStrictEqual({ switched, events }, {
+			switched: true,
+			events: ['phone-switch:vendor/model', 'phone-open'],
+		});
+	});
+
 });

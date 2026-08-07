@@ -5,8 +5,10 @@
 
 import { OS } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -38,7 +40,7 @@ const AGENT_HOST_SHELL_DEPENDENT_SETTINGS = [
  * {@link AgentHostRootConfigForwarder} (also used by
  * `AgentHostCopilotCliSettingsContribution`).
  *
- * Gated on the `chat.agentHost.enabled` setting.
+ * Gated on Agent Host runtime availability.
  */
 export class AgentHostTerminalContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentHostTerminal';
@@ -54,6 +56,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
@@ -102,17 +105,11 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, this._agentHostService));
 
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
-				this._updateEnabled();
-			}
-		}));
-
-		this._updateEnabled();
+		this._register(autorun(reader => this._updateEnabled(this._agentHostEnablementService.enabled.read(reader))));
 	}
 
-	private _updateEnabled(): void {
-		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+	private _updateEnabled(enabled: boolean): void {
+		if (enabled) {
 			if (!this._conditionalListeners.value) {
 				const store = new DisposableStore();
 				// The forwarder registers its own agent-host-start listener to re-push

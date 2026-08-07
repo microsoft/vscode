@@ -41,8 +41,18 @@ export interface IAgentHostGitStateService {
 	setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void>;
 
 	/**
-	 * Find a GitHub pull request for the given session and save it to the session state.
+	 * Refresh git state, then find and save a GitHub pull request for the current branch.
 	 * @param sessionKey The key of the session for which to check the GitHub pull request.
+	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */
-	attachSessionGitHubPullRequest(sessionKey: string): Promise<void>;
+	attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void>;
+
+	/**
+	 * Detect GitHub issues referenced in a user message and add them to the
+	 * session's GitHub state. Already-known issues are kept, so the session
+	 * accumulates every issue referenced over its lifetime.
+	 * @param sessionKey The key of the session the message was sent to.
+	 * @param text The user message to scan for issue references.
+	 */
+	attachSessionGitHubIssues(sessionKey: string, text: string): Promise<void>;
 }
