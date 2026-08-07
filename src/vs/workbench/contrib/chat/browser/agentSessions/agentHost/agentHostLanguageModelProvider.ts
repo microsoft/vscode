@@ -10,7 +10,7 @@ import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
-import { readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
+import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
@@ -158,15 +158,19 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * Derives the picker group id for a model — the vendor its models are bucketed
-	 * under. BYOK models are surfaced by the agent host under the `vendor/[group/]id` selection
-	 * id (see `resolveByokSessionConfig`), so their upstream vendor is the id prefix;
-	 * native harness models have no prefix and group under their `provider` (the harness,
-	 * e.g. `copilotcli`). The picker resolves the display name from the vendor registry —
-	 * no name mapping lives here.
+	 * under. A producer may pin the group id explicitly in `_meta` (e.g. Claude
+	 * stamps its transport vendor — `copilot`/`anthropic` — there while keeping
+	 * `provider` as the `claude` routing owner); that wins. Otherwise BYOK models
+	 * are surfaced by the agent host under the `vendor/[group/]id` selection id (see
+	 * `resolveByokSessionConfig`), so their upstream vendor is the id prefix; native
+	 * harness models have no prefix and group under their `provider` (the harness,
+	 * e.g. `copilotcli`). The picker resolves the display name from the vendor
+	 * registry — no name mapping lives here.
 	 */
 	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
+		const explicitGroupId = readAgentModelGroupId(model);
 		const slash = model.id.indexOf('/');
-		const groupVendorId = slash > 0 ? model.id.slice(0, slash) : model.provider;
+		const groupVendorId = explicitGroupId ?? (slash > 0 ? model.id.slice(0, slash) : model.provider);
 		if (!groupVendorId) {
 			return undefined;
 		}

@@ -22,7 +22,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
@@ -46,6 +46,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -60,6 +61,11 @@ import {
 } from './voiceTelemetry.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
+
+export function isVoiceEntitled(chatEntitlementService: IChatEntitlementService): boolean {
+	return isProUser(chatEntitlementService.entitlement)
+		&& (chatEntitlementService.entitlement !== ChatEntitlement.Enterprise || chatEntitlementService.isInternal);
+}
 
 /** One buffered audio chunk of a deferred response. */
 interface IDeferredChunk {
@@ -738,6 +744,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _telemetryPttUpMs: number | undefined;
 	private _telemetryFirstTranscriptionMs: number | undefined;
 	private _telemetryTtsInterrupted = false;
+	private _entitlementCheckScheduled = false;
 
 	// --- Transcript persistence (local-only) ---
 	/** Cached GitHub login resolved on connect; used as transcript partition key. */
@@ -783,13 +790,32 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
+			if (this._entitlementCheckScheduled) {
+				return;
+			}
+			this._entitlementCheckScheduled = true;
+			queueMicrotask(() => {
+				this._entitlementCheckScheduled = false;
+				if (!this._store.isDisposed && !isVoiceEntitled(this.chatEntitlementService)) {
+					this.disconnect();
+				}
+			});
+		}));
 
 		// Track the focused chat session so we can defer voice responses that
 		// arrive for a session the user isn't currently looking at, and flush
 		// them once that session becomes focused.
 		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this._onFocusedSessionChanged()));
+		this._register(this.chatWidgetService.onDidChangeWidgetVisibility(widget => {
+			if (widget.visible) {
+				this._onSessionShown(widget.viewModel?.sessionResource);
+			}
+		}));
 
 		// `onDidChangeFocusedSession` only fires for the DOM-focused widget, so a
 		// session opened into a non-focused widget (e.g. revealed in the chat view
@@ -983,6 +1009,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
+		if (!isVoiceEntitled(this.chatEntitlementService)) {
+			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise
+				? localize('voiceMode.enterpriseUnavailable', "Voice Mode is not available for GitHub Copilot Enterprise accounts.")
+				: localize('voiceMode.requiresPaidPlan', "Voice Mode requires a paid GitHub Copilot plan."));
+			return;
+		}
 		const connectAttemptGeneration = ++this._connectAttemptGeneration;
 
 		this._window = window;
@@ -3774,7 +3806,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return;
 		}
 		const key = resource?.toString();
-		if (!key || key === this._lastShownSessionId) {
+		if (!key) {
+			return;
+		}
+		if (key === this._lastShownSessionId && !this._pendingOwned(this._sessionKey(key))) {
 			return;
 		}
 		this.logService.trace(`[voice] session shown=${key}; flushing/re-sending context`);
@@ -4343,10 +4378,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * like no change at all and is never narrated.
 	 */
 	private _pendingIdFor(sessionId: string): string {
-		// Only meaningful while a session is showing a pending item; callers skip
-		// it otherwise rather than walk a settled response's parts for nothing.
-		const model = this._modelForSession(sessionId);
-		return (model ? this._buildPendingPayload(model)?.pending_id : undefined) ?? '';
+		// Track every actionable pending part, including generic confirmations and
+		// elicitations that do not have a structured wire payload. Two sequential
+		// confirmations can render identical text and briefly pass through thinking;
+		// their per-part occurrence id is what keeps debounce from collapsing that
+		// waiting -> thinking -> waiting burst into a false no-op.
+		const selected = this._selectPendingPart(this._modelForSession(sessionId));
+		return selected ? derivePendingId(selected.requestId, selected.part, this._store) : '';
 	}
 
 	/**
@@ -6395,6 +6433,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const title = this._visibleConfirmationText(messages?.title) || this._visibleConfirmationText(toolInvocation.invocationMessage);
 		const message = this._visibleConfirmationText(messages?.message);
 		const lines = [localize('voice.toolConfirmation.title', "tool approval: {0}", title || message || fallback)];
+		// Only narrate a command the UI explicitly presents. Parameters can carry
+		// hidden/internal values that must remain identity-only.
+		const command = getVoiceToolApprovalCommand(toolInvocation, false);
+		if (command) {
+			lines.push(localize('voice.toolConfirmation.command', "command: {0}", command));
+		}
 		if (message && message !== title) {
 			lines.push(message);
 		}
@@ -6428,11 +6472,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!lastRequest || !parts) {
 			return undefined;
 		}
+		// Register every live copy before selecting one. Some providers rehydrate
+		// the same approval more than once in the response; resolving the selected
+		// copy must retire the copies later in the array as well.
+		for (const part of parts) {
+			if (part.kind === 'toolInvocation' && this._isOpenPendingPart(part)) {
+				derivePendingId(lastRequest.id, part, this._store);
+			}
+		}
 
 		for (let index = 0; index < parts.length; index++) {
 			const part = parts[index];
 			const type = getVoiceConfirmationType([part]);
 			if (type && this._isOpenPendingPart(part)) {
+				if (part.kind === 'toolInvocation') {
+					const pendingId = derivePendingId(lastRequest.id, part, this._store);
+					if (isPendingIdResolved(pendingId)) {
+						continue;
+					}
+				}
 				if (type === 'questionnaire' && isVoiceQuestionnaireInvocation(part)) {
 					const carousel = parts.slice(index + 1).find(candidate =>
 						candidate.kind === 'questionCarousel'
@@ -6528,7 +6586,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const pendingConfirmation = lastRequest?.response?.isPendingConfirmation.get();
 		const confirmation = this._getPendingConfirmationInfo(model);
-		if (pendingConfirmation || confirmation) {
+		// `isPendingConfirmation` can remain true while a provider propagates an
+		// approval to its authoritative model. When selection found only retired
+		// tool copies, treat that gap as work in progress instead of re-announcing
+		// the same approval with a generic fallback.
+		if (confirmation || (pendingConfirmation && !this._hasResolvedPendingToolApproval(model))) {
 			return {
 				state: 'waiting_for_confirmation',
 				...(confirmation?.detail ? { detail: confirmation.detail } : !confirmation ? { detail: this._formatToolNarrationFallback() } : {}),
@@ -6548,6 +6610,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
 	}
 
+	private _hasResolvedPendingToolApproval(model: IChatModel): boolean {
+		const request = model.getRequests().at(-1);
+		for (const part of request?.response?.response.value ?? []) {
+			if (part.kind !== 'toolInvocation' || !this._isOpenPendingPart(part)) {
+				continue;
+			}
+			const pendingId = derivePendingId(request!.id, part, this._store);
+			if (isPendingIdResolved(pendingId)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Describe what a session is waiting on, structurally.
 	 *
@@ -6565,7 +6641,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return undefined;
 		}
 		const { requestId, type, part } = selected;
-		const routing = () => ({ pending_id: derivePendingId(requestId, part), request_id: requestId });
+		const routing = () => ({ pending_id: derivePendingId(requestId, part, this._store), request_id: requestId });
 		if (type === 'questionnaire' && part.kind === 'questionCarousel') {
 			const carousel = part as IChatQuestionCarousel;
 			if (carousel.answeredExternally || carousel.questions.length === 0) {

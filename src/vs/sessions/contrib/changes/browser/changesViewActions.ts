@@ -14,7 +14,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -126,6 +126,12 @@ const singlePaneChangesEditorActive = ContextKeyExpr.and(
 	SinglePaneLayoutEnabledContext
 );
 
+const singlePaneFileDiffEditorActive = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	TextCompareEditorActiveContext,
+	SinglePaneLayoutEnabledContext
+);
+
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
 // visible, so session-level title actions (e.g. Create Pull Request) stay available
 // when the editor area is closed but the docked tab bar is still shown.
@@ -137,6 +143,13 @@ const singlePaneChangesEditorTitle = ContextKeyExpr.and(
 
 const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
 	singlePaneChangesEditorTitle,
+	MainEditorAreaVisibleContext
+);
+
+const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
+	ContextKeyExpr.or(singlePaneChangesEditorActive, singlePaneFileDiffEditorActive),
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext,
 	MainEditorAreaVisibleContext
 );
 
@@ -305,23 +318,26 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 		title: localize('showSideBySideDiff', "Show Side by Side Diff"),
 		icon: Codicon.diffSidebyside,
 		toggled: {
-			condition: EditorContextKeys.multiDiffEditorRenderSideBySide,
+			condition: ContextKeyExpr.or(
+				ContextKeyExpr.and(singlePaneChangesEditorActive, EditorContextKeys.multiDiffEditorRenderSideBySide),
+				ContextKeyExpr.and(singlePaneFileDiffEditorActive, EditorContextKeys.diffEditorInlineMode.negate())
+			)!,
 			title: localize('showInlineDiff', "Show Inline Diff"),
 		},
 	},
 	group: '1_diff',
 	order: 20,
-	when: singlePaneChangesEditorTitleVisible
+	when: singlePaneDiffEditorTitleVisible
 });
 
-// Discoverable in the command palette while the Changes editor is visible.
+// Discoverable in the command palette while a Changes diff editor is visible.
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		title: localize2('toggleDiffView', "Toggle Diff View"),
 		category: localize2('changes', "Changes"),
 	},
-	when: singlePaneChangesEditorTitleVisible
+	when: singlePaneDiffEditorTitleVisible
 });
 
 class OpenChangesAction extends Action2 {

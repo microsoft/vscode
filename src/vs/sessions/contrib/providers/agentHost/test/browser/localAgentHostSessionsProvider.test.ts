@@ -2221,10 +2221,57 @@ suite('LocalAgentHostSessionsProvider', () => {
 				children: [{ type: CustomizationType.Agent, id: 'agent://only', uri: 'agent://only', name: 'only' }],
 			}],
 		});
+
 		assert.deepStrictEqual(provider.getCustomAgents(session.sessionId), [
 			{ type: CustomizationType.Agent, id: 'agent://only', uri: 'agent://only', name: 'only' },
 		]);
 		assert.ok(fired > after, 'expected onDidChangeCustomAgents to fire again on a second update');
+	});
+
+	test('NewSession publishes Agent Host git metadata before the first message', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), sessionTypeId);
+		await timeout(0);
+		const rawId = session.resource.path.substring(1);
+
+		agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			customizations: [],
+			_meta: {
+				github: {
+					owner: 'partial-owner',
+				},
+				git: {
+					hasGitHubRemote: true,
+					githubOwner: 'microsoft',
+					githubRepo: 'vscode',
+					branchName: 'main',
+				},
+			},
+		});
+
+		const gitRepository = session.workspace.get()?.folders[0]?.gitRepository;
+		assert.deepStrictEqual({
+			hasGitHubRemote: gitRepository?.hasGitHubRemote,
+			branchName: gitRepository?.branchName,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		}, {
+			hasGitHubRemote: true,
+			branchName: 'main',
+			gitHubInfo: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequests: undefined,
+				pullRequest: undefined,
+				issues: undefined,
+			},
+		});
 	});
 
 	test('NewSession releases observed changeset subscriptions when inactive', async () => {

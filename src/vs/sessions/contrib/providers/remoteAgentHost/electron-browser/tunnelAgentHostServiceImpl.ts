@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../../nls.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
@@ -22,6 +23,7 @@ import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platfo
 import { promptRemoteAgentHostLocationPreference } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import {
+	isTunnelGatewaySelectionRejectedError,
 	ITunnelAgentHostService,
 	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_AGENT_HOST_CHANNEL,
@@ -32,6 +34,7 @@ import {
 	type ITunnelGatewayEndpoint,
 	type ITunnelGatewayInventory,
 	type ITunnelGatewaySelection,
+	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
 	type TunnelGatewayServerType,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -68,6 +71,33 @@ export function selectEditorGatewayEndpoint(inventory: ITunnelGatewayInventory):
 export function selectDedicatedGatewayFallback(inventory: ITunnelGatewayInventory): ITunnelGatewaySelection {
 	const standalone = sortedGatewayEndpoints(inventory, 'standalone')[0];
 	return standalone ? { instanceId: standalone.instanceId } : { newDedicated: true };
+}
+
+/**
+ * The selection to retry with after the gateway *rejected* `rejected` (see
+ * {@link isTunnelGatewaySelectionRejectedError}) — the tunnel is up and only
+ * the endpoint we asked for is gone, typically an `editor` endpoint whose
+ * agent host exited while its registry entry lingered. Picks a dedicated
+ * host exactly like {@link selectDedicatedGatewayFallback}, but never the
+ * instance that was just rejected.
+ *
+ * Returns `undefined` when there is nothing meaningful left to try: the
+ * rejected selection was itself a request for a brand new dedicated
+ * instance, so the gateway failed to *spawn* a host rather than failing to
+ * reach an existing one, and retrying would just fail the same way.
+ */
+export function selectGatewayFallbackAfterRejection(rejected: ITunnelGatewaySelection, inventory: ITunnelGatewayInventory): ITunnelGatewaySelection | undefined {
+	if (!hasKey(rejected, { instanceId: true })) {
+		return undefined;
+	}
+	const standalone = sortedGatewayEndpoints(inventory, 'standalone').find(endpoint => endpoint.instanceId !== rejected.instanceId);
+	return standalone ? { instanceId: standalone.instanceId } : { newDedicated: true };
+}
+
+/** Whether `selection` picked a live `editor` endpoint out of `inventory`. */
+function isEditorGatewaySelection(selection: ITunnelGatewaySelection, inventory: ITunnelGatewayInventory): boolean {
+	return hasKey(selection, { instanceId: true })
+		&& inventory.endpoints.some(endpoint => endpoint.instanceId === selection.instanceId && endpoint.type === 'editor');
 }
 
 /** Inputs needed to resolve a protocol-v6 gateway endpoint selection. See {@link resolveGatewaySelection}. */
@@ -127,18 +157,36 @@ export async function resolveGatewaySelection(
 /**
  * Decide whether a tunnel-failover notification should be shown after a
  * connection attempt's {@link IRemoteAgentHostService.addManagedConnection}
- * has already succeeded. Only fires for an automatic/background reconnect
- * (never a user-initiated connect or reconnect) that silently moved a
- * previously `editor`-owned endpoint to a `standalone` one for the same
- * stable tunnel address — i.e. the editor process that used to host the
- * connection exited and a dedicated agent host took over. Exported so the
- * decision can be unit tested without constructing the full service.
+ * has already succeeded. Fires in two cases, both of which mean the editor
+ * process that used to host the connection is gone and a dedicated agent
+ * host silently took its place:
+ *
+ * - `editorFallback`: this very attempt asked the gateway for a live-looking
+ *   `editor` endpoint, was rejected because it is not actually reachable,
+ *   and transparently retried against a dedicated host. The substitution
+ *   happened inside a single connect, so there is no earlier registration to
+ *   compare against — and it is equally surprising for a user-initiated
+ *   connect, which explicitly asked for the editor host. A stale `editor`
+ *   entry can linger in the remote registry for as long as its PID does, so
+ *   every later reconnect repeats the same fallback; those must stay quiet
+ *   once the address is already known to be on a `standalone` host, or the
+ *   user would be notified again on every reconnect.
+ * - An automatic/background reconnect (never a user-initiated one) that
+ *   moved a previously `editor`-owned endpoint to a `standalone` one for the
+ *   same stable tunnel address.
+ *
+ * Exported so the decision can be unit tested without constructing the full
+ * service.
  */
 export function shouldNotifyTunnelFailover(
 	previousServerType: TunnelGatewayServerType | 'unknown' | undefined,
 	newServerType: TunnelGatewayServerType | 'unknown',
 	userInitiated: boolean,
+	editorFallback = false,
 ): boolean {
+	if (editorFallback) {
+		return newServerType === 'standalone' && previousServerType !== 'standalone';
+	}
 	return !userInitiated && previousServerType === 'editor' && newServerType === 'standalone';
 }
 
@@ -178,9 +226,9 @@ export class TunnelFailoverTracker {
 	 * should trigger a failover notification. Always updates the retained
 	 * metadata, regardless of the returned value.
 	 */
-	recordAndShouldNotify(address: string, newServerType: TunnelGatewayServerType | 'unknown', userInitiated: boolean): boolean {
+	recordAndShouldNotify(address: string, newServerType: TunnelGatewayServerType | 'unknown', userInitiated: boolean, editorFallback = false): boolean {
 		const previousServerType = this._lastSelectedServerType.get(address);
-		const notify = shouldNotifyTunnelFailover(previousServerType, newServerType, userInitiated);
+		const notify = shouldNotifyTunnelFailover(previousServerType, newServerType, userInitiated, editorFallback);
 		this._lastSelectedServerType.set(address, newServerType);
 		return notify;
 	}
@@ -267,6 +315,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		// and we fall back to the legacy direct-connect path with no prompt.
 		const session = await this._mainService.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
 		let result: ITunnelConnectResult;
+		let editorFallback = false;
 		if (session) {
 			const selection = await resolveGatewaySelection(this._locationPreferenceService, this._dialogService, {
 				hostKey: `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`,
@@ -280,7 +329,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 				await this._mainService.cancelSelection(session.selectionId);
 				return;
 			}
-			result = await this._mainService.completeSelection(session.selectionId, selection);
+			const completed = await this._completeSelectionWithFallback(auth, tunnel, session, selection);
+			result = completed.result;
+			editorFallback = completed.editorFallback;
 		} else {
 			result = await this._mainService.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
 		}
@@ -353,7 +404,58 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			throw connectError;
 		}
 
-		this._notifyIfTunnelFailover(result, options);
+		this._notifyIfTunnelFailover(result, options, editorFallback);
+	}
+
+	/**
+	 * Send `selection` over the prepared gateway session and, if the gateway
+	 * *rejects* it, transparently retry once against a dedicated agent host.
+	 *
+	 * A rejection (see {@link isTunnelGatewaySelectionRejectedError}) is the
+	 * one failure that proves the tunnel itself is healthy: the CLI answered,
+	 * it simply could not hand us the endpoint we asked for because that
+	 * agent host is no longer alive. Its registry entry can outlive it (the
+	 * entry is only pruned once the owning PID dies, which a crashed or
+	 * detached editor agent host may not do promptly), so the inventory keeps
+	 * advertising it and every reconnect would otherwise pick it again and
+	 * fail — the connection stays down for the whole backoff window instead
+	 * of failing over. Retrying here fails over within the same attempt.
+	 *
+	 * Every other failure means the tunnel is unreachable, and is rethrown so
+	 * the caller keeps retrying the same destination and selection unchanged.
+	 * The stored location preference is never mutated by a fallback, so the
+	 * editor host is preferred again as soon as it is back.
+	 */
+	private async _completeSelectionWithFallback(
+		auth: { readonly token: string; readonly provider: 'github' | 'microsoft' },
+		tunnel: ITunnelInfo,
+		session: ITunnelGatewaySelectionSession,
+		selection: ITunnelGatewaySelection,
+	): Promise<{ readonly result: ITunnelConnectResult; readonly editorFallback: boolean }> {
+		try {
+			return { result: await this._mainService.completeSelection(session.selectionId, selection), editorFallback: false };
+		} catch (err) {
+			if (!isTunnelGatewaySelectionRejectedError(err)) {
+				throw err;
+			}
+			const wasEditor = isEditorGatewaySelection(selection, session.inventory);
+			this._logService.warn(`${LOG_PREFIX} Gateway rejected the selected agent host for tunnel '${tunnel.name}', falling back to a dedicated agent host: ${err instanceof Error ? err.message : String(err)}`);
+
+			// The rejected attempt consumed the gateway socket, so a fresh
+			// session is needed — which also yields a fresh inventory to pick
+			// the fallback from.
+			const retry = await this._mainService.prepareSelection(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
+			if (!retry) {
+				throw err;
+			}
+			const fallback = selectGatewayFallbackAfterRejection(selection, retry.inventory);
+			if (!fallback) {
+				await this._mainService.cancelSelection(retry.selectionId);
+				throw err;
+			}
+			const result = await this._mainService.completeSelection(retry.selectionId, fallback);
+			return { result, editorFallback: wasEditor && result.selected.serverType === 'standalone' };
+		}
 	}
 
 	/**
@@ -364,17 +466,28 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	 * notification. Delegates the retention + decision to
 	 * {@link TunnelFailoverTracker}, which always records this connection
 	 * for future comparisons regardless of whether a notification was shown.
+	 *
+	 * `editorFallback` reports that {@link _completeSelectionWithFallback}
+	 * already performed the substitution within this very attempt, which
+	 * notifies on its own — see {@link shouldNotifyTunnelFailover}.
 	 */
-	private _notifyIfTunnelFailover(result: ITunnelConnectResult, options?: { readonly userInitiated?: boolean }): void {
+	private _notifyIfTunnelFailover(result: ITunnelConnectResult, options: { readonly userInitiated?: boolean } | undefined, editorFallback: boolean): void {
 		const userInitiated = options?.userInitiated ?? true;
-		const shouldNotify = this._failoverTracker.recordAndShouldNotify(result.address, result.selected.serverType, userInitiated);
+		const shouldNotify = this._failoverTracker.recordAndShouldNotify(result.address, result.selected.serverType, userInitiated, editorFallback);
 		if (shouldNotify) {
 			this._notificationService.notify({
 				severity: Severity.Info,
-				message: localize(
-					'tunnelAgentHostFailoverNotification',
-					"The editor agent host exited. Reconnected to a dedicated agent host. In-progress work may have been interrupted.",
-				),
+				// The in-attempt fallback can happen on a first connect too,
+				// where nothing was interrupted and nothing was reconnected.
+				message: editorFallback
+					? localize(
+						'tunnelAgentHostRejectedEditorNotification',
+						"The editor agent host is no longer running. Connected to a dedicated agent host instead.",
+					)
+					: localize(
+						'tunnelAgentHostFailoverNotification',
+						"The editor agent host exited. Reconnected to a dedicated agent host. In-progress work may have been interrupted.",
+					),
 			});
 		}
 	}

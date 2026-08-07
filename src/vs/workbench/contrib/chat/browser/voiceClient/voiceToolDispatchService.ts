@@ -19,7 +19,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, markPendingIdResolved, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -498,6 +498,10 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			if (getVoiceConfirmationType([part]) !== 'tool') {
 				return { ok: false, reason: 'unsupported' };
 			}
+			// A provider may keep multiple rehydrated copies pending while it sends
+			// this response. Retire the shared occurrence before invoking the callback
+			// so none of those copies can submit the same approval a second time.
+			markPendingIdResolved(pendingId);
 			const confirmed = IChatToolInvocation.confirmWith(
 				part as IChatToolInvocation,
 				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied },
