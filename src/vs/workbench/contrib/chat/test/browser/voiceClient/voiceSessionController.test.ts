@@ -482,8 +482,15 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidChangeWidgetVisibility = Event.None;
 	override readonly onDidAddWidget = Event.None;
+	override lastFocusedWidget: IChatWidgetService['lastFocusedWidget'];
 	override getAllWidgets() { return []; }
 	override getWidgetBySessionResource(): undefined { return undefined; }
+
+	focus(resource: URI): void {
+		this.lastFocusedWidget = {
+			viewModel: { sessionResource: resource },
+		} as IChatWidgetService['lastFocusedWidget'];
+	}
 }
 
 class TestCommandService extends mock<ICommandService>() {
@@ -551,6 +558,7 @@ suite('VoiceSessionController', () => {
 			override notifyPlaybackStart(): void { }
 			override notifyPlaybackEnd(): void { }
 		}(),
+		chatWidgetService: IChatWidgetService = new TestChatWidgetService(),
 	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -580,7 +588,7 @@ suite('VoiceSessionController', () => {
 				override async playSignal(): Promise<void> { }
 			}(),
 			new TestAccessibilityService(),
-			new TestChatWidgetService(),
+			chatWidgetService,
 			notificationService,
 			promptsService,
 			chatEntitlementService,
@@ -4760,12 +4768,13 @@ suite('VoiceSessionController', () => {
 		assert.ok(voicePlaybackService.pendingSessions.has(confirmationResource.toString()), 'the confirmation returns to normal panel ownership');
 	});
 
-	test('without omni or a pinned target, focused responses narrate and background responses wait for focus', async () => {
+	test('without omni, focus transfers voice ownership and narrates a pending background response', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const voicePlaybackService = new RecordingVoicePlaybackService();
+		const chatWidgetService = new TestChatWidgetService();
 		const controller = createController(
 			voiceClientService, undefined, undefined, undefined, undefined, undefined,
-			undefined, undefined, undefined, undefined, undefined, voicePlaybackService,
+			undefined, undefined, undefined, undefined, undefined, voicePlaybackService, chatWidgetService,
 		);
 		const focusedSession = URI.parse('vscode-chat://focused-panel-session');
 		const backgroundSession = URI.parse('vscode-chat://background-panel-session');
@@ -4779,6 +4788,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(focusedSession);
 
 		handleStateChange.call(controller, focusedSession.toString(), 'idle', undefined, 'Focused response.', focusedSession.toString());
 		handleStateChange.call(controller, backgroundSession.toString(), 'idle', undefined, 'Background response.', focusedSession.toString());
@@ -4786,9 +4796,11 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(voiceClientService.requests.map(request => request.text), ['Focused response.']);
 		assert.ok(voicePlaybackService.pendingSessions.has(backgroundSession.toString()));
 
-		controller.activateSession(backgroundSession);
+		chatWidgetService.focus(backgroundSession);
+		(Reflect.get(controller, '_onFocusedSessionChanged') as () => void).call(controller);
 
 		assert.deepStrictEqual(voiceClientService.requests.map(request => request.text), ['Focused response.', 'Background response.']);
+		assert.strictEqual(controller.targetSession.get()?.toString(), backgroundSession.toString());
 	});
 
 	test('plays responses for an omni-routed target without a pending indicator', async () => {

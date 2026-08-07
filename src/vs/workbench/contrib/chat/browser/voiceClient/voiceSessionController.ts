@@ -4127,7 +4127,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		const focused = this._getFocusedSessionId();
 		if (focused) {
-			this._activateShownSession(URI.parse(focused));
+			const resource = URI.parse(focused);
+			if (!this._omniInputOpen && (this._isConnected.get() || this._isConnecting.get())) {
+				this.setTargetSession(resource);
+			}
+			this._activateShownSession(resource);
 			return;
 		}
 		// Re-send + flush context on focus change so the backend's notion of the
@@ -4193,11 +4197,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		if (this._hasDraftTarget.get()) {
 			this.logService.trace(`[voice] _activateShownSession(${key.slice(-32)}) skipped: Voice Mode belongs to a draft`);
-			return;
-		}
-		const targetSessionId = this._targetSession.get()?.toString();
-		if (!this._isOmniVoiceInboxActive() && targetSessionId && !this._isSameSession(key, targetSessionId)) {
-			this.logService.trace(`[voice] _activateShownSession(${key.slice(-32)}) skipped: Voice Mode belongs to ${targetSessionId.slice(-32)}`);
 			return;
 		}
 		const flushResult = this._flushDeferredResponse(key);
@@ -6288,11 +6287,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._clearPendingResponse(sessionKey);
 			// A deferred narration from the previous turn is now stale.
 			this._clearDeferred(sessionKey);
-		}
-		const targetSessionId = this._targetSession.get()?.toString();
-		if (!omniInboxActive && (this._hasDraftTarget.get() || (targetSessionId && !this._isSameSession(sessionId, targetSessionId)))) {
-			// Outside Omni, preserve normal Voice Mode's session ownership.
-			return;
 		}
 		if (!omniInboxActive && !this._isOmniRoutedSession(sessionId) && !this._isSameSession(sessionId, shownNow)) {
 			// Background session. A completed reply must not play now: show the
