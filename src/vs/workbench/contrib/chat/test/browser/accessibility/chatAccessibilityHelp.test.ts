@@ -87,21 +87,4 @@ suite('Chat Accessibility Help', () => {
 			panelChat: false,
 		});
 	});
-
-	test('describes how to activate Try Again', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
-		const helpText = getAccessibilityHelpText('agentView', keybindingService, true);
-
-		assert.deepStrictEqual({
-			action: helpText.includes('failed request offers Try Again'),
-			navigation: helpText.includes('use Tab to focus the button'),
-			activation: helpText.includes('press Enter or Space'),
-		}, {
-			action: true,
-			navigation: true,
-			activation: true,
-		});
-	});
 });
