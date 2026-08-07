@@ -204,4 +204,29 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
+
+	test('detects nested repository when a file from it is opened after startup', async function () {
+		// Only the parent repository is open
+		assert.strictEqual(git.repositories.length, 1);
+		assert.strictEqual(git.repositories[0].rootUri.fsPath, repository.rootUri.fsPath);
+
+		const nestedRoot = file(path.join('sub', 'nested'));
+		fs.mkdirSync(nestedRoot, { recursive: true });
+		fs.writeFileSync(path.join(nestedRoot, 'nested.txt'), 'hello', 'utf8');
+		cp.execSync('git init -b main', { cwd: nestedRoot });
+		cp.execSync('git config user.name testuser', { cwd: nestedRoot });
+		cp.execSync('git config user.email monacotools@example.com', { cwd: nestedRoot });
+		cp.execSync('git config commit.gpgsign false', { cwd: nestedRoot });
+		cp.execSync('git add .', { cwd: nestedRoot });
+		cp.execSync('git commit -m "initial commit"', { cwd: nestedRoot });
+
+		// Opening a file from the nested repository registers the nested
+		// repository even though an ancestor repository is already open
+		const onDidOpenRepository = eventToPromise(git.onDidOpenRepository);
+		await open(path.join('sub', 'nested', 'nested.txt'));
+		const nestedRepository = await onDidOpenRepository;
+
+		assert.strictEqual(nestedRepository.rootUri.fsPath, nestedRoot);
+		assert.strictEqual(git.repositories.length, 2);
+	});
 });
