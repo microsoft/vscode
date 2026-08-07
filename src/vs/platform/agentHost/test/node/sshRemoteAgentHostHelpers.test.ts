@@ -5,28 +5,30 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
-import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import {
+	buildAgentEndpointsCommand,
 	buildAgentHostBaseCommand,
+	buildAgentHostSpawnCommand,
+	buildAgentRelayCommand,
 	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
 	buildFindFallbackCLICommand,
-	cleanupRemoteAgentHost,
-	findRunningAgentHost,
-	getAgentHostLockfile,
+	filterLiveAgentHostEndpoints,
+	findNewAgentHostEndpoint,
 	getRemoteCLIArchiveName,
 	getRemoteCLIBin,
 	getRemoteCLIDataDir,
 	getRemoteCLIInstallRoot,
 	isValidFallbackCLIPath,
+	parseAgentEndpointsOutput,
 	redactToken,
 	resolveRemotePlatform,
+	runAgentEndpoints,
 	shellEscape,
 	validateCommit,
 	validateShellToken,
-	writeAgentHostState,
+	waitForNewStandaloneEndpoint,
 	type ISshExec,
 } from '../../node/sshRemoteAgentHostHelpers.js';
 
@@ -34,19 +36,21 @@ suite('SSH Remote Agent Host Helpers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const logService = new NullLogService();
-	const serverDataFolderName = '.vscode-server-insiders';
-	const quality = 'insider';
-	const lockfilePath = '~/.vscode-server-insiders/cli/agent-host-insider.lock';
-
-	function stateJson(pid: number, port: number, connectionToken: string | undefined | null): string {
-		return JSON.stringify(createRemoteAgentHostState({
-			pid,
-			port,
-			connectionToken: connectionToken ?? undefined,
-			quality,
-		}));
+	function makeEndpoint(overrides: Partial<IAgentHostEndpointMetadata> & Pick<IAgentHostEndpointMetadata, 'type' | 'pid' | 'instanceId'>): IAgentHostEndpointMetadata {
+		return {
+			schemaVersion: AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
+			protocolVersion: '1.0.0',
+			connectionToken: 'tok',
+			endpoint: { type: 'tcp', host: '127.0.0.1', port: 8080 },
+			// The shared schema-v2 parser always spreads `quality`/`tunnelName`
+			// explicitly (even when absent from the input), so default them here
+			// too to keep deepStrictEqual comparisons against parser output exact.
+			quality: undefined,
+			tunnelName: undefined,
+			...overrides,
+		};
 	}
+
 
 	suite('validateShellToken', () => {
 		test('accepts alphanumeric strings', () => {
@@ -433,303 +437,222 @@ suite('SSH Remote Agent Host Helpers', () => {
 		});
 	});
 
-	suite('getAgentHostLockfile', () => {
-		test('returns path under the launcher data dir', () => {
+	suite('buildAgentEndpointsCommand', () => {
+		test('omits --user-data-dir when not yet known', () => {
 			assert.strictEqual(
-				getAgentHostLockfile('.vscode-server-insiders', 'insider'),
-				'~/.vscode-server-insiders/cli/agent-host-insider.lock'
+				buildAgentEndpointsCommand('~/.vscode-server/code', '~/.vscode-server/cli'),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli agent endpoints',
 			);
 		});
 
-		test('keys lockfile name on quality', () => {
+		test('includes --user-data-dir once resolved', () => {
 			assert.strictEqual(
-				getAgentHostLockfile('.vscode-server-oss', 'stable'),
-				'~/.vscode-server-oss/cli/agent-host-stable.lock'
+				buildAgentEndpointsCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote'),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli agent endpoints --user-data-dir \'/home/user/.vscode-remote\'',
 			);
-		});
-
-		test('rejects unsafe server data folder names', () => {
-			assert.throws(() => getAgentHostLockfile('foo bar', 'stable'), /Unsafe server data folder name/);
-			assert.throws(() => getAgentHostLockfile('foo/bar', 'stable'), /Unsafe server data folder name/);
-			assert.throws(() => getAgentHostLockfile('$(whoami)', 'stable'), /Unsafe server data folder name/);
-		});
-
-		test('rejects unsafe quality strings', () => {
-			assert.throws(() => getAgentHostLockfile('.vscode-server-oss', 'foo bar'), /Unsafe quality/);
 		});
 	});
 
-	suite('findRunningAgentHost', () => {
-
-		function createMockExec(responses: Map<string, { stdout: string; stderr: string; code: number }>): ISshExec {
-			return async (command: string, _opts?: { ignoreExitCode?: boolean }) => {
-				for (const [pattern, response] of responses) {
-					if (command.includes(pattern)) {
-						return response;
-					}
-				}
-				return { stdout: '', stderr: '', code: 1 };
-			};
-		}
-
-		test('returns notFound when no state file exists', async () => {
-			const exec = createMockExec(new Map([
-				['cat', { stdout: '', stderr: '', code: 1 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'notFound' });
+	suite('buildAgentHostSpawnCommand', () => {
+		test('includes --new-instance, --user-data-dir and default --idle-timeout', () => {
+			assert.strictEqual(
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote'),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 300',
+			);
 		});
 
-		test('returns notFound when state file is empty', async () => {
-			const exec = createMockExec(new Map([
-				['cat', { stdout: '   \n', stderr: '', code: 0 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'notFound' });
+		test('honors a custom idle timeout', () => {
+			assert.strictEqual(
+				buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote', 60),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli agent host --port 0 --new-instance --user-data-dir \'/home/user/.vscode-remote\' --idle-timeout 60',
+			);
 		});
 
-		test('cleans up corrupt state file', async () => {
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				if (command.includes('cat')) {
-					return { stdout: 'not json at all', stderr: '', code: 0 };
-				}
-				return { stdout: '', stderr: '', code: 0 };
-			};
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'notFound' });
-			assert.ok(commands.some(c => c.includes('rm -f')));
+		test('rejects unsafe idle timeout values', () => {
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', 0), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', -1), /Unsafe idle timeout/);
+			assert.throws(() => buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x', 1.5), /Unsafe idle timeout/);
 		});
 
-		test('cleans up state file with missing schemaVersion', async () => {
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				if (command.includes('cat')) {
-					return { stdout: JSON.stringify({ pid: 1234, port: 8080, connectionToken: null }), stderr: '', code: 0 };
-				}
-				return { stdout: '', stderr: '', code: 0 };
-			};
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'notFound' });
-			assert.ok(commands.some(c => c.includes('rm -f')));
+		test('always includes --new-instance so an existing standalone is never silently reused', () => {
+			const cmd = buildAgentHostSpawnCommand('~/.vscode-server/code', '~/.vscode-server/cli', '/x');
+			assert.ok(cmd.includes(' --new-instance '), 'spawn command must request a genuinely new instance, not reuse an existing standalone');
+		});
+	});
+
+	suite('buildAgentRelayCommand', () => {
+		test('builds a relay command scoped to the exact instanceId', () => {
+			assert.strictEqual(
+				buildAgentRelayCommand('~/.vscode-server/code', '~/.vscode-server/cli', 'abc-123', '/home/user/.vscode-remote'),
+				'~/.vscode-server/code --cli-data-dir ~/.vscode-server/cli agent relay \'abc-123\' --user-data-dir \'/home/user/.vscode-remote\'',
+			);
+		});
+	});
+
+	suite('parseAgentEndpointsOutput', () => {
+		test('returns undefined for empty output', () => {
+			assert.strictEqual(parseAgentEndpointsOutput(''), undefined);
+			assert.strictEqual(parseAgentEndpointsOutput('   \n'), undefined);
 		});
 
-		test('rejects state file with invalid pid', async () => {
-			const exec = createMockExec(new Map([
-				['cat', { stdout: JSON.stringify({ schemaVersion: 1, pid: '1234', port: 8080, protocolVersion: PROTOCOL_VERSION }), stderr: '', code: 0 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'notFound' });
+		test('returns undefined for invalid JSON', () => {
+			assert.strictEqual(parseAgentEndpointsOutput('not json'), undefined);
 		});
 
-		test('rejects state file with port above 65535', async () => {
-			const exec = createMockExec(new Map([
-				['cat', { stdout: JSON.stringify({ schemaVersion: 1, pid: 1234, port: 70000, protocolVersion: PROTOCOL_VERSION }), stderr: '', code: 0 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'notFound' });
+		test('returns undefined when the envelope is missing userDataPath/endpoints', () => {
+			assert.strictEqual(parseAgentEndpointsOutput(JSON.stringify({ endpoints: [] })), undefined);
+			assert.strictEqual(parseAgentEndpointsOutput(JSON.stringify({ userDataPath: '/x' })), undefined);
 		});
 
-		test('cleans up stale state when PID is not running', async () => {
-			const state = stateJson(9999, 8080, 'tok123');
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				if (command.includes('cat')) {
-					return { stdout: state, stderr: '', code: 0 };
-				}
-				if (command.includes('kill -0')) {
-					return { stdout: '', stderr: '', code: 1 }; // PID not running
-				}
-				return { stdout: '', stderr: '', code: 0 };
-			};
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'notFound' });
-			assert.ok(commands.some(c => c.includes('rm -f')));
+		test('parses a well-formed envelope and validates each endpoint', () => {
+			const endpoint = makeEndpoint({ type: 'standalone', pid: 111, instanceId: 'i1' });
+			const result = parseAgentEndpointsOutput(JSON.stringify({ userDataPath: '/home/user/.vscode-remote', endpoints: [endpoint] }));
+			assert.ok(result);
+			assert.strictEqual(result.userDataPath, '/home/user/.vscode-remote');
+			assert.deepStrictEqual(result.endpoints, [endpoint]);
 		});
 
-		test('returns port and token when PID is alive', async () => {
-			const state = stateJson(1234, 8080, 'mytoken');
-			const exec = createMockExec(new Map([
-				['cat', { stdout: state, stderr: '', code: 0 }],
-				['kill -0', { stdout: '', stderr: '', code: 0 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'compatible', host: '127.0.0.1', port: 8080, connectionToken: 'mytoken' });
+		test('drops malformed individual endpoint entries without failing the whole parse', () => {
+			const good = makeEndpoint({ type: 'editor', pid: 222, instanceId: 'i2' });
+			const result = parseAgentEndpointsOutput(JSON.stringify({ userDataPath: '/x', endpoints: [good, { garbage: true }] }));
+			assert.ok(result);
+			assert.deepStrictEqual(result.endpoints, [good]);
+		});
+	});
+
+	suite('runAgentEndpoints', () => {
+		test('parses stdout on success', async () => {
+			const endpoint = makeEndpoint({ type: 'standalone', pid: 333, instanceId: 'i3' });
+			const exec: ISshExec = async () => ({
+				stdout: JSON.stringify({ userDataPath: '/home/user/.vscode-remote', endpoints: [endpoint] }),
+				stderr: '',
+				code: 0,
+			});
+			const result = await runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli');
+			assert.strictEqual(result.userDataPath, '/home/user/.vscode-remote');
+			assert.deepStrictEqual(result.endpoints, [endpoint]);
 		});
 
-		test('returns undefined connectionToken when state has null token', async () => {
-			const state = stateJson(1234, 8080, null);
-			const exec = createMockExec(new Map([
-				['cat', { stdout: state, stderr: '', code: 0 }],
-				['kill -0', { stdout: '', stderr: '', code: 0 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'compatible', host: '127.0.0.1', port: 8080, connectionToken: undefined });
-		});
-
-		test('treats newer protocol version as compatible (the AH may speak a newer version than this build)', async () => {
-			// The agent host server is downloaded on demand by the remote
-			// CLI and may speak a newer protocol than this desktop. Reuse
-			// is the right default; the renderer↔AH handshake will surface
-			// any genuine incompatibility, and the SSH service falls back
-			// to spawning fresh if the relay refuses to connect.
-			const state = JSON.parse(stateJson(1234, 8080, null));
-			state.protocolVersion = '99.0.0';
-			const exec = createMockExec(new Map([
-				['cat', { stdout: JSON.stringify(state), stderr: '', code: 0 }],
-				['kill -0', { stdout: '', stderr: '', code: 0 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'compatible', host: '127.0.0.1', port: 8080, connectionToken: undefined });
-		});
-
-		test('maps recorded `0.0.0.0` bind to loopback when dialing', async () => {
-			const state = JSON.parse(stateJson(1234, 8080, null));
-			state.host = '0.0.0.0';
-			const exec = createMockExec(new Map([
-				['cat', { stdout: JSON.stringify(state), stderr: '', code: 0 }],
-				['kill -0', { stdout: '', stderr: '', code: 0 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'compatible', host: '127.0.0.1', port: 8080, connectionToken: undefined });
-		});
-
-		test('preserves specific recorded host (e.g. IPv6 loopback)', async () => {
-			const state = JSON.parse(stateJson(1234, 8080, null));
-			state.host = '::1';
-			const exec = createMockExec(new Map([
-				['cat', { stdout: JSON.stringify(state), stderr: '', code: 0 }],
-				['kill -0', { stdout: '', stderr: '', code: 0 }],
-			]));
-			const result = await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.deepStrictEqual(result, { kind: 'compatible', host: '::1', port: 8080, connectionToken: undefined });
-		});
-
-		test('reads from the per-quality launcher lockfile path', async () => {
+		test('passes the resolved --user-data-dir through to the command', async () => {
 			const commands: string[] = [];
 			const exec: ISshExec = async command => {
 				commands.push(command);
-				return { stdout: '', stderr: '', code: 1 };
+				return { stdout: JSON.stringify({ userDataPath: '/x', endpoints: [] }), stderr: '', code: 0 };
 			};
-			await findRunningAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.ok(commands.some(c => c.includes(lockfilePath)));
+			await runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/home/user/.vscode-remote');
+			assert.ok(commands.some(c => c.includes('--user-data-dir \'/home/user/.vscode-remote\'')));
+		});
+
+		test('throws (loudly) when the command exits non-zero', async () => {
+			const exec: ISshExec = async () => ({ stdout: '', stderr: 'command not found', code: 127 });
+			await assert.rejects(
+				() => runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli'),
+				/exit code 127.*command not found/s,
+			);
+		});
+
+		test('throws when output cannot be parsed', async () => {
+			const exec: ISshExec = async () => ({ stdout: 'not json', stderr: '', code: 0 });
+			await assert.rejects(
+				() => runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli'),
+				/unparsable output \(8 characters\)$/,
+			);
+		});
+
+		test('parses JSON after legacy CLI log output', async () => {
+			const output = `[2026-08-06 15:31:19] info Pruning stale local endpoint registry entry\n${JSON.stringify({ userDataPath: '/tmp/user-data', endpoints: [] })}`;
+			const exec: ISshExec = async () => ({ stdout: output, stderr: '', code: 0 });
+
+			const result = await runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli');
+
+			assert.deepStrictEqual(result, {
+				userDataPath: '/tmp/user-data',
+				endpoints: [],
+			});
 		});
 	});
 
-	suite('writeAgentHostState', () => {
-
-		test('does not write when pid is undefined', async () => {
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				return { stdout: '', stderr: '', code: 0 };
-			};
-			await writeAgentHostState(exec, logService, serverDataFolderName, quality, undefined, 8080, 'token');
-			assert.strictEqual(commands.length, 0);
-		});
-
-		test('does not write when pid is 0', async () => {
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				return { stdout: '', stderr: '', code: 0 };
-			};
-			await writeAgentHostState(exec, logService, serverDataFolderName, quality, 0, 8080, 'token');
-			assert.strictEqual(commands.length, 0);
-		});
-
-		test('writes lockfile with canonical metadata JSON', async () => {
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				return { stdout: '', stderr: '', code: 0 };
-			};
-			await writeAgentHostState(exec, logService, serverDataFolderName, quality, 1234, 8080, 'mytoken');
-			assert.strictEqual(commands.length, 1);
-			assert.ok(commands[0].includes(lockfilePath));
-			assert.ok(commands[0].includes('"schemaVersion":1'));
-			assert.ok(commands[0].includes('"pid":1234'));
-			assert.ok(commands[0].includes('"port":8080'));
-			assert.ok(commands[0].includes('"connectionToken":"mytoken"'));
-			assert.ok(commands[0].includes(`"protocolVersion":"${PROTOCOL_VERSION}"`));
-			assert.ok(commands[0].includes('"quality":"insider"'));
-			// Atomic-ish write: ensure dir, remove old file, restrictive umask
-			assert.ok(commands[0].includes('mkdir -p'));
-			assert.ok(commands[0].includes('rm -f'));
-			assert.ok(commands[0].includes('(umask 077'));
-		});
-
-		test('writes null connectionToken when undefined', async () => {
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				return { stdout: '', stderr: '', code: 0 };
-			};
-			await writeAgentHostState(exec, logService, serverDataFolderName, quality, 1234, 8080, undefined);
-			assert.strictEqual(commands.length, 1);
-			assert.ok(commands[0].includes('"connectionToken":null'));
-		});
-
-		test('logs warning when write command fails', async () => {
-			const exec: ISshExec = async () => {
-				return { stdout: '', stderr: 'Permission denied', code: 1 };
-			};
-			const warnings: string[] = [];
-			const capturingLog = new NullLogService();
-			capturingLog.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(' ')); };
-			await writeAgentHostState(exec, capturingLog, serverDataFolderName, quality, 1234, 8080, 'tok');
-			assert.strictEqual(warnings.length, 1);
-			assert.ok(warnings[0].includes('Failed to write'));
-			assert.ok(warnings[0].includes('exit code 1'));
-			assert.ok(warnings[0].includes('Permission denied'));
-		});
-	});
-
-	suite('cleanupRemoteAgentHost', () => {
-
-		test('removes lockfile even when no state exists', async () => {
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				if (command.includes('cat')) {
+	suite('filterLiveAgentHostEndpoints', () => {
+		test('keeps only entries whose PID responds to kill -0', async () => {
+			const alive = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'alive' });
+			const dead = makeEndpoint({ type: 'standalone', pid: 200, instanceId: 'dead' });
+			const exec: ISshExec = async command => {
+				if (command.includes('kill -0 100')) {
+					return { stdout: '', stderr: '', code: 0 };
+				}
+				if (command.includes('kill -0 200')) {
 					return { stdout: '', stderr: '', code: 1 };
 				}
-				return { stdout: '', stderr: '', code: 0 };
+				throw new Error(`unexpected command: ${command}`);
 			};
-			await cleanupRemoteAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.ok(commands.some(c => c.includes(`rm -f ${lockfilePath}`)));
+			const result = await filterLiveAgentHostEndpoints(exec, [alive, dead]);
+			assert.deepStrictEqual(result, [alive]);
 		});
 
-		test('kills process and removes lockfile', async () => {
-			const state = stateJson(5678, 9090, null);
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				if (command.includes('cat')) {
-					return { stdout: state, stderr: '', code: 0 };
+		test('probes each distinct PID at most once', async () => {
+			const first = makeEndpoint({ type: 'editor', pid: 100, instanceId: 'e1' });
+			const second = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'e2' });
+			let probes = 0;
+			const exec: ISshExec = async command => {
+				if (command.includes('kill -0 100')) {
+					probes++;
+					return { stdout: '', stderr: '', code: 0 };
 				}
-				return { stdout: '', stderr: '', code: 0 };
+				throw new Error(`unexpected command: ${command}`);
 			};
-			await cleanupRemoteAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.ok(commands.some(c => c.includes('kill 5678')));
-			assert.ok(commands.some(c => c.includes(`rm -f ${lockfilePath}`)));
+			const result = await filterLiveAgentHostEndpoints(exec, [first, second]);
+			assert.strictEqual(probes, 1);
+			assert.strictEqual(result.length, 2);
 		});
 
-		test('handles corrupt state file gracefully', async () => {
-			const commands: string[] = [];
-			const exec: ISshExec = async (command: string) => {
-				commands.push(command);
-				if (command.includes('cat')) {
-					return { stdout: '{invalid json', stderr: '', code: 0 };
-				}
-				return { stdout: '', stderr: '', code: 0 };
+		test('returns an empty array for an empty input', async () => {
+			const exec: ISshExec = async () => { throw new Error('should not be called'); };
+			assert.deepStrictEqual(await filterLiveAgentHostEndpoints(exec, []), []);
+		});
+	});
+
+	suite('findNewAgentHostEndpoint', () => {
+		test('returns the standalone entry present only in "after"', () => {
+			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
+			const spawned = makeEndpoint({ type: 'standalone', pid: 2, instanceId: 'new' });
+			const after = [...before, spawned];
+			assert.deepStrictEqual(findNewAgentHostEndpoint(before, after), spawned);
+		});
+
+		test('ignores new editor-owned entries (only standalone spawns are matched)', () => {
+			const before: IAgentHostEndpointMetadata[] = [];
+			const newEditor = makeEndpoint({ type: 'editor', pid: 5, instanceId: 'e' });
+			assert.strictEqual(findNewAgentHostEndpoint(before, [newEditor]), undefined);
+		});
+
+		test('returns undefined when nothing changed', () => {
+			const entries = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'same' })];
+			assert.strictEqual(findNewAgentHostEndpoint(entries, entries), undefined);
+		});
+	});
+
+	suite('waitForNewStandaloneEndpoint', () => {
+		test('resolves as soon as the new endpoint appears', async () => {
+			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
+			const spawned = makeEndpoint({ type: 'standalone', pid: 2, instanceId: 'new' });
+			let poll = 0;
+			const exec: ISshExec = async () => {
+				poll++;
+				const endpoints = poll < 2 ? before : [...before, spawned];
+				return { stdout: JSON.stringify({ userDataPath: '/x', endpoints }), stderr: '', code: 0 };
 			};
-			await cleanupRemoteAgentHost(exec, logService, serverDataFolderName, quality);
-			assert.ok(commands.some(c => c.includes('rm -f')));
-			assert.ok(!commands.some(c => c.startsWith('kill')));
+			const result = await waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { intervalMs: 1 });
+			assert.deepStrictEqual(result, spawned);
+			assert.ok(poll >= 2);
+		});
+
+		test('throws once the attempt budget is exhausted', async () => {
+			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
+			const exec: ISshExec = async () => ({ stdout: JSON.stringify({ userDataPath: '/x', endpoints: before }), stderr: '', code: 0 });
+			await assert.rejects(
+				() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { attempts: 2, intervalMs: 1 }),
+				/Timed out waiting/,
+			);
 		});
 	});
 });

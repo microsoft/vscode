@@ -211,6 +211,10 @@ suite('LanguageModelAccess model info', () => {
 		testingServiceCollection.define(IAutomodeService, {
 			_serviceBrand: undefined,
 			resolveAutoModeEndpoint: async () => endpoint,
+			resolveAutoModePickerEndpoint: async () => endpoint,
+			getAutoPickerMetadata: async () => undefined,
+			areAutoModeTiersSupported: () => false,
+			onDidChangeAutoModeTierSupport: Event.None,
 			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
@@ -480,6 +484,10 @@ suite('buildUtilityAliasModelInfo', () => {
 suite('reasoning effort schema', () => {
 	test('claude family prefers high when available', () => {
 		assert.strictEqual(pickDefaultReasoningEffort(['low', 'medium', 'high'], 'claude-sonnet-4'), 'high');
+	});
+
+	test('Kimi K3 prefers high when available', () => {
+		assert.strictEqual(pickDefaultReasoningEffort(['low', 'high', 'max'], 'kimi-k3'), 'high');
 	});
 
 	test('non-claude family prefers medium when available', () => {

@@ -19,14 +19,16 @@ import { IModelConfigurationAccess } from './modelPickerActionItem.js';
 
 type ChatThinkingEffortChangeClassification = {
 	owner: 'lramos15';
-	comment: 'Reporting when the thinking effort is changed';
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the thinking effort was changed for' };
-	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous thinking effort value' };
-	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new thinking effort value' };
+	comment: 'Reporting when a model configuration value (e.g. thinking effort, or the Auto routing tier) is changed';
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the configuration was changed for' };
+	property: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The first-party configuration property that was changed (reasoningEffort, or tier for the Auto model); "unknown" for third-party providers, which choose their own keys' };
+	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous value of the configuration property' };
+	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new value of the configuration property' };
 };
 
 type ChatThinkingEffortChangeEvent = {
 	model: string | TelemetryTrustedValue<string>;
+	property: string;
 	fromValue: string;
 	toValue: string;
 };
@@ -73,21 +75,34 @@ export class ModelPickerConfiguration {
 
 		const labelParts: string[] = [];
 		const ariaParts: string[] = [];
-		if (effortConfig) {
+		if (effortConfig && effortConfig.value !== undefined) {
 			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
 			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
 				? effortConfig.schema.enumItemLabels[enumIndex]
 				: String(effortConfig.value);
 			labelParts.push(effortLabel);
-			ariaParts.push(localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
+			// The group is generic, so producers name it: Copilot's Auto model uses it
+			// for "Tier" while regular models use it for thinking effort.
+			ariaParts.push(effortConfig.schema.title
+				? localize('chat.modelPicker.navigationAriaLabel', "{0}: {1}", effortConfig.schema.title, effortLabel)
+				: localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
 		}
-		if (tokensConfig) {
+		if (tokensConfig && tokensConfig.value !== undefined) {
 			const enumIndex = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
 			const tokensLabel = enumIndex >= 0 && tokensConfig.schema.enumItemLabels?.[enumIndex]
 				? tokensConfig.schema.enumItemLabels[enumIndex]
 				: formatTokenCount(Number(tokensConfig.value));
 			labelParts.push(tokensLabel);
 			ariaParts.push(localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel));
+		}
+
+		if (!labelParts.length) {
+			// First-party producers always supply a default, but configuration schemas can also come
+			// from third-party extensions via the LM API. Fall back to a generic label rather than
+			// hiding the button, so the configuration stays reachable.
+			const fallbackLabel = effortConfig?.schema.title ?? tokensConfig?.schema.title ?? localize('chat.modelPicker.configureLabel', "Configure");
+			labelParts.push(fallbackLabel);
+			ariaParts.push(fallbackLabel);
 		}
 
 		dom.reset(button, dom.$('span.chat-input-picker-label', undefined, labelParts.join(' ')));
@@ -140,6 +155,7 @@ export class ModelPickerConfiguration {
 				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 				headerLink: showCacheBreakHint ? this._host.getCacheBreakLearnMoreLink() : undefined,
 				headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
+				reserveSubmenuSpace: false,
 			}),
 		);
 
@@ -183,9 +199,9 @@ export class ModelPickerConfiguration {
 		const defaultLabel = localize('models.configDefault', "Default");
 		const appendConfigSection = (
 			group: string,
-			headerLabel: string,
+			fallbackHeaderLabel: string,
 			formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
-			logChange: (value: unknown, previousValue: string) => void,
+			logChange: (value: unknown, previousValue: string, key: string) => void,
 		): void => {
 			const config = this._getConfigProperty(group);
 			if (!config) {
@@ -196,7 +212,7 @@ export class ModelPickerConfiguration {
 			if (items.length) {
 				items.push({ kind: ActionListItemKind.Separator });
 			}
-			items.push({ kind: ActionListItemKind.Header, label: headerLabel });
+			items.push({ kind: ActionListItemKind.Header, label: config.schema.title ?? fallbackHeaderLabel });
 			for (let index = 0; index < enumValues.length; index++) {
 				const value = enumValues[index];
 				const isDefault = value === config.schema.default;
@@ -213,11 +229,12 @@ export class ModelPickerConfiguration {
 						tooltip: enumDescription ?? '',
 						label: displayLabel,
 						run: () => {
-							logChange(value, previousValue);
+							logChange(value, previousValue, config.key);
 							return configurationAccess.setModelConfiguration(modelIdentifier, { [config.key]: value });
 						}
 					},
 					kind: ActionListItemKind.Action,
+					className: 'chat-model-picker-config-option',
 					label: displayLabel,
 					description: isDefault ? defaultLabel : undefined,
 					ariaDescription: ariaDescriptionParts.length ? ariaDescriptionParts.join(', ') : undefined,
@@ -232,8 +249,11 @@ export class ModelPickerConfiguration {
 			'navigation',
 			localize('chat.effort.header', "Thinking Effort"),
 			(value, enumLabel) => enumLabel ?? String(value),
-			(value, previousValue) => this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
+			(value, previousValue, key) => this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
 				model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+				// Third-party providers choose their own property keys, so only
+				// first-party ones are reported as a controlled vocabulary.
+				property: model.metadata.vendor === 'copilot' ? key : 'unknown',
 				fromValue: previousValue,
 				toValue: String(value),
 			}),

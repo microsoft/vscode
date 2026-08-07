@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
-import { ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
-import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestChatWidgetService, TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -28,7 +31,7 @@ class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
 
 	constructor(
-		private readonly sessionItems: readonly IChatSessionItem[],
+		private sessionItems: readonly IChatSessionItem[],
 	) { }
 
 	get items(): readonly IChatSessionItem[] {
@@ -36,6 +39,10 @@ class StaticChatSessionItemController implements IChatSessionItemController {
 	}
 
 	async refresh(): Promise<void> { }
+
+	setItems(sessionItems: readonly IChatSessionItem[]): void {
+		this.sessionItems = sessionItems;
+	}
 }
 
 
@@ -101,6 +108,47 @@ suite('AgentSessions', () => {
 				assert.strictEqual(viewModel.sessions[0].label, 'Test Session 1');
 				assert.strictEqual(viewModel.sessions[1].resource.toString(), `${chatSessionTestType}://session-2`);
 				assert.strictEqual(viewModel.sessions[1].label, 'Test Session 2');
+			});
+		});
+
+		test('should preserve change summaries when lazy refresh omits changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						changes: { files: 2, insertions: 8, deletions: 3 },
+					}),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				controller.setItems([makeSimpleSessionItem('session-1', { changes: undefined })]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(viewModel.sessions[0].changes, { files: 2, insertions: 8, deletions: 3 });
+			});
+		});
+
+		test('should demote hydrated changes when lazy refresh omits changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						changes: [
+							{ modifiedUri: URI.file('/first'), insertions: 3, deletions: 1 },
+							{ modifiedUri: URI.file('/second'), insertions: 5, deletions: 2 },
+						],
+					}),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				controller.setItems([makeSimpleSessionItem('session-1', { changes: undefined })]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(viewModel.sessions[0].changes, { files: 2, insertions: 8, deletions: 3 });
 			});
 		});
 
@@ -2145,6 +2193,285 @@ suite('AgentSessions', () => {
 
 				// Should fire only once for archived state change since session is already read
 				assert.strictEqual(changeEventCount, 1);
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - Provider-owned Read State', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		class OpenChatWidgetService extends TestChatWidgetService {
+			private readonly widget = new class extends mock<IChatWidget>() { };
+
+			constructor(private readonly openSessionResource: URI) {
+				super();
+			}
+
+			override getWidgetBySessionResource(resource: URI): IChatWidget | undefined {
+				return isEqual(resource, this.openSessionResource) ? this.widget : undefined;
+			}
+		}
+
+		/** Mirrors the Agent Host controller: records the mutation, then echoes it back. */
+		class ReadOwningController implements IChatSessionItemController {
+			private readonly _onDidChangeChatSessionItems = disposables.add(new Emitter<IChatSessionItemsDelta>());
+			readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
+
+			readonly mutations: { resource: string; isRead: boolean }[] = [];
+
+			constructor(private _items: IChatSessionItem[]) { }
+
+			get items(): readonly IChatSessionItem[] {
+				return this._items;
+			}
+
+			async refresh(): Promise<void> { }
+
+			setItems(items: IChatSessionItem[]): void {
+				this._items = items;
+				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+			}
+
+			setChatSessionItemRead(resource: URI, isRead: boolean): void {
+				this.mutations.push({ resource: resource.toString(), isRead });
+				this._items = this._items.map(item => isEqual(item.resource, resource) ? { ...item, isRead } : item);
+				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+			}
+		}
+
+		const sessionTiming: IChatSessionItem['timing'] = {
+			created: Date.UTC(2026, 1 /* February */, 1),
+			lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+			lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+		};
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+			const storageService = instantiationService.get(IStorageService);
+			storageService.store('agentSessions.readDateBaseline2', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('keeps an open session read when a later provider unread update arrives', async () => {
+			return runWithFakedTimers({}, async () => {
+				const resource = URI.parse('test-type://owned-session');
+				const controller = new ReadOwningController([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+				instantiationService.stub(IChatWidgetService, new OpenChatWidgetService(resource));
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				controller.setItems([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: false,
+				}]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+					isRead: true,
+					isMarkedUnread: false,
+				});
+			});
+		});
+
+		test('preserves an explicit unread update for an open session', async () => {
+			return runWithFakedTimers({}, async () => {
+				const resource = URI.parse('test-type://owned-session');
+				const controller = new ReadOwningController([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+				instantiationService.stub(IChatWidgetService, new OpenChatWidgetService(resource));
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				viewModel.sessions[0].setRead(false);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: false }],
+					isRead: false,
+					isMarkedUnread: true,
+				});
+			});
+		});
+
+		test('reads the provider value and routes mutations back to it', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: false,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const initial = {
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				};
+
+				viewModel.sessions[0].setRead(true);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					initial,
+					mutations: controller.mutations,
+					afterMarkRead: {
+						isRead: viewModel.sessions[0].isRead(),
+						isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+					},
+				}, {
+					initial: { isRead: false, isMarkedUnread: true },
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+					afterMarkRead: { isRead: true, isMarkedUnread: false },
+				});
+			});
+		});
+
+		test('provider unread wins over the local heuristics', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					// Old enough that the local baseline heuristic would call it read.
+					timing: { created: 1, lastRequestStarted: 1, lastRequestEnded: 1 },
+					isRead: false,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined); // pick up the provider echo
+
+				// The migration hands the locally-read state to the provider rather
+				// than overriding it locally, keeping the provider authoritative.
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+					isRead: true,
+				});
+			});
+		});
+
+		test('does not migrate a session the provider already reports as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(controller.mutations, []);
+			});
+		});
+
+		test('defers migration until the provider has reported a value', async () => {
+			return runWithFakedTimers({}, async () => {
+				// A session carried over from a cache predating the field reports
+				// `undefined`; consuming the one-shot flag here would lose the
+				// hand-off for good.
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: { created: 1, lastRequestStarted: 1, lastRequestEnded: 1 },
+					isRead: undefined,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const beforeReport = controller.mutations.length;
+
+				controller.setItems([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: { created: 1, lastRequestStarted: 1, lastRequestEnded: 1 },
+					isRead: false,
+				}]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					beforeReport,
+					mutations: controller.mutations,
+				}, {
+					beforeReport: 0,
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+				});
+			});
+		});
+
+		test('does not resurrect read state on a later refresh after marking unread', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: { created: 1, lastRequestStarted: 1, lastRequestEnded: 1 },
+					isRead: false,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined); // migration promotes to read
+				await viewModel.resolve(undefined); // pick up the provider echo
+
+				viewModel.sessions[0].setRead(false);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+				}, {
+					mutations: [
+						{ resource: 'test-type://owned-session', isRead: true },
+						{ resource: 'test-type://owned-session', isRead: false },
+					],
+					isRead: false,
+				});
 			});
 		});
 	});

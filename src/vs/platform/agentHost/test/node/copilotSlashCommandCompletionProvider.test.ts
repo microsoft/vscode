@@ -146,7 +146,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		test('injects config-action items (permission/mode toggles) for a leading slash', async () => {
 			const items = await run('/');
 			const byLabel = new Map(items.filter(i => i.attachment?._meta?.action !== undefined).map(i => [i.attachment?.label, i]));
-			assert.ok(byLabel.has('/yolo'));
+			assert.ok(byLabel.has('/yolo on'));
 			assert.ok(byLabel.has('/autopilot on'));
 			assert.strictEqual(byLabel.get('/autopilot')?.insertText, '/autopilot ');
 		});
@@ -158,6 +158,11 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('filters to /compact when "/c" typed', async () => {
 			const items = await run('/c');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact ']);
+		});
+
+		test('fuzzy matches /compact when "/cc" typed', async () => {
+			const items = await run('/cc');
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact ']);
 		});
 

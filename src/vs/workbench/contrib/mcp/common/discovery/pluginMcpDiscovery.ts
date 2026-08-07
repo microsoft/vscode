@@ -20,7 +20,7 @@ import {
 } from '../../../chat/common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
+import { MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 
 /**
@@ -29,7 +29,7 @@ import { IMcpDiscovery } from './mcpDiscovery.js';
  * the plugin's URI. Consumers can use this to tell plugin-sourced MCP servers
  * apart from servers configured directly in VS Code.
  */
-export const MCP_PLUGIN_COLLECTION_ID_PREFIX = 'plugin.';
+export { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 
 export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
@@ -78,6 +78,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		const collectionId = `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${plugin.uri}`;
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
+			provenance: McpCollectionProvenance.Plugin,
 			label: `${plugin.label} (Agent Plugin)`,
 			remoteAuthority: plugin.uri.scheme === Schemas.vscodeRemote ? plugin.uri.authority : null,
 			configTarget: ConfigurationTarget.USER,

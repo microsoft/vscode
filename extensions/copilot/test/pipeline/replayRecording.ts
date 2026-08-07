@@ -6,7 +6,7 @@
 import { IRecordingInformation, ObservableWorkspaceRecordingReplayer } from '../../src/extension/inlineEdits/common/observableWorkspaceRecordingReplayer';
 import { DocumentId } from '../../src/platform/inlineEdits/common/dataTypes/documentId';
 import { IObservableDocument, MutableObservableWorkspace } from '../../src/platform/inlineEdits/common/observableWorkspace';
-import { LogEntry } from '../../src/platform/workspaceRecorder/common/workspaceLog';
+import { type ISerializedEdit, LogEntry } from '../../src/platform/workspaceRecorder/common/workspaceLog';
 import { ErrorUtils } from '../../src/util/common/errors';
 import { Result } from '../../src/util/common/result';
 import { coalesce } from '../../src/util/vs/base/common/arrays';
@@ -66,6 +66,18 @@ export interface IProcessedRow {
 	 * target line even when the target was opened before the request.
 	 */
 	readonly idToContentAtRequest: ReadonlyMap<number, string>;
+	readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
+}
+
+export interface IWorkspaceRecordingSampleProvenance {
+	readonly sourceFormat: 'workspace-recording';
+	readonly recordingRevision: 4;
+	readonly policyVersion: 2;
+	readonly pivotKind: 'user-edit' | 'cursor-move';
+	readonly pivotOperationIndex: number;
+	readonly oracleOperationCount: number;
+	readonly oracleStopReason: 'cursor-move' | 'generated-edit' | 'ambiguous-edit' | 'other-document-edit' | 'idle-gap';
+	readonly contextTruncated: boolean;
 }
 
 /**
@@ -98,15 +110,15 @@ export function parseSuggestedEdit(suggestedEditStr: string): [start: number, en
  * Process a single input row: split recording at request time, replay
  * the pre-request portion and extract the oracle edit.
  */
-export function processRow(row: IInputRow): Result<IProcessedRow, Error> {
+export function processRow(row: IInputRow, maxOracleEdits?: number): Result<IProcessedRow, Error> {
 	try {
-		return _processRow(row);
+		return _processRow(row, maxOracleEdits);
 	} catch (e: unknown) {
 		return Result.error(ErrorUtils.fromUnknown(e));
 	}
 }
 
-function _processRow(row: IInputRow): Result<IProcessedRow, Error> {
+function _processRow(row: IInputRow, maxOracleEdits: number | undefined): Result<IProcessedRow, Error> {
 	const proposedEdits = coalesce([parseSuggestedEdit(row.postProcessingOutcome.suggestedEdit)]);
 	const isAccepted = row.suggestionStatus === 'accepted';
 
@@ -123,6 +135,7 @@ function _processRow(row: IInputRow): Result<IProcessedRow, Error> {
 		requestTime: recording.requestTime,
 		proposedEdits,
 		isAccepted,
+		maxOracleEdits,
 	});
 }
 
@@ -137,33 +150,68 @@ function _processRow(row: IInputRow): Result<IProcessedRow, Error> {
  * pivot strategy. The returned {@link IProcessedRow} holds a live replayer that
  * the caller must dispose.
  */
-export function processRecordingAtPivot(args: {
+interface IProcessRecordingArgs {
 	/** Input row metadata threaded through to the result; synthesized for continuous recordings. */
 	readonly row: IInputRow;
 	/** Full recording timeline (must be non-empty). */
 	readonly entries: LogEntry[];
-	/** Pivot time: entries with `time <= requestTime` are context, the rest hold the oracle. */
-	readonly requestTime: number;
 	readonly proposedEdits: IStringReplacement[];
 	readonly isAccepted: boolean;
+	readonly oracleEdits?: ISerializedEdit;
+	readonly maxOracleEdits?: number;
+	readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
+}
+
+export function processRecordingAtPivot(args: IProcessRecordingArgs & {
+	/** Pivot time: entries with `time <= requestTime` are context, the rest hold the oracle. */
+	readonly requestTime: number;
 }): Result<IProcessedRow, Error> {
-	const { row, entries, requestTime, proposedEdits, isAccepted } = args;
-
-	const split = Processor.splitRecording(entries, requestTime);
-	if (!split) {
-		return Result.fromString(`Could not split recording at request time (${entries.length} entries, lang: ${row.activeDocumentLanguageId})`);
-	}
-
-	const scoring = Processor.createScoring(
-		entries,
-		requestTime,
-		proposedEdits,
-		isAccepted,
+	return processRecordingAtSplit(
+		args,
+		() => Processor.splitRecording(args.entries, args.requestTime),
+		`Could not split recording at request time`,
 	);
+}
 
-	if (!scoring) {
-		return Result.fromString(`Processor.createScoring returned undefined (${entries.length} entries, lang: ${row.activeDocumentLanguageId})`);
+export function processRecordingAtIndex(args: IProcessRecordingArgs & {
+	readonly pivotEntryIndex: number;
+	readonly workspaceRecording: IWorkspaceRecordingSampleProvenance;
+}): Result<IProcessedRow, Error> {
+	return processRecordingAtSplit(
+		args,
+		() => Processor.splitRecordingAtIndex(args.entries, args.pivotEntryIndex),
+		`Could not split recording at entry ${args.pivotEntryIndex}`,
+	);
+}
+
+function processRecordingAtSplit(
+	args: IProcessRecordingArgs,
+	createSplit: () => Processor.ISplitRecording | undefined,
+	splitError: string,
+): Result<IProcessedRow, Error> {
+	try {
+		const split = createSplit();
+		if (!split) {
+			return Result.fromString(`${splitError} (${args.entries.length} entries, lang: ${args.row.activeDocumentLanguageId})`);
+		}
+		return _processRecordingAtSplit(args, split);
+	} catch (e: unknown) {
+		return Result.error(ErrorUtils.fromUnknown(e));
 	}
+}
+
+function _processRecordingAtSplit(
+	args: {
+		readonly row: IInputRow;
+		readonly proposedEdits: IStringReplacement[];
+		readonly isAccepted: boolean;
+		readonly oracleEdits?: ISerializedEdit;
+		readonly maxOracleEdits?: number;
+		readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
+	},
+	split: Processor.ISplitRecording,
+): Result<IProcessedRow, Error> {
+	const scoring = Processor.createScoringFromSplit(split, args.proposedEdits, args.isAccepted, args.oracleEdits, args.maxOracleEdits);
 
 	const recording = scoring.scoringContext.recording;
 
@@ -233,8 +281,8 @@ export function processRecordingAtPivot(args: {
 		})();
 
 		return Result.ok({
-			originalRowIndex: row.originalRowIndex,
-			row,
+			originalRowIndex: args.row.originalRowIndex,
+			row: args.row,
 			replayer,
 			workspace,
 			activeDocId: lastDocId,
@@ -247,6 +295,7 @@ export function processRecordingAtPivot(args: {
 			idToRelativePath: split.idToFileMap,
 			cursorAtRequest,
 			idToContentAtRequest,
+			workspaceRecording: args.workspaceRecording,
 		});
 	} catch (e) {
 		// `replayer.replay()` and the post-replay analysis above (cursor/content
@@ -264,7 +313,7 @@ export function processRecordingAtPivot(args: {
  * Process all input rows.
  * Each returned `IProcessedRow` holds a live replayer that must be disposed by the caller.
  */
-export function processAllRows(rows: readonly IInputRow[]): {
+export function processAllRows(rows: readonly IInputRow[], maxOracleEdits?: number): {
 	processed: IProcessedRow[];
 	errors: WithRowIndex<Error>[];
 } {
@@ -273,7 +322,7 @@ export function processAllRows(rows: readonly IInputRow[]): {
 
 	for (let i = 0; i < rows.length; i++) {
 		const row = rows[i];
-		const result = processRow(row);
+		const result = processRow(row, maxOracleEdits);
 		if (result.isError()) {
 			errors.push({ originalRowIndex: row.originalRowIndex, value: result.err });
 		} else {

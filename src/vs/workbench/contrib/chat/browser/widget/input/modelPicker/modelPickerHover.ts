@@ -78,9 +78,8 @@ export function getModelHoverContent(
 	if (promo) {
 		const promoContainer = dom.$('.chat-model-hover-promo-text');
 		promoContainer.appendChild(renderIcon(Codicon.info));
-		const endsAtDate = new Date(promo.endsAt);
-		const formattedDate = endsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-		const promoMessage = promo.message + ' ' + localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
+		const endsAtLabel = ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt);
+		const promoMessage = endsAtLabel ? promo.message + ' ' + endsAtLabel : promo.message;
 		const promoMd = new MarkdownString(promoMessage, { isTrusted: false, supportThemeIcons: true });
 		const rendered = disposables.add(renderMarkdown(promoMd, {
 			actionHandler: link => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
@@ -169,7 +168,9 @@ export function getModelHoverContent(
 		container.appendChild(contextSection);
 	}
 
-	if (!isAuto && model.metadata.configurationSchema?.properties) {
+	// Auto has no per-model pricing to show, but it does expose a routing tier,
+	// so the configurable section is not gated on `isAuto`.
+	if (model.metadata.configurationSchema?.properties) {
 		const configButtons: { group: string; label: string }[] = [];
 		const seenGroups = new Set<string>();
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {

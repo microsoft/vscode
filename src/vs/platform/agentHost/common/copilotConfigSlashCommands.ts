@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { matchesFuzzy2 } from '../../../base/common/filters.js';
 import { localize } from '../../../nls.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 
@@ -90,7 +91,6 @@ function getConfigSlashCommands(): readonly IConfigSlashCommand[] {
 		{
 			command: 'yolo', sortText: 'z1_yolo',
 			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
 			],
@@ -98,15 +98,6 @@ function getConfigSlashCommands(): readonly IConfigSlashCommand[] {
 		{
 			command: 'allow-all', sortText: 'z1_allow-all',
 			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
-				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
-				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
-			],
-		},
-		{
-			command: 'autoApprove', sortText: 'z1_autoApprove',
-			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
 			],
@@ -144,18 +135,64 @@ export function isCopilotConfigSlashCommand(command: string): boolean {
 }
 
 /**
- * Returns the flattened completion items (one per command form) whose command
- * name matches `typed` (the text after the leading `/`, case-insensitive prefix).
- * When `typed` is empty, all items are returned.
+ * The current session-config state used to filter config-action slash command
+ * completions so only the state-changing forms are offered (e.g. `/autopilot on`
+ * is hidden while already in autopilot mode).
  */
-export function getCopilotConfigSlashCommandItems(typed: string): ICopilotConfigSlashCommandItem[] {
+export interface ICopilotConfigSlashCommandState {
+	/** The session's current `mode` axis value (e.g. `interactive` / `plan` / `autopilot`). */
+	readonly mode?: string;
+	/** The session's current `autoApprove` axis value (e.g. `default` / `autoApprove`). */
+	readonly autoApprove?: string;
+}
+
+/**
+ * Returns whether the option should be offered for the current session state.
+ * Unknown state and keep-text options are always offered.
+ */
+function shouldOfferOption(option: IConfigSlashOption, state: ICopilotConfigSlashCommandState | undefined): boolean {
+	// Keep-text forms carry a typed prompt/objective and are always relevant.
+	if (option.argumentHint !== undefined || !state) {
+		return true;
+	}
+	const autoApproveTarget = option.config[SessionConfigKey.AutoApprove];
+	if (autoApproveTarget !== undefined) {
+		const isBypass = state.autoApprove === AUTO_APPROVE_BYPASS;
+		return autoApproveTarget === AUTO_APPROVE_BYPASS ? !isBypass : isBypass;
+	}
+	const modeTarget = option.config[SessionConfigKey.Mode];
+	if (modeTarget === MODE_AUTOPILOT) {
+		return state.mode !== MODE_AUTOPILOT;
+	}
+	if (modeTarget === MODE_INTERACTIVE) {
+		return state.mode === MODE_AUTOPILOT;
+	}
+	return true;
+}
+
+/**
+ * Returns the flattened completion items (one per command form) whose command
+ * name fuzzy matches `typed` (the text after the leading `/`, case-insensitive).
+ * When `typed` is empty, all items are returned.
+ *
+ * When `state` (the session's current config values) is provided, pure toggle
+ * forms that would be a no-op are filtered out so only the state-changing forms
+ * are offered (see {@link shouldOfferOption}).
+ */
+export function getCopilotConfigSlashCommandItems(typed: string, state?: ICopilotConfigSlashCommandState): ICopilotConfigSlashCommandItem[] {
 	const typedLower = typed.trim().toLowerCase();
 	const items: ICopilotConfigSlashCommandItem[] = [];
 	for (const command of getConfigSlashCommands()) {
-		if (typedLower && !command.command.toLowerCase().startsWith(typedLower)) {
+		if (typedLower
+			&& !command.command.toLowerCase().startsWith(typedLower)
+			&& (typedLower.length === 1 || matchesFuzzy2(typedLower, command.command) === null)
+		) {
 			continue;
 		}
 		for (const option of command.options) {
+			if (!shouldOfferOption(option, state)) {
+				continue;
+			}
 			// Keep-text items (those expecting a typed argument) insert `/command `
 			// and show the argument hint; pure toggles insert nothing (the display
 			// comes from `label`).
@@ -206,6 +243,7 @@ export function resolveCopilotConfigSlashCommandOnSend(command: string, rest: st
 	}
 	const trimmedRest = rest.trim();
 	const namedOptions = descriptor.options.filter(o => o.arg !== undefined);
+	const baseOption = descriptor.options.find(o => o.arg === undefined);
 	if (namedOptions.length > 0 && trimmedRest.length > 0) {
 		const match = /^(\S+)(?:\s+([\s\S]*))?$/.exec(trimmedRest);
 		const firstToken = match?.[1]?.toLowerCase();
@@ -213,8 +251,11 @@ export function resolveCopilotConfigSlashCommandOnSend(command: string, rest: st
 		if (matched) {
 			return { applyConfig: matched.config, strippedPrompt: (match?.[2] ?? '').trim() };
 		}
+		if (!baseOption) {
+			return undefined;
+		}
 	}
 	// Fall back to the bare command form (the base/prompt option or the sole option).
-	const baseOption = descriptor.options.find(o => o.arg === undefined) ?? descriptor.options[0];
-	return { applyConfig: baseOption.config, strippedPrompt: trimmedRest };
+	const fallback = baseOption ?? descriptor.options[0];
+	return { applyConfig: fallback.config, strippedPrompt: trimmedRest };
 }

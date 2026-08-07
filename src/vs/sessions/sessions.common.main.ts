@@ -454,14 +454,18 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
+import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsService.js';
+import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
+import './services/customView/browser/customViewService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
-import './contrib/promptTimeline/browser/promptTimeline.contribution.js';
+import './contrib/chat/browser/btwSlashCommand.contribution.js';
+import './contrib/chat/browser/sideChatProvider.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
@@ -489,6 +493,7 @@ import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 import './contrib/automations/browser/automations.contribution.js';
+import './contrib/customViewTest/browser/customViewTest.contribution.js';
 
 // Onboarding: the engine + spotlight presentation (from the workbench layer) and
 // the Agents window scenario data.

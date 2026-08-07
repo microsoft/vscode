@@ -10,86 +10,17 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, NotificationType } from '../../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../../common/state/protocol/notifications.js';
-import { ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
 	dispatchTurn,
 	driveTurnToCompletion,
 } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, shellToolReplayEnabled, runRecordOnlyTests } = context;
-	(shellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
-		this.timeout(120_000);
-
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
-		tempDirs.push(tempDir);
-		const sessionUri = await createRealSession(context.client, config, `real-sdk-permission-${config.provider}`, createdSessions, URI.file(tempDir));
-		dispatchTurn(context.client, sessionUri, 'turn-perm', 'Run the shell command: echo "hello from test"', 1);
-
-		// Validate the permission flow by driving toward the first signal
-		// that the tool call actually ran:
-		//   - Copilot routes shell calls through `canUseTool`, emitting
-		//     `toolCallReady` with `confirmed=undefined`. The test
-		//     dispatches `toolCallConfirmed` and expects `toolCallComplete`.
-		//   - Claude's `default` permission mode auto-approves safe Bash
-		//     commands at the SDK layer and never reaches the host's
-		//     `canUseTool`, so the next observable signal is
-		//     `toolCallComplete` directly.
-		// Either way, `toolCallComplete` is the success indicator. We do
-		// not wait for `turnComplete` because Claude's post-tool
-		// continuation can outlive any reasonable test timeout for trivial
-		// prompts like this one.
-		let nextSeq = 2;
-		while (true) {
-			const next = await context.client.waitForNotification(n =>
-				(isActionNotification(n, 'chat/toolCallReady')
-					&& (getActionEnvelope(n).action as { confirmed?: string }).confirmed === undefined)
-				|| isActionNotification(n, 'chat/toolCallComplete')
-				|| isActionNotification(n, 'chat/error'),
-				90_000);
-			if (isActionNotification(next, 'chat/error')) {
-				throw new Error('Session error during permission test');
-			}
-			if (isActionNotification(next, 'chat/toolCallComplete')) {
-				break;
-			}
-			const action = getActionEnvelope(next).action as { toolCallId: string };
-			context.client.dispatch({
-				channel: buildDefaultChatUri(sessionUri),
-				clientSeq: nextSeq++,
-				action: {
-					type: ActionType.ChatToolCallConfirmed,
-					turnId: 'turn-perm',
-					toolCallId: action.toolCallId, approved: true,
-					confirmed: ToolCallConfirmationReason.UserAction,
-				},
-			});
-		}
-
-		const toolStarts = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'));
-		assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
-
-		// Drain the post-tool continuation to `turnComplete` so the turn ends
-		// within this test's window. This is required for the shared replay
-		// server (all providers now reuse one server across the suite):
-		// returning mid-turn leaves the SDK query in flight, and its
-		// continuation HTTP call fires *after* the fixture is swapped for the
-		// next test — landing in that test's fixture window as an unrecorded
-		// call and failing the strict cache-miss check. Draining keeps every
-		// request/response inside the test that owns it. Replay serves the
-		// continuation from the fixture instantly; while recording it also
-		// lands that model call in the fixture. Bounded + best-effort: some
-		// providers' continuations for a trivial prompt can run long while
-		// recording.
-		try {
-			await context.client.waitForNotification(n =>
-				isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
-				30_000);
-		} catch { /* bounded drain */ }
-	});
+	const { config, createdSessions, tempDirs, runRecordOnlyTests } = context;
 
 	(config.supportsPlanMode ? test : test.skip)('planning-mode session-state writes are auto-approved in default mode', async function () {
 		this.timeout(180_000);
@@ -127,6 +58,10 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 			'What did the plan I just approved say to print? Reply with exactly "hello world".', 100);
 		assert.strictEqual(followupTurn.sawPendingConfirmation, false, 'follow-up turn should not surface new pending confirmations');
 		assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
+		assert.ok(
+			context.observedModelRequestBodies.at(-1)?.includes('Help me implement a Python script'),
+			'follow-up model request should retain the original planning turn',
+		);
 
 		const extraSessionNotificationsAfterFollowup = context.client.receivedNotifications(n =>
 			n.method === NotificationType.SessionAdded &&
@@ -151,19 +86,40 @@ export function defineTurnLifecycleTests(context: IAgentHostE2ETestContext): voi
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-abort-${config.provider}`, createdSessions, URI.file(tempDir));
 		dispatchTurn(context.client, sessionUri, 'turn-abort', 'Write a very long essay about the history of computing', 1);
 
+		const chatUri = buildDefaultChatUri(sessionUri);
 		await context.client.waitForNotification(
-			n => isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/toolCallStart'),
+			n => (isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/toolCallStart'))
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-abort',
 			60_000,
 		);
 
-		// `session/abortTurn` is not part of the StateAction union, so it
-		// bypasses the typed `dispatch` helper and is sent raw.
-		context.client.notify('dispatchAction', {
-			channel: sessionUri,
+		context.client.dispatch({
+			channel: chatUri,
 			clientSeq: 2,
-			action: { type: 'session/abortTurn' },
+			action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-abort', duration: 0 },
 		});
 
-		await context.client.waitForNotification(n => isActionNotification(n, 'session/abortTurn'), 10_000);
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnCancelled')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-abort',
+			10_000);
+
+		const replacement = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-abort', 'Reply with exactly "after-abort".', 3);
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			response: replacement.responseText.trim(),
+			activeTurn: state.activeTurn,
+			inputNeeded: state.inputNeeded,
+			cancelledState: state.turns.find(turn => turn.id === 'turn-abort')?.state,
+			replacementState: state.turns.find(turn => turn.id === 'turn-after-abort')?.state,
+		}, {
+			response: 'after-abort',
+			activeTurn: undefined,
+			inputNeeded: undefined,
+			cancelledState: 'cancelled',
+			replacementState: 'complete',
+		});
 	});
 }

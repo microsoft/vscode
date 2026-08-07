@@ -627,6 +627,18 @@ export namespace ConfigKey {
 		export const CLIShowExternalSessions = defineSetting<boolean>('chat.cli.showExternalSessions', ConfigType.Simple, true);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
 		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
+		/**
+		 * Use the single-call Auto endpoint (`POST /auto`) instead of the legacy session + intent calls.
+		 * Experiment-based so it can be remotely disabled; an explicit user setting still wins.
+		 */
+		export const AutoModeV2Enabled = defineSetting<boolean>('chat.autoMode.v2.enabled', ConfigType.ExperimentBased, true, undefined, undefined, { experimentName: 'copilotchat.autoModeV2Enabled' });
+
+		/**
+		 * Offer routing tiers on the Auto model. Requires {@link AutoModeV2Enabled},
+		 * since `tier` is only understood by `POST /auto`. Off by default: while
+		 * disabled no tier is sent and the server picks its own routing profile.
+		 */
+		export const AutoModeTiersEnabled = defineSetting<boolean>('chat.autoMode.tiers.enabled', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.autoModeTiersEnabled' });
 		export const CLIModelDetailsEnabled = defineSetting<boolean>('chat.agent.modelDetails.enabled', ConfigType.Simple, true);
 		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
 		export const CLIChatLazyLoadSessionItem = defineSetting<boolean>('chat.cli.lazyLoadSessionItem.enabled', ConfigType.Simple, true);
@@ -746,6 +758,13 @@ export namespace ConfigKey {
 
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
+
+		/**
+		 * Internal: override the routing tier sent to `POST /auto`, ignoring both the
+		 * model picker and the tier inline chat defaults to. Unlike the picker this
+		 * accepts `fast`, so evals can exercise every profile.
+		 */
+		export const AutoModeTierOverride = defineSetting<string | null>('chat.autoModeTierOverride', ConfigType.Simple, null);
 
 		/**
 		 * When enabled, periodic keep-alive probes are sent during long-running tool calls
@@ -907,7 +926,7 @@ export namespace ConfigKey {
 		export const InlineEditsXtabOnlyMergeConflictLines = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.onlyMergeConflictLines', ConfigType.ExperimentBased, false);
 		export const InlineEditsXtabDuplicateAdditionsMode = defineTeamInternalSetting<DuplicateAdditionsMode>('chat.advanced.inlineEdits.xtabProvider.diffPatch.duplicateAdditionsMode', ConfigType.ExperimentBased, DuplicateAdditionsMode.Off, DuplicateAdditionsMode.VALIDATOR);
 		export const InlineEditsXtabSplitPatchOnDiff = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.diffPatch.splitOnDiff', ConfigType.ExperimentBased, false, vBoolean());
-		export const InlineEditsXtabAggressivenessLevel = defineTeamInternalSetting<xtabPromptOptions.AggressivenessLevel | undefined>('chat.advanced.inlineEdits.xtabProvider.aggressivenessLevel', ConfigType.ExperimentBased, undefined);
+		export const InlineEditsXtabAggressivenessLevel = defineTeamInternalSetting<xtabPromptOptions.AggressivenessLevel | undefined>('chat.advanced.inlineEdits.xtabProvider.aggressivenessLevel', ConfigType.ExperimentBased, xtabPromptOptions.AggressivenessLevel.Medium);
 		export const InlineEditsAggressivenessLowMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.lowMinResponseTimeMs', ConfigType.ExperimentBased, 1500);
 		export const InlineEditsAggressivenessMediumMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.mediumMinResponseTimeMs', ConfigType.ExperimentBased, 700);
 		export const InlineEditsAggressivenessHighDebounceMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.highDebounceMs', ConfigType.ExperimentBased, 0);
@@ -968,14 +987,6 @@ export namespace ConfigKey {
 
 	export const RateLimitAutoSwitchToAuto = defineSetting<boolean>('chat.rateLimitAutoSwitchToAuto', ConfigType.Simple, false, vBoolean());
 
-	/** Route conversation-history compaction through the dedicated `trajectory-compaction` CAPI model instead of the main agent model. */
-	export const ConversationUsePrismCompaction = defineSetting<boolean>('chat.conversationCompaction.usePrismCompaction', ConfigType.ExperimentBased, false);
-	/** Override the model used for compaction. Empty string keeps the default (`trajectory-compaction` when prism is on, agent model otherwise). */
-	export const ConversationCompactionModel = defineSetting<string>('chat.conversationCompaction.model', ConfigType.ExperimentBased, '');
-
-	/** Comma-separated CAPI model IDs (case-insensitive, substring match against model + family) opted into prism compaction. Empty = all models. */
-	export const ConversationPrismCompactionModelFilter = defineSetting<string>('chat.conversationCompaction.prismModelFilter', ConfigType.ExperimentBased, 'claude-haiku-4.5,claude-sonnet-4.5,claude-sonnet-4.6,gemini-2.5-pro,gemini-3-flash,gemini-3.5-flash');
-
 	/** Use the Messages API instead of Chat Completions when supported */
 	export const UseAnthropicMessagesApi = defineSetting<boolean | undefined>('chat.anthropic.useMessagesApi', ConfigType.ExperimentBased, true);
 	/** Context editing mode for Anthropic Messages API. 'off' disables context editing. */
@@ -988,8 +999,8 @@ export namespace ConfigKey {
 	export const ResponsesApiPromptCacheBreakpointEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheBreakpoint.enabled', ConfigType.ExperimentBased, false);
 	/** Enable updated prompt for 5.3Codex model */
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
-	/** Enable updated prompt for Claude Opus 4.8 model */
-	export const Claude48OpusPromptEnabled = defineSetting<boolean>('chat.claude48OpusPrompt.enabled', ConfigType.ExperimentBased, false);
+	/** Enable updated prompt for Claude Opus 5 model */
+	export const ClaudeOpus5PromptEnabled = defineSetting<boolean>('chat.claudeOpus5Prompt.enabled', ConfigType.ExperimentBased, false);
 	/** Enable updated prompt for Claude Sonnet 5 model */
 	export const ClaudeSonnet5PromptEnabled = defineSetting<boolean>('chat.claudeSonnet5Prompt.enabled', ConfigType.ExperimentBased, false);
 	/** Enable get_changed_files tool for GPT-5.5 models */
@@ -1002,6 +1013,8 @@ export namespace ConfigKey {
 	export const EnableGemini3LowReasoningEffort = defineSetting<boolean>('chat.gemini3LowReasoningEffort.enabled', ConfigType.ExperimentBased, false);
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
+	/** How the semantic_search (codebase) tool is offered to the agent: available, removed entirely, or available with instructions telling the agent to prefer it over exploratory reads and text searches. */
+	export const SemanticSearchToolMode = defineSetting<'enabled' | 'disabled' | 'preferred'>('chat.semanticSearchTool.mode', ConfigType.ExperimentBased, 'enabled');
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);
 	/** Enable Anthropic web search tool for BYOK Claude models */
 	export const AnthropicWebSearchToolEnabled = defineSetting<boolean>('chat.anthropic.tools.websearch.enabled', ConfigType.ExperimentBased, false);
@@ -1063,8 +1076,7 @@ export namespace ConfigKey {
 	export const SummarizeAgentConversationHistory = defineSetting<boolean>('chat.summarizeAgentConversationHistory.enabled', ConfigType.Simple, true);
 	export const VirtualToolThreshold = defineSetting<number>('chat.virtualTools.threshold', ConfigType.ExperimentBased, HARD_TOOL_LIMIT);
 	export const CurrentEditorAgentContext = defineSetting<boolean>('chat.agent.currentEditorContext.enabled', ConfigType.Simple, true);
-	// When enabled, models with a free long context window only show the long context option in the picker. Disabled (default) keeps the smaller option. Gates behavior introduced in microsoft/vscode#322950 and microsoft/vscode#323116.
-	export const PreferLongContext = defineSetting<boolean>('chat.preferLongContext.enabled', ConfigType.Simple, false);
+	export const PreferLongContext = defineSetting<boolean>('chat.preferLongContext.enabled', ConfigType.Simple, true);
 	/** BYOK  */
 	export const AutoFixDiagnostics = defineSetting<boolean>('chat.agent.autoFix', ConfigType.ExperimentBased, false);
 	export const NotebookFollowCellExecution = defineSetting<boolean>('chat.notebook.followCellExecution.enabled', ConfigType.Simple, false);

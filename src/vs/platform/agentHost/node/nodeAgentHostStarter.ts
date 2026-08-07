@@ -7,12 +7,14 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
+import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar } from '../common/agentHostTelemetry.js';
 import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
@@ -69,9 +71,14 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 		const env: Record<string, string> = {
 			...shellEnv as Record<string, string>,
+			// Announce that everything spawned below this process is driven by
+			// VS Code's agent, so `gh` inherits it. Set after the inherited
+			// env so it wins.
+			[AiAgentEnvVar]: AiAgentEnvValue,
 			VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
+			[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeCLI,
 		};
 
 		// Forward the Claude/Codex SDK overrides + codex home/args from

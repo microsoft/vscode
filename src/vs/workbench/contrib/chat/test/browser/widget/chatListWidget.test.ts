@@ -5,10 +5,34 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getAnchoredScrollTop, UserToggleResizeState } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState } from '../../../browser/widget/chatListWidget.js';
 
 suite('ChatListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('auto-scroll holds compose and survive a double release', () => {
+		const holds = new AutoScrollHolds();
+		const states = [holds.isHeld];
+
+		// Two unrelated features suppress concurrently (e.g. a request edit and
+		// an open text selection).
+		const first = holds.acquire();
+		const second = holds.acquire();
+		states.push(holds.isHeld);
+
+		first.dispose();
+		states.push(holds.isHeld);
+
+		// A redundant dispose must not decrement past the remaining hold and
+		// silently resume auto-scroll for the other caller.
+		first.dispose();
+		states.push(holds.isHeld);
+
+		second.dispose();
+		states.push(holds.isHeld);
+
+		assert.deepStrictEqual(states, [false, true, true, true, false]);
+	});
 
 	test('keeps user toggle tracking active until resizing settles', () => {
 		const state = new UserToggleResizeState(2);
@@ -44,5 +68,23 @@ suite('ChatListWidget', () => {
 			titleMovedDown: 340,
 			titleUnchanged: 300,
 		});
+	});
+
+	// Regression test for https://github.com/microsoft/vscode/issues/326952: the scroll-down
+	// button must reflect the actual scroll position (shown whenever not at the bottom) even while
+	// the scroll lock is engaged during an agent turn, while the `chat-list-at-bottom` padding
+	// state stays coupled to the scroll lock.
+	test('scroll-down button is decoupled from the at-bottom padding state', () => {
+		assert.deepStrictEqual([
+			computeScrollDownState(/*isScrolledToBottom*/ true, /*scrollLock*/ true),
+			computeScrollDownState(/*isScrolledToBottom*/ true, /*scrollLock*/ false),
+			computeScrollDownState(/*isScrolledToBottom*/ false, /*scrollLock*/ true),
+			computeScrollDownState(/*isScrolledToBottom*/ false, /*scrollLock*/ false),
+		], [
+			{ showButton: false, atBottom: true },
+			{ showButton: false, atBottom: true },
+			{ showButton: true, atBottom: true },
+			{ showButton: true, atBottom: false },
+		]);
 	});
 });

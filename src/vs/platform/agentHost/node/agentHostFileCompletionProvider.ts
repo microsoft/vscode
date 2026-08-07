@@ -6,12 +6,16 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery, scoreItemFuzzy } from '../../../base/common/fuzzyScorer.js';
-import { Schemas } from '../../../base/common/network.js';
-import { basename, relativePath } from '../../../base/common/resources.js';
+import { shorten } from '../../../base/common/labels.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { compare } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
+import { ILogService } from '../../log/common/log.js';
+import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
+import { IAgentHostFileCompletionRoots, resolveAgentHostFileCompletionRoots } from './agentHostFileCompletionUtils.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 
@@ -62,28 +66,29 @@ export function extractAtToken(text: string, offset: number): IAtToken | undefin
 }
 
 /**
- * Item-accessor that exposes a {@link URI} as basename / parent-directory /
- * relative path for the {@link scoreItemFuzzy} family.
+ * Exposes a candidate's basename, parent directory, and owner-relative path to
+ * the {@link scoreItemFuzzy} family.
  */
-class UriAccessor implements IItemAccessor<URI> {
-	constructor(private readonly _workingDirectory: URI) { }
+interface IFileCompletionCandidate {
+	readonly uri: URI;
+	readonly owner: URI;
+	readonly ownerIndex: number;
+	readonly relativePath: string;
+}
 
-	getItemLabel(item: URI): string {
-		return basename(item);
+class FileCompletionCandidateAccessor implements IItemAccessor<IFileCompletionCandidate> {
+
+	getItemLabel(item: IFileCompletionCandidate): string {
+		return basename(item.uri);
 	}
 
-	getItemDescription(item: URI): string | undefined {
-		const rel = relativePath(this._workingDirectory, item);
-		if (!rel) {
-			return undefined;
-		}
-		const idx = rel.lastIndexOf('/');
-		return idx > 0 ? rel.slice(0, idx) : undefined;
+	getItemDescription(item: IFileCompletionCandidate): string | undefined {
+		const idx = item.relativePath.lastIndexOf('/');
+		return idx > 0 ? item.relativePath.slice(0, idx) : undefined;
 	}
 
-	getItemPath(item: URI): string | undefined {
-		const rel = relativePath(this._workingDirectory, item);
-		return rel ?? item.fsPath;
+	getItemPath(item: IFileCompletionCandidate): string {
+		return item.relativePath;
 	}
 }
 
@@ -93,7 +98,7 @@ class UriAccessor implements IItemAccessor<URI> {
  * `@`-mentions in the user message composer.
  *
  * When the user has typed an `@`-prefixed token at the cursor position,
- * this provider enumerates files under the session's working directory
+ * this provider enumerates files under the session's effective working directories
  * (via {@link AgentHostWorkspaceFiles}, which uses ripgrep and respects
  * `.gitignore`), ranks them with the same fuzzy scorer used by the
  * VS Code Quick Open file picker, and returns up to {@link MAX_RESULTS}
@@ -108,15 +113,16 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _workspaceFiles: AgentHostWorkspaceFiles,
+		private readonly _logService: ILogService,
 	) { }
 
 	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
-		const workingDirectoryStr = this._stateManager.getSessionState(params.channel)?.workingDirectory;
-		if (!workingDirectoryStr) {
+		const workingDirectoryStrings = this._stateManager.getSessionState(params.channel)?.workingDirectories;
+		if (!workingDirectoryStrings?.length) {
 			return [];
 		}
-		const workingDirectory = URI.parse(workingDirectoryStr);
-		if (workingDirectory.scheme !== Schemas.file) {
+		const roots = resolveAgentHostFileCompletionRoots(workingDirectoryStrings.map(workingDirectory => URI.parse(workingDirectory)));
+		if (roots.enumerationRoots.length === 0) {
 			return [];
 		}
 
@@ -125,51 +131,187 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 			return [];
 		}
 
-		let files: readonly URI[];
+		let filesByRoot: readonly (readonly URI[])[];
 		try {
-			files = await this._workspaceFiles.getFiles(workingDirectory, token);
+			filesByRoot = await this._enumerateRootFiles(roots, token);
 		} catch (err) {
-			// Cancellation is expected on every keystroke as Monaco cancels
-			// the previous request. Don't let it surface as a provider failure
-			// in {@link AgentHostCompletions} — it would log noisy errors on
-			// normal typing.
 			if (isCancellationError(err)) {
 				return [];
 			}
 			throw err;
 		}
-		if (token.isCancellationRequested || files.length === 0) {
+		if (token.isCancellationRequested) {
 			return [];
 		}
 
-		const accessor = new UriAccessor(workingDirectory);
 		const query = prepareQuery(at.token);
+		const candidates: IFileCompletionCandidate[] = [];
+		const candidateCountByOwner = new Array<number>(roots.logicalRoots.length).fill(0);
+		const seen = new Set<string>();
+		for (const files of filesByRoot) {
+			for (const uri of files) {
+				const key = extUriBiasedIgnorePathCase.getComparisonKey(uri);
+				if (seen.has(key)) {
+					continue;
+				}
+				const owner = findDeepestContainingWorkingDirectory(uri, roots.logicalRoots);
+				const ownerIndex = owner ? roots.logicalRoots.indexOf(owner) : -1;
+				if (!owner || ownerIndex < 0 || (!query.normalized && candidateCountByOwner[ownerIndex] >= MAX_RESULTS)) {
+					continue;
+				}
+				const relativePath = extUriBiasedIgnorePathCase.relativePath(owner, uri);
+				if (relativePath === undefined) {
+					continue;
+				}
+				seen.add(key);
+				candidateCountByOwner[ownerIndex]++;
+				candidates.push({ uri, owner, ownerIndex, relativePath });
+			}
+		}
+		if (candidates.length === 0) {
+			return [];
+		}
+		const accessor = new FileCompletionCandidateAccessor();
 		const cache: FuzzyScorerCache = Object.create(null);
 
-		let candidates: URI[];
+		let results: IFileCompletionCandidate[];
 		if (!query.normalized) {
-			// Empty token: return the first MAX_RESULTS files in enumeration order.
-			candidates = files.slice(0, MAX_RESULTS);
+			results = this._takeFairResults(candidates);
 		} else {
 			// Filter out non-matches first to avoid sorting tens of thousands of zeros.
-			const matching = files.filter(f => scoreItemFuzzy(f, query, true, accessor, cache).score > 0);
-			matching.sort((a, b) => compareItemsByFuzzyScore(a, b, query, true, accessor, cache));
-			candidates = matching.slice(0, MAX_RESULTS);
+			const matching = candidates.filter(candidate => scoreItemFuzzy(candidate, query, true, accessor, cache).score > 0);
+			matching.sort((a, b) =>
+				compareItemsByFuzzyScore(a, b, query, true, accessor, cache)
+				|| a.ownerIndex - b.ownerIndex
+				|| compare(a.relativePath, b.relativePath)
+			);
+			results = matching.slice(0, MAX_RESULTS);
 		}
 
-		return candidates.map((uri): CompletionItem => {
-			const name = basename(uri);
+		const duplicateNames = new Set<string>();
+		const names = new Set<string>();
+		for (const candidate of results) {
+			const name = basename(candidate.uri);
+			if (names.has(name)) {
+				duplicateNames.add(name);
+			} else {
+				names.add(name);
+			}
+		}
+		const ownerLabels = this._getOwnerLabels(results);
+
+		return results.map((candidate): CompletionItem => {
+			const name = basename(candidate.uri);
+			const ownerLabel = ownerLabels.get(extUriBiasedIgnorePathCase.getComparisonKey(candidate.owner)) ?? candidate.owner.path;
 			return {
 				insertText: at.triggerChar + name,
 				rangeStart: at.rangeStart,
 				rangeEnd: at.rangeEnd,
 				attachment: {
 					type: MessageAttachmentKind.Resource,
-					uri: uri.toString(),
-					label: name,
+					uri: candidate.uri.toString(),
+					label: duplicateNames.has(name) ? `${ownerLabel} \u2022 ${candidate.relativePath}` : name,
 					displayKind: 'document',
 				},
 			};
 		});
+	}
+
+	/**
+	 * Uses root basenames when unique and shortens only roots whose basenames collide.
+	 */
+	private _getOwnerLabels(candidates: readonly IFileCompletionCandidate[]): ReadonlyMap<string, string> {
+		const owners = new Map<string, URI>();
+		for (const candidate of candidates) {
+			owners.set(extUriBiasedIgnorePathCase.getComparisonKey(candidate.owner), candidate.owner);
+		}
+
+		const entries = [...owners.entries()];
+		const ownerNameCounts = new Map<string, number>();
+		for (const [, owner] of entries) {
+			const ownerName = basename(owner);
+			ownerNameCounts.set(ownerName, (ownerNameCounts.get(ownerName) ?? 0) + 1);
+		}
+
+		const shortenedOwnerPaths = shorten(entries.map(([, owner]) => owner.path), '/');
+		return new Map(entries.map(([key, owner], index) => {
+			const ownerName = basename(owner);
+			const label = ownerName && ownerNameCounts.get(ownerName) === 1 ? ownerName : shortenedOwnerPaths[index];
+			return [key, label];
+		}));
+	}
+
+	private async _enumerateRootFiles(roots: IAgentHostFileCompletionRoots, token: CancellationToken): Promise<readonly (readonly URI[])[]> {
+		const filesByRoot: (readonly URI[])[] = [];
+		const queuedRoots = new Set(roots.enumerationRoots.map(root => extUriBiasedIgnorePathCase.getComparisonKey(root)));
+		let pendingRoots = [...roots.enumerationRoots];
+
+		while (pendingRoots.length > 0) {
+			const currentRoots = pendingRoots;
+			pendingRoots = [];
+			const enumerations = await Promise.all(currentRoots.map(async root => {
+				try {
+					const result = await this._workspaceFiles.getFiles(root, token);
+					return { root, files: result.files, needsFallback: result.isTruncated };
+				} catch (err) {
+					if (isCancellationError(err)) {
+						throw err;
+					}
+					this._logService.warn(`[AgentHostFileCompletionProvider] Failed to enumerate ${root.toString()}: ${err}`);
+					return { root, files: [], needsFallback: true };
+				}
+			}));
+
+			for (const enumeration of enumerations) {
+				filesByRoot.push(enumeration.files);
+				if (!enumeration.needsFallback) {
+					continue;
+				}
+
+				const nestedRoots = roots.logicalRoots.filter(root =>
+					!extUriBiasedIgnorePathCase.isEqual(root, enumeration.root)
+					&& extUriBiasedIgnorePathCase.isEqualOrParent(root, enumeration.root)
+					&& !queuedRoots.has(extUriBiasedIgnorePathCase.getComparisonKey(root))
+				);
+				for (const fallbackRoot of resolveAgentHostFileCompletionRoots(nestedRoots).enumerationRoots) {
+					queuedRoots.add(extUriBiasedIgnorePathCase.getComparisonKey(fallbackRoot));
+					pendingRoots.push(fallbackRoot);
+				}
+			}
+		}
+
+		return filesByRoot;
+	}
+
+	/**
+	 * Interleaves empty-query candidates by logical root before applying the result limit.
+	 */
+	private _takeFairResults(candidates: readonly IFileCompletionCandidate[]): IFileCompletionCandidate[] {
+		const buckets: IFileCompletionCandidate[][] = [];
+		for (const candidate of candidates) {
+			(buckets[candidate.ownerIndex] ??= []).push(candidate);
+		}
+
+		const results: IFileCompletionCandidate[] = [];
+		for (let index = 0; results.length < MAX_RESULTS; index++) {
+			let added = false;
+			for (const bucket of buckets) {
+				if (!bucket) {
+					continue;
+				}
+				const candidate = bucket[index];
+				if (candidate) {
+					results.push(candidate);
+					added = true;
+					if (results.length === MAX_RESULTS) {
+						break;
+					}
+				}
+			}
+			if (!added) {
+				break;
+			}
+		}
+		return results;
 	}
 }

@@ -17,8 +17,10 @@ export const CODEX_SDK_ROOT = resolveCodexSdkRoot();
 export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	suiteTitle: 'Agent Host E2E — Codex',
 	provider: 'codex',
+	modelProviders: ['copilot'],
 	scheme: 'codex',
 	shellToolName: 'shell',
+	fileOperationStrategy: 'shell',
 	subagentToolNames: [],
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: !!CODEX_SDK_ROOT,
@@ -27,5 +29,8 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: false,
 	supportsSubagents: false,
 	supportsPlanMode: false,
+	supportsMultipleChats: false,
+	supportsChatFork: false,
+	supportsChatForkE2E: false,
 	shellToolReplayUnstableOnLinux: true,
 };

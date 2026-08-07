@@ -13,7 +13,6 @@ import { CancellationToken } from 'vscode-languageserver-protocol';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/common/chatDebugFileLoggerService';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
-import { InMemoryConfigurationService } from '../../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { NullNativeEnvService } from '../../../../../platform/env/common/nullEnvService';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
@@ -78,16 +77,22 @@ class TestFileSystemWatcher implements FileSystemWatcher {
 	readonly onDidCreate = emptyFileSystemEvent;
 	readonly onDidChange = emptyFileSystemEvent;
 	readonly onDidDelete = emptyFileSystemEvent;
-	dispose(): void { }
+
+	constructor(private readonly onDispose: () => void) { }
+
+	dispose(): void {
+		this.onDispose();
+	}
 }
 
 class TrackingFileSystemService extends MockFileSystemService {
 	createFileSystemWatcherCallCount = 0;
+	disposeFileSystemWatcherCallCount = 0;
 	readDirectoryCallCount = 0;
 
 	override createFileSystemWatcher(): FileSystemWatcher {
 		this.createFileSystemWatcherCallCount++;
-		return new TestFileSystemWatcher();
+		return new TestFileSystemWatcher(() => this.disposeFileSystemWatcherCallCount++);
 	}
 
 	override async readDirectory(uri: URI): Promise<[string, FileType][]> {
@@ -172,7 +177,7 @@ describe('CopilotCLISessionService', () => {
 	let configurationService: IConfigurationService;
 	let createSessionService: (options?: ICreateSessionServiceOptions) => CopilotCLISessionService;
 	let tempStateHome: string | undefined;
-	const originalXdgStateHome = process.env.XDG_STATE_HOME;
+	const originalCopilotHome = process.env.COPILOT_HOME;
 	beforeEach(async () => {
 		vi.useRealTimers();
 		const sdk = {
@@ -245,7 +250,11 @@ describe('CopilotCLISessionService', () => {
 			void rm(tempStateHome, { recursive: true, force: true });
 			tempStateHome = undefined;
 		}
-		process.env.XDG_STATE_HOME = originalXdgStateHome;
+		if (originalCopilotHome === undefined) {
+			delete process.env.COPILOT_HOME;
+		} else {
+			process.env.COPILOT_HOME = originalCopilotHome;
+		}
 		vi.useRealTimers();
 		vi.restoreAllMocks();
 		disposables.clear();
@@ -253,35 +262,28 @@ describe('CopilotCLISessionService', () => {
 
 	// --- Tests ----------------------------------------------------------------------------------
 
-	describe('session file monitoring', () => {
-		it('skips the watcher when Agent Host is the default for the current window', async () => {
-			const cases = [
-				{ name: 'Agents window Agent Host default', isAgentSessionsWorkspace: true, agentHostEnabled: true, agentsDefault: true, editorDefault: false, expectedWatcherCount: 0 },
-				{ name: 'editor window Agent Host default', isAgentSessionsWorkspace: false, agentHostEnabled: true, agentsDefault: false, editorDefault: true, expectedWatcherCount: 0 },
-				{ name: 'Agents window Agent Host disabled', isAgentSessionsWorkspace: true, agentHostEnabled: false, agentsDefault: true, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'editor window Agent Host disabled', isAgentSessionsWorkspace: false, agentHostEnabled: false, agentsDefault: false, editorDefault: true, expectedWatcherCount: 1 },
-				{ name: 'Agents window editor default only', isAgentSessionsWorkspace: true, agentHostEnabled: true, agentsDefault: false, editorDefault: true, expectedWatcherCount: 1 },
-				{ name: 'editor window Agents default only', isAgentSessionsWorkspace: false, agentHostEnabled: true, agentsDefault: true, editorDefault: false, expectedWatcherCount: 1 },
-			];
+	it('monitors external sessions only in the Agents window', () => {
+		const editorFileSystem = new TrackingFileSystemService();
+		const agentsFileSystem = new TrackingFileSystemService();
+		const editorService = createSessionService({ fileSystem: editorFileSystem });
+		const agentsService = createSessionService({ fileSystem: agentsFileSystem, isAgentSessionsWorkspace: true });
 
-			const results = [];
-			for (const testCase of cases) {
-				const testConfiguration = disposables.add(new InMemoryConfigurationService(configurationService));
-				await Promise.all([
-					testConfiguration.setNonExtensionConfig('chat.agentHost.enabled', testCase.agentHostEnabled),
-					testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', testCase.agentsDefault),
-					testConfiguration.setNonExtensionConfig('chat.defaultToCopilotHarness', testCase.editorDefault),
-				]);
-				const fileSystem = new TrackingFileSystemService();
-				disposables.add(createSessionService({
-					configurationService: testConfiguration,
-					fileSystem,
-					isAgentSessionsWorkspace: testCase.isAgentSessionsWorkspace,
-				}));
-				results.push({ name: testCase.name, watcherCount: fileSystem.createFileSystemWatcherCallCount });
-			}
+		const beforeDispose = {
+			editor: editorFileSystem.createFileSystemWatcherCallCount,
+			agents: agentsFileSystem.createFileSystemWatcherCallCount,
+		};
+		editorService.dispose();
+		agentsService.dispose();
 
-			expect(results).toEqual(cases.map(testCase => ({ name: testCase.name, watcherCount: testCase.expectedWatcherCount })));
+		expect({
+			beforeDispose,
+			disposed: {
+				editor: editorFileSystem.disposeFileSystemWatcherCallCount,
+				agents: agentsFileSystem.disposeFileSystemWatcherCallCount,
+			},
+		}).toEqual({
+			beforeDispose: { editor: 0, agents: 1 },
+			disposed: { editor: 0, agents: 1 },
 		});
 	});
 
@@ -648,7 +650,7 @@ describe('CopilotCLISessionService', () => {
 	describe('CopilotCLISessionService.tryGetPartialSesionHistory', () => {
 		it('reconstructs history from persisted files', async () => {
 			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-session-service-'));
-			process.env.XDG_STATE_HOME = tempStateHome;
+			process.env.COPILOT_HOME = join(tempStateHome, '.copilot');
 			const sessionId = 'partial-session';
 			const sessionDir = URI.file(getCopilotCLISessionDir(sessionId));
 			const fileSystem = new MockFileSystemService();
@@ -687,7 +689,7 @@ describe('CopilotCLISessionService', () => {
 
 		it('returns cached result on second call without re-reading the file', async () => {
 			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-session-service-'));
-			process.env.XDG_STATE_HOME = tempStateHome;
+			process.env.COPILOT_HOME = join(tempStateHome, '.copilot');
 			const sessionId = 'cache-test-session';
 			const sessionDir = URI.file(getCopilotCLISessionDir(sessionId));
 			const fileSystem = new MockFileSystemService();
@@ -726,7 +728,7 @@ describe('CopilotCLISessionService', () => {
 
 		it('returns undefined when the events file does not exist', async () => {
 			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-session-service-'));
-			process.env.XDG_STATE_HOME = tempStateHome;
+			process.env.COPILOT_HOME = join(tempStateHome, '.copilot');
 
 			const result = await service.tryGetPartialSessionHistory('nonexistent-session-id');
 			expect(result).toBeUndefined();
@@ -793,7 +795,7 @@ describe('CopilotCLISessionService', () => {
 
 		it('falls back to partial session data when getSession fails with an unknown event type', async () => {
 			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-session-service-'));
-			process.env.XDG_STATE_HOME = tempStateHome;
+			process.env.COPILOT_HOME = join(tempStateHome, '.copilot');
 			const sessionId = 'invalid-session';
 			const sessionDir = URI.file(getCopilotCLISessionDir(sessionId));
 			const fileSystem = new MockFileSystemService();
@@ -839,7 +841,7 @@ describe('CopilotCLISessionService', () => {
 
 		it('does not emit session when summary is truncated and no user turns exist', async () => {
 			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-session-service-'));
-			process.env.XDG_STATE_HOME = tempStateHome;
+			process.env.COPILOT_HOME = join(tempStateHome, '.copilot');
 			const sessionId = 'no-user-turns-session';
 			const sessionDir = URI.file(getCopilotCLISessionDir(sessionId));
 			const fileSystem = new MockFileSystemService();

@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { observableValue, derived, autorun, type ISettableObservable, type IReader } from '../../../../base/common/observable.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getWindow } from '../../../../base/browser/dom.js';
@@ -17,9 +18,10 @@ import { createSessionList, type SessionRowData, type SessionGroupData } from '.
 import { createFeedbackDialog, type FeedbackDialogState } from './components/feedbackDialog.js';
 import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
-import { FONT_SIZE, addKeyboardActivation } from './components/tokens.js';
+import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceMicGlowBoxShadow, IVoiceGlowColors, voiceGlowStateColor } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { createVoiceGlowController, GlowThemeKind, IVoiceGlowController } from '../../chat/browser/voiceClient/voiceGlowController.js';
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
@@ -40,6 +42,12 @@ export interface VoiceWidgetCallbacks {
 	getAnalyserNode(): AnalyserNode | null;
 	onResize(): void;
 	openPttKeySettings(): void;
+	/**
+	 * Show the Voice Mode context menu (Configure, Select Microphone, Disable
+	 * Voice Mode) anchored at the triggering event. Wired to a right-click /
+	 * context-menu gesture on the voice mode mic icon.
+	 */
+	showVoiceContextMenu(e: MouseEvent): void;
 	/** Optional — when provided, header renders a "popout" button. */
 	openPopout?(): void;
 	/** Submit user feedback. Returns success/failure. */
@@ -52,6 +60,14 @@ export interface VoiceWidgetCallbacks {
 	 * sessions quickpick with a "set as voice target" action.
 	 */
 	showSessionsPicker?(): void;
+	/** Active theme kind, for the ambient voice glow. */
+	getGlowTheme(): GlowThemeKind;
+	/** Theme-derived per-state accents for the ambient voice glow. */
+	getGlowColors(): IVoiceGlowColors;
+	/** Whether the user has asked for reduced motion. */
+	isMotionReduced(): boolean;
+	/** Fires when the color theme changes, so the glow can re-derive its accents. */
+	readonly onDidChangeGlowTheme: Event<void>;
 }
 
 /**
@@ -181,8 +197,9 @@ export class AgentsVoiceWidget extends Disposable {
 	private readonly _inputBoxPlaceholder: HTMLElement | undefined;
 	private readonly _inputBoxToolbar: HTMLElement | undefined;
 	private readonly _inputBoxMicBtn: HTMLElement | undefined;
-	private readonly _inputBoxGearBtn: HTMLElement | undefined;
 	private readonly _inputBoxConnIndicator: HTMLElement | undefined;
+	/** Ambient voice glow on the input box (input-box layout only). */
+	private readonly _glowController: IVoiceGlowController | undefined;
 	private readonly _inputBoxFeedbackBtn: HTMLElement | undefined;
 	private readonly _inputBoxSessionsBtn: HTMLElement | undefined;
 	private readonly _inputBoxCloseBtn: HTMLElement | undefined;
@@ -311,6 +328,13 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxTranscriptComponent.element.style.display = 'none';
 			this._inputBoxContainer.append(this._inputBoxPlaceholder, this._inputBoxTranscriptComponent.element);
 
+			this._glowController = this._register(createVoiceGlowController(
+				this._inputBoxContainer,
+				() => this.callbacks.getGlowTheme(),
+				() => this.callbacks.getGlowColors(),
+			));
+			this._register(this.callbacks.onDidChangeGlowTheme(() => this._glowController?.refreshTheme()));
+
 			// Toolbar row below the input box
 			this._inputBoxToolbar = dom.$('div');
 			this._inputBoxToolbar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px 2px;-webkit-app-region:no-drag;';
@@ -335,16 +359,15 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxMicBtn.ariaLabel = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
 			this._inputBoxMicBtn.title = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
 			this._inputBoxMicBtn.style.cssText = `font-size:${FONT_SIZE.iconMd};cursor:pointer;-webkit-app-region:no-drag;border-radius:4px;padding:2px;`;
+			this._register(dom.addDisposableListener(this._inputBoxMicBtn, 'contextmenu', (e: MouseEvent) => {
+				e.preventDefault(); e.stopPropagation();
+				this.callbacks.showVoiceContextMenu(e);
+			}));
 
 			// Connection indicator
 			this._inputBoxConnIndicator = toolbarBtn('codicon-debug-connected',
 				localize('agentsVoice.disconnect', "Disconnect"),
 				localize('agentsVoice.disconnect', "Disconnect"));
-
-			// Gear button
-			this._inputBoxGearBtn = toolbarBtn('codicon-gear',
-				localize('agentsVoice.configureKeybinding', "Configure keybinding"),
-				localize('agentsVoice.configureKeybinding', "Configure keybinding"));
 
 			// Feedback button
 			this._inputBoxFeedbackBtn = toolbarBtn('codicon-feedback',
@@ -371,7 +394,6 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxToolbar.append(
 				this._inputBoxMicBtn,
 				this._inputBoxConnIndicator,
-				this._inputBoxGearBtn,
 				toolbarSpacer,
 				this._inputBoxFeedbackBtn,
 				this._inputBoxSessionsBtn,
@@ -653,11 +675,11 @@ export class AgentsVoiceWidget extends Disposable {
 		const transcriptTurns = this._transcriptTurns.read(reader);
 		const hasTranscript = transcriptTurns.some(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
-		// Toggle voice-active glow on the input container (base state; wave animation overrides dynamically)
-		const shouldShowInputGlow = (isConnected && voiceState === 'idle') || (showConnected && (voiceState === 'listening' || voiceState === 'speaking'));
+		// The ambient glow is owned by the glow controller; clear it whenever the
+		// input box shouldn't be lit so no stale frame is left behind.
+		const shouldShowInputGlow = showConnected && (voiceState === 'listening' || voiceState === 'speaking');
 		if (!shouldShowInputGlow) {
-			this._inputBoxContainer!.style.borderColor = 'var(--vscode-input-border, transparent)';
-			this._inputBoxContainer!.style.boxShadow = 'none';
+			this._glowController?.clear();
 		}
 
 		// Toggle processing comet animation when agent is thinking
@@ -694,7 +716,7 @@ export class AgentsVoiceWidget extends Disposable {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.listening', "Listening");
 			} else if (isConnected && voiceState === 'speaking') {
 				this._inputBoxPlaceholder!.textContent = keyLabel
-					? localize('agentsVoice.pressToBargeIn', "Press {0} to barge in", keyLabel)
+					? localize('agentsVoice.pressToBargeIn', "Speak or use {0}", keyLabel)
 					: localize('agentsVoice.speakToBargeIn', "Speak to barge in");
 			} else if (isConnected) {
 				this._inputBoxPlaceholder!.textContent = keyLabel
@@ -753,16 +775,12 @@ export class AgentsVoiceWidget extends Disposable {
 		if (!micIsActive) {
 			this._inputBoxMicBtn!.style.boxShadow = 'none';
 		}
-		this._inputBoxMicBtn!.onmousedown = (e: MouseEvent) => { e.preventDefault(); this.callbacks.pttDown(); };
-		this._inputBoxMicBtn!.onmouseup = () => { this.callbacks.pttUp(); };
+		this._inputBoxMicBtn!.onmousedown = (e: MouseEvent) => { if (isSecondaryPointerGesture(e)) { return; } e.preventDefault(); this.callbacks.pttDown(); };
+		this._inputBoxMicBtn!.onmouseup = (e: MouseEvent) => { if (isSecondaryPointerGesture(e)) { return; } this.callbacks.pttUp(); };
 
 		// Connection indicator — visible when connected
 		this._inputBoxConnIndicator!.style.display = showConnected ? '' : 'none';
 		this._inputBoxConnIndicator!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); };
-
-		// Gear button — always visible
-		this._inputBoxGearBtn!.style.display = '';
-		this._inputBoxGearBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); };
 
 		// Feedback button — always visible
 		this._inputBoxFeedbackBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); };
@@ -841,7 +859,7 @@ export class AgentsVoiceWidget extends Disposable {
 				onDisconnectClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); },
 				onCloseClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.closeWindow(); },
 				onToggleClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.set(!this._expanded.get(), undefined); },
-				onPttKeyClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
+				onMicContextMenu: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.showVoiceContextMenu(e); },
 				onPopoutClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); },
 				onFeedbackClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); },
 				pttKeyLabel: this._pttKeyLabel.read(reader),
@@ -1077,29 +1095,24 @@ export class AgentsVoiceWidget extends Disposable {
 			}
 
 			// Animate input box container border/shadow (inputBoxLayout)
-			if (this._inputBoxContainer && (voiceState === 'listening' || voiceState === 'speaking')) {
-				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, false);
-				this._inputBoxContainer.style.borderColor = borderColor;
-				this._inputBoxContainer.style.boxShadow = boxShadow;
+			if (this._glowController && (voiceState === 'listening' || voiceState === 'speaking')) {
+				this._glowController.render(voiceState, intensity, this.callbacks.isMotionReduced());
 			}
 
+			const colors = this.callbacks.getGlowColors();
 			if (this._inputBoxMicBtn) {
 				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
-				if (iconGlowActive) {
-					const shadowSpread = 3 + intensity * 8;
-					const shadowAlpha = 0.2 + intensity * 0.45;
-					const glowColor = `rgba(${voiceState === 'speaking' ? '163,113,247' : '88,166,255'},${shadowAlpha})`;
-					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px ${glowColor}`;
-				} else {
-					this._inputBoxMicBtn.style.boxShadow = 'none';
-				}
+				this._inputBoxMicBtn.style.boxShadow = iconGlowActive
+					? computeVoiceMicGlowBoxShadow(voiceState, intensity, colors)
+					: 'none';
 			}
 
 			// Classic layout glow div
 			this._glowDiv.style.display = '';
 			const baseOpacity = 0.15 + intensity * 0.4;
-			const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
-			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
+			const { r, g, b } = voiceGlowStateColor(onboarding ? 'speaking' : voiceState, colors).rgba;
+			const rgb = `${r},${g},${b}`;
+			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${rgb},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${rgb},${baseOpacity * 0.4}) 0%, transparent 100%)`;
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 	}
@@ -1112,10 +1125,7 @@ export class AgentsVoiceWidget extends Disposable {
 		// Clear any glow left by the last rendered frame so idle/disconnected
 		// shows no residual glow now that the loop no longer runs while idle.
 		this._glowDiv.style.display = 'none';
-		if (this._inputBoxContainer) {
-			this._inputBoxContainer.style.borderColor = 'var(--vscode-input-border, transparent)';
-			this._inputBoxContainer.style.boxShadow = 'none';
-		}
+		this._glowController?.clear();
 		if (this._inputBoxMicBtn) {
 			this._inputBoxMicBtn.style.boxShadow = 'none';
 		}

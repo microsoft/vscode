@@ -7,8 +7,9 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isWindows, type IProcessEnvironment } from '../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -16,8 +17,9 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
@@ -104,6 +106,7 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			onPtyHostRestart: Event.None,
 			onDidMoveWindowInstance: Event.None,
 			onDidRequestDetach: Event.None,
+			getShellEnvironment: async () => ({}),
 			createProcess: async (
 				shellLaunchConfig: IShellLaunchConfig,
 				cwd: string,
@@ -119,13 +122,22 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 	}
 }
 
+class TestTerminalWorkspaceTrustRequestService extends mock<IWorkspaceTrustRequestService>() {
+	requestCount = 0;
+
+	override async requestWorkspaceTrust(): Promise<boolean> {
+		this.requestCount++;
+		return false;
+	}
+}
+
 suite('Workbench - TerminalInstance', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('TerminalInstance', () => {
 		let terminalInstance: ITerminalInstance;
 
-		async function createTerminalInstance(): Promise<TerminalInstance> {
+		async function createTerminalInstance(shellLaunchConfig: IShellLaunchConfig = {}, workspaceTrustRequestService?: IWorkspaceTrustRequestService): Promise<TerminalInstance> {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -149,7 +161,10 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
-			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+			if (workspaceTrustRequestService) {
+				instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
+			}
+			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, shellLaunchConfig));
 			await instance.xtermReadyPromise;
 			return instance;
 		}
@@ -159,6 +174,42 @@ suite('Workbench - TerminalInstance', () => {
 			// Wait for the terminal instance to resolve shell launch config env.
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
+		});
+
+		test('marked remote resolver terminal bypasses workspace trust request', async () => {
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
+			const instance = await createTerminalInstance({
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				[remoteResolverTerminal]: true,
+				hideFromUser: true,
+				isTransient: true
+			}, workspaceTrustRequestService);
+
+			await (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				persistedResolverFlag: instance.shellLaunchConfig[remoteResolverTerminal]
+			}, {
+				trustRequestCount: 0,
+				persistedResolverFlag: undefined
+			});
+			instance.dispose();
+		});
+
+		test('unmarked terminal requests workspace trust', async () => {
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
+			const instance = await createTerminalInstance({
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isTransient: true
+			}, workspaceTrustRequestService);
+
+			await (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
+
+			strictEqual(workspaceTrustRequestService.requestCount, 1);
+			instance.dispose();
 		});
 
 		test('should preserve title for task terminals', async () => {
@@ -450,7 +501,7 @@ suite('Workbench - TerminalInstance', () => {
 		let instantiationService: TestInstantiationService;
 		let capabilities: TerminalCapabilityStore;
 
-		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
+		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'os'> {
 			const capabilities = store.add(new TerminalCapabilityStore());
 			if (!isWindows) {
 				capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
@@ -467,7 +518,8 @@ suite('Workbench - TerminalInstance', () => {
 				capabilities,
 				title: '',
 				description: '',
-				userHome: undefined,
+				userHome: '/home/user',
+				os: OperatingSystem.Linux,
 				...partial
 			};
 		}
@@ -497,11 +549,29 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(terminalLabelComputer.title, '');
 			strictEqual(terminalLabelComputer.description, '');
 		});
-		test('should resolve cwd', () => {
+		test('should resolve cwd when outside of userHome', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: ROOT_1 }));
 			strictEqual(terminalLabelComputer.title, ROOT_1);
 			strictEqual(terminalLabelComputer.description, ROOT_1);
+		});
+		test('should resolve cwd when under userHome', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: '/home/user/foo/bar' }));
+			strictEqual(terminalLabelComputer.title, '~/foo/bar');
+			strictEqual(terminalLabelComputer.description, '~/foo/bar');
+		});
+		test('should resolve cwd when exactly at userHome', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: '/home/user' }));
+			strictEqual(terminalLabelComputer.title, '~');
+			strictEqual(terminalLabelComputer.description, '~');
+		});
+		test('should not shorten cwd on Windows', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: 'C:\\Users\\user', userHome: 'C:\\Users\\user', os: OperatingSystem.Windows }));
+			strictEqual(terminalLabelComputer.title, 'C:\\Users\\user');
+			strictEqual(terminalLabelComputer.description, 'C:\\Users\\user');
 		});
 		test('should resolve workspaceFolder', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${workspaceFolder}', description: '${workspaceFolder}' } } } });

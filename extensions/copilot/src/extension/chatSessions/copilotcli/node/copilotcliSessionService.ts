@@ -29,7 +29,7 @@ import { disposableTimeout, raceCancellation, raceCancellationError, SequencerBy
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
-import { Disposable, DisposableMap, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { basename, dirname, joinPath } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -55,9 +55,6 @@ import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from 
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
-const AGENT_HOST_ENABLED_SETTING_ID = 'chat.agentHost.enabled';
-const AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID = 'chat.agentHost.defaultSessionsProvider';
-const DEFAULT_TO_COPILOT_HARNESS_SETTING_ID = 'chat.defaultToCopilotHarness';
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
@@ -197,7 +194,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				void this.createCustomAgentLookup();
 			}
 		}));
-		if (this.shouldMonitorSessionFiles()) {
+		if (this._agentSessionsWorkspace.isAgentSessionsWorkspace) {
 			this.monitorSessionFiles();
 		}
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
@@ -235,17 +232,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}
 		});
 		this._sessionTracker = this.instantiationService.createInstance(CopilotCLISessionWorkspaceTracker);
-	}
-
-	private shouldMonitorSessionFiles(): boolean {
-		if (this.configurationService.getNonExtensionConfig<boolean>(AGENT_HOST_ENABLED_SETTING_ID) !== true) {
-			return true;
-		}
-
-		const defaultProviderSettingId = this._agentSessionsWorkspace.isAgentSessionsWorkspace
-			? AGENT_HOST_DEFAULT_SESSIONS_PROVIDER_SETTING_ID
-			: DEFAULT_TO_COPILOT_HARNESS_SETTING_ID;
-		return this.configurationService.getNonExtensionConfig<boolean>(defaultProviderSettingId) !== true;
 	}
 
 	private async getSDKPackage(): Promise<SDKPackage> {
@@ -289,15 +275,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return this._sessionWorkingDirectories.get(sessionId);
 	}
 
-	private triggerSessionsChangeEvent() {
-		// If we're busy fetching sessions, then do not trigger change event as we'll trigger one after we're done fetching sessions.
-		if (this._isGettingSessions > 0) {
-			return;
-		}
-
-		this._onDidChangeSessionsThrottler.trigger(() => Promise.resolve(this._onDidChangeSessions.fire()));
-	}
-
 	public createNewSessionId(): string {
 		const sessionId = generateUuid();
 		this._newSessionIds.add(sessionId);
@@ -308,11 +285,19 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return this._newSessionIds.has(sessionId);
 	}
 
-	protected monitorSessionFiles() {
+	private triggerSessionsChangeEvent(): void {
+		if (this._isGettingSessions > 0) {
+			return;
+		}
+		this._onDidChangeSessionsThrottler.trigger(() => Promise.resolve(this._onDidChangeSessions.fire()));
+	}
+
+	protected monitorSessionFiles(): void {
+		const disposables = this._register(new DisposableStore());
 		try {
 			const sessionDir = joinPath(this.nativeEnv.userHome, '.copilot', 'session-state');
-			const watcher = this._register(this.fileSystem.createFileSystemWatcher(new RelativePattern(sessionDir, '**/*.jsonl')));
-			this._register(watcher.onDidCreate(async (e) => {
+			const watcher = disposables.add(this.fileSystem.createFileSystemWatcher(new RelativePattern(sessionDir, '**/*.jsonl')));
+			disposables.add(watcher.onDidCreate(async e => {
 				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
 				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
 					return;
@@ -323,7 +308,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					this._onDidChangeSession.fire(sessionItem);
 				}
 			}));
-			this._register(watcher.onDidDelete(e => {
+			disposables.add(watcher.onDidDelete(e => {
 				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
 				if (sessionId) {
 					this._cachedSessionItems.delete(sessionId);
@@ -331,18 +316,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				}
 				this.triggerSessionsChangeEvent();
 			}));
-			this._register(watcher.onDidChange((e) => {
-				// If we're busy fetching sessions, then do not trigger change event as we'll trigger one after we're done fetching sessions.
+			disposables.add(watcher.onDidChange(e => {
 				if (this._isGettingSessions > 0) {
 					return;
 				}
-
 				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
 				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
 					return;
 				}
-
-				// If we're already working on a session that we're aware of then no need to trigger a refresh.
 				if (Array.from(this._sessionWrappers.keys()).some(sessionId => e.path.includes(sessionId))) {
 					return;
 				}
@@ -352,27 +333,24 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				this.triggerSessionsChangeEvent();
 			}));
 		} catch (error) {
-			this.logService.error(`Failed to monitor Copilot CLI session files: ${error}`);
+			disposables.dispose();
+			this.logService.error('Failed to monitor Copilot CLI session files:', error);
 		}
 	}
+
 	async getSessionManager() {
 		return this._sessionManager.value;
 	}
 
-	private _sessionChangeNotifierByKey = new SequencerByKey<string>();
-	private triggerOnDidChangeSessionItem(sessionId: string, reason: 'fileSystemChange' | 'statusChange') {
+	private readonly _sessionChangeNotifierByKey = new SequencerByKey<string>();
+	private triggerOnDidChangeSessionItem(sessionId: string, reason: 'fileSystemChange' | 'statusChange'): void {
 		this._sessionChangeNotifierByKey.queue(sessionId, async () => {
-			// lets wait for 500ms, as we could get a lot of change events in a short period of time.
-			// E.g. if you have a session running in integrated terminal, then its possible we will see a lot of updates.
-			// In such cases its best to just delay (throttle) by 500ms (we get that via the sequncer and this delay)
 			if (reason === 'fileSystemChange') {
 				await new Promise<void>(resolve => disposableTimeout(resolve, 500, this._store));
-				// If already getting all sessions, no point in triggering individual change event.
 				if (this._isGettingSessions > 0) {
 					return;
 				}
 			}
-
 			const sessionItem = await this.getSessionItemImpl(sessionId, reason === 'statusChange' ? 'inMemorySession' : 'disk', CancellationToken.None);
 			if (sessionItem) {
 				this._onDidChangeSession.fire(sessionItem);
@@ -1397,17 +1375,12 @@ function labelFromPrompt(prompt: string): string {
 	return stripReminders(prompt);
 }
 
-/**
- * Extracts the session ID from a deleted events.jsonl file path.
- * Expected path format: <sessionDir>/<sessionId>/events.jsonl
- */
-function extractSessionIdFromEventPath(sessionDir: URI, deletedFileUri: URI): string | undefined {
-	if (basename(deletedFileUri) !== 'events.jsonl') {
+function extractSessionIdFromEventPath(sessionDir: URI, eventUri: URI): string | undefined {
+	if (basename(eventUri) !== 'events.jsonl') {
 		return undefined;
 	}
-	const parentDir = dirname(deletedFileUri);
-	const parentOfParent = dirname(parentDir);
-	if (parentOfParent.path !== sessionDir.path) {
+	const parentDir = dirname(eventUri);
+	if (dirname(parentDir).path !== sessionDir.path) {
 		return undefined;
 	}
 	return basename(parentDir);

@@ -6,6 +6,54 @@
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
 import { MdLinkOpener } from '../util/openDocumentLink';
+import { getMarkdownLocalResourceRoots } from '../util/resources';
+import { ChangedLineRange, MarkdownPreviewLineDiffProvider } from './lineDiff';
+import type { ILogger } from '../logging';
+import type {
+	MarkdownCodeBlockEditorProvider,
+	MarkdownCodeBlockEditorSandbox,
+	MarkdownCodeBlockEditorSelector,
+	MarkdownContributionProvider,
+} from '../markdownExtensions';
+
+interface CodeBlockEditorProviderDefinition {
+	readonly id: string;
+	readonly selector: MarkdownCodeBlockEditorSelector;
+	readonly source: { readonly kind: 'static'; readonly descriptor: ResolvedCodeBlockEditor } | { readonly kind: 'exportApi' };
+}
+
+interface ResolvedCodeBlockEditor {
+	readonly cacheKey?: string;
+	readonly html: string;
+	readonly contentType: 'text' | 'json';
+	readonly initialHeight?: number;
+	readonly sandbox?: MarkdownCodeBlockEditorSandbox;
+}
+
+interface MarkdownCodeBlockEditorExtensionApi {
+	getMarkdownCodeBlockEditorProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
+}
+
+interface MarkdownCodeBlockEditorProviderApi {
+	resolve(
+		request: {
+			readonly providerId: string;
+			readonly language: string;
+			readonly documentUri: vscode.Uri;
+		},
+		token: vscode.CancellationToken,
+	): vscode.ProviderResult<ProviderResolvedCodeBlockEditor>;
+}
+
+interface ProviderResolvedCodeBlockEditor {
+	readonly content:
+	| { readonly html: string; readonly uri?: undefined }
+	| { readonly html?: undefined; readonly uri: vscode.Uri };
+	readonly contentType?: 'text' | 'json';
+	readonly cacheKey?: string;
+	readonly initialHeight?: number;
+	readonly sandbox?: MarkdownCodeBlockEditorSandbox;
+}
 
 /**
  * Experimental hybrid (WYSIWYG) Markdown editor backed by the
@@ -28,40 +76,154 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #extensionUri: vscode.Uri;
 	readonly #globalState: vscode.Memento;
 	readonly #linkOpener: MdLinkOpener;
+	readonly #contributions: MarkdownContributionProvider;
+	readonly #logger: ILogger;
+	readonly #providerApis = new Map<string, Promise<MarkdownCodeBlockEditorProviderApi | undefined>>();
+	readonly #resolvedCodeBlockEditors = new Map<string, Promise<ResolvedCodeBlockEditor | undefined>>();
+	readonly #resolvedCodeBlockEditorResources = new Set<string>();
 
-	constructor(extensionUri: vscode.Uri, globalState: vscode.Memento, linkOpener: MdLinkOpener) {
+	constructor(
+		extensionUri: vscode.Uri,
+		globalState: vscode.Memento,
+		linkOpener: MdLinkOpener,
+		contributions: MarkdownContributionProvider,
+		logger: ILogger,
+	) {
 		super();
 		this.#extensionUri = extensionUri;
 		this.#globalState = globalState;
 		this.#linkOpener = linkOpener;
+		this.#contributions = contributions;
+		this.#logger = logger;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
 	}
 
 	public async resolveCustomTextEditor(
 		document: vscode.TextDocument,
 		webviewPanel: vscode.WebviewPanel,
-		_token: vscode.CancellationToken,
+		token: vscode.CancellationToken,
 	): Promise<void> {
-		const webview = webviewPanel.webview;
-		webview.options = { enableScripts: true, localResourceRoots: [this.#mediaRoot] };
-		webview.html = this.#getHtml(webview);
-		this.#wireSingle(document, webviewPanel);
+		await this.#resolveEditor(document, webviewPanel, token);
 	}
 
-	#wireSingle(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel): void {
+	public async resolveCustomTextEditorInlineDiff(
+		documents: vscode.CustomEditorDiffDocuments<vscode.TextDocument>,
+		webviewPanel: vscode.WebviewPanel,
+		token: vscode.CancellationToken,
+	): Promise<void> {
+		await this.#resolveEditor(documents.modified, webviewPanel, token, documents.original);
+	}
+
+	async #resolveEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken, originalDocument?: vscode.TextDocument): Promise<void> {
+		if (!vscode.workspace.isTrusted) {
+			const cancel = { title: vscode.l10n.t("Cancel"), isCloseAffordance: true };
+			const openAnyway = { title: vscode.l10n.t("Open Anyway") };
+			const choice = await vscode.window.showWarningMessage(
+				vscode.l10n.t("This Markdown file is in an untrusted workspace. Do you want to open it anyway?"),
+				{
+					modal: true,
+					detail: vscode.l10n.t("For your security, only continue if you trust the source of this Markdown file."),
+				},
+				cancel,
+				openAnyway,
+			);
+			if (choice !== openAnyway || token.isCancellationRequested) {
+				webviewPanel.dispose();
+				return;
+			}
+		}
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const webview = webviewPanel.webview;
+		const codeBlockEditorProviders = await this.#loadCodeBlockEditorProviders();
+		if (token.isCancellationRequested) {
+			return;
+		}
+		this.#configureWebview(document.uri, webview);
+		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders);
+	}
+
+	#configureWebview(documentUri: vscode.Uri, webview: vscode.Webview): void {
+		webview.options = {
+			enableScripts: true,
+			localResourceRoots: getMarkdownLocalResourceRoots(documentUri, [this.#mediaRoot], {
+				includeWorkspaceResources: vscode.workspace.isTrusted,
+			}),
+		};
+		webview.html = this.#getHtml(documentUri, webview);
+	}
+
+	#wireSingle(
+		document: vscode.TextDocument,
+		webviewPanel: vscode.WebviewPanel,
+		originalDocument: vscode.TextDocument | undefined,
+		initialCodeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[],
+	): void {
 		const webview = webviewPanel.webview;
 		let isUpdatingFromWebview = false;
+		let editQueue = Promise.resolve();
+		let codeBlockEditorProviders = initialCodeBlockEditorProviders;
+		let contributionUpdate = 0;
+		const resolveCancellation = new vscode.CancellationTokenSource();
 
 		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			switch (message.type) {
 				case 'ready': {
-					webview.postMessage({ type: 'init', content: document.getText(), readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true) });
+					webview.postMessage({
+						type: 'init',
+						content: document.getText(),
+						readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true),
+						codeBlockEditorProviders,
+					});
 					break;
 				}
+
+				case 'resolveCodeBlockEditor': {
+					const requestId = message.requestId;
+					const provider = typeof message.providerId === 'string'
+						? this.#contributions.contributions.codeBlockEditorProviders.find(candidate => candidate.id === message.providerId)
+						: undefined;
+					const descriptor = provider && typeof message.language === 'string'
+						? await this.#resolveCodeBlockEditor(provider, document.uri, message.language)
+						: undefined;
+					if (resolveCancellation.token.isCancellationRequested) {
+						break;
+					}
+					await webview.postMessage({
+						type: 'resolvedCodeBlockEditor',
+						requestId,
+						descriptor,
+					});
+					break;
+				}
+
+				case 'codeBlockEditorDiagnostic': {
+					if (typeof message.message === 'string') {
+						this.#logger.trace('Markdown code block editor', message.message);
+					}
+					break;
+				}
+
 				case 'setReadonly': {
 					// Remember the edit/read-only choice as the global default for the
 					// next Markdown editor.
 					await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, !!message.readonly);
+					break;
+				}
+				case 'history': {
+					// The TextDocument owns undo/redo, so route the chord to the built-in
+					// command; the active custom editor input scopes it to this resource's
+					// history, shared with the Edit menu and Command Palette. Drain any
+					// in-flight edit first and only act while this panel is active, so the
+					// chord cannot race a pending edit or land on a different document.
+					if (message.command === 'undo' || message.command === 'redo') {
+						await editQueue;
+						if (webviewPanel.active) {
+							await vscode.commands.executeCommand(message.command);
+						}
+					}
 					break;
 				}
 				case 'openLink': {
@@ -69,22 +231,24 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					break;
 				}
 				case 'edit': {
-					const content = message.content as string;
-					if (content === document.getText()) {
-						return;
-					}
-					isUpdatingFromWebview = true;
-					const edit = new vscode.WorkspaceEdit();
-					edit.replace(
-						document.uri,
-						new vscode.Range(0, 0, document.lineCount, 0),
-						content,
-					);
-					try {
-						await vscode.workspace.applyEdit(edit);
-					} finally {
-						isUpdatingFromWebview = false;
-					}
+					editQueue = editQueue.then(async () => {
+						const edit = new vscode.WorkspaceEdit();
+						edit.replace(
+							document.uri,
+							new vscode.Range(
+								document.positionAt(message.start),
+								document.positionAt(message.endExclusive),
+							),
+							message.text,
+						);
+						isUpdatingFromWebview = true;
+						try {
+							await vscode.workspace.applyEdit(edit);
+						} finally {
+							isUpdatingFromWebview = false;
+						}
+					});
+					await editQueue;
 					break;
 				}
 			}
@@ -98,16 +262,231 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 
 		const highlight = this.#wireHighlight(webview);
-		const quickDiff = this.#wireQuickDiff(document, webview);
+		const quickDiff = originalDocument
+			? this.#wireDocumentDiff(originalDocument, document, webview)
+			: this.#wireQuickDiff(document, webview);
 		const comments = this.#wireComments(document, webview);
+		const onDidGrantWorkspaceTrust = vscode.workspace.onDidGrantWorkspaceTrust(() => {
+			this.#configureWebview(document.uri, webview);
+		});
+		const refreshCodeBlockEditorProviders = async (clearProviderApis: boolean, force: boolean): Promise<void> => {
+			const update = ++contributionUpdate;
+			if (clearProviderApis) {
+				this.#clearCodeBlockEditorCaches();
+			} else {
+				this.#resolvedCodeBlockEditors.clear();
+				this.#resolvedCodeBlockEditorResources.clear();
+			}
+			const updatedCodeBlockEditorProviders = await this.#loadCodeBlockEditorProviders();
+			if (
+				update !== contributionUpdate
+				|| (!force && codeBlockEditorDefinitionsEqual(codeBlockEditorProviders, updatedCodeBlockEditorProviders))
+			) {
+				return;
+			}
+			codeBlockEditorProviders = updatedCodeBlockEditorProviders;
+			await webview.postMessage({ type: 'codeBlockEditorProviders', codeBlockEditorProviders });
+		};
+		const onContributionsChanged = this.#contributions.onContributionsChanged(() => {
+			void refreshCodeBlockEditorProviders(true, false);
+		});
+		const invalidateResourceCache = (resources: readonly vscode.Uri[]): void => {
+			const resourceKeys = resources.map(resource => resource.toString());
+			const dynamicResourceChanged = resourceKeys.some(resource => this.#resolvedCodeBlockEditorResources.has(resource));
+			const staticResourceChanged = this.#contributions.contributions.codeBlockEditorProviders.some(provider =>
+				provider.source.kind === 'static' && resourceKeys.includes(provider.source.resource.toString()));
+			if (dynamicResourceChanged || staticResourceChanged) {
+				void refreshCodeBlockEditorProviders(false, dynamicResourceChanged);
+			}
+		};
+		const onDidSaveTextDocument = vscode.workspace.onDidSaveTextDocument(document => invalidateResourceCache([document.uri]));
+		const onDidCreateFiles = vscode.workspace.onDidCreateFiles(event => invalidateResourceCache(event.files));
+		const onDidDeleteFiles = vscode.workspace.onDidDeleteFiles(event => invalidateResourceCache(event.files));
+		const onDidRenameFiles = vscode.workspace.onDidRenameFiles(event => invalidateResourceCache(
+			event.files.flatMap(file => [file.oldUri, file.newUri])));
 
 		webviewPanel.onDidDispose(() => {
+			contributionUpdate++;
+			resolveCancellation.cancel();
+			resolveCancellation.dispose();
 			onMessage.dispose();
 			onDocumentChange.dispose();
 			highlight.dispose();
 			quickDiff.dispose();
 			comments.dispose();
+			onDidGrantWorkspaceTrust.dispose();
+			onContributionsChanged.dispose();
+			onDidSaveTextDocument.dispose();
+			onDidCreateFiles.dispose();
+			onDidDeleteFiles.dispose();
+			onDidRenameFiles.dispose();
 		});
+	}
+
+	async #loadCodeBlockEditorProviders(): Promise<readonly CodeBlockEditorProviderDefinition[]> {
+		const result: CodeBlockEditorProviderDefinition[] = [];
+		for (const provider of this.#contributions.contributions.codeBlockEditorProviders) {
+			if (provider.source.kind === 'exportApi') {
+				result.push({
+					id: provider.id,
+					selector: provider.selector,
+					source: { kind: 'exportApi' },
+				});
+				continue;
+			}
+			try {
+				const bytes = await vscode.workspace.fs.readFile(provider.source.resource);
+				result.push({
+					id: provider.id,
+					selector: provider.selector,
+					source: {
+						kind: 'static',
+						descriptor: {
+							html: new TextDecoder('utf-8', { fatal: true }).decode(bytes),
+							contentType: provider.contentType,
+							initialHeight: provider.initialHeight,
+							sandbox: provider.sandbox,
+						},
+					},
+				});
+			} catch (error) {
+				this.#logger.trace('Markdown code block editor', `Failed to load ${provider.id} from ${provider.source.resource.toString()}`, error);
+			}
+		}
+		return result;
+	}
+
+	async #resolveCodeBlockEditor(
+		contribution: MarkdownCodeBlockEditorProvider,
+		documentUri: vscode.Uri,
+		language: string,
+	): Promise<ResolvedCodeBlockEditor | undefined> {
+		if (contribution.source.kind !== 'exportApi' || !vscode.workspace.isTrusted) {
+			return undefined;
+		}
+		const requestCacheKey = `${contribution.id}\0${documentUri.toString()}\0${language}`;
+		let cached = this.#resolvedCodeBlockEditors.get(requestCacheKey);
+		if (!cached) {
+			cached = this.#doResolveCodeBlockEditor(contribution, documentUri, language);
+			this.#resolvedCodeBlockEditors.set(requestCacheKey, cached);
+			cached.then(result => {
+				if (!result) {
+					if (this.#resolvedCodeBlockEditors.get(requestCacheKey) === cached) {
+						this.#resolvedCodeBlockEditors.delete(requestCacheKey);
+					}
+				} else if (result.cacheKey) {
+					this.#resolvedCodeBlockEditors.set(`${contribution.id}\0${result.cacheKey}`, Promise.resolve(result));
+				}
+			}, () => {
+				this.#resolvedCodeBlockEditors.delete(requestCacheKey);
+			});
+		}
+		return cached;
+	}
+
+	async #doResolveCodeBlockEditor(
+		contribution: MarkdownCodeBlockEditorProvider,
+		documentUri: vscode.Uri,
+		language: string,
+	): Promise<ResolvedCodeBlockEditor | undefined> {
+		const cancellation = new vscode.CancellationTokenSource();
+		let timedOut = false;
+		const timeout = setTimeout(() => {
+			timedOut = true;
+			cancellation.cancel();
+		}, 10_000);
+		let cancellationListener: vscode.Disposable | undefined;
+		const cancelled = new Promise<undefined>(resolve => {
+			cancellationListener = cancellation.token.onCancellationRequested(() => resolve(undefined));
+		});
+		try {
+			const operation = async (): Promise<ResolvedCodeBlockEditor | undefined> => {
+				const provider = await this.#getCodeBlockEditorProvider(contribution);
+				if (!provider || cancellation.token.isCancellationRequested) {
+					return undefined;
+				}
+				const value = await provider.resolve({
+					providerId: contribution.providerId,
+					language,
+					documentUri,
+				}, cancellation.token);
+				if (!value || cancellation.token.isCancellationRequested) {
+					return undefined;
+				}
+				if (value.content.uri !== undefined) {
+					this.#resolvedCodeBlockEditorResources.add(value.content.uri.toString());
+				}
+				return await this.#readResolvedCodeBlockEditor(contribution, value);
+			};
+			const result = await Promise.race([operation(), cancelled]);
+			if (timedOut) {
+				this.#logger.trace('Markdown code block editor', `Provider ${contribution.id} timed out resolving ${language}`);
+				return undefined;
+			}
+			return result;
+		} catch (error) {
+			this.#logger.trace('Markdown code block editor', `Provider ${contribution.id} failed to resolve ${language}`, error);
+			return undefined;
+		} finally {
+			clearTimeout(timeout);
+			cancellationListener?.dispose();
+			cancellation.dispose();
+		}
+	}
+
+	async #getCodeBlockEditorProvider(contribution: MarkdownCodeBlockEditorProvider): Promise<MarkdownCodeBlockEditorProviderApi | undefined> {
+		let cached = this.#providerApis.get(contribution.id);
+		if (!cached) {
+			cached = (async () => {
+				const exports = await contribution.extension.activate();
+				if (!isMarkdownCodeBlockEditorExtensionApi(exports)) {
+					this.#logger.trace('Markdown code block editor', `Extension ${contribution.extension.id} does not export getMarkdownCodeBlockEditorProvider`);
+					return undefined;
+				}
+				const provider = exports.getMarkdownCodeBlockEditorProvider(contribution.providerId);
+				if (!isMarkdownCodeBlockEditorProviderApi(provider)) {
+					this.#logger.trace('Markdown code block editor', `Extension ${contribution.extension.id} did not return provider ${contribution.providerId}`);
+					return undefined;
+				}
+				return provider;
+			})();
+			this.#providerApis.set(contribution.id, cached);
+		}
+		return cached;
+	}
+
+	async #readResolvedCodeBlockEditor(
+		contribution: MarkdownCodeBlockEditorProvider,
+		value: ProviderResolvedCodeBlockEditor,
+	): Promise<ResolvedCodeBlockEditor | undefined> {
+		if (!isProviderResolvedCodeBlockEditor(value)) {
+			this.#logger.trace('Markdown code block editor', `Provider ${contribution.id} returned an invalid descriptor`);
+			return undefined;
+		}
+		let html: string;
+		if (value.content.html !== undefined) {
+			html = value.content.html;
+		} else {
+			if (!isAllowedCodeBlockEditorResource(value.content.uri, contribution.extension.extensionUri)) {
+				this.#logger.trace('Markdown code block editor', `Provider ${contribution.id} returned a resource outside its extension and the workspace`);
+				return undefined;
+			}
+			const bytes = await vscode.workspace.fs.readFile(value.content.uri);
+			html = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+		}
+		return {
+			cacheKey: value.cacheKey,
+			html,
+			contentType: value.contentType ?? contribution.contentType,
+			initialHeight: value.initialHeight ?? contribution.initialHeight,
+			sandbox: intersectSandbox(contribution.sandbox, value.sandbox),
+		};
+	}
+
+	#clearCodeBlockEditorCaches(): void {
+		this.#providerApis.clear();
+		this.#resolvedCodeBlockEditors.clear();
+		this.#resolvedCodeBlockEditorResources.clear();
 	}
 
 	/**
@@ -149,6 +528,32 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		return vscode.Disposable.from(diffProvider, onChange, onMessage, onDocumentChange);
 	}
 
+	#wireDocumentDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
+		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(originalDocument, modifiedDocument);
+		const postMarkers = async () => {
+			const originalVersion = originalDocument.version;
+			const modifiedVersion = modifiedDocument.version;
+			const changes = await lineDiffProvider.getChangedLineRanges();
+			if (originalVersion !== originalDocument.version || modifiedVersion !== modifiedDocument.version) {
+				return;
+			}
+			webview.postMessage({ type: 'gutterMarkers', markers: lineRangesToGutterMarkers(modifiedDocument, changes) });
+		};
+
+		const onMessage = webview.onDidReceiveMessage(message => {
+			if (message.type === 'ready') {
+				void postMarkers();
+			}
+		});
+		const onDocumentChange = vscode.workspace.onDidChangeTextDocument(event => {
+			if (event.document.uri.toString() === originalDocument.uri.toString() || event.document.uri.toString() === modifiedDocument.uri.toString()) {
+				void postMarkers();
+			}
+		});
+
+		return vscode.Disposable.from(onMessage, onDocumentChange);
+	}
+
 	/**
 	 * Bridges the workbench's agent/session comments (the same store the code
 	 * editor renders its comments from) to the webview: existing comments are
@@ -159,6 +564,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 */
 	#wireComments(document: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
 		const commentsProvider = vscode.window.createAgentEditorComments(document.uri);
+		let webviewReady = false;
+		let revealedCommentId: string | undefined;
 
 		const postComments = () => {
 			const comments = commentsProvider.comments.map(comment => ({
@@ -170,11 +577,22 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}));
 			webview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments });
 		};
+		const postReveal = () => {
+			if (webviewReady && revealedCommentId) {
+				webview.postMessage({ type: 'revealComment', id: revealedCommentId });
+			}
+		};
 
 		const onChange = commentsProvider.onDidChange(postComments);
+		const onDidRevealComment = commentsProvider.onDidRevealComment(id => {
+			revealedCommentId = id;
+			postReveal();
+		});
 		const onMessage = webview.onDidReceiveMessage((message) => {
 			if (message.type === 'ready') {
+				webviewReady = true;
 				postComments();
+				postReveal();
 			} else if (message.type === 'addComment') {
 				const range = new vscode.Range(
 					document.positionAt(message.start),
@@ -186,7 +604,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}
 		});
 
-		return vscode.Disposable.from(commentsProvider, onChange, onMessage);
+		return vscode.Disposable.from(commentsProvider, onChange, onDidRevealComment, onMessage);
 	}
 
 
@@ -216,9 +634,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		return vscode.Disposable.from(onMessage, onThemeChange);
 	}
 
-	#getHtml(webview: vscode.Webview): string {
+	#getHtml(documentUri: vscode.Uri, webview: vscode.Webview): string {
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.js'));
 		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.css'));
+		const baseUri = webview.asWebviewUri(documentUri);
 		const nonce = getNonce();
 
 		const body = /* html */ `
@@ -230,7 +649,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https: data:; media-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}';" />
+		content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https: data:; media-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}'; frame-src 'self';" />
+	<meta name="vscode-markdown-editor-script-nonce" content="${nonce}" />
+	<base href="${baseUri}" />
 	<link rel="stylesheet" href="${styleUri}" />
 	<title>Markdown Editor</title>
 </head>
@@ -239,6 +660,102 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 </body>
 </html>`;
 	}
+}
+
+function codeBlockEditorDefinitionsEqual(
+	a: readonly CodeBlockEditorProviderDefinition[],
+	b: readonly CodeBlockEditorProviderDefinition[],
+): boolean {
+	return a.length === b.length && a.every((editor, index) => {
+		const other = b[index];
+		return editor.id === other.id
+			&& editor.selector.language === other.selector.language
+			&& editor.selector.languagePrefix === other.selector.languagePrefix
+			&& editor.source.kind === other.source.kind
+			&& (editor.source.kind !== 'static'
+				|| (other.source.kind === 'static' && resolvedCodeBlockEditorsEqual(editor.source.descriptor, other.source.descriptor)));
+	});
+}
+
+function resolvedCodeBlockEditorsEqual(a: ResolvedCodeBlockEditor, b: ResolvedCodeBlockEditor): boolean {
+	return a.cacheKey === b.cacheKey
+		&& a.html === b.html
+		&& a.contentType === b.contentType
+		&& a.initialHeight === b.initialHeight
+		&& a.sandbox?.forms === b.sandbox?.forms
+		&& a.sandbox?.downloads === b.sandbox?.downloads
+		&& a.sandbox?.pointerLock === b.sandbox?.pointerLock
+		&& a.sandbox?.clipboardWrite === b.sandbox?.clipboardWrite;
+}
+
+function isMarkdownCodeBlockEditorExtensionApi(value: unknown): value is MarkdownCodeBlockEditorExtensionApi {
+	return typeof value === 'object'
+		&& value !== null
+		&& typeof (value as Record<string, unknown>).getMarkdownCodeBlockEditorProvider === 'function';
+}
+
+function isMarkdownCodeBlockEditorProviderApi(value: unknown): value is MarkdownCodeBlockEditorProviderApi {
+	return typeof value === 'object'
+		&& value !== null
+		&& typeof (value as Record<string, unknown>).resolve === 'function';
+}
+
+function isProviderResolvedCodeBlockEditor(value: unknown): value is ProviderResolvedCodeBlockEditor {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const descriptor = value as Record<string, unknown>;
+	if (
+		(descriptor.contentType !== undefined && descriptor.contentType !== 'text' && descriptor.contentType !== 'json')
+		|| (descriptor.cacheKey !== undefined && typeof descriptor.cacheKey !== 'string')
+		|| (descriptor.initialHeight !== undefined && (!Number.isFinite(descriptor.initialHeight) || (descriptor.initialHeight as number) <= 0))
+		|| !isSandbox(descriptor.sandbox)
+		|| !descriptor.content
+		|| typeof descriptor.content !== 'object'
+	) {
+		return false;
+	}
+	const content = descriptor.content as Record<string, unknown>;
+	return (typeof content.html === 'string' && content.uri === undefined)
+		|| (content.html === undefined && content.uri instanceof vscode.Uri);
+}
+
+function isSandbox(value: unknown): value is MarkdownCodeBlockEditorSandbox | undefined {
+	if (value === undefined) {
+		return true;
+	}
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const sandbox = value as Record<string, unknown>;
+	return ['forms', 'downloads', 'pointerLock', 'clipboardWrite']
+		.every(key => sandbox[key] === undefined || typeof sandbox[key] === 'boolean');
+}
+
+function intersectSandbox(
+	maximum: MarkdownCodeBlockEditorSandbox | undefined,
+	requested: MarkdownCodeBlockEditorSandbox | undefined,
+): MarkdownCodeBlockEditorSandbox {
+	return {
+		forms: maximum?.forms === true && requested?.forms !== false,
+		downloads: maximum?.downloads === true && requested?.downloads !== false,
+		pointerLock: maximum?.pointerLock === true && requested?.pointerLock !== false,
+		clipboardWrite: maximum?.clipboardWrite === true && requested?.clipboardWrite !== false,
+	};
+}
+
+function isAllowedCodeBlockEditorResource(resource: vscode.Uri, extensionUri: vscode.Uri): boolean {
+	if (vscode.workspace.getWorkspaceFolder(resource)) {
+		return true;
+	}
+	if (resource.scheme !== extensionUri.scheme || resource.authority !== extensionUri.authority) {
+		return false;
+	}
+	const caseInsensitive = resource.scheme === 'file';
+	const resourcePath = caseInsensitive ? resource.path.toLowerCase() : resource.path;
+	const extensionPath = caseInsensitive ? extensionUri.path.toLowerCase() : extensionUri.path;
+	const extensionPrefix = extensionPath.endsWith('/') ? extensionPath : `${extensionPath}/`;
+	return resourcePath === extensionPath || resourcePath.startsWith(extensionPrefix);
 }
 
 function getNonce(): string {
@@ -286,4 +803,21 @@ function toGutterMarkers(document: vscode.TextDocument, changes: readonly vscode
 		});
 	}
 	return markers;
+}
+
+export function lineRangesToGutterMarkers(document: vscode.TextDocument, changes: readonly ChangedLineRange[]): GutterMarkerMessage[] {
+	return changes.map(change => {
+		if (change.modifiedRange.isEmpty) {
+			const offset = document.offsetAt(change.modifiedRange.start);
+			return { start: offset, endExclusive: offset, type: 'deleted' };
+		}
+
+		const start = document.offsetAt(change.modifiedRange.start);
+		const endExclusive = document.offsetAt(document.lineAt(change.modifiedRange.end.line - 1).range.end);
+		return {
+			start,
+			endExclusive,
+			type: change.originalRange.isEmpty ? 'added' : 'modified',
+		};
+	});
 }

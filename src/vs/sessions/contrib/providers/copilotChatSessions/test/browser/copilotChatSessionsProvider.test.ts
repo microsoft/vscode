@@ -7,11 +7,11 @@ import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { timeout } from '../../../../../../base/common/async.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, ImmortalReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -46,6 +46,10 @@ import { extUri } from '../../../../../../base/common/resources.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IGitHubService } from '../../../../github/browser/githubService.js';
+import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
+import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
+import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } from '../../../../github/common/types.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -143,15 +147,81 @@ interface ICreateProviderOptions {
 	readonly multiChatEnabled?: boolean;
 	readonly claudeEnabled?: boolean;
 	readonly preferAgentHost?: boolean;
-	readonly hideCopilotCli?: boolean;
 	readonly agentHostEnabled?: boolean;
 	readonly commandExecutions?: IExecutedCommand[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
+	readonly gitHubService?: IGitHubService;
+	readonly pullRequestIconCache?: IPullRequestIconCache;
 }
 
 function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
 	return typeof item === 'object' && item !== null && 'resource' in item && URI.isUri(item.resource);
+}
+
+class TestPullRequestIconCache implements IPullRequestIconCache {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _icons = new Map<string, ReturnType<typeof computePullRequestIcon>>();
+
+	get(prLink: string): ReturnType<typeof computePullRequestIcon> | undefined {
+		return this._icons.get(prLink);
+	}
+
+	set(prLink: string, icon: ReturnType<typeof computePullRequestIcon>): void {
+		this._icons.set(prLink, icon);
+	}
+}
+
+class TestGitHubService extends mock<IGitHubService>() {
+
+	private readonly _pullRequest = observableValue<IGitHubPullRequest | undefined>(this, undefined);
+	private readonly _pullRequestModel: GitHubPullRequestModel;
+
+	lookupCalls = 0;
+	pullRequestModelReferenceCalls = 0;
+
+	constructor(private readonly _pullRequestNumber?: number) {
+		super();
+		const pullRequest = this._pullRequest;
+		this._pullRequestModel = new class extends mock<GitHubPullRequestModel>() {
+			override readonly pullRequest = pullRequest;
+		}();
+	}
+
+	override findPullRequestNumberByHeadBranch = async (): Promise<number | undefined> => {
+		this.lookupCalls++;
+		return this._pullRequestNumber;
+	};
+
+	override createPullRequestModelReference = () => {
+		this.pullRequestModelReferenceCalls++;
+		return new ImmortalReference(this._pullRequestModel);
+	};
+
+	setPullRequest(pullRequest: IGitHubPullRequest): void {
+		this._pullRequest.set(pullRequest, undefined);
+	}
+}
+
+function createPullRequest(state: GitHubPullRequestState, isDraft = false): IGitHubPullRequest {
+	return {
+		number: 42,
+		title: 'Cloud PR',
+		body: '',
+		state,
+		author: { login: 'owner', avatarUrl: '' },
+		headRef: 'feature',
+		headSha: 'head',
+		baseRef: 'main',
+		isDraft,
+		createdAt: '',
+		updatedAt: '',
+		mergedAt: state === GitHubPullRequestState.Merged ? '' : undefined,
+		mergeable: undefined,
+		mergeableState: '',
+	};
 }
 
 // ---- Provider factory -------------------------------------------------------
@@ -168,18 +238,18 @@ function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	opts?: ICreateProviderOptions,
-): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
+): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; agentHostEnabled: ISettableObservable<boolean> } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
 	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 	configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, opts?.preferAgentHost ?? false);
-	configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, opts?.hideCopilotCli ?? false);
+	const agentHostEnabled = observableValue('agentHostEnabled', opts?.agentHostEnabled ?? true);
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -238,10 +308,11 @@ function createProviderWithConfig(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
+	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
-	return { provider, configService };
+	return { provider, configService, agentHostEnabled };
 }
 
 // ---- Provider factory for send/cancel tests ---------------------------------
@@ -313,8 +384,10 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
+	instantiationService.stub(IGitHubService, new TestGitHubService());
+	instantiationService.stub(IPullRequestIconCache, new TestPullRequestIconCache());
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
@@ -339,12 +412,12 @@ suite('CopilotChatSessionsProvider', () => {
 	test('has correct id and label', () => {
 		const provider = createProvider(disposables, model);
 		assert.strictEqual(provider.id, COPILOT_PROVIDER_ID);
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 	});
 
 	test('sessionTypes excludes Claude when setting is disabled', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: false });
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
@@ -354,19 +427,19 @@ suite('CopilotChatSessionsProvider', () => {
 		// Claude entry (the agent host's). Otherwise both register and the
 		// user sees Claude twice.
 		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: true });
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
 	test('sessionTypes includes Claude when claudeEnabled and preferAgentHost is false', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: false });
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
-	test('preferAgentHost is not respected when chat.agentHost.enabled is false', () => {
+	test('preferAgentHost is not respected when Agent Host is unavailable', () => {
 		// Yielding to the agent host's Claude only makes sense when the agent
-		// host is enabled to register it. With the agent host disabled the
+		// host is available to register it. Without an Agent Host runtime the
 		// preference must be ignored so this provider keeps surfacing Claude;
 		// otherwise Claude would disappear entirely.
 		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: true, agentHostEnabled: false });
@@ -376,7 +449,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 	test('onDidChangeSessionTypes fires when claude setting changes', () => {
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 
 		let fired = false;
 		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
@@ -391,7 +464,7 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 1);
 	});
 
 	test('onDidChangeSessionTypes fires when preferAgentHost setting changes', () => {
@@ -399,7 +472,7 @@ suite('CopilotChatSessionsProvider', () => {
 		// flipping the EXP-backed preference unregisters this provider's
 		// Claude entry without requiring a window reload.
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 
 		let fired = false;
 		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
@@ -413,55 +486,37 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
-	test('sessionTypes excludes Copilot CLI when hideExtensionHost is true', () => {
-		// When the user hides the Extension Host Copilot CLI, this provider
-		// must drop the entry so the Agents window picker only surfaces the
-		// Agent Host Copilot CLI.
-		const provider = createProvider(disposables, model, { hideCopilotCli: true });
+	test('sessionTypes excludes Extension Host Copilot CLI when Agent Host is available', () => {
+		const provider = createProvider(disposables, model);
 		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('onDidChangeSessionTypes fires when hideExtensionHost setting changes', () => {
-		// Symmetric with the claude cases above. Must respond live so flipping
-		// the EXP-backed preference unregisters this provider's Copilot CLI
-		// entry without requiring a window reload.
-		const { provider, configService } = createProviderWithConfig(disposables, model);
+	test('sessionTypes includes Extension Host Copilot CLI when Agent Host is unavailable', () => {
+		const provider = createProvider(disposables, model, { agentHostEnabled: false });
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
+	});
 
-		let fired = false;
-		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
+	test('Agent Host availability is observed after the provider is created', () => {
+		const { provider, agentHostEnabled } = createProviderWithConfig(disposables, model, { agentHostEnabled: false });
+		let changeCount = 0;
+		disposables.add(provider.onDidChangeSessionTypes(() => changeCount++));
+		const visibleBeforeAvailability = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);
 
-		configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, true);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([ChatConfiguration.CopilotCliHideExtensionHostAgents]),
-			change: { keys: [ChatConfiguration.CopilotCliHideExtensionHostAgents], overrides: [] },
-			affectsConfiguration: (key: string) => key === ChatConfiguration.CopilotCliHideExtensionHostAgents,
+		agentHostEnabled.set(true, undefined);
+
+		assert.deepStrictEqual({
+			visibleBeforeAvailability,
+			visibleAfterAvailability: provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id),
+			changeCount,
+		}, {
+			visibleBeforeAvailability: true,
+			visibleAfterAvailability: false,
+			changeCount: 1,
 		});
-
-		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
-	});
-
-	test('hideExtensionHost is not respected when chat.agentHost.enabled is false', () => {
-		// Hiding the Extension Host Copilot CLI only makes sense when the agent
-		// host is enabled to surface the Agent Host Copilot CLI in its place. With
-		// the agent host disabled the hide setting must be ignored so the entry
-		// stays visible.
-		const provider = createProvider(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
-		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
-	});
-
-	test('chat.agentHost.enabled is read once when the provider is created', () => {
-		// With the hide setting on but the agent host initially disabled, the
-		// Copilot CLI entry is visible. Since enablement is fixed at startup,
-		// the provider always reflects the initial value.
-		const { provider } = createProviderWithConfig(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
-		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
 	test('toggling claude setting refreshes sessions list', () => {
@@ -840,6 +895,272 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.strictEqual(sessions.length, 1);
 		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
+	});
+
+	test('cloud session reports the provider pull request and uses the cached icon while live data loads', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const gitHubService = new TestGitHubService(7);
+		const iconCache = new TestPullRequestIconCache();
+		const prUri = URI.parse('https://github.com/owner/repo/pull/42');
+		const cachedIcon = computePullRequestIcon(GitHubPullRequestState.Merged);
+		iconCache.set(prUri.toString(), cachedIcon);
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: {
+				owner: 'wrong-owner',
+				name: 'wrong-repo',
+				branch: 'feature',
+				pullRequestNumber: 7,
+				pullRequestUrl: prUri.toString(),
+				pullRequestState: GitHubPullRequestState.Open,
+			},
+		}));
+
+		const provider = createProvider(disposables, model, { gitHubService, pullRequestIconCache: iconCache });
+		const gitHubInfo = provider.getSessions()[0].workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+
+		assert.deepStrictEqual({
+			owner: gitHubInfo?.owner,
+			repo: gitHubInfo?.repo,
+			pullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				uri: gitHubInfo.pullRequest.uri.toString(),
+				icon: gitHubInfo.pullRequest.icon,
+			},
+			lookupCalls: gitHubService.lookupCalls,
+			pullRequestModelReferenceCalls: gitHubService.pullRequestModelReferenceCalls,
+		}, {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequest: {
+				number: 42,
+				uri: prUri.toString(),
+				icon: cachedIcon,
+			},
+			lookupCalls: 0,
+			pullRequestModelReferenceCalls: 1,
+		});
+	});
+
+	test('cloud session accepts pull request URL-only metadata without creating an invalid workspace URI', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const gitHubService = new TestGitHubService();
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: {
+				pullRequestUrl: 'https://github.com/owner/repo/pull/42',
+				pullRequestState: GitHubPullRequestState.Open,
+			},
+		}));
+
+		const provider = createProvider(disposables, model, { gitHubService });
+		const workspace = provider.getSessions()[0].workspace.get();
+		const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.get();
+
+		assert.deepStrictEqual({
+			workspaceRoot: workspace?.folders[0]?.root.toString(),
+			owner: gitHubInfo?.owner,
+			repo: gitHubInfo?.repo,
+			pullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				uri: gitHubInfo.pullRequest.uri.toString(),
+			},
+		}, {
+			workspaceRoot: URI.parse('unknown:///').toString(),
+			owner: 'owner',
+			repo: 'repo',
+			pullRequest: {
+				number: 42,
+				uri: 'https://github.com/owner/repo/pull/42',
+			},
+		});
+	});
+
+	test('cloud session keeps provider-reported enterprise PR identity without public GitHub polling', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const gitHubService = new TestGitHubService(7);
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: {
+				owner: 'wrong-owner',
+				name: 'wrong-repo',
+				host: 'github.example.com',
+				branch: 'feature',
+				pullRequestNumber: 7,
+				pullRequestUrl: 'https://github.example.com/owner/repo/pull/42',
+				pullRequestState: GitHubPullRequestState.Open,
+			},
+		}));
+
+		const provider = createProvider(disposables, model, { gitHubService });
+		const gitHubInfo = provider.getSessions()[0].workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+
+		assert.deepStrictEqual({
+			owner: gitHubInfo?.owner,
+			repo: gitHubInfo?.repo,
+			pullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				uri: gitHubInfo.pullRequest.uri.toString(),
+				icon: gitHubInfo.pullRequest.icon,
+			},
+			lookupCalls: gitHubService.lookupCalls,
+			pullRequestModelReferenceCalls: gitHubService.pullRequestModelReferenceCalls,
+		}, {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequest: {
+				number: 42,
+				uri: 'https://github.example.com/owner/repo/pull/42',
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+			lookupCalls: 0,
+			pullRequestModelReferenceCalls: 0,
+		});
+	});
+
+	test('cloud session infers a provider-omitted pull request from its branch and updates the live icon', async () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const gitHubService = new TestGitHubService(42);
+		const iconCache = new TestPullRequestIconCache();
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: {
+				owner: 'owner',
+				name: 'repo',
+				branch: 'feature',
+			},
+		}));
+
+		const provider = createProvider(disposables, model, { gitHubService, pullRequestIconCache: iconCache });
+		const gitHubInfoObs = provider.getSessions()[0].workspace.get()!.folders[0].gitRepository!.gitHubInfo;
+		const firstObservation = disposables.add(autorun(reader => gitHubInfoObs.read(reader)));
+		await timeout(0);
+		const beforeLiveUpdate = gitHubInfoObs.get()?.pullRequest;
+
+		gitHubService.setPullRequest(createPullRequest(GitHubPullRequestState.Merged));
+		const afterLiveUpdate = gitHubInfoObs.get()?.pullRequest;
+		firstObservation.dispose();
+
+		let firstReobservedNumber: number | undefined;
+		let captured = false;
+		const secondObservation = autorun(reader => {
+			const pullRequestNumber = gitHubInfoObs.read(reader)?.pullRequest?.number;
+			if (!captured) {
+				firstReobservedNumber = pullRequestNumber;
+				captured = true;
+			}
+		});
+		disposables.add(secondObservation);
+		model.replaceSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			title: 'Updated Cloud Session',
+			metadata: {
+				owner: 'owner',
+				name: 'repo',
+				branch: 'feature',
+			},
+		}));
+
+		assert.deepStrictEqual({
+			beforeLiveUpdate: beforeLiveUpdate && {
+				number: beforeLiveUpdate.number,
+				uri: beforeLiveUpdate.uri.toString(),
+				icon: beforeLiveUpdate.icon,
+			},
+			afterLiveUpdate: afterLiveUpdate && {
+				number: afterLiveUpdate.number,
+				uri: afterLiveUpdate.uri.toString(),
+				icon: afterLiveUpdate.icon,
+			},
+			lookupCalls: gitHubService.lookupCalls,
+			cachedIcon: iconCache.get('https://github.com/owner/repo/pull/42'),
+			firstReobservedNumber,
+			numberAfterUpdate: gitHubInfoObs.get()?.pullRequest?.number,
+		}, {
+			beforeLiveUpdate: {
+				number: 42,
+				uri: 'https://github.com/owner/repo/pull/42',
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+			afterLiveUpdate: {
+				number: 42,
+				uri: 'https://github.com/owner/repo/pull/42',
+				icon: computePullRequestIcon(GitHubPullRequestState.Merged),
+			},
+			lookupCalls: 1,
+			cachedIcon: computePullRequestIcon(GitHubPullRequestState.Merged),
+			firstReobservedNumber: 42,
+			numberAfterUpdate: 42,
+		});
+	});
+
+	test('cloud session waits for provider PR metadata after an unsuccessful branch lookup without polling on unrelated updates', async () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const gitHubService = new TestGitHubService();
+		const metadata = {
+			owner: 'owner',
+			name: 'repo',
+			branch: 'feature',
+		};
+		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, metadata }));
+
+		const provider = createProvider(disposables, model, { gitHubService });
+		const gitHubInfoObs = provider.getSessions()[0].workspace.get()!.folders[0].gitRepository!.gitHubInfo;
+		disposables.add(autorun(reader => gitHubInfoObs.read(reader)));
+		await timeout(0);
+		model.replaceSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			title: 'Updated Cloud Session',
+			metadata,
+		}));
+		await timeout(0);
+
+		model.replaceSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: {
+				...metadata,
+				pullRequestUrl: 'https://github.com/owner/repo/pull/42',
+			},
+		}));
+
+		assert.deepStrictEqual({
+			lookupCalls: gitHubService.lookupCalls,
+			pullRequest: gitHubInfoObs.get()?.pullRequest && {
+				number: gitHubInfoObs.get()!.pullRequest!.number,
+				uri: gitHubInfoObs.get()!.pullRequest!.uri.toString(),
+			},
+		}, {
+			lookupCalls: 1,
+			pullRequest: {
+				number: 42,
+				uri: 'https://github.com/owner/repo/pull/42',
+			},
+		});
+	});
+
+	test('non-cloud sessions do not infer pull requests from branch metadata', async () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
+		const gitHubService = new TestGitHubService(42);
+		model.addSession(createMockAgentSession(resource, {
+			metadata: {
+				owner: 'owner',
+				name: 'repo',
+				branch: 'feature',
+			},
+		}));
+
+		const provider = createProvider(disposables, model, { gitHubService });
+		const gitHubInfoObs = provider.getSessions()[0].workspace.get()!.folders[0].gitRepository!.gitHubInfo;
+		disposables.add(autorun(reader => gitHubInfoObs.read(reader)));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			lookupCalls: gitHubService.lookupCalls,
+			pullRequest: gitHubInfoObs.get()?.pullRequest,
+		}, {
+			lookupCalls: 0,
+			pullRequest: undefined,
+		});
 	});
 
 	test('copilot CLI sessions do not have supportsMultipleChats when setting is disabled', () => {
@@ -1829,4 +2150,3 @@ suite('CopilotChatSessionsProvider', () => {
 		);
 	});
 });
-

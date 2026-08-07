@@ -453,6 +453,36 @@ suite('SessionStateSubscription', () => {
 		assert.strictEqual(fired.length, 1);
 		assert.strictEqual(fired[0].title, 'Changed');
 	});
+
+	suite('ordinary optimistic working-directory actions', () => {
+
+		test('accepted action moves the optimistic directory into confirmed state', () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+			const action = { type: ActionType.SessionWorkingDirectorySet as const, directory: 'file:///ws2' };
+
+			const clientSeq = sub.applyOptimistic(action);
+			assert.deepStrictEqual((sub.value as SessionState).workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.verifiedValue?.workingDirectories, undefined);
+
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+			assert.deepStrictEqual(sub.verifiedValue?.workingDirectories, ['file:///ws2']);
+			assert.strictEqual(sub.value, sub.verifiedValue);
+		});
+
+		test('rejected action rolls optimistic working directories back', () => {
+			const sub = createSub();
+			sub.handleSnapshot(makeSessionState(sessionUri), 0);
+			const action = { type: ActionType.SessionWorkingDirectorySet as const, directory: 'file:///ws2' };
+
+			const clientSeq = sub.applyOptimistic(action);
+			sub.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }, 'denied'));
+
+			assert.strictEqual(sub.verifiedValue?.workingDirectories, undefined);
+			assert.strictEqual((sub.value as SessionState).workingDirectories, undefined);
+		});
+	});
 });
 
 // ChatStateSubscription
@@ -534,6 +564,39 @@ suite('TerminalStateSubscription', () => {
 		assert.deepStrictEqual((sub.value as TerminalState).content, [
 			{ type: 'unclassified', value: 'hello' },
 		]);
+	});
+
+	test('data between command executed and finished is attributed to the command', () => {
+		const sub = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
+		sub.handleSnapshot(makeTerminalState(), 0);
+
+		// The server dispatches data in stream order relative to command
+		// events, so a command's output arrives between the executed and
+		// finished actions and must land in the command part, not in a
+		// trailing unclassified part.
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalCommandExecuted, commandId: 'cmd-1', commandLine: 'echo hi', timestamp: 1000 },
+			1,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalData, data: 'hi\r\n' },
+			2,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalCommandFinished, commandId: 'cmd-1', exitCode: 0, durationMs: 5 },
+			3,
+		));
+
+		assert.deepStrictEqual((sub.value as TerminalState).content, [{
+			type: 'command',
+			commandId: 'cmd-1',
+			commandLine: 'echo hi',
+			output: 'hi\r\n',
+			timestamp: 1000,
+			isComplete: true,
+			exitCode: 0,
+			durationMs: 5,
+		}]);
 	});
 
 	test('ignores terminal actions for other URIs', () => {
@@ -952,5 +1015,37 @@ suite('AgentSubscriptionManager', () => {
 			[{ kind: StateComponents.Session, status: 'error' }],
 		);
 		ref.dispose();
+	});
+
+	suite('ordinary optimistic reconnect state', () => {
+
+		test('applyReconnectSnapshot clears pending actions and applies the fresh state', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
+			assert.deepStrictEqual((ref.object.value as SessionState).workingDirectories, ['file:///ws2']);
+
+			mgr.applyReconnectSnapshot(sessionUri, makeSessionState(sessionUri, { workingDirectories: ['file:///fresh'] }), 5);
+
+			assert.deepStrictEqual((ref.object.value as SessionState).workingDirectories, ['file:///fresh']);
+			assert.deepStrictEqual(mgr.getPendingSessionActions(), []);
+			ref.dispose();
+		});
+
+		test('markSubscriptionsMissing clears pending actions and exposes an error', async () => {
+			const mgr = createManager();
+			const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri), 'test');
+			await new Promise(r => setTimeout(r, 0));
+
+			mgr.dispatchOptimistic(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///ws2' });
+
+			mgr.markSubscriptionsMissing([URI.parse(sessionUri)]);
+
+			assert.ok(ref.object.value instanceof Error);
+			assert.deepStrictEqual(mgr.getPendingSessionActions(), []);
+			ref.dispose();
+		});
 	});
 });

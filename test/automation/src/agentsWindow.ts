@@ -5,6 +5,7 @@
 
 import { Code } from './code';
 import { acceptToolConfirmationIfPresent } from './chat';
+import { IModelConfigSection, readModelConfigSections } from './modelConfigPicker';
 import { QuickAccess } from './quickaccess';
 
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
@@ -15,7 +16,7 @@ const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-edito
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
-const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-newline`;
+const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 
@@ -742,6 +743,41 @@ export class AgentsWindow {
 		await page.locator(`${ACTION_WIDGET_ROW}:visible`).first()
 			.waitFor({ state: 'hidden', timeout: 5_000 })
 			.catch(() => { /* already detached */ });
+	}
+
+	/**
+	 * Return the active session's model-configuration button label (the combined
+	 * "Effort Context" summary, e.g. "High 1M").
+	 *
+	 * The label is (re-)rendered when the selected model and its configuration
+	 * resolve, so this polls until it carries text rather than returning an empty
+	 * intermediate state.
+	 *
+	 * Mirrors {@link Chat.getModelConfigLabel} but scoped to the Agents Window's
+	 * active session view rather than the panel chat.
+	 */
+	async getModelConfigLabel(timeoutMs: number = 15_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const button = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
+		await button.waitFor({ state: 'visible', timeout: timeoutMs });
+		const deadline = Date.now() + timeoutMs;
+		let label = '';
+		while (Date.now() < deadline) {
+			label = ((await button.textContent()) ?? '').trim();
+			if (label) {
+				break;
+			}
+			await new Promise(r => setTimeout(r, 100));
+		}
+		return label;
+	}
+
+	/**
+	 * Return the section headers and option rows of the open model configuration
+	 * dropdown. Call after {@link openModelConfig}.
+	 */
+	async getModelConfigSections(): Promise<IModelConfigSection[]> {
+		return readModelConfigSections(this.code.driver.currentPage);
 	}
 
 	/**

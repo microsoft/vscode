@@ -30,7 +30,7 @@ import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -39,10 +39,13 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
@@ -57,6 +60,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -94,6 +98,10 @@ const $ = dom.$;
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const DIFF_STATS_ACTION_ID = 'workbench.changesView.action.viewChanges';
+const singlePaneChangesEditorHeader = ContextKeyExpr.and(
+	SinglePaneLayoutEnabledContext,
+	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID)
+);
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 
 /** Maximum number of file rows the tree pane's minimum size grows to accommodate. */
@@ -422,8 +430,7 @@ export class ChangesActionsBar extends Disposable {
 
 		let currentWidget: IChangesButtonBarWidget | undefined;
 		const updateVisibility = () => {
-			const status = sessionsService.activeSession.get()?.status.get();
-			const visible = status !== SessionStatus.Untitled && (currentWidget?.hasActions ?? false);
+			const visible = currentWidget?.hasActions ?? false;
 			dom.setVisibility(visible, container);
 		};
 
@@ -447,18 +454,12 @@ export class ChangesActionsBar extends Disposable {
 
 }
 
-// --- Editor header menus (single-pane): the Changes editor declares
-// Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats + code review,
-// left) and Menus.SessionsEditorHeaderSecondary (diff/view-mode actions, right), and
-// the editor group renders them. The Create Pull Request bar (ChangesActionsBar) is
-// hosted in the editor tabs title (Menus.SessionsEditorTitle); its custom action view
-// item is provided by the Changes editor pane (SessionChangesEditor.getActionViewItem).
-// The custom action view items below are registered globally by menu id so the
-// header toolbars render them.
+// --- Editor header menus (single-pane): actions contribute to the group-owned
+// primary/secondary header menus and gate themselves to the Changes editor.
 
 export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
-/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request editor tabs title action item. */
+/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request title-bar action item. */
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
@@ -474,8 +475,8 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
-/** Registers the Changes editor-header action view items keyed by the editor-header menu ids. */
-class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchContribution {
+/** Registers custom Changes action view items. */
+class ChangesActionViewItemsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.changesEditorHeader';
 
@@ -503,10 +504,17 @@ class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchCo
 			return instantiationService.createInstance(SinglePaneChangesDiffStatsActionItem, action, options);
 		}, onDidRegister.event));
 
+		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
+		}, onDidRegister.event));
+
 		onDidRegister.fire();
 	}
 }
-registerWorkbenchContribution2(ChangesEditorHeaderContribution.ID, ChangesEditorHeaderContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChangesActionViewItemsContribution.ID, ChangesActionViewItemsContribution, WorkbenchPhase.BlockRestore);
 
 // --- View Pane
 
@@ -926,14 +934,9 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
-				if (this.shouldRevealFileInMultiDiffEditor()) {
-					void this._openMultiFileDiffEditor(e.element.uri);
-					return;
-				}
-
 				// Holding Alt inverts the configured single/multi file diff behavior.
 				const altKey = !!(e.browserEvent as MouseEvent | KeyboardEvent | undefined)?.altKey;
-				const openSingleFileDiff = this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING) !== altKey;
+				const openSingleFileDiff = this.shouldOpenSingleFileDiffByDefault() !== altKey;
 				if (openSingleFileDiff) {
 					// Alt here only switches the diff mode, not the target group.
 					const sideBySide = e.sideBySide && !altKey;
@@ -1479,16 +1482,19 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	/**
-	 * Whether clicking a file opens the modal single-file diff (vs the multi-file
-	 * diff editor). Standard layout honors the `workbench.editor.useModal` setting;
-	 * {@link SinglePaneChangesViewPane} always opens the multi-file diff.
+	 * Whether clicking a file opens the modal single-file diff. {@link SinglePaneChangesViewPane}
+	 * never uses the modal editor.
 	 */
 	protected shouldOpenModalDiff(): boolean {
 		return this.configurationService.getValue<string>('workbench.editor.useModal') === 'all';
 	}
 
-	protected shouldRevealFileInMultiDiffEditor(): boolean {
-		return false;
+	/**
+	 * Whether clicking a file opens a single-file diff by default (vs the
+	 * multi-file diff editor). Alt inverts this.
+	 */
+	protected shouldOpenSingleFileDiffByDefault(): boolean {
+		return this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING);
 	}
 
 	/**
@@ -1562,12 +1568,32 @@ export class ChangesViewPane extends ViewPane {
 		// (no modified) are shown as a diff against an empty side, matching the
 		// "Open Changes" action.
 		const modifiedUri = isDeletion ? undefined : uri;
-		await this.editorService.openEditor({
+		const pane = await this.editorService.openEditor({
 			original: { resource: originalUri },
 			modified: { resource: modifiedUri },
 			...labels,
 			options: { preserveFocus, pinned }
 		}, group);
+
+		// Show the whole file rather than folding unchanged regions, since this
+		// diff is opened to review one specific file. No open-call option exists
+		// for this, so apply it via updateOptions() once the pane resolves - but
+		// the pane's diff editor control is reused across different inputs, so
+		// restore the configured value once this input is no longer active,
+		// rather than leaving the override stuck for whatever opens next.
+		const control = pane?.getControl();
+		if (pane && isDiffEditor(control)) {
+			const openedInput = pane.input;
+			control.updateOptions({ hideUnchangedRegions: { enabled: false } });
+			const listener = pane.group.onDidActiveEditorChange(() => {
+				if (pane.group.activeEditor === openedInput) {
+					return;
+				}
+				listener.dispose();
+				control.updateOptions({ hideUnchangedRegions: { enabled: this.configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled') } });
+			});
+			this._register(listener);
+		}
 	}
 
 	private async _openMultiFileDiffEditor(reveal?: URI): Promise<void> {
@@ -1619,7 +1645,7 @@ export class ChangesViewPane extends ViewPane {
  * Changes view for the single-pane layout: the files list lives in the docked
  * detail panel while the Branch Changes header, Create-PR actions, and diffs are
  * shown in the custom Changes editor. Overrides the standard hooks to omit the
- * in-panel header/actions and always open the multi-file diff.
+ * in-panel header/actions.
  */
 export class SinglePaneChangesViewPane extends ChangesViewPane {
 
@@ -1636,11 +1662,8 @@ export class SinglePaneChangesViewPane extends ChangesViewPane {
 	}
 
 	protected override shouldOpenModalDiff(): boolean {
+		// Single-pane never uses the modal editor.
 		return false;
-	}
-
-	protected override shouldRevealFileInMultiDiffEditor(): boolean {
-		return true;
 	}
 }
 
@@ -1818,7 +1841,7 @@ class VersionsPickerAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
-				when: ActiveSessionContextKeys.HasGitRepository,
+				when: ContextKeyExpr.and(singlePaneChangesEditorHeader, ActiveSessionContextKeys.HasGitRepository),
 			}],
 		});
 	}
@@ -1915,7 +1938,7 @@ class ChangesDiffStatsAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 2,
-				when: ChatContextKeys.hasAgentSessionChanges
+				when: ContextKeyExpr.and(singlePaneChangesEditorHeader, ChatContextKeys.hasAgentSessionChanges)
 			}],
 		});
 	}
