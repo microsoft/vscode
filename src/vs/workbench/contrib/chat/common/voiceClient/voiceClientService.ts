@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
@@ -64,20 +64,25 @@ export interface IVoiceSessionPending {
  * agent host can update or rehydrate one tool card while its approval stays
  * pending, and callbacks are implementation details that can be recreated (or
  * retained too long). Tool occurrences therefore use a semantic key plus a
- * timestamped token, tracked below until every copy of that occurrence leaves
- * its pending state.
+ * timestamped token. An occurrence is retired as soon as any live copy is
+ * resolved; the remaining copies retain the retired identity so stale cards
+ * cannot become actionable again.
  */
 const pendingOccurrenceTokens = new WeakMap<object, string>();
 let pendingOccurrenceCounter = 0;
 
 interface IActivePendingToolOccurrence {
+	readonly requestId: string;
 	readonly semanticKey: string;
 	readonly token: string;
 	readonly participants: Map<IChatToolInvocation, IDisposable>;
+	resolved: boolean;
 }
 
 const activePendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceByPart = new WeakMap<IChatToolInvocation, IActivePendingToolOccurrence>();
+const pendingToolOccurrenceById = new Map<string, IActivePendingToolOccurrence>();
+const pendingToolResolutionVersion = observableValue('pendingToolResolutionVersion', 0);
 
 function isPendingToolState(state: IChatToolInvocation.State): boolean {
 	return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
@@ -125,6 +130,21 @@ function releasePendingToolParticipant(invocation: IChatToolInvocation, occurren
 	occurrence.participants.get(invocation)?.dispose();
 }
 
+function pendingToolOccurrenceId(occurrence: IActivePendingToolOccurrence): string {
+	return `${occurrence.requestId}#${occurrence.token}`;
+}
+
+function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence): void {
+	if (occurrence.resolved) {
+		return;
+	}
+	occurrence.resolved = true;
+	if (activePendingToolOccurrences.get(occurrence.semanticKey) === occurrence) {
+		activePendingToolOccurrences.delete(occurrence.semanticKey);
+	}
+	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
+}
+
 function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, track?: (disposable: IDisposable) => void): IActivePendingToolOccurrence | undefined {
 	const semanticKey = pendingToolSemanticKey(requestId, invocation);
 	const current = pendingToolOccurrenceByPart.get(invocation);
@@ -149,11 +169,14 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 			return undefined;
 		}
 		occurrence = {
+			requestId,
 			semanticKey,
 			token: `t${Date.now().toString(36)}-${++pendingOccurrenceCounter}`,
 			participants: new Map(),
+			resolved: false,
 		};
 		activePendingToolOccurrences.set(semanticKey, occurrence);
+		pendingToolOccurrenceById.set(pendingToolOccurrenceId(occurrence), occurrence);
 	}
 
 	pendingToolOccurrenceByPart.set(invocation, occurrence);
@@ -169,10 +192,17 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		if (trackedOccurrence.participants.size === 0 && activePendingToolOccurrences.get(trackedOccurrence.semanticKey) === trackedOccurrence) {
 			activePendingToolOccurrences.delete(trackedOccurrence.semanticKey);
 		}
+		if (trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
+			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(trackedOccurrence));
+		}
 		observer?.dispose();
 	});
 	observer = autorun(reader => {
 		if (!isPendingToolState(invocation.state.read(reader))) {
+			// One authoritative copy leaving pending means the user or host handled
+			// this occurrence. Retire every rehydrated copy immediately instead of
+			// waiting for stale models to catch up.
+			resolvePendingToolOccurrence(trackedOccurrence);
 			tracking.dispose();
 		}
 	});
@@ -226,6 +256,28 @@ export function derivePendingId(requestId: string, part: object, track?: (dispos
 }
 
 /**
+ * Retire a published tool approval after the user acts on it.
+ *
+ * Tool providers are allowed to leave the invocation in a pending state while
+ * they send the response to another process. Explicit retirement closes that
+ * gap and prevents another live copy from submitting the same approval again.
+ */
+export function markPendingIdResolved(pendingId: string): boolean {
+	const occurrence = pendingToolOccurrenceById.get(pendingId);
+	if (!occurrence) {
+		return false;
+	}
+	resolvePendingToolOccurrence(occurrence);
+	return true;
+}
+
+/** Whether a published tool approval has already been acted on. */
+export function isPendingIdResolved(pendingId: string, reader?: IReader): boolean {
+	pendingToolResolutionVersion.read(reader);
+	return pendingToolOccurrenceById.get(pendingId)?.resolved === true;
+}
+
+/**
  * Resolve the id of an already-published pending part, or `undefined`.
  *
  * Does not mint: a part the client never published as pending has no id, so an
@@ -235,7 +287,7 @@ export function peekPendingId(requestId: string, part: object): string | undefin
 	const invocation = part as Partial<IChatToolInvocation>;
 	if (invocation.kind === 'toolInvocation' && invocation.state) {
 		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, false);
-		if (occurrence) {
+		if (occurrence && !occurrence.resolved) {
 			return `${requestId}#${occurrence.token}`;
 		}
 	}

@@ -22,7 +22,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
@@ -6464,11 +6464,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!lastRequest || !parts) {
 			return undefined;
 		}
+		// Register every live copy before selecting one. Some providers rehydrate
+		// the same approval more than once in the response; resolving the selected
+		// copy must retire the copies later in the array as well.
+		for (const part of parts) {
+			if (part.kind === 'toolInvocation' && this._isOpenPendingPart(part)) {
+				derivePendingId(lastRequest.id, part, disposable => this._register(disposable));
+			}
+		}
 
 		for (let index = 0; index < parts.length; index++) {
 			const part = parts[index];
 			const type = getVoiceConfirmationType([part]);
 			if (type && this._isOpenPendingPart(part)) {
+				if (part.kind === 'toolInvocation') {
+					const pendingId = derivePendingId(lastRequest.id, part, disposable => this._register(disposable));
+					if (isPendingIdResolved(pendingId)) {
+						continue;
+					}
+				}
 				if (type === 'questionnaire' && isVoiceQuestionnaireInvocation(part)) {
 					const carousel = parts.slice(index + 1).find(candidate =>
 						candidate.kind === 'questionCarousel'
@@ -6564,7 +6578,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const pendingConfirmation = lastRequest?.response?.isPendingConfirmation.get();
 		const confirmation = this._getPendingConfirmationInfo(model);
-		if (pendingConfirmation || confirmation) {
+		// `isPendingConfirmation` can remain true while a provider propagates an
+		// approval to its authoritative model. When selection found only retired
+		// tool copies, treat that gap as work in progress instead of re-announcing
+		// the same approval with a generic fallback.
+		if (confirmation || (pendingConfirmation && !this._hasResolvedPendingToolApproval(model))) {
 			return {
 				state: 'waiting_for_confirmation',
 				...(confirmation?.detail ? { detail: confirmation.detail } : !confirmation ? { detail: this._formatToolNarrationFallback() } : {}),
@@ -6582,6 +6600,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			lastRequest?.response?.result?.errorDetails?.message.trim(),
 		].filter(value => !!value).join('\n\n');
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
+	}
+
+	private _hasResolvedPendingToolApproval(model: IChatModel): boolean {
+		const request = model.getRequests().at(-1);
+		for (const part of request?.response?.response.value ?? []) {
+			if (part.kind !== 'toolInvocation' || !this._isOpenPendingPart(part)) {
+				continue;
+			}
+			const pendingId = derivePendingId(request!.id, part, disposable => this._register(disposable));
+			if (isPendingIdResolved(pendingId)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
