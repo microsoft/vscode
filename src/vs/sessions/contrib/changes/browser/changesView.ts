@@ -86,7 +86,7 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -103,9 +103,6 @@ const singlePaneChangesEditorHeader = ContextKeyExpr.and(
 	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID)
 );
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
-
-/** Maximum number of file rows the tree pane's minimum size grows to accommodate. */
-const TREE_PANE_MIN_SIZE_MAX_ROWS = 13;
 
 /** Breathing room rendered beneath the last file row when the whole list fits. */
 const TREE_PANE_LIST_BOTTOM_PADDING = 12;
@@ -536,11 +533,8 @@ export class ChangesViewPane extends ViewPane {
 	private splitView: SplitView | undefined;
 	private splitViewContainer: HTMLElement | undefined;
 	private readonly treePaneSizeChange = this._register(new Emitter<number | undefined>());
-
-	/** Computes the CI pane's default height (content, capped to a third of the split). */
-	private computeCIPreferredHeight: (() => number) | undefined;
-	/** Once the user drags a sash we stop imposing the CI pane's default height. */
-	private ciPaneUserResized = false;
+	private rebalanceSectionPanes: (() => void) | undefined;
+	private sectionPanesUserResized = false;
 
 	private readonly isMergeBaseBranchProtectedContextKey: IContextKey<boolean>;
 	private readonly isolationModeContextKey: IContextKey<IsolationMode>;
@@ -705,32 +699,37 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		// Shared constants for pane sizing
+		const sessionFilesWidget = this.sessionFilesWidget;
+		const ciWidget = this.ciStatusWidget;
 		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
 		const sessionFilesMinHeight = SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.MIN_BODY_HEIGHT;
-		const getSessionFilesContentHeight = () => Math.max(SessionFilesWidget.HEADER_HEIGHT, this.sessionFilesWidget?.desiredHeight ?? 0);
-		const getSessionFilesMinimumHeight = () => this.sessionFilesWidget?.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Math.min(sessionFilesMinHeight, getSessionFilesContentHeight());
-		const getSessionFilesPreferredHeight = () => Math.max(getSessionFilesMinimumHeight(), SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT);
-		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, this.ciStatusWidget?.desiredHeight ?? 0);
-		const getCIMinimumHeight = () => this.ciStatusWidget?.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
-		// Preferred default size for the CI pane: content height, capped to a third of the split.
-		const getCIPreferredHeight = () => {
-			const contentHeight = getCIContentHeight();
-			if (this.ciStatusWidget?.collapsed) {
-				return CIStatusWidget.HEADER_HEIGHT;
+		const getSessionFilesContentHeight = () => Math.max(SessionFilesWidget.HEADER_HEIGHT, sessionFilesWidget.desiredHeight);
+		const getSessionFilesMinimumHeight = () => sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Math.min(sessionFilesMinHeight, getSessionFilesContentHeight());
+		const getSessionFilesPreferredHeight = () => Math.max(
+			getSessionFilesMinimumHeight(),
+			Math.min(getSessionFilesContentHeight(), SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT)
+		);
+		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, ciWidget.desiredHeight);
+		const getCIMinimumHeight = () => ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
+		const getCIPreferredHeight = () => Math.max(
+			getCIMinimumHeight(),
+			Math.min(getCIContentHeight(), CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT)
+		);
+		const getReservedSectionHeight = () =>
+			(sessionFilesWidget.visible ? getSessionFilesMinimumHeight() : 0) +
+			(ciWidget.visible ? getCIMinimumHeight() : 0);
+		this.rebalanceSectionPanes = () => {
+			if (!this.splitView || this.sectionPanesUserResized || !ciWidget.visible || ciWidget.collapsed) {
+				return;
 			}
-			const availableHeight = this.getSplitViewAvailableHeight();
-			if (availableHeight > 0) {
-				return Math.max(getCIMinimumHeight(), Math.min(contentHeight, Math.round(availableHeight / 3)));
-			}
-			return contentHeight;
+			this.splitView.resizeView(2, getCIMinimumHeight());
 		};
-		this.computeCIPreferredHeight = getCIPreferredHeight;
 		const thisView = this;
 
 		// Top pane: file tree
 		const treePane: IView = {
 			element: this.contentContainer,
-			get minimumSize() { return thisView.getTreePaneMinimumSize(); },
+			get minimumSize() { return thisView.getTreePaneMinimumSize(getReservedSectionHeight()); },
 			get maximumSize() { return thisView.getTreePaneMaximumSize(); },
 			onDidChange: this.treePaneSizeChange.event,
 			layout: (height) => {
@@ -741,11 +740,10 @@ export class ChangesViewPane extends ViewPane {
 
 		// Middle pane: other files
 		const sessionFilesElement = this.sessionFilesWidget.element;
-		const sessionFilesWidget = this.sessionFilesWidget;
 		const sessionFilesPane: IView = {
 			element: sessionFilesElement,
 			get minimumSize() { return getSessionFilesMinimumHeight(); },
-			get maximumSize() { return sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : Number.POSITIVE_INFINITY; },
+			get maximumSize() { return sessionFilesWidget.collapsed ? SessionFilesWidget.HEADER_HEIGHT : getSessionFilesContentHeight(); },
 			priority: LayoutPriority.High,
 			onDidChange: Event.map(this.sessionFilesWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
@@ -757,13 +755,12 @@ export class ChangesViewPane extends ViewPane {
 
 		// Bottom pane: CI checks
 		const ciElement = this.ciStatusWidget.element;
-		const ciWidget = this.ciStatusWidget;
 		const ciPane: IView = {
 			element: ciElement,
 			get minimumSize() { return getCIMinimumHeight(); },
 			get maximumSize() { return ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : getCIContentHeight(); },
 			priority: LayoutPriority.Low,
-			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => getCIContentHeight()),
+			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
 				ciElement.style.height = `${height}px`;
 				const bodyHeight = Math.max(0, height - CIStatusWidget.HEADER_HEIGHT);
@@ -782,9 +779,7 @@ export class ChangesViewPane extends ViewPane {
 		};
 		updateSplitViewStyles();
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
-
-		// A manual sash drag hands layout control to the user: stop imposing the CI default size.
-		this._register(this.splitView.onDidSashChange(() => { this.ciPaneUserResized = true; }));
+		this._register(this.splitView.onDidSashChange(() => this.sectionPanesUserResized = true));
 
 		// Initially hide the other files and CI panes until content arrives
 		this.splitView.setViewVisible(1, false);
@@ -795,7 +790,15 @@ export class ChangesViewPane extends ViewPane {
 		this._register(this.sessionFilesWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
 
 		// CI checks pane (index 2)
-		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight, () => { this.ciPaneUserResized = false; });
+		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight);
+		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
+		this._register(autorun(reader => {
+			const state = this.changesViewService.activeSessionSectionCollapseStateObs.read(reader);
+			sessionFilesWidget.setCollapsed(state.otherFiles);
+			ciWidget.setCollapsed(state.checks);
+		}));
+		this._register(sessionFilesWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('otherFiles', collapsed)));
+		this._register(ciWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('checks', collapsed)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -1053,30 +1056,29 @@ export class ChangesViewPane extends ViewPane {
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 	}
 
-	private getTreePaneMinimumSize(): number {
+	private getTreePaneMinimumSize(reservedSectionHeight: number): number {
 		if (this.listContainer?.style.display === 'none') {
 			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
 
-		// Grow the minimum size to fit the file list (capped at TREE_PANE_MIN_SIZE_MAX_ROWS rows) plus header chrome.
-		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
-		const treeContentHeight = this.tree?.contentHeight ?? 0;
-		const maxRowsHeight = TREE_PANE_MIN_SIZE_MAX_ROWS * ChangesTreeDelegate.ROW_HEIGHT;
-		const cappedContentHeight = Math.min(treeContentHeight, maxRowsHeight);
-		const bottomPadding = treeContentHeight <= maxRowsHeight ? TREE_PANE_LIST_BOTTOM_PADDING : 0;
-
-		return Math.max(EMPTY_FILE_CHANGES_MIN_HEIGHT, filesHeaderHeight + cappedContentHeight + bottomPadding);
+		const desiredSize = this.getTreePaneDesiredSize();
+		const availableSize = this.getSplitViewAvailableHeight() - reservedSectionHeight;
+		return Math.min(desiredSize, Math.max(EMPTY_FILE_CHANGES_MIN_HEIGHT, availableSize));
 	}
 
-	private getTreePaneMaximumSize(): number {
-		if (!this.sessionFilesWidget?.visible || this.sessionFilesWidget.collapsed) {
-			return Number.POSITIVE_INFINITY;
+	private getTreePaneDesiredSize(): number {
+		if (this.listContainer?.style.display === 'none') {
+			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
 
 		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
-		const treeContentHeight = this.listContainer?.style.display === 'none' ? 0 : this.tree?.contentHeight ?? 0;
+		const treeContentHeight = this.tree?.contentHeight ?? 0;
 		const bottomPadding = treeContentHeight > 0 ? TREE_PANE_LIST_BOTTOM_PADDING : 0;
-		return Math.max(this.getTreePaneMinimumSize(), filesHeaderHeight + treeContentHeight + bottomPadding);
+		return filesHeaderHeight + treeContentHeight + bottomPadding;
+	}
+
+	private getTreePaneMaximumSize(): number {
+		return this.getTreePaneDesiredSize();
 	}
 
 	private fireTreePaneSizeChange(): void {
@@ -1089,7 +1091,7 @@ export class ChangesViewPane extends ViewPane {
 		if (bodyHeight <= 0) {
 			return 0;
 		}
-		const bodyPadding = 16; // 8px top + 8px bottom from .changes-view-body
+		const bodyPadding = 16;
 		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
 		const actionsMargin = actionsHeight > 0 ? 8 : 0;
 		return Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
@@ -1106,26 +1108,7 @@ export class ChangesViewPane extends ViewPane {
 		}
 		this.splitViewContainer.style.height = `${availableHeight}px`;
 		this.splitView.layout(availableHeight);
-		this.applyCIDefaultSize();
-	}
-
-	/**
-	 * Re-assert the CI pane's default height (capped to a third of the split) after layout.
-	 * This is where the split height is reliably known — the preferred height can otherwise be
-	 * evaluated during wiring when the body height is still 0, yielding an uncapped fallback.
-	 * Once the user drags a sash we back off and preserve their chosen size.
-	 */
-	private applyCIDefaultSize(): void {
-		if (!this.splitView || this.ciPaneUserResized || !this.computeCIPreferredHeight) {
-			return;
-		}
-		if (!this.ciStatusWidget?.visible || this.ciStatusWidget.collapsed) {
-			return;
-		}
-		const preferred = this.computeCIPreferredHeight();
-		if (this.splitView.getViewSize(2) !== preferred) {
-			this.splitView.resizeView(2, preferred);
-		}
+		this.rebalanceSectionPanes?.();
 	}
 
 	/**
@@ -1139,7 +1122,6 @@ export class ChangesViewPane extends ViewPane {
 		paneIndex: number,
 		headerHeight: number,
 		getPreferredHeight: () => number,
-		onDidBecomeVisible?: () => void,
 	): void {
 		let savedPaneHeight = getPreferredHeight();
 
@@ -1170,13 +1152,19 @@ export class ChangesViewPane extends ViewPane {
 			if (visible !== isCurrentlyVisible) {
 				this.splitView.setViewVisible(paneIndex, visible);
 				if (visible && !widget.collapsed) {
-					onDidBecomeVisible?.();
 					savedPaneHeight = getPreferredHeight();
 					this.splitView.resizeView(paneIndex, savedPaneHeight);
 				}
 			}
 			this.layoutSplitView();
 		}));
+	}
+
+	private setActiveSectionCollapsed(section: ChangesViewSection, collapsed: boolean): void {
+		const sessionResource = this.changesViewService.activeSessionResourceObs.get();
+		if (sessionResource) {
+			this.changesViewService.setSectionCollapsed(sessionResource, section, collapsed);
+		}
 	}
 
 	private getTreeSelection(): IChangesFileItem[] {
