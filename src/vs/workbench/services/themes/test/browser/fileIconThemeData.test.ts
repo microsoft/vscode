@@ -41,23 +41,36 @@ suite('FileIconThemeData', () => {
 	test('renders image icons with current color when enabled', async () => {
 		const content = await loadTheme(true);
 
-		assert.deepStrictEqual([
-			content?.includes('background-color: currentColor'),
-			content?.includes('mask: url(') && content.includes('no-repeat left center'),
-			content?.includes('mask-size: 16px'),
-			content?.includes('-webkit-mask: url(') && content.includes('no-repeat left center'),
-			content?.includes('-webkit-mask-size: 16px'),
-			content?.includes('background-image: none')
-		], [true, true, true, true, true, true]);
+		assert.deepStrictEqual({
+			backgroundColor: content?.includes('background-color: currentColor'),
+			mask: content?.includes('mask: url('),
+			maskPlacement: content?.includes('no-repeat left center'),
+			maskSize: content?.includes('mask-size: 16px'),
+			webkitMask: content?.includes('-webkit-mask: url('),
+			webkitMaskSize: content?.includes('-webkit-mask-size: 16px'),
+			noBackgroundImage: content?.includes('background-image: none')
+		}, {
+			backgroundColor: true,
+			mask: true,
+			maskPlacement: true,
+			maskSize: true,
+			webkitMask: true,
+			webkitMaskSize: true,
+			noBackgroundImage: true
+		});
 	});
 
 	test('renders image icons as background images by default', async () => {
 		const content = await loadTheme();
 
-		assert.deepStrictEqual([
-			content?.includes('background-image: url('),
-			content?.includes('background-color: currentColor'),
-			content?.includes('mask: url(')
-		], [true, false, false]);
+		assert.deepStrictEqual({
+			backgroundImage: content?.includes('background-image: url('),
+			backgroundColor: content?.includes('background-color: currentColor'),
+			mask: content?.includes('mask: url(')
+		}, {
+			backgroundImage: true,
+			backgroundColor: false,
+			mask: false
+		});
 	});
 });

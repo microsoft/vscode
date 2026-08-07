@@ -18,9 +18,6 @@
 		"_git": {
 			"iconPath": "./images/git.svg"
 		},
-		"_gitfolder": {
-			"iconPath": "./images/gitfolder.svg"
-		},
 		"_github": {
 			"iconPath": "./images/github.svg"
 		},
@@ -155,9 +152,6 @@
 		},
 		"_mustache": {
 			"iconPath": "./images/mustache.svg"
-		},
-		"_newfile": {
-			"iconPath": "./images/newfile.svg"
 		},
 		"_nlm": {
 			"iconPath": "./images/nlm.svg"

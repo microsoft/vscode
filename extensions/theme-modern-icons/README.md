@@ -1,6 +1,6 @@
 # VS Code Modern Icons
 
-This built-in file icon theme is ready for a full icon set. It deliberately leaves generic file and folder associations unset.
+This built-in file icon theme provides a monochrome icon set. Image icons are rendered as masks filled with the current VS Code foreground color, so only the shape of each icon matters.
 
 ## Design source
 
@@ -17,7 +17,7 @@ The A group comes from [Ticket 1862 - VSCode 3rd Party Seti](https://www.figma.c
 - Use `currentColor` for monochrome fill and stroke colors. This theme renders image icons as masks so they inherit the surrounding VS Code foreground color.
 - Do not include scripts, external resources, embedded fonts, CSS variables, or raster images inside SVG files.
 - Optimize paths and align strokes to the 16-pixel canvas.
-- Add dark, light, and high-contrast variants when a single color does not provide sufficient contrast.
+- Because icons are rendered as masks, only their shape is used. Colors, including light and high-contrast variants, are ignored.
 - Name files in lowercase kebab case and place them in `fileicons/images`.
 
 ## Theme mappings

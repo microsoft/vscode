@@ -232,7 +232,7 @@ const schema: IJSONSchema = {
 		},
 		usesCurrentColor: {
 			type: 'boolean',
-			description: nls.localize('schema.usesCurrentColor', 'Whether image icons use their alpha channel as a mask filled with the current text color.')
+			description: nls.localize('schema.usesCurrentColor', 'Whether image icons use their alpha channel as a mask filled with the current text color. When enabled, only the shape of an image icon is used, so any colors defined in the icon (including light and high contrast variants) are ignored.')
 		},
 		folderExpanded: {
 			$ref: '#/definitions/folderExpanded'
