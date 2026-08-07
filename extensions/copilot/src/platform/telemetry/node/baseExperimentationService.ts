@@ -8,7 +8,7 @@ import type { IExperimentationService as ITASExperimentationService } from 'vsco
 import { equals } from '../../../util/vs/base/common/arrays';
 import { IntervalTimer } from '../../../util/vs/base/common/async';
 import { Emitter } from '../../../util/vs/base/common/event';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
@@ -127,6 +127,9 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	protected _delegate: ITASExperimentationService;
 	protected readonly _userInfoStore: UserInfoStore;
 
+	/** Disposes the current delegate (stopping its polling); auto-disposes the previous one on replacement. */
+	private readonly _delegateDisposable = this._register(new MutableDisposable());
+
 	private readonly _delegateFn: TASClientDelegateFn;
 	private readonly _globalState: vscode.Memento;
 
@@ -165,6 +168,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 	private _createDelegate(): ITASExperimentationService {
 		const delegate = this._delegateFn(this._globalState, this._userInfoStore);
+		this._delegateDisposable.value = toDisposable(() => (delegate as unknown as { dispose?(): void }).dispose?.());
 		delegate.initialFetch.then(() => {
 			this._logService.trace(`[BaseExperimentationService] Initial fetch completed`);
 		});
@@ -172,11 +176,10 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	}
 
 	/**
-	 * Disposes the current delegate (stopping its polling) and creates a fresh one. Used
+	 * Creates a fresh delegate, disposing the previous one (stopping its polling). Used
 	 * when inputs captured at delegate-creation time (e.g. the assignments endpoint) change.
 	 */
 	protected recreateDelegate(): void {
-		(this._delegate as unknown as { dispose?(): void }).dispose?.();
 		this._delegate = this._createDelegate();
 	}
 

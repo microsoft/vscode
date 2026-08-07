@@ -276,7 +276,7 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 	}
 
 	private update(): void {
-		const newTrackingId = this._chatEntitlementService.copilotTrackingId;
+		const newTrackingId = this._chatEntitlementService.copilotTrackingId ?? this.copilotTrackingId;
 		const newInternalOrg = getInternalOrg(this._chatEntitlementService.organisations);
 
 		if (this.copilotTrackingId === newTrackingId && this.internalOrg === newInternalOrg) {
@@ -290,15 +290,24 @@ export class GitHubCoreAssignmentsFilterProvider extends Disposable implements I
 	}
 
 	getFilterValue(filter: string): string | null {
+		// copilotTrackingId is the stable user id (it never changes) but can be unavailable
+		// during sign-in delays. Latch the first known value and fall back to it so the
+		// filter is not dropped from later requests once we have seen it.
+		const liveTrackingId = this._chatEntitlementService.copilotTrackingId;
+		if (liveTrackingId) {
+			this.copilotTrackingId = liveTrackingId;
+		}
+		const copilotTrackingId = liveTrackingId ?? this.copilotTrackingId;
+		const internalOrg = getInternalOrg(this._chatEntitlementService.organisations) ?? this.internalOrg;
 		switch (filter) {
 			case GitHubAssignmentsFilter.CopilotTrackingId:
-				return this.copilotTrackingId ?? null;
+				return copilotTrackingId ?? null;
 			case GitHubAssignmentsFilter.IsGhOrMsftStaff:
-				return this.internalOrg ? '1' : '0';
+				return internalOrg ? '1' : '0';
 			case GitHubAssignmentsFilter.GhMsftOrExternal:
-				return this.internalOrg === 'github'
+				return internalOrg === 'github'
 					? 'github'
-					: (this.internalOrg === 'microsoft' || this.internalOrg === 'vscode')
+					: (internalOrg === 'microsoft' || internalOrg === 'vscode')
 						? 'microsoft'
 						: 'external';
 			default:

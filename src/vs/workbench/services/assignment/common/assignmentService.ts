@@ -157,6 +157,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	private assignmentsEndpoint: string | undefined;
 
 	private networkInitialized = false;
+	private setupGeneration = 0;
 	private readonly overrideInitDelay: Promise<void>;
 
 	private readonly contextFilter: AssignmentContextFilter;
@@ -304,6 +305,11 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	private async setupTASClient(): Promise<TASClient> {
 		this.tasSetupDisposables.clear();
 
+		// Each setup supersedes the previous client; track a generation so a stale client's
+		// initialFetch cannot flip networkInitialized for a newer client.
+		const generation = ++this.setupGeneration;
+		this.networkInitialized = false;
+
 		const targetPopulation = this.productService.quality === 'stable' ?
 			TargetPopulation.Public : (this.productService.quality === 'exploration' ?
 				TargetPopulation.Exploration : TargetPopulation.Insiders);
@@ -373,6 +379,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		await tasClient.initializePromise;
 		tasClient.initialFetch.then(() => {
+			if (generation !== this.setupGeneration) {
+				return; // superseded by a newer setup
+			}
 			this.networkInitialized = true;
 			this.logFetchLatency('initial', fetchStopWatch.elapsed());
 		}).catch(() => undefined);
