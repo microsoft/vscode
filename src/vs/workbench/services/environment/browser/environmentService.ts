@@ -306,8 +306,8 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			extensionDevelopmentKind: undefined
 		};
 
-		// Extension host development options from the payload are only valid in development builds.
-		if (this.payload && !this.isBuilt) {
+		// Extension host development options from the payload are only valid in development or smoke test builds.
+		if (this.payload && (!this.isBuilt || this.enableSmokeTestDriver)) {
 			for (const [key, value] of this.payload) {
 				switch (key) {
 					case 'extensionDevelopmentPath':
