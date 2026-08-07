@@ -2361,6 +2361,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 
 		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
+		const panelSizeBeforeEditorReveal = !hidden && this.isSinglePaneLayoutEnabled && this._effectiveVisible(Parts.PANEL_PART)
+			? this.workbenchGrid.getViewSize(this.panelPartView)
+			: undefined;
 
 		// Track whether this visible state was an explicit user reveal.
 		this._editorRevealedExplicitly = !hidden && explicit;
@@ -2381,6 +2384,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			this._savePartVisibility();
 		});
+		if (panelSizeBeforeEditorReveal) {
+			this.workbenchGrid.resizeView(this.panelPartView, panelSizeBeforeEditorReveal);
+		}
 
 		if (!hidden && sidePaneWasClosed && !skipSidePaneReveal) {
 			this._onSidePaneRevealed();
