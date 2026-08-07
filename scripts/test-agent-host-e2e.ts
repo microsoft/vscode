@@ -32,6 +32,7 @@ interface IRunResult {
 	readonly succeeded: boolean;
 	readonly durationSeconds: number;
 	readonly failure?: string;
+	readonly failureDetails?: string;
 }
 
 interface IObservedSurface {
@@ -93,6 +94,7 @@ async function main(): Promise<void> {
 		console.log(`  ${result.succeeded ? 'PASS' : 'FAIL'} ${result.suite.label}: ${result.durationSeconds.toFixed(1)}s`);
 	}
 	if (failures.length > 0) {
+		printFailureDetails(failures);
 		process.exitCode = 1;
 	}
 }
@@ -140,6 +142,7 @@ function prepareTestRuntime(): void {
 	const environment = { ...process.env };
 	delete environment.ELECTRON_RUN_AS_NODE;
 
+	mkdirSync(join(repoRoot, '.build', 'crashes'), { recursive: true });
 	if (!existsSync(join(repoRoot, 'node_modules'))) {
 		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install'], environment);
 	}
@@ -205,6 +208,7 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 				succeeded: false,
 				durationSeconds: elapsedSeconds(startedAt),
 				failure: error.message,
+				failureDetails: extractFailureDetails(output),
 			});
 		});
 		child.on('close', (code, signal) => {
@@ -220,14 +224,34 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 				succeeded,
 				durationSeconds: elapsedSeconds(startedAt),
 				failure,
+				failureDetails: succeeded ? undefined : extractFailureDetails(output),
 			});
 		});
-	}).then(result => {
-		if (result.failure) {
-			console.error(`Agent Host E2E — ${suite.label} failed with ${result.failure}`);
-		}
-		return result;
 	});
+}
+
+function extractFailureDetails(output: string): string | undefined {
+	const lines = output.split(/\r?\n/);
+	for (let index = lines.length - 1; index >= 0; index--) {
+		const line = lines[index].replace(/\x1b\[[0-9;]*m/g, '').trim();
+		if (/^\d+ failing$/.test(line)) {
+			return `${lines.slice(index).join('\n').trimEnd()}\n`;
+		}
+	}
+
+	const trimmed = output.trim();
+	return trimmed.length > 0 ? `${trimmed}\n` : undefined;
+}
+
+function printFailureDetails(failures: readonly IRunResult[]): void {
+	console.log('\nAgent Host E2E failure details:');
+	for (const result of failures) {
+		console.log(`\n===== Agent Host E2E — ${result.suite.label} failure =====`);
+		if (result.failureDetails) {
+			process.stdout.write(result.failureDetails);
+		}
+		console.log(`Agent Host E2E — ${result.suite.label} failed with ${result.failure ?? 'an unknown error'}`);
+	}
 }
 
 function suiteArguments(args: readonly string[], suite: ISuite): readonly string[] {

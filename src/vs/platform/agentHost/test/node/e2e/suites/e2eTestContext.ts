@@ -41,6 +41,8 @@ export interface IAgentHostE2ETestContext {
 	readonly isLinux: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
+	/** Whether explicitly requested known-issue reproductions should run against live recording. */
+	readonly runKnownIssueTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
 	readonly observedModelRequestBodies: readonly string[];
 	/**
