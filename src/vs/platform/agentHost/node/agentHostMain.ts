@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostAcpAgentsEnvVar, AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
@@ -78,6 +78,8 @@ import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
+import { AcpAgent } from './acp/acpAgent.js';
+import { parseAcpAgentConfigurations } from './acp/acpAgentConfiguration.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
@@ -278,6 +280,9 @@ async function startAgentHost(): Promise<void> {
 			};
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
+		}
+		for (const configuration of parseAcpAgentConfigurations(process.env[AgentHostAcpAgentsEnvVar], logService)) {
+			agentService.registerProvider(instantiationService.createInstance(AcpAgent, configuration));
 		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);

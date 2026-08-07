@@ -125,6 +125,9 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
  */
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
+/** Configuration key for statically configured ACP-backed Agent Host providers. */
+export const AgentHostAcpAgentsSettingId = 'chat.agentHost.acpAgents';
+
 /**
  * Configuration key controlling whether the agent host *wires up* the BYOK
  * ("bring your own key") language-model bridge: the renderer LM handler, the
@@ -163,6 +166,9 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  * `'false'`; absent means "default" (`false`).
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
+
+/** Serialized {@link IAgentHostAcpAgentConfiguration} entries forwarded to the Agent Host process. */
+export const AgentHostAcpAgentsEnvVar = 'VSCODE_AGENT_HOST_ACP_AGENTS';
 
 /**
  * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
@@ -590,6 +596,16 @@ export interface IAgentSdkStarterSettings {
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
 	readonly byokModelsEnabled?: boolean;
+	readonly acpAgents?: readonly IAgentHostAcpAgentConfiguration[];
+}
+
+/** Process launch configuration for one ACP-backed Agent Host provider. */
+export interface IAgentHostAcpAgentConfiguration {
+	readonly id: string;
+	readonly name?: string;
+	readonly command: string;
+	readonly args?: readonly string[];
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export function buildAgentSdkEnv(
@@ -616,6 +632,9 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.byokModelsEnabled !== undefined) {
 		setIfMissing(AgentHostByokModelsEnabledEnvVar, settings.byokModelsEnabled ? 'true' : 'false');
+	}
+	if (settings.acpAgents && settings.acpAgents.length > 0) {
+		setIfMissing(AgentHostAcpAgentsEnvVar, JSON.stringify(settings.acpAgents));
 	}
 	return out;
 }

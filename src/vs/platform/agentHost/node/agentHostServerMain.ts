@@ -54,7 +54,7 @@ import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/ag
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostAcpAgentsEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -91,6 +91,8 @@ import { createAgentHostTelemetryService } from './agentHostTelemetryService.js'
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AcpAgent } from './acp/acpAgent.js';
+import { parseAcpAgentConfigurations } from './acp/acpAgentConfiguration.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -357,6 +359,11 @@ async function main(): Promise<void> {
 			};
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
+		}
+		for (const configuration of parseAcpAgentConfigurations(process.env[AgentHostAcpAgentsEnvVar], logService)) {
+			const acpAgent = disposables.add(instantiationService.createInstance(AcpAgent, configuration));
+			agentService.registerProvider(acpAgent);
+			log(`ACP agent registered: ${configuration.id}`);
 		}
 	}
 

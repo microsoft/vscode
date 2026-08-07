@@ -2433,6 +2433,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `undefined` when the provider is not recognised.
 	 */
 	private iconForAgentProvider(provider: string): ThemeIcon | undefined {
+		if (provider.startsWith('acp-')) {
+			return Codicon.agent;
+		}
+
 		if (provider === CopilotCLISessionType.id) {
 			return CopilotCLISessionType.icon;
 		}
