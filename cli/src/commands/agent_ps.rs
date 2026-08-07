@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use ahp::Client;
 use ahp_types::commands::{ListSessionsParams, ListSessionsResult};
 use ahp_types::state::{SessionStatus, SessionSummary};
 use ahp_types::ROOT_RESOURCE_URI;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use jiff::Timestamp;
 use serde::Serialize;
 
 use crate::log;
@@ -61,21 +63,11 @@ async fn agent_ps_single(
 ) -> Result<i32, AnyError> {
 	let client = agent::connect_explicit(ctx, address, tunnel).await?;
 
-	let result: ListSessionsResult = agent::request_with_auth(
-		ctx,
-		&client,
-		"listSessions",
-		ListSessionsParams {
-			channel: ROOT_RESOURCE_URI.to_string(),
-			limit: None,
-			cursor: None,
-		},
-	)
-	.await?;
+	let result = list_sessions(ctx, &client).await?;
 
 	client.shutdown().await;
 
-	let items = select_and_sort(&result.items, args.all);
+	let items = select_and_sort(&result, args.all)?;
 
 	if args.json {
 		let json = serde_json::to_string_pretty(&items)
@@ -108,20 +100,40 @@ async fn query_host_sessions(
 ) -> Result<Vec<SessionSummary>, AnyError> {
 	let client = agent::connect_to_endpoint(endpoint).await?;
 
-	let result: ListSessionsResult = agent::request_with_auth(
-		ctx,
-		&client,
-		"listSessions",
-		ListSessionsParams {
-			channel: ROOT_RESOURCE_URI.to_string(),
-			limit: None,
-			cursor: None,
-		},
-	)
-	.await?;
+	let result = list_sessions(ctx, &client).await?;
 
 	client.shutdown().await;
-	Ok(result.items)
+	Ok(result)
+}
+
+async fn list_sessions(
+	ctx: &CommandContext,
+	client: &Client,
+) -> Result<Vec<SessionSummary>, AnyError> {
+	let mut items = Vec::new();
+	let mut cursor = None;
+
+	loop {
+		let result: ListSessionsResult = agent::request_with_auth(
+			ctx,
+			client,
+			"listSessions",
+			ListSessionsParams {
+				channel: ROOT_RESOURCE_URI.to_string(),
+				limit: None,
+				cursor,
+			},
+		)
+		.await?;
+		items.extend(result.items);
+
+		let Some(next_cursor) = result.next_cursor else {
+			break;
+		};
+		cursor = Some(next_cursor);
+	}
+
+	Ok(items)
 }
 
 /// Multi-host auto-discovery path (requirement 3): connects to and
@@ -163,7 +175,7 @@ async fn agent_ps_multi(
 		if args.json {
 			collected.push(outcome);
 		} else {
-			print_host_outcome_human(&outcome, args.all);
+			print_host_outcome_human(&outcome, args.all)?;
 		}
 	}
 
@@ -186,7 +198,7 @@ async fn agent_ps_multi(
 /// single-host path: paging would buffer output until the whole command
 /// finishes, defeating the point of streaming results as hosts
 /// complete).
-fn print_host_outcome_human(outcome: &HostSessions, all: bool) {
+fn print_host_outcome_human(outcome: &HostSessions, all: bool) -> Result<(), AnyError> {
 	let header = Styles::title();
 	println!(
 		"\n{}",
@@ -195,7 +207,7 @@ fn print_host_outcome_human(outcome: &HostSessions, all: bool) {
 
 	match &outcome.sessions {
 		Ok(sessions) => {
-			let items = select_and_sort(sessions, all);
+			let items = select_and_sort(sessions, all)?;
 			if items.is_empty() {
 				println!("  {}", Styles::muted().apply_to("No active sessions."));
 			} else {
@@ -206,6 +218,8 @@ fn print_host_outcome_human(outcome: &HostSessions, all: bool) {
 			println!("  {}", Styles::error().apply_to(format!("⚠ {e}")));
 		}
 	}
+
+	Ok(())
 }
 
 /// JSON-serializable host provenance tag, kept intentionally small and
@@ -256,16 +270,19 @@ struct HostSessionsJson<'a> {
 fn build_json_output(collected: &[HostSessions], all: bool) -> Result<String, AnyError> {
 	let hosts: Vec<HostSessionsJson> = collected
 		.iter()
-		.map(|outcome| HostSessionsJson {
-			host: HostJson::from(&outcome.endpoint),
-			sessions: outcome
-				.sessions
-				.as_ref()
-				.ok()
-				.map(|s| select_and_sort(s, all)),
-			error: outcome.sessions.as_ref().err().map(|e| e.to_string()),
+		.map(|outcome| {
+			Ok(HostSessionsJson {
+				host: HostJson::from(&outcome.endpoint),
+				sessions: outcome
+					.sessions
+					.as_ref()
+					.ok()
+					.map(|s| select_and_sort(s, all))
+					.transpose()?,
+				error: outcome.sessions.as_ref().err().map(|e| e.to_string()),
+			})
 		})
-		.collect();
+		.collect::<Result<_, AnyError>>()?;
 
 	serde_json::to_string_pretty(&hosts).map_err(|e| wrap(e, "Failed to serialize sessions").into())
 }
@@ -273,15 +290,34 @@ fn build_json_output(collected: &[HostSessions], all: bool) -> Result<String, An
 /// Applies the `--all` filter (active-only unless set) and sorts
 /// most-recently-modified first, shared by every output path so human
 /// and JSON output (single- or multi-host) always agree on ordering.
-fn select_and_sort(sessions: &[SessionSummary], all: bool) -> Vec<&SessionSummary> {
-	let mut items: Vec<&SessionSummary> = if all {
+fn select_and_sort(
+	sessions: &[SessionSummary],
+	all: bool,
+) -> Result<Vec<&SessionSummary>, AnyError> {
+	let items: Vec<&SessionSummary> = if all {
 		sessions.iter().collect()
 	} else {
 		sessions.iter().filter(|s| is_active(s.status)).collect()
 	};
 
-	items.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
-	items
+	let mut timestamps = items
+		.into_iter()
+		.map(|session| {
+			session
+				.modified_at
+				.parse::<Timestamp>()
+				.map(|timestamp| (session, timestamp))
+				.map_err(|e| {
+					wrap(
+						e,
+						"Agent host returned an invalid session modification timestamp",
+					)
+				})
+		})
+		.collect::<Result<Vec<_>, _>>()?;
+	timestamps.sort_by(|(_, a), (_, b)| b.cmp(a));
+
+	Ok(timestamps.drain(..).map(|(session, _)| session).collect())
 }
 
 /// A session is "active" if it is in-progress, needs input, or errored
@@ -391,11 +427,11 @@ mod tests {
 		);
 		let sessions = vec![idle.clone(), active.clone()];
 
-		let filtered = select_and_sort(&sessions, false);
+		let filtered = select_and_sort(&sessions, false).unwrap();
 		assert_eq!(filtered.len(), 1);
 		assert_eq!(filtered[0].resource, "b");
 
-		let all = select_and_sort(&sessions, true);
+		let all = select_and_sort(&sessions, true).unwrap();
 		assert_eq!(all.len(), 2);
 	}
 
@@ -413,9 +449,28 @@ mod tests {
 		);
 		let sessions = vec![older, newer];
 
-		let sorted = select_and_sort(&sessions, true);
+		let sorted = select_and_sort(&sessions, true).unwrap();
 		assert_eq!(sorted[0].resource, "b");
 		assert_eq!(sorted[1].resource, "a");
+	}
+
+	#[test]
+	fn select_and_sort_normalizes_timestamp_offsets() {
+		let later = session(
+			"later",
+			SessionStatus::InProgress.bits(),
+			"2026-01-01T00:30:00Z",
+		);
+		let earlier = session(
+			"earlier",
+			SessionStatus::InProgress.bits(),
+			"2026-01-01T01:00:00+02:00",
+		);
+		let sessions = vec![earlier, later];
+
+		let sorted = select_and_sort(&sessions, true).unwrap();
+		assert_eq!(sorted[0].resource, "later");
+		assert_eq!(sorted[1].resource, "earlier");
 	}
 
 	#[test]
