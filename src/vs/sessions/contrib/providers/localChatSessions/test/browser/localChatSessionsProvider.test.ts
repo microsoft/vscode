@@ -28,7 +28,7 @@ import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { LocalChatSessionsProvider, LocalSessionType, LOCAL_SESSION_ENABLED_SETTING } from '../../browser/localChatSessionsProvider.js';
+import { LocalChatSessionsProvider, LocalSessionType } from '../../browser/localChatSessionsProvider.js';
 
 // ---- Mock chat service ----------------------------------------------------
 
@@ -118,7 +118,6 @@ interface ITestFixture {
 	instantiationService: TestInstantiationService;
 	chatService: MockChatService;
 	storage: TestStorageService;
-	config: TestConfigurationService;
 	dialog: { confirmResult: boolean; confirmCount: number };
 }
 
@@ -127,7 +126,6 @@ function createFixture(store: DisposableStore): ITestFixture {
 	const chatService = store.add(new MockChatService());
 	const storage = store.add(new TestStorageService());
 	const config = new TestConfigurationService();
-	config.setUserConfiguration(LOCAL_SESSION_ENABLED_SETTING, true);
 
 	const dialog = { confirmResult: true, confirmCount: 0 };
 
@@ -148,7 +146,7 @@ function createFixture(store: DisposableStore): ITestFixture {
 	}());
 	instantiationService.stub(IFileService, new class extends mock<IFileService>() { }());
 	instantiationService.stub(IInstantiationService, instantiationService);
-	return { instantiationService, chatService, storage, config, dialog };
+	return { instantiationService, chatService, storage, dialog };
 }
 
 const TEST_FOLDER = URI.file('/test/folder');
@@ -465,12 +463,6 @@ suite('LocalChatSessionsProvider', () => {
 		await Event.toPromise(provider.onDidChangeSessions);
 
 		assert.strictEqual(provider.getSessions()[0].isRead.get(), false);
-	});
-
-	test('Event.None and exports remain stable', () => {
-		assert.strictEqual(LocalSessionType.id, 'local');
-		assert.strictEqual(LOCAL_SESSION_ENABLED_SETTING, 'sessions.chat.localAgent.enabled');
-		assert.ok(Event.None);
 	});
 
 	// ---- Multi-chat ---------------------------------------------------------

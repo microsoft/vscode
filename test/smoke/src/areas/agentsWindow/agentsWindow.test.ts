@@ -125,7 +125,6 @@ async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefine
 		'chat.allowAnonymousAccess': true,
 		'github.copilot.chat.githubMcpServer.enabled': false,
 		'chat.agents.claude.preferAgentHost': false,
-		'sessions.chat.localAgent.enabled': true,
 		// Keep follow-up turns in the same chat so the test flow is deterministic.
 		'sessions.github.copilot.multiChatSessions': false,
 		// Capture enough runtime detail to diagnose CI hangs.

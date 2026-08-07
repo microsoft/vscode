@@ -6,11 +6,8 @@
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { LocalChatSessionsProvider, LOCAL_SESSION_ENABLED_SETTING } from './localChatSessionsProvider.js';
+import { LocalChatSessionsProvider } from './localChatSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { localize } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ForkConversationAction } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
@@ -18,23 +15,9 @@ import { registerAction2 } from '../../../../../platform/actions/common/actions.
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'sessions',
-	properties: {
-		[LOCAL_SESSION_ENABLED_SETTING]: {
-			type: 'boolean',
-			default: true,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-			description: localize('sessions.chat.localAgent.enabled', "Enable Local VS Code chat sessions in the Agents Window. Reload the window for changes to take effect."),
-		},
-	},
-});
 
 class LocalSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.localSessionsProvider';
@@ -42,15 +25,8 @@ class LocalSessionsProviderContribution extends Disposable implements IWorkbench
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-
-		// Only register the provider when enabled. The setting is read once
-		// at startup; toggling it requires a window reload.
-		if (!configurationService.getValue<boolean>(LOCAL_SESSION_ENABLED_SETTING)) {
-			return;
-		}
 
 		const provider = this._register(instantiationService.createInstance(LocalChatSessionsProvider));
 		this._register(sessionsProvidersService.registerProvider(provider));

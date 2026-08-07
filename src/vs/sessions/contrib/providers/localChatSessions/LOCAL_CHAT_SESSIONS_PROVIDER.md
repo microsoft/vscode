@@ -11,7 +11,7 @@ The local sessions provider, registered with ID `'local-chat'`. Wraps local in-p
 | `id` | `'local-chat'` |
 | `label` | `'Local Chat'` |
 | `icon` | `Codicon.vm` |
-| `sessionTypes` | `[LocalSessionType]` (static — provider is only registered when `sessions.chat.localAgent.enabled` is true at startup) |
+| `sessionTypes` | `[LocalSessionType]` (static) |
 | `supportsLocalWorkspaces` | `true` |
 | `browseActions` | `[]` (uses the workspace picker's built-in folder browser) |
 
@@ -23,7 +23,7 @@ The local sessions provider, registered with ID `'local-chat'`. Wraps local in-p
 
 ## Registration
 
-Registration is gated by the `sessions.chat.localAgent.enabled` setting, read once at workbench startup in `localChatSessions.contribution.ts`. If the setting is `false`, the provider is not created or registered at all. **Toggling the setting requires a window reload to take effect** — the provider does not listen for runtime configuration changes.
+`LocalSessionsProviderContribution` creates and registers the provider at `WorkbenchPhase.AfterRestored`.
 
 ## Architecture
 
