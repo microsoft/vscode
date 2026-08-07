@@ -15,7 +15,6 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
-import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
@@ -23,7 +22,7 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { IChatViewOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
-import { DraggedChatIdentifier } from '../dnd.js';
+import { IDraggedSessionChat } from '../dnd.js';
 
 interface IGroupEntry {
 	readonly id: number;
@@ -102,8 +101,6 @@ export class ChatGroupsView extends Themable {
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
-	private readonly _chatTransfer = LocalSelectionTransfer.getInstance<DraggedChatIdentifier>();
-
 	constructor(
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -152,7 +149,7 @@ export class ChatGroupsView extends Themable {
 
 		const dropDelegate: IChatGroupDropTargetDelegate = {
 			findTargetGroup: child => this._findTargetGroup(child),
-			onChatDrop: (groupId, zone) => this._onChatDrop(groupId, zone),
+			onChatDrop: (groupId, zone, data) => this._onChatDrop(groupId, zone, data),
 		};
 		store.add(this._instantiationService.createInstance(ChatGroupDropTarget, this.element, dropDelegate));
 
@@ -395,21 +392,17 @@ export class ChatGroupsView extends Themable {
 		return undefined;
 	}
 
-	private _onChatDrop(targetGroupId: number, zone: ChatDropZone): void {
-		const data = this._chatTransfer.getData(DraggedChatIdentifier.prototype);
-		this._chatTransfer.clearData(DraggedChatIdentifier.prototype);
-
-		if (!Array.isArray(data) || data.length === 0 || !this._session) {
+	private _onChatDrop(targetGroupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined): void {
+		if (!data || !this._session) {
 			return;
 		}
 
-		const dragged = data[0];
-		if (dragged.sessionId !== this._session.sessionId) {
+		if (data.sessionId !== this._session.sessionId) {
 			return; // not a chat from this session
 		}
 
-		const resource = dragged.resource;
-		const id = resource.toString();
+		const id = data.resource;
+		const resource = URI.parse(id);
 		const target = this._groups.find(g => g.id === targetGroupId);
 		const source = this._groups.find(g => g.resourceIds.get().includes(id));
 		if (!target || !source) {

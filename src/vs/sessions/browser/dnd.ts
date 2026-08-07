@@ -30,15 +30,57 @@ export class DraggedSessionIdentifier {
 }
 
 /**
- * Identifier used to track a chat being dragged between chat groups within a
- * single session view via {@link LocalSelectionTransfer}.
+ * The group-move payload carried on a chat-tab drag via the
+ * {@link SessionsDataTransfers.CHAT} `dataTransfer` mime. Used to move/split a
+ * chat between chat groups within a session.
+ *
+ * This is deliberately carried on the drag event's `dataTransfer` (not on the
+ * shared {@link LocalSelectionTransfer} singleton) because a chat-tab drag also
+ * offers a chat *reference* payload, and that reference uses the singleton. The
+ * singleton holds only one payload at a time, so relying on it here would let
+ * the reference payload clobber the group-move payload (and vice versa). The
+ * `dataTransfer` mime keeps the two independent: its `types` are readable during
+ * `dragover` (to gate the drop overlay) and its value on `drop`.
  */
-export class DraggedChatIdentifier {
+export interface IDraggedSessionChat {
+	readonly sessionId: string;
+	readonly resource: string;
+}
 
-	constructor(
-		readonly sessionId: string,
-		readonly resource: URI,
-	) { }
+/**
+ * Attaches the {@link IDraggedSessionChat} group-move payload to a chat-tab drag.
+ */
+export function fillSessionChatDragData(e: DragEvent, sessionId: string, resource: URI): void {
+	const data: IDraggedSessionChat = { sessionId, resource: resource.toString() };
+	e.dataTransfer?.setData(SessionsDataTransfers.CHAT, JSON.stringify(data));
+}
+
+/**
+ * Whether the drag carries a session chat. Reads the `dataTransfer` **types**, so
+ * it works during `dragover` (when values are not yet readable).
+ */
+export function isSessionChatDrag(e: DragEvent): boolean {
+	return !!e.dataTransfer && e.dataTransfer.types.includes(SessionsDataTransfers.CHAT);
+}
+
+/**
+ * Reads the {@link IDraggedSessionChat} group-move payload from a drop event.
+ * Only meaningful on `drop` (when `dataTransfer` values are readable).
+ */
+export function getSessionChatDragData(e: DragEvent): IDraggedSessionChat | undefined {
+	const raw = e.dataTransfer?.getData(SessionsDataTransfers.CHAT);
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(raw);
+		if (parsed && typeof parsed.sessionId === 'string' && typeof parsed.resource === 'string') {
+			return parsed;
+		}
+	} catch {
+		// ignore malformed payloads
+	}
+	return undefined;
 }
 
 /**

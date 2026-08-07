@@ -31,8 +31,7 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ChatInteractivity, getChatCapabilities, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { clearChatReferenceDragData, DraggedChatIdentifier, fillChatReferenceDragData, SessionsDataTransfers } from '../dnd.js';
+import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
@@ -110,8 +109,6 @@ export class ChatCompositeBar extends Disposable {
 	private _delegate: IChatCompositeBarDelegate | undefined;
 	private readonly _newChatAction: Action;
 	private readonly _newChatContainer: HTMLElement;
-
-	private readonly _chatTransfer = LocalSelectionTransfer.getInstance<DraggedChatIdentifier>();
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -431,9 +428,11 @@ export class ChatCompositeBar extends Disposable {
 			}
 			this._cancelTabEditing();
 
-			// Group-move payload: lets the chat be moved between groups / split out.
-			this._chatTransfer.setData([new DraggedChatIdentifier(delegate.session.sessionId, chat.resource)], DraggedChatIdentifier.prototype);
-			e.dataTransfer.setData(SessionsDataTransfers.CHAT, chat.resource.toString());
+			// Group-move payload (on dataTransfer, not the shared LocalSelectionTransfer
+			// singleton) lets the chat be moved between groups / split out. It must not
+			// use the singleton because the chat-reference payload below also uses it,
+			// and the singleton holds only one payload at a time.
+			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource);
 
 			// Chat-reference payload: requires the opaque backend chat URI, which
 			// only the owning agent-host provider knows. When it is unavailable
@@ -450,7 +449,6 @@ export class ChatCompositeBar extends Disposable {
 		}));
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_END, () => {
-			this._chatTransfer.clearData(DraggedChatIdentifier.prototype);
 			clearChatReferenceDragData();
 			this._delegate?.onTabDragEnd?.();
 		}));
