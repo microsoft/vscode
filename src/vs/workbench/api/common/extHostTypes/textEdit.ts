@@ -10,7 +10,8 @@ import { Range } from './range.js';
 
 export enum EndOfLine {
 	LF = 1,
-	CRLF = 2
+	CRLF = 2,
+	CR = 3
 }
 
 @es5ClassCompat
