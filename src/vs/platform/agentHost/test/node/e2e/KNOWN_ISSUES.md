@@ -8,10 +8,11 @@ When a valid E2E scenario exposes a gap:
 
 1. Minimize it and identify the affected provider, platform, and mode.
 2. Keep the test, but gate only the affected variant.
-3. Record the exact title, scope, expected and observed behavior, gate, and focused reproduction here.
-4. Record symptoms, not unverified root-cause hypotheses.
-5. Keep generated captures for variants expected to run again; never hand-edit them.
-6. Remove the gate, entry, stale comments, and orphaned artifacts together when the gap closes.
+3. For a suspected product bug, first explain in complete sentences what the user is trying to do, what fails, and how that failure is likely to affect the user. Define feature-specific terms instead of assuming that the test title or an implementation detail such as "full context" is self-explanatory.
+4. After the user-facing explanation, record the exact test title, scope, expected and observed behavior, gate, and focused reproduction.
+5. Record symptoms, not unverified root-cause hypotheses.
+6. Keep generated captures for variants expected to run again; never hand-edit them.
+7. Remove the gate, entry, stale comments, and orphaned artifacts together when the gap closes.
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
@@ -360,6 +361,90 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
     --grep "server tool: viewUnreviewedComments"
   ```
 
+### Claude omits important tool details when reading another session's transcript
+
+The `get_session_context` tool lets an agent read the conversation history of an existing session. Its most detailed mode includes the tools used in earlier turns and the arguments passed to those tools, which helps the agent understand what work has already been performed.
+
+With Claude, that detailed history omits the arguments of a previous `list_sessions` call and exposes the provider's internal name, `mcp__host__list_sessions`, instead of the product-facing name. An agent using this history may be unable to tell what an earlier tool call did, causing it to repeat work or make decisions from an incomplete account of the session.
+
+- Test: `server tool: get_session_context full includes prior server-tool input`.
+- Scope: Claude.
+- Expected: the returned transcript identifies the earlier tool as `list_sessions` and includes its `{}` input.
+- Observed: the transcript identifies it as `mcp__host__list_sessions` and omits the input.
+- Gate: `supportsFullSessionContext` in `serverToolsSuite.ts`.
+- Reproduce: record the exact test with the Claude provider.
+
+### Claude reports that another session was deleted but leaves it available
+
+The `delete_session` tool lets an agent delete a different Agent Host session. Claude reports that this operation succeeded, but the supposedly deleted session remains in the session list.
+
+For users, this means a request to clean up an obsolete session may appear successful even though nothing was removed. The stale session can remain visible and available for later operations, contradicting the agent's confirmation.
+
+- Test: `server tool: delete_session removes a non-current session`.
+- Scope: Claude.
+- Expected: after the tool reports success, the target no longer appears in `listSessions`.
+- Observed: the target is still listed after the tool completes and remains listed after repeated checks.
+- Gate: `supportsCrossSessionDelete` in `serverToolsSuite.ts`.
+- Reproduce: record the exact test with the Claude provider.
+
+### Claude can send a message to the chat that is already running the tool
+
+The `send_message` tool is intended for contacting another session or chat. The host rejects attempts to target the same chat that is currently invoking the tool, because doing so can recursively start more work in an already active conversation.
+
+Claude bypasses that protection and starts another turn in the current chat. A user could therefore see unexpected duplicate work, recursive agent activity, or a conversation that repeatedly messages itself.
+
+- Test: `server tool: send_message refuses to target the invoking chat`.
+- Scope: Claude.
+- Expected: the tool fails with an error explaining that it cannot send a message to the current chat.
+- Observed: another turn starts in the current chat instead of the tool returning the safety error.
+- Gate: `supportsSelfSendRejection` in `serverToolsSuite.ts`.
+- Reproduce: record the exact test with the Claude provider.
+
+For all three Claude tests:
+
+```bash
+AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+  --grep "server tool: (get_session_context full|delete_session removes|send_message refuses)"
+```
+
+### Codex cannot complete several workflows that refer to another session
+
+Agent Host gives sessions stable links so an agent can look up a particular session, send work to another session, or delete another session. In the affected Codex workflows, the provider fails a model request with `Authorization header is badly formatted` before the requested session tool can run.
+
+Users may be unable to use session links or ask a Codex agent to coordinate with or remove another session. The failure currently appears as an authentication error rather than a useful explanation of which cross-session operation could not be completed. It is not yet known whether the malformed authorization originates in Codex's handling of additional sessions or in the Agent Host integration.
+
+- Tests:
+  - `server tool: list_sessions direct lookup accepts an open-session link`
+  - `server tool: send_message starts a turn in another session`
+  - `server tool: delete_session removes a non-current session`
+- Scope: Codex.
+- Expected: Codex completes the model turn and invokes the requested session tool with the referenced session.
+- Observed: direct lookup fails its first model request; send and delete fail while preparing the additional target session. Each failure reports `Authorization header is badly formatted`.
+- Gates: `supportsDirectSessionLookup`, `supportsCrossSessionSend`, and `supportsCrossSessionDelete` in `serverToolsSuite.ts`.
+- Reproduce: record the affected tests with the Codex provider.
+
+### Codex can send a message to the chat that is already running the tool
+
+As with Claude, Codex does not enforce the `send_message` protection that prevents an active chat from messaging itself. Instead of rejecting the call, Codex starts another turn in the current chat.
+
+This can produce unexpected duplicate or recursive agent work for users and defeats the host's loop-prevention contract.
+
+- Test: `server tool: send_message refuses to target the invoking chat`.
+- Scope: Codex.
+- Expected: the tool fails with an error explaining that it cannot send a message to the current chat.
+- Observed: another turn starts in the current chat instead of the tool returning the safety error.
+- Gate: `supportsSelfSendRejection` in `serverToolsSuite.ts`.
+- Reproduce: record the exact test with the Codex provider.
+
+For the affected Codex tests:
+
+```bash
+AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+  --grep "server tool: (list_sessions direct lookup|send_message|delete_session removes)"
+```
+
 ### Claude provider-context fork
 
 - Tests:
@@ -467,40 +552,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Gate: `subagentReplayUnstableOnWindows: true`.
 - Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
 - Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
-
-### Git-status snapshot ordering
-
-- Test: `inspects git status`.
-- Scope: Claude and Codex.
-- Expected: the behavior snapshot contains stable semantic tool traffic.
-- Observed: customization and changeset notifications occur at nondeterministic points in the snapshot.
-- Gate: enabled only for Copilot, subject to shell-platform gates.
-- Reproduce: enable the provider variant and record the exact title with `AGENT_HOST_UPDATE_SNAPSHOTS=1`.
-
-### Server-tool session references cannot replay across UUID-only providers
-
-- Tests:
-  - `server tool: list_sessions direct lookup accepts an open-session link`
-  - `server tool: get_session_context summary includes a completed prior turn`
-  - `server tool: get_session_context full includes prior server-tool input`
-  - `server tool: get_session_context transcriptLimit keeps only the newest turn`
-  - `server tool: send_message starts a turn in another session`
-  - `server tool: delete_session removes a non-current session`
-  - `server tool: send_message refuses to target the invoking chat`
-  - `server tool: delete_session refuses to delete the invoking session`
-- Scope: Claude and Codex deterministic E2E replay.
-- Expected: the model can pass a session URI returned by the host back into a later server-tool invocation.
-- Observed: Claude requires UUID-shaped session resources. The capture normalizer rewrites those UUIDs to `${uuid_N}`, but replay cannot map that placeholder to the fresh run's session URI when it appears in a later tool argument. Copilot accepts stable non-UUID test resources, so these scenarios replay there.
-- Gate: `supportsReplayableSessionReferences` in `serverToolsSuite.ts`.
-- Reproduce: temporarily enable the selected provider and record one test, then replay it:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
-    --grep "server tool: get_session_context summary"
-  ```
-
-The remaining server-tool scenarios use no session URI in model-generated tool arguments and remain enabled for every provider.
 
 ### Mid-turn abort is record-only
 

@@ -19,11 +19,11 @@ import { Action2, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { CustomViewVisibleContext, EditorMaximizedContext, HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, EditorMaximizedContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -55,10 +55,11 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-// Maximize/restore stays in the editor-title layout cluster. Hide Editor and
-// Toggle Details render together in the trailing editor-header layout group.
-const singlePaneLayoutMaximizeOrder = 20;
-const singlePaneHeaderHideEditorOrder = 10;
+// Maximize/restore renders first in the editor-title layout cluster.
+// Hide/Show Editor follow immediately after. Toggle Details remains
+// alone in the trailing editor-header layout group.
+const singlePaneLayoutMaximizeOrder = 10;
+const singlePaneLayoutHideEditorOrder = 20;
 
 // Keybinding scope for the single-pane maximize/restore toggle: active in the
 // main sessions window whenever the single-pane layout is on and the editor
@@ -200,17 +201,15 @@ class HideMainEditorPartAction extends Action2 {
 		super({
 			id: HideMainEditorPartAction.ID,
 			title: localize2('hideMainEditorPart', "Hide Editor"),
-			icon: Codicon.chevronRight,
+			icon: Codicon.rightPanelHide,
 			f1: false,
-			precondition: AuxiliaryBarVisibleContext,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
+				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: singlePaneHeaderHideEditorOrder,
+				order: singlePaneLayoutHideEditorOrder,
 				when: ContextKeyExpr.and(
 					editorTitleActionsWhen,
 					singlePaneDetailPanel,
-					HasDockedDetailsContext,
 					MainEditorAreaVisibleContext)
 			}
 		});
@@ -218,6 +217,8 @@ class HideMainEditorPartAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		// Reveal the detail panel before hiding the editor, so the pane never
+		// passes through fully empty.
 		layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 		layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		// Closing the editor area frees horizontal space, so bring the sessions
@@ -227,6 +228,41 @@ class HideMainEditorPartAction extends Action2 {
 }
 
 registerAction2(HideMainEditorPartAction);
+
+class ShowMainEditorPartAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.showMainEditorPart';
+
+	constructor() {
+		super({
+			id: ShowMainEditorPartAction.ID,
+			title: localize2('showMainEditorPart', "Show Editor"),
+			icon: Codicon.rightPanelShow,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitleLayout,
+				group: 'navigation',
+				order: singlePaneLayoutHideEditorOrder,
+				when: ContextKeyExpr.and(
+					editorTitleActionsWhen,
+					singlePaneDetailPanel,
+					MainEditorAreaVisibleContext.toNegated())
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		// A deliberate user action, so reveal the editor area explicitly (like the
+		// session-header Changes pill) rather than a plain part-visibility toggle:
+		// this records the reveal as intentional so the automatic single-pane hide
+		// rules do not undo it.
+		layoutService.revealEditorPartExplicitly();
+		editorGroupsService.activeGroup.focus();
+	}
+}
+
+registerAction2(ShowMainEditorPartAction);
 
 class CloseMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.closeMainEditorPart';

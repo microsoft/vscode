@@ -622,8 +622,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	// Claude and Codex emit customization/changeset updates at nondeterministic points in this snapshot.
-	(portableShellToolReplayEnabled && shellOutputOracleAvailable && config.provider === 'copilotcli' ? test : test.skip)('inspects git status', async function () {
+	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('inspects git status', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-git-'));
 		tempDirs.push(workspace);
