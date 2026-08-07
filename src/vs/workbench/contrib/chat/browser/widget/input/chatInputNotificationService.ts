@@ -27,6 +27,7 @@ export const enum ChatInputNotificationActionKind {
 
 interface IChatInputNotificationActionBase {
 	readonly label: string;
+	readonly keepOpen?: boolean;
 }
 
 export interface IChatInputNotificationCommandAction extends IChatInputNotificationActionBase {
