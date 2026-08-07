@@ -14,30 +14,13 @@ import { AgentHostAllowSignedOutWhenUsableContribution } from '../../../../../wo
 import { AgentHostDiscoveredConfigNotificationContribution } from './agentHostDiscoveredConfigNotification.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { localize } from '../../../../../nls.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
 import './codexCustomizationSettings.contribution.js';
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'sessions',
-	properties: {
-		[LocalAgentHostDefaultProviderSettingId]: {
-			type: 'boolean',
-			default: true,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#chat.agentHost.enabled#`."),
-		},
-	},
-});
-
 /**
- * Registers the {@link LocalAgentHostSessionsProvider} as a sessions provider
- * when `chat.agentHost.enabled` is true.
+ * Registers the {@link LocalAgentHostSessionsProvider} when the Agent Host is
+ * available in this runtime.
  *
  * {@link AgentHostContribution} handles all the heavy lifting — agent discovery,
  * session handler registration, language model providers, customization harness —

@@ -46,8 +46,13 @@ import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chat
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 
 // #region --- New Chat Widget ---
+
+/** Minimum number of started sessions required before showing tips. */
+const MIN_SESSIONS_FOR_TIPS = 2;
 
 export class NewChatWidget extends Disposable {
 
@@ -121,6 +126,7 @@ export class NewChatWidget extends Disposable {
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -249,6 +255,7 @@ export class NewChatWidget extends Disposable {
 				this._clearChatTip();
 			}
 		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store)(() => this.updateChatTipVisibility()));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(foregroundSessionCountContextKeys)) {
@@ -468,7 +475,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private isChatTipSuppressed(): boolean {
-		return this.isInputOnboardingVisible() || this._isInputNotificationVisible;
+		const sessionCount = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		return sessionCount < MIN_SESSIONS_FOR_TIPS || this.isInputOnboardingVisible() || this._isInputNotificationVisible;
 	}
 
 	private updateChatTipVisibility(): void {
@@ -519,11 +527,10 @@ export class NewChatWidget extends Disposable {
 	/**
 	 * Replaces a restored draft whose harness the folder can no longer serve.
 	 * A draft outlives navigation, so it can name a session type that has since
-	 * stopped being advertised — e.g. the extension-host Copilot CLI once
-	 * `chat.agents.copilotCli.hideExtensionHost` is on. Keeping it would leave
-	 * the composer showing, and sending to, an agent the harness picker doesn't
-	 * list. An empty type list means the folder's providers haven't reported yet
-	 * (a late-connecting agent host), so the draft is left alone.
+	 * stopped being advertised. Keeping it would leave the composer showing, and
+	 * sending to, an agent the harness picker doesn't list. An empty type list
+	 * means the folder's providers haven't reported yet (a late-connecting agent
+	 * host), so the draft is left alone.
 	 */
 	private _replaceDraftOnUnservableHarness(folderUri: URI, draft: IActiveSession): void {
 		if (draft.isCreated.get()) {

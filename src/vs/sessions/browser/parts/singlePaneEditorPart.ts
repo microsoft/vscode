@@ -43,6 +43,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
 				headerSecondary: Menus.SessionsEditorHeaderSecondary,
+				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab

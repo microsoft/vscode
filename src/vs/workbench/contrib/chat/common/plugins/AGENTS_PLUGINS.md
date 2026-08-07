@@ -95,12 +95,12 @@ Four format adapters share the discovery surface:
 |-|------------------|---------|--------|-------------|
 | Manifest | `plugin.json` with the exact Agent Plugins v1 schema | `plugin.json` | `.claude-plugin/plugin.json` | `.plugin/plugin.json` |
 | Portable components | `skills/*/SKILL.md`, `mcp.json` | Host-specific components | Host-specific components | Open Plugin components |
-| Hooks config | None | `hooks.json` | `hooks/hooks.json` | `hooks/hooks.json` |
-| Special handling | Compatible schema recognition, fixed paths, and package containment | Legacy permissive behavior | `${CLAUDE_PLUGIN_ROOT}` token replacement | `${PLUGIN_ROOT}` token replacement |
+| Hooks config | `com.github.copilot/hooks/hooks.json` client extension | `hooks.json` | `hooks/hooks.json` | `hooks/hooks.json` |
+| Special handling | Compatible schema recognition, portable fixed paths, Copilot client extensions, and package containment | Legacy permissive behavior | `${CLAUDE_PLUGIN_ROOT}` token replacement | `${PLUGIN_ROOT}` token replacement |
 
 Auto-detection first reads root `plugin.json`. The Agent adapter is selected when `$schema` uses the `agent-plugins.org` plugin schema namespace. Compatible schema revisions are accepted and known usable fields are read without rejecting unknown or malformed optional metadata. An Agent manifest wins over coexisting legacy metadata. Otherwise `.plugin/plugin.json` selects Open Plugin, a Claude path or manifest selects Claude, and the remaining packages use the Copilot adapter.
 
-Agent Plugins use the shared plugin discovery pipeline and permissive component readers with format-specific fixed paths. Discovery scans only immediate skill children and root `mcp.json`, keeps usable known fields, normalizes remote servers to the existing MCP configuration consumed by transport auto-detection, and never interprets legacy inline fields or custom component paths. Unknown or malformed optional metadata is ignored.
+Agent Plugins use the shared plugin discovery pipeline and permissive component readers. Portable discovery scans only immediate children of `skills/` and root `mcp.json`. Copilot-specific commands, agents, rules, and hooks use the sanctioned `com.github.copilot` client extension namespace in both the manifest and filesystem. Their defaults are `com.github.copilot/commands/`, `com.github.copilot/agents/`, `com.github.copilot/rules/`, and `com.github.copilot/hooks/hooks.json`. Component path configuration under `extensions["com.github.copilot"]` resolves relative to the matching extension directory and supports the same string, string array, and `{ paths, exclusive }` forms as legacy plugin manifests. Inline hook and MCP definitions are also accepted there. Other extension namespaces and malformed optional metadata are ignored.
 
 ### Plugin Contents (Filesystem Layout)
 
@@ -111,6 +111,15 @@ Agent Plugins use the shared plugin discovery pipeline and permissive component 
 ├── .plugin/plugin.json                            # Open Plugin manifest
 ├── hooks.json   OR  hooks/hooks.json              # hook definitions
 ├── mcp.json                                       # Agent Plugins v1 MCP definitions
+├── com.github.copilot/                            # Copilot Agent Plugin client extension
+│   ├── commands/
+│   │   └── do-thing.md
+│   ├── agents/
+│   │   └── helper.md
+│   ├── rules/
+│   │   └── project.instructions.md
+│   └── hooks/
+│       └── hooks.json
 ├── .mcp.json                                      # Legacy MCP server definitions
 ├── commands/
 │   ├── do-thing.md                                # → IAgentPluginCommand

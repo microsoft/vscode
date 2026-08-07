@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
-import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetRenderedState, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldFlipChatPetWideSprite, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -62,11 +62,19 @@ suite('ChatPetWidget', () => {
 			getChatPetRenderedState('rendering', 'complete', false),
 			getChatPetRenderedState('rendering', undefined, true),
 			getChatPetRenderedState('rendering', 'complete', true),
+			getChatPetRenderedState('idle', 'yappingMouthOpen', false),
+			getChatPetRenderedState('typing', 'yappingMouthOpen', false),
+			getChatPetRenderedState('rendering', 'yapping', false),
+			getChatPetRenderedState('sleep', 'yappingMouthOpen', false),
 		], [
 			'rendering',
 			'complete',
 			'idle',
 			'idle',
+			'yappingMouthOpen',
+			'typing',
+			'rendering',
+			'sleep',
 		]);
 	});
 
@@ -114,44 +122,28 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('maps random values to click interactions', () => {
+	test('includes button press among click interactions with a rare spin easter egg', () => {
 		assert.deepStrictEqual([
 			getChatPetClickInteraction(0),
-			getChatPetClickInteraction(0.24),
-			getChatPetClickInteraction(0.26),
-			getChatPetClickInteraction(0.49),
-			getChatPetClickInteraction(0.51),
-			getChatPetClickInteraction(0.74),
-			getChatPetClickInteraction(0.76),
+			getChatPetClickInteraction(0.000_999),
+			getChatPetClickInteraction(0.001),
+			getChatPetClickInteraction(0.201),
+			getChatPetClickInteraction(0.401),
+			getChatPetClickInteraction(0.601),
+			getChatPetClickInteraction(0.801),
+			getChatPetClickInteraction(0.5),
 			getChatPetClickInteraction(0.99),
-		], [
-			'love',
-			'love',
-			'jump',
-			'jump',
-			'cool',
-			'cool',
-			'yapping',
-			'yapping',
-		]);
-	});
-
-	test('does not repeat the previous click interaction', () => {
-		assert.deepStrictEqual([
-			getChatPetClickInteraction(0, 'love'),
-			getChatPetClickInteraction(0.99, 'love'),
-			getChatPetClickInteraction(0, 'jump'),
-			getChatPetClickInteraction(0.99, 'jump'),
-			getChatPetClickInteraction(0, 'cool'),
-			getChatPetClickInteraction(0.99, 'cool'),
-			getChatPetClickInteraction(0, 'yapping'),
+			getChatPetClickInteraction(0.001, 'buttonPress'),
 			getChatPetClickInteraction(0.99, 'yapping'),
 		], [
+			'complete',
+			'complete',
+			'buttonPress',
+			'love',
 			'jump',
+			'cool',
 			'yapping',
-			'love',
-			'yapping',
-			'love',
+			'jump',
 			'yapping',
 			'love',
 			'cool',
@@ -165,11 +157,14 @@ suite('ChatPetWidget', () => {
 			doesChatPetStateTrackCursor('waking'),
 			doesChatPetStateTrackCursor('typing'),
 			doesChatPetStateTrackCursor('rendering'),
+			doesChatPetStateTrackCursor('buttonPress'),
 			doesChatPetStateTrackCursor('complete'),
 			doesChatPetStateTrackCursor('love'),
 			doesChatPetStateTrackCursor('cool'),
 			doesChatPetStateTrackCursor('yapping'),
 			doesChatPetStateTrackCursor('yappingMouthOpen'),
+			doesChatPetStateTrackCursor('falling'),
+			doesChatPetStateTrackCursor('splat'),
 			doesChatPetStateTrackCursor('onTheRun'),
 			doesChatPetStateTrackCursor('searching'),
 		], [
@@ -181,16 +176,20 @@ suite('ChatPetWidget', () => {
 			false,
 			false,
 			false,
+			false,
 			true,
+			false,
+			false,
 			false,
 			false,
 			false,
 		]);
 	});
 
-	test('keeps automatic completion separate from the yapping sprite', () => {
+	test('maps activity and interaction states to their sprites', () => {
 		assert.deepStrictEqual([
 			getChatPetSpriteName('complete', 'insider'),
+			getChatPetSpriteName('buttonPress', 'insider'),
 			getChatPetSpriteName('sleep', 'insider'),
 			getChatPetSpriteName('waking', 'stable'),
 			getChatPetSpriteName('typing', 'insider'),
@@ -198,8 +197,11 @@ suite('ChatPetWidget', () => {
 			getChatPetSpriteName('cool', 'stable'),
 			getChatPetSpriteName('searching', 'stable'),
 			getChatPetSpriteName('yappingMouthOpen', 'insider'),
+			getChatPetSpriteName('falling', 'stable'),
+			getChatPetSpriteName('splat', 'insider'),
 		], [
 			'buddy-idle-insiders',
+			'buddy-press-button-insiders',
 			'buddy-sleep-insiders',
 			'buddy-waking-stable',
 			'buddy-typing-insiders',
@@ -207,6 +209,8 @@ suite('ChatPetWidget', () => {
 			'buddy-cool-stable',
 			'buddy-search-stable',
 			'buddy-yapping-insiders',
+			'buddy-falling-stable',
+			'buddy-splat-insiders',
 		]);
 	});
 
@@ -217,25 +221,33 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('waking'),
 			getChatPetFrameDurations('typing'),
 			getChatPetFrameDurations('rendering'),
+			getChatPetFrameDurations('buttonPress'),
 			getChatPetFrameDurations('clapping'),
 			getChatPetFrameDurations('love'),
 			getChatPetFrameDurations('cool'),
 			getChatPetFrameDurations('searching'),
 			getChatPetFrameDurations('yapping'),
 			getChatPetFrameDurations('yappingMouthOpen'),
+			getChatPetFrameDurations('falling'),
+			getChatPetFrameDurations('splat'),
+			getChatPetRespawnFrameDurations(),
 			getChatPetSpeechFrameDurations(),
 		], [
 			Array.from({ length: 50 }, () => 40),
 			Array.from({ length: 8 }, () => 300),
 			[160, 100, 80, 90, 90, 90, 100, 170],
-			Array.from({ length: 8 }, () => 120),
+			[400, 600],
 			Array.from({ length: 50 }, () => 40),
+			[500, 300, 350, 250, 450, 1_000],
 			[80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80],
 			[200, 200, 380, 100, 80, 1_980],
 			[600, 120, 120, 120, 160, 80, 80, 80, 1_640],
 			[500, 500, 500, 500],
 			[],
-			[300, 240, 1_500, 240, 360],
+			[],
+			Array.from({ length: 4 }, () => 120),
+			[120, 100, 100, 200],
+			[120, 100, 120, 240, 100, 120],
 			[220, 220, 220, 100, 160, 180],
 		]);
 	});
@@ -319,15 +331,103 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	test('places the default position thirty-two pixels from the right edge', () => {
+		assert.deepStrictEqual([
+			getChatPetDefaultHorizontalPosition(0, 100),
+			getChatPetDefaultHorizontalPosition(20, 120),
+			getChatPetDefaultHorizontalPosition(40, 20),
+		], [
+			68,
+			88,
+			40,
+		]);
+	});
+
+	test('changes size in twenty-percent steps with only a minimum', () => {
+		assert.deepStrictEqual([
+			getChatPetScale(1, 0.2),
+			getChatPetScale(1, -0.2),
+			getChatPetScale(0.4, -0.2),
+			getChatPetScale(10, 0.2),
+		], [
+			1.2,
+			0.8,
+			0.4,
+			10.2,
+		]);
+	});
+
+	test('clamps two-dimensional dragging to the chat bounds', () => {
+		assert.deepStrictEqual([
+			getChatPetDragPosition(-20, -40, 10, 100, -300, 200),
+			getChatPetDragPosition(50, -100, 10, 100, -300, 200),
+			getChatPetDragPosition(120, 240, 10, 100, -300, 200),
+		], [
+			[10, -40],
+			[50, -100],
+			[100, 200],
+		]);
+	});
+
+	test('lands on the input only when dropped above its horizontal span', () => {
+		assert.deepStrictEqual([
+			getChatPetFallTarget(50, 20, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(0, 20, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(50, 152, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(50, 190, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(50, 151.5, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(50, 152.5, 48, 48, 40, 200, 200, 400),
+			getChatPetFallTarget(50, 220, 48, 48, 40, 200, 200, 400),
+		], [
+			{ top: 152, landsOnPlatform: true },
+			{ top: 400, landsOnPlatform: false },
+			{ top: 152, landsOnPlatform: true },
+			{ top: 400, landsOnPlatform: false },
+			{ top: 152, landsOnPlatform: true },
+			{ top: 400, landsOnPlatform: false },
+			{ top: 400, landsOnPlatform: false },
+		]);
+	});
+
+	test('scales fall duration with distance within motion bounds', () => {
+		assert.deepStrictEqual([
+			getChatPetFallDuration(0),
+			getChatPetFallDuration(100),
+			getChatPetFallDuration(400),
+			getChatPetFallDuration(1_225),
+		], [
+			180,
+			200,
+			400,
+			700,
+		]);
+	});
+
 	test('adapts vertical alignment to the input stack', () => {
 		assert.deepStrictEqual([
 			getChatPetVerticalOffset(100, 98),
 			getChatPetVerticalOffset(100, 108),
 			getChatPetVerticalOffset(100, 112),
+			getChatPetVerticalOffset(100, 160),
 		], [
 			0,
 			8,
 			10,
+			10,
+		]);
+	});
+
+	test('ignores passive pills when choosing the active platform', () => {
+		assert.deepStrictEqual([
+			getChatPetPlatformTop(100, 160),
+			getChatPetPlatformTop(100, 160, 120),
+			getChatPetPlatformTop(100, 160, 158),
+			getChatPetPlatformTop(100, 160, 170),
+		], [
+			110,
+			120,
+			158,
+			110,
 		]);
 	});
 
@@ -341,6 +441,22 @@ suite('ChatPetWidget', () => {
 			false,
 			true,
 			false,
+			false,
+		]);
+	});
+
+	test('flips wide action sprites before they cross the input edge', () => {
+		assert.deepStrictEqual([
+			shouldFlipChatPetWideSprite('typing', 963, 1000),
+			shouldFlipChatPetWideSprite('typing', 965, 1000),
+			shouldFlipChatPetWideSprite('buttonPress', 967, 1000),
+			shouldFlipChatPetWideSprite('buttonPress', 969, 1000),
+			shouldFlipChatPetWideSprite('idle', 1000, 1000),
+		], [
+			false,
+			true,
+			false,
+			true,
 			false,
 		]);
 	});

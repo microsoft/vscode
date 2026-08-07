@@ -458,6 +458,7 @@ import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
 import './browser/parts/customViewGridParts.js';
 import './services/sessions/browser/sessionsService.js';
+import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
 import './services/customView/browser/customViewService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';

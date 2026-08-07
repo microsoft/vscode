@@ -13,7 +13,6 @@ import { CancellationToken } from 'vscode-languageserver-protocol';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/common/chatDebugFileLoggerService';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
-import { InMemoryConfigurationService } from '../../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { NullNativeEnvService } from '../../../../../platform/env/common/nullEnvService';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
@@ -263,99 +262,28 @@ describe('CopilotCLISessionService', () => {
 
 	// --- Tests ----------------------------------------------------------------------------------
 
-	describe('session file monitoring', () => {
-		it('skips the watcher when the Extension Host Copilot CLI is inactive for the current window', async () => {
-			const cases = [
-				{ name: 'Agents window Agent Host default', isAgentSessionsWorkspace: true, agentHostEnabled: true, agentsDefault: true, editorHidden: false, editorDefault: false, expectedWatcherCount: 0 },
-				{ name: 'editor window Extension Host hidden', isAgentSessionsWorkspace: false, agentHostEnabled: true, agentsDefault: false, editorHidden: true, editorDefault: false, expectedWatcherCount: 0 },
-				{ name: 'Agents window Agent Host disabled', isAgentSessionsWorkspace: true, agentHostEnabled: false, agentsDefault: true, editorHidden: false, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'editor window Agent Host disabled', isAgentSessionsWorkspace: false, agentHostEnabled: false, agentsDefault: false, editorHidden: true, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'Agents window editor hidden only', isAgentSessionsWorkspace: true, agentHostEnabled: true, agentsDefault: false, editorHidden: true, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'editor window Agents default only', isAgentSessionsWorkspace: false, agentHostEnabled: true, agentsDefault: true, editorHidden: false, editorDefault: false, expectedWatcherCount: 1 },
-				{ name: 'editor window Agent Host default only', isAgentSessionsWorkspace: false, agentHostEnabled: true, agentsDefault: false, editorHidden: false, editorDefault: true, expectedWatcherCount: 1 },
-			];
+	it('monitors external sessions only in the Agents window', () => {
+		const editorFileSystem = new TrackingFileSystemService();
+		const agentsFileSystem = new TrackingFileSystemService();
+		const editorService = createSessionService({ fileSystem: editorFileSystem });
+		const agentsService = createSessionService({ fileSystem: agentsFileSystem, isAgentSessionsWorkspace: true });
 
-			const results = [];
-			for (const testCase of cases) {
-				const testConfiguration = disposables.add(new InMemoryConfigurationService(configurationService));
-				await Promise.all([
-					testConfiguration.setNonExtensionConfig('chat.agentHost.enabled', testCase.agentHostEnabled),
-					testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', testCase.agentsDefault),
-					testConfiguration.setNonExtensionConfig('chat.editor.copilotCli.hideExtensionHost', testCase.editorHidden),
-					testConfiguration.setNonExtensionConfig('chat.defaultToCopilotHarness', testCase.editorDefault),
-				]);
-				const fileSystem = new TrackingFileSystemService();
-				disposables.add(createSessionService({
-					configurationService: testConfiguration,
-					fileSystem,
-					isAgentSessionsWorkspace: testCase.isAgentSessionsWorkspace,
-				}));
-				results.push({ name: testCase.name, watcherCount: fileSystem.createFileSystemWatcherCallCount });
-			}
+		const beforeDispose = {
+			editor: editorFileSystem.createFileSystemWatcherCallCount,
+			agents: agentsFileSystem.createFileSystemWatcherCallCount,
+		};
+		editorService.dispose();
+		agentsService.dispose();
 
-			expect(results).toEqual(cases.map(testCase => ({ name: testCase.name, watcherCount: testCase.expectedWatcherCount })));
-		});
-
-		it('stops monitoring when the Agents window Agent Host default resolves after construction', async () => {
-			const testConfiguration = disposables.add(new InMemoryConfigurationService(configurationService));
-			await Promise.all([
-				testConfiguration.setNonExtensionConfig('chat.agentHost.enabled', true),
-				testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', false),
-			]);
-			const fileSystem = new TrackingFileSystemService();
-			const sessionService = disposables.add(createSessionService({
-				configurationService: testConfiguration,
-				fileSystem,
-				isAgentSessionsWorkspace: true,
-			}));
-			const states = [{ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount }];
-
-			await testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', true);
-			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
-
-			await testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', false);
-			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
-
-			sessionService.dispose();
-			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
-
-			expect(states).toEqual([
-				{ created: 1, disposed: 0 },
-				{ created: 1, disposed: 1 },
-				{ created: 2, disposed: 1 },
-				{ created: 2, disposed: 2 },
-			]);
-		});
-
-		it('updates monitoring when the Extension Host Copilot CLI is hidden in the editor window', async () => {
-			const testConfiguration = disposables.add(new InMemoryConfigurationService(configurationService));
-			await Promise.all([
-				testConfiguration.setNonExtensionConfig('chat.agentHost.enabled', true),
-				testConfiguration.setNonExtensionConfig('chat.editor.copilotCli.hideExtensionHost', false),
-			]);
-			const fileSystem = new TrackingFileSystemService();
-			const sessionService = disposables.add(createSessionService({
-				configurationService: testConfiguration,
-				fileSystem,
-				isAgentSessionsWorkspace: false,
-			}));
-			const states = [{ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount }];
-
-			await testConfiguration.setNonExtensionConfig('chat.editor.copilotCli.hideExtensionHost', true);
-			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
-
-			await testConfiguration.setNonExtensionConfig('chat.editor.copilotCli.hideExtensionHost', false);
-			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
-
-			sessionService.dispose();
-			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
-
-			expect(states).toEqual([
-				{ created: 1, disposed: 0 },
-				{ created: 1, disposed: 1 },
-				{ created: 2, disposed: 1 },
-				{ created: 2, disposed: 2 },
-			]);
+		expect({
+			beforeDispose,
+			disposed: {
+				editor: editorFileSystem.disposeFileSystemWatcherCallCount,
+				agents: agentsFileSystem.disposeFileSystemWatcherCallCount,
+			},
+		}).toEqual({
+			beforeDispose: { editor: 0, agents: 1 },
+			disposed: { editor: 0, agents: 1 },
 		});
 	});
 

@@ -217,9 +217,8 @@ suite('SessionTypePicker', () => {
 	});
 
 	test('a draft never displays a harness the picker no longer offers', () => {
-		// `chat.agents.copilotCli.hideExtensionHost`: the extension-host Copilot
-		// CLI ('copilot' provider) stops being advertised, leaving only the agent
-		// host's entry — which shares the 'copilotcli' session type id.
+		// The extension-host Copilot CLI stops being advertised, leaving only the
+		// agent host's entry, which shares the 'copilotcli' session type id.
 		management.setSessionTypes([sessionType('local-agent-host', 'copilotcli', 'Copilot')]);
 		const picker = createPicker(disposables, session, management, storage);
 

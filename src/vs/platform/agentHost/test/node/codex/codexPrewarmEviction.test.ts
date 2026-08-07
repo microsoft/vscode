@@ -349,6 +349,40 @@ suite('CodexAgent prewarm eviction', () => {
 		await assertPrewarmEvictedOnSend(disposables, false);
 	});
 
+	test('/compact invokes thread/compact/start instead of starting a prompt turn', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo');
+		const { session } = await agent.createSession({ workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL } });
+		const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), '/compact', [repo], undefined, 'turn-compact');
+		const threadStart = await readNextRequest(peer.outbound);
+		peer.push({ id: threadStart.id, result: { thread: { id: 'thread-compact' } } });
+		const compactStart = await readNextRequest(peer.outbound);
+		peer.push({ id: compactStart.id, result: {} });
+		await send;
+
+		assert.deepStrictEqual({
+			threadStart: { method: threadStart.method, cwd: threadStart.params.cwd },
+			compactStart: { method: compactStart.method, threadId: compactStart.params.threadId },
+			firstTurnSent: agent['_sessions'].get(AgentSession.id(session))?.firstTurnSent,
+		}, {
+			threadStart: { method: 'thread/start', cwd: repo.fsPath },
+			compactStart: { method: 'thread/compact/start', threadId: 'thread-compact' },
+			firstTurnSent: true,
+		});
+		peer.exit();
+	});
+
 	test('thread start receives custom agents, instructions, skills, and MCP from client plugins', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
@@ -667,6 +701,75 @@ suite('CodexAgent prewarm eviction', () => {
 				readOnly: {
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
 					sandboxPolicy: { type: 'readOnly', networkAccess: false },
+				},
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('consecutive sends replace and remove workspace roots on the existing thread', async () => {
+		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repoA = URI.file('/repo-a');
+		const repoB = URI.file('/repo-b');
+		const repoC = URI.file('/repo-c');
+
+		try {
+			const created = await agent.createSession({ workingDirectories: [repoA, repoB], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			const firstSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'first', [repoA, repoB], undefined, 'turn-1');
+			const firstTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: firstTurn.id, result: {} });
+			await firstSend;
+
+			const secondSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'second', [repoA, repoC], undefined, 'turn-2');
+			const secondTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: secondTurn.id, result: {} });
+			await secondSend;
+
+			const thirdSend = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'third', [repoA], undefined, 'turn-3');
+			const thirdTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: thirdTurn.id, result: {} });
+			await thirdSend;
+
+			assert.deepStrictEqual({
+				second: {
+					method: secondTurn.method,
+					threadId: secondTurn.params.threadId,
+					runtimeWorkspaceRoots: secondTurn.params.runtimeWorkspaceRoots,
+					writableRoots: secondTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? secondTurn.params.sandboxPolicy.writableRoots : undefined,
+				},
+				third: {
+					method: thirdTurn.method,
+					threadId: thirdTurn.params.threadId,
+					runtimeWorkspaceRoots: thirdTurn.params.runtimeWorkspaceRoots,
+					writableRoots: thirdTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? thirdTurn.params.sandboxPolicy.writableRoots : undefined,
+				},
+			}, {
+				second: {
+					method: 'turn/start',
+					threadId: 'thread',
+					runtimeWorkspaceRoots: [repoA.fsPath, repoC.fsPath],
+					writableRoots: [repoA.fsPath, repoC.fsPath],
+				},
+				third: {
+					method: 'turn/start',
+					threadId: 'thread',
+					runtimeWorkspaceRoots: [repoA.fsPath],
+					writableRoots: [repoA.fsPath],
 				},
 			});
 		} finally {
