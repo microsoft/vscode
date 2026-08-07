@@ -351,6 +351,15 @@
 	height: auto !important;
 }
 
+.chat-input-window .chat-input-window-pending-panel.modified-files-confirmation .chat-query-title-part > small,
+.chat-input-window .chat-input-window-pending-panel.modified-files-confirmation .chat-confirmation-widget-message-scrollable {
+	display: none;
+}
+
+.chat-input-window .chat-input-window-pending-panel.modified-files-confirmation .chat-confirmation-widget2 {
+	min-height: 0;
+}
+
 .chat-input-window .chat-input-window-pending-widget .monaco-tl-row,
 .chat-input-window .chat-input-window-pending-widget .monaco-tl-contents {
 	height: auto !important;
