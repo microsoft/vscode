@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call ask_user exactly once to ask "Which colors?" with choices "Red" and "Blue" and allow multiple selections. After the answer, reply with only the selected colors.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ask_user
+          input:
+            question: Which colors?
+            choices:
+              - Red
+              - Blue
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call ask_user exactly once to ask "Which colors?" with choices "Red" and "Blue" and allow multiple selections. After the answer, reply with only the selected colors.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: ask_user
+              input:
+                question: Which colors?
+                choices:
+                  - Red
+                  - Blue
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'User selected: Red'
+    response:
+      content: Red
+      stopReason: end_turn

@@ -140,6 +140,7 @@ function prepareTestRuntime(): void {
 	const environment = { ...process.env };
 	delete environment.ELECTRON_RUN_AS_NODE;
 
+	mkdirSync(join(repoRoot, '.build', 'crashes'), { recursive: true });
 	if (!existsSync(join(repoRoot, 'node_modules'))) {
 		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install'], environment);
 	}
