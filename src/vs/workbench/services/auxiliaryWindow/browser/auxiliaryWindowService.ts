@@ -89,6 +89,8 @@ export interface IAuxiliaryWindow extends IDisposable {
 
 	updateOptions(options: { compact: boolean } | undefined): void;
 
+	setBounds(bounds: IRectangle): Promise<void>;
+
 	layout(): void;
 
 	createState(): IAuxiliaryWindowOpenOptions;
@@ -136,6 +138,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	updateOptions(options: { compact: boolean }): void {
 		this.compact = options.compact;
+	}
+
+	async setBounds(bounds: IRectangle): Promise<void> {
+		this.window.moveTo(bounds.x, bounds.y);
+		this.window.resizeTo(bounds.width, bounds.height);
 	}
 
 	private registerListeners(): void {
