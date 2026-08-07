@@ -3986,7 +3986,7 @@ suite('VoiceSessionController', () => {
 		const controller = createController(new TestVoiceClientService());
 		const omniSession = URI.parse('agent-host-copilot:/omni-route');
 
-		controller.setOmniInputActive(true);
+		controller.takeOmniInputOwnership(mainWindow);
 		controller.setTargetSession(omniSession, 'existing_session');
 		const retained = controller.retainOmniInputOwnershipForBargeIn(mainWindow);
 
@@ -4001,6 +4001,9 @@ suite('VoiceSessionController', () => {
 			hasDraftTarget: false,
 			targetSession: omniSession.toString(),
 		});
+
+		Reflect.set(controller, '_window', undefined);
+		assert.strictEqual(controller.retainOmniInputOwnershipForBargeIn(mainWindow), false);
 
 		controller.setOmniInputActive(false);
 		assert.strictEqual(controller.retainOmniInputOwnershipForBargeIn(mainWindow), false);

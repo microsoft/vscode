@@ -3112,10 +3112,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	retainOmniInputOwnershipForBargeIn(window: Window & typeof globalThis): boolean {
-		if (!this._omniInputActive.get()) {
+		if (!this._omniInputActive.get() || this._window !== window) {
 			return false;
 		}
-		this.setActiveWindow(window);
 		return true;
 	}
 
