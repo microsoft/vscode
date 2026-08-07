@@ -27,9 +27,25 @@ import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTyp
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
-async function awaitFrames(count: number): Promise<void> {
-	for (let i = 0; i < count; i++) {
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+function nextFrame(): Promise<void> {
+	return new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+}
+
+// Rows measure themselves asynchronously and the list re-layouts across animation frames. Waiting
+// for the measured content height to settle keeps the test independent of a fixed frame count,
+// which otherwise overshoots the mocha timeout when animation frames are throttled in headless CI.
+async function waitForStableLayout(widget: ChatListWidget, maxFrames = 120): Promise<void> {
+	let previousHeight = -1;
+	let stableFrames = 0;
+	for (let frame = 0; frame < maxFrames && stableFrames < 3; frame++) {
+		await nextFrame();
+		const height = widget.contentHeight;
+		if (height === previousHeight) {
+			stableFrames++;
+		} else {
+			previousHeight = height;
+			stableFrames = 0;
+		}
 	}
 }
 
@@ -148,6 +164,8 @@ suite('ChatListWidget', () => {
 		container.style.insetInlineStart = '0px';
 		container.style.width = '500px';
 		container.style.height = '300px';
+		// Disable the disclosure's expand transition so layout settles without animation.
+		container.classList.add('monaco-reduce-motion');
 		mainWindow.document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
 
@@ -187,12 +205,11 @@ suite('ChatListWidget', () => {
 
 		widget.refresh();
 		widget.layout(300, 500);
-		// Rows measure themselves asynchronously, so let the heights settle before scrolling to the
-		// end, then re-layout so the scrollable dimensions match the measured content.
-		await awaitFrames(6);
+		await waitForStableLayout(widget);
+		// Re-layout so the scrollable dimensions match the measured content, then scroll to the end.
 		widget.layout(300, 500);
 		widget.scrollToEnd();
-		await awaitFrames(10);
+		await waitForStableLayout(widget);
 
 		const disclosure = Array.from(container.querySelectorAll<HTMLDetailsElement>('.completed-response-disclosure')).at(-1);
 		assert.ok(disclosure, 'expected the last response to render a completed-response disclosure');
@@ -202,7 +219,7 @@ suite('ChatListWidget', () => {
 		const wasAtBottom = widget.isScrolledToBottom;
 		const summaryTopBefore = summary.getBoundingClientRect().top;
 		summary.click();
-		await awaitFrames(30);
+		await waitForStableLayout(widget);
 		const summaryMovedBy = summary.getBoundingClientRect().top - summaryTopBefore;
 
 		assert.deepStrictEqual({
