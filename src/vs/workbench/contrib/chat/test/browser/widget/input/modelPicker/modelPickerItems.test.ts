@@ -342,11 +342,11 @@ suite('buildModelPickerItems', () => {
 		const items = callBuild([], { setupRequired: true, onRequestSetup: () => { } });
 		const actions = getActionItems(items);
 		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Sign in to use Copilot'));
-		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].item?.id, 'setupRequiredSignIn');
 		assert.strictEqual(actions[0].item?.enabled, true);
 		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
-		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
+		assert.strictEqual(actions[1].item?.id, 'manageModels');
 	});
 
 	test('setupRequired Sign In action is disabled without a setup callback', () => {
