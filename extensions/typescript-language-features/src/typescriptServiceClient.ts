@@ -1305,7 +1305,7 @@ class ServerInitializingIndicator extends Disposable {
 	}
 
 	public finishedLoadingProject(projectName: string): void {
-		if (this._task && this._task.project === projectName) {
+		if (this._task?.project === projectName) {
 			this._task.resolve();
 			this._task = undefined;
 		}

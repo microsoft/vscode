@@ -73,7 +73,7 @@ function getParameterListParts(
 					// Only take top level paren names
 					const next = displayParts[i + 1];
 					// Skip optional parameters
-					const nameIsFollowedByOptionalIndicator = next && next.text === '?';
+					const nameIsFollowedByOptionalIndicator = next?.text === '?';
 					// Skip this parameter
 					const nameIsThis = part.text === 'this';
 
