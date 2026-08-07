@@ -29,6 +29,7 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
 import '../media/chatAgentFeedbackReviewConfirmation.css';
@@ -263,6 +264,9 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		rowStore.add(dom.addDisposableListener(toggle, dom.EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();
+			// Announce the toggle before the row grows so the list anchors this comment instead of
+			// auto-scrolling to the new end of the transcript when it is already at the bottom.
+			container.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 			expanded = !expanded;
 			renderState();
 		}));

@@ -10,10 +10,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ChangesContextKeys } from '../../common/changes.js';
-import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
 import '../../browser/changesViewActions.js';
@@ -101,7 +101,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to the single-pane editor header (1_diff group) with toggle state', () => {
+	test('toggle inline view is contributed to multi-file and single-file diff editor headers with toggle state', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
@@ -117,9 +117,11 @@ suite('Changes View Actions', () => {
 			order: item.order,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			toggledTitle: toggledInfo?.title,
-			toggledOnSideBySide: toggledInfo?.condition.serialize() === EditorContextKeys.multiDiffEditorRenderSideBySide.serialize(),
+			toggledOnMultiDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.multiDiffEditorRenderSideBySide.key),
+			toggledOnSingleDiffSideBySide: toggledInfo?.condition.serialize().includes(EditorContextKeys.diffEditorInlineMode.key),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
@@ -129,9 +131,11 @@ suite('Changes View Actions', () => {
 			order: 20,
 			icon: Codicon.diffSidebyside.id,
 			toggledTitle: 'Show Inline Diff',
-			toggledOnSideBySide: true,
+			toggledOnMultiDiffSideBySide: true,
+			toggledOnSingleDiffSideBySide: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
+			hasTextCompareEditorGate: true,
 			hasSinglePaneConfigGate: true,
 			hasEditorAreaVisibleGate: true,
 		});
@@ -150,6 +154,7 @@ suite('Changes View Actions', () => {
 			category: item.command.category && typeof item.command.category !== 'string' ? item.command.category.value : item.command.category,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+			hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
@@ -158,6 +163,7 @@ suite('Changes View Actions', () => {
 			category: 'Changes',
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
+			hasTextCompareEditorGate: true,
 			hasSinglePaneConfigGate: true,
 			hasEditorAreaVisibleGate: true,
 		});
@@ -210,7 +216,7 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Create Pull Request anchor is contributed to the right-side title bar menu', () => {
+	test('Create Pull Request anchor is contributed to the right-side title bar menu for created sessions', () => {
 		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID);
@@ -227,6 +233,7 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
 			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasCreatedSessionGate: when.includes(SessionIsCreatedContext.key),
 			hasChangesGate: when.includes(SessionHasChangesContext.key),
 		}, {
 			editorTitleItem: undefined,
@@ -235,6 +242,7 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: true,
 			hasAuxiliaryWindowGate: true,
 			hasSinglePaneLayoutGate: true,
+			hasCreatedSessionGate: true,
 			hasChangesGate: true,
 		});
 	});

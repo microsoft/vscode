@@ -902,7 +902,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Different groups view: move via groups view API
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
-			sourceView.closeAllEditors();
+			sourceView.closeAllEditors({ force: true });
 			this.removeGroup(sourceView, restoreFocus);
 		}
 
@@ -1573,7 +1573,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			await group.closeAllEditors({ excludeConfirming: true });
+			await group.closeAllEditors({ excludeConfirming: true, force: true });
 		}
 
 		return groups;

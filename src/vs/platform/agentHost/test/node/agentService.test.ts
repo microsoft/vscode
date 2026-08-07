@@ -24,6 +24,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
+import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -4906,6 +4908,145 @@ suite('AgentService (node dispatcher)', () => {
 				beforeContext: undefined,
 				materializeCalls: 1,
 				transcript: [{ turn: 1, state: 'complete', user: 'Remember this', assistant: 'Remembered' }],
+			});
+		});
+
+		test('session creation tools inherit the calling chat model and session permissions', async () => {
+			class ServerToolAgent extends MockAgent {
+				readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+				readonly createChatOptions: (IAgentCreateChatOptions | undefined)[] = [];
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+
+				override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+					this.createSessionConfigs.push(config);
+					return super.createSession(config);
+				}
+
+				override async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+					this.createChatOptions.push(options);
+				}
+
+				getInheritedSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+					const inherited: Record<string, unknown> = {};
+					for (const key of [SessionConfigKey.AutoApprove, SessionConfigKey.Permissions, ClaudeSessionConfigKey.PermissionMode, CodexSessionConfigKey.PermissionsPreset]) {
+						if (config[key] !== undefined) {
+							inherited[key] = config[key];
+						}
+					}
+					return inherited;
+				}
+			}
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const sourceSession = await localService.createSession({ provider: 'copilot' });
+			const sourceChat = URI.parse(buildChatUri(sourceSession, 'source-chat'));
+			await localService.createChat(sourceSession, sourceChat);
+			localService.stateManager.setSessionConfig(sourceSession.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: {
+					[SessionConfigKey.AutoApprove]: 'autoApprove',
+					[SessionConfigKey.Permissions]: { allow: ['shell'], deny: ['write'] },
+					[ClaudeSessionConfigKey.PermissionMode]: 'bypassPermissions',
+					[CodexSessionConfigKey.PermissionsPreset]: 'full-access',
+					[SessionConfigKey.Mode]: 'plan',
+				},
+			});
+			localService.dispatchAction(sourceChat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'source-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'Create more work', origin: { kind: MessageKind.User }, model: { id: 'source-model' } },
+			}, 'test-client', 1);
+			const sourceModelBeforeCreation = localService.stateManager.getSessionState(sourceChat.toString())?.activeTurn?.message.model;
+
+			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
+				workspace: URI.file('/workspace').toString(),
+				prompt: 'new session',
+			});
+			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateChat, {
+				prompt: 'new chat',
+			});
+
+			assert.deepStrictEqual({
+				sourceModelBeforeCreation,
+				sessionConfig: {
+					...agent.createSessionConfigs.at(-1),
+					workingDirectories: agent.createSessionConfigs.at(-1)?.workingDirectories?.map(uri => uri.toString()),
+				},
+				chatOptions: agent.createChatOptions.at(-1),
+			}, {
+				sourceModelBeforeCreation: { id: 'source-model' },
+				sessionConfig: {
+					_meta: undefined,
+					provider: 'copilot',
+					model: { id: 'source-model' },
+					workingDirectories: [URI.file('/workspace').toString()],
+					config: {
+						[SessionConfigKey.AutoApprove]: 'autoApprove',
+						[SessionConfigKey.Permissions]: { allow: ['shell'], deny: ['write'] },
+						[ClaudeSessionConfigKey.PermissionMode]: 'bypassPermissions',
+						[CodexSessionConfigKey.PermissionsPreset]: 'full-access',
+					},
+				},
+				chatOptions: { model: { id: 'source-model' } },
+			});
+		});
+
+		test('session creation tools preserve the provider default model on the active turn', async () => {
+			class ServerToolAgent extends MockAgent {
+				readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+
+				override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+					this.createSessionConfigs.push(config);
+					return super.createSession(config);
+				}
+			}
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const sourceSession = await localService.createSession({ provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(sourceSession);
+			localService.stateManager.dispatchServerAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'previous-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'previous', origin: { kind: MessageKind.User }, model: { id: 'previous-model' } },
+			});
+			localService.stateManager.dispatchServerAction(sourceChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'previous-turn',
+				duration: 1,
+			});
+			localService.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'active-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'use provider default', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+
+			await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.CreateSession, {
+				workspace: URI.file('/workspace').toString(),
+				prompt: 'new session',
+			});
+
+			assert.deepStrictEqual({
+				provider: agent.createSessionConfigs.at(-1)?.provider,
+				model: agent.createSessionConfigs.at(-1)?.model,
+			}, {
+				provider: 'copilot',
+				model: undefined,
 			});
 		});
 

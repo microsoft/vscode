@@ -40,6 +40,7 @@ import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETR
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { toClientConnectionTelemetryMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -443,6 +444,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
+				...this._clientConnectionTelemetryMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true });
 			this._applyInitializeResult(result);
@@ -638,6 +640,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				clientId: this._clientId,
 				lastSeenServerSeq,
 				subscriptions,
+				...this._clientConnectionTelemetryMeta(),
 			}, { bypassReconnectGate: true });
 		} catch (error) {
 			if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound) {
@@ -651,10 +654,16 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
+			...this._clientConnectionTelemetryMeta(),
 			initialSubscriptions: subscriptions,
 		}, { bypassReconnectGate: true });
 		this._applyInitializeResult(initializeResult);
 		return { type: ReconnectResultType.Snapshot, snapshots: initializeResult.snapshots ?? [] };
+	}
+
+	private _clientConnectionTelemetryMeta(): { _meta: Record<string, unknown> } | Record<string, never> {
+		const meta = toClientConnectionTelemetryMeta(this._transport.clientConnectionKind);
+		return meta ? { _meta: meta } : {};
 	}
 
 	private _applyInitializeResult(result: CommandMap['initialize']['result']): void {

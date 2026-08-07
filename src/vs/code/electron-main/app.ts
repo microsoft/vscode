@@ -733,12 +733,11 @@ export class CodeApplication extends Disposable {
 		// Always instantiate the starter + manager. They are cheap (the
 		// constructors only register an IPC listener and emitters) and the agent
 		// host utility process is spawned lazily on the first window connection
-		// request. The renderer is the gate: it only requests a connection when
-		// `chat.agentHost.enabled` resolves to `true` and AI features are enabled
-		// there (honoring experiment overrides + policy + web), which the main
-		// process cannot fully observe.
+		// request. The renderer only requests a connection when the runtime is
+		// available and AI features are enabled there, which the main process
+		// cannot fully observe.
 		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
-		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
+		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform));
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {

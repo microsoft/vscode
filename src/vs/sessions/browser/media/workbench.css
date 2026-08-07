@@ -19,13 +19,13 @@
 }
 
 .monaco-workbench.agent-sessions-workbench > .monaco-grid-view {
-	margin: 0 var(--vscode-spacing-size100) var(--vscode-spacing-size100) 4px;
+	margin: 0 var(--vscode-agents-layout-floatingPanelGap) var(--vscode-agents-layout-floatingPanelGap) 4px;
 	width: auto;
-	height: calc(100% - var(--vscode-spacing-size100));
+	height: calc(100% - var(--vscode-agents-layout-floatingPanelGap));
 }
 
 .monaco-workbench.agent-sessions-workbench.nosidebar > .monaco-grid-view {
-	margin-left: var(--vscode-spacing-size100);
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
 }
 
 .monaco-workbench.agent-sessions-workbench.shell-gradient-background {
