@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError, LogOutputChannel } from 'vscode';
+import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError, FilePermission, LogOutputChannel } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
@@ -54,7 +54,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
-			workspace.registerFileSystemProvider('git', this, { isReadonly: true, isCaseSensitive: true }),
+			workspace.registerFileSystemProvider('git', this, { isReadonly: false, isCaseSensitive: true }),
 			new Disposable(() => clearInterval(cleanupHandle)),
 		);
 	}
@@ -69,13 +69,15 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			return;
 		}
 
-		const diffOriginalResourceUri = toGitUri(uri, '~',);
+		const diffOriginalResourceUri = toGitUri(uri, '~');
 		const quickDiffOriginalResourceUri = toGitUri(uri, '', { replaceFileExtension: true });
+		const indexResourceUri = toGitUri(uri, '');
 
 		this.mtime = new Date().getTime();
 		this._onDidChangeFile.fire([
 			{ type: FileChangeType.Changed, uri: diffOriginalResourceUri },
-			{ type: FileChangeType.Changed, uri: quickDiffOriginalResourceUri }
+			{ type: FileChangeType.Changed, uri: quickDiffOriginalResourceUri },
+			{ type: FileChangeType.Changed, uri: indexResourceUri }
 		]);
 	}
 
@@ -170,14 +172,17 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			throw FileSystemError.FileNotFound();
 		}
 
+		// '~' and '' both refer to the staging area (index) and should be writable
+		const permissions = (ref !== '~' && ref !== '') ? FilePermission.Readonly : undefined;
+
 		try {
 			const details = await repository.getObjectDetails(sanitizeRef(ref, path, submoduleOf, repository), path);
-			return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
+			return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0, permissions };
 		} catch {
 			// Empty tree
 			if (ref === await repository.getEmptyTree()) {
 				this.logger.warn(`[GitFileSystemProvider][stat] Empty tree - ${uri.toString()}`);
-				return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
+				return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0, permissions };
 			}
 
 			// File does not exist in git. This could be because the file is untracked or ignored
@@ -242,8 +247,21 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		}
 	}
 
-	writeFile(): void {
-		throw new Error('Method not implemented.');
+	async writeFile(uri: Uri, content: Uint8Array, _options: { create: boolean; overwrite: boolean }): Promise<void> {
+		const { ref, path } = fromGitUri(uri);
+
+		// Allow writes to the staging area: '~' (quasi-ref) and '' (direct index ref)
+		if (ref !== '~' && ref !== '') {
+			throw FileSystemError.NoPermissions(uri);
+		}
+
+		const repository = await this.getOrOpenRepository(uri);
+
+		if (!repository) {
+			throw FileSystemError.FileNotFound();
+		}
+
+		await repository.stageRaw(Uri.file(path), content);
 	}
 
 	delete(): void {
