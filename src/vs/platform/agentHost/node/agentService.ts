@@ -1934,7 +1934,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The agent no longer knows about worktrees; the host's worktree project
 		// (created in the first-send hook) wins for worktree-isolated sessions, and
 		// falls back to whatever the agent reported for folder sessions.
-		const project = this._worktree?.createdWorktreeProject(AgentSession.id(e.session)) ?? e.project;
+		const project = this._worktree?.sessionWorktreeProject(AgentSession.id(e.session)) ?? e.project;
 		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
 		const summary: SessionSummary = {
 			...currentSummary,
@@ -2195,10 +2195,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// session the working directory *is* the worktree, so once it is gone
 		// the repository can no longer be resolved and the refs would leak
 		// into the main repository (`refs/agents/*` is shared, not per-worktree).
+		const sessionId = AgentSession.id(session);
+		await this._worktree?.prepareSessionDeletion(session, sessionId);
 		await this._sessionDataService.deleteSessionData(session, workingDirectories);
-		// Remove any worktree this process created for the session (host-owned;
-		// agents stay unaware).
-		await this._worktree?.removeCreatedWorktree(AgentSession.id(session));
+		await this._worktree?.removeSessionWorktree(sessionId);
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
@@ -4102,8 +4102,6 @@ export class AgentService extends Disposable implements IAgentService {
 			promises.push(provider.shutdown());
 		}
 		await Promise.all(promises);
-		// Drain any worktrees this process created so none leak on shutdown.
-		await this._worktree?.removeAllCreatedWorktrees();
 		this._sessionToProvider.clear();
 		this._downloadProgressInterest.clear();
 	}

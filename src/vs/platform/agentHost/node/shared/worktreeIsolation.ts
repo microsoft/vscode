@@ -52,9 +52,15 @@ export class SessionWorkingDirectoryMissingError extends Error {
 const BRANCH_COMPLETION_LIMIT = 25;
 const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 
-interface ICreatedWorktree {
+interface ISessionWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+interface IWorktreeMetadata {
+	readonly branchName: string;
+	readonly worktreePath?: URI;
+	readonly repositoryRoot?: URI;
 }
 
 /**
@@ -308,22 +314,21 @@ export interface IResolveWorkingDirectoryRequest {
  * - creating the worktree on materialization and persisting its metadata
  *   ({@link resolveWorkingDirectory});
  * - surfacing worktree creation success/failure notices live and on restore;
- * - cleaning up / recreating the worktree on dispose, archive, and unarchive.
+ * - cleaning up / recreating the worktree on session deletion, archive, and unarchive.
  *
  * A single host-owned instance serves every agent: the orchestrator
  * ({@link AgentService}) creates it and drives the lifecycle so individual
  * agents stay unaware of the folder-vs-worktree distinction. Session state
- * (`_createdWorktrees`, pending markers, pending announcements) is keyed by the
+ * (`_sessionWorktrees`, pending markers, pending announcements) is keyed by the
  * globally-unique sessionId, so sharing one instance across agents is safe.
  */
 export class WorktreeIsolation extends Disposable {
 
 	/**
-	 * Worktrees created by this agent in the current process, keyed by
-	 * sessionId. Used to remove the worktree on dispose / error and to
-	 * enumerate live worktrees during shutdown.
+	 * Materialized worktrees keyed by sessionId, including persisted worktrees
+	 * loaded for deletion after a process restart.
 	 */
-	private readonly _createdWorktrees = new Map<string, ICreatedWorktree>();
+	private readonly _sessionWorktrees = new Map<string, ISessionWorktree>();
 
 	/**
 	 * Per-session announcement (markdown) emitted as a synthetic streaming
@@ -352,7 +357,7 @@ export class WorktreeIsolation extends Disposable {
 	 * Serializes the worktree lifecycle per session so a first-send creation
 	 * ({@link resolveOnFirstSend}) never interleaves with archive/unarchive
 	 * cleanup ({@link cleanupWorktreeOnArchive} / {@link recreateWorktreeOnUnarchive})
-	 * or dispose ({@link removeCreatedWorktree}) for the same session — the
+	 * or deletion ({@link removeSessionWorktree}) for the same session — the
 	 * guarantee each agent previously enforced with its own sequencer.
 	 */
 	private readonly _sequencer = new SequencerByKey<string>();
@@ -372,9 +377,9 @@ export class WorktreeIsolation extends Disposable {
 		this._branchNameGenerator = branchNameGenerator ?? new AgentBranchNameGenerator(copilotApiService, this._logService);
 	}
 
-	/** SessionIds with a worktree created by this agent in the current process. */
-	get createdWorktreeSessionIds(): readonly string[] {
-		return [...this._createdWorktrees.keys()];
+	/** SessionIds with a materialized worktree currently tracked by the host. */
+	get trackedWorktreeSessionIds(): readonly string[] {
+		return [...this._sessionWorktrees.keys()];
 	}
 
 	/**
@@ -402,7 +407,7 @@ export class WorktreeIsolation extends Disposable {
 
 	/** The worktree created for a session in this process, if any. */
 	getResolvedWorktree(sessionId: string): URI | undefined {
-		return this._createdWorktrees.get(sessionId)?.worktree;
+		return this._sessionWorktrees.get(sessionId)?.worktree;
 	}
 
 	/**
@@ -559,7 +564,7 @@ export class WorktreeIsolation extends Disposable {
 		// process (e.g. the caller re-enters materialization after a thread
 		// restart or a post-creation failure) reuse it rather than creating a
 		// second branch + worktree.
-		const already = this._createdWorktrees.get(sessionId);
+		const already = this._sessionWorktrees.get(sessionId);
 		if (already) {
 			return already.worktree;
 		}
@@ -622,7 +627,7 @@ export class WorktreeIsolation extends Disposable {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}
 		}
-		this._createdWorktrees.set(sessionId, { repositoryRoot, worktree });
+		this._sessionWorktrees.set(sessionId, { repositoryRoot, worktree });
 		// Queue the worktree announcement so the first turn (live) and any
 		// subsequent restore (history) both surface the message in the chat.
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
@@ -725,36 +730,42 @@ export class WorktreeIsolation extends Disposable {
 		return prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(notice.branchName));
 	}
 
-	/**
-	 * Removes the worktree created for a session in the current process (if
-	 * any). Used on session dispose and on materialization failure.
-	 */
-	async removeCreatedWorktree(sessionId: string): Promise<void> {
-		return this._sequencer.queue(sessionId, () => this._removeCreatedWorktree(sessionId));
+	/** Loads persisted worktree ownership before the session database is deleted. */
+	async prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<void> {
+		return this._sequencer.queue(sessionId, async () => {
+			if (this._sessionWorktrees.has(sessionId)) {
+				return;
+			}
+			let meta: IWorktreeMetadata | undefined;
+			try {
+				meta = await this._readWorktreeMetadata(sessionUri);
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to read worktree metadata before session deletion: ${errorMessage(error)}`);
+				return;
+			}
+			if (meta?.worktreePath && meta.repositoryRoot) {
+				this._sessionWorktrees.set(sessionId, { repositoryRoot: meta.repositoryRoot, worktree: meta.worktreePath });
+			}
+		});
 	}
 
-	private async _removeCreatedWorktree(sessionId: string): Promise<void> {
+	/** Force-removes a tracked worktree after the user confirms session deletion. */
+	async removeSessionWorktree(sessionId: string): Promise<void> {
+		return this._sequencer.queue(sessionId, () => this._removeSessionWorktree(sessionId));
+	}
+
+	private async _removeSessionWorktree(sessionId: string): Promise<void> {
 		this.clearPending(sessionId);
-		const worktree = this._createdWorktrees.get(sessionId);
+		const worktree = this._sessionWorktrees.get(sessionId);
 		if (!worktree) {
 			return;
 		}
 		try {
-			await this._gitService.removeWorktree(worktree.repositoryRoot, worktree.worktree);
+			await this._gitService.removeWorktree(worktree.repositoryRoot, worktree.worktree, { force: true });
+			this._sessionWorktrees.delete(sessionId);
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktree.worktree.fsPath}': ${errorMessage(error)}`);
-		} finally {
-			this._createdWorktrees.delete(sessionId);
 		}
-	}
-
-	/**
-	 * Removes every worktree created by this agent in the current process.
-	 * Called from the agent's `shutdown` so no isolated worktree is leaked when
-	 * the provider is torn down, matching Copilot's shutdown drain.
-	 */
-	async removeAllCreatedWorktrees(): Promise<void> {
-		await Promise.all(this.createdWorktreeSessionIds.map(sessionId => this.removeCreatedWorktree(sessionId)));
 	}
 
 	/**
@@ -778,7 +789,7 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await fs.access(worktreePath.fsPath);
 		} catch {
-			this._createdWorktrees.delete(sessionId);
+			this._sessionWorktrees.delete(sessionId);
 			return;
 		}
 
@@ -804,10 +815,9 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await this._gitService.removeWorktree(repositoryRoot, worktreePath);
 			this._logService.info(`[${this._logLabel}:${sessionId}] Removed worktree '${worktreePath.fsPath}' on archive`);
+			this._sessionWorktrees.delete(sessionId);
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' on archive: ${errorMessage(error)}`);
-		} finally {
-			this._createdWorktrees.delete(sessionId);
 		}
 	}
 
@@ -848,7 +858,7 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
 			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
-			this._createdWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+			this._sessionWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
 			this._logService.info(`[${this._logLabel}:${sessionId}] Recreated worktree '${worktreePath.fsPath}'`);
 			return { ok: true };
 		} catch (error) {
@@ -859,7 +869,7 @@ export class WorktreeIsolation extends Disposable {
 	}
 
 	/** Reads the persisted worktree metadata for a session, if any. */
-	async readWorktreeMetadata(sessionUri: URI): Promise<{ branchName: string; worktreePath?: URI; repositoryRoot?: URI } | undefined> {
+	async readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
 		return this._readWorktreeMetadata(sessionUri);
 	}
 
@@ -897,8 +907,8 @@ export class WorktreeIsolation extends Disposable {
 	 * metadata read so a fresh worktree groups under the repository the moment it
 	 * materializes.
 	 */
-	createdWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined {
-		const worktree = this._createdWorktrees.get(sessionId);
+	sessionWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined {
+		const worktree = this._sessionWorktrees.get(sessionId);
 		return worktree ? projectFromRepositoryRoot(worktree.repositoryRoot) : undefined;
 	}
 
@@ -947,7 +957,7 @@ export class WorktreeIsolation extends Disposable {
 	 * Reads worktree metadata and migrates repository roots written before linked checkouts were canonicalized.
 	 * It probes an existing worktree when available and otherwise falls back to the persisted root for archived sessions.
 	 */
-	private async _readWorktreeMetadata(sessionUri: URI): Promise<{ branchName: string; worktreePath?: URI; repositoryRoot?: URI } | undefined> {
+	private async _readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
 		if (!ref) {
 			return undefined;

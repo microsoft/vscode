@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -551,6 +551,40 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const wtPath = join(dir, '..', `wt-dirty-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/dirty-worktree', 'main');
+			await fs.writeFile(join(wtPath, 'untracked.txt'), 'keep me');
+
+			let safeRemovalFailed = false;
+			try {
+				await svc!.removeWorktree(URI.file(dir), URI.file(wtPath));
+			} catch {
+				safeRemovalFailed = true;
+			}
+			const existsAfterSafeRemoval = existsSync(wtPath);
+
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+
+			assert.deepStrictEqual({
+				safeRemovalFailed,
+				existsAfterSafeRemoval,
+				existsAfterForcedRemoval: existsSync(wtPath),
+			}, {
+				safeRemovalFailed: true,
+				existsAfterSafeRemoval: true,
+				existsAfterForcedRemoval: false,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/dirty-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
 	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
@@ -569,7 +603,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
 			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
 		} finally {
-			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
@@ -647,7 +681,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				progressDone: 5,
 			});
 		} finally {
-			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}

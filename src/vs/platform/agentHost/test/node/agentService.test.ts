@@ -14,6 +14,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -1562,12 +1563,13 @@ suite('AgentService (node dispatcher)', () => {
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			svc.setWorktreeIsolation({
-				removeCreatedWorktree: async () => { order.push('removeCreatedWorktree'); },
+				prepareSessionDeletion: async () => { order.push('prepareSessionDeletion'); },
+				removeSessionWorktree: async () => { order.push('removeSessionWorktree'); },
 			} as unknown as WorktreeIsolation);
 
 			await svc.disposeSession(session);
 
-			assert.deepStrictEqual(order, ['deleteSessionData', 'removeCreatedWorktree']);
+			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree']);
 		});
 	});
 
@@ -2819,6 +2821,50 @@ suite('AgentService (node dispatcher)', () => {
 
 			await service.shutdown();
 			assert.ok(copilotShutdown);
+		});
+
+		test('preserves worktrees owned by persistent sessions', async () => {
+			const workingDirectory = URI.file(mkdtempSync(join(tmpdir(), 'agent-service-shutdown-')));
+			const worktreesRoot = getWorktreesRoot(workingDirectory);
+			disposables.add(toDisposable(() => {
+				rmSync(workingDirectory.fsPath, { recursive: true, force: true });
+				rmSync(worktreesRoot.fsPath, { recursive: true, force: true });
+			}));
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => workingDirectory;
+			gitService.revParse = async () => 'head';
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			gitService.addWorktree = async () => { };
+			let removeWorktreeCalls = 0;
+			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				nullSessionDataService,
+				new NullLogService(),
+			));
+			service.setWorktreeIsolation(isolation);
+			service.registerProvider(copilotAgent);
+			await isolation.resolveWorkingDirectory({
+				sessionUri: AgentSession.uri('copilot', 'session'),
+				sessionId: 'session',
+				workingDirectory,
+				config: {
+					[SessionConfigKey.Isolation]: 'worktree',
+					[SessionConfigKey.Branch]: 'main',
+				},
+			});
+
+			await service.shutdown();
+
+			assert.deepStrictEqual({
+				removeWorktreeCalls,
+				createdSessions: isolation.trackedWorktreeSessionIds,
+			}, {
+				removeWorktreeCalls: 0,
+				createdSessions: ['session'],
+			});
 		});
 	});
 

@@ -47,7 +47,7 @@ suite('WorktreeIsolation', () => {
 	let db: TestSessionDatabase;
 	let addWorktreeCalls: { worktree: URI; branchName: string; startPoint: string; track: boolean }[];
 	let addExistingCalls: { worktree: URI; branchName: string }[];
-	let removeCalls: URI[];
+	let removeCalls: { worktree: URI; force: boolean }[];
 	let copyIncludeCalls: { repositoryRoot: URI; worktree: URI; globs: readonly string[] }[];
 	let copyIncludeError: Error | undefined;
 	let branchName: string;
@@ -85,8 +85,8 @@ suite('WorktreeIsolation', () => {
 				addExistingCalls.push({ worktree, branchName: branch });
 				mkdirSync(worktree.fsPath, { recursive: true });
 			},
-			removeWorktree: async (_root, worktree) => {
-				removeCalls.push(worktree);
+			removeWorktree: async (_root, worktree, options) => {
+				removeCalls.push({ worktree, force: options?.force === true });
 				rmSync(worktree.fsPath, { recursive: true, force: true });
 			},
 		};
@@ -225,7 +225,7 @@ suite('WorktreeIsolation', () => {
 			announcementHasBranch: announcement?.includes(branchName) ?? false,
 			secondTakeAnnouncement: isolation.takePendingAnnouncement(sessionId),
 			idempotentReturn: second!.toString(),
-			createdSessions: isolation.createdWorktreeSessionIds,
+			createdSessions: isolation.trackedWorktreeSessionIds,
 		}, {
 			returnedWorktree: expectedWorktree.toString(),
 			addWorktreeCallCount: 1,
@@ -265,7 +265,7 @@ suite('WorktreeIsolation', () => {
 			},
 		});
 		const meta = await isolation.readWorktreeMetadata(sessionUri);
-		const project = isolation.createdWorktreeProject(sessionId);
+		const project = isolation.sessionWorktreeProject(sessionId);
 
 		assert.deepStrictEqual({
 			worktree: worktree?.toString(),
@@ -465,7 +465,7 @@ suite('WorktreeIsolation', () => {
 			folder: folder?.toString(),
 			noBranch: noBranch?.toString(),
 			addWorktreeCallCount: addWorktreeCalls.length,
-			createdSessions: isolation.createdWorktreeSessionIds,
+			createdSessions: isolation.trackedWorktreeSessionIds,
 		}, {
 			folder: repoRoot.toString(),
 			noBranch: repoRoot.toString(),
@@ -497,7 +497,7 @@ suite('WorktreeIsolation', () => {
 				worktree: call.worktree.toString(),
 				globs: call.globs,
 			})),
-			createdSessions: isolation.createdWorktreeSessionIds,
+			createdSessions: isolation.trackedWorktreeSessionIds,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 			copyIncludeCalls: [{
@@ -612,7 +612,7 @@ suite('WorktreeIsolation', () => {
 		);
 	});
 
-	test('resolveWorktreeProject / createdWorktreeProject expose the repository as the session project', async () => {
+	test('resolveWorktreeProject / sessionWorktreeProject expose the repository as the session project', async () => {
 		// The worktree lives at `<repo>.worktrees/<name>`, but a worktree session
 		// must group under the repository in the sessions UI. Both accessors return
 		// the repo root as the project so agents can merge it into the reported
@@ -622,19 +622,19 @@ suite('WorktreeIsolation', () => {
 		const expectedDisplayName = basename(repoRoot);
 
 		const beforeAsync = await isolation.resolveWorktreeProject(sessionUri);
-		const beforeSync = isolation.createdWorktreeProject(sessionId);
+		const beforeSync = isolation.sessionWorktreeProject(sessionId);
 
 		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
 		const afterAsync = await isolation.resolveWorktreeProject(sessionUri);
-		const afterSync = isolation.createdWorktreeProject(sessionId);
+		const afterSync = isolation.sessionWorktreeProject(sessionId);
 
 		assert.deepStrictEqual({
 			beforeAsync,
 			beforeSync,
 			afterAsync: { uri: afterAsync?.uri.toString(), displayName: afterAsync?.displayName },
 			afterSync: { uri: afterSync?.uri.toString(), displayName: afterSync?.displayName },
-			unknownSession: isolation.createdWorktreeProject('does-not-exist'),
+			unknownSession: isolation.sessionWorktreeProject('does-not-exist'),
 		}, {
 			beforeAsync: undefined,
 			beforeSync: undefined,
@@ -762,30 +762,63 @@ suite('WorktreeIsolation', () => {
 		const restoredDuringUnarchive = worktree ? existsSync(worktree.fsPath) : false;
 
 		assert.deepStrictEqual({
-			removeCalls: removeCalls.map(u => u.toString()),
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
 			removedDuringArchive,
 			addExistingCalls: addExistingCalls.map(c => ({ worktree: c.worktree.toString(), branchName: c.branchName })),
 			restoredDuringUnarchive,
 		}, {
-			removeCalls: [worktree!.toString()],
+			removeCalls: [{ worktree: worktree!.toString(), force: false }],
 			removedDuringArchive: true,
 			addExistingCalls: [{ worktree: worktree!.toString(), branchName }],
 			restoredDuringUnarchive: true,
 		});
 	});
 
-	test('removeAllCreatedWorktrees drains every worktree created in this process', async () => {
+	test('removeSessionWorktree force-removes a worktree for explicit session deletion', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
-		await isolation.removeAllCreatedWorktrees();
+		await isolation.removeSessionWorktree(sessionId);
 
 		assert.deepStrictEqual({
-			removeCalls: removeCalls.map(u => u.toString()),
-			createdSessions: isolation.createdWorktreeSessionIds,
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+			createdSessions: isolation.trackedWorktreeSessionIds,
 		}, {
-			removeCalls: [worktree!.toString()],
+			removeCalls: [{ worktree: worktree!.toString(), force: true }],
 			createdSessions: [],
 		});
+	});
+
+	test('session deletion removes a persisted worktree after a process restart', async () => {
+		const worktree = URI.joinPath(worktreesRoot, 'persisted-worktree');
+		mkdirSync(worktree.fsPath, { recursive: true });
+		await Promise.all([
+			db.setMetadata('copilot.worktree.branchName', 'feature/x'),
+			db.setMetadata('copilot.worktree.path', worktree.toString()),
+			db.setMetadata('copilot.worktree.repositoryRoot', repoRoot.toString()),
+		]);
+		const isolation = createIsolation(disposables);
+
+		await isolation.prepareSessionDeletion(sessionUri, sessionId);
+		await isolation.removeSessionWorktree(sessionId);
+
+		assert.deepStrictEqual({
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+			trackedSessions: isolation.trackedWorktreeSessionIds,
+		}, {
+			removeCalls: [{ worktree: worktree.toString(), force: true }],
+			trackedSessions: [],
+		});
+	});
+
+	test('failed worktree removal remains tracked for a later retry', async () => {
+		const gitService = createGitService();
+		gitService.removeWorktree = async () => { throw new Error('remove failed'); };
+		const isolation = createIsolation(disposables, { gitService });
+		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+
+		await isolation.removeSessionWorktree(sessionId);
+
+		assert.deepStrictEqual(isolation.trackedWorktreeSessionIds, [sessionId]);
 	});
 });
