@@ -212,7 +212,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 
 
 		const resolverEnv = { ...args.resolverEnv };
-		removeDangerousEnvVariables(resolverEnv);
+		// Only keys are inspected, `null` values are kept so they can unset inherited variables
+		removeDangerousEnvVariables(resolverEnv as platform.IProcessEnvironment);
 		const baseEnv = await buildUserEnvironment(resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService, this._configurationService);
 		this._logService.trace('baseEnv', baseEnv);
 
