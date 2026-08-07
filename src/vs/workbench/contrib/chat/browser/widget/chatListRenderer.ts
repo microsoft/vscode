@@ -102,6 +102,7 @@ import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatC
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
+import { ChatSideChatOriginPart } from './chatContentParts/chatSideChatOriginPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatSystemNotificationContentPart } from './chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
@@ -1985,6 +1986,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		dom.clearNode(templateData.value);
+		if (this.environmentService.isSessionsWindow && this.viewModel?.model.getRequests()[0]?.id === element.id) {
+			const sideChatOriginPart = this.instantiationService.createInstance(ChatSideChatOriginPart, element.sessionResource);
+			templateData.value.appendChild(sideChatOriginPart.domNode);
+			templateData.elementDisposables.add(sideChatOriginPart);
+		}
 		const parts: IChatContentPart[] = [];
 		const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.contentReferences, element.modelId, templateData, element.resolvedModelId) : undefined;
 		if (explicitImageAttachmentsPart?.domNode) {
