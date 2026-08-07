@@ -156,19 +156,17 @@ suite('platform - terminalEnvironment', async () => {
 						deepStrictEqual(result2?.newArgs, ['-i']);
 						assertIsEnabled(result2);
 					});
-					test('when shell integration directory does not exist', async () => {
+					test('when shell integration directory is created concurrently', async () => {
 						const applicationName = `vscode-zsh-test-${process.pid}`;
 						const zdotdir = join(realpathSync(tmpdir()), `${username}-${applicationName}-zsh`);
 						rmSync(zdotdir, { recursive: true, force: true });
 						try {
-							const result = await getShellIntegrationInjection(
-								{ executable: 'zsh', args: [] },
-								enabledProcessOptions,
-								defaultEnvironment,
-								logService,
-								{ applicationName } as IProductService,
-							);
-							strictEqual(result.type, 'injection');
+							const productService = { applicationName } as IProductService;
+							const results = await Promise.all([
+								getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService),
+								getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService),
+							]);
+							deepStrictEqual(results.map(result => result.type), ['injection', 'injection']);
 						} finally {
 							rmSync(zdotdir, { recursive: true, force: true });
 						}

@@ -238,7 +238,7 @@ export async function getShellIntegrationInjection(
 						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 					}
 					try {
-						mkdirSync(zdotdir);
+						mkdirSync(zdotdir, { recursive: true });
 					} catch (err) {
 						logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
 						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
