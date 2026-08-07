@@ -307,3 +307,13 @@
 	height: 100%;
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
+
+.style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
+	top: 18px;
+	right: 3px;
+}
+
+.style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
+	top: 13px;
+	right: 3px;
+}
