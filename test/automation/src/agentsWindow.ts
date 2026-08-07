@@ -168,72 +168,61 @@ export class AgentsWindow {
 	/**
 	 * Select the given session type from the new-session picker.
 	 *
-	 * The picker trigger is the `.action-label` inside
-	 * `.sessions-chat-session-type-picker`. Clicking it opens the action
-	 * widget popup; we then locate the matching `.monaco-list-row` by its
-	 * text content and click it. The dropdown is async-populated, so we
-	 * wait for at least the requested label to appear before committing.
+	 * The provider list can change while the picker is open, recreating the
+	 * draft and tearing down the popup. Retry opening, locating, clicking, and
+	 * verifying the selection as one operation so a detached row never leaves
+	 * the helper polling a stale selector.
 	 */
-	async selectSessionType(label: string): Promise<void> {
-		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
-
-		const itemSel = `.action-widget .monaco-list-row`;
-		const maxAttempts = 3;
+	async selectSessionType(label: string, timeoutMs: number = 60_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const trigger = page.locator(`${SESSION_TYPE_PICKER_VISIBLE}:visible`).first();
+		const enabledRows = page.locator(`${ACTION_WIDGET_ROW}:not(.option-disabled)`);
 		const needle = label.toLowerCase();
-		const isActionRow = (el: { className: string }) => el.className.includes('action');
-		const isEnabledActionRow = (el: { className: string }) => isActionRow(el) && !el.className.includes('option-disabled');
-		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
-		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
-			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
-			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && rowText(el) === needle);
-		};
-
-		// The picker click can silently do nothing if the active session
-		// isn't fully initialized yet, and the dropdown is async-populated:
-		// providers (e.g. the AgentHost-backed Copilot CLI variant) can
-		// register a few seconds after the dropdown first renders. Retry
-		// opening the dropdown and poll its rows until the requested label
-		// appears, instead of just waiting for "any item".
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
 		let lastSeen: string[] = [];
-		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
-			const deadline = Date.now() + 10_000;
-			while (Date.now() < deadline) {
-				const items = await this.code.getElements(itemSel, /* recursive */ true);
-				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if ((items ?? []).some(item =>
-					(isEnabledActionRow(item) && actionLabelMatches(item)) ||
-					(!isActionRow(item) && rowText(item) === needle)
-				)) {
-					break outer;
+
+		while (Date.now() < deadline) {
+			try {
+				await trigger.click({ timeout: 5_000 });
+				await page.locator(ACTION_WIDGET).waitFor({ state: 'visible', timeout: 5_000 });
+
+				const rowDeadline = Math.min(deadline, Date.now() + 5_000);
+				let clicked = false;
+				while (!clicked && Date.now() < rowDeadline) {
+					const rowCount = await enabledRows.count();
+					lastSeen = [];
+					for (let index = 0; index < rowCount; index++) {
+						const row = enabledRows.nth(index);
+						const text = (await row.textContent() ?? '').trim();
+						const ariaLabel = (await row.getAttribute('aria-label') ?? '').trim().toLowerCase();
+						lastSeen.push(text);
+						if (ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && text.toLowerCase() === needle)) {
+							await row.click({ force: true, timeout: 5_000 });
+							clicked = true;
+							break;
+						}
+					}
+					if (!clicked) {
+						await new Promise(r => setTimeout(r, 250));
+					}
 				}
-				await new Promise(r => setTimeout(r, 250));
-			}
-			if (attempt === maxAttempts) {
-				throw new Error(`Session type "${label}" not found in picker. Available: ${lastSeen.join(', ')}`);
-			}
-			await new Promise(r => setTimeout(r, 2000));
-		}
 
-		const items = await this.code.waitForElements(itemSel, /* recursive */ true);
+				if (!clicked) {
+					throw new Error(`Session type "${label}" not found in picker. Available: ${lastSeen.join(', ')}`);
+				}
 
-		// Prefer an enabled actionable row whose label matches exactly (e.g. a
-		// session type label like "Claude" or "Copilot CLI").
-		let matchIndex = items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
-		// Otherwise treat the label as a provider section header (e.g. "Local
-		// Agent Host"): headers are non-clickable rows rendered above their
-		// session types, so select the first actionable row beneath the header.
-		if (matchIndex < 0) {
-			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === needle);
-			if (headerIndex >= 0) {
-				matchIndex = items.findIndex((el, index) => index > headerIndex && isEnabledActionRow(el));
+				await trigger.getByText(label, { exact: true }).waitFor({ state: 'visible', timeout: 5_000 });
+				return;
+			} catch (error) {
+				lastError = error;
+				try {
+					await page.keyboard.press('Escape');
+				} catch { /* dropdown already gone */ }
+				await new Promise(r => setTimeout(r, 500));
 			}
 		}
-		if (matchIndex < 0) {
-			throw new Error(`Session type "${label}" not found in picker. Available: ${items.map(i => (i.textContent ?? '').trim()).join(', ')}`);
-		}
-		const dataIndex = items[matchIndex].attributes['data-index'] ?? String(matchIndex);
-		await this.code.waitAndClick(`.action-widget .monaco-list-row[data-index="${dataIndex}"]`);
+		throw new Error(`Timed out selecting session type "${label}". Available: ${lastSeen.join(', ')}. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
 	/**
