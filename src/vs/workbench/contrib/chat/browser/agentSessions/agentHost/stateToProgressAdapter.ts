@@ -1281,7 +1281,7 @@ function getTerminalOutput(tc: ToolCallState) {
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {
-	return text.replace(/<shellId:[^>\r\n]*completed with exit code \d+>\s*$/i, '');
+	return text.replace(/<shellId:[^>\r\n]*completed with exit code -?\d+>\s*$/i, '');
 }
 
 function isToolResultTextContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.Text }> {
