@@ -35,7 +35,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from '../speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
 import { DictationDownloadRing, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
@@ -54,7 +54,7 @@ const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
  */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
 
-async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
+async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController, window: Window & typeof globalThis): Promise<boolean> {
 	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
 	if (!currentSession) {
 		return false;
@@ -62,10 +62,9 @@ async function retargetVoiceToCurrentSession(commandService: ICommandService, co
 	try {
 		const resource = URI.parse(currentSession);
 		if (resource.scheme === 'sessions-voice') {
-			controller.setDraftTarget();
+			controller.takeDraftInputOwnership(window);
 		} else {
-			controller.setTargetSession(resource);
-			controller.activateSession(resource);
+			controller.takeSessionInputOwnership(resource, window);
 		}
 		return true;
 	} catch {
@@ -175,7 +174,9 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
-			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
+			if (!controller.retainOmniInputOwnershipForBargeIn(win)) {
+				await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller, win);
+			}
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
@@ -310,6 +311,8 @@ export interface IVoiceInputModePillOptions {
 	readonly isActive?: IObservable<boolean>;
 	/** Whether the shared Voice Mode transport belongs to this input. */
 	readonly isVoiceActive?: IObservable<boolean>;
+	/** Claim Voice Mode for this host instead of targeting the last focused chat session. */
+	readonly activateVoiceMode?: () => void | Promise<void>;
 }
 
 /**
@@ -502,18 +505,17 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}));
 		this._registerActivationKeys(this._listenCell, () => this._onClickListen());
 
-		// Dictation activity: driven directly by the built-in on-device speech-to-text
-		// service so the mic reliably fills while a dictation session is recording or
-		// transcribing (global, not scope-dependent).
+		// Dictation activity: scoped to chat so editor and terminal dictation do not
+		// animate this control.
 		const dictationActive = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangeState,
-			() => this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
+			() => isDictationActiveOnSurface(this.chatSpeechToTextService, 'chat') && this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
 
 		// Model preparation: on first use the on-device model downloads/loads. Swap the
 		// mic for a download affordance while preparing, mirroring the standalone button.
 		const dictationPreparing = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangePreparingModel,
-			() => this.chatSpeechToTextService.isPreparingModel);
+			() => this.chatSpeechToTextService.currentSurface === 'chat' && this.chatSpeechToTextService.isPreparingModel);
 		// Sub-state of preparing: `true` only during a confirmed on-disk download
 		// (cache miss), `false` while loading an already-cached model. Drives the
 		// download-vs-spinner glyph below.
@@ -779,15 +781,23 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 
 		const controller = this.voiceSessionController;
+		const targetWindow = getWindow(this._voiceCell);
 		if (controller.isConnected.get() || controller.isConnecting.get()) {
 			if (this._options?.isVoiceActive?.get() === false) {
-				await retargetVoiceToCurrentSession(this.commandService, controller);
+				if (this._options.activateVoiceMode) {
+					await this._options.activateVoiceMode();
+				} else {
+					await retargetVoiceToCurrentSession(this.commandService, controller, targetWindow);
+				}
 				return;
 			}
 			controller.disconnect();
 		} else {
-			await retargetVoiceToCurrentSession(this.commandService, controller);
-			const targetWindow = getWindow(this._voiceCell);
+			if (this._options?.activateVoiceMode) {
+				await this._options.activateVoiceMode();
+			} else {
+				await retargetVoiceToCurrentSession(this.commandService, controller, targetWindow);
+			}
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}
 	}
