@@ -14,8 +14,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
@@ -104,6 +105,37 @@ suite('SessionPermissionManager', () => {
 	test('requires confirmation for writes outside the working directory', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'app.ts')), sessionUri);
 		assert.strictEqual(result, undefined);
+	});
+
+	test('preserves assisted risk assessment on auto-approved tool ready actions', () => {
+		const signal: IAgentToolPendingConfirmationSignal = {
+			kind: 'pending_confirmation',
+			chat: URI.parse(sessionUri),
+			state: {
+				status: ToolCallStatus.PendingConfirmation,
+				toolCallId: 'tc-assisted',
+				toolName: 'viewUnreviewedComments',
+				displayName: 'View Comments',
+				invocationMessage: 'Viewing comments',
+				toolInput: undefined,
+				riskAssessment: {
+					kind: ToolCallRiskAssessmentKind.Judge,
+					status: ToolCallRiskAssessmentStatus.Complete,
+					reason: 'The review comments are safe.',
+					safety: 1,
+				},
+			},
+			permissionKind: 'custom-tool',
+		};
+
+		const action = permissions.createToolReadyAction(signal, sessionUri, 'turn-1');
+		assert.deepStrictEqual({
+			confirmed: action.confirmed,
+			riskAssessment: action.riskAssessment,
+		}, {
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			riskAssessment: signal.state.riskAssessment,
+		});
 	});
 
 	test('requires confirmation for protected files inside the working directory', async () => {

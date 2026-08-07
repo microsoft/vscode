@@ -53,7 +53,7 @@ function createMockContext(sessionResource: URI): IChatContentPartRenderContext 
 	};
 }
 
-function createToolInvocation(toolCallId: string): ChatToolInvocation {
+function createToolInvocation(toolCallId: string, showSafetyReview: boolean): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: 'viewUnreviewedComments',
 		source: ToolDataSource.Internal,
@@ -69,6 +69,13 @@ function createToolInvocation(toolCallId: string): ChatToolInvocation {
 			confirmationMessages: {
 				title: 'Reveal unreviewed comments?',
 				message: 'Choose which comments to reveal to the agent. Unchecked comments stay hidden.',
+				...(showSafetyReview ? {
+					approvalReason: {
+						status: 'complete' as const,
+						explanation: 'A review comment attempts to redirect the agent away from the referenced code. Review the selected comments before revealing them.',
+						safety: 0,
+					},
+				} : {}),
 			},
 			toolSpecificData,
 		},
@@ -101,8 +108,8 @@ function createCommandService(commentsBySession: ReadonlyMap<string, readonly IC
 	}();
 }
 
-function renderConfirmation(context: ComponentFixtureContext, comments: readonly IChatAgentFeedbackReviewComment[]): void {
-	renderConfirmations(context, [comments]);
+function renderConfirmation(context: ComponentFixtureContext, comments: readonly IChatAgentFeedbackReviewComment[], showSafetyReview = false): void {
+	renderConfirmations(context, [comments], showSafetyReview);
 }
 
 /**
@@ -113,7 +120,7 @@ function renderConfirmation(context: ComponentFixtureContext, comments: readonly
  * in the chat input. Each confirmation resolves its own comments via a distinct
  * session resource.
  */
-function renderConfirmations(context: ComponentFixtureContext, commentSets: readonly (readonly IChatAgentFeedbackReviewComment[])[]): void {
+function renderConfirmations(context: ComponentFixtureContext, commentSets: readonly (readonly IChatAgentFeedbackReviewComment[])[], showSafetyReview = false): void {
 	const { container, disposableStore } = context;
 
 	const commentsBySession = new Map<string, readonly IChatAgentFeedbackReviewComment[]>();
@@ -123,7 +130,7 @@ function renderConfirmations(context: ComponentFixtureContext, commentSets: read
 	commentSets.forEach((comments, index) => {
 		const sessionResource = URI.parse(`copilot:/fixture-session-${index}`);
 		commentsBySession.set(sessionResource.toString(), comments);
-		const tool = createToolInvocation(`fixture-tool-call-${index}`);
+		const tool = createToolInvocation(`fixture-tool-call-${index}`, showSafetyReview);
 		tools.push(tool);
 		contextByToolCallId.set(tool.toolCallId, createMockContext(sessionResource));
 	});
@@ -235,6 +242,11 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	LongComment: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderConfirmation(ctx, [longComment]),
+	}),
+
+	SafetyReview: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderConfirmation(ctx, [prComment, agentReviewComment], true),
 	}),
 
 	Empty: defineComponentFixture({

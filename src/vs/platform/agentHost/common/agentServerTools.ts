@@ -7,8 +7,22 @@ import type { ToolDefinition, URI } from './state/sessionState.js';
 
 /** Execution details supplied by the provider when invoking a server tool. */
 export interface IAgentServerToolExecutionContext {
-	/** Whether a confirmation-required tool was approved without user interaction. */
-	readonly autoApproved: boolean;
+	/** Use `policy` for non-interactive policy approval, `assisted` only with the state token returned by {@link IAgentServerToolAutoApprovalContext}; omit the context after interactive approval. */
+	readonly approval: IAgentServerToolApproval;
+}
+
+/** How a confirmation-required server tool was approved without user interaction. */
+export type IAgentServerToolApproval =
+	| { readonly kind: 'policy' }
+	| { readonly kind: 'assisted'; readonly stateToken: string };
+
+/** Untrusted tool input and assessment criteria for assisted auto-approval. */
+export interface IAgentServerToolAutoApprovalContext {
+	readonly instructions: string;
+	readonly untrustedContent: string;
+	readonly stateToken: string;
+	/** Whether the untrusted content requires a model review before assisted approval. */
+	readonly requiresModelReview: boolean;
 }
 
 /**
@@ -39,6 +53,8 @@ export interface IAgentServerToolHost {
 	 * Returns `false` for unknown tools and tools without a confirmation UI.
 	 */
 	requiresConfirmation(toolName: string): boolean;
+	/** Returns tool-owned context for an assisted auto-approval judge. Tool groups may incorporate validated arguments and current server state. */
+	getAutoApprovalContext?(sessionUri: URI, toolName: string, rawArgs: unknown): IAgentServerToolAutoApprovalContext | undefined;
 	/**
 	 * Executes a server tool against the session's state, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.

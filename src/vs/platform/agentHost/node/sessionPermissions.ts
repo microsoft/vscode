@@ -414,6 +414,7 @@ export class SessionPermissionManager extends Disposable {
 			invocationMessage: state.invocationMessage,
 			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
+			...(state.riskAssessment ? { riskAssessment: state.riskAssessment } : {}),
 			...(state._meta ? { _meta: state._meta } : {}),
 		};
 	}
