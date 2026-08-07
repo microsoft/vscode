@@ -250,9 +250,9 @@ Context keys available for `when` clauses when contributing to session list menu
 | `sessionSection.hasGitHubRepository` | boolean | Whether the workspace section contains a GitHub-backed repository. |
 | `sessionSection.hasNonCloudRepository` | boolean | Whether the workspace section contains a folder not backed by the `github-remote-file` cloud scheme. |
 | `sessionGroup.hasVisibleSessions` | boolean | Whether a user-created group has visible session rows |
+| `sessionGroup.isEmpty` | boolean | Whether a user-created group has no members |
 
 The repository context keys are driven by an element-scoped autorun over each session's `workspace` and folder `gitHubInfo` observables, so toolbar availability updates when provider metadata hydrates after the section template first renders. A mixed section can obtain GitHub identity from its cloud session and the usable checkout from a separate non-cloud session in that same section; when no session has identity metadata, the action resolves it from the checkout's Git remotes.
-| `sessionGroup.isEmpty` | boolean | Whether a user-created group has no members |
 
 ### View-Level
 

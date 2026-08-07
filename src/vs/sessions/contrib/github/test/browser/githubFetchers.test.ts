@@ -358,6 +358,7 @@ suite('GitHubPullRequestsFetcher', () => {
 				title: 'Improve sessions',
 				author: { login: 'author', avatarUrl: 'avatar' },
 				headRef: 'feature',
+				checkoutRef: 'refs/pull/7/head',
 				isDraft: true,
 				updatedAt: '2026-07-30T12:00:00Z',
 				additions: 12,

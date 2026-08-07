@@ -1830,6 +1830,26 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ created, sent }, { created: false, sent: false });
 	});
 
+	test('createAndSendNewChatRequest permits folder isolation for unsupported worktree session types', async () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		let sent = false;
+		const provider = new class extends TestSessionsProvider {
+			override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm }];
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override async sendRequest(): Promise<ISession> {
+				sent = true;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const result = await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
+			isolationMode: 'workspace',
+		});
+
+		assert.deepStrictEqual({ providerId: result?.providerId, sent }, { providerId: 'test', sent: true });
+	});
+
 	test('createAndSendNewChatRequest disposes stranded draft when a setter throws', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({

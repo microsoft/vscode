@@ -388,7 +388,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
 
-		const pendingRequests = this._model.getPendingRequests();
+		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isHiddenFromTranscript);
 		if (pendingRequests.length > 0) {
 			// Separate steering and queued requests
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);

@@ -76,6 +76,7 @@ export interface IGitHubPullRequestSummary {
 	readonly title: string;
 	readonly author: IGitHubUser;
 	readonly headRef: string;
+	readonly checkoutRef: string;
 	readonly isDraft: boolean;
 	readonly updatedAt: string;
 	readonly additions: number;

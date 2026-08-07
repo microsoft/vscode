@@ -409,22 +409,21 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string, fetchIfMissing = false): Promise<string | undefined> {
-		const branchName = branch
-			.replace(/^refs\/remotes\/origin\//, '')
-			.replace(/^origin\//, '')
-			.replace(/^refs\/heads\//, '');
-		const remoteBranch = `origin/${branchName}`;
-		const remoteRef = `refs/remotes/${remoteBranch}`;
+		const trackingRef = getRemoteTrackingRef(branch);
+		if (!trackingRef) {
+			return undefined;
+		}
+		const { branchName, remoteBranch, remoteRef, sourceRef } = trackingRef;
 		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', remoteRef]);
 		if (output !== undefined) {
 			return remoteBranch;
 		}
-		if (!fetchIfMissing || branchName === 'HEAD' || /^[0-9a-f]{40}$/i.test(branchName) || branchName.startsWith('refs/')) {
+		if (!fetchIfMissing || branchName === 'HEAD' || /^[0-9a-f]{40}$/i.test(branchName)) {
 			return undefined;
 		}
 
 		this._logService.info(`[AgentHostGitService] Fetching tracked branch '${branchName}' from origin.`);
-		await this._runGit(repositoryRoot, ['fetch', '--no-tags', 'origin', `refs/heads/${branchName}:${remoteRef}`], {
+		await this._runGit(repositoryRoot, ['fetch', '--no-tags', 'origin', `${sourceRef}:${remoteRef}`], {
 			timeout: 60_000,
 			throwOnError: true,
 		});
@@ -876,6 +875,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+export function getRemoteTrackingRef(branch: string): { branchName: string; remoteBranch: string; remoteRef: string; sourceRef: string } | undefined {
+	const pullRequestRef = /^refs\/pull\/(?<number>\d+)\/head$/.exec(branch);
+	const branchName = pullRequestRef?.groups
+		? `pull/${pullRequestRef.groups.number}/head`
+		: branch
+			.replace(/^refs\/remotes\/origin\//, '')
+			.replace(/^origin\//, '')
+			.replace(/^refs\/heads\//, '');
+	if (branchName.startsWith('refs/')) {
+		return undefined;
+	}
+	const remoteBranch = `origin/${branchName}`;
+	return {
+		branchName,
+		remoteBranch,
+		remoteRef: `refs/remotes/${remoteBranch}`,
+		sourceRef: pullRequestRef ? branch : `refs/heads/${branchName}`,
+	};
 }
 
 /**

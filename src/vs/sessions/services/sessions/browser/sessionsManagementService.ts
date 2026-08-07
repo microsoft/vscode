@@ -387,7 +387,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let provider: ISessionsProvider | undefined;
 		let workspace: ISessionWorkspace | undefined;
 		let sessionTypeId: string | undefined;
-		const requiresWorktreeConfiguration = options?.isolationMode !== undefined
+		const requiresWorktreeConfiguration = options?.isolationMode === 'worktree'
 			|| options?.worktreeBranchTrack !== undefined
 			|| options?.branch !== undefined;
 		const resolveSessionTypeId = (candidate: ISessionsProvider): string | undefined => {

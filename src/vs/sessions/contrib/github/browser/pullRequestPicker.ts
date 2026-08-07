@@ -138,8 +138,29 @@ export function pullRequestMatchesQuery(pullRequest: IGitHubPullRequestSummary, 
 	return `#${pullRequest.number} ${pullRequest.title} ${pullRequest.author.login}`.toLowerCase().includes(normalizedQuery);
 }
 
+export function mergePullRequestSummaries(existing: readonly IGitHubPullRequestSummary[], incoming: readonly IGitHubPullRequestSummary[]): IGitHubPullRequestSummary[] {
+	const result = [...existing];
+	const indices = new Map(result.map((pullRequest, index) => [pullRequest.number, index]));
+	for (const pullRequest of incoming) {
+		const index = indices.get(pullRequest.number);
+		if (index === undefined) {
+			indices.set(pullRequest.number, result.length);
+			result.push(pullRequest);
+		} else {
+			const current = result[index];
+			result[index] = {
+				...current,
+				...pullRequest,
+				reviewRequestedFromViewer: current.reviewRequestedFromViewer || pullRequest.reviewRequestedFromViewer,
+				assignedToViewer: current.assignedToViewer || pullRequest.assignedToViewer,
+			};
+		}
+	}
+	return result;
+}
+
 export function createPullRequestBootstrapPrompt(pullRequest: IGitHubPullRequestSummary): string {
-	return `Initialize this session for pull request #${pullRequest.number}, "${pullRequest.title}". The attached JSON is a complete pull request snapshot. For future questions about this pull request, use the attached snapshot as the primary source and do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from the snapshot. Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".`;
+	return `Initialize this session for pull request #${pullRequest.number}. The attached JSON is a complete pull request snapshot. For future questions about this pull request, use the attached snapshot as the primary source and do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from the snapshot. Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".`;
 }
 
 export function createPullRequestSessionMetadata(owner: string, repo: string, pullRequest: IGitHubPullRequestSummary): Record<string, unknown> {

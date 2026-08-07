@@ -155,6 +155,10 @@ export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatReq
 	);
 }
 
+export function shouldShowChatWelcome(itemCount: number, hasTranscriptOverlay: boolean): boolean {
+	return itemCount === 0 && !hasTranscriptOverlay;
+}
+
 /**
  * Settles the outcome of a `IChatService.sendRequest` call.
  *
@@ -302,6 +306,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private transcriptProgress: { readonly container: HTMLElement; readonly label: HTMLElement } | undefined;
+	private transcriptProgressActive = false;
 	private transcriptContext: HTMLElement | undefined;
 	private readonly transcriptContextPart = this._register(new MutableDisposable<ChatAttachmentsContentPart>());
 	private transcriptContextValue: IChatRequestTranscriptContextVariableEntry | undefined;
@@ -1157,13 +1162,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			const isStandardLayout = this.viewOptions.renderStyle !== 'compact' && this.viewOptions.renderStyle !== 'minimal';
 			const numItems = this.viewModel.getItems().length;
-			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
-			dom.setVisibility(numItems !== 0, this.listContainer);
+			const showWelcome = shouldShowChatWelcome(numItems, this.transcriptProgressActive || this.transcriptContextValue !== undefined);
+			dom.setVisibility(showWelcome, this.welcomeMessageContainer);
+			dom.setVisibility(!showWelcome, this.listContainer);
 
 			// Show/hide the getting-started tip container based on empty state.
 			// Only use this in the standard chat layout where the welcome view is shown.
 			if (isStandardLayout && this.inputPart) {
-				if (numItems === 0) {
+				if (showWelcome) {
 					this.renderGettingStartedTipIfNeeded();
 				} else {
 					// Dispose the cached tip part so the next empty state picks a
@@ -1201,7 +1207,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.transcriptProgress.label.textContent = message ?? '';
 		this.transcriptProgress.container.setAttribute('aria-label', ariaLabel ?? '');
 		this.transcriptProgress.container.hidden = message === undefined;
+		this.transcriptProgressActive = message !== undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
+		this.updateChatViewVisibility();
 	}
 
 	setTranscriptContext(context: IChatRequestTranscriptContextVariableEntry | undefined): void {
@@ -1221,6 +1229,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			dom.clearNode(this.transcriptContext);
 		}
 		this.container.classList.toggle('chat-transcript-context-active', context !== undefined);
+		this.updateChatViewVisibility();
 	}
 
 	/**

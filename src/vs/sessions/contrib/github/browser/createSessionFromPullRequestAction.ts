@@ -27,7 +27,7 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workben
 import { ISessionSection, SessionSectionHasNonCloudRepositoryContext, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../../sessions/browser/views/sessionsList.js';
 import { IGitHubService } from './githubService.js';
 import { IGitHubPullRequestSummary } from '../common/types.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, hasExistingPullRequest, IPullRequestQuickPickItem, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, hasExistingPullRequest, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
 import { createAndOpenPullRequestSession } from './pullRequestSessionCreation.js';
 
 export const CREATE_SESSION_FROM_PULL_REQUEST_COMMAND_ID = 'workbench.agentSessions.createSessionFromPullRequest';
@@ -152,8 +152,7 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 			if (!pagePromise) {
 				picker.busy = true;
 				const promise = gitHubService.getPullRequests(repository.owner, repository.repo, cursor).then(page => {
-					const seen = new Set(pullRequests.map(pullRequest => pullRequest.number));
-					pullRequests = [...pullRequests, ...page.pullRequests.filter(pullRequest => !seen.has(pullRequest.number)).map(applyViewerGroups)];
+					pullRequests = mergePullRequestSummaries(pullRequests, page.pullRequests.map(applyViewerGroups));
 					cursor = page.cursor;
 					hasNextPage = page.hasNextPage && page.cursor !== undefined;
 					if (render) {
@@ -196,15 +195,17 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 			);
 			waitingForReview = await waitingForReviewPromise;
 			waitingForReviewNumbers = new Set(waitingForReview.map(pullRequest => pullRequest.number));
+			pullRequests = mergePullRequestSummaries(pullRequests, waitingForReview.map(applyViewerGroups));
 			appendGroup(waitingForReview);
 
 			assignedToViewer = (await assignedToViewerPromise).filter(pullRequest => !waitingForReviewNumbers.has(pullRequest.number));
 			assignedToViewerNumbers = new Set(assignedToViewer.map(pullRequest => pullRequest.number));
+			pullRequests = mergePullRequestSummaries(pullRequests, assignedToViewer.map(applyViewerGroups));
 			appendGroup(assignedToViewer);
 
 			await firstPage;
 			pullRequests = pullRequests.map(applyViewerGroups);
-			appendGroup(pullRequests.filter(pullRequest => !waitingForReviewNumbers.has(pullRequest.number) && !assignedToViewerNumbers.has(pullRequest.number)));
+			updateItems();
 			picker.busy = false;
 		};
 		const initialGroupsPromise = loadInitialGroups();
@@ -245,7 +246,7 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 						};
 					}, {
 						isolationMode: 'worktree',
-						branch: pullRequest.headRef,
+						branch: pullRequest.checkoutRef,
 						worktreeBranchTrack: true,
 						metadata: createPullRequestSessionMetadata(repository.owner, repository.repo, pullRequest),
 						onSessionCreated,

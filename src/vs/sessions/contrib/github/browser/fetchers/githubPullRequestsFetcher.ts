@@ -122,6 +122,7 @@ function mapPullRequest(pullRequest: IGitHubPullRequestNode, reviewRequestedFrom
 		title: pullRequest.title,
 		author: pullRequest.author ?? { login: 'ghost', avatarUrl: '' },
 		headRef: pullRequest.headRefName,
+		checkoutRef: `refs/pull/${pullRequest.number}/head`,
 		isDraft: pullRequest.isDraft,
 		updatedAt: pullRequest.updatedAt,
 		additions: pullRequest.additions,
