@@ -1161,6 +1161,8 @@ suite('RunInTerminalTool', () => {
 			'git status',
 			'git log --oneline',
 			'git show HEAD',
+			'git show --format=%B HEAD',
+			'git show --output-format=text HEAD',
 			'git diff main',
 			'git grep "TODO"',
 
@@ -1177,7 +1179,7 @@ suite('RunInTerminalTool', () => {
 			'Join-Path C:\\Users test',
 			'Start-Sleep 2',
 
-			// PowerShell safe verbs (regex patterns)
+			// Explicit PowerShell cmdlets
 			'Select-Object Name',
 			'Measure-Object Length',
 			'Compare-Object $a $b',
@@ -1253,6 +1255,10 @@ suite('RunInTerminalTool', () => {
 			// git log file output
 			'git log --output=log.txt',
 
+			// git show file output
+			'git show --format=%B --output=message.txt HEAD',
+			'git show --output message.txt HEAD',
+
 			// Dangerous file operations
 			'rm README.md',
 			'rmdir folder',
@@ -1293,6 +1299,13 @@ suite('RunInTerminalTool', () => {
 			'eval "echo hello"',
 			'Invoke-Expression "Get-Date"',
 			'iex "Write-Host test"',
+
+			// Arbitrary PowerShell cmdlets must not be approved by verb alone
+			'Select-Custom',
+			'Measure-Command',
+			'Compare-Custom',
+			'Format-Hex',
+			'Sort-Custom',
 
 			// Commands with dangerous arguments
 			'column -c 10000 file.txt',
@@ -3192,7 +3205,7 @@ suite('RunInTerminalTool', () => {
 		suite('getCopilotProfile', () => {
 			(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
 				runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
+				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\cmd.exe', args: ['/V:ON'] });
 				setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
 				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();

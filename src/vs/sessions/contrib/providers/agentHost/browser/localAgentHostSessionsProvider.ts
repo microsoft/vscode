@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
@@ -26,8 +27,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID, LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -60,29 +60,17 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
-
-	/** Quick chats are only offered while the agent host is enabled. */
-	get supportsQuickChats(): boolean {
-		return this._agentHostEnablementService.enabled.get();
-	}
+	readonly supportsQuickChats = true;
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
 
-	/**
-	 * When the experimental {@link LocalAgentHostDefaultProviderSettingId}
-	 * setting is enabled, the local agent host becomes the default sessions
-	 * provider: its session types sort before every other provider (negative
-	 * order). Otherwise it sorts after the default providers so Copilot Chat
-	 * keeps precedence.
-	 */
 	override get order(): number {
-		return this._configurationService.getValue<boolean>(LocalAgentHostDefaultProviderSettingId) ? -1 : 1;
+		return -1;
 	}
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -113,17 +101,20 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		// authentication settling below) reconciles them.
 		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY, LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY);
 
-		this._attachConnectionListeners(this._agentHostService, this._store);
+		const connectionListeners = this._register(new DisposableStore());
+		const bindConnection = () => {
+			connectionListeners.clear();
+			this._attachConnectionListeners(this._agentHostService, connectionListeners);
 
-		this._syncRootState(this._agentHostService.rootState.value);
-		this._register(this._agentHostService.rootState.onDidChange(() => {
-			this._syncRootState(this._agentHostService.rootState.value);
-		}));
-		if (this._agentHostService.rootState.onDidError) {
-			this._register(this._agentHostService.rootState.onDidError(error => {
-				this._syncRootState(error);
-			}));
-		}
+			const rootState = this._agentHostService.rootState;
+			this._syncRootState(rootState.value);
+			connectionListeners.add(rootState.onDidChange(() => this._syncRootState(rootState.value)));
+			if (rootState.onDidError) {
+				connectionListeners.add(rootState.onDidError(error => this._syncRootState(error)));
+			}
+		};
+		bindConnection();
+		this._register(this._agentHostService.onAgentHostStart(bindConnection));
 
 		// Eagerly populate the session cache once authentication has settled.
 		// Without this, the sidebar would only call `getSessions()` after some
@@ -143,9 +134,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LocalAgentHostDefaultProviderSettingId)) {
-				this._onDidChangeSessionTypes.fire();
-			}
 			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				this._syncRootState(this._agentHostService.rootState.value);
 				// `getSessions()` filters by the same gate, so the set of visible

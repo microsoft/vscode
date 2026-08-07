@@ -25,6 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
+import { INativeManagedSettingsService, shouldForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -261,7 +262,7 @@ type ManagedSettingsFetchTelemetryClassification = {
 	rateLimitBackoffActive: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'True when the request was short-circuited because a prior rate-limit Retry-After window was still active.' };
 };
 
-class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
+export class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
 
 	private _defaultAccount: IDefaultAccountData | null = null;
 	get defaultAccount(): IDefaultAccount | null { return this._defaultAccount?.defaultAccount ?? null; }
@@ -293,6 +294,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	private readonly initPromise: Promise<void>;
 	private readonly updateThrottler = this._register(new ThrottledDelayer(100));
 	private readonly accountDataPollScheduler = this._register(new RunOnceScheduler(() => this.refetchDefaultAccount(), ACCOUNT_DATA_POLL_INTERVAL_MS));
+	private readonly managedSettingsFetchAttemptedAccounts = new Set<string>();
 
 	constructor(
 		private readonly defaultAccountConfig: IDefaultAccountConfig,
@@ -308,6 +310,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		@IStorageService private readonly storageService: IStorageService,
 		@IHostService private readonly hostService: IHostService,
 		@ICommandService private readonly commandService: ICommandService,
+		@INativeManagedSettingsService private readonly nativeManagedSettingsService: INativeManagedSettingsService,
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -871,21 +874,41 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private async getManagedSettings(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: Partial<IPolicyData> | undefined; fetchedAt: number }> {
-		if (!options?.forceRefresh && accountPolicyData?.managedSettingsFetchedAt && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)) {
+		const accountId = sessions[0].account.id;
+		const cachedManagedSettings = accountPolicyData?.managedSettingsFetchedAt !== undefined && !this.isDataStale(accountPolicyData.managedSettingsFetchedAt)
+			? {
+				data: {
+					managedSettings: accountPolicyData.policyData.managedSettings,
+				},
+				fetchedAt: accountPolicyData.managedSettingsFetchedAt,
+			}
+			: undefined;
+		let forceRemoteSettingsRefresh = false;
+		if (!options?.forceRefresh && cachedManagedSettings && !this.managedSettingsFetchAttemptedAccounts.has(accountId)) {
+			let nativeManagedSettings = this.nativeManagedSettingsService.managedSettings;
+			try {
+				nativeManagedSettings = await this.nativeManagedSettingsService.initialize();
+			} catch (error) {
+				this.logService.warn('[DefaultAccount] Failed to initialize native managed settings before resolving forceRemoteSettingsRefresh; using available values', getErrorMessage(error));
+				nativeManagedSettings = this.nativeManagedSettingsService.managedSettings;
+			}
+			forceRemoteSettingsRefresh = shouldForceRemoteSettingsRefresh(nativeManagedSettings, accountPolicyData?.policyData.managedSettings);
+		}
+
+		if (!options?.forceRefresh && cachedManagedSettings && !forceRemoteSettingsRefresh) {
 			this.logService.debug('[DefaultAccount] Using last fetched managed settings data');
 			// Seed status so Policy Diagnostics reflects "applied" rather than
 			// "not yet fetched" after a process restart that warm-starts from
 			// the cached policy payload.
 			this._managedSettingsFetchStatus = 'ok';
-			return {
-				data: {
-					managedSettings: accountPolicyData.policyData.managedSettings,
-				},
-				fetchedAt: accountPolicyData.managedSettingsFetchedAt,
-			};
+			return cachedManagedSettings;
 		}
+		if (forceRemoteSettingsRefresh) {
+			this.logService.info('[DefaultAccount] forceRemoteSettingsRefresh is set; fetching fresh managed settings instead of using the cached response');
+		}
+		this.managedSettingsFetchAttemptedAccounts.add(accountId);
 		const data = await this.requestManagedSettings(sessions);
-		return { data, fetchedAt: Date.now() };
+		return { data: data ?? cachedManagedSettings?.data, fetchedAt: Date.now() };
 	}
 
 	private async requestManagedSettings(sessions: AuthenticationSession[]): Promise<Partial<IPolicyData> | undefined> {

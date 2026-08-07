@@ -235,6 +235,18 @@ suite('AutomationService', () => {
 		assert.strictEqual(updated?.sessionResource, 'vscode-chat-session://copilot/sess-1');
 	});
 
+	test('deleteRun removes only the matching history entry', async () => {
+		const { service } = createService();
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		const first = await claimRun(service, automation.id, 'manual');
+		await service.updateRun(first.id, { status: 'completed' });
+		const second = await claimRun(service, automation.id, 'manual');
+
+		await service.deleteRun(first.id);
+
+		assert.deepStrictEqual(service.runs.get().map(run => run.id), [second.id]);
+	});
+
 	test('recordRunStart updates lastRunAt and advances the next scheduled run', async () => {
 		const { service } = createService();
 		service.setClockForTesting(() => new Date('2025-06-01T00:00:00Z'));

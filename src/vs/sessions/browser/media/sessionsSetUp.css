@@ -38,7 +38,7 @@
 	opacity: 0.7;
 }
 
-/* ---- Welcome Dialog ---- */
+/* ---- Welcome and Sign-In Dialogs ---- */
 
 .chat-setup-dialog.sessions-main-welcome-dialog {
 
@@ -49,3 +49,24 @@
 
 }
 
+.chat-setup-dialog.sessions-welcome-dialog .chat-setup-dialog-footer > .sessions-sign-in-dialog-action.monaco-text-button {
+	display: inline-flex;
+	width: auto;
+	margin: var(--vscode-spacing-size80) auto 0;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+}
+
+.chat-setup-dialog.sessions-welcome-dialog .chat-setup-dialog-footer > .sessions-sign-in-dialog-action.monaco-text-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-setup-dialog.sessions-welcome-dialog .chat-setup-dialog-footer > .sessions-sign-in-dialog-action.monaco-text-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
