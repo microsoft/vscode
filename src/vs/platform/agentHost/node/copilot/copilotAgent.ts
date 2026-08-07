@@ -2573,6 +2573,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
+	getInheritedSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		const inherited: Record<string, unknown> = {};
+		for (const key of [SessionConfigKey.AutoApprove, SessionConfigKey.Permissions]) {
+			if (config[key] !== undefined) {
+				inherited[key] = config[key];
+			}
+		}
+		return Object.keys(inherited).length > 0 ? inherited : undefined;
+	}
+
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		// Branch completions (the only dynamic Copilot property) are owned by the
 		// host now; no provider-specific completions remain.

@@ -12,6 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { resolveCustomizationRefs, resolveLocalCustomAgents, shouldSyncWorkspaceDotMcp } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
@@ -114,9 +115,9 @@ function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map
 	} as unknown as IFileService;
 }
 
-function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; launch?: McpServerLaunch | undefined; configTarget?: ConfigurationTarget }): IMcpServer {
-	const { id, collectionId, label = id, enabled = true, launch, configTarget = ConfigurationTarget.USER } = options;
-	const collection = { id: collectionId, label: collectionId, order: 0, configTarget } as unknown as McpCollectionDefinition;
+function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; launch?: McpServerLaunch | undefined; configTarget?: ConfigurationTarget; collectionSource?: ExtensionIdentifier }): IMcpServer {
+	const { id, collectionId, label = id, enabled = true, launch, configTarget = ConfigurationTarget.USER, collectionSource } = options;
+	const collection = { id: collectionId, label: collectionId, order: 0, configTarget, source: collectionSource } as unknown as McpCollectionDefinition;
 	const definitions = observableValue('definitions', { server: launch ? { launch } : undefined, collection });
 	return {
 		definition: { id, label },
@@ -142,6 +143,16 @@ const stdioLaunch: McpServerLaunch = {
 	cwd: undefined,
 	sandbox: undefined,
 };
+
+function makeCopilotChatGitHubMcpServer(): IMcpServer {
+	return makeMcpServer({
+		id: 'github.copilot-chat/GitHub',
+		collectionId: 'github.copilot-chat/github',
+		label: 'GitHub',
+		launch: stdioLaunch,
+		collectionSource: new ExtensionIdentifier('GitHub.copilot-chat'),
+	});
+}
 
 const stdioLaunchWithInput: McpServerLaunch = {
 	type: McpServerTransportType.Stdio,
@@ -478,6 +489,73 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		]);
 		assert.strictEqual(refs.length, 1);
 		assert.strictEqual(refs[0].name, 'Open Plugin');
+	});
+
+	test('excludes the Copilot Chat GitHub MCP provider without excluding user or other extension servers', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeCopilotChatGitHubMcpServer(),
+			makeMcpServer({ id: 'user.GitHub', collectionId: 'user', label: 'GitHub', launch: stdioLaunch }),
+			makeMcpServer({
+				id: 'publisher.extension/server',
+				collectionId: 'publisher.extension/provider',
+				label: 'extension-server',
+				launch: stdioLaunch,
+				collectionSource: new ExtensionIdentifier('publisher.extension'),
+			}),
+		]);
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			'agent-host-copilotcli',
+		);
+
+		assert.deepStrictEqual(bundler.receivedMcp, [[
+			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+			{ name: 'extension-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+		]]);
+	});
+
+	test('excludes the Copilot Chat GitHub MCP provider from remote Copilot agent hosts', async () => {
+		const bundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService([makeCopilotChatGitHubMcpServer()]),
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			'remote-test-copilotcli',
+		);
+
+		assert.deepStrictEqual(bundler.receivedMcp, []);
+	});
+
+	test('retains the Copilot Chat GitHub MCP provider for agent hosts without a built-in server', async () => {
+		const bundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService([makeCopilotChatGitHubMcpServer()]),
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			'agent-host-claude',
+		);
+
+		assert.deepStrictEqual(bundler.receivedMcp, [[
+			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+		]]);
 	});
 
 	test('excludes plugin-sourced MCP servers from the bundle', async () => {

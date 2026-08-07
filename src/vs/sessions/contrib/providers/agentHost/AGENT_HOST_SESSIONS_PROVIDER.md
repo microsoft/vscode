@@ -36,7 +36,6 @@ Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contributi
   - `AgentHostContribution` — agent discovery, session-handler registration, language-model providers, customization harness (via `IChatSessionsService`).
   - `AgentHostTerminalContribution` — terminal integration for agent host sessions.
   - The classic chat sidebar item controller is registered separately in the editor window only; the Agents window does not load or register `AgentHostSessionListController`.
-- Registers the experimental `chat.agentHost.defaultSessionsProvider` setting (`LocalAgentHostDefaultProviderSettingId`, default `true`, startup experiment).
 
 The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only wiring on top.
 
@@ -52,10 +51,8 @@ The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only
 | `supportsLocalWorkspaces` | `true` |
 | `supportsQuickChats` | always `true`; the provider itself is registered only when Agent Host is available |
 | `browseActions` | `[]` (local folders are browsed through the shared workspace picker) |
-| `order` | `-1` when `chat.agentHost.defaultSessionsProvider` is enabled (sorts before all other providers), else `1` |
+| `order` | `-1` (sorts before all other providers) |
 | `sessionTypes` | Dynamically populated from the local agent host's `rootState.agents`; the type label is the agent's unadorned `displayName` (e.g. `"Copilot"`), the type **id** is the agent provider name (e.g. `copilotcli`) so the same agent shares one session type across local and remote hosts |
-
-When the default-provider setting flips, the provider re-fires `onDidChangeSessionTypes` so the management service re-collects and re-sorts session types with the new `order`.
 
 These session-type icons are specific to the Agents window provider. In the editor window, `agentSessions.ts` maps local Agent Host Copilot to the Local harness's `Codicon.vm` picker icon, while `agentSessionsViewer.ts` uses the same session-list status dot as the Local harness.
 
