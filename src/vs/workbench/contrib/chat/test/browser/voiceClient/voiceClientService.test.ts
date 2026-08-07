@@ -883,4 +883,26 @@ suite('VoiceClientService', () => {
 		assert.strictEqual(fatal[0].clientSide, true);
 	});
 
+
+	test('gives up after the reconnect budget rather than retrying for minutes', async () => {
+		// The budget is deliberately short: a user watching a reconnect would rather
+		// be told it failed than wait. Pin it so it cannot silently grow again.
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		await service.connect(createTestWindow());
+
+		const reconnect = Reflect.get(service, '_connectWebSocket') as () => void;
+		const started = Date.now() - 61_000;
+		Reflect.set(service, '_reconnectStartedAt', started);
+
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+
+		assert.strictEqual(fatal.length, 1, 'an exhausted budget must report itself');
+		assert.strictEqual(fatal[0].kind, 'fatal');
+		assert.strictEqual(service.willReconnect, false, 'no retry may remain scheduled');
+		void reconnect;
+	});
+
 });

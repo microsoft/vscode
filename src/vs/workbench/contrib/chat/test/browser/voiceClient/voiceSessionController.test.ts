@@ -4525,6 +4525,39 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(micCaptureService.pttDownCalls.length, 0, 'auto-listen must not fire after a terminal close');
 	});
+
+	test('the connect watchdog does not tear down a scheduled reconnect', () => {
+		// A reconnect sleeps between attempts, so a gap longer than the watchdog
+		// timeout must not be mistaken for a hung handshake. Before this guard the
+		// first slow retry was killed ~10s in and reported as unreachable.
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+		const armWatchdog = Reflect.get(controller, '_armConnectWatchdog') as () => void;
+
+		Reflect.set(controller, '_isConnecting', observableValue('isConnecting', false));
+		Reflect.set(controller, '_isReconnecting', observableValue('isReconnecting', true));
+		armWatchdog.call(controller);
+		clock.tick(11_000);
+
+		assert.strictEqual(notificationService.notifications.length, 0, 'a reconnect must not raise the unreachable toast');
+	});
+
+	test('an open socket is not reported as connected until the backend acks', () => {
+		// A rejected connect is accepted before it is closed so the close frame can
+		// carry a reason, so `onopen` fires for doomed sockets too. Committing
+		// connected on open flashed a live UI on every reconnect attempt.
+		const client = new TestVoiceClientService();
+		const controller = createController(client);
+		const commitConnected = Reflect.get(controller, '_commitConnected') as (viaFallback?: boolean) => void;
+
+		Reflect.set(client, 'connected', false);
+		commitConnected.call(controller);
+		assert.strictEqual(controller.isConnected.get(), false, 'a closed socket must never commit connected');
+
+		Reflect.set(client, 'connected', true);
+		commitConnected.call(controller);
+		assert.strictEqual(controller.isConnected.get(), true, 'the ack must promote the socket to a live session');
+	});
 });
 
 suite('VoiceSessionController live transcription', () => {
@@ -4732,5 +4765,6 @@ suite('VoiceSessionController live transcription', () => {
 			persisted: ['open the file'],
 		});
 	});
+
 
 });

@@ -41,8 +41,10 @@ const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
 const FAST_RETRY_COUNT = 3;
 const FAST_RETRY_DELAY_MS = 2_000;
-const SLOW_RETRY_DELAY_MS = 30_000;
-const MAX_RECONNECT_DURATION_MS = 30 * 60 * 1_000;
+const SLOW_RETRY_DELAY_MS = 10_000;
+// Kept short on purpose: a user staring at a reconnecting UI would rather be told
+// it failed than wait. Gives 3 fast attempts plus ~5 slow ones before giving up.
+const MAX_RECONNECT_DURATION_MS = 60_000;
 const TTS_SUPPORTED_LANGUAGE_BASES = new Set([
 	'en', 'de', 'es', 'fr', 'it', 'pt', 'ja', 'ko', 'zh',
 ]);
@@ -527,7 +529,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 				const elapsed = Date.now() - this._reconnectStartedAt;
 				if (elapsed >= MAX_RECONNECT_DURATION_MS) {
-					this._logService.warn('[voice] reconnect timeout after 30 minutes, giving up');
+					this._logService.warn(`[voice] reconnect budget of ${MAX_RECONNECT_DURATION_MS}ms exhausted, giving up`);
 					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '', kind: 'fatal' });
 					this._cleanup();
 					return;

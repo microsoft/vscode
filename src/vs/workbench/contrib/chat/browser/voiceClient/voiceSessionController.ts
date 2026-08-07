@@ -392,6 +392,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _connectWatchdog = this._register(new MutableDisposable());
 	private static readonly _CONNECT_TIMEOUT_MS = 10000;
+	/**
+	 * Grace window between the socket opening and the backend acking the session.
+	 * A rejected connect is accepted and then closed (so the close frame can carry
+	 * a reason), which means `onopen` fires for doomed sockets too; committing
+	 * `isConnected` on open would flash a connected UI on every retry. Doubles as
+	 * the "session_init never arrived" fallback for entering hands-free listening.
+	 */
+	private readonly _sessionAckGrace = this._register(new MutableDisposable());
+	private static readonly _SESSION_ACK_GRACE_MS = 750;
 	private _connectAttemptGeneration = 0;
 	private _sessionInitializationGeneration = 0;
 	private readonly _autoApprovedSessions = new Set<string>();
@@ -1251,13 +1260,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.voiceClientService.sendStartSession(this._buildSessionContext(), this._getMachineId(), priorTimeline, undefined, voiceInstructions);
 				}
 
-				transaction(tx => {
-					this._isConnecting.set(false, tx);
-					this._isReconnecting.set(false, tx);
-					this._isConnected.set(true, tx);
-				});
-				// Handshake completed — the connect watchdog is no longer needed.
-				this._connectWatchdog.clear();
+				// An open socket is not proof of a live session: a rejected connect is
+				// accepted first so its close frame can carry a reason, so `onopen`
+				// fires for doomed sockets too. Hold the connected state until the
+				// backend acks, with a bounded fallback for a backend that never does.
+				this._sessionAckGrace.value = disposableTimeout(
+					() => this._commitConnected(true),
+					VoiceSessionController._SESSION_ACK_GRACE_MS);
 
 				// Seed previous session states so existing sessions don't trigger false transitions
 				const seededResources = new Set<string>();
@@ -1599,15 +1608,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Wait for the backend session ack before opening the hands-free PTT turn.
 				this._enterListenOnSessionInit = this._shouldEnterListenOnSessionInit(isResuming);
 				this.logService.trace(`[voice] connected: isResuming=${isResuming} handsFree=${this._isHandsFreeEnabled()} armListen=${this._enterListenOnSessionInit}`);
-				if (this._enterListenOnSessionInit) {
-					this._voiceEventDisposables.add(disposableTimeout(() => {
-						if (this._enterListenOnSessionInit && this._isConnected.get()) {
-							this.logService.trace('[voice] session_init not seen within 750ms; entering listening via fallback');
-							this._enterListenOnSessionInit = false;
-							this._enterAutoListen('connect');
-						}
-					}, 750));
-				}
 			} else {
 				this._sessionInitializationGeneration++;
 				if (this._fatalDisconnect) {
@@ -1636,6 +1636,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// point at which the mic/handshake is settled and a turn will stick,
 		// so enter hands-free listening here (armed in the connect handler).
 		this._voiceEventDisposables.add(this.voiceClientService.onSessionInit(() => {
+			// The ack the socket-open path was waiting on: this is the first proof
+			// the session is real rather than about to be closed with a reason.
+			this._commitConnected();
 			this.logService.trace(`[voice] session_init received; armListen=${this._enterListenOnSessionInit} pendingRetries=${this._pendingNarrationRetries.size} deferredNarrations=${this._deferredNarrations.size}`);
 			// Replay any narration that was dropped because the socket was closed
 			// (see _narrate). Do this BEFORE entering listening: a real pending
@@ -2008,12 +2011,42 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _armConnectWatchdog(): void {
 		this._connectWatchdog.value = disposableTimeout(() => {
-			if ((!this._isConnecting.get() && !this._isReconnecting.get()) || this._isConnected.get()) {
+			// Deliberately ignores the reconnecting state. A reconnect sleeps between
+			// attempts (2s x3 then 30s), so any gap past this timeout would look like
+			// a hung handshake and tear down a retry that was going to happen anyway.
+			// The service bounds reconnects itself via ping/pong and its own retry
+			// budget, and reports giving up through onFatalDisconnect.
+			if (!this._isConnecting.get() || this._isConnected.get()) {
 				return;
 			}
 			this.logService.warn('[voice] connect handshake timed out; resetting voice mode');
 			this._resetFailedConnection();
 		}, VoiceSessionController._CONNECT_TIMEOUT_MS);
+	}
+
+	/**
+	 * Promote an open socket to a live session. Called when the backend acks
+	 * (`session_init` / `session_resumed`), or from the ack grace timer if no ack
+	 * arrives. `viaFallback` also runs the hands-free auto-listen that the ack
+	 * would otherwise have triggered.
+	 */
+	private _commitConnected(viaFallback = false): void {
+		this._sessionAckGrace.clear();
+		if (this._isConnected.get() || !this.voiceClientService.isConnected) {
+			return;
+		}
+		transaction(tx => {
+			this._isConnecting.set(false, tx);
+			this._isReconnecting.set(false, tx);
+			this._isConnected.set(true, tx);
+		});
+		// Handshake completed — the connect watchdog is no longer needed.
+		this._connectWatchdog.clear();
+		if (viaFallback && this._enterListenOnSessionInit) {
+			this.logService.trace('[voice] session ack not seen within grace; entering listening via fallback');
+			this._enterListenOnSessionInit = false;
+			this._enterAutoListen('connect');
+		}
 	}
 
 	private _resetFailedConnection(notifyUser = true): void {
@@ -2050,6 +2083,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._isConnecting.set(false, undefined);
 		this._isReconnecting.set(false, undefined);
 		this._connectWatchdog.clear();
+		this._sessionAckGrace.clear();
 		this._voiceAutorunDisposable.clear();
 		this._voiceEventDisposables.clear();
 		this.ttsPlaybackService.closeContext();
