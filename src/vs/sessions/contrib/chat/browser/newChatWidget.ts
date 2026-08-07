@@ -527,11 +527,10 @@ export class NewChatWidget extends Disposable {
 	/**
 	 * Replaces a restored draft whose harness the folder can no longer serve.
 	 * A draft outlives navigation, so it can name a session type that has since
-	 * stopped being advertised — e.g. the extension-host Copilot CLI once
-	 * `chat.agents.copilotCli.hideExtensionHost` is on. Keeping it would leave
-	 * the composer showing, and sending to, an agent the harness picker doesn't
-	 * list. An empty type list means the folder's providers haven't reported yet
-	 * (a late-connecting agent host), so the draft is left alone.
+	 * stopped being advertised. Keeping it would leave the composer showing, and
+	 * sending to, an agent the harness picker doesn't list. An empty type list
+	 * means the folder's providers haven't reported yet (a late-connecting agent
+	 * host), so the draft is left alone.
 	 */
 	private _replaceDraftOnUnservableHarness(folderUri: URI, draft: IActiveSession): void {
 		if (draft.isCreated.get()) {
