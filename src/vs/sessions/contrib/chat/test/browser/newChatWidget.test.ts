@@ -41,6 +41,38 @@ const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession
 ) => Promise<IOpenNewSessionResult>;
 const scheduleRecreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_scheduleRecreateOnProviderChange') as INewChatWidgetHarness['_scheduleRecreateOnProviderChange'];
 const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as INewChatWidgetHarness['_recreateOnProviderChange'];
+const setInputOnboardingVisible = Reflect.get(NewChatWidget.prototype, 'setInputOnboardingVisible') as (this: IChatTipVisibilityHarness, visible: boolean) => void;
+const setInputNotificationVisible = Reflect.get(NewChatWidget.prototype, 'setInputNotificationVisible') as (this: IChatTipVisibilityHarness, visible: boolean) => void;
+const isInputOnboardingVisible = Reflect.get(NewChatWidget.prototype, 'isInputOnboardingVisible') as (this: IChatTipVisibilityHarness) => boolean;
+const isChatTipSuppressed = Reflect.get(NewChatWidget.prototype, 'isChatTipSuppressed') as (this: IChatTipVisibilityHarness) => boolean;
+const updateChatTipVisibility = Reflect.get(NewChatWidget.prototype, 'updateChatTipVisibility') as (this: IChatTipVisibilityHarness) => void;
+
+interface IChatTipVisibilityHarness {
+	_isInputOnboardingVisible: boolean;
+	_isInputNotificationVisible: boolean;
+	storageService: { getNumber(key: string, scope: unknown, defaultValue: number): number };
+	isInputOnboardingVisible(): boolean;
+	isChatTipSuppressed(): boolean;
+	updateChatTipVisibility(): void;
+	_clearChatTip(): void;
+	_renderChatTip(): void;
+}
+
+function createChatTipVisibilityHarness(visibilityChanges: string[], storageValues: Map<string, number> = new Map()): IChatTipVisibilityHarness {
+	const harness: IChatTipVisibilityHarness = {
+		_isInputOnboardingVisible: false,
+		_isInputNotificationVisible: false,
+		storageService: {
+			getNumber: (key: string, _scope: unknown, defaultValue: number) => storageValues.get(key) ?? defaultValue,
+		},
+		isInputOnboardingVisible: () => isInputOnboardingVisible.call(harness),
+		isChatTipSuppressed: () => isChatTipSuppressed.call(harness),
+		updateChatTipVisibility: () => updateChatTipVisibility.call(harness),
+		_clearChatTip: () => visibilityChanges.push('hidden'),
+		_renderChatTip: () => visibilityChanges.push('visible'),
+	};
+	return harness;
+}
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -130,5 +162,40 @@ suite('NewChatWidget', () => {
 		await Promise.all([first, second]);
 
 		assert.deepStrictEqual({ tokenCount: tokens.length, firstCancelledWhenSecondStarted }, { tokenCount: 2, firstCancelledWhenSecondStarted: true });
+	});
+
+	test('hides tips for notifications until all suppressors are inactive', () => {
+		const visibilityChanges = ['visible'];
+		const storageValues = new Map([['agentSessions.telemetry.totalSessions', 2]]);
+		const harness = createChatTipVisibilityHarness(visibilityChanges, storageValues);
+
+		setInputNotificationVisible.call(harness, true);
+		setInputOnboardingVisible.call(harness, true);
+		setInputNotificationVisible.call(harness, false);
+		setInputOnboardingVisible.call(harness, false);
+
+		assert.deepStrictEqual(visibilityChanges, ['visible', 'hidden', 'hidden', 'hidden', 'visible']);
+	});
+
+	test('hides tips for users below the session count threshold', () => {
+		const visibilityChanges = ['visible'];
+		const storageValues = new Map([['agentSessions.telemetry.totalSessions', 0]]);
+		const harness = createChatTipVisibilityHarness(visibilityChanges, storageValues);
+
+		// Tips should be hidden because session count is 0 (below the threshold of 2)
+		updateChatTipVisibility.call(harness);
+
+		assert.deepStrictEqual(visibilityChanges, ['visible', 'hidden']);
+	});
+
+	test('shows tips for users at or above the session count threshold', () => {
+		const visibilityChanges: string[] = [];
+		const storageValues = new Map([['agentSessions.telemetry.totalSessions', 2]]);
+		const harness = createChatTipVisibilityHarness(visibilityChanges, storageValues);
+
+		// Tips should be visible because session count is 2 (at the threshold)
+		updateChatTipVisibility.call(harness);
+
+		assert.deepStrictEqual(visibilityChanges, ['visible']);
 	});
 });

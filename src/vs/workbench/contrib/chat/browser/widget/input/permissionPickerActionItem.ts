@@ -63,7 +63,7 @@ export interface IPermissionPickerDelegate {
 	readonly getPermissionLevelHover?: (level: ChatPermissionLevel, meta: IPermissionLevelMeta) => string | undefined;
 	/**
 	 * Whether the experimental "Sandboxing for terminal" toggle may be shown on
-	 * the Default approvals option. The toggle is specific to the local harness
+	 * the Default permissions option. The toggle is specific to the local harness
 	 * (which runs the built-in terminal tool); agent-host harnesses such as
 	 * Copilot CLI and Claude Code do not implement this and never show it.
 	 * Evaluated each time the picker opens so a harness switch is reflected.
@@ -116,7 +116,7 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 				id: 'chat.permissions.autopilot',
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				shortLabel: localize('permissions.autopilot.label', "Autopilot (Preview)"),
-				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				detail: localize('permissions.autopilot.subtext', "Works autonomously within permissions"),
 				icon: ThemeIcon.fromId(Codicon.rocket.id),
 				description: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
 				elevated: true,
@@ -125,8 +125,8 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 		default:
 			return {
 				id: 'chat.permissions.default',
-				label: localize('permissions.default', "Default approvals"),
-				shortLabel: localize('permissions.default.label', "Default approvals"),
+				label: localize('permissions.default', "Default permissions"),
+				shortLabel: localize('permissions.default.label', "Default permissions"),
 				detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 				icon: ThemeIcon.fromId(Codicon.shield.id),
 				description: localize('permissions.default.description', "Use configured approval settings"),
@@ -321,7 +321,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			label = meta.shortLabel;
 			tooltip = this.delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
 			if (level === ChatPermissionLevel.Default && this.isSandboxToggleAvailable() && this.isSandboxingEnabled()) {
-				label = localize('permissions.defaultSandboxed.label', "Default approvals (sandboxed)");
+				label = localize('permissions.defaultSandboxed.label', "Default permissions (sandboxed)");
 			}
 		}
 

@@ -404,7 +404,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: false,
 					menu: [{
 						id: MenuId.TitleBarAdjacentCenter,
-						order: 0, // same position as the update button
+						order: 0,
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
 							ChatContextKeys.Entitlement.signedOut,
@@ -413,7 +413,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
 							ContextKeyExpr.equals(`config.${ChatConfiguration.TitleBarSignInEnabled}`, true),
-							ContextKeyExpr.has('updateTitleBar').negate(),
 							InEditorZenModeContext.negate(),
 						),
 					}]
