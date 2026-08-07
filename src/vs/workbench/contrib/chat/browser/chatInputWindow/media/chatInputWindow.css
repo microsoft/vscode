@@ -19,7 +19,7 @@
 
 .chat-input-window-body {
 	background: transparent !important;
-	overflow: hidden;
+	overflow: hidden !important;
 }
 
 .chat-input-window .chat-input-window-row {
@@ -246,7 +246,7 @@
 }
 
 .chat-input-window .chat-input-window-pending-panel.question .chat-input-window-pending-widget {
-	overflow: hidden;
+	overflow: hidden !important;
 }
 
 .chat-input-window .chat-input-window-pending-approval-fallback {
@@ -390,6 +390,7 @@
 }
 
 .chat-input-window .chat-input-window-pending-panel.question .chat-question-carousel-widget-container {
+	margin-top: 0;
 	padding: 0;
 }
 

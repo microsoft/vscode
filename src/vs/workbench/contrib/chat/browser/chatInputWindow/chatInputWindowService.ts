@@ -803,15 +803,22 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					const bottom = Math.max(rowBounds.bottom, confirmationBottom + paddingBottom);
 					return Math.max(height, bottom - listBounds.top);
 				}, 0);
-				const contentHeight = panel.classList.contains('question') || renderedContentHeight === 0
-					? widget.contentHeight
-					: renderedContentHeight;
-				const minimumHeight = panel.classList.contains('question') ? 1 : CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT;
+				const isQuestion = panel.classList.contains('question');
+				const questionContainer = isQuestion
+					? parent.querySelector<HTMLElement>('.chat-question-carousel-widget-container:not(:empty)')
+					: undefined;
+				const questionContentHeight = questionContainer
+					? questionContainer.getBoundingClientRect().bottom - parent.getBoundingClientRect().top
+					: 0;
+				const contentHeight = isQuestion
+					? Math.max(widget.contentHeight, questionContentHeight)
+					: renderedContentHeight || widget.contentHeight;
+				const minimumHeight = isQuestion ? 1 : CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT;
 				const measuredHeight = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(minimumHeight, Math.ceil(contentHeight)));
 				// Approval content (diff summaries, risk badges, button rows) can
 				// render after the first frame. Grow to accommodate it, but never
 				// shrink this prompt and re-enter a resize oscillation.
-				const height = panel.classList.contains('question')
+				const height = isQuestion
 					? measuredHeight
 					: Math.max(lastPendingHeight ?? 0, measuredHeight);
 				const heightChanged = height !== lastPendingHeight;
@@ -820,7 +827,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					parent.style.height = `${height}px`;
 					this._fitWindowToContent();
 				}
-				if (panel.classList.contains('question') && heightChanged) {
+				if (isQuestion && heightChanged) {
 					widget.layout(height, width);
 				} else if (!panel.classList.contains('question') && height > confirmationWidgetLayoutHeight) {
 					// Keep the virtual row constrained below the input/header, and
