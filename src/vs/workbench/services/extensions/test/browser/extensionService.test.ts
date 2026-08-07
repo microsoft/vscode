@@ -314,6 +314,32 @@ suite('ExtensionService', () => {
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
 	});
 
+
+	test('Extension host disposed when vetoed with force flag', async () => {
+		let willStopFired = false;
+		disposables.add(extService.onWillStop(e => {
+			willStopFired = true;
+			e.veto(true, 'test veto');
+		}));
+
+		const result = await extService.stopExtensionHosts('foo', false, true);
+		assert.strictEqual(result, true);
+		assert.strictEqual(willStopFired, true, 'onWillStop should fire even in force mode');
+		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
+	});
+
+	test('Extension host disposed when vetoed async with force flag', async () => {
+		let willStopCount = 0;
+		disposables.add(extService.onWillStop(e => {
+			willStopCount++;
+			e.veto(Promise.resolve(true), 'async veto');
+		}));
+
+		const result = await extService.stopExtensionHosts('foo', false, true);
+		assert.strictEqual(result, true);
+		assert.strictEqual(willStopCount, 1, 'onWillStop listener should have been called');
+		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
+	});
 	test('onWillActivateByEvent includes activationKind for Normal activation', async () => {
 
 		const events: IWillActivateEvent[] = [];
