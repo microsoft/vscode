@@ -545,6 +545,10 @@
 	width: var(--vscode-spacing-size240);
 }
 
+.session-chat-tabs-bar .chat-composite-bar-tab-actions .actions-container {
+	justify-content: center;
+}
+
 .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions,
 .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
 	background-color: var(--modern-ui-editor-tab-action-hover-background);
