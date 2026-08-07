@@ -97,6 +97,9 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 	}
 
 	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>, editorPartVisibleObs: IObservable<boolean>): DetailPanelTarget {
+		if (this._ctx.multipleSessionsVisibleObs.read(reader)) {
+			return DetailPanelTarget.Preserve;
+		}
 		const activeSession = this._sessionsService.activeSession.read(reader);
 		if (!activeSession) {
 			return DetailPanelTarget.Preserve;

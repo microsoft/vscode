@@ -49,7 +49,7 @@ const DEFAULT_EXISTING_SESSION_VISIBILITY_STATE: ISidePaneVisibilityState = {
 
 /**
  * Keeps separate shared editor/detail compositions for new and existing sessions.
- * Quick chats temporarily suppress the pane without changing either profile.
+ * Quick chats temporarily suppress the pane while a single session is visible.
  */
 export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrategy {
 
@@ -79,9 +79,28 @@ export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrate
 		let activeProfile: SessionVisibilityProfile | undefined;
 		let quickChatActive = false;
 		let initialized = false;
+		let multipleSessionsWereVisible = false;
 		let previousIsCreated: boolean | undefined;
 		let previousSession: IActiveSession | undefined;
 		this._register(autorun(reader => {
+			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
+			if (multipleSessionsVisible) {
+				this._pendingAuxiliaryBarRestore = undefined;
+				multipleSessionsWereVisible = true;
+				const activeSession = this._sessionsService.activeSession.read(reader);
+				const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
+				const workspace = activeSession?.workspace.read(reader);
+				if (activeSession && !isQuickChat && workspace) {
+					const profile = activeSession.isCreated.read(reader)
+						? SessionVisibilityProfile.Existing
+						: SessionVisibilityProfile.New;
+					this._ctx.withSessionLayoutRestore(() => this._revealState(this._getProfile(profile)));
+				}
+				return;
+			}
+
+			const restoreAfterMultipleSessions = multipleSessionsWereVisible;
+			multipleSessionsWereVisible = false;
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return;
@@ -111,7 +130,7 @@ export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrate
 				this._captureProfile(SessionVisibilityProfile.New);
 				this._captureProfile(SessionVisibilityProfile.Existing);
 			}
-			if (!isSubmit && (!initialized || quickChatActive || activeProfile !== nextProfile || sessionChanged)) {
+			if (!isSubmit && (!initialized || restoreAfterMultipleSessions || quickChatActive || activeProfile !== nextProfile || sessionChanged)) {
 				const profile = this._getProfile(nextProfile);
 				this._pendingAuxiliaryBarRestore = profile.auxiliaryBarVisible
 					? (mainPartEmpty ? PendingAuxiliaryBarRestore.WaitingForContent : PendingAuxiliaryBarRestore.WaitingForEmptyGroup)
@@ -139,6 +158,10 @@ export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrate
 			if (this._applyingProfile || this._pendingAuxiliaryBarRestore !== PendingAuxiliaryBarRestore.WaitingForEmptyGroup) {
 				return;
 			}
+			if (this._ctx.multipleSessionsVisibleObs.get()) {
+				this._pendingAuxiliaryBarRestore = undefined;
+				return;
+			}
 			const activeSession = this._sessionsService.activeSession.get();
 			if (!activeSession || activeSession.isQuickChat?.get()) {
 				this._pendingAuxiliaryBarRestore = undefined;
@@ -156,6 +179,9 @@ export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrate
 				return;
 			}
 			if (this._ctx.isRestoringSessionLayout) {
+				return;
+			}
+			if (this._ctx.multipleSessionsVisibleObs.get()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -215,6 +241,20 @@ export class SinglePaneSidePaneVisibilityStrategy extends SinglePaneLayoutStrate
 			if (!state.auxiliaryBarVisible && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
+			if (state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			}
+			if (state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+			}
+		} finally {
+			suppression.dispose();
+		}
+	}
+
+	private _revealState(state: ISidePaneVisibilityState): void {
+		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+		try {
 			if (state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			}

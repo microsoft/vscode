@@ -324,7 +324,10 @@ does, causing the aux bar to fall back to the default-visible logic (§3.2) on t
   submitted (§3.3). A created session with no explicit "visible" choice stays closed until the user
   opens it.
 - **In single-pane, editor/detail visibility is shared by lifecycle type** — New Sessions and Existing
-  Sessions restore independent profiles; quick chats only suppress the pane temporarily.
+  Sessions restore independent profiles; quick chats only suppress the pane temporarily while a single
+  session is visible. With multiple visible sessions, the focused session may reveal parts from its
+  matching profile, but it never automatically hides parts it does not use. This restores an existing
+  session's open side pane without letting a quick chat hide a pane used by another session.
 - **In the classic desktop layout, the sessions sidebar is auto-managed on a small window ([D7])** — when the main container is
   1800px wide or narrower and both the editor and auxiliary bar are open, the sidebar is hidden; it is shown
   again once either closes or the window widens, unless the user closed it themselves. Suspended while
