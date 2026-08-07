@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 
 // Selector for the send button in the Agents Window new-session homepage.
@@ -28,26 +28,6 @@ function mockServerStartOptions(logger: (message: string) => void, captureReques
 	};
 }
 
-/**
- * Per-session scenarios. Each session uses a pair of unique scenario ids so
- * that the mock reply is distinct — this catches stale-content bugs where a
- * previous response is mistakenly accepted as the current one. We send two
- * prompts per session to also exercise the follow-up message path.
- */
-interface SessionConfig {
-	readonly name: string;
-	readonly scenarioId: string;
-	readonly reply: string;
-	readonly scenarioId2: string;
-	readonly reply2: string;
-	/** Skip the second message/assertion (e.g. while a known flake is being investigated). */
-	readonly skipReply2?: boolean;
-}
-
-const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE', scenarioId2: 'smoke-hello-claude-2', reply2: 'MOCKED_CLAUDE_RESPONSE_2' },
-];
-
 const CODEX_SCENARIO_ID = 'smoke-hello-codex';
 const CODEX_REPLY = 'MOCKED_CODEX_RESPONSE';
 
@@ -56,13 +36,6 @@ const CODEX_REPLY = 'MOCKED_CODEX_RESPONSE';
 // list resolution) before the real assertion runs.
 const CODEX_WARMUP_SCENARIO_ID = 'smoke-hello-codex-warmup';
 const CODEX_WARMUP_REPLY = 'MOCKED_CODEX_WARMUP_RESPONSE';
-
-// Lightweight throwaway scenario used by {@link warmUpClaudeModel} to
-// pre-pay the Claude session cold-start cost (bundled SDK import, language
-// model server startup, SDK subprocess spawn, plugin loading) before the
-// real assertion runs.
-const CLAUDE_WARMUP_SCENARIO_ID = 'smoke-hello-claude-warmup';
-const CLAUDE_WARMUP_REPLY = 'MOCKED_CLAUDE_WARMUP_RESPONSE';
 
 const AGENT_HOST_SCENARIO_ID = 'smoke-hello-agent-host';
 const AGENT_HOST_REPLY = 'MOCKED_AGENT_HOST_RESPONSE';
@@ -79,258 +52,7 @@ const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-hello-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
-async function preseedAgentsProfiles(userDataDir: string | undefined, mockServerUrl: string, additionalSettings: Record<string, string | boolean> = {}): Promise<void> {
-	if (!userDataDir) {
-		throw new Error('Cannot pre-seed Agents Window profiles without a user data directory');
-	}
-
-	const settings = JSON.stringify({
-		'github.copilot.advanced.debug.overrideProxyUrl': mockServerUrl,
-		'github.copilot.advanced.debug.overrideAuthType': 'token',
-		'chat.allowAnonymousAccess': true,
-		'github.copilot.chat.githubMcpServer.enabled': false,
-		// Keep follow-up turns in the same chat so the test flow is deterministic.
-		'sessions.github.copilot.multiChatSessions': false,
-		// Capture enough runtime detail to diagnose CI hangs.
-		'chat.agentHost.copilotSdk.logLevel': 'trace',
-		...additionalSettings,
-	}, null, 2);
-	for (const settingsPath of [
-		path.join(userDataDir, 'User', 'settings.json'),
-		path.join(userDataDir, 'User', 'profiles', 'builtin', 'agents', 'settings.json'),
-	]) {
-		fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-		fs.writeFileSync(settingsPath, settings);
-	}
-	await preseedChatExtensionEnablement(userDataDir);
-}
-
 export function setup(logger: Logger) {
-
-	const extensionSuite = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? describe.skip : describe;
-
-	extensionSuite('Agents Window', function () {
-		// Cold start of the agent SDK (first turn) routinely takes ~60-90s
-		// on Windows CI. The default 120s mocha timeout fires while msg1 is
-		// still in flight, which then leaks the deferred msg2 send into the
-		// next test's window and corrupts that test's session view. Match the
-		// 5-minute budget that the other Agents Window describes already use.
-		this.timeout(5 * 60 * 1000);
-
-		let mockServer: MockLlmServer;
-		let claudeModelPrepared = false;
-
-		const prepareClaudeModel = async (app: Application, label: string): Promise<void> => {
-			if (claudeModelPrepared) {
-				await app.workbench.agentsWindow.selectSessionType('Claude');
-				return;
-			}
-
-			await warmUpClaudeModel(app, logger, label);
-			claudeModelPrepared = true;
-		};
-
-		// Shell-tool scenarios for each session type. Each entry carries the
-		// scenario and optional cold-start warm-up used by its corresponding test.
-		interface ShellSession {
-			readonly name: string;
-			readonly sessionType: string;
-			readonly scenarioId: string;
-			readonly reply: string;
-			readonly scenarioFactory: (reply: string) => unknown;
-			/** Optional cold-start warm-up (e.g. Claude SDK bundling). */
-			readonly warmUp?: (app: Application, label: string) => Promise<void>;
-		}
-
-		const SHELL_SESSIONS: readonly ShellSession[] = [
-			{
-				name: 'Claude',
-				sessionType: 'Claude',
-				scenarioId: 'smoke-hello-claude-shell',
-				reply: 'MOCKED_CLAUDE_SHELL_RESPONSE',
-				scenarioFactory: shellEchoScenario,
-				// Pre-pay the Claude cold-start cost so the real assertion
-				// below runs against a warm pipeline (see warmUpClaudeModel).
-				warmUp: prepareClaudeModel,
-			},
-		];
-
-		// Start the mock server BEFORE installAllHandlers' `before` runs so
-		// the mock URL is available when we configure the app's env vars via
-		// `optionsTransform`.
-		before(async function () {
-			const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
-
-			// Fallback for ancillary requests (title/branch) that don't carry a [scenario:...] tag.
-			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
-
-			// One scenario per session type, each emitting a distinct reply
-			// so the assertion is unambiguous. A second scenario per session
-			// covers the follow-up message in the same session.
-			for (const session of SESSIONS) {
-				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
-				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
-			}
-
-			// Shell-tool scenarios for the non-sandbox shell-tool tests
-			// (auto-approved by the default `chat.tools.terminal.autoApprove`
-			// entry for `echo`).
-			for (const shellSession of SHELL_SESSIONS) {
-				registerScenario(shellSession.scenarioId, shellSession.scenarioFactory(shellSession.reply));
-			}
-
-			registerScenario(CLAUDE_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_WARMUP_REPLY).build());
-
-			mockServer = await startServer(0, mockServerStartOptions((msg: string) => logger.log(`[mock-llm] ${msg}`)));
-			logger.log(`[Agents Window] mock LLM server started at ${getMockLlmServerUrl(mockServer)} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
-			logger.log(`[Agents Window] env: VSCODE_DEV=${process.env.VSCODE_DEV ?? '<unset>'}, VSCODE_QUALITY=${process.env.VSCODE_QUALITY ?? '<unset>'}, BUILD_SOURCEBRANCH=${process.env.BUILD_SOURCEBRANCH ?? '<unset>'}, GITHUB_RUN_ID=${process.env.GITHUB_RUN_ID ?? '<unset>'}, GITHUB_ACTIONS=${process.env.GITHUB_ACTIONS ?? '<unset>'}`);
-		});
-
-		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
-			logger.log(`[Agents Window] XDG_STATE_HOME=${copilotEnv.XDG_STATE_HOME ?? '<unset>'}`);
-			logger.log(`[Agents Window] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
-			return {
-				...opts,
-				extraEnv: {
-					...(opts.extraEnv ?? {}),
-					...copilotEnv,
-				},
-			};
-		}, app => preseedAgentsProfiles(app.userDataPath, getMockLlmServerUrl(mockServer)));
-
-		before(async function () {
-			// One-time setup: write VS Code settings and open the Agents Window
-			// with the smoke-test workspace folder pre-selected. Subsequent tests
-			// reuse this window and just start fresh sessions.
-			const app = this.app as Application;
-			logger.log(`[Agents Window] one-time setup begin; workspace=${app.workspacePathOrFolder}; mock URL=${getMockLlmServerUrl(mockServer)}; requestCount=${mockServer.requestCount()}`);
-
-			// Reset any uncommitted changes left by earlier smoke test suites
-			// (e.g. the Tasks test modifies .vscode/tasks.json). A dirty
-			// workspace prevents worktree creation and triggers the
-			// "uncommitted changes" confirmation flow which aborts the session.
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			logger.log(`[Agents Window] reset workspace via 'git checkout .'`);
-
-			// `--enable-smoke-test-driver` (set by the runner) skips the auth dialog.
-			const windowsBefore = app.code.driver.getAllWindows().length;
-			logger.log(`[Agents Window] windowsBefore=${windowsBefore}; opening current folder in Agents Window`);
-			await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
-			logger.log(`[Agents Window] command dispatched; awaiting new Agents Window to appear (current windows=${app.code.driver.getAllWindows().length})`);
-			await app.workbench.agentsWindow.switchToAgentsWindow(windowsBefore);
-			logger.log(`[Agents Window] switched to Agents Window (current windows=${app.code.driver.getAllWindows().length}); requestCount=${mockServer.requestCount()}`);
-		});
-
-		after(async function () {
-			if (mockServer) {
-				logger.log(`[Agents Window] closing mock LLM server; total requestCount=${mockServer.requestCount()}`);
-				await mockServer.close();
-			}
-		});
-
-		for (const [i, session] of SESSIONS.entries()) {
-			it(`Test ${session.name} session`, async function () {
-				const app = this.app as Application;
-				logger.log(`[Agents Window/${session.name}] starting test; requestCount=${mockServer.requestCount()}`);
-				try {
-
-					// The Agents Window is opened in `before` and lands on the new
-					// session view; subsequent tests must start a fresh session to
-					// return to that view.
-					if (i > 0) {
-						await app.workbench.agentsWindow.startNewSession();
-					}
-					logger.log(`[Agents Window/${session.name}] waiting for new session view`);
-					await app.workbench.agentsWindow.waitForNewSessionView();
-					logger.log(`[Agents Window/${session.name}] new session view ready`);
-
-					if (session.name === 'Claude') {
-						// Pre-pay the Claude session cold-start cost: the first Agent Host
-						// Claude session has to load the SDK and spawn its subprocess — often
-						// >60s on macOS arm64 CI. A throwaway prompt absorbs that cost so
-						// the real assertion below runs against a warm pipeline.
-						await prepareClaudeModel(app, 'Agents Window/Claude');
-					}
-
-					logger.log(`[Agents Window/${session.name}] selecting session type '${session.name}'`);
-					await app.workbench.agentsWindow.selectSessionType(session.name);
-
-					const requestsBefore = mockServer.requestCount();
-					const firstPrompt = `hello world [scenario:${session.scenarioId}]`;
-					logger.log(`[Agents Window/${session.name}] submitting prompt; requestCount=${requestsBefore}`);
-					await app.workbench.agentsWindow.submitNewSessionPrompt(firstPrompt);
-					logger.log(`[Agents Window/${session.name}] prompt submitted; waiting for assistant text '${session.reply}'; requestCount=${mockServer.requestCount()}`);
-
-					const text = await app.workbench.agentsWindow.waitForAssistantText(session.reply);
-					logger.log(`Agents Window (${session.name}) response 1: ${text}`);
-
-					if (!session.skipReply2) {
-						// Follow-up message in the same session — exercises the
-						// active-session input path (not the new-session homepage).
-						await app.workbench.agentsWindow.sendFollowUpMessage(
-							`hello again [scenario:${session.scenarioId2}]`,
-						);
-
-						const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, 60_000);
-						logger.log(`Agents Window (${session.name}) response 2: ${text2}`);
-					} else {
-						logger.log(`[Agents Window/${session.name}] skipping second reply assertion (skipReply2=true)`);
-					}
-
-					assert.ok(
-						mockServer.requestCount() > requestsBefore,
-						`expected the mock LLM server to have received a new request from the ${session.name} session`
-					);
-				} catch (error) {
-					logger.log(`[Agents Window/${session.name}] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-					logger.log(`[Agents Window/${session.name}] mock server requestCount at failure: ${mockServer.requestCount()}`);
-					await dumpFailureDiagnostics(app, logger, `Agents Window/${session.name}`, { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
-					throw error;
-				}
-			});
-		}
-
-		// Shell-tool variants for each session type — exercise the
-		// model-driven shell tool (`bash` / `pwsh` / `powershell` for the SDK
-		// sessions) on the first prompt and verify both that the command
-		// actually ran (the JSON tool result contains the echoed marker) and
-		// that the reply rendered in the chat. These run the "non-sandbox"
-		// path: the shell command surfaces a terminal confirmation, which the
-		// wait helper accepts by clicking "Allow" (a no-op for sessions that
-		// auto-approve their shell commands).
-		for (const shellSession of SHELL_SESSIONS) {
-			it(`Test ${shellSession.name} session run in terminal`, async function () {
-				const app = this.app as Application;
-				const label = `Agents Window/${shellSession.name} shell`;
-				try {
-					await app.workbench.agentsWindow.startNewSession();
-					await app.workbench.agentsWindow.waitForNewSessionView();
-					if (shellSession.warmUp) {
-						await shellSession.warmUp(app, label);
-					} else {
-						await app.workbench.agentsWindow.selectSessionType(shellSession.sessionType);
-					}
-
-					const requestsBefore = mockServer.requestCount();
-					await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${shellSession.scenarioId}]`);
-
-					const text = await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(shellSession.reply), 120_000, { acceptToolConfirmations: true });
-					logger.log(`${label} response: ${text}`);
-
-					assert.ok(
-						mockServer.requestCount() > requestsBefore,
-						`expected the mock LLM server to have received a new request from the ${shellSession.name} shell session`
-					);
-
-				} catch (error) {
-					logger.log(`[${label}] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-					await dumpFailureDiagnostics(app, logger, label, { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
-					throw error;
-				}
-			});
-		}
-	});
 
 	describe('Agents Window (local AgentHost)', () => {
 
@@ -716,38 +438,6 @@ async function warmUpAgentHostModel(app: Application, logger: Logger, label: str
 	await app.workbench.agentsWindow.selectSessionType('Copilot');
 }
 
-
-/**
- * Pre-pays the Claude session cold-start cost: the first Claude session in a
- * fresh Agents Window has to start Agent Host, load the SDK, and spawn its
- * subprocess before the first request can complete.
- * On a busy macOS arm64 CI runner this can collectively exceed the default
- * 60s {@link AgentsWindow.waitForAssistantText} timeout, surfacing as a
- * `:not(.chat-response-loading)` selector timeout.
- *
- * Assumes the Agents Window is showing a new-session view. Sends a throwaway
- * prompt to a 'Claude' session, ignores its outcome (the warm-up itself may
- * hit the cold start), then leaves a fresh new-session view with 'Claude'
- * selected so the caller can submit the real prompt against a warm pipeline.
- */
-async function warmUpClaudeModel(app: Application, logger: Logger, label: string): Promise<void> {
-	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Claude');
-	await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_WARMUP_SCENARIO_ID}]`);
-	try {
-		// 60s mirrors the default response wait — long enough to absorb the
-		// cold-start observed at ~60s in #321072, but not so long that a hung
-		// pipeline blocks the test from making forward progress.
-		await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_WARMUP_REPLY, 60_000);
-	} catch (error) {
-		// Ignore — the warm-up itself may hit the cold-start race; the
-		// caller's real attempt runs against an already-warmed pipeline.
-		logger.log(`${label} warm-up attempt did not produce the expected reply (likely the cold-start race); proceeding with the real attempt. Reason: ${error instanceof Error ? error.message : String(error)}`);
-	}
-	await app.workbench.agentsWindow.startNewSession();
-	await app.workbench.agentsWindow.waitForNewSessionView();
-	await app.workbench.agentsWindow.selectSessionType('Claude');
-}
 
 /**
  * Pre-pays the Codex session cold-start cost: the first Codex session in a
