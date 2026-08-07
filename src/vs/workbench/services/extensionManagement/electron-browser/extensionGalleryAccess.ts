@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IExtensionGalleryManifest, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ExtensionGalleryAuthProviderConfigKey } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 /**
  * Identifies which authentication provider gates Private Marketplace access.
@@ -45,90 +44,30 @@ export class MarketplaceAuthRequiredError extends Error {
 }
 
 /**
- * Sink through which the access validator publishes the outcome of an access validation back to
- * its host (the `WorkbenchExtensionGalleryManifestService`). The validator owns the "which account
- * may access which marketplace" decision; the host owns the resulting manifest/status state and
- * its change events. Keeping this contract narrow lets the validator drive status transitions
- * without reaching into the service's manifest fields.
+ * Thrown when the Private Marketplace deployment is misconfigured for the effective auth
+ * provider (e.g. a non-HTTPS service index under Entra auth, or a manifest that advertises no
+ * EligibilityService). Distinct from {@link MarketplaceAuthRequiredError} and transient failures
+ * so the validator can surface a durable "misconfigured" status rather than a sign-in prompt or
+ * an "unreachable" flash.
  */
-export interface IExtensionGalleryAccessSink {
-	/**
-	 * The current manifest status. The validator reads this to preserve an already-`Available`
-	 * marketplace across transient failures instead of flashing an error state.
-	 */
-	getStatus(): ExtensionGalleryManifestStatus;
-
-	/**
-	 * Publishes a new manifest (or `null` when access is revoked/denied) and, optionally, an
-	 * explicit status. When `status` is omitted the host derives it from `manifest` presence.
-	 */
-	update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus): void;
+export class MarketplaceMisconfiguredError extends Error {
+	constructor(message: string) {
+		super(message);
+	}
 }
 
 /**
- * The result of resolving the account currently signed in for a provider, WITHOUT prompting.
- * `'account'` carries the account id (plus a session token for providers that present one),
- * `'none'` means the provider responded but no account is present (durable), and `'error'`
- * means the lookup failed (transient — callers must not invalidate the cache).
+ * Resolves the effective marketplace auth provider, applying the Entra (microsoft) product gate.
+ * When `product.enableExtensionGalleryEntraAuth` is falsy, a configured `microsoft` provider is
+ * downgraded to the GitHub/default provider so the Entra path stays dormant until the Private
+ * Marketplace is publicly released.
  */
-export type AccountResolution =
-	| { kind: 'account'; accountId: string; token?: string }
-	| { kind: 'none' }
-	| { kind: 'error' };
-
-/**
- * The provider-agnostic machinery an {@link IExtensionGalleryAccessProvider} needs from the
- * validator core: the status sink, the shared service-index fetch, and the access cache. Exposed
- * as a narrow interface so provider strategies depend on behaviour, not on the concrete validator,
- * keeping the module graph acyclic.
- */
-export interface IExtensionGalleryAccessCore {
-	/** The status sink shared by the host service. */
-	readonly sink: IExtensionGalleryAccessSink;
-
-	/**
-	 * Fetches and validates the service index (gallery manifest) at `serviceUrl`, optionally
-	 * presenting `accessToken` so a gated index is readable. Throws {@link MarketplaceAuthRequiredError}
-	 * on 401/403 and a generic error on any other non-2xx/malformed response.
-	 */
-	fetchServiceIndex(serviceUrl: string, token: CancellationToken, accessToken?: string): Promise<IExtensionGalleryManifest>;
-
-	/** Persists an access verdict. */
-	cacheAccess(data: ICachedAccess): void;
-
-	/** Clears any persisted access verdict. */
-	clearCache(): void;
-}
-
-/**
- * A per-auth-provider access strategy. Each provider knows how to resolve the current account for
- * its identity system and how to validate that account's Private Marketplace access, driving the
- * shared status sink through the injected {@link IExtensionGalleryAccessCore}. The validator selects
- * exactly one provider based on the effective auth provider and re-validates when
- * {@link onDidChangeAccount} fires.
- */
-export interface IExtensionGalleryAccessProvider extends IDisposable {
-	/** The auth provider this strategy implements. */
-	readonly id: ExtensionGalleryAccessProviderId;
-
-	/**
-	 * Fires when the signed-in account/session for this provider changes, so the validator can
-	 * clear the cache, revoke the previously authorized manifest, and re-validate.
-	 */
-	readonly onDidChangeAccount: Event<void>;
-
-	/**
-	 * Resolves the account currently signed in for this provider, WITHOUT prompting. Used to gate
-	 * a cached verdict against the identity it was written for.
-	 */
-	resolveCurrentAccount(): Promise<AccountResolution>;
-
-	/**
-	 * Validates the current account's access to the marketplace at `serviceUrl`, driving the
-	 * status sink. MUST check `token.isCancellationRequested` immediately before every mutation of
-	 * status/cache/manifest so a superseded validation cannot commit a stale verdict.
-	 */
-	validate(serviceUrl: string, token: CancellationToken): Promise<void>;
+export function getEffectiveAuthProvider(configurationService: IConfigurationService, productService: IProductService): ExtensionGalleryAccessProviderId {
+	const configuredAuthProvider = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey);
+	if (configuredAuthProvider === 'microsoft' && !productService.enableExtensionGalleryEntraAuth) {
+		return 'github';
+	}
+	return configuredAuthProvider === 'microsoft' ? 'microsoft' : 'github';
 }
 
 /**
