@@ -44,13 +44,16 @@ function createChatSessionsService(config: ITypeConfig, sessionType = TYPE): ICh
 	}();
 }
 
-function createEntitlementService(entitlement: ChatEntitlement, anonymous = false): IChatEntitlementService {
+function createEntitlementService(entitlement: ChatEntitlement, anonymous = false, clientByokEnabled = true): IChatEntitlementService {
 	return new class extends mock<IChatEntitlementService>() {
 		override get entitlement(): ChatEntitlement {
 			return entitlement;
 		}
 		override get anonymous(): boolean {
 			return anonymous;
+		}
+		override get clientByokEnabled(): boolean {
+			return clientByokEnabled;
 		}
 	}();
 }
@@ -193,6 +196,16 @@ suite('getSessionTypeAvailability', () => {
 			createByokLanguageModelsService(TYPE),
 			TYPE,
 		), SessionTypeAvailability.Available);
+	});
+
+	test('an Agent Host BYOK model does not override sign-in when client BYOK is disabled', () => {
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
+		assert.strictEqual(getSessionTypeAvailability(
+			createChatSessionsService(config),
+			createEntitlementService(ChatEntitlement.Unknown, false, false),
+			createByokLanguageModelsService(TYPE),
+			TYPE,
+		), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('a hidden Agent Host BYOK copy or source model does not override sign-in', () => {

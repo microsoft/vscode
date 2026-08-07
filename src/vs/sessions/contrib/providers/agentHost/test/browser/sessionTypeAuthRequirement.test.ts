@@ -75,8 +75,9 @@ suite('Agent Host - session type auth requirement', () => {
 			unresolvedAccountNotification: shouldShowSignedOutModelsNotification(true, true, false, false, false),
 			signedOutWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, false, false),
 			signedOutWithModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, false, true),
-			signedOutWithTargetedByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(true, false)),
-			signedOutWithSourceByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(false, true)),
+			signedOutWithTargetedByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(true, true, false)),
+			signedOutWithSourceByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(true, false, true)),
+			signedOutWithByokDisabledNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(false, true, true)),
 			signedInWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, true, false),
 		}, {
 			featureDisabled: false,
@@ -86,6 +87,7 @@ suite('Agent Host - session type auth requirement', () => {
 			signedOutWithModelsNotification: false,
 			signedOutWithTargetedByokNotification: false,
 			signedOutWithSourceByokNotification: false,
+			signedOutWithByokDisabledNotification: true,
 			signedInWithoutModelsNotification: false,
 		});
 	});
