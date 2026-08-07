@@ -244,6 +244,10 @@
 	overflow: auto;
 }
 
+.chat-input-window .chat-input-window-pending-panel.question .chat-input-window-pending-widget {
+	overflow: hidden;
+}
+
 .chat-input-window .chat-input-window-pending-approval-fallback {
 	display: none;
 	padding: 10px 16px 16px;
