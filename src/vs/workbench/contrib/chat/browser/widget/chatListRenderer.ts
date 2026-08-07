@@ -452,7 +452,7 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 
 	const completion = verbose ? formatChatRequestTimestamp(completedAt) : undefined;
 	const elapsed = completion ? formatChatResponseElapsedTime(elapsedMs) : undefined;
-	const alternate = completion?.isRelative
+	const alternate = completion
 		? formatChatResponseDetails(elapsed, completion.fullText)
 		: elapsed;
 	const responseDetails = formatChatResponseDetails(details, completion?.text);
