@@ -5288,12 +5288,9 @@ suite('CopilotAgent', () => {
 				Object.assign(old.fake, {
 					async destroySession(): Promise<void> {
 						oldDestroyCalls++;
-						old.rec.disposed = true;
 					}
 				});
-				let ensureCalls = 0;
 				(agent as unknown as ChatInternals)._ensureChatSession = async () => {
-					ensureCalls++;
 					const existing = getPeerChatStub(agent, chat);
 					if (existing) {
 						return existing;
@@ -5312,18 +5309,12 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					oldDestroyCalls,
-					oldDisposed: old.rec.disposed,
 					freshDisposed: fresh.rec.disposed,
 					freshPrompts: fresh.rec.sends.map(send => send.prompt),
-					ensureCalls,
-					livePeerIsFresh: getPeerChatStub(agent, chat) === fresh.fake,
 				}, {
 					oldDestroyCalls: 1,
-					oldDisposed: true,
 					freshDisposed: false,
 					freshPrompts: ['first-after-policy-change', 'second-after-policy-change'],
-					ensureCalls: 3,
-					livePeerIsFresh: true,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -5858,27 +5849,6 @@ suite('CopilotAgent', () => {
 				// A genuinely different tool set (added tool) must restart so the
 				// SDK session is rebuilt with the new tools.
 				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }];
-
-				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), true);
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
-		test('a managed-permissions policy change requires a restart', async () => {
-			const { agent, configurationService } = createTestAgentContext(disposables);
-			try {
-				const session = AgentSession.uri('copilotcli', 'managed-perms-change-session');
-
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = tools;
-				const activeClient = getActiveClient(agent, session);
-				const appliedSnapshot = await activeClient.snapshot();
-				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), false);
-
-				// An enterprise policy change updates the forwarded managed
-				// permissions; the SDK session must restart so the new
-				// `managedSettings.permissions` apply before the next turn.
-				configurationService.updateRootConfig({ [AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' } });
 
 				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), true);
 			} finally {

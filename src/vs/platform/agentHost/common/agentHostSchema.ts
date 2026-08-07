@@ -297,87 +297,25 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 	sessionMutable: true,
 });
 
-/**
- * The client-agnostic managed-permission shape VS Code synthesizes from its
- * legacy enterprise policy values and forwards to the runtime as
- * `managedSettings.permissions` at SDK session startup. Field names and rule
- * grammar match the runtime managed-permission contract, NOT any VS Code
- * setting: `disableBypassPermissionsMode` locks out "Allow all", and
- * `deny`/`ask`/`allow` are arrays of runtime permission-rule strings. The
- * runtime accepts only a fixed set of rule boundaries (`Bash`, `Shell`,
- * `PowerShell`, `Read`, `Edit`, `Write`, `Domain`); unknown/malformed rules
- * reject session startup, so VS Code must emit only exact, supported tokens.
- * Rules are composed restrictively by the runtime, so an `ask` rule can only
- * add friction and never grants approval.
- */
+/** Managed runtime restrictions synthesized from legacy VS Code enterprise policy. */
 export interface IManagedPermissions {
 	readonly disableBypassPermissionsMode?: 'disable';
-	readonly deny?: readonly string[];
-	readonly ask?: readonly string[];
-	readonly allow?: readonly string[];
+	/** Canonical all-shell prompt rule; active runtime rule policy defaults other governed kinds to ask. */
+	readonly ask?: readonly ['Shell'];
 }
 
-/**
- * The runtime permission-rule string emitted when managed
- * `chat.tools.terminal.enableAutoApprove` is `false`. The kind-only `Shell`
- * rule matches all shell commands in the runtime managed-permission parser.
- * Centralized as a single constant so the grammar lives in one place. Generic
- * `Tool(...)` rules are NOT supported by the runtime and must never be emitted.
- */
 export const MANAGED_PERMISSION_TERMINAL_ASK_RULE = 'Shell';
 
 /**
- * The enterprise-policy inputs — read exclusively from
- * `IConfigurationService.inspect(...).policyValue`, never ordinary
- * user/workspace values — that {@link deriveManagedPermissions} maps into the
- * client-agnostic {@link IManagedPermissions} object.
+ * Translate legacy managed auto-approval policy into restrictive runtime settings.
  */
-export interface IManagedPermissionPolicyInputs {
-	/** Managed value of `chat.tools.global.autoApprove`. `false` disables bypass ("Allow all"). */
-	readonly globalAutoApprove: boolean | undefined;
-	/** Managed value of `chat.tools.terminal.enableAutoApprove`. `false` adds the all-shell `ask` rule. */
-	readonly terminalAutoApproveEnabled: boolean | undefined;
-}
-
-/**
- * Translate VS Code's legacy enterprise policy values into the client-agnostic
- * {@link IManagedPermissions} object. Only mappings backed by exact,
- * runtime-supported permission rules are emitted:
- *
- * - managed `chat.tools.global.autoApprove === false` → `disableBypassPermissionsMode: "disable"`;
- * - managed `chat.tools.terminal.enableAutoApprove === false` → the all-shell `ask` rule `Shell`.
- *
- * Per-tool eligibility (`chat.tools.eligibleForAutoApproval`) is intentionally
- * NOT mapped: the runtime rejects generic `Tool(...)` rules, so there is no
- * supported boundary to express it. Network/sandbox policies are out of scope
- * for this first pass.
- *
- * Returns `undefined` when no restrictive policy applies, so callers can omit
- * the field entirely rather than forward an empty object.
- */
-export function deriveManagedPermissions(inputs: IManagedPermissionPolicyInputs): IManagedPermissions | undefined {
-	const ask: string[] = [];
-	let disableBypassPermissionsMode: 'disable' | undefined;
-
-	if (inputs.globalAutoApprove === false) {
-		disableBypassPermissionsMode = 'disable';
-	}
-	if (inputs.terminalAutoApproveEnabled === false) {
-		ask.push(MANAGED_PERMISSION_TERMINAL_ASK_RULE);
-	}
-
-	const permissions: {
-		disableBypassPermissionsMode?: 'disable';
-		ask?: string[];
-	} = {};
-	if (disableBypassPermissionsMode) {
-		permissions.disableBypassPermissionsMode = disableBypassPermissionsMode;
-	}
-	if (ask.length) {
-		permissions.ask = ask;
-	}
-
-	return Object.keys(permissions).length ? permissions : undefined;
+export function deriveManagedPermissions(globalAutoApprovePolicyValue: boolean | undefined, terminalAutoApprovePolicyValue: boolean | undefined): IManagedPermissions | undefined {
+	const disableBypassPermissionsMode = globalAutoApprovePolicyValue === false;
+	const askForShell = terminalAutoApprovePolicyValue === false;
+	return disableBypassPermissionsMode || askForShell ? {
+		...(disableBypassPermissionsMode ? { disableBypassPermissionsMode: 'disable' as const } : {}),
+		...(askForShell ? { ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE] as const } : {}),
+	} : undefined;
 }
 
 /**
@@ -385,67 +323,12 @@ export function deriveManagedPermissions(inputs: IManagedPermissionPolicyInputs)
  * no managed policy.
  */
 export function normalizeManagedPermissions(permissions: IManagedPermissions | undefined): IManagedPermissions | undefined {
-	return permissions && Object.keys(permissions).length > 0 ? permissions : undefined;
-}
-
-const managedPermissionRuleFamilies = new Set(['bash', 'shell', 'powershell', 'read', 'edit', 'write', 'domain']);
-const managedPermissionShellRuleFamilies = new Set(['bash', 'shell', 'powershell']);
-
-/**
- * Return parser-compatible validation issues for managed permission rules.
- * Provider runtimes remain authoritative for family-specific path and domain patterns.
- */
-export function validateManagedPermissionRules(permissions: IManagedPermissions | undefined): readonly string[] {
-	if (!permissions) {
-		return [];
-	}
-
-	const issues: string[] = [];
-	for (const list of ['deny', 'ask', 'allow'] as const) {
-		for (const [index, rule] of (permissions[list] ?? []).entries()) {
-			const issue = validateManagedPermissionRule(rule);
-			if (issue) {
-				issues.push(`${list}.${index}: ${issue}`);
-			}
-		}
-	}
-	return issues;
-}
-
-function validateManagedPermissionRule(rule: string): string | undefined {
-	const openParenthesis = rule.indexOf('(');
-	let family = rule;
-	let argument: string | undefined;
-	if (openParenthesis !== -1) {
-		if (!rule.endsWith(')')) {
-			return `Invalid rule format: ${rule}`;
-		}
-		family = rule.slice(0, openParenthesis);
-		argument = rule.slice(openParenthesis + 1, -1);
-		if (!argument || argument.includes(')')) {
-			return `Invalid rule format: ${rule}`;
-		}
-	}
-	if (!family || ![...family].every(character => /[a-zA-Z0-9_./@-]/.test(character))) {
-		return `Invalid rule format: ${rule}`;
-	}
-
-	const normalizedFamily = family.toLowerCase();
-	if (!managedPermissionRuleFamilies.has(normalizedFamily)) {
-		return `Unsupported managed permission rule family '${family}'; expected Bash, Shell, PowerShell, Read, Edit, Write, or Domain`;
-	}
-	if (!argument || !managedPermissionShellRuleFamilies.has(normalizedFamily)) {
-		return undefined;
-	}
-	if (argument.endsWith(' *')) {
-		return argument.slice(0, -2).trimEnd()
-			? undefined
-			: 'Invalid managed shell permission rule: wildcard requires a command prefix';
-	}
-	if (argument.includes('*') && !argument.endsWith(':*')) {
-		return `Unsupported managed shell wildcard pattern '${argument}'; use '<command> *' or the canonical '<command>:*' suffix`;
-	}
-	return undefined;
+	const disableBypassPermissionsMode = permissions?.disableBypassPermissionsMode === 'disable';
+	const askForShell = permissions?.ask?.includes(MANAGED_PERMISSION_TERMINAL_ASK_RULE) === true;
+	return disableBypassPermissionsMode || askForShell ? {
+		...(disableBypassPermissionsMode ? { disableBypassPermissionsMode: 'disable' as const } : {}),
+		...(askForShell ? { ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE] as const } : {}),
+	} : undefined;
 }
 
 const managedPermissionsProperty = schemaProperty<IManagedPermissions>({
@@ -458,20 +341,14 @@ const managedPermissionsProperty = schemaProperty<IManagedPermissions>({
 			title: localize('agentHost.config.managedPermissions.disableBypass', "Disable bypass permissions mode"),
 			enum: ['disable'],
 		},
-		deny: {
-			type: 'array',
-			title: localize('agentHost.config.managedPermissions.deny', "Denied permission rules"),
-			items: { type: 'string', title: localize('agentHost.config.managedPermissions.rule', "Permission rule") },
-		},
 		ask: {
 			type: 'array',
-			title: localize('agentHost.config.managedPermissions.ask', "Ask permission rules"),
-			items: { type: 'string', title: localize('agentHost.config.managedPermissions.rule', "Permission rule") },
-		},
-		allow: {
-			type: 'array',
-			title: localize('agentHost.config.managedPermissions.allow', "Allowed permission rules"),
-			items: { type: 'string', title: localize('agentHost.config.managedPermissions.rule', "Permission rule") },
+			title: localize('agentHost.config.managedPermissions.ask', "Required permission prompts"),
+			items: {
+				type: 'string',
+				title: localize('agentHost.config.managedPermissions.rule', "Permission rule"),
+				enum: [MANAGED_PERMISSION_TERMINAL_ASK_RULE],
+			},
 		},
 	},
 	// No default: `{}` is the wire-level clear sentinel and is normalized to

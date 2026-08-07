@@ -77,7 +77,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostEditTelemetryEnabledConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostManagedPermissionsLogRedaction, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, normalizeManagedPermissions, platformRootSchema, type IManagedPermissions } from '../common/agentHostSchema.js';
+import { AgentHostEditTelemetryEnabledConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostManagedPermissionsLogRedaction, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, MANAGED_PERMISSION_TERMINAL_ASK_RULE, normalizeManagedPermissions, platformRootSchema, type IManagedPermissions } from '../common/agentHostSchema.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -2768,34 +2768,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _getEffectiveManagedPermissions(): IManagedPermissions | undefined {
 		const permissions = [...this._managedPermissionsByClient.values()];
-		if (permissions.length === 0) {
-			return undefined;
-		}
-
-		const deny = new Set<string>();
-		const ask = new Set<string>();
-		let allow = new Set(permissions[0].allow ?? []);
-		let disableBypassPermissionsMode = false;
-		for (const clientPermissions of permissions) {
-			disableBypassPermissionsMode ||= clientPermissions.disableBypassPermissionsMode === 'disable';
-			for (const rule of clientPermissions.deny ?? []) {
-				deny.add(rule);
-			}
-			for (const rule of clientPermissions.ask ?? []) {
-				ask.add(rule);
-			}
-			// Managed allow rules grant automatic approval, so retain only rules
-			// explicitly allowed by every managed client.
-			const clientAllow = new Set(clientPermissions.allow ?? []);
-			allow = new Set([...allow].filter(rule => clientAllow.has(rule)));
-		}
-
-		return {
+		const disableBypassPermissionsMode = permissions.some(value => value.disableBypassPermissionsMode === 'disable');
+		const askForShell = permissions.some(value => value.ask !== undefined);
+		return disableBypassPermissionsMode || askForShell ? {
 			...(disableBypassPermissionsMode ? { disableBypassPermissionsMode: 'disable' as const } : {}),
-			...(deny.size ? { deny: [...deny] } : {}),
-			...(ask.size ? { ask: [...ask] } : {}),
-			...(allow.size ? { allow: [...allow] } : {}),
-		};
+			...(askForShell ? { ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE] as const } : {}),
+		} : undefined;
 	}
 
 	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {

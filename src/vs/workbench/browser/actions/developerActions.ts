@@ -55,7 +55,7 @@ import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 import { IAgentHostService } from '../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
-import { deriveManagedPermissions, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, validateManagedPermissionRules } from '../../../platform/agentHost/common/agentHostSchema.js';
+import { deriveManagedPermissions, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from '../../../platform/agentHost/common/agentHostSchema.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -985,24 +985,13 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			content += '### Agent Host Client Injection\n\n';
 			content += '*Synthesized by VS Code from effective managed policy values and forwarded to supporting Agent Host providers as session-local managed permissions.*\n\n';
-			const agentHostManagedPermissions = deriveManagedPermissions({
-				globalAutoApprove: configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
-				terminalAutoApproveEnabled: configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
-			});
+			const agentHostManagedPermissions = deriveManagedPermissions(
+				configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
+				configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
+			);
 			content += '**Synthesized managed permissions**\n\n';
 			content += jsonBlock(agentHostManagedPermissions ?? {});
 			content += `**Expected session runtime provenance**: ${agentHostManagedPermissions ? '`client` when no account/device policy contributes; `mixed` otherwise' : 'the account/device baseline shown below'}\n\n`;
-			const agentHostManagedPermissionIssues = validateManagedPermissionRules(agentHostManagedPermissions);
-			content += `**Rule validation issues (${agentHostManagedPermissionIssues.length})**\n\n`;
-			if (agentHostManagedPermissionIssues.length > 0) {
-				for (const issue of agentHostManagedPermissionIssues) {
-					content += `- ${issue}\n`;
-					parseErrors.push({ stage: 'agentHost: client permissions', message: issue });
-				}
-				content += '\n';
-			} else {
-				content += '*None.*\n\n';
-			}
 
 			content += '### Agent Runtime Account and Device Baseline\n\n';
 			content += '*Queried from each provider when this report is generated. The SDK query covers account/server and device policy, but intentionally excludes the session-local Agent Host client injection above and may use the provider runtime\'s own policy cache. Therefore `source: none` here does not mean that synthesized client permissions are inactive; a created session reports `client` or `mixed` provenance after applying them.*\n\n';

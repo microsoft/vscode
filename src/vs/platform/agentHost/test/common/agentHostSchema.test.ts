@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { createSchema, deriveManagedPermissions, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, normalizeManagedPermissions, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostManagedPermissionsConfigKey, MANAGED_PERMISSION_TERMINAL_ASK_RULE, validateManagedPermissionRules, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IManagedPermissions, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, deriveManagedPermissions, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, normalizeManagedPermissions, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostManagedPermissionsConfigKey, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -417,73 +417,29 @@ suite('agentHostSchema', () => {
 
 	suite('deriveManagedPermissions', () => {
 
-		test('returns undefined when no policy applies', () => {
-			assert.strictEqual(deriveManagedPermissions({
-				globalAutoApprove: undefined,
-				terminalAutoApproveEnabled: undefined,
-			}), undefined);
-		});
-
-		test('permissive policy values map to nothing', () => {
-			assert.strictEqual(deriveManagedPermissions({
-				globalAutoApprove: true,
-				terminalAutoApproveEnabled: true,
-			}), undefined);
-		});
-
-		test('maps restrictive policies into supported rules', () => {
-			assert.deepStrictEqual(deriveManagedPermissions({
-				globalAutoApprove: false,
-				terminalAutoApproveEnabled: false,
-			}), {
-				disableBypassPermissionsMode: 'disable',
-				ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE],
-			} satisfies IManagedPermissions);
-		});
-
-		test('emits only disableBypassPermissionsMode when only global auto-approve is denied', () => {
-			assert.deepStrictEqual(deriveManagedPermissions({
-				globalAutoApprove: false,
-				terminalAutoApproveEnabled: undefined,
-			}), { disableBypassPermissionsMode: 'disable' } satisfies IManagedPermissions);
-		});
-
-		test('emits only the all-shell ask rule when only terminal auto-approve is denied', () => {
-			assert.deepStrictEqual(deriveManagedPermissions({
-				globalAutoApprove: undefined,
-				terminalAutoApproveEnabled: false,
-			}), { ask: ['Shell'] } satisfies IManagedPermissions);
-		});
-
-		test('derived value validates against the managed-permissions root schema', () => {
-			const permissions = deriveManagedPermissions({
-				globalAutoApprove: false,
-				terminalAutoApproveEnabled: false,
-			});
-			assert.ok(permissions);
+		test('maps only restrictive auto-approve policy', () => {
+			const permissions = deriveManagedPermissions(false, false);
 			assert.deepStrictEqual({
+				unset: deriveManagedPermissions(undefined, undefined),
+				permissive: deriveManagedPermissions(true, true),
+				global: deriveManagedPermissions(false, true),
+				terminal: deriveManagedPermissions(true, false),
+				restrictive: permissions,
 				schema: platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, permissions),
-				rules: validateManagedPermissionRules(permissions),
+				unsupportedRule: platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, { ask: ['Shell(*)'] }),
+				clearSentinel: normalizeManagedPermissions({}),
+				normalized: normalizeManagedPermissions(permissions),
 			}, {
+				unset: undefined,
+				permissive: undefined,
+				global: { disableBypassPermissionsMode: 'disable' },
+				terminal: { ask: ['Shell'] },
+				restrictive: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 				schema: true,
-				rules: [],
+				unsupportedRule: false,
+				clearSentinel: undefined,
+				normalized: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 			});
-		});
-
-		test('reports runtime-incompatible managed shell wildcards', () => {
-			assert.deepStrictEqual(validateManagedPermissionRules({
-				ask: ['Shell(*)', 'Shell(git *)', 'PowerShell(Get-Item:*)'],
-			}), [
-				`ask.0: Unsupported managed shell wildcard pattern '*'; use '<command> *' or the canonical '<command>:*' suffix`,
-			]);
-		});
-
-		test('normalizes the root-config clear sentinel to no policy', () => {
-			assert.strictEqual(normalizeManagedPermissions({}), undefined);
-			assert.deepStrictEqual(
-				normalizeManagedPermissions({ disableBypassPermissionsMode: 'disable' }),
-				{ disableBypassPermissionsMode: 'disable' },
-			);
 		});
 	});
 });

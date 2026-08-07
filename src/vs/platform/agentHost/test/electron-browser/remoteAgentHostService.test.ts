@@ -590,19 +590,23 @@ suite('RemoteAgentHostService', () => {
 					},
 				},
 				mockClient as unknown as Parameters<typeof service.addManagedConnection>[1],
-				undefined,
-				RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['0.3.0'], ['^0.2.0'], '_vscodeUpgrade'),
 			);
+			const changed = Event.toPromise(service.onDidChangeConnections);
+			mockClient.fireConnectionState(
+				AgentHostClientState.Incompatible,
+				new ProtocolError(AhpErrorCodes.UnsupportedProtocolVersion, 'Managed permissions are unsupported.'),
+			);
+			await changed;
 
 			const upgradeResult = await service.triggerServerUpgrade('ssh:remote.example', '_vscodeUpgrade');
 
 			assert.deepStrictEqual({
-				status: service.connections[0].status,
+				status: service.connections[0].status.kind,
 				connectedConnection: service.getConnection('ssh:remote.example'),
 				upgradeCalls: mockClient.triggerVscodeUpgradeCalls,
 				upgradeResult,
 			}, {
-				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['0.3.0'], ['^0.2.0'], '_vscodeUpgrade'),
+				status: 'incompatible',
 				connectedConnection: undefined,
 				upgradeCalls: ['_vscodeUpgrade'],
 				upgradeResult: { ok: true, upgradeStarted: true },

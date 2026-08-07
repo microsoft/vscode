@@ -1586,33 +1586,7 @@ suite('ProtocolServerHandler', () => {
 		await assert.rejects(readPromise, /Client client-fs-overlap-close disconnected/);
 	});
 
-	test('client disconnect retains managed permissions through grace and removes them after expiry', () => {
-		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			stateManager.createSession(makeSessionSummary());
-			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
-
-			const transport = connectClient('client-d', [sessionUri]);
-			transport.sent.length = 0;
-			transport.simulateClose();
-			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'After Disconnect' });
-
-			await new Promise(resolve => setTimeout(resolve, 29_999));
-			const beforeGraceExpiry = [...agentService.removedManagedPermissionClients];
-			await new Promise(resolve => setTimeout(resolve, 2));
-
-			assert.deepStrictEqual({
-				sentMessages: transport.sent.length,
-				beforeGraceExpiry,
-				afterGraceExpiry: agentService.removedManagedPermissionClients,
-			}, {
-				sentMessages: 0,
-				beforeGraceExpiry: [],
-				afterGraceExpiry: ['client-d'],
-			});
-		});
-	});
-
-	test('reconnect during grace preserves managed permissions', () => {
+	test('reconnect preserves managed permissions until the next disconnect grace expires', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const transport1 = connectClient('client-managed-reconnect');
 			const initializeResponse = findResponse(transport1.sent, 1) as { result: InitializeResult };
@@ -1631,13 +1605,18 @@ suite('ProtocolServerHandler', () => {
 			}));
 			await reconnectResponse;
 			await new Promise(resolve => setTimeout(resolve, 30_001));
+			const afterOriginalGraceExpiry = [...agentService.removedManagedPermissionClients];
 
+			transport2.simulateClose();
+			await new Promise(resolve => setTimeout(resolve, 30_001));
 			assert.deepStrictEqual({
 				duringGrace,
-				afterOriginalGraceExpiry: agentService.removedManagedPermissionClients,
+				afterOriginalGraceExpiry,
+				afterSecondGraceExpiry: agentService.removedManagedPermissionClients,
 			}, {
 				duringGrace: [],
 				afterOriginalGraceExpiry: [],
+				afterSecondGraceExpiry: ['client-managed-reconnect'],
 			});
 		});
 	});

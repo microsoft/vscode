@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettings, ManagedSettingsPermissions, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -83,19 +83,6 @@ type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 
-function toSdkManagedSettings(permissions: IManagedPermissions | undefined): ManagedSettings | undefined {
-	if (!permissions) {
-		return undefined;
-	}
-	const sdkPermissions: ManagedSettingsPermissions = {
-		...(permissions.disableBypassPermissionsMode ? { disableBypassPermissionsMode: permissions.disableBypassPermissionsMode } : {}),
-		...(permissions.deny ? { deny: [...permissions.deny] } : {}),
-		...(permissions.ask ? { ask: [...permissions.ask] } : {}),
-		...(permissions.allow ? { allow: [...permissions.allow] } : {}),
-	};
-	return { permissions: sdkPermissions };
-}
-
 /**
  * Immutable snapshot of the active client's structural contributions at
  * session creation time. Used to detect when the session needs to be
@@ -109,14 +96,8 @@ export interface IActiveClientSnapshot {
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly ICopilotPluginInfo[];
 	readonly mcpServers: AgentHostMcpServers;
-	/**
-	 * Enterprise-policy-derived managed permissions in effect at snapshot time.
-	 * Participates in restart detection because it is forwarded into the SDK
-	 * session config as `managedSettings.permissions`; a policy change must
-	 * refresh the session so the new permissions apply before the next turn.
-	 * Optional: `undefined` (or absent) means no managed policy applied.
-	 */
-	readonly managedPermissions?: IManagedPermissions | undefined;
+	/** Startup-only managed permissions included in structural restart detection. */
+	readonly managedPermissions?: IManagedPermissions;
 }
 
 /**
@@ -601,9 +582,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
-		const managedSettings = toSdkManagedSettings(normalizeManagedPermissions(
+		const managedPermissions = normalizeManagedPermissions(
 			this._configurationService.getRootValue(platformRootSchema, AgentHostManagedPermissionsConfigKey),
-		));
+		);
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
@@ -705,7 +686,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Forward enterprise-policy-derived managed permissions (synthesized
 			// by VS Code from managed policy values) as the runtime's
 			// `managedSettings.permissions`. Omitted when no policy applies.
-			...(managedSettings ? { managedSettings } : {}),
+			...(managedPermissions ? {
+				managedSettings: {
+					permissions: {
+						...(managedPermissions.disableBypassPermissionsMode ? { disableBypassPermissionsMode: managedPermissions.disableBypassPermissionsMode } : {}),
+						...(managedPermissions.ask ? { ask: [...managedPermissions.ask] } : {}),
+					},
+				},
+			} : {}),
 		};
 	}
 }

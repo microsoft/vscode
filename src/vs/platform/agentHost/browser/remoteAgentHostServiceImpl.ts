@@ -341,6 +341,16 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._onDidChangeConnections.fire();
 			}
 		}));
+		store.add(protocolClient.onDidChangeConnectionState(state => {
+			if (this._entries.get(address) !== connEntry || state !== AgentHostClientState.Incompatible) {
+				return;
+			}
+			connEntry.connected = false;
+			connEntry.status = protocolClient.connectionError
+				? RemoteAgentHostConnectionStatus.fromConnectError(protocolClient.connectionError, [PROTOCOL_VERSION]) ?? RemoteAgentHostConnectionStatus.disconnected
+				: RemoteAgentHostConnectionStatus.disconnected;
+			this._onDidChangeConnections.fire();
+		}));
 
 		// Persist entries — await so that the config is written before
 		// onDidChangeConnections fires, ensuring _reconcile creates the provider.

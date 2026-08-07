@@ -27,7 +27,7 @@ import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHost
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
-import { compareProtocolVersions, SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
+import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -50,8 +50,6 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
-const MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION = '0.8.0';
-
 /** Initial delay before the first transport-level reconnect attempt. */
 const RECONNECT_INITIAL_DELAY_MS = 1_000;
 
@@ -369,10 +367,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
 			}
-			if (
-				e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID) ||
-				e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)
-			) {
+			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
 				this._updateManagedPermissions();
 			}
 			if (e.affectsConfiguration(PREFER_LONG_CONTEXT_SETTING_ID)) {
@@ -455,7 +450,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				// Advertise every version this client can negotiate, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
-				protocolVersions: this._supportedProtocolVersions(),
+				protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				...this._clientConnectionTelemetryMeta(),
@@ -483,12 +478,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
 			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion) {
-				this._cancelLivenessTimers();
-				if (this._state.kind === AgentHostClientState.Connecting) {
-					this._state.outbox.length = 0;
-				}
-				this._rejectPendingRequests(protocolError);
-				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
+				this._markIncompatible(protocolError);
 				throw error;
 			}
 			this._handleClose(protocolError);
@@ -530,7 +520,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._handleClose(connectionClosedError(this._address));
 				return;
 			case AgentHostClientState.Incompatible:
-				this._handleClose(connectionClosedError(this._address));
+				this._rejectPendingRequests(connectionClosedError(this._address));
 				return;
 			case AgentHostClientState.Connected: {
 				if (!this._transportFactory) {
@@ -669,7 +659,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: this._supportedProtocolVersions(),
+			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			...this._clientConnectionTelemetryMeta(),
@@ -685,7 +675,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _applyInitializeResult(result: CommandMap['initialize']['result']): void {
-		this._assertManagedPermissionsSupported(result.protocolVersion);
+		this._assertManagedPermissionsSupported(result);
 		this._initializeResult.set(result, undefined);
 		this._serverSeq = result.serverSeq;
 		if (result.defaultDirectory) {
@@ -1532,12 +1522,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	private _updateManagedPermissions(): void {
 		const permissions = this._deriveManagedPermissions();
-		const protocolVersion = this._initializeResult.get()?.protocolVersion;
-		if (protocolVersion && compareProtocolVersions(protocolVersion, MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION) < 0) {
+		const initializeResult = this._initializeResult.get();
+		if (initializeResult && !this._supportsManagedPermissions(initializeResult)) {
 			if (!permissions) {
 				return;
 			}
-			const error = this._managedPermissionsUnsupportedError(protocolVersion);
+			const error = this._managedPermissionsUnsupportedError();
 			const wasConnected = this._state.kind === AgentHostClientState.Connected;
 			this._markIncompatible(error);
 			if (!wasConnected) {
@@ -1551,32 +1541,30 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _deriveManagedPermissions() {
-		return deriveManagedPermissions({
-			globalAutoApprove: this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
-			terminalAutoApproveEnabled: this._configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
-		});
+		return deriveManagedPermissions(
+			this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
+			this._configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
+		);
 	}
 
-	private _supportedProtocolVersions(): string[] {
-		if (!this._deriveManagedPermissions()) {
-			return [...SUPPORTED_PROTOCOL_VERSIONS];
+	private _supportsManagedPermissions(result: CommandMap['initialize']['result']): boolean {
+		// Host builds expose this schema key only when shipped with a compatible runtime.
+		return result.snapshots?.some(snapshot =>
+			isAhpRootChannel(snapshot.resource)
+			&& Object.hasOwn((snapshot.state as RootState).config?.schema.properties ?? {}, AgentHostManagedPermissionsConfigKey)
+		) === true;
+	}
+
+	private _assertManagedPermissionsSupported(result: CommandMap['initialize']['result']): void {
+		if (this._deriveManagedPermissions() && !this._supportsManagedPermissions(result)) {
+			throw this._managedPermissionsUnsupportedError();
 		}
-		return SUPPORTED_PROTOCOL_VERSIONS.filter(version =>
-			compareProtocolVersions(version, MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION) >= 0);
 	}
 
-	private _assertManagedPermissionsSupported(protocolVersion: string): void {
-		if (this._deriveManagedPermissions()
-			&& compareProtocolVersions(protocolVersion, MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION) < 0) {
-			throw this._managedPermissionsUnsupportedError(protocolVersion);
-		}
-	}
-
-	private _managedPermissionsUnsupportedError(protocolVersion: string): ProtocolError {
+	private _managedPermissionsUnsupportedError(): ProtocolError {
 		return new ProtocolError(
 			AhpErrorCodes.UnsupportedProtocolVersion,
-			`Managed permissions require Agent Host protocol ${MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION} or newer; negotiated ${protocolVersion}.`,
-			{ supportedVersions: [`>=${MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION}`] },
+			'The connected Agent Host does not advertise managed-permissions enforcement support.',
 		);
 	}
 

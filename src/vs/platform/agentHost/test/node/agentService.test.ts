@@ -932,7 +932,7 @@ suite('AgentService (node dispatcher)', () => {
 			await readStarted.p;
 			svc.dispatchAction(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
-				config: { [AgentHostManagedPermissionsConfigKey]: { ask: ['Shell'] } },
+				config: { [AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' } },
 			}, clientId, 2);
 			svc.removeClientManagedPermissions(clientId);
 			const queueDrained = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientId === clientId && envelope.origin.clientSeq === 3));
@@ -1052,7 +1052,7 @@ suite('AgentService (node dispatcher)', () => {
 					type: ActionType.RootConfigChanged,
 					config: {
 						customizations: [customization],
-						[AgentHostManagedPermissionsConfigKey]: { ask: ['Shell'] },
+						[AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' },
 					},
 				}, 'test-client', 1);
 
@@ -1089,7 +1089,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
-		test('combines managed permissions restrictively per client and redacts trace logs', () => {
+		test('isolates managed permissions per client and redacts trace logs', () => {
 			const traces: { readonly message: string; readonly args: readonly unknown[] }[] = [];
 			const logService = new class extends NullLogService {
 				override trace(message: string, ...args: unknown[]): void {
@@ -1098,7 +1098,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			const svc = disposables.add(new AgentService(logService, fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const managedPermissions = {
-				ask: ['Domain(private.example)'],
+				ask: ['Shell'] as const,
 			};
 			const managedAction = {
 				type: ActionType.RootConfigChanged,
@@ -1127,17 +1127,14 @@ suite('AgentService (node dispatcher)', () => {
 				afterAllManagedDisconnect,
 				originalPermissions: managedAction.config[AgentHostManagedPermissionsConfigKey],
 				traceHasRedaction: serializedTraces.includes(AgentHostManagedPermissionsLogRedaction),
-				traceHasRule: serializedTraces.includes('private.example'),
+				traceHasManagedValue: serializedTraces.includes('disableBypassPermissionsMode'),
 			}, {
-				beforeDisconnect: {
-					disableBypassPermissionsMode: 'disable',
-					ask: ['Domain(private.example)'],
-				},
+				beforeDisconnect: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 				afterManagedDisconnect: { disableBypassPermissionsMode: 'disable' },
 				afterAllManagedDisconnect: {},
 				originalPermissions: managedPermissions,
 				traceHasRedaction: true,
-				traceHasRule: false,
+				traceHasManagedValue: false,
 			});
 		});
 

@@ -222,6 +222,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		onGrantImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
 		/** Test hook that observes disposal of the implicit-read grant. */
 		onRevokeImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
+		onConnectionClosed?: (identity: AgentHostResourceIdentity) => void;
 		readBytes?: VSBuffer;
 	}
 
@@ -268,7 +269,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				opts.onGrantImplicitRead?.(address, uri);
 				return opts.onRevokeImplicitRead ? toDisposable(() => opts.onRevokeImplicitRead?.(address, uri)) : Disposable.None;
 			},
-			connectionClosed: () => { },
+			connectionClosed: identity => opts.onConnectionClosed?.(identity),
 		};
 	}
 
@@ -290,7 +291,24 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: sent.id,
-			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			result: {
+				protocolVersion: PROTOCOL_VERSION,
+				serverSeq: 0,
+				snapshots: [{
+					resource: ROOT_STATE_URI,
+					fromSeq: 0,
+					state: {
+						agents: [],
+						config: {
+							schema: {
+								type: 'object',
+								properties: { [AgentHostManagedPermissionsConfigKey]: { type: 'object' } },
+							},
+							values: {},
+						},
+					},
+				}],
+			},
 		});
 		await connectPromise;
 	}
@@ -955,33 +973,59 @@ suite('RemoteAgentHostProtocolClient', () => {
 			disableBypassPermissionsMode: 'disable',
 			ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE],
 		});
+
+		transport.sentMessages.length = 0;
+		configurationService.setPolicyValue(GLOBAL_AUTO_APPROVE_SETTING_ID, undefined);
+		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
+		assert.deepStrictEqual(
+			findRootConfigValue(transport.sentMessages, AgentHostManagedPermissionsConfigKey),
+			{ ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE] },
+		);
+
+		transport.sentMessages.length = 0;
+		configurationService.setPolicyValue(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, undefined);
+		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+		assert.deepStrictEqual(
+			findRootConfigValue(transport.sentMessages, AgentHostManagedPermissionsConfigKey),
+			{},
+		);
 	});
 
-	test('requires a managed-permissions-capable protocol when restrictive policy is present', async () => {
+	test('requires explicit host support when restrictive policy is present', async () => {
 		const configurationService = new ManagedPermissionPolicyConfigurationService({
 			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
 		});
-		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		const closedIdentities: AgentHostResourceIdentity[] = [];
+		const permissionService = createResourceServiceStub({
+			onConnectionClosed: identity => closedIdentities.push(identity),
+		});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), permissionService, undefined, new NullLogService(), configurationService);
+		let closeCount = 0;
+		disposables.add(client.onDidClose(() => closeCount++));
 		const connect = client.connect();
 		const initialize = transport.sentMessages[0] as JsonRpcRequest;
 
-		assert.deepStrictEqual((initialize.params as { protocolVersions: string[] }).protocolVersions, [PROTOCOL_VERSION]);
+		assert.deepStrictEqual((initialize.params as { protocolVersions: string[] }).protocolVersions, SUPPORTED_PROTOCOL_VERSIONS);
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: initialize.id,
-			result: { protocolVersion: '0.7.0', serverSeq: 0, snapshots: [] },
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
 		});
 
 		await assertRemoteProtocolError(connect, {
 			code: AhpErrorCodes.UnsupportedProtocolVersion,
-			message: 'Managed permissions require Agent Host protocol 0.8.0 or newer; negotiated 0.7.0.',
-			data: { supportedVersions: ['>=0.8.0'] },
+			message: 'The connected Agent Host does not advertise managed-permissions enforcement support.',
 		});
 		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
 		assert.strictEqual(transport.sentMessages.length, 1);
+		assert.deepStrictEqual(closedIdentities, ['test.example:1234']);
+
+		transport.fireClose();
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+		assert.strictEqual(closeCount, 0);
 	});
 
-	test('fails closed when restrictive policy appears on an older connected host', async () => {
+	test('fails closed when restrictive policy appears on an unsupported connected host', async () => {
 		const configurationService = new ManagedPermissionPolicyConfigurationService({});
 		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
 		const connect = client.connect();
@@ -989,7 +1033,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: initialize.id,
-			result: { protocolVersion: '0.7.0', serverSeq: 0, snapshots: [] },
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
 		});
 		await connect;
 		assert.strictEqual(
@@ -1031,21 +1075,6 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
 		await connectClient(client, transport);
-
-		const managed = findRootConfigNotification(transport.sentMessages, AgentHostManagedPermissionsConfigKey);
-		assert.deepStrictEqual(getRootConfig(managed)[AgentHostManagedPermissionsConfigKey], {});
-	});
-
-	test('forwards the empty clear sentinel when restrictive policy is removed', async () => {
-		const configurationService = new ManagedPermissionPolicyConfigurationService({
-			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
-		});
-		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
-		await connectClient(client, transport);
-		transport.sentMessages.length = 0;
-
-		configurationService.setPolicyValue(GLOBAL_AUTO_APPROVE_SETTING_ID, undefined);
-		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
 
 		const managed = findRootConfigNotification(transport.sentMessages, AgentHostManagedPermissionsConfigKey);
 		assert.deepStrictEqual(getRootConfig(managed)[AgentHostManagedPermissionsConfigKey], {});
@@ -1170,8 +1199,15 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { ok: true, upgradeStarted: true } });
 		assert.deepStrictEqual(await upgrade, { ok: true, upgradeStarted: true });
+
+		const interruptedUpgrade = client.triggerVscodeUpgrade('_vscodeUpgrade');
+		const interruptedError = assertRemoteProtocolError(interruptedUpgrade, {
+			code: -32000,
+			message: 'Connection closed: test.example:1234',
+		});
 		transport.fireClose();
-		assert.strictEqual(client.connectionState, AgentHostClientState.Closed);
+		await interruptedError;
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
 	});
 
 	test('sends shutdown as a JSON-RPC request shape', async () => {
@@ -1844,7 +1880,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			}
 		});
 
-		test('treats managed-permission protocol incompatibility during reconnect fallback as terminal', async function () {
+		test('treats missing managed-permission support during reconnect fallback as terminal', async function () {
 			this.timeout(10_000);
 			const configurationService = new ManagedPermissionPolicyConfigurationService({});
 			const { client, transports } = createFactoryClient(createPermissionService(), undefined, configurationService);
@@ -1864,11 +1900,11 @@ suite('RemoteAgentHostProtocolClient', () => {
 			});
 
 			const initialize = await waitForRequest(reconnectTransport, 'initialize');
-			assert.deepStrictEqual((initialize.params as { protocolVersions: string[] }).protocolVersions, [PROTOCOL_VERSION]);
+			assert.deepStrictEqual((initialize.params as { protocolVersions: string[] }).protocolVersions, SUPPORTED_PROTOCOL_VERSIONS);
 			reconnectTransport.fireMessage({
 				jsonrpc: '2.0',
 				id: initialize.id,
-				error: { code: AhpErrorCodes.UnsupportedProtocolVersion, message: 'Protocol versions do not match' },
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
 			});
 			await flushMicrotasks();
 
