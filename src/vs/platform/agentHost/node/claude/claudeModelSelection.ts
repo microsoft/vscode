@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IAgentModelInfo } from '../../common/agentService.js';
+import { createAgentModelGroupMeta } from '../../common/agentModelSource.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { toSdkModelId } from './claudeModelId.js';
@@ -131,11 +132,17 @@ export function resolveClaudeSessionTransport(inputs: {
  * (`proxy`) list and the native Anthropic (`native`) list — into the single flat
  * catalog the picker renders. Each model's id is rewritten to a
  * provider-qualified {@link toClaudeModelSelectionId} so selecting a row carries
- * the transport with it, and its `provider` is re-stamped with the same transport
- * token ({@link CLAUDE_PROVIDER_COPILOT} / {@link CLAUDE_PROVIDER_ANTHROPIC}) so
- * the picker buckets it under the matching group — the same model offered by both
- * providers thus yields two distinct, separately selectable rows in two groups
- * rather than colliding.
+ * the transport with it, and its picker-group vendor token
+ * ({@link CLAUDE_PROVIDER_COPILOT} / {@link CLAUDE_PROVIDER_ANTHROPIC}) is stamped
+ * into `_meta` (via {@link createAgentModelGroupMeta}) so the picker buckets it
+ * under the matching group — the same model offered by both providers thus yields
+ * two distinct, separately selectable rows in two groups rather than colliding.
+ *
+ * Crucially, each model's {@link IAgentModelInfo.provider} is left untouched (the
+ * `claude` owner): that field doubles as the owning agent provider for session
+ * routing (`sessionServerTools` copies it to `IAgentCreateSessionConfig.provider`),
+ * so re-stamping it to a transport token would misroute a model-selected
+ * `create_session`. The transport/group token lives only in `_meta`.
  *
  * Proxy models come first to preserve the picker's `models[0]`-is-default
  * convention for the common (Copilot) case. Every other field is passed through
@@ -150,7 +157,15 @@ export function mergeClaudeModelCatalogs(proxy: readonly IAgentModelInfo[], nati
 	];
 }
 
-/** Re-id each model with its provider-qualified selection id and re-stamp its `provider` with the same token, leaving all other fields intact. */
+/**
+ * Re-id each model with its provider-qualified selection id and stamp the
+ * transport/group vendor token into `_meta`, leaving {@link IAgentModelInfo.provider}
+ * (the routing owner) and every other field intact.
+ */
 function withQualifiedProvider(models: readonly IAgentModelInfo[], provider: string): IAgentModelInfo[] {
-	return models.map(model => ({ ...model, id: toClaudeModelSelectionId(provider, model.id), provider }));
+	return models.map(model => ({
+		...model,
+		id: toClaudeModelSelectionId(provider, model.id),
+		_meta: { ...model._meta, ...createAgentModelGroupMeta(provider) },
+	}));
 }

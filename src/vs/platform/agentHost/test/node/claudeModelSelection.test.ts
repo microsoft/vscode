@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CLAUDE_AGENT_PROVIDER_ID, IAgentModelInfo } from '../../common/agentService.js';
+import { AGENT_MODEL_GROUP_ID_META_KEY } from '../../common/agentModelSource.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import { claudeTransportForProvider, mergeClaudeModelCatalogs, parseClaudeModelSelection, resolveClaudeSessionTransport, toClaudeModelSelectionId, toClaudeSdkModelId } from '../../node/claude/claudeModelSelection.js';
 
@@ -62,17 +63,18 @@ suite('claudeModelSelection', () => {
 		const model = (id: string, name: string, supportsVision = false): IAgentModelInfo =>
 			({ provider: CLAUDE_AGENT_PROVIDER_ID, id, name, supportsVision });
 
-		test('lists proxy models first, qualifies each id + stamps each provider by transport, preserves every other field', () => {
+		test('lists proxy models first, qualifies each id + stamps each transport group into _meta, preserves provider and every other field', () => {
 			const merged = mergeClaudeModelCatalogs(
 				[model('claude-opus-4-8', 'Claude Opus 4.8', true)],
 				[model('claude-sonnet-4-5-20250929', 'Claude Sonnet 4.5')],
 			);
-			// The input carries the harness provider (`claude`); the merge re-stamps each
-			// model with its transport provider so the picker groups Copilot-routed and
-			// native Anthropic models into separate buckets.
+			// The input carries the harness provider (`claude`); the merge keeps it as the
+			// routing owner and instead stamps each model's transport/group token into
+			// `_meta` (`modelGroupId`) so the picker groups Copilot-routed and native
+			// Anthropic models into separate buckets without misrouting `create_session`.
 			assert.deepStrictEqual(merged, [
-				{ provider: CLAUDE_PROVIDER_COPILOT, id: '@provider=copilot:claude-opus-4-8', name: 'Claude Opus 4.8', supportsVision: true },
-				{ provider: CLAUDE_PROVIDER_ANTHROPIC, id: '@provider=anthropic:claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', supportsVision: false },
+				{ provider: CLAUDE_AGENT_PROVIDER_ID, id: '@provider=copilot:claude-opus-4-8', name: 'Claude Opus 4.8', supportsVision: true, _meta: { [AGENT_MODEL_GROUP_ID_META_KEY]: CLAUDE_PROVIDER_COPILOT } },
+				{ provider: CLAUDE_AGENT_PROVIDER_ID, id: '@provider=anthropic:claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', supportsVision: false, _meta: { [AGENT_MODEL_GROUP_ID_META_KEY]: CLAUDE_PROVIDER_ANTHROPIC } },
 			]);
 		});
 

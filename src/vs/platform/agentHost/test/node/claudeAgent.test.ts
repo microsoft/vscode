@@ -1390,8 +1390,8 @@ suite('ClaudeAgent', () => {
 			accepted: true,
 			startCalls: ['tok'],
 			models: [
-				{ provider: CLAUDE_PROVIDER_COPILOT, id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'), name: 'Claude Opus 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
-				{ provider: CLAUDE_PROVIDER_COPILOT, id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'), name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
+				{ provider: 'claude', id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'), name: 'Claude Opus 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1, modelGroupId: CLAUDE_PROVIDER_COPILOT } },
+				{ provider: 'claude', id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'), name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1, modelGroupId: CLAUDE_PROVIDER_COPILOT } },
 			],
 		});
 	});
@@ -1425,6 +1425,7 @@ suite('ClaudeAgent', () => {
 			longContextCacheWriteCost: 7.5,
 			longContextOutputCost: 30,
 			priceCategory: 'medium',
+			modelGroupId: CLAUDE_PROVIDER_COPILOT,
 		});
 	});
 
@@ -5896,6 +5897,59 @@ suite('ClaudeAgent — per-session provider', () => {
 		const ok = await agent.authenticate('https://api.github.com', 'tok');
 
 		assert.deepStrictEqual({ ok, proxyStartAttempts: proxy.startCalls.length }, { ok: true, proxyStartAttempts: 1 });
+	});
+
+	test('a replacement token whose proxy start fails tears down the prior account instead of silently serving it', async () => {
+		// Regression (#5): sign-in commits account A (handle + token + models). A
+		// replacement token B then arrives whose `start()` fails. Keeping A's live
+		// handle would silently run every Copilot-routed session under A behind a
+		// "successful" B sign-in. So the stale handle is disposed and the token
+		// cleared together (upholding the `_githubToken` ↔ `_proxyHandle` invariant):
+		// A's models drop to empty and a Copilot-routed session now demands fresh
+		// sign-in (`AHP_AUTH_REQUIRED`) rather than reusing A. Contrast the soft
+		// first-sign-in failures above, which have no prior handle to tear down.
+		const { agent, proxy } = createTestContext(disposables);
+		let failNext = false;
+		proxy.start = async (token: string) => {
+			proxy.startCalls.push({ token });
+			if (failNext) {
+				throw new Error('proxy bind failed');
+			}
+			return { baseUrl: 'http://127.0.0.1:0', nonce: `nonce-for-${token}`, dispose: () => { proxy.disposeCount++; } };
+		};
+
+		// Account A signs in cleanly: start() succeeds and the merged catalog populates.
+		await agent.authenticate('https://api.github.com', 'tokA');
+		await tick();
+		const modelsUnderA = agent.models.get().length;
+
+		// Account B replaces A but its start() fails.
+		failNext = true;
+		await agent.authenticate('https://api.github.com', 'tokB');
+		await tick();
+
+		// A Copilot-routed (model-less ⇒ proxy default) session must now demand
+		// sign-in rather than run under the superseded account A.
+		let createError: unknown;
+		try {
+			await agent.createSession({ workingDirectories: [URI.file('/workspace')] });
+		} catch (err) {
+			createError = err;
+		}
+
+		assert.deepStrictEqual({
+			hadModelsUnderA: modelsUnderA > 0,
+			startTokens: proxy.startCalls.map(c => c.token),
+			staleHandleDisposed: proxy.disposeCount,
+			modelsAfterFailedReplacement: agent.models.get(),
+			copilotSessionDemandsSignIn: createError instanceof ProtocolError && createError.code === AHP_AUTH_REQUIRED,
+		}, {
+			hadModelsUnderA: true,
+			startTokens: ['tokA', 'tokB'],
+			staleHandleDisposed: 1,
+			modelsAfterFailedReplacement: [],
+			copilotSessionDemandsSignIn: true,
+		});
 	});
 });
 

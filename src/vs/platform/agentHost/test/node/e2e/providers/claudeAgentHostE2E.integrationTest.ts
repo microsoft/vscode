@@ -57,10 +57,6 @@ const CLAUDE_SDK_ROOT = resolveClaudeSdkRoot();
 const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	suiteTitle: 'Agent Host E2E — Claude',
 	provider: 'claude',
-	// The merged catalog re-stamps each model's `provider` to its transport
-	// provider (`copilot` for Copilot-routed, `anthropic` for native BYO), so the
-	// enumerated providers are these rather than the bare `claude` suite id.
-	modelProviders: ['copilot', 'anthropic'],
 	scheme: 'claude',
 	shellToolName: 'Bash',
 	fileOperationStrategy: 'fileTools',

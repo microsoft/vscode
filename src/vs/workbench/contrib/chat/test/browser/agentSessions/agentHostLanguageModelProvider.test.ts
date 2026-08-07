@@ -162,15 +162,16 @@ suite('AgentHostLanguageModelProvider', () => {
 
 	test('groups Claude models by transport provider: Copilot-routed vs native Anthropic', async () => {
 		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-claude', 'claude'));
-		// Per-session provider selection: the agent host's merged catalog stamps each
-		// model's `provider` with its transport (`copilot` for the Copilot-CAPI proxy,
-		// `anthropic` for the user's own Anthropic account) and qualifies the id the same
-		// way. The picker buckets by `provider`, so the same model offered by both
-		// transports yields two distinct rows in two distinct groups — and, unlike Codex,
-		// native Claude carries no `chatgptSubscription` source.
+		// Per-session provider selection: the agent host's merged catalog keeps each
+		// model's `provider` as the routing owner (`claude`) and carries the transport
+		// (`copilot` for the Copilot-CAPI proxy, `anthropic` for the user's own Anthropic
+		// account) in `_meta.modelGroupId`, qualifying the id the same way. The picker
+		// buckets by that group token, so the same model offered by both transports
+		// yields two distinct rows in two distinct groups — and, unlike Codex, native
+		// Claude carries no `chatgptSubscription` source.
 		provider.updateModels([
-			{ id: '@provider=copilot:claude-opus-4.6', provider: 'copilot', name: 'Claude Opus 4.6' },
-			{ id: '@provider=anthropic:claude-opus-4.6', provider: 'anthropic', name: 'Claude Opus 4.6' },
+			{ id: '@provider=copilot:claude-opus-4.6', provider: 'claude', name: 'Claude Opus 4.6', _meta: { modelGroupId: 'copilot' } },
+			{ id: '@provider=anthropic:claude-opus-4.6', provider: 'claude', name: 'Claude Opus 4.6', _meta: { modelGroupId: 'anthropic' } },
 		]);
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);

@@ -588,9 +588,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// here is all that's needed for it to prefer proxy afterwards.
 		//
 		// Short-circuit only when the token is unchanged AND a handle is already
-		// live. Requiring the handle is load-bearing: a prior soft failure (below)
-		// can leave a valid token with no handle, and that state must still retry
-		// `start()` rather than short-circuit as "unchanged".
+		// live. `authenticate` sets `_githubToken` and `_proxyHandle` together and
+		// clears them together (see the failure path below), so requiring the handle
+		// keeps "unchanged, nothing to do" honest — and re-runs `start()` rather than
+		// short-circuiting if any path ever left a token without its handle.
 		if (this._githubToken === token && this._proxyHandle) {
 			this._logService.info('[Claude] Auth token unchanged');
 			return true;
@@ -606,11 +607,25 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// GitHub sign-in itself succeeded; only the Copilot proxy failed to
 			// start. Don't fail sign-in — the merged catalog still serves any native
 			// models, and a Copilot-routed model surfaces `AHP_AUTH_REQUIRED` on its
-			// first send (which re-drives sign-in, retrying `start()`). Leave
-			// `_githubToken` and `_proxyHandle` untouched so that retry still sees the
-			// token as new instead of short-circuiting as "unchanged", and so the
-			// `_githubToken` ↔ `_proxyHandle` invariant holds (a token never outlives
-			// the handle it backs).
+			// first send (which re-drives sign-in, retrying `start()`).
+			//
+			// A live handle here means this was a token *replacement* whose new
+			// `start()` failed. The old handle backs a now-superseded account, so tear
+			// it down rather than keep silently serving that stale account behind a
+			// "successful" sign-in; clearing the token with it upholds the
+			// `_githubToken` ↔ `_proxyHandle` invariant (a token never outlives its
+			// handle) and lets the next sign-in retry `start()` instead of
+			// short-circuiting as "unchanged". A first sign-in (no handle) leaves both
+			// refs as-is — already `undefined` — which retries for the same reason.
+			if (this._proxyHandle) {
+				const staleHandle = this._proxyHandle;
+				this._proxyHandle = undefined;
+				this._githubToken = undefined;
+				staleHandle.dispose();
+				// Drop the superseded account's entitlements; the refresh below re-lists
+				// native-only (no handle) and republishes the protected resources.
+				this._models.set([], undefined);
+			}
 			this._logService.warn('[Claude] Copilot proxy start failed; Copilot-routed models unavailable until the next sign-in', err);
 			void this._startModelRefresh();
 			return true;

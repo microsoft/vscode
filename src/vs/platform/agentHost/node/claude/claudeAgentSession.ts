@@ -656,19 +656,13 @@ export class ClaudeAgentSession extends Disposable {
 			const rebuildAbort = new AbortController();
 			let rebuildWarm: WarmQuery | undefined;
 			try {
-				// Reuse the transport captured at materialize for an ordinary rebuild,
-				// so a runtime flip of the host default (config change / Copilot
-				// sign-in mutating the agent's live transport mode) never reroutes the
-				// live conversation. A deliberate per-session provider switch instead
-				// rebuilds onto the transport the agent pushed in through `send`'s
-				// `switchTransport` (staged in `_pendingSwitchTransport`). The agent
-				// resolves that transport at send time — holding the live proxy handle
-				// and throwing on a signed-out switch-to-proxy before `send` is even
-				// called — so the session only ever consumes a value here, never calls
-				// back to re-resolve. An SDK-driven recover that lands before the
-				// carrying send finds nothing staged, stays on the materialized
-				// transport, and (below) leaves the pending-switch flag set so the next
-				// send still performs the switch.
+				// Pin the transport: prefer the one the agent staged for a deliberate
+				// per-session switch (`_pendingSwitchTransport`, already resolved and
+				// validated at `send` — the session only consumes it, never re-resolves),
+				// else reuse the transport captured at materialize. Reusing it keeps a
+				// runtime host-default flip (config change / Copilot sign-in) from
+				// rerouting a live conversation; an SDK-driven recover with nothing staged
+				// stays put and re-tries the switch on the next send.
 				const rebuildTransport = this._pendingSwitchTransport ?? this._materializedTransport;
 				if (!rebuildTransport) {
 					// Always set once `materialize` has run; a throwing guard (never a
@@ -964,9 +958,16 @@ export class ClaudeAgentSession extends Disposable {
 		// transport. Detect that here and defer to a rebuild on the next `send`.
 		// A still-provisional session or a same-transport change resolves to
 		// `false`, preserving today's hot-swap exactly.
+		// Guard on `explicitProvider`: a bare/legacy id carries no provider of its
+		// own and the parser reports the `copilot` fallback, which must NOT
+		// masquerade as a native→proxy switch on a native session (mirrors the same
+		// guard in `resolveClaudeSessionTransport`). Only a genuinely
+		// provider-qualified id can move a live session across transports.
+		const parsed = parseClaudeModelSelection(model);
 		const crossesTransport =
 			this.isPipelineReady &&
-			claudeTransportForProvider(parseClaudeModelSelection(model).provider) !== this._transportKind;
+			parsed.explicitProvider &&
+			claudeTransportForProvider(parsed.provider) !== this._transportKind;
 		if (crossesTransport) {
 			// Cross-transport switch on a live session: the running subprocess is
 			// pinned to the old transport/credential, and pushing the new model onto
