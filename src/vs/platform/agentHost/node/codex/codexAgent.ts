@@ -49,6 +49,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
@@ -867,6 +868,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
@@ -3543,6 +3545,24 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 			return;
 		}
+
+		// Capture the per-session baseline (turn/0) git checkpoint on the fresh
+		// first send — after the thread is materialized (so the worktree cwd is
+		// finalized) and before `turn/start`. This lets per-turn diffs computed
+		// on `ChatTurnComplete` reflect the full working-tree delta, including
+		// terminal-tool edits that are invisible to the FileEditTracker pipeline.
+		// Best-effort and identical to the Copilot harness: a non-git folder or
+		// capture failure leaves the session on the legacy `file_edits`-based
+		// per-turn diff path. Gated to fresh sends only (`!firstTurnSent`) and
+		// non-resume (`!needsResume`, still un-cleared here — the resume block
+		// below clears it) so restored sessions are never given a late baseline.
+		if (!session.firstTurnSent && !session.needsResume) {
+			const baselineWorkingDirectories = session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined);
+			this._checkpointService.captureBaselineCheckpoint(sessionUri, baselineWorkingDirectories).catch(err => {
+				this._logService.warn(`[Codex:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
+			});
+		}
+
 		// Codex registers client tools and MCP servers only at `thread/start`.
 		// If the thread was prewarmed (or otherwise started) before the current
 		// client tools / MCP servers were known, restart it now — before any

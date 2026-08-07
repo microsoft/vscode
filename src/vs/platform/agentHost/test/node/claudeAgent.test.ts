@@ -55,6 +55,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -816,9 +817,27 @@ class CapturingLogService extends NullLogService {
 	}
 }
 
+/**
+ * Recording {@link IAgentHostCheckpointService} double that captures
+ * {@link captureBaselineCheckpoint} invocations so tests can assert baseline
+ * capture happens on the fresh materialize path (and not on resume). All other
+ * methods are no-ops mirroring {@link NULL_CHECKPOINT_SERVICE}.
+ */
+class RecordingCheckpointService implements IAgentHostCheckpointService {
+	declare readonly _serviceBrand: undefined;
+	readonly baselineCalls: { readonly session: string; readonly workingDirectories: readonly string[] | undefined }[] = [];
+	async captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		this.baselineCalls.push({ session: sessionUri.toString(), workingDirectories: workingDirectories?.map(w => w.toString()) });
+	}
+	async captureTurnCheckpoint(): Promise<void> { }
+	async getTurnCheckpointPair(): Promise<{ parent: string; current: string } | undefined> { return undefined; }
+	async getBaselineCheckpoint(): Promise<string | undefined> { return undefined; }
+	async deleteCheckpoints(): Promise<void> { }
+}
+
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; checkpointService?: IAgentHostCheckpointService },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -849,6 +868,7 @@ function createTestContext(
 		[IClaudeAgentSdkService, sdk],
 		[IAgentPluginManager, new FakeAgentPluginManager()],
 		[IAgentHostGitService, createNoopGitService()],
+		[IAgentHostCheckpointService, overrides?.checkpointService ?? NULL_CHECKPOINT_SERVICE],
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostOTelService, otelService],
@@ -922,6 +942,7 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostOTelService, new RecordingOTelService()],
+		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 	];
 }
 
@@ -1900,6 +1921,47 @@ suite('ClaudeAgent', () => {
 			{ model: 'claude-opus-4-6', effort: 'medium' },
 			'resume must not clobber the overlay model',
 		);
+	});
+
+	test('materialize captures the baseline checkpoint on the fresh path (parity with Copilot)', async () => {
+		const checkpointService = new RecordingCheckpointService();
+		const { agent, sdk } = createTestContext(disposables, { checkpointService });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work-baseline')] });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
+
+		// Fresh materialize captures exactly one baseline for this session,
+		// identical to the Copilot harness.
+		assert.deepStrictEqual(
+			checkpointService.baselineCalls.map(c => c.session),
+			[created.session.toString()],
+		);
+	});
+
+	test('resume does not capture a baseline checkpoint (only fresh materialize does)', async () => {
+		const checkpointService = new RecordingCheckpointService();
+		const { agent, sdk } = createTestContext(disposables, { checkpointService });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		// Phase 1: fresh materialize captures the baseline.
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work-resume-baseline')] });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
+		assert.strictEqual(checkpointService.baselineCalls.length, 1, 'fresh materialize captures the baseline');
+
+		// Phase 2: simulate cross-window resume by tearing the in-memory entry
+		// down and forcing the resume branch on the next send. Resume must NOT
+		// capture a (late) baseline against the already-edited tree.
+		await agent.disposeSession(created.session);
+		sdk.sessionList = [{ sessionId, cwd: '/work-resume-baseline', summary: '', lastModified: Date.now() }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'turn 2', undefined, undefined, 'turn-2');
+
+		assert.strictEqual(checkpointService.baselineCalls.length, 1, 'resume must not capture a second baseline');
 	});
 
 	test('createSession honors config.session when the workbench pre-mints the URI', async () => {
@@ -3651,6 +3713,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostOTelService, new RecordingOTelService()],
@@ -4907,6 +4970,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostOTelService, new RecordingOTelService()],
@@ -6819,6 +6883,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, pluginManager],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostOTelService, otelService],
