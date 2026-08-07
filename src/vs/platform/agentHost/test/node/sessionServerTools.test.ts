@@ -57,6 +57,7 @@ suite('SessionServerTools', () => {
 			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
+			resolveInheritedApprovalLevel: overrides?.resolveInheritedApprovalLevel ?? (async () => undefined),
 		};
 	}
 
@@ -185,6 +186,39 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(prompted?.chat.toString(), buildDefaultChatUri(URI.parse('copilot:/new')));
 		assert.ok(text.includes('agent-host-session://copilot/new'), 'result carries the open-session link for the pill');
 		assert.ok(!text.includes('copilot:/new'), 'result does not echo the raw backend session URI');
+		store.dispose();
+	});
+
+	test('create_session seeds the inherited approval level for the resolved workspace', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let created: IAgentCreateSessionConfig | undefined;
+		let resolvedFor: { chatChannel: string; childWorkingDirectory: string | undefined } | undefined;
+		const accessor = createAccessor({
+			onCreate: c => { created = c; },
+			resolveInheritedApprovalLevel: async (chatChannel, childWorkingDirectory) => {
+				resolvedFor = { chatChannel, childWorkingDirectory: childWorkingDirectory?.toString() };
+				return 'autoApprove';
+			},
+		});
+		const group = createSessionServerToolGroup(accessor);
+
+		await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, { workspace: workspace.toString(), prompt: 'do it' });
+
+		assert.deepStrictEqual(resolvedFor, { chatChannel: 'copilot:/caller', childWorkingDirectory: workspace.toString() });
+		assert.deepStrictEqual(created?.config, { autoApprove: 'autoApprove' });
+		store.dispose();
+	});
+
+	test('create_session omits the config bag when nothing is inherited', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let created: IAgentCreateSessionConfig | undefined;
+		const group = createSessionServerToolGroup(createAccessor({ onCreate: c => { created = c; } }));
+
+		await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, { workspace: workspace.toString(), prompt: 'do it' });
+
+		assert.strictEqual(created?.config, undefined);
 		store.dispose();
 	});
 

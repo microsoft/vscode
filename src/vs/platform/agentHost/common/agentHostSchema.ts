@@ -9,6 +9,7 @@ import { ConfigurationTarget, type IConfigurationService, type IConfigurationVal
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
+import { AgentHostSubsessionPermissionInheritanceConfigKey, DEFAULT_SUBSESSION_PERMISSION_INHERITANCE, SUBSESSION_PERMISSION_INHERITANCE_VALUES, type SubsessionPermissionInheritance } from './subsessionPermissions.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
 
@@ -713,6 +714,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.globalAutoApproveEnabled.title', "Global Auto Approve"),
 		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Allow all."),
 		default: false,
+	}),
+	[AgentHostSubsessionPermissionInheritanceConfigKey]: schemaProperty<SubsessionPermissionInheritance>({
+		type: 'string',
+		title: localize('agentHost.config.subsessionPermissionInheritance.title', "Subsession Permission Inheritance"),
+		description: localize('agentHost.config.subsessionPermissionInheritance.description', "Whether a session created by the `create_session` tool starts at its parent session's permission level. `once` asks each time the parent runs at an elevated level."),
+		enum: [...SUBSESSION_PERMISSION_INHERITANCE_VALUES],
+		default: DEFAULT_SUBSESSION_PERMISSION_INHERITANCE,
 	}),
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -14,8 +14,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostSubsessionPermissionInheritanceConfigKey, SUBSESSION_INHERITANCE_QUESTION_ID, SubsessionInheritanceOptionId, SubsessionPermissionInheritance } from '../../common/subsessionPermissions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, ToolCallConfirmationReason, type ChatInputRequest, type SessionSummary } from '../../common/state/sessionState.js';
+import { ActionType, type StateAction } from '../../common/state/sessionActions.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
@@ -26,6 +28,8 @@ suite('SessionPermissionManager', () => {
 	let manager: AgentHostStateManager;
 	let configService: AgentConfigurationService;
 	let permissions: SessionPermissionManager;
+	/** Server actions emitted during a test, so the inheritance question can be observed. */
+	const dispatchedActions: StateAction[] = [];
 
 	// Real (symlink-resolved) temp directories so that the symlink-resolution
 	// checks compare like-for-like (e.g. macOS `/var` -> `/private/var`).
@@ -83,6 +87,8 @@ suite('SessionPermissionManager', () => {
 		configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
 		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService()));
 		await permissions.initialize();
+		dispatchedActions.length = 0;
+		disposables.add(manager.onDidEmitEnvelope(envelope => dispatchedActions.push(envelope.action)));
 
 		manager.createSession(makeSummary(sessionUri, URI.file(workDir).toString()));
 	});
@@ -433,6 +439,183 @@ suite('SessionPermissionManager', () => {
 		// session's own approval level (the permissions picker stays at default).
 		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), true);
 		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
+	});
+
+	// ---- Subsession permission inheritance ---------------------------------
+	suite('subsession permission inheritance', () => {
+
+		function elevateParent(level: 'assisted' | 'autoApprove' = 'autoApprove'): void {
+			manager.setSessionConfig(sessionUri, {
+				schema: platformSessionSchema.toProtocol(),
+				values: { [SessionConfigKey.AutoApprove]: level },
+			});
+		}
+
+		/** Answers the pending inheritance question with `optionId`, or cancels it when omitted. */
+		function answerQuestion(optionId: string | undefined): void {
+			const request = pendingInheritanceRequest();
+			assert.ok(request, 'expected an inheritance question to be asked');
+			permissions.tryResolveInheritanceDecision(
+				request.id,
+				optionId ? ChatInputResponseKind.Accept : ChatInputResponseKind.Cancel,
+				optionId
+					? { [SUBSESSION_INHERITANCE_QUESTION_ID]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: optionId } } }
+					: undefined,
+			);
+		}
+
+		/** The most recently asked inheritance question, if one is on screen. */
+		function pendingInheritanceRequest(): ChatInputRequest | undefined {
+			return inheritanceQuestions().at(-1);
+		}
+
+		function inheritanceQuestions(): ChatInputRequest[] {
+			const requests: ChatInputRequest[] = [];
+			for (const action of dispatchedActions) {
+				if (action.type === ActionType.ChatInputRequested && action.request.questions?.[0]?.id === SUBSESSION_INHERITANCE_QUESTION_ID) {
+					requests.push(action.request);
+				}
+			}
+			return requests;
+		}
+
+		function questionMessages(): (string | undefined)[] {
+			return inheritanceQuestions().map(request => request.questions?.[0]?.message);
+		}
+
+		test('asks the user when the parent is elevated, and inherits only when they say so', async () => {
+			elevateParent();
+
+			const inheriting = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'New session');
+			answerQuestion(SubsessionInheritanceOptionId.InheritOnce);
+			assert.strictEqual(await inheriting, 'autoApprove');
+
+			dispatchedActions.length = 0;
+			const declining = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'New session');
+			answerQuestion(SubsessionInheritanceOptionId.AllowWithoutInheriting);
+			assert.strictEqual(await declining, undefined);
+		});
+
+		test('a cancelled question does not inherit', async () => {
+			elevateParent();
+
+			const pending = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'New session');
+			answerQuestion(undefined);
+			assert.strictEqual(await pending, undefined);
+		});
+
+		test('a parent at the default level neither asks nor inherits', async () => {
+			assert.strictEqual(await permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir)), undefined);
+			assert.strictEqual(pendingInheritanceRequest(), undefined);
+		});
+
+		test('a provider that does not use the autoApprove axis never inherits', async () => {
+			// Claude/Codex express approvals on their own axis, so their session
+			// schema omits `autoApprove`. A stale raw value must not be treated
+			// as an inheritable level.
+			manager.setSessionConfig(sessionUri, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+
+			assert.strictEqual(await permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir)), undefined);
+			assert.strictEqual(pendingInheritanceRequest(), undefined);
+		});
+
+		test('always inherits without asking, but only within the parent roots', async () => {
+			elevateParent('assisted');
+			configService.updateRootConfig({ [AgentHostSubsessionPermissionInheritanceConfigKey]: SubsessionPermissionInheritance.Always });
+
+			assert.deepStrictEqual({
+				inside: await permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(join(workDir, 'nested'))),
+				outside: await permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(outsideDir)),
+				unknown: await permissions.resolveInheritedApprovalLevel(sessionUri, undefined),
+				asked: pendingInheritanceRequest(),
+			}, {
+				inside: 'assisted',
+				outside: undefined,
+				unknown: undefined,
+				asked: undefined,
+			});
+		});
+
+		test('never inherits and never asks, whatever the parent level', async () => {
+			elevateParent();
+			configService.updateRootConfig({ [AgentHostSubsessionPermissionInheritanceConfigKey]: SubsessionPermissionInheritance.Never });
+
+			assert.strictEqual(await permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir)), undefined);
+			assert.strictEqual(pendingInheritanceRequest(), undefined);
+		});
+
+		test('several sessions created at once are asked about one question at a time', async () => {
+			elevateParent();
+
+			const first = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'Summarize the README');
+			const second = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'Update the changelog');
+			const third = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'Fix the lint errors');
+
+			// Only the first session is asked about; the rest wait.
+			assert.deepStrictEqual(questionMessages(), ['This session runs with "Allow All" permissions. Use "Allow All" for the new session (Summarize the README)?']);
+
+			answerQuestion(SubsessionInheritanceOptionId.InheritOnce);
+			assert.strictEqual(await first, 'autoApprove');
+
+			// The two still waiting are then asked about together, by name.
+			assert.strictEqual(questionMessages().at(-1), 'This session runs with "Allow All" permissions. Use "Allow All" for the 2 new sessions (Update the changelog, Fix the lint errors)?');
+
+			answerQuestion(SubsessionInheritanceOptionId.AllowWithoutInheriting);
+			assert.deepStrictEqual([await second, await third], [undefined, undefined]);
+		});
+
+		test('answering "always" settles every session already waiting, without asking again', async () => {
+			elevateParent();
+
+			const first = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'One');
+			const second = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'Two');
+			answerQuestion(SubsessionInheritanceOptionId.InheritAlways);
+
+			assert.deepStrictEqual({
+				first: await first,
+				second: await second,
+				questionsAsked: questionMessages().length,
+			}, {
+				first: 'autoApprove',
+				second: 'autoApprove',
+				questionsAsked: 1,
+			});
+		});
+
+		test('answering "never" settles every session already waiting, without asking again', async () => {
+			elevateParent();
+
+			const first = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'One');
+			const second = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'Two');
+			answerQuestion(SubsessionInheritanceOptionId.InheritNever);
+
+			assert.deepStrictEqual({
+				first: await first,
+				second: await second,
+				questionsAsked: questionMessages().length,
+			}, {
+				first: undefined,
+				second: undefined,
+				questionsAsked: 1,
+			});
+		});
+
+		test('the question offers no freeform answer', async () => {
+			elevateParent();
+			const pending = permissions.resolveInheritedApprovalLevel(sessionUri, URI.file(workDir), 'One');
+			const question = pendingInheritanceRequest()?.questions?.[0];
+
+			assert.strictEqual(question?.kind === ChatInputQuestionKind.SingleSelect && question.allowFreeformInput, false);
+			answerQuestion(undefined);
+			await pending;
+		});
+
+		test('an unrelated input completion is left for the agent', () => {
+			assert.strictEqual(permissions.tryResolveInheritanceDecision('not-ours', ChatInputResponseKind.Accept, undefined), false);
+		});
 	});
 
 	// ---- Multi-root auto-approval ------------------------------------------

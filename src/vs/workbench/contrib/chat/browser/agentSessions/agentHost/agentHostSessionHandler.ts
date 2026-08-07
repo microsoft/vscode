@@ -29,6 +29,7 @@ import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { getSubsessionInheritanceChoice, SUBSESSION_INHERITANCE_QUESTION_ID, SUBSESSION_PERMISSION_INHERITANCE_SETTING_ID } from '../../../../../../platform/agentHost/common/subsessionPermissions.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
@@ -47,7 +48,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/age
 import { buildSubagentChatUri, ChatOriginKind, getInlineToolInput, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type ToolInput, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
@@ -2702,6 +2703,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
+	/**
+	 * Persists the subsession permission-inheritance behavior when the user
+	 * settled it while answering the inheritance question. The choice for the
+	 * subsession being created travels with the answer itself, so this write
+	 * only governs later calls.
+	 */
+	private _persistSubsessionInheritanceChoice(answers: Record<string, ChatInputAnswer> | undefined): void {
+		const answer = answers?.[SUBSESSION_INHERITANCE_QUESTION_ID];
+		const value = answer && answer.state !== ChatInputAnswerState.Skipped ? answer.value : undefined;
+		const persist = value?.kind === ChatInputAnswerValueKind.Selected
+			? getSubsessionInheritanceChoice(value.value)?.persist
+			: undefined;
+		if (!persist) {
+			return;
+		}
+		this._configurationService.updateValue(SUBSESSION_PERMISSION_INHERITANCE_SETTING_ID, persist, ConfigurationTarget.USER).catch(err => {
+			this._logService.warn(`[AgentHost] Failed to persist ${SUBSESSION_PERMISSION_INHERITANCE_SETTING_ID}`, err);
+		});
+	}
+
 	// ---- Per-turn observable graph ------------------------------------------
 
 	/**
@@ -3848,6 +3869,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				});
 			} else {
 				const answers = convertCarouselAnswers(result.answers, inputReq.questions);
+				this._persistSubsessionInheritanceChoice(answers);
 				this._config.connection.dispatch(opts.chatURI, {
 					type: ActionType.ChatInputCompleted,
 					requestId: inputReq.id,

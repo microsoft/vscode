@@ -6,29 +6,39 @@
 import { realpath as fsRealpath } from 'fs';
 import { homedir } from 'os';
 import { promisify } from 'util';
-import { firstParallel } from '../../../base/common/async.js';
+import { DeferredPromise, firstParallel } from '../../../base/common/async.js';
 import { match as globMatch } from '../../../base/common/glob.js';
 import { untildify } from '../../../base/common/labels.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema, type AutoApproveLevel } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { AgentHostSubsessionPermissionInheritanceConfigKey, getSubsessionInheritanceChoice, SUBSESSION_INHERITANCE_QUESTION_ID, SubsessionInheritanceOptionId, SubsessionPermissionInheritance, toSubsessionPermissionInheritance } from '../common/subsessionPermissions.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
+	buildDefaultChatUri,
+	ChatInputAnswerState,
+	ChatInputAnswerValueKind,
+	ChatInputQuestionKind,
+	ChatInputRequestPurpose,
+	ChatInputResponseKind,
 	isAhpChatChannel,
 	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ToolCallConfirmationReason,
+	type ChatInputAnswer,
+	type ChatInputRequest,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -60,6 +70,36 @@ const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
+
+/** One subsession waiting on the user's inheritance decision. */
+interface IInheritanceAsk {
+	/** Short identifier of the session being created, so the user knows what they are approving. */
+	readonly description: string | undefined;
+	readonly deferred: DeferredPromise<boolean>;
+}
+
+/**
+ * The question shown for one or more subsessions being created at once.
+ * Descriptions identify them; unnamed sessions fall back to a plain count.
+ */
+function buildInheritanceQuestion(levelLabel: string, descriptions: readonly (string | undefined)[]): string {
+	const named = descriptions.filter((d): d is string => !!d);
+	if (descriptions.length === 1) {
+		return named.length === 1
+			? localize('sessionPermissions.subsession.questionNamed', "This session runs with \"{0}\" permissions. Use \"{0}\" for the new session ({1})?", levelLabel, named[0])
+			: localize('sessionPermissions.subsession.question', "This session runs with \"{0}\" permissions. Use \"{0}\" for the new session?", levelLabel);
+	}
+	return named.length === descriptions.length
+		? localize('sessionPermissions.subsession.questionManyNamed', "This session runs with \"{0}\" permissions. Use \"{0}\" for the {1} new sessions ({2})?", levelLabel, descriptions.length, named.join(', '))
+		: localize('sessionPermissions.subsession.questionMany', "This session runs with \"{0}\" permissions. Use \"{0}\" for the {1} new sessions?", levelLabel, descriptions.length);
+}
+
+/** Human-readable name of an elevated approval level, used when asking about inheritance. */
+function getApprovalLevelLabel(level: AutoApproveLevel): string {
+	return level === 'autoApprove'
+		? localize('sessionPermissions.level.allowAll', "Allow All")
+		: localize('sessionPermissions.level.assisted', "Assisted Permissions");
+}
 
 /** Default write-path glob rules applied to auto-approved edits. */
 const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
@@ -216,6 +256,11 @@ async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: s
  */
 export class SessionPermissionManager extends Disposable {
 
+	/** Subsessions waiting to be asked about, keyed by chat channel. */
+	private readonly _inheritanceAsks = new Map<ProtocolURI, IInheritanceAsk[]>();
+	/** The question currently on screen for a chat channel, if any. */
+	private readonly _outstandingInheritanceAsks = new Map<ProtocolURI, { readonly requestId: string; readonly asks: readonly IInheritanceAsk[]; readonly level: AutoApproveLevel }>();
+
 	// ---- Edit auto-approve patterns -----------------------------------------
 
 	private readonly _commandAutoApprover: CommandAutoApprover;
@@ -230,6 +275,17 @@ export class SessionPermissionManager extends Disposable {
 		super();
 		this._realpath = options?.realpath ?? realpath;
 		this._commandAutoApprover = this._register(new CommandAutoApprover(this._logService));
+		// A pending question must never leave its `create_session` call hanging.
+		this._register(toDisposable(() => {
+			for (const chatChannel of [...this._outstandingInheritanceAsks.keys(), ...this._inheritanceAsks.keys()]) {
+				const outstanding = this._outstandingInheritanceAsks.get(chatChannel);
+				this._outstandingInheritanceAsks.delete(chatChannel);
+				for (const ask of outstanding?.asks ?? []) {
+					ask.deferred.complete(false);
+				}
+				this._resolveQueuedInheritanceAsks(chatChannel, false);
+			}
+		}));
 	}
 
 	/**
@@ -369,6 +425,156 @@ export class SessionPermissionManager extends Disposable {
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
 		// `autoApprove` (Allow All) auto-approves every tool call.
 		return this.getEffectiveApprovalLevel(sessionKey) === 'autoApprove';
+	}
+
+	// ---- Subsession permission inheritance ----------------------------------
+
+	/** The configured subsession inheritance behavior, forwarded from the renderer's setting. */
+	private _getSubsessionInheritancePolicy(): SubsessionPermissionInheritance {
+		return toSubsessionPermissionInheritance(this._configService.getRootValue(platformRootSchema, AgentHostSubsessionPermissionInheritanceConfigKey));
+	}
+
+	/**
+	 * The parent's approval level when it is elevated *and* expressed on the
+	 * portable `autoApprove` axis, else `undefined`. Providers that model
+	 * approvals on their own axis (Claude's `permissionMode`, Codex's
+	 * `permissionsPreset`) omit `autoApprove` from their session schema, so
+	 * their level is deliberately not inheritable.
+	 */
+	private _getInheritableApprovalLevel(sessionKey: ProtocolURI): AutoApproveLevel | undefined {
+		const schema = this._stateManager.getSessionState(sessionKey)?.config?.schema;
+		if (!schema?.properties?.[SessionConfigKey.AutoApprove]) {
+			return undefined;
+		}
+		const level = this.getEffectiveApprovalLevel(sessionKey);
+		return level === 'assisted' || level === 'autoApprove' ? level : undefined;
+	}
+
+	/**
+	 * The approval level a subsession starts at, or `undefined` to leave it at
+	 * the provider default.
+	 *
+	 * Under `once` the user is asked, and the tool call blocks until they
+	 * answer — the question is the consent gate, so it must not be reduced to a
+	 * tool confirmation, which an elevated session never surfaces.
+	 *
+	 * `childWorkingDirectory` is the directory the new session will run in.
+	 * Under `always` — the only path that never asks — an elevated level is
+	 * carried over only when that directory is already covered by the parent's
+	 * roots, so an unattended subsession cannot widen the blast radius.
+	 */
+	async resolveInheritedApprovalLevel(chatChannel: ProtocolURI, childWorkingDirectory: URI | undefined, description?: string): Promise<AutoApproveLevel | undefined> {
+		const policy = this._getSubsessionInheritancePolicy();
+		if (policy === SubsessionPermissionInheritance.Never) {
+			return undefined;
+		}
+		const level = this._getInheritableApprovalLevel(chatChannel);
+		if (!level) {
+			return undefined;
+		}
+		if (policy === SubsessionPermissionInheritance.Always) {
+			return this._isWithinSessionRoots(chatChannel, childWorkingDirectory) ? level : undefined;
+		}
+		return await this._askInheritanceDecision(chatChannel, level, description) ? level : undefined;
+	}
+
+	/**
+	 * Asks whether a subsession should inherit `level`, resolving once the user
+	 * answers. Questions for one chat are asked one at a time: an agent can
+	 * spawn several sessions at once, and stacking a card per session would be
+	 * both noisy and ambiguous.
+	 */
+	private _askInheritanceDecision(chatChannel: ProtocolURI, level: AutoApproveLevel, description: string | undefined): Promise<boolean> {
+		const ask: IInheritanceAsk = { description, deferred: new DeferredPromise<boolean>() };
+		const queue = this._inheritanceAsks.get(chatChannel) ?? [];
+		queue.push(ask);
+		this._inheritanceAsks.set(chatChannel, queue);
+		this._pumpInheritanceQueue(chatChannel, level);
+		return ask.deferred.p;
+	}
+
+	/** Asks about every queued subsession for `chatChannel`, unless a question is already outstanding. */
+	private _pumpInheritanceQueue(chatChannel: ProtocolURI, level: AutoApproveLevel): void {
+		const queue = this._inheritanceAsks.get(chatChannel);
+		if (!queue?.length || this._outstandingInheritanceAsks.has(chatChannel)) {
+			return;
+		}
+		const asked = queue.splice(0, queue.length);
+		const requestId = generateUuid();
+		this._outstandingInheritanceAsks.set(chatChannel, { requestId, asks: asked, level });
+		const request: ChatInputRequest = {
+			id: requestId,
+			purpose: ChatInputRequestPurpose.Elicitation,
+			questions: [{
+				kind: ChatInputQuestionKind.SingleSelect,
+				id: SUBSESSION_INHERITANCE_QUESTION_ID,
+				message: buildInheritanceQuestion(getApprovalLevelLabel(level), asked.map(ask => ask.description)),
+				required: true,
+				options: [
+					{ id: SubsessionInheritanceOptionId.InheritOnce, label: localize('sessionPermissions.subsession.inheritOnce', "Yes, for this new session.") },
+					{ id: SubsessionInheritanceOptionId.AllowWithoutInheriting, label: localize('sessionPermissions.subsession.allow', "No, use default permissions.") },
+					{ id: SubsessionInheritanceOptionId.InheritAlways, label: localize('sessionPermissions.subsession.inheritAlways', "Always, don't ask again.") },
+					{ id: SubsessionInheritanceOptionId.InheritNever, label: localize('sessionPermissions.subsession.inheritNever', "Never, don't ask again.") },
+				],
+				// A freeform reply cannot express a permission decision.
+				allowFreeformInput: false,
+			}],
+		};
+		// Questions live on a chat channel; callers may hand us the owning
+		// session URI instead (server tools are addressed either way).
+		const target = isAhpChatChannel(chatChannel) ? chatChannel : buildDefaultChatUri(chatChannel);
+		this._stateManager.dispatchServerAction(target, { type: ActionType.ChatInputRequested, request });
+	}
+
+	/**
+	 * Resolves a pending subsession-inheritance question. Returns `false` when
+	 * the completion belongs to another consumer (e.g. an agent's own request).
+	 */
+	tryResolveInheritanceDecision(requestId: string, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer> | undefined): boolean {
+		const entry = [...this._outstandingInheritanceAsks].find(([, outstanding]) => outstanding.requestId === requestId);
+		if (!entry) {
+			return false;
+		}
+		const [chatChannel, outstanding] = entry;
+		this._outstandingInheritanceAsks.delete(chatChannel);
+
+		const answer = answers?.[SUBSESSION_INHERITANCE_QUESTION_ID];
+		const value = answer?.state === ChatInputAnswerState.Skipped ? undefined : answer?.value;
+		const selected = response === ChatInputResponseKind.Accept && value?.kind === ChatInputAnswerValueKind.Selected
+			? value.value
+			: undefined;
+		const choice = getSubsessionInheritanceChoice(selected);
+		const inherit = choice?.inherit === true;
+		for (const ask of outstanding.asks) {
+			ask.deferred.complete(inherit);
+		}
+
+		// A settled behavior answers everything already queued; otherwise the
+		// remaining sessions are asked about together.
+		if (choice?.persist) {
+			this._resolveQueuedInheritanceAsks(chatChannel, inherit);
+			return true;
+		}
+		this._pumpInheritanceQueue(chatChannel, outstanding.level);
+		return true;
+	}
+
+	/** Settles every queued (not yet asked) subsession for `chatChannel`. */
+	private _resolveQueuedInheritanceAsks(chatChannel: ProtocolURI, inherit: boolean): void {
+		const queue = this._inheritanceAsks.get(chatChannel);
+		this._inheritanceAsks.delete(chatChannel);
+		for (const ask of queue ?? []) {
+			ask.deferred.complete(inherit);
+		}
+	}
+
+	/** Whether `directory` is covered by one of the session's effective working directories. */
+	private _isWithinSessionRoots(sessionKey: ProtocolURI, directory: URI | undefined): boolean {
+		if (!directory) {
+			return false;
+		}
+		const roots = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		return !!roots?.some(root => this._isResourceInDirectory(directory, URI.parse(root)));
 	}
 
 	// ---- Action construction (analogous to getPreConfirmActions) -------------

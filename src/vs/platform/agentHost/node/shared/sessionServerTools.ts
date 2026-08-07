@@ -11,9 +11,11 @@ import { SessionStatus } from '../../common/state/protocol/channels-session/stat
 import { buildChatUri, buildDefaultChatUri, getInlineToolInput, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
+import type { IServerToolExecutionContext } from '../../common/agentServerTools.js';
 
 /**
  * Maximum `create_session` recursion depth. A user/top-level session is depth 0;
@@ -189,6 +191,17 @@ export interface IResolvedCreateSessionArgs {
 	readonly model?: IAgentModelInfo;
 }
 
+/** Maximum length of the prompt excerpt identifying a session in the inheritance question. */
+const createdSessionDescriptionMaxLength = 60;
+
+/** A short, user-facing identifier for the session being created: its opening prompt. */
+export function describeCreatedSession(args: IResolvedCreateSessionArgs): string {
+	const firstLine = args.prompt.split('\n', 1)[0].trim();
+	return firstLine.length > createdSessionDescriptionMaxLength
+		? `${firstLine.slice(0, createdSessionDescriptionMaxLength - 1).trimEnd()}…`
+		: firstLine;
+}
+
 /** Minimal dependency surface needed by the session server-tool group. */
 export interface ISessionServerToolAccessor {
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
@@ -203,6 +216,11 @@ export interface ISessionServerToolAccessor {
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
+	/**
+	 * The approval level a subsession created by this tool call starts at, or
+	 * `undefined` to leave it at the provider default.
+	 */
+	readonly resolveInheritedApprovalLevel: (chatChannel: ProtocolURI, childWorkingDirectory: URI | undefined, description: string) => Promise<string | undefined>;
 }
 
 /** Point-in-time snapshot of a chat's conversation, read from the host state. */
@@ -581,17 +599,25 @@ export interface ICreateSessionResult {
  * Enforces the {@link maxSessionSpawnDepth recursion limit} against
  * {@link currentSession} (the session the tool runs in) and stamps the new
  * session one level deeper so its own `create_session` calls are bounded too.
+ *
+ * {@link inheritedApprovalLevel} resolves the new session's starting approval
+ * level from the parent's, once the workspace argument is known. It may ask the
+ * user, so the tool blocks on it. Providers that model approvals on their own
+ * axis drop the value when validating their session schema, so it can only ever
+ * elevate a provider that shares the `autoApprove` axis.
  */
-export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentSession?: URI): Promise<ICreateSessionResult> {
+export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentSession?: URI, inheritedApprovalLevel?: (childWorkingDirectory: URI | undefined, description: string) => Promise<string | undefined>): Promise<ICreateSessionResult> {
 	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
 	if (parentDepth >= maxSessionSpawnDepth) {
 		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
 	}
 	const sessions = await accessor.listSessions();
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels());
+	const approvalLevel = await inheritedApprovalLevel?.(args.workspace, describeCreatedSession(args));
 	const config: IAgentCreateSessionConfig = {
 		workingDirectories: args.workspace ? [args.workspace] : undefined,
 		...(args.model !== undefined ? { provider: args.model.provider, model: { id: args.model.id } } : {}),
+		...(approvalLevel !== undefined ? { config: { [SessionConfigKey.AutoApprove]: approvalLevel } } : {}),
 	};
 	const session = await accessor.createSession(config);
 	accessor.setSessionSpawnDepth(session, parentDepth + 1);
@@ -1048,7 +1074,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		getDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 			return getSessionToolDisplay(toolName, args, result);
 		},
-		async execute(_stateManager: AgentHostStateManager, sessionUri: ProtocolURI, toolName: string, rawArgs: unknown): Promise<string> {
+		async execute(_stateManager: AgentHostStateManager, sessionUri: ProtocolURI, toolName: string, rawArgs: unknown, context?: IServerToolExecutionContext): Promise<string> {
 			if (!accessor) {
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
@@ -1061,7 +1087,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (createdSessionCount >= maxCreatedSessions) {
 						throw new Error(`Refusing to create more than ${maxCreatedSessions} sessions from server tools in this process.`);
 					}
-					const result = await applyCreateSessionTool(accessor, rawArgs, currentSessionUri(sessionUri));
+					const result = await applyCreateSessionTool(accessor, rawArgs, currentSessionUri(sessionUri), (workspace, description) => accessor.resolveInheritedApprovalLevel(sessionUri, workspace, description));
 					createdSessionCount++;
 					return formatCreateSessionResult(result);
 				}

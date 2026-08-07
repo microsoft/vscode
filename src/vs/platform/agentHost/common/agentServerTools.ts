@@ -6,6 +6,16 @@
 import type { ToolDefinition, URI } from './state/sessionState.js';
 
 /**
+ * Per-invocation context for a server tool, carried from the agent that is
+ * executing it. Fields are optional because not every agent transport exposes
+ * them (Claude's in-process MCP callback has no invocation identity).
+ */
+export interface IServerToolExecutionContext {
+	/** Id of the tool call being executed, matching the one used in the confirmation flow. */
+	readonly toolCallId?: string;
+}
+
+/**
  * Server-side host for the agent host's **server tools** — tools that the
  * agent host owns and executes in-process (against a session's own state
  * channels) rather than round-tripping to the workbench. Providers (Copilot,
@@ -40,5 +50,5 @@ export interface IAgentServerToolHost {
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown, context?: IServerToolExecutionContext): string | Promise<string>;
 }

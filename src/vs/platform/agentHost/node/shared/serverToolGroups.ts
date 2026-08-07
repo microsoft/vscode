@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { feedbackServerToolGroup } from './agentFeedbackServerTools.js';
+import { matchesServerToolName } from '../../common/serverToolNames.js';
 import { createSessionServerToolGroup, type ISessionServerToolAccessor } from './sessionServerTools.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
@@ -32,16 +33,6 @@ export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccess
  * session accessor since display never invokes `execute`.
  */
 const serverToolGroupsForDisplay: readonly IServerToolGroup[] = buildServerToolGroups();
-
-/**
- * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
- * server tool {@link bareName}. Accepts both the bare name and a transport
- * prefix such as Claude's `mcp__<server>__<name>` (matched as a `__`-delimited
- * suffix), mirroring the convention in `agentFeedbackAnnotations.ts`.
- */
-function matchesServerToolName(toolName: string, bareName: string): boolean {
-	return toolName === bareName || toolName.endsWith(`__${bareName}`);
-}
 
 /**
  * Resolves the {@link IServerToolDisplay} for a server tool call, authored by

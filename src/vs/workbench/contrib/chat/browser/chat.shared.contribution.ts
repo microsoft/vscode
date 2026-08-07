@@ -15,6 +15,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostSubsessionPermissionInheritanceConfigKey, DEFAULT_SUBSESSION_PERMISSION_INHERITANCE, SUBSESSION_PERMISSION_INHERITANCE_SETTING_ID, SUBSESSION_PERMISSION_INHERITANCE_VALUES } from '../../../../platform/agentHost/common/subsessionPermissions.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
@@ -629,6 +630,19 @@ configurationRegistry.registerConfiguration({
 			},
 			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Default },
 			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot CLI). You can still change the mode and approval behavior per session, and each session remembers what was used."),
+		},
+		[SUBSESSION_PERMISSION_INHERITANCE_SETTING_ID]: {
+			type: 'string',
+			enum: [...SUBSESSION_PERMISSION_INHERITANCE_VALUES],
+			enumDescriptions: [
+				nls.localize('chat.subsessions.inheritPermissions.once', "Ask each time a session creates another session while running at an elevated permission level."),
+				nls.localize('chat.subsessions.inheritPermissions.always', "Always start the new session at the creating session's permission level."),
+				nls.localize('chat.subsessions.inheritPermissions.never', "Always start the new session at the default permission level."),
+			],
+			default: DEFAULT_SUBSESSION_PERMISSION_INHERITANCE,
+			scope: ConfigurationScope.APPLICATION_MACHINE,
+			agentHost: { key: AgentHostSubsessionPermissionInheritanceConfigKey },
+			markdownDescription: nls.localize('chat.subsessions.inheritPermissions.description', "Whether a session that an agent creates from another session starts at the creating session's permission level. Only applies when the creating session runs at an elevated permission level."),
 		},
 		[ChatConfiguration.DefaultModel]: {
 			type: 'string',

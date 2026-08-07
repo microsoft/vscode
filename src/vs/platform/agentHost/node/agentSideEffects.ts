@@ -614,6 +614,14 @@ export class AgentSideEffects extends Disposable {
 		return this._permissionManager.initialize();
 	}
 
+	/**
+	 * The approval level a subsession created by `toolCallId` starts at, or
+	 * `undefined` to leave it at the provider default.
+	 */
+	resolveInheritedApprovalLevel(chatChannel: ProtocolURI, childWorkingDirectory: URI | undefined, description: string): Promise<string | undefined> {
+		return this._permissionManager.resolveInheritedApprovalLevel(chatChannel, childWorkingDirectory, description);
+	}
+
 	// ---- Agent registration -------------------------------------------------
 
 	/**
@@ -1236,6 +1244,7 @@ export class AgentSideEffects extends Disposable {
 		const approvalEvent = {
 			toolCallId: e.state.toolCallId,
 			session: e.chat,
+			toolName: e.state.toolName,
 			permissionKind: e.permissionKind,
 			permissionPath: e.permissionPath,
 			toolInput: getInlineToolInput(e.state.toolInput),
@@ -1384,6 +1393,11 @@ export class AgentSideEffects extends Disposable {
 			case ActionType.ChatInputCompleted: {
 				if (!chatChannel) {
 					throw new Error(`ChatInputCompleted must be handled on an AHP chat channel: ${channel}`);
+				}
+				// Host-owned questions (e.g. subsession permission inheritance)
+				// are answered here; everything else belongs to the agent.
+				if (this._permissionManager.tryResolveInheritanceDecision(action.requestId, action.response, action.answers)) {
+					break;
 				}
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers);

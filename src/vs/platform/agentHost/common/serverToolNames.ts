@@ -25,3 +25,14 @@ export const enum SessionServerToolName {
 	GetSessionContext = 'get_session_context',
 	DeleteSession = 'delete_session',
 }
+
+/**
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
+ * server tool {@link bareName}. Accepts both the bare name and a transport
+ * prefix such as Claude's `mcp__<server>__<name>` (matched as a `__`-delimited
+ * suffix), mirroring the convention in `agentFeedbackAnnotations.ts`.
+ */
+export function matchesServerToolName(toolName: string, bareName: string): boolean {
+	return toolName === bareName || toolName.endsWith(`__${bareName}`);
+}
+

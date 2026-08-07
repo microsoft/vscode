@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolHost, IServerToolExecutionContext } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import type { StringOrMarkdown, ToolDefinition, URI } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
@@ -71,7 +71,7 @@ export interface IServerToolGroup {
 	 * @throws if {@link toolName} is not owned by this group or the arguments
 	 * are invalid.
 	 */
-	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown, context?: IServerToolExecutionContext): string | Promise<string>;
 
 	/**
 	 * Display strings for {@link toolName} (one of this group's
@@ -134,11 +134,11 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
 	}
 
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
+	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown, context?: IServerToolExecutionContext): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
 		}
-		return group.execute(this._stateManager, sessionUri, toolName, rawArgs);
+		return group.execute(this._stateManager, sessionUri, toolName, rawArgs, context);
 	}
 }

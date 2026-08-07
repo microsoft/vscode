@@ -853,6 +853,7 @@ export class AgentService extends Disposable implements IAgentService {
 				type: ActionType.SessionMetaChanged,
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
+			resolveInheritedApprovalLevel: (chatChannel, childWorkingDirectory, description) => this._sideEffects.resolveInheritedApprovalLevel(chatChannel, childWorkingDirectory, description),
 		};
 	}
 
