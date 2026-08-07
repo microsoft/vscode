@@ -14,7 +14,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { AttributedToolResultFileEditContent, createFileEditContentDigest, EditAttributionFlushOutcome, FILE_EDIT_ATTRIBUTION_PROPERTY, IFileEditAttributionMarker, parseEditAttributionResource } from '../../../../../platform/agentHost/common/fileEditAttribution.js';
+import { AttributedToolResultFileEditContent, createFileEditContentDigest, EditAttributionFlushOutcome, FILE_EDIT_ATTRIBUTION_PROPERTY, IEditAttributionCoverageGapAcknowledgement, IFileEditAttributionMarker, parseEditAttributionResource } from '../../../../../platform/agentHost/common/fileEditAttribution.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { ContentEncoding } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -86,6 +86,114 @@ suite('Agent Host Edit Marker Service', () => {
 
 		assert.strictEqual(context.service.takeCoverageGap(context.resource), undefined);
 	}));
+
+	test('takes coverage gaps only through the coordinated sequence', () => {
+		const context = createContext();
+		context.fireMarker({
+			version: 1,
+			editId: 'gap-1',
+			sequence: 1,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 10,
+		});
+		context.fireMarker({
+			version: 1,
+			editId: 'gap-2',
+			sequence: 2,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 20,
+		});
+
+		assert.deepStrictEqual({
+			first: context.service.takeCoverageGap(context.resource, 1),
+			remaining: context.service.takeCoverageGap(context.resource),
+		}, {
+			first: { editCount: 1, insertedCount: 10 },
+			remaining: { editCount: 1, insertedCount: 20 },
+		});
+	});
+
+	test('preserves more than 128 pending coverage gaps', () => {
+		const context = createContext();
+		for (let sequence = 1; sequence <= 129; sequence++) {
+			context.fireMarker({
+				version: 1,
+				editId: `gap-${sequence}`,
+				sequence,
+				status: 'skipped',
+				reason: 'fileTooLarge',
+				insertedCount: sequence,
+			});
+		}
+
+		assert.deepStrictEqual(context.service.takeCoverageGap(context.resource), {
+			editCount: 129,
+			insertedCount: 129 * 130 / 2,
+		});
+	});
+
+	test('does not report standalone-emitted coverage gaps in a later workbench flush', async () => {
+		const context = createContext({
+			prepareSequence: 2,
+			standaloneCoverageGapAcknowledgements: [{
+				id: 'ack-1',
+				sequences: [1],
+				editCount: 1,
+				insertedCount: 42,
+			}],
+		});
+		context.fireMarker({
+			version: 1,
+			editId: 'edit-skipped-1',
+			sequence: 1,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 42,
+		});
+		context.fireMarker({
+			version: 1,
+			editId: 'edit-skipped-2',
+			sequence: 2,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 7,
+		});
+
+		await context.service.prepareFlush(context.resource, 'hashChange', 'stats-1', false);
+		await context.service.prepareFlush(context.resource, 'hashChange', 'stats-2', false);
+
+		assert.deepStrictEqual(context.service.takeCoverageGap(context.resource), {
+			editCount: 1,
+			insertedCount: 7,
+		});
+	});
+
+	test('clears coverage gaps from a restarted Agent Host sequence', () => {
+		const context = createContext();
+		context.fireMarker({
+			version: 1,
+			editId: 'old-gap',
+			sequence: 1,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 42,
+		});
+		context.fireMarker({
+			version: 1,
+			editId: 'new-gap',
+			sequence: 1,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 7,
+		});
+
+		assert.deepStrictEqual(context.service.takeCoverageGap(context.resource), {
+			editCount: 1,
+			insertedCount: 7,
+		});
+	});
 
 	test('matches a connected Agent marker chain to one reload', () => {
 		const context = createContext();
@@ -281,6 +389,45 @@ suite('Agent Host Edit Marker Service', () => {
 		});
 	});
 
+	test('waits for the full recovered flush cutoff before acknowledging coverage', () => runWithFakedTimers({}, async () => {
+		const context = createContext({
+			isAmbient: false,
+			authority: 'remote-one',
+			failPrepare: true,
+			cancelOutcome: 'committed',
+			cancelLastSequence: 1,
+			cancelStandaloneCoverageGapAcknowledgements: [{
+				id: 'ack-1',
+				sequences: [1],
+				editCount: 1,
+				insertedCount: 42,
+			}],
+		});
+		const remoteResource = toAgentHostUri(context.resource, 'remote-one');
+		context.service.createCorrelation(remoteResource);
+		context.fireMarker(marker(0, 'a', 'ab'));
+
+		const prepare = context.service.prepareFlush(remoteResource, 'hashChange', 'stats-1', false);
+		await timeout(0);
+		context.fireMarker({
+			version: 1,
+			editId: 'edit-skipped',
+			sequence: 1,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 42,
+		});
+		const prepared = await prepare;
+
+		assert.deepStrictEqual({
+			deferCoverageGap: prepared?.deferCoverageGap,
+			coverageGap: context.service.takeCoverageGap(remoteResource),
+		}, {
+			deferCoverageGap: false,
+			coverageGap: undefined,
+		});
+	}));
+
 	test('cancels a malformed prepared response', async () => {
 		const context = createContext({
 			isAmbient: false,
@@ -308,6 +455,24 @@ suite('Agent Host Edit Marker Service', () => {
 		context.fireMarker(marker(1, 'a', 'ab'));
 
 		const result = context.service.prepareFlush(remoteResource, 'hashChange', 'stats-1', false);
+
+		await assert.rejects(result, error => error instanceof AgentHostEditAttributionDeferredError);
+		assert.deepStrictEqual(context.resourceReads, ['/prepare', '/cancel']);
+	});
+
+	test('rejects standalone acknowledgements beyond the prepared sequence', async () => {
+		const context = createContext({
+			prepareSequence: 1,
+			standaloneCoverageGapAcknowledgements: [{
+				id: 'ack-1',
+				sequences: [2],
+				editCount: 1,
+				insertedCount: 42,
+			}],
+		});
+		context.fireMarker(marker(1, 'a', 'ab'));
+
+		const result = context.service.prepareFlush(context.resource, 'hashChange', 'stats-1', false);
 
 		await assert.rejects(result, error => error instanceof AgentHostEditAttributionDeferredError);
 		assert.deepStrictEqual(context.resourceReads, ['/prepare', '/cancel']);
@@ -366,6 +531,9 @@ suite('Agent Host Edit Marker Service', () => {
 		readonly cancelOutcome?: EditAttributionFlushOutcome;
 		readonly prepareResponse?: string;
 		readonly prepareSequence?: number;
+		readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
+		readonly cancelStandaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
+		readonly cancelLastSequence?: number;
 	} = {}) {
 		const {
 			isAmbient = true,
@@ -376,6 +544,9 @@ suite('Agent Host Edit Marker Service', () => {
 			cancelOutcome = 'cancelled',
 			prepareResponse,
 			prepareSequence,
+			standaloneCoverageGapAcknowledgements,
+			cancelStandaloneCoverageGapAcknowledgements,
+			cancelLastSequence,
 		} = options;
 		const actionEmitter = disposables.add(new Emitter<ActionEnvelope>());
 		const resourceReads: string[] = [];
@@ -400,10 +571,13 @@ suite('Agent Host Edit Marker Service', () => {
 							flushToken: request?.kind === 'prepare' ? request.params.flushToken : '',
 							agentModifiedCount: 2,
 							lastSequence: prepareSequence,
+							standaloneCoverageGapAcknowledgements,
 						})
 						: JSON.stringify({
 							outcome: resource.path === '/commit' ? 'committed' : cancelOutcome,
 							agentModifiedCount: resource.path === '/commit' || cancelOutcome === 'committed' ? 2 : 0,
+							lastSequence: resource.path === '/cancel' ? cancelLastSequence : undefined,
+							standaloneCoverageGapAcknowledgements: resource.path === '/cancel' ? cancelStandaloneCoverageGapAcknowledgements : undefined,
 						}),
 					encoding: ContentEncoding.Utf8,
 				};

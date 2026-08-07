@@ -19,10 +19,12 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -44,8 +46,13 @@ import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chat
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 
 // #region --- New Chat Widget ---
+
+/** Minimum number of started sessions required before showing tips. */
+const MIN_SESSIONS_FOR_TIPS = 2;
 
 export class NewChatWidget extends Disposable {
 
@@ -118,6 +125,8 @@ export class NewChatWidget extends Disposable {
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -246,6 +255,7 @@ export class NewChatWidget extends Disposable {
 				this._clearChatTip();
 			}
 		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store)(() => this.updateChatTipVisibility()));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(foregroundSessionCountContextKeys)) {
@@ -465,7 +475,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private isChatTipSuppressed(): boolean {
-		return this.isInputOnboardingVisible() || this._isInputNotificationVisible;
+		const sessionCount = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		return sessionCount < MIN_SESSIONS_FOR_TIPS || this.isInputOnboardingVisible() || this._isInputNotificationVisible;
 	}
 
 	private updateChatTipVisibility(): void {
@@ -591,9 +602,16 @@ export class NewChatWidget extends Disposable {
 	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken): Promise<IOpenNewSessionResult> {
 		// Prefer the user's explicit pick when its provider can serve the
 		// folder; otherwise fall back to the preferred (first) session type.
-		const effectivePick = userPick && this._isPreferredServable(folderUri, userPick)
+		const preferredPick = userPick && this._isPreferredServable(folderUri, userPick)
 			? userPick
 			: this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
+		// A signed-out user (under the conditional-auth opt-in) can't run a type
+		// that requires GitHub, so default to the first offered type usable
+		// without it. No-op when signed in or the opt-in is off — today's behavior.
+		// TODO: reconsider silently switching away from the remembered selection;
+		// instead keep it and surface an inline "sign in for this type" affordance
+		// for GitHub-only types.
+		const effectivePick = this._preferUsableSessionTypeWhenSignedOut(folderUri, preferredPick);
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
 			return await this.sessionsService.openNewSession({
@@ -608,6 +626,29 @@ export class NewChatWidget extends Disposable {
 			this.logService.error('Failed to create new session:', e);
 			return { session: undefined, trustDeclined: false };
 		}
+	}
+
+	/**
+	 * While the user is signed out and the conditional-auth opt-in is on, replace
+	 * a pick that requires GitHub with the first offered session type usable
+	 * without it. A no-op when signed in, when the opt-in is off (today's
+	 * behavior), or when no offered type is usable — in which case the caller's
+	 * existing fallbacks still apply.
+	 */
+	private _preferUsableSessionTypeWhenSignedOut(folderUri: URI, pick: IPreferredSessionType | undefined): IPreferredSessionType | undefined {
+		if (this.defaultAccountService.currentDefaultAccount !== null || !isAllowSignedOutWhenUsableEnabled(this.configurationService)) {
+			return pick;
+		}
+		const usable = this.sessionsManagementService.getSessionTypesForFolder(folderUri)
+			.filter(type => type.sessionType.authRequirement === SessionTypeAuthRequirement.None);
+		// Match on provider too when the pick names one: two providers can offer
+		// the same session type id, and only one of them may be usable.
+		const pickIsUsable = usable.some(type => type.sessionType.id === pick?.sessionTypeId
+			&& (pick?.providerId === undefined || type.providerId === pick.providerId));
+		if (usable.length === 0 || pickIsUsable) {
+			return pick;
+		}
+		return { providerId: usable[0].providerId, sessionTypeId: usable[0].sessionType.id };
 	}
 
 	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void {

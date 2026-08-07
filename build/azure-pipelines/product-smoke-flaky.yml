@@ -1,12 +1,13 @@
-# Twice-daily smoke-test flaky-detection pipeline.
+# Twice-daily flaky-detection pipeline.
 #
-# Builds VS Code from source on Linux, Windows and macOS and runs ONLY the
-# Electron smoke tests, repeated 20 times per platform. Each repetition is its
-# own step (continueOnError) so a single flaky failure does not abort the run and
-# every iteration produces its own timeline record. The pass/fail tally is read
-# back from the build timeline by the vscode-probot `SmokeFlaky` Azure Function
-# (wired up via an ADO service hook on build completion), which posts a summary
-# to the Slack #build channel.
+# Builds VS Code from source once per platform (Linux, Windows and macOS), then
+# fans out to parallel Unit/Integration/Smoke jobs that download and reuse that
+# build instead of recompiling. Each job repeats its suite 20 times, with each
+# repetition as its own step (continueOnError) so a single flaky failure does not
+# abort the run and every iteration produces its own timeline record. The
+# pass/fail tally is read back from the build timeline by the vscode-probot
+# `SmokeFlaky` Azure Function (wired up via an ADO service hook on build
+# completion), which posts a summary to the Slack #build channel.
 #
 # We build from source rather than testing a published build on purpose: product
 # builds are not always released, so depending on a published artifact would make
@@ -39,11 +40,12 @@ parameters:
     displayName: "Custom NPM Registry"
     type: string
     default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
-  # The smoke test is run once per entry in this list. 20 entries => 20 runs per
-  # platform (the flaky-detection sample size). Exposed as an object so it can be
-  # shortened for manual debugging runs from the ADO UI.
+  # Each test type (unit, integration, smoke) is run once per entry in this
+  # list. 20 entries => 20 runs per test type per platform (the flaky-detection
+  # sample size). Exposed as an object so it can be shortened for manual
+  # debugging runs from the ADO UI.
   - name: iterations
-    displayName: "Smoke test iterations (one run per entry)"
+    displayName: "Test iterations (one run per entry)"
     type: object
     default: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
   - name: VSCODE_BUILD_MACOS
@@ -56,6 +58,20 @@ parameters:
     default: true
   - name: VSCODE_BUILD_WIN32
     displayName: "🎯 Windows x64"
+    type: boolean
+    default: true
+  # Lets a single test type be exercised on its own, e.g. to chase a flake that
+  # only shows up in one of the three, without paying for the other two.
+  - name: VSCODE_TEST_UNIT
+    displayName: "🧪 Unit Tests"
+    type: boolean
+    default: true
+  - name: VSCODE_TEST_INTEGRATION
+    displayName: "🧪 Integration Tests"
+    type: boolean
+    default: true
+  - name: VSCODE_TEST_SMOKE
+    displayName: "🧪 Smoke Tests"
     type: boolean
     default: true
 
@@ -86,7 +102,7 @@ variables:
   - name: Codeql.SkipTaskAutoInjection
     value: true
 
-name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }} smoke flaky)"
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }} flaky)"
 
 resources:
   repositories:
@@ -185,6 +201,9 @@ extends:
             - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_UNIT: ${{ parameters.VSCODE_TEST_UNIT }}
+                VSCODE_TEST_INTEGRATION: ${{ parameters.VSCODE_TEST_INTEGRATION }}
+                VSCODE_TEST_SMOKE: ${{ parameters.VSCODE_TEST_SMOKE }}
                 iterations: ${{ parameters.iterations }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -198,6 +217,9 @@ extends:
             - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_TEST_UNIT: ${{ parameters.VSCODE_TEST_UNIT }}
+                VSCODE_TEST_INTEGRATION: ${{ parameters.VSCODE_TEST_INTEGRATION }}
+                VSCODE_TEST_SMOKE: ${{ parameters.VSCODE_TEST_SMOKE }}
                 iterations: ${{ parameters.iterations }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
@@ -210,4 +232,7 @@ extends:
           jobs:
             - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
               parameters:
+                VSCODE_TEST_UNIT: ${{ parameters.VSCODE_TEST_UNIT }}
+                VSCODE_TEST_INTEGRATION: ${{ parameters.VSCODE_TEST_INTEGRATION }}
+                VSCODE_TEST_SMOKE: ${{ parameters.VSCODE_TEST_SMOKE }}
                 iterations: ${{ parameters.iterations }}

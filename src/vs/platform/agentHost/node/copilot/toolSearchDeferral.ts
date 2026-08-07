@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isGpt56Model } from './modelIdentifiers.js';
+
 export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 
 /**
@@ -22,8 +24,7 @@ export function agentHostModelSupportsToolSearch(modelId: string | undefined): b
 	}
 	const id = modelId.toLowerCase();
 	const normalizedId = id.replace(/\./g, '-');
-	const isGpt56 = id === 'gpt-5.6-sol' || id === 'gpt-5.6-terra' || id === 'gpt-5.6-luna';
-	if (normalizedId === 'gpt-5-4' || normalizedId === 'gpt-5-5' || isGpt56) {
+	if (normalizedId === 'gpt-5-4' || normalizedId === 'gpt-5-5' || isGpt56Model(id)) {
 		return true;
 	}
 	if (!normalizedId.startsWith('claude')) {
