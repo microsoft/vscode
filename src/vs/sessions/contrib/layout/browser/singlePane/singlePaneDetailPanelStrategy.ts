@@ -81,8 +81,9 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 			const hasDockedDetails = target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced || target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced;
 			this._hasDockedDetailsContext!.set(hasDockedDetails);
 			auxBarVisibleObs.read(reader);
+			const syncTarget = this._ctx.multipleSessionsVisibleObs.read(reader) ? DetailPanelTarget.Preserve : target;
 			const generation = ++this._detailGeneration;
-			void this._detailSequencer.queue(() => this._syncDetailTarget(target, generation)).catch(onUnexpectedError);
+			void this._detailSequencer.queue(() => this._syncDetailTarget(syncTarget, generation)).catch(onUnexpectedError);
 		}));
 
 		// The empty Files placeholder's content (the Files tree) lives in the detail; keyed on active-editor so the inactive auto-ensured tab never reveals it.
@@ -97,9 +98,6 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 	}
 
 	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>, editorPartVisibleObs: IObservable<boolean>): DetailPanelTarget {
-		if (this._ctx.multipleSessionsVisibleObs.read(reader)) {
-			return DetailPanelTarget.Preserve;
-		}
 		const activeSession = this._sessionsService.activeSession.read(reader);
 		if (!activeSession) {
 			return DetailPanelTarget.Preserve;

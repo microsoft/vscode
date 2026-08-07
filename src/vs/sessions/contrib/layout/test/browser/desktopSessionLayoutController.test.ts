@@ -1763,14 +1763,19 @@ suite('LayoutController (desktop)', () => {
 			harness.activeSessionObs.set(existingSession, tx);
 		});
 		await timeout(0);
+		harness.activeEditorInput = makeFileEditor();
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			hasDockedDetails: harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key),
 			revealCalls: harness.setPartHiddenCalls.filter(call => !call.hidden),
 		}, {
 			editorVisible: true,
 			auxiliaryBarVisible: true,
+			hasDockedDetails: true,
 			revealCalls: [
 				{ part: Parts.AUXILIARYBAR_PART, hidden: false },
 				{ part: Parts.EDITOR_PART, hidden: false },

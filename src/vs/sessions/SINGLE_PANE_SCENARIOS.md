@@ -165,6 +165,8 @@ Visibility restoration is reveal-only while multiple sessions are visible. Focus
 session reveals the parts enabled by its matching profile, while focusing a quick chat or another
 session without side-pane content does not hide parts used by another session. Collapsing back to
 one session restores that session type's complete shared profile.
+Reveal-only preservation applies only to panel synchronization: active Changes/Files editors still
+publish their docked-details capability so **Toggle Details** remains available.
 
 ---
 
