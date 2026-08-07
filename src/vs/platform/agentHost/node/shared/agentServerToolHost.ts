@@ -54,6 +54,8 @@ export interface IServerToolDisplay {
 export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
 	readonly definitions: readonly ToolDefinition[];
+	/** Whether a contributed tool is currently enabled for advertisement and execution. */
+	isEnabled?(toolName: string): boolean;
 	/**
 	 * Whether {@link toolName} (one of this group's {@link definitions}) must be
 	 * confirmed by the user before it runs. Providers exclude such tools from
@@ -104,14 +106,11 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 
 	private readonly _groupByToolName = new Map<string, IServerToolGroup>();
 
-	readonly definitions: readonly ToolDefinition[];
-	readonly toolNames: readonly string[];
-
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		groups: readonly IServerToolGroup[],
+		private readonly _groups: readonly IServerToolGroup[],
 	) {
-		for (const group of groups) {
+		for (const group of this._groups) {
 			for (const def of group.definitions) {
 				if (this._groupByToolName.has(def.name)) {
 					throw new Error(`Duplicate server tool registered: ${def.name}`);
@@ -119,8 +118,14 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 				this._groupByToolName.set(def.name, group);
 			}
 		}
-		this.definitions = groups.flatMap(group => group.definitions);
-		this.toolNames = this.definitions.map(def => def.name);
+	}
+
+	get definitions(): readonly ToolDefinition[] {
+		return this._groups.flatMap(group => group.definitions.filter(definition => group.isEnabled?.(definition.name) !== false));
+	}
+
+	get toolNames(): readonly string[] {
+		return this.definitions.map(definition => definition.name);
 	}
 
 	advertise(sessionUri: URI): void {
@@ -131,13 +136,17 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 	}
 
 	requiresConfirmation(toolName: string): boolean {
-		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
+		const group = this._groupByToolName.get(toolName);
+		return group?.isEnabled?.(toolName) !== false && (group?.requiresConfirmation?.(toolName) ?? false);
 	}
 
 	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
+		}
+		if (group.isEnabled?.(toolName) === false) {
+			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
 		return group.execute(this._stateManager, sessionUri, toolName, rawArgs);
 	}

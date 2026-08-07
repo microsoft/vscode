@@ -13,6 +13,7 @@ import { SessionStatus } from '../../common/state/protocol/channels-session/stat
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
 	applyDeleteSessionTool,
@@ -88,10 +89,18 @@ suite('SessionServerTools', () => {
 		]);
 	});
 
-	test('runtime definitions omit rename tools when active-agent title generation is disabled', () => {
-		const group = createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => false }));
-		assert.ok(!group.definitions.some(definition => definition.name === SessionServerToolName.RenameSession));
-		assert.ok(!group.definitions.some(definition => definition.name === SessionServerToolName.RenameChat));
+	test('runtime definitions reflect active-agent title generation changes after host construction', () => {
+		let enabled = false;
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => enabled })),
+		]);
+
+		assert.deepStrictEqual(host.toolNames.includes(SessionServerToolName.RenameSession), false);
+		enabled = true;
+		assert.deepStrictEqual(host.toolNames.includes(SessionServerToolName.RenameSession), true);
+		assert.deepStrictEqual(host.toolNames.includes(SessionServerToolName.RenameChat), true);
+		stateManager.dispose();
 	});
 
 	test('rename execution rejects a stale disabled tool', async () => {

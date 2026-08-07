@@ -1285,11 +1285,12 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 	let createdSessionCount = 0;
 	let createdChatCount = 0;
 	let sentMessageCount = 0;
-	const definitions = accessor?.isActiveAgentTitleGenerationEnabled() === false
-		? sessionServerToolDefinitions.filter(definition => definition.name !== SessionServerToolName.RenameSession && definition.name !== SessionServerToolName.RenameChat)
-		: sessionServerToolDefinitions;
 	const group: IServerToolGroup = {
-		definitions,
+		definitions: sessionServerToolDefinitions,
+		isEnabled(toolName: string): boolean {
+			const isRenameTool = toolName === SessionServerToolName.RenameSession || toolName === SessionServerToolName.RenameChat;
+			return !isRenameTool || accessor?.isActiveAgentTitleGenerationEnabled() !== false;
+		},
 		requiresConfirmation(toolName: string): boolean {
 			return sessionToolRequiresConfirmation(toolName);
 		},
