@@ -50,7 +50,7 @@
 .style-override.monaco-workbench .part > .title,
 .style-override.monaco-workbench .part > .header-or-footer {
 	height: 32px;
-	padding-left: 2px;
+	padding-left: var(--vscode-spacing-size20);
 }
 
 .style-override.monaco-workbench .part > .title {

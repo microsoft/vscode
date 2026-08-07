@@ -60,6 +60,7 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 	root.style.setProperty('--vscode-spacing-size20', '2px');
 	root.style.setProperty('--vscode-spacing-size40', '4px');
 	root.style.setProperty('--vscode-spacing-size240', '24px');
+	root.style.setProperty('--vscode-spacing-size320', '32px');
 	const part = appendElement(root, 'part pane-composite-part');
 	const title = appendElement(part, 'title');
 	title.style.height = `${titleHeight}px`;
@@ -152,7 +153,8 @@ suite('StyleOverridesContribution', () => {
 		regularRoot.className = 'monaco-workbench style-override modern-ui-tabs';
 		document.body.appendChild(regularRoot);
 		store.add(toDisposable(() => regularRoot.remove()));
-		const regular = createCompositeAction(regularRoot, 32, true);
+		// Taller container than the fixed 32px override, so the override is verified rather than a 100% fallback.
+		const regular = createCompositeAction(regularRoot, 40, true);
 
 		const agentsRoot = document.createElement('div');
 		agentsRoot.className = 'monaco-workbench modern-ui-tabs';

@@ -416,8 +416,7 @@
 	gap: 0;
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
 	align-self: stretch;
 	box-sizing: border-box;
 	height: 100%;
@@ -429,32 +428,26 @@
 	background-color: transparent !important;
 }
 
-.style-override.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
-.style-override.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+.style-override.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
 	height: var(--vscode-spacing-size320);
 	min-height: var(--vscode-spacing-size320);
 	max-height: var(--vscode-spacing-size320);
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon),
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
 	text-transform: none !important;
 	padding: 0 var(--vscode-spacing-size100);
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	flex: 0 0 28px;
-	width: 28px;
-	min-width: 28px;
-	max-width: 28px;
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
+	flex: 0 0 var(--vscode-spacing-size280);
+	width: var(--vscode-spacing-size280);
+	min-width: var(--vscode-spacing-size280);
+	max-width: var(--vscode-spacing-size280);
 	padding: 0 var(--vscode-spacing-size60);
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > .active-item-indicator,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > .active-item-indicator,
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon > .active-item-indicator,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon > .active-item-indicator {
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > .active-item-indicator {
 	top: 50%;
 	right: var(--vscode-spacing-size20);
 	bottom: auto;
@@ -466,27 +459,23 @@
 	transform: translateY(-50%);
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > :is(.action-label, .badge),
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > :is(.action-label, .badge) {
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > :is(.action-label, .badge) {
 	position: relative;
 	z-index: 1;
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator,
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator,
 .modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) > .active-item-indicator {
 	background-color: var(--modern-ui-tab-active-background) !important;
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover > .active-item-indicator,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover > .active-item-indicator {
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover > .active-item-indicator {
 	background-color: var(--modern-ui-tab-hover-background);
 }
 
