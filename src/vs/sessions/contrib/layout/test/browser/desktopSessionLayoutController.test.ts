@@ -3175,6 +3175,74 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
+	test('[single-pane] closes non-managed tabs restored while only details are visible', async () => {
+		const controller = createSinglePaneController({
+			activateAux: true,
+			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: true },
+				existingSession: { editorVisible: false, auxiliaryBarVisible: true },
+			},
+		});
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		const fileResource = URI.file('/repo/restored.ts');
+		controller.runWithRestore(() => {
+			harness.activeGroupEditors.splice(1, 0, store.add(new TestStubEditorInput(fileResource)));
+			harness.onDidEditorsChange.fire();
+		});
+		await settle();
+
+		assert.deepStrictEqual({
+			closedFile: harness.closedEditors.some(editor => editor.resource && isEqual(editor.resource, fileResource)),
+			fileTabVisible: harness.activeGroupEditors.some(editor => editor.resource && isEqual(editor.resource, fileResource)),
+			filesTabVisible: hasFilesTab(),
+		}, {
+			closedFile: true,
+			fileTabVisible: false,
+			filesTabVisible: true,
+		});
+	});
+
+	test('[single-pane] closes and reopens non-managed tabs added while only details are visible', async () => {
+		createSinglePaneController({
+			activateAux: true,
+			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: true },
+				existingSession: { editorVisible: false, auxiliaryBarVisible: true },
+			},
+		});
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		const fileResource = URI.file('/repo/added.ts');
+		harness.activeGroupEditors.splice(1, 0, store.add(new TestStubEditorInput(fileResource)));
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		const fileTabVisibleWhileDetailsOnly = harness.activeGroupEditors.some(editor => editor.resource && isEqual(editor.resource, fileResource));
+
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+
+		assert.deepStrictEqual({
+			closedFile: harness.closedEditors.some(editor => editor.resource && isEqual(editor.resource, fileResource)),
+			fileTabVisibleWhileDetailsOnly,
+			reopenedFile: harness.openedEditors.some(editor => isResourceEditorInput(editor) && isEqual(editor.resource, fileResource)),
+		}, {
+			closedFile: true,
+			fileTabVisibleWhileDetailsOnly: false,
+			reopenedFile: true,
+		});
+	});
+
 	test('[single-pane] closes a non-restorable non-docked tab (e.g. untitled Search) when the editor area hides, without restoring it', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
