@@ -40,7 +40,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
-import { findPosixOnlyCommands, formatPosixCommandError, type IRecordedCommand } from './posixCommandLint.js';
+import { findPosixOnlyCommands, formatPosixCommandError, getRecordedShellCommand, type IRecordedCommand } from './posixCommandLint.js';
 import { formatModelRequestMismatch, modelRequestsMatch, projectModelRequest } from './modelRequestProjection.js';
 import { expandShellToolName, normalizeShellToolNameForCapture } from './shellToolNames.js';
 import { scrubUserName, USER_NAME_PLACEHOLDER } from './userNameScrub.js';
@@ -62,6 +62,8 @@ const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
+const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
+const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
 
 /**
@@ -247,6 +249,7 @@ export class CapiReplayProxy {
 	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
 	private readonly _requestMismatches: string[] = [];
+	private readonly _replayPlaceholderValues = new Map<string, string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
 
@@ -357,6 +360,7 @@ export class CapiReplayProxy {
 		this._observedModelRequestBodies.length = 0;
 		this._cacheMisses.length = 0;
 		this._requestMismatches.length = 0;
+		this._replayPlaceholderValues.clear();
 		this._modelTurnCount = 0;
 		this._loadFixture();
 	}
@@ -400,6 +404,11 @@ export class CapiReplayProxy {
 		}
 		if (this._requestMismatches.length > 0) {
 			sections.push(`[capi-replay] ${this._requestMismatches.length} model request mismatch(es):\n${this._requestMismatches.join('\n')}`);
+		}
+		const unconsumed = Array.from(this._replayBuckets.entries())
+			.flatMap(([key, bucket]) => bucket.index < bucket.items.length ? [`${key}: ${bucket.items.length - bucket.index} response(s)`] : []);
+		if (unconsumed.length > 0) {
+			sections.push(`[capi-replay] unconsumed recorded responses:\n${unconsumed.join('\n')}`);
 		}
 		return sections.length > 0 ? new Error(sections.join('\n\n')) : undefined;
 	}
@@ -510,19 +519,33 @@ export class CapiReplayProxy {
 	 */
 	private _assertRecordedRequest(dialect: TurnDialect, recorded: IReadableAnthropicRequest, body: string): void {
 		const turnIndex = this._modelTurnCount++;
-		if (this._allowStaleRecordedRequest) {
-			return;
-		}
 		const summarize = dialect === 'responses' ? summarizeResponsesRequest : summarizeAnthropicRequest;
-		const observed = summarize(this._normalize(body));
+		const normalizedBody = this._normalize(body);
+		const observed = summarize(normalizedBody);
 		if (!observed) {
 			return;
 		}
+		captureReplayPlaceholderValues(recorded, observed, this._replayPlaceholderValues);
+		if (this._allowStaleRecordedRequest) {
+			return;
+		}
+		const normalizedObserved = summarize(this._normalizeReplayPlaceholderValues(normalizedBody));
+		if (!normalizedObserved) {
+			return;
+		}
 		const expected = projectModelRequest(recorded);
-		const actual = projectModelRequest(observed);
+		const actual = projectModelRequest(normalizedObserved);
 		if (!modelRequestsMatch(expected, actual)) {
 			this._requestMismatches.push(formatModelRequestMismatch(turnIndex, expected, actual));
 		}
+	}
+
+	private _normalizeReplayPlaceholderValues(text: string): string {
+		let result = text;
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, value, placeholder);
+		}
+		return result;
 	}
 
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
@@ -693,8 +716,8 @@ export class CapiReplayProxy {
 				if (block.type !== 'tool_use') {
 					continue;
 				}
-				const command = (block.input as { command?: unknown } | undefined)?.command;
-				if (typeof command === 'string' && command) {
+				const command = getRecordedShellCommand(block.input as { command?: unknown; cmd?: unknown } | undefined);
+				if (command) {
 					commands.push({ command, toolName: block.name });
 				}
 			}
@@ -938,8 +961,67 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = replaceAll(result, USER_PLACEHOLDER, this._options.userName);
 		}
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, placeholder, value);
+		}
 		return result;
 	}
+}
+
+function captureReplayPlaceholderValues(recorded: unknown, observed: unknown, values: Map<string, string>): void {
+	if (typeof recorded === 'string' && typeof observed === 'string') {
+		captureReplayPlaceholderValuesFromString(recorded, observed, values);
+		return;
+	}
+	if (Array.isArray(recorded) && Array.isArray(observed)) {
+		for (let index = 0; index < Math.min(recorded.length, observed.length); index++) {
+			captureReplayPlaceholderValues(recorded[index], observed[index], values);
+		}
+		return;
+	}
+	if (!isRecord(recorded) || !isRecord(observed)) {
+		return;
+	}
+	for (const [key, value] of Object.entries(recorded)) {
+		captureReplayPlaceholderValues(value, observed[key], values);
+	}
+}
+
+function captureReplayPlaceholderValuesFromString(recorded: string, observed: string, values: Map<string, string>): void {
+	const placeholders: string[] = [];
+	let pattern = '^';
+	let offset = 0;
+	for (const match of recorded.matchAll(UUID_PLACEHOLDER_RE)) {
+		pattern += escapeRegExpCharacters(recorded.slice(offset, match.index));
+		pattern += `(${UUID_PATTERN})`;
+		placeholders.push(match[0]);
+		offset = match.index + match[0].length;
+	}
+	if (placeholders.length === 0) {
+		return;
+	}
+	pattern += `${escapeRegExpCharacters(recorded.slice(offset))}$`;
+	const match = new RegExp(pattern, 'i').exec(observed);
+	if (!match) {
+		return;
+	}
+	const captured = new Map<string, string>();
+	for (let index = 0; index < placeholders.length; index++) {
+		const placeholder = placeholders[index];
+		const value = match[index + 1];
+		if ((captured.has(placeholder) && captured.get(placeholder) !== value)
+			|| (values.has(placeholder) && values.get(placeholder) !== value)) {
+			return;
+		}
+		captured.set(placeholder, value);
+	}
+	for (const [placeholder, value] of captured) {
+		values.set(placeholder, value);
+	}
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function replaceAll(text: string, search: string, replacement: string): string {

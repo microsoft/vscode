@@ -9,6 +9,7 @@ import * as path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { HeaderLogEntry, LogEntry } from '../../../src/platform/workspaceRecorder/common/workspaceLog';
 import { NesDatagenInputFormat, NesDatagenSampleTask, PivotStrategy } from '../../base/simulationOptions';
+import type { Scoring } from '../alternativeAction/types';
 import type { ISample } from '../output';
 import { runInputPipeline } from '../pipeline';
 
@@ -32,7 +33,12 @@ afterAll(async () => {
 	await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
-async function runRecording(entries: readonly LogEntry[], sampleTask: NesDatagenSampleTask): Promise<{ samples: ISample[]; logs: string[] }> {
+async function runRecording(
+	entries: readonly LogEntry[],
+	sampleTask: NesDatagenSampleTask,
+	generateScoredEdits = false,
+	maxOracleEdits = 10,
+): Promise<{ samples: ISample[]; logs: string[]; scoredEdits: { fileName: string; value: Scoring.t }[] }> {
 	const inputPath = path.join(tmpDir, `input-${sampleTask}.workspaceRecording.jsonl`);
 	const outputPath = path.join(tmpDir, `output-${sampleTask}.jsonl`);
 	await fs.writeFile(inputPath, `\n${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`);
@@ -51,6 +57,8 @@ async function runRecording(entries: readonly LogEntry[], sampleTask: NesDatagen
 			sameFileJumpMinAbove: 2,
 			sameFileJumpMinBelow: 5,
 			maxSamplesPerRecording: 100,
+			maxOracleEdits,
+			generateScoredEdits,
 		},
 		configFile: configPath,
 		verbose: false,
@@ -63,7 +71,14 @@ async function runRecording(entries: readonly LogEntry[], sampleTask: NesDatagen
 		.split('\n')
 		.filter(line => line.length > 0)
 		.map(line => JSON.parse(line) as ISample);
-	return { samples, logs };
+	const scoredEditsDirectory = path.join(tmpDir, `output-${sampleTask}.scoredEdits`);
+	const scoredEdits = generateScoredEdits
+		? await Promise.all((await fs.readdir(scoredEditsDirectory)).sort().map(async fileName => ({
+			fileName,
+			value: JSON.parse(await fs.readFile(path.join(scoredEditsDirectory, fileName), 'utf8')) as Scoring.t,
+		})))
+		: [];
+	return { samples, logs, scoredEdits };
 }
 
 describe('nes-datagen workspace recording pipeline', () => {
@@ -72,6 +87,10 @@ describe('nes-datagen workspace recording pipeline', () => {
 			`export function add(a: number, b: number): number {\n` +
 			`\treturn a + b;\n` +
 			`}\n`;
+		const oracleEdits: [number, number, string][] = [
+			[16, 19, 'sum'],
+			[documentContent.length + 1, documentContent.length + 1, '// done\n'],
+		];
 		const entries: LogEntry[] = [
 			header,
 			{ kind: 'applicationStart', time: 1, commitHash: 'commit' },
@@ -90,35 +109,110 @@ describe('nes-datagen workspace recording pipeline', () => {
 				kind: 'changed',
 				id: 0,
 				time: 1004,
-				edit: [[16, 19, 'sum']],
+				edit: oracleEdits,
 				v: 3,
 				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
 			},
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1005,
+				edit: [[0, 0, 'generated']],
+				v: 4,
+				metadata: { source: 'applyEdits' },
+			},
 		];
 
-		const { samples, logs } = await runRecording(entries, NesDatagenSampleTask.Xtab);
-		expect(samples.map(sample => ({
-			task: sample.metadata.task,
-			language: sample.metadata.language,
-			filePath: sample.metadata.filePath,
-			oracleEdits: sample.metadata.oracleEdits,
-			workspaceRecording: sample.metadata.workspaceRecording,
-		})), logs.join('\n')).toEqual([{
-			task: NesDatagenSampleTask.Xtab,
-			language: 'typescript',
-			filePath: 'src/math.ts',
-			oracleEdits: [[16, 19, 'sum']],
-			workspaceRecording: {
-				sourceFormat: 'workspace-recording',
-				recordingRevision: 4,
-				policyVersion: 1,
-				pivotKind: 'user-edit',
-				pivotOperationIndex: 2,
-				oracleOperationCount: 1,
-				oracleStopReason: 'end-of-recording',
-				contextTruncated: false,
+		const { samples, logs, scoredEdits } = await runRecording(entries, NesDatagenSampleTask.Xtab, true);
+		expect({
+			samples: samples.map(sample => ({
+				id: sample.metadata.rowIndex,
+				task: sample.metadata.task,
+				language: sample.metadata.language,
+				filePath: sample.metadata.filePath,
+				oracleEdits: sample.metadata.oracleEdits,
+				workspaceRecording: sample.metadata.workspaceRecording,
+			})),
+			scoredEdits: scoredEdits.map(({ fileName, value }) => ({
+				fileName,
+				edits: value.edits,
+				historyKinds: value.scoringContext.recording.log.map(entry => entry.kind),
+				nextUserEdit: value.scoringContext.recording.nextUserEdit,
+			})),
+		}, logs.join('\n')).toEqual({
+			samples: [{
+				id: 0,
+				task: NesDatagenSampleTask.Xtab,
+				language: 'typescript',
+				filePath: 'src/math.ts',
+				oracleEdits,
+				workspaceRecording: {
+					sourceFormat: 'workspace-recording',
+					recordingRevision: 4,
+					policyVersion: 2,
+					pivotKind: 'user-edit',
+					pivotOperationIndex: 2,
+					oracleOperationCount: 1,
+					oracleStopReason: 'generated-edit',
+					contextTruncated: false,
+				},
+			}],
+			scoredEdits: [{
+				fileName: '0.scoredEdits.w.json',
+				edits: [{
+					documentUri: 'src/math.ts',
+					edit: oracleEdits,
+					scoreCategory: 'nextEdit',
+					score: 0,
+				}],
+				historyKinds: ['meta', 'documentEncountered', 'setContent', 'selectionChanged', 'changed'],
+				nextUserEdit: {
+					edit: oracleEdits,
+					relativePath: 'src/math.ts',
+					originalOpIdx: 4,
+				},
+			}],
+		});
+	});
+
+	it('limits the composed oracle edits using the configured maximum', async () => {
+		const documentContent = 'const value = 1;\n';
+		const entries: LogEntry[] = [
+			header,
+			{ kind: 'documentEncountered', id: 0, time: 1000, relativePath: 'src/value.ts' },
+			{ kind: 'setContent', id: 0, time: 1000, content: documentContent, v: 1 },
+			{ kind: 'selectionChanged', id: 0, time: 1001, selection: [[documentContent.length, documentContent.length]] },
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1002,
+				edit: [[documentContent.length, documentContent.length, 'p']],
+				v: 2,
+				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
 			},
-		}]);
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1003,
+				edit: [[0, 0, 'a'], [6, 6, 'b'], [12, 12, 'c']],
+				v: 3,
+				metadata: { source: 'cursor', kind: 'type', detailedSource: 'keyboard' },
+			},
+			{
+				kind: 'changed',
+				id: 0,
+				time: 1004,
+				edit: [[documentContent.length + 1, documentContent.length + 1, 'generated']],
+				v: 4,
+				metadata: { source: 'applyEdits' },
+			},
+		];
+
+		const { samples, logs } = await runRecording(entries, NesDatagenSampleTask.Xtab, false, 2);
+		expect(samples.map(sample => sample.metadata.oracleEdits), logs.join('\n')).toEqual([[
+			[0, 0, 'a'],
+			[6, 6, 'b'],
+		]]);
 	});
 
 	it('retains the first deliberate cursor boundary for cursor-task generation', async () => {

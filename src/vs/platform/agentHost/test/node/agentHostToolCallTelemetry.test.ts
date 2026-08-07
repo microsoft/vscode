@@ -14,10 +14,11 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -108,12 +109,12 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
 
-	function startTurn(turnId: string, text = 'hello'): void {
+	function startTurn(turnId: string, text = 'hello', modelId?: string): void {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text, origin: { kind: MessageKind.User } },
+			message: { text, origin: { kind: MessageKind.User }, model: modelId ? { id: modelId } : undefined },
 		};
 		stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
 		sideEffects.handleAction(defaultChatUri, action);
@@ -131,6 +132,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId, result });
 	}
 
+	function completeTurn(turnId: string): void {
+		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+	}
+
 	function toolEvents(): { eventName: string; data: Record<string, unknown> }[] {
 		return telemetry.events
 			.filter(e => e.eventName === 'languageModelToolInvoked')
@@ -143,6 +148,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 						invocationTimeMs: data.invocationTimeMs === undefined
 							? undefined
 							: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0,
+						model: data.model instanceof TelemetryTrustedValue ? { trusted: true, value: data.model.value } : data.model,
 					},
 				};
 			});
@@ -224,6 +230,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 		});
 		toolComplete('turn-1', 'tc-1', { success: true, pastTenseMessage: 'ran' });
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents(), [{
 			eventName: 'languageModelToolInvoked',
@@ -233,8 +240,12 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolId: 'bash',
 				toolExtensionId: undefined,
 				toolSourceKind: 'agentHost',
+				toolCallId: 'tc-1',
 				provider: 'mock',
 				invocationTimeMs: true,
+				resultSizeInCharacters: 41,
+				turnId: 'turn-1',
+				model: undefined,
 			},
 		}]);
 	});
@@ -245,6 +256,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 		toolStart('turn-1', 'tc-mcp', 'lookup', { kind: ToolCallContributorKind.MCP, customizationId: 'c1' });
 		toolComplete('turn-1', 'tc-mcp', { success: false, pastTenseMessage: 'denied', error: { message: 'denied', code: 'denied' } });
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents(), [{
 			eventName: 'languageModelToolInvoked',
@@ -254,8 +266,12 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolId: 'lookup',
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
+				toolCallId: 'tc-mcp',
 				provider: 'mock',
 				invocationTimeMs: undefined,
+				resultSizeInCharacters: 90,
+				turnId: 'turn-1',
+				model: undefined,
 			},
 		}]);
 	});
@@ -273,6 +289,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 		});
 		toolComplete('turn-1', 'tc-client', { success: true, pastTenseMessage: 'ran tests' });
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents(), [{
 			eventName: 'languageModelToolInvoked',
@@ -282,10 +299,81 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolId: 'run_tests',
 				toolExtensionId: undefined,
 				toolSourceKind: 'client',
+				toolCallId: 'tc-client',
 				provider: 'mock',
 				invocationTimeMs: true,
+				resultSizeInCharacters: 47,
+				turnId: 'turn-1',
+				model: undefined,
 			},
 		}]);
+	});
+
+	test('uses the resolved usage model for an in-flight tool call', () => {
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: 'auto', name: 'Auto', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+		]);
+		startTurn('turn-1', 'hello', 'auto');
+
+		toolStart('turn-1', 'tc-model', 'read_file');
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { model: 'gpt-5.5' } });
+		toolComplete('turn-1', 'tc-model', { success: true, pastTenseMessage: 'read file' });
+
+		assert.deepStrictEqual(toolEvents()[0].data, {
+			result: 'success',
+			chatSessionId: sessionKey,
+			toolId: 'read_file',
+			toolExtensionId: undefined,
+			toolSourceKind: 'agentHost',
+			toolCallId: 'tc-model',
+			invocationTimeMs: undefined,
+			provider: 'mock',
+			resultSizeInCharacters: 47,
+			turnId: 'turn-1',
+			model: { trusted: true, value: 'gpt-5.5' },
+		});
+	});
+
+	test('uses a resolved usage model received before the tool call starts', () => {
+		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { model: 'gpt-5.5' } });
+		toolStart('turn-1', 'tc-model', 'read_file');
+		toolComplete('turn-1', 'tc-model', { success: true, pastTenseMessage: 'read file' });
+
+		assert.deepStrictEqual(toolEvents()[0].data.model, { trusted: true, value: 'gpt-5.5' });
+	});
+
+	test('waits for a resolved usage model received after tool completion', () => {
+		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'claude-sonnet', name: 'Claude Sonnet', supportsVision: false }]);
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-model', 'read_file');
+		toolComplete('turn-1', 'tc-model', { success: true, pastTenseMessage: 'read file' });
+		assert.strictEqual(toolEvents().length, 0);
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { model: 'claude-sonnet' } });
+
+		assert.deepStrictEqual(toolEvents()[0].data.model, { trusted: true, value: 'claude-sonnet' });
+	});
+
+	test('includes result content in the serialized result size', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-read', 'read_file');
+		toolComplete('turn-1', 'tc-read', {
+			success: true,
+			pastTenseMessage: 'read files',
+			content: [{ type: ToolResultContentType.Text, text: 'alpha\nbeta' }],
+		});
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual(toolEvents()[0].data.resultSizeInCharacters, 97);
 	});
 
 	test('only accepts contributor refinements that preserve execution ownership', async () => {
@@ -323,6 +411,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		await timeout(0);
 		toolComplete('turn-1', 'tc-mcp-ready', { success: true, pastTenseMessage: 'looked up metadata' });
 		toolComplete('turn-1', 'tc-late-client', { success: true, pastTenseMessage: 'ran tests' });
+		completeTurn('turn-1');
 
 		assert.deepStrictEqual(toolEvents().map(event => event.data.toolSourceKind), ['mcp', 'agentHost']);
 	});
@@ -352,6 +441,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			sideEffects.handleAction(defaultChatUri, confirmed);
 			await timeout(25);
 			toolComplete('turn-1', 'tc-confirm-timing', { success: true, pastTenseMessage: 'wrote file' });
+			completeTurn('turn-1');
 		});
 
 		const event = telemetry.events.find(event => event.eventName === 'languageModelToolInvoked');
@@ -371,6 +461,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 		toolStart('turn-1', 'tc-err', 'bash');
 		toolComplete('turn-1', 'tc-err', { success: false, pastTenseMessage: 'boom', error: { message: 'boom' } });
+		completeTurn('turn-1');
 
 		assert.strictEqual(toolEvents()[0].data.result, 'error');
 	});
@@ -382,6 +473,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		toolStart('turn-1', 'tc-dup', 'bash');
 		toolComplete('turn-1', 'tc-dup', { success: true, pastTenseMessage: 'ran' });
 		toolComplete('turn-1', 'tc-dup', { success: true, pastTenseMessage: 'ran' });
+		completeTurn('turn-1');
 
 		assert.strictEqual(toolEvents().length, 1);
 	});

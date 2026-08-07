@@ -184,7 +184,7 @@
 	position: relative;
 }
 
-/* Match the send button's control tier (22×22, control radius) and the compact
+/* Match the send button's control tier (22×22, fully rounded) and the compact
 	glyph size used by the pickers, so the voice controls, the dictation mic and
 	Send all read as one row. */
 .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label {
@@ -192,8 +192,13 @@
 	width: 22px;
 	height: 22px;
 	justify-content: center;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label,
+.sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-stt-button {
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
 
 .monaco-workbench.monaco-enable-motion .sessions-chat-voice-toolbar .action-label.codicon-loading-compact::before,
@@ -311,7 +316,8 @@
 	gap: 2px;
 }
 
-/* Send button - wraps a Button widget */
+/* Send button - wraps a Button widget. Circular, matching the send button in the
+	editor chat composer (chat.css) and the Agents window's active chat. */
 .sessions-chat-send-button {
 	display: flex;
 	align-items: center;
@@ -320,7 +326,7 @@
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -332,7 +338,7 @@
 	min-width: 22px;
 	padding: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--vscode-cornerRadius-circle);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -449,10 +455,12 @@
 }
 
 .monaco-workbench .sessions-chat-attach-button .codicon[class*='codicon-'] {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-/* Dictation (speech-to-text) mic button */
+/* Dictation (speech-to-text) mic button. Same ringed circle as the voice
+	controls beside it, so the standalone mic reads as a single-cell version of
+	the segmented pill rather than a bare glyph. */
 .sessions-chat-stt-button {
 	display: flex;
 	align-items: center;
@@ -461,11 +469,12 @@
 	width: 22px;
 	height: 22px;
 	flex-shrink: 0;
-	border-radius: var(--vscode-cornerRadius-small);
+	box-sizing: border-box;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-circle);
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	background: transparent;
-	border: none;
 	outline: none;
 }
 

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringValue, VsCodeV2CommentsView, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
+import { CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, findNodeOffsetById, taskCheckboxRange, type CodeBlockAstNode } from '@vscode/markdown-editor';
 import { Disposable, autorun, observableValue } from '@vscode/markdown-editor/observables';
+import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
@@ -32,12 +33,23 @@ interface PersistedViewState {
 	selection?: { anchor: number; active: number };
 }
 
+interface CodeBlockEditorProviderDefinition {
+	readonly id: string;
+	readonly selector: IframeEmbeddedEditorProviderSelector;
+	readonly source: { readonly kind: 'static'; readonly descriptor: ResolvedIframeEmbeddedEditor } | { readonly kind: 'exportApi' };
+}
+
 class Editor extends Disposable {
 	readonly model = new EditorModel();
 	isUpdatingFromExtension = false;
 	#isUpdatingComments = false;
 	#mermaidCounter = 0;
 	#initialized = false;
+	#codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] = [];
+	#nextCodeBlockEditorRequestId = 1;
+	readonly #codeBlockEditorRequests = new Map<number, (descriptor: ResolvedIframeEmbeddedEditor | undefined) => void>();
+	#view: EditorView | undefined;
+	#embeddedCodeEditorFactory: VirtualizedIframeEmbeddedEditorFactory | undefined;
 
 	readonly #comments = new CommentsModel();
 	#commentsView: VsCodeV2CommentsView | undefined;
@@ -53,6 +65,9 @@ class Editor extends Disposable {
 
 		window.addEventListener('message', (event) => {
 			const message = event.data;
+			if (!message || typeof message !== 'object') {
+				return;
+			}
 			if (this.#syntaxHighlighter.handleMessage(message)) {
 				return;
 			}
@@ -60,6 +75,7 @@ class Editor extends Disposable {
 				case 'init': {
 					if (!this.#initialized) {
 						this.#initialized = true;
+						this.#codeBlockEditorProviders = readCodeBlockEditorProviderDefinitions(message.codeBlockEditorProviders);
 						this.#createView(host, !!message.readonly, message.content);
 					}
 					break;
@@ -72,6 +88,23 @@ class Editor extends Disposable {
 					this.isUpdatingFromExtension = true;
 					this.model.replaceSourceText(new StringValue(message.content));
 					this.isUpdatingFromExtension = false;
+					break;
+				}
+				case 'codeBlockEditorProviders': {
+					const providers = readCodeBlockEditorProviderDefinitions(message.codeBlockEditorProviders);
+					this.#codeBlockEditorProviders = providers;
+					this.#embeddedCodeEditorFactory?.updateProviders(this.#createIframeProviders(providers));
+					break;
+				}
+				case 'resolvedCodeBlockEditor': {
+					if (typeof message.requestId !== 'number') {
+						break;
+					}
+					const resolve = this.#codeBlockEditorRequests.get(message.requestId);
+					if (resolve) {
+						this.#codeBlockEditorRequests.delete(message.requestId);
+						resolve(readResolvedCodeBlockEditor(message.descriptor));
+					}
 					break;
 				}
 				case 'gutterMarkers': {
@@ -102,10 +135,30 @@ class Editor extends Disposable {
 		});
 
 		this.#vscode.postMessage({ type: 'ready' });
+		this._register({
+			dispose: () => {
+				for (const resolve of this.#codeBlockEditorRequests.values()) {
+					resolve(undefined);
+				}
+				this.#codeBlockEditorRequests.clear();
+			},
+		});
 	}
 
 	#createView(host: HTMLElement, readonly: boolean, content: string): void {
 		const model = this.model;
+		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
+		const embeddedCodeEditorFactory = this._register(new VirtualizedIframeEmbeddedEditorFactory({
+			providers: this.#createIframeProviders(this.#codeBlockEditorProviders),
+			scriptNonce,
+			themeCss: () => `:root { ${document.documentElement.getAttribute('style') ?? ''} }`,
+			onAmbiguous: (language, providers) => this.#vscode.postMessage({
+				type: 'codeBlockEditorDiagnostic',
+				message: `Ambiguous providers for ${language}: ${providers.map(provider => provider.id).join(', ')}`,
+			}),
+			onDidChange: () => this.#view?.refreshEmbeddedCodeEditors(),
+		}));
+		this.#embeddedCodeEditorFactory = embeddedCodeEditorFactory;
 		// The scroll + cursor position last persisted for this document, captured
 		// before any listener below can overwrite it, so it survives the editor being
 		// re-created (e.g. after a session switch).
@@ -118,6 +171,19 @@ class Editor extends Disposable {
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
 			syntaxHighlighter: this.#syntaxHighlighter,
+			embeddedCodeEditorFactory,
+			onEmbeddedCodeEditorEdit: (block: CodeBlockAstNode, contentEdit: StringEdit) => {
+				const doc = model.document.get();
+				const blockOffset = findNodeOffsetById(doc, block);
+				if (blockOffset === undefined) { return; }
+				const contentStart = blockOffset + block.codeOffset;
+				model.applyEdit(new StringEdit(
+					contentEdit.replacements.map(replacement => StringReplacement.replace(
+						replacement.replaceRange.delta(contentStart),
+						replacement.newText,
+					)),
+				));
+			},
 			onOpenLink: (url) => {
 				const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1].toLowerCase();
 				if (scheme && scheme !== 'file') {
@@ -160,6 +226,7 @@ class Editor extends Disposable {
 				return div;
 			},
 		}));
+		this.#view = view;
 
 		// Wire history chords (undo/redo) to the extension so they run against the
 		// backing TextDocument's own undo stack. `record` is deliberately omitted:
@@ -292,6 +359,29 @@ class Editor extends Disposable {
 		this.#restoreScroll(host, savedViewState.scrollTop);
 	}
 
+	#createIframeProviders(definitions: readonly CodeBlockEditorProviderDefinition[]): readonly IframeEmbeddedEditorProvider[] {
+		return definitions.map(definition => ({
+			id: definition.id,
+			selector: definition.selector,
+			resolve: definition.source.kind === 'static'
+				? async () => definition.source.kind === 'static' ? definition.source.descriptor : undefined
+				: language => this.#resolveCodeBlockEditor(definition.id, language),
+		}));
+	}
+
+	#resolveCodeBlockEditor(providerId: string, language: string): Promise<ResolvedIframeEmbeddedEditor | undefined> {
+		const requestId = this.#nextCodeBlockEditorRequestId++;
+		return new Promise(resolve => {
+			this.#codeBlockEditorRequests.set(requestId, resolve);
+			this.#vscode.postMessage({
+				type: 'resolveCodeBlockEditor',
+				requestId,
+				providerId,
+				language,
+			});
+		});
+	}
+
 	#getViewState(): PersistedViewState {
 		return (this.#vscode.getState() as PersistedViewState | undefined) ?? {};
 	}
@@ -313,6 +403,71 @@ class Editor extends Disposable {
 		};
 		requestAnimationFrame(apply);
 	}
+}
+
+function readCodeBlockEditorProviderDefinitions(value: unknown): readonly CodeBlockEditorProviderDefinition[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const values: unknown[] = value;
+	return values.filter(isCodeBlockEditorProviderDefinition);
+}
+
+function isCodeBlockEditorProviderDefinition(value: unknown): value is CodeBlockEditorProviderDefinition {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const candidate = value as Record<string, unknown>;
+	return typeof candidate.id === 'string'
+		&& isCodeBlockEditorSelector(candidate.selector)
+		&& isCodeBlockEditorSource(candidate.source);
+}
+
+function isCodeBlockEditorSelector(value: unknown): value is IframeEmbeddedEditorProviderSelector {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const selector = value as Record<string, unknown>;
+	return (typeof selector.language === 'string' && selector.languagePrefix === undefined)
+		|| (selector.language === undefined && typeof selector.languagePrefix === 'string');
+}
+
+function isCodeBlockEditorSource(value: unknown): value is CodeBlockEditorProviderDefinition['source'] {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const source = value as Record<string, unknown>;
+	return source.kind === 'exportApi'
+		|| (source.kind === 'static' && readResolvedCodeBlockEditor(source.descriptor) !== undefined);
+}
+
+function readResolvedCodeBlockEditor(value: unknown): ResolvedIframeEmbeddedEditor | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const descriptor = value as Record<string, unknown>;
+	if (
+		typeof descriptor.html !== 'string'
+		|| (descriptor.contentType !== 'text' && descriptor.contentType !== 'json')
+		|| (descriptor.cacheKey !== undefined && typeof descriptor.cacheKey !== 'string')
+		|| (descriptor.initialHeight !== undefined && (typeof descriptor.initialHeight !== 'number' || !Number.isFinite(descriptor.initialHeight) || descriptor.initialHeight <= 0))
+		|| !isResolvedSandbox(descriptor.sandbox)
+	) {
+		return undefined;
+	}
+	return descriptor as unknown as ResolvedIframeEmbeddedEditor;
+}
+
+function isResolvedSandbox(value: unknown): boolean {
+	if (value === undefined) {
+		return true;
+	}
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const sandbox = value as Record<string, unknown>;
+	return ['forms', 'downloads', 'pointerLock', 'clipboardWrite']
+		.every(key => sandbox[key] === undefined || typeof sandbox[key] === 'boolean');
 }
 
 function computeTextEdit(previousText: string, text: string): { start: number; endExclusive: number; text: string } {

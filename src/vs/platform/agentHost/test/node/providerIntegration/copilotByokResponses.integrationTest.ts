@@ -13,14 +13,13 @@ import { NullLogService } from '../../../../log/common/log.js';
 import type { IByokLmChatRequest, IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
+import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 
-const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
-
-(REAL_SDK_ENABLED ? suite : suite.skip)('Agent Host Provider Integration - Copilot BYOK Responses', function () {
+suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('real SDK consumes structured reasoning and text from the proxy', async function () {
+	test('bundled SDK consumes structured reasoning and text from the proxy', async function () {
 		this.timeout(120_000);
 
 		const sessionId = 'byok-responses-integration';
@@ -57,6 +56,7 @@ const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
 			baseDirectory,
 			useLoggedInUser: false,
 			logLevel: 'error',
+			env: createCopilotCliEnvironment(),
 		});
 		let session: Awaited<ReturnType<CopilotClient['createSession']>> | undefined;
 		let clientStarted = false;
@@ -67,6 +67,7 @@ const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
 			session = await client.createSession({
 				sessionId,
 				model: 'test-model',
+				reasoningEffort: 'medium',
 				availableTools: [],
 				provider: {
 					type: 'openai',

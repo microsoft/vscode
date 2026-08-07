@@ -13,6 +13,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
@@ -144,6 +146,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -168,6 +171,8 @@ export class ChatView extends AbstractChatView {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
@@ -233,7 +238,11 @@ export class ChatView extends AbstractChatView {
 			const active = this._isActiveObs.read(reader);
 			const voiceActive = this.voiceSessionController.isConnected.read(reader)
 				|| this.voiceSessionController.isConnecting.read(reader);
-			this._voiceInitiatedHereKey.set(active && voiceActive);
+			const target = this.voiceSessionController.targetSession.read(reader);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			const current = this._currentChatResourceObs.read(reader);
+			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
+			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
 		}));
 	}
 
@@ -283,6 +292,7 @@ export class ChatView extends AbstractChatView {
 
 		const previousChatResource = this._currentChatResource;
 		this._currentChatResource = resource;
+		this._currentChatResourceObs.set(resource, undefined);
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
@@ -316,6 +326,7 @@ export class ChatView extends AbstractChatView {
 			}
 			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
+				this._currentChatResourceObs.set(undefined, undefined);
 			}
 		});
 
@@ -397,6 +408,8 @@ export class ChatView extends AbstractChatView {
 			micCaptureService: this.micCaptureService,
 			configurationService: this.configurationService,
 			keybindingService: this.keybindingService,
+			themeService: this.themeService,
+			accessibilityService: this.accessibilityService,
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,

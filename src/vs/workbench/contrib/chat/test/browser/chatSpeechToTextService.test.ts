@@ -4,76 +4,83 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createDictationCleanupSystemPrompt, createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
+import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
+
+type CleanupTestService = {
+	_languageModelsService: {
+		selectLanguageModels: () => Promise<string[]>;
+		sendChatRequest: (...args: never[]) => Promise<never>;
+	};
+	_promptsService: {
+		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
+	};
+	_logService: {
+		info: (...args: never[]) => void;
+		warn: (...args: never[]) => void;
+		trace: (...args: never[]) => void;
+	};
+	_cleanupWithLanguageModel: (text: string, token: CancellationToken) => Promise<string | undefined>;
+};
 
 suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows each cleaned prefix with the remaining raw transcript', () => {
-		assert.deepStrictEqual(
-			[
-				createIncrementalDictationTranscript(
-					'hello world this remains raw',
-					'hello world this',
-					'hello world',
-					'Hello, world.'
-				),
-				createIncrementalDictationTranscript(
-					'hello world this remains raw',
-					'hello world this',
-					'',
-					''
-				),
-				createIncrementalDictationTranscript(
-					'hello world.this remains raw',
-					'hello world.this',
-					'hello world',
-					'Hello world.'
-				),
-				createIncrementalDictationTranscript(
-					'hello worldthis remains raw',
-					'hello worldthis',
-					'hello world',
-					'Hello world'
-				),
-				createIncrementalDictationTranscript(
-					'um hello uh world',
-					'um hello uh',
-					'',
-					''
-				),
-			],
-			[
-				{ text: 'Hello, world. this remains raw', finalizedText: 'Hello, world. this' },
-				{ text: 'hello world this remains raw', finalizedText: 'hello world this' },
-				{ text: 'Hello world. this remains raw', finalizedText: 'Hello world. this' },
-				{ text: 'Hello world this remains raw', finalizedText: 'Hello world this' },
-				{ text: 'hello world', finalizedText: 'hello' },
-			]
-		);
+	test('requires a paid plan and restricts MAI for external Enterprise users', () => {
+		assert.deepStrictEqual({
+			freeLocal: isDictationEntitled(ChatEntitlement.Free, false, false),
+			proLocal: isDictationEntitled(ChatEntitlement.Pro, false, false),
+			proMai: isDictationEntitled(ChatEntitlement.Pro, false, true),
+			enterpriseLocal: isDictationEntitled(ChatEntitlement.Enterprise, false, false),
+			enterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, false, true),
+			internalEnterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, true, true),
+		}, {
+			freeLocal: false,
+			proLocal: true,
+			proMai: true,
+			enterpriseLocal: true,
+			enterpriseMai: false,
+			internalEnterpriseMai: true,
+		});
 	});
 
-	test('cleans stable whole words while active and the complete transcript when idle', () => {
-		const transcript = 'one two three four five six seven eight nine ten eleven twelve';
-		const activeRange = getIncrementalDictationCleanupRange(transcript, 0, false);
-		assert.deepStrictEqual(
-			{
-				activeRange,
-				activeText: activeRange ? transcript.slice(activeRange.start, activeRange.end) : undefined,
-				idleRange: getIncrementalDictationCleanupRange(transcript, 0, true),
-				idleReevaluationRange: getIncrementalDictationCleanupRange('one two three four five six', 'one two '.length, true),
-				shortRange: getIncrementalDictationCleanupRange('one two three', 0, true),
-			},
-			{
-				activeRange: { start: 0, end: 39 },
-				activeText: 'one two three four five six seven eight',
-				idleRange: { start: 0, end: transcript.length },
-				idleReevaluationRange: { start: 0, end: 'one two three four five six'.length },
-				shortRange: undefined,
-			}
-		);
+	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {
+		assert.deepStrictEqual({
+			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
+			explicitWithDisplayLanguage: resolveDictationLanguage('fr-FR', 'de-DE', 'ja'),
+			displayLanguage: resolveDictationLanguage('auto', 'en-US', 'de'),
+			englishDisplayLanguage: resolveDictationLanguage('auto', 'de-DE', 'en'),
+			unsupportedDisplayLanguage: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
+			automatic: resolveDictationLanguage('auto', 'uk-UA', 'id-ID'),
+			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
+			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL', 'id-ID'),
+			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU', 'id-ID'),
+			explicitSpanish: resolveDictationLanguage('es', 'en-US'),
+			explicitAdaptationReady: resolveDictationLanguage('lt', 'en-US'),
+			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO', 'id-ID'),
+			invalidExplicit: resolveDictationLanguage('not a locale', 'de-DE'),
+			missing: resolveDictationLanguage(undefined, undefined, 'id-ID'),
+		}, {
+			explicit: 'fr-FR',
+			explicitWithDisplayLanguage: 'fr-FR',
+			displayLanguage: 'de-DE',
+			englishDisplayLanguage: 'en-US',
+			unsupportedDisplayLanguage: 'pt-BR',
+			automatic: 'uk-UA',
+			regionalAutomatic: 'pt-BR',
+			additionalSupportedAutomatic: 'he-IL',
+			unsupportedRegion: 'en-US',
+			explicitSpanish: 'es-US',
+			explicitAdaptationReady: 'lt-LT',
+			regionalPortugueseFallback: 'pt-PT',
+			invalidExplicit: 'auto',
+			missing: 'auto',
+		});
 	});
 
 	test('collapses punctuation artifacts from concatenated segments', () => {
@@ -93,23 +100,33 @@ suite('ChatSpeechToTextService', () => {
 		);
 	});
 
-	test('final cleanup prompt guides list formatting with ordering cues; incremental does not', () => {
-		const finalPrompt = createDictationCleanupSystemPrompt('final', false);
-		const incrementalPrompt = createDictationCleanupSystemPrompt('incremental', false);
+	test('cleanup prompt guides list formatting with ordering cues', () => {
+		const prompt = createDictationCleanupSystemPrompt();
 
 		assert.deepStrictEqual({
-			finalMentionsList: finalPrompt.includes('format them as a Markdown list'),
-			finalMentionsNumbered: finalPrompt.includes('numbered list when the wording implies order'),
-			incrementalOmitsList: !incrementalPrompt.includes('Markdown list'),
+			mentionsList: prompt.includes('format them as a Markdown list'),
+			mentionsNumbered: prompt.includes('numbered list when the wording implies order'),
 		}, {
-			finalMentionsList: true,
-			finalMentionsNumbered: true,
-			incrementalOmitsList: true,
+			mentionsList: true,
+			mentionsNumbered: true,
+		});
+	});
+
+	test('cleanup prompt prefers numerals for both final and incremental', () => {
+		const finalPrompt = createDictationCleanupSystemPrompt();
+		const incrementalPrompt = createDictationCleanupSystemPrompt('Prefer consistent incremental punctuation.');
+
+		assert.deepStrictEqual({
+			finalPrefersNumerals: finalPrompt.includes('Prefer numerals'),
+			incrementalPrefersNumerals: incrementalPrompt.includes('Prefer numerals'),
+		}, {
+			finalPrefersNumerals: true,
+			incrementalPrefersNumerals: true,
 		});
 	});
 
 	test('appends dictation instructions without replacing dictation safeguards', () => {
-		const prompt = createDictationCleanupSystemPrompt('final', false, 'Spell the product name as "Contoso DB".\nUse short paragraphs.');
+		const prompt = createDictationCleanupSystemPrompt('Spell the product name as "Contoso DB".\nUse short paragraphs.');
 
 		assert.deepStrictEqual({
 			preservesWording: prompt.includes('Preserve the wording exactly'),
@@ -122,6 +139,36 @@ suite('ChatSpeechToTextService', () => {
 			allowsExplicitTerminology: true,
 			includesDictationInstructions: true,
 		});
+	});
+
+	test('bounds stalled language model cleanup and falls back to the raw transcript', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+			service._languageModelsService = {
+				selectLanguageModels: async () => ['test-model'],
+				sendChatRequest: () => new Promise<never>(() => { }),
+			};
+			service._promptsService = {
+				getDictationInstructions: async () => undefined,
+			};
+			service._logService = {
+				info: () => { },
+				warn: () => { },
+				trace: () => { },
+			};
+			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
+			let settled = false;
+			cleanupPromise.then(() => settled = true);
+			await clock.tickAsync(1499);
+			await Promise.resolve();
+			assert.strictEqual(settled, false);
+			await clock.tickAsync(1);
+
+			assert.strictEqual(await cleanupPromise, undefined);
+		} finally {
+			clock.restore();
+		}
 	});
 
 });

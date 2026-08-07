@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, Verbosity } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,12 +16,14 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
+import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 
 const testRuntime: ICopilotSessionRuntime = {
@@ -50,6 +52,12 @@ function createTestLauncher(): CopilotSessionLauncher {
 		{} as IFileService,
 		{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
 		new ByokLmBridgeRegistry(),
+		{
+			_serviceBrand: undefined,
+			getSessionTraceContext: () => undefined,
+			releaseSessionTraceContext: () => { },
+			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
+		} as unknown as IAgentHostOTelService,
 	);
 }
 
@@ -156,6 +164,23 @@ suite('resolveByokSessionConfig', () => {
 				{ id: 'llama', provider: 'globex', name: 'Globex Llama' },
 			],
 		});
+	});
+
+	test('preserves provider groups when models share a vendor and id', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const registration = registry.register('client-1', connectionOf([
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Gemini Personal/gemini-2.5-pro' },
+			{ vendor: 'google', id: 'gemini-2.5-pro', modelIdentifier: 'google/Gemini Work/gemini-2.5-pro' },
+		]));
+		const proxy = countingProxy();
+
+		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		registration.dispose();
+
+		assert.deepStrictEqual(config.models, [
+			{ id: 'Gemini Personal/gemini-2.5-pro', provider: 'google' },
+			{ id: 'Gemini Work/gemini-2.5-pro', provider: 'google' },
+		]);
 	});
 
 	test('synthesized provider config routes through a live proxy to the bridge', async () => {
@@ -293,11 +318,11 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 	});
 });
 
-suite('CopilotSessionLauncher client identity', () => {
+suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('passes the Agent Host client name to create and resume', async () => {
+	test('passes Agent Host defaults and exit-plan handler to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
 		const session = {
@@ -364,22 +389,34 @@ suite('CopilotSessionLauncher client identity', () => {
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
+				createGitHubMcpToolConfig: createConfigs[0].githubMcpToolConfig,
 				createPluginDirectories: createConfigs[0].pluginDirectories,
 				createSkillDirectories: createConfigs[0].skillDirectories,
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
+				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
+				createLargeOutput: createConfigs[0].largeOutput,
 				resumeClientName: resumeConfigs[0].clientName,
+				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
 				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
+				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
+				resumeLargeOutput: resumeConfigs[0].largeOutput,
 			}, {
 				createClientName: 'vscode-agent-host',
+				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath],
 				createSkillDirectories: [],
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				createHasExitPlanHandler: true,
+				createLargeOutput: { maxSizeBytes: 8192 },
 				resumeClientName: 'vscode-agent-host',
+				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath],
 				resumeSkillDirectories: [],
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				resumeHasExitPlanHandler: true,
+				resumeLargeOutput: { maxSizeBytes: 8192 },
 			});
 		} finally {
 			sessions.dispose();
@@ -445,8 +482,8 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		}
 	});
 
-	test('falls back to createSession for an unknown -32603 from resumeSession', async () => {
-		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed: something went wrong');
+	test('falls back to createSession when the SDK reports the session was not found', async () => {
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed with message: Session not found: session-1');
 
 		const sessions = new DisposableStore();
 		try {
@@ -454,6 +491,31 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			assert.strictEqual(getCreateSessionCalls(), 1);
 		} finally {
 			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('does not replace a session with an empty one after a transient network failure', async () => {
+		// Regression: this used to fall through to `createSession`, presenting a
+		// session with real history as having zero turns — which the empty-session
+		// GC then deleted along with its worktree.
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed with message: network fetch failed: request failed: error sending request for url (https://api.github.com/copilot_internal/user)');
+
+		try {
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /network fetch failed/);
+			assert.strictEqual(getCreateSessionCalls(), 0);
+		} finally {
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('does not replace a session with an empty one for an unrecognized -32603', async () => {
+		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed: something went wrong');
+
+		try {
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /something went wrong/);
+			assert.strictEqual(getCreateSessionCalls(), 0);
+		} finally {
 			await launcher.disposeByokProxyHandle();
 		}
 	});
@@ -467,6 +529,35 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		} finally {
 			await launcher.disposeByokProxyHandle();
 		}
+	});
+});
+
+suite('CopilotSessionLauncher verbosity', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function applyVerbosity(verbosity: Verbosity): Promise<void> {
+		const launcher = createTestLauncher() as unknown as {
+			_applyVerbosity(session: CopilotSession, verbosity: Verbosity, sessionId: string): Promise<void>;
+		};
+		const session = {
+			rpc: {
+				options: {
+					update: async (options: unknown) => updates.push(options),
+				},
+			},
+		} as unknown as CopilotSession;
+		return launcher._applyVerbosity(session, verbosity, 'session-1');
+	}
+
+	const updates: unknown[] = [];
+
+	setup(() => updates.length = 0);
+
+	test('forwards the requested verbosity', async () => {
+		await applyVerbosity('high');
+
+		assert.deepStrictEqual(updates, [{ verbosity: 'high' }]);
 	});
 });
 
@@ -492,5 +583,19 @@ suite('getCopilotReasoningEffort', () => {
 			],
 			['medium', 'xhigh', 'medium', 'high', undefined]
 		);
+	});
+
+	// The model picker's options are `supportedReasoningEfforts.filter(isCopilotReasoningEffort)`,
+	// so any tier this guard rejects silently disappears from the picker — that is how `'max'`
+	// went missing. The guard must therefore recognize every canonical tier; re-introducing a
+	// narrower private allow-list here has to fail.
+	test('recognizes every canonical reasoning-effort tier so none is dropped from the picker', () => {
+		assert.deepStrictEqual({
+			accepted: reasoningEffortLevels.filter(isCopilotReasoningEffort),
+			rejectsUnknown: isCopilotReasoningEffort('turbo'),
+		}, {
+			accepted: [...reasoningEffortLevels],
+			rejectsUnknown: false,
+		});
 	});
 });

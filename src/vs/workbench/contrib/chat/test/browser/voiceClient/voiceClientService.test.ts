@@ -11,8 +11,8 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -125,6 +125,46 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
+	test('preserves the turn ID on speech-started events', async () => {
+		const { service } = createService();
+		const events: IVoiceSpeechStarted[] = [];
+		store.add(service.onSpeechStarted(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'speech_started',
+				turn_id: 'passive-turn',
+			}),
+		}));
+
+		assert.deepStrictEqual(events, [{ turnId: 'passive-turn' }]);
+	});
+
+	test('preserves checkpoint interruption metadata from the backend', async () => {
+		const { service } = createService();
+		const events: IVoiceNarrationSignal[] = [];
+		store.add(service.onNarrationInterrupted(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'narration_interrupted',
+				narration_id: 'checkpoint-narration',
+				coding_session_id: 'chat-session:/one',
+				retryable: false,
+				reason: 'superseded_by_response',
+			}),
+		}));
+
+		assert.deepStrictEqual(events, [{
+			narrationId: 'checkpoint-narration',
+			codingSessionId: 'chat-session:/one',
+			retryable: false,
+			reason: 'superseded_by_response',
+		}]);
+	});
+
 	test('preserves the backend turn ID when audio has a narration ID', async () => {
 		const { service } = createService();
 		const events: IVoiceAudioResponse[] = [];
@@ -143,6 +183,11 @@ suite('VoiceClientService', () => {
 				is_final: false,
 				turn_id: 'backend-turn',
 				narration_id: 'client-narration',
+				request_id: 'request-1',
+				checkpoint_id: 'planning',
+				sequence: 1,
+				narration_kind: 'checkpoint',
+				playback_id: 'playback-1',
 			}),
 		}));
 
@@ -154,6 +199,11 @@ suite('VoiceClientService', () => {
 			transcript: undefined,
 			turnId: 'backend-turn',
 			responseId: 'client-narration',
+			requestId: 'request-1',
+			checkpointId: 'planning',
+			sequence: 1,
+			narrationKind: 'checkpoint',
+			playbackId: 'playback-1',
 		}]);
 	});
 
@@ -249,6 +299,191 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('sends first-class checkpoint narration metadata', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		const narrationId = service.requestNarration('chat-session:/one', 'checkpoint', 'Updating the code.', undefined, {
+			requestId: 'request-1',
+			checkpointId: 'editing',
+			sequence: 2,
+		});
+		service.sendNarrationPlaybackComplete('chat-session:/one', narrationId!, 'playback-1');
+
+		assert.deepStrictEqual(socket().sent.slice(1), [
+			{
+				type: 'request_narration',
+				coding_session_id: 'chat-session:/one',
+				kind: 'checkpoint',
+				text: 'Updating the code.',
+				narration_id: narrationId,
+				request_id: 'request-1',
+				checkpoint_id: 'editing',
+				sequence: 2,
+			},
+			{
+				type: 'narration_playback_complete',
+				coding_session_id: 'chat-session:/one',
+				narration_id: narrationId,
+				playback_id: 'playback-1',
+			},
+		]);
+	});
+
+	test('sends typed confirmation narration metadata', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		const narrationId = service.requestNarration(
+			'chat-session:/one',
+			'confirmation',
+			'questionnaire: 1 question',
+			undefined,
+			undefined,
+			'questionnaire',
+		);
+
+		assert.deepStrictEqual(socket().sent[1], {
+			type: 'request_narration',
+			coding_session_id: 'chat-session:/one',
+			kind: 'confirmation',
+			text: 'questionnaire: 1 question',
+			narration_id: narrationId,
+			confirmation_type: 'questionnaire',
+		});
+	});
+
+	test('persists and clears typed confirmation session state', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		service.sendSessionContext({
+			sessions: [{
+				id: 'chat-session:/one',
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'questionnaire: 1 question',
+				confirmation_type: 'questionnaire',
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+		service.sendSessionContext({
+			sessions: [{
+				id: 'chat-session:/one',
+				is_active: true,
+				agent_state: 'idle',
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+
+		assert.deepStrictEqual(socket().sent.slice(1), [
+			{
+				type: 'session_context',
+				mode: 'delta',
+				upserts: [{
+					id: 'chat-session:/one',
+					is_active: true,
+					agent_state: 'waiting_for_confirmation',
+					agent_state_detail: 'questionnaire: 1 question',
+					confirmation_type: 'questionnaire',
+				}],
+				removes: [],
+			},
+			{
+				type: 'session_context',
+				mode: 'delta',
+				upserts: [{
+					id: 'chat-session:/one',
+					agent_state: 'idle',
+					agent_state_detail: null,
+					confirmation_type: null,
+				}],
+				removes: [],
+			},
+		]);
+	});
+
+	test('invalidated context preserves pending deletion tombstones', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		const sessionId = 'chat-session:/one';
+
+		service.sendSessionContext({
+			sessions: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+				pending: {
+					type: 'questions',
+					pending_id: 'request-1#p1',
+					request_id: 'request-1',
+					questions: [],
+				},
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+		service.invalidateSessionCache(sessionId);
+		service.sendSessionContext({
+			sessions: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+			}],
+			display_locale: 'en-US',
+		});
+		service.flushSessionContext();
+
+		assert.deepStrictEqual(socket().sent.at(-1), {
+			type: 'session_context',
+			mode: 'delta',
+			upserts: [{
+				id: sessionId,
+				is_active: true,
+				agent_state: 'waiting_for_confirmation',
+				agent_state_detail: 'Which region?',
+				confirmation_type: 'questionnaire',
+				pending: null,
+			}],
+			removes: [],
+		});
+	});
+
+	test('normalizes legacy suppressed narration acknowledgements', async () => {
+		const { service } = createService();
+		const events: IVoiceNarrationAck[] = [];
+		store.add(service.onNarrationAck(event => events.push(event)));
+		await service.connect(createTestWindow());
+
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'narration_ack',
+				narration_id: 'narration-1',
+				coding_session_id: 'chat-session:/one',
+				disposition: 'suppressed',
+				reason: 'stale',
+			}),
+		}));
+		assert.deepStrictEqual(events, [{
+			narrationId: 'narration-1',
+			codingSessionId: 'chat-session:/one',
+			disposition: 'suppressed',
+			reason: 'stale',
+		}]);
+	});
+
 	test('flags a passive ptt_start for hands-free barge-in listens', async () => {
 		const { service } = createService();
 
@@ -269,7 +504,7 @@ suite('VoiceClientService', () => {
 
 		await service.connect(createTestWindow());
 		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const questionId = service.requestNarration('cs1', 'question', 'Which region?', undefined, { pendingId: 'p1' });
+		const questionId = service.requestNarration('cs1', 'question', 'Which region?', undefined, undefined, undefined, { pendingId: 'p1' });
 		const replyId = service.requestNarration('cs1', 'response', 'Done.');
 
 		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), [
@@ -282,7 +517,7 @@ suite('VoiceClientService', () => {
 		const { service } = createService();
 
 		await service.connect(createTestWindow());
-		const narrationId = service.requestNarration('cs1', 'question', 'Which region?', undefined, { pendingId: 'p1' });
+		const narrationId = service.requestNarration('cs1', 'question', 'Which region?', undefined, undefined, undefined, { pendingId: 'p1' });
 
 		assert.strictEqual(narrationId, undefined);
 		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), []);
@@ -301,10 +536,12 @@ suite('VoiceClientService', () => {
 			type: message.type,
 			session_context: message.session_context,
 			voice: message.voice,
+			auto_narrate: message.auto_narrate,
 		})), [{
 			type: 'start_session',
 			session_context: { sessions: [], display_locale: 'fr-FR' },
 			voice: 'kevin_neutral',
+			auto_narrate: false,
 		}]);
 	});
 
@@ -323,20 +560,36 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
-	test('uses browser locale for auto and falls back when unavailable', async () => {
+	test('uses the display language for auto', async () => {
 		const first = createService({ 'agents.voice.language': 'auto' });
 		await first.service.connect(createTestWindow('pt-BR'));
 		first.service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const browserLocale = socket().sent[0].session_context;
+		const withBrowserLocale = socket().sent[0].session_context;
 
 		const second = createService({ 'agents.voice.language': 'auto' });
 		await second.service.connect(createTestWindow(''));
 		second.service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const fallbackLocale = socket().sent[0].session_context;
+		const withoutBrowserLocale = socket().sent[0].session_context;
 
-		assert.deepStrictEqual({ browserLocale, fallbackLocale }, {
-			browserLocale: { sessions: [], display_locale: 'pt-BR' },
-			fallbackLocale: { sessions: [], display_locale: 'en-US' },
+		assert.deepStrictEqual({ withBrowserLocale, withoutBrowserLocale }, {
+			withBrowserLocale: { sessions: [], display_locale: 'en' },
+			withoutBrowserLocale: { sessions: [], display_locale: 'en' },
+		});
+	});
+
+	test('resolves automatic language from display language before browser locale', () => {
+		assert.deepStrictEqual({
+			displayLanguage: resolveAutomaticVoiceLanguage('en-US', 'de'),
+			englishDisplayLanguage: resolveAutomaticVoiceLanguage('de-DE', 'en'),
+			browserLocale: resolveAutomaticVoiceLanguage('pt-BR', undefined),
+			unsupportedDisplayLanguage: resolveAutomaticVoiceLanguage('pt-BR', 'he-IL'),
+			missing: resolveAutomaticVoiceLanguage(undefined, undefined),
+		}, {
+			displayLanguage: 'de',
+			englishDisplayLanguage: 'en',
+			browserLocale: 'pt-BR',
+			unsupportedDisplayLanguage: 'pt-BR',
+			missing: 'en-US',
 		});
 	});
 
@@ -364,7 +617,7 @@ suite('VoiceClientService', () => {
 		});
 	});
 
-	test('preserves an automatic ASR-only browser locale', async () => {
+	test('prefers the display language over an ASR-only browser locale', async () => {
 		const { service } = createService({ 'agents.voice.language': 'auto' });
 
 		await service.connect(createTestWindow('ar-SA'));
@@ -372,11 +625,11 @@ suite('VoiceClientService', () => {
 
 		assert.deepStrictEqual(socket().sent[0].session_context, {
 			sessions: [],
-			display_locale: 'ar-SA',
+			display_locale: 'en',
 		});
 	});
 
-	test('falls back for an unsupported automatic browser locale', async () => {
+	test('prefers the display language over an unsupported browser locale', async () => {
 		const { service } = createService({ 'agents.voice.language': 'auto' });
 
 		await service.connect(createTestWindow('he-IL'));
@@ -384,7 +637,7 @@ suite('VoiceClientService', () => {
 
 		assert.deepStrictEqual(socket().sent[0].session_context, {
 			sessions: [],
-			display_locale: 'en-US',
+			display_locale: 'en',
 		});
 	});
 
@@ -406,7 +659,7 @@ suite('VoiceClientService', () => {
 		} : message), [
 			{
 				type: 'start_session',
-				session_context: { sessions: [], display_locale: 'en-GB' },
+				session_context: { sessions: [], display_locale: 'en' },
 				voice: 'victoria_neutral',
 			},
 			{ type: 'set_language', language: 'fr-FR' },
@@ -455,6 +708,7 @@ suite('VoiceClientService', () => {
 				session_context: message.session_context,
 				voice: message.voice,
 				voice_instructions: message.voice_instructions,
+				auto_narrate: message.auto_narrate,
 			})),
 		}, {
 			disconnectedMessages: [],
@@ -464,6 +718,7 @@ suite('VoiceClientService', () => {
 				session_context: { sessions: [], display_locale: 'de-DE' },
 				voice: 'daniel_neutral',
 				voice_instructions: 'Keep replies concise.',
+				auto_narrate: false,
 			}],
 		});
 	});
@@ -521,5 +776,17 @@ suite('VoiceClientService', () => {
 
 		assert.strictEqual(service.isResuming, false);
 		assert.strictEqual(service.currentSessionId, undefined);
+	});
+
+	test('reports when an abnormal close has scheduled a reconnect', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4000 }));
+
+		assert.strictEqual(service.willReconnect, true);
+		service.disconnect();
+		assert.strictEqual(service.willReconnect, false);
 	});
 });

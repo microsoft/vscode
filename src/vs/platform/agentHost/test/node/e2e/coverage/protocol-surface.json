@@ -5,12 +5,10 @@
 		"note": "A symbol is \"covered\" when an E2E test sends or receives it; this does not measure how deeply its semantics are asserted."
 	},
 	"commands": {
-		"covered": 28,
+		"covered": 29,
 		"total": 29,
-		"percentage": 96.55,
-		"uncovered": [
-			"invokeChangesetOperation"
-		]
+		"percentage": 100,
+		"uncovered": []
 	},
 	"notifications": {
 		"covered": 3,
@@ -25,22 +23,18 @@
 		]
 	},
 	"actions": {
-		"covered": 64,
+		"covered": 68,
 		"total": 85,
-		"percentage": 75.29,
+		"percentage": 80,
 		"uncovered": [
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"changeset/operationStatusChanged",
 			"chat/error",
 			"chat/inputAnswerChanged",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
 			"chat/toolCallResultConfirmed",
-			"resourceWatch/changed",
-			"root/activeSessionsChanged",
-			"root/agentsChanged",
 			"session/activityChanged",
 			"session/creationFailed",
 			"session/customizationRemoved",

@@ -4,14 +4,105 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { NotificationAccessibilityProvider } from '../../browser/parts/notifications/notificationsList.js';
-import { NotificationViewItem, INotificationsFilter, INotificationViewItem } from '../../common/notifications.js';
+import { NotificationAccessibilityProvider, NotificationsList } from '../../browser/parts/notifications/notificationsList.js';
+import { NotificationViewItem, INotificationsFilter, INotificationViewItem, NotificationsModel } from '../../common/notifications.js';
 import { Severity, NotificationsFilter } from '../../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { workbenchInstantiationService } from './workbenchTestServices.js';
+import { NotificationsCenter } from '../../browser/parts/notifications/notificationsCenter.js';
+
+suite('NotificationsList row height', () => {
+	suiteSetup(() => {
+		const warmupDisposables = new DisposableStore();
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		try {
+			const instantiationService = workbenchInstantiationService(undefined, warmupDisposables);
+			const list = warmupDisposables.add(instantiationService.createInstance(NotificationsList, container, {}));
+			const notification = NotificationViewItem.create({ severity: Severity.Info, message: 'Warmup' }, { global: NotificationsFilter.OFF, sources: new Map() })!;
+			warmupDisposables.add(toDisposable(() => notification.close()));
+			list.show();
+			list.layout(300);
+			list.updateNotificationsList(0, 0, [notification]);
+		} finally {
+			warmupDisposables.dispose();
+			container.remove();
+		}
+	});
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT));
+
+	test('deduplicates row height changes', () => {
+		const changes: number[] = [];
+		store.add(onDidChangeNotificationRowHeight(height => changes.push(height)));
+
+		setNotificationRowHeight(34);
+		setNotificationRowHeight(34);
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+
+		assert.deepStrictEqual(changes, [34, DEFAULT_NOTIFICATION_ROW_HEIGHT]);
+	});
+
+	test('notification center updates row heights and preserves the focused row viewport position', () => {
+		setNotificationRowHeight(34);
+		const container = document.createElement('div');
+		container.classList.add('monaco-workbench');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const model = store.add(new NotificationsModel());
+		store.add(toDisposable(() => {
+			for (const notification of [...model.notifications]) {
+				notification.close();
+			}
+		}));
+		const center = store.add(instantiationService.createInstance(NotificationsCenter, container, model));
+
+		for (let index = 0; index < 10; index++) {
+			model.addNotification({ severity: Severity.Info, message: `Message ${index}` });
+		}
+		center.show();
+
+		const getRowState = () => {
+			const row = container.querySelector<HTMLElement>('.monaco-list-row.focused');
+			const rows = container.querySelector<HTMLElement>('.monaco-list-rows');
+			return {
+				height: row?.style.height,
+				viewportTop: row && rows ? parseInt(row.style.top) + parseInt(rows.style.top || '0') : undefined
+			};
+		};
+
+		const rowToFocus = container.querySelector<HTMLElement>('.monaco-list-row[data-index="7"]')!;
+		rowToFocus.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+		rowToFocus.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+		const before = getRowState();
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		const after = getRowState();
+		center.dispose();
+		setNotificationRowHeight(36);
+
+		assert.deepStrictEqual({
+			beforeHeight: before.height,
+			afterHeight: after.height,
+			preservedFocusedRowViewportPosition: typeof before.viewportTop === 'number' && typeof after.viewportTop === 'number' && Math.abs(after.viewportTop - before.viewportTop) <= DEFAULT_NOTIFICATION_ROW_HEIGHT - 34,
+			rowAfterDispose: container.querySelector('.monaco-list-row')
+		}, {
+			beforeHeight: '34px',
+			afterHeight: `${DEFAULT_NOTIFICATION_ROW_HEIGHT}px`,
+			preservedFocusedRowViewportPosition: true,
+			rowAfterDispose: null
+		});
+	});
+});
 
 suite('NotificationsList AccessibilityProvider', () => {
 

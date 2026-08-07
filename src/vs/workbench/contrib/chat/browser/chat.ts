@@ -251,6 +251,8 @@ export interface IChatListItemRendererOptions {
 export interface IChatWidgetViewOptions {
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
+	/** Show the read-only status banner above the transcript instead of beside the composer. */
+	readOnlyBannerAtTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
@@ -339,6 +341,7 @@ export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewCon
 export interface IChatAcceptInputOptions {
 	noCommandDetection?: boolean;
 	isVoiceInput?: boolean;
+	isVoiceModeInput?: boolean;
 	enableImplicitContext?: boolean; // defaults to true
 	// Whether to store the input to history. This defaults to 'true' if the input
 	// box's current content is being accepted, or 'false' if a specific input
@@ -372,6 +375,8 @@ export interface IChatWidgetViewModelChangeEvent {
 
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
+	/** DOM node of the scrollable transcript area, excluding the input part. */
+	readonly transcriptDomNode: HTMLElement;
 	readonly visible: boolean;
 	readonly onDidChangeViewModel: Event<IChatWidgetViewModelChangeEvent>;
 	readonly onDidAcceptInput: Event<void>;
@@ -382,6 +387,7 @@ export interface IChatWidget {
 	readonly onDidChangeParsedInput: Event<void>;
 	readonly onDidChangeActiveInputEditor: Event<void>;
 	readonly onDidFocus: Event<void>;
+	readonly onDidScroll: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
@@ -476,6 +482,12 @@ export interface IChatWidget {
 	 * Returns the currently rendered chat item containing the node, if any.
 	 */
 	getElementFromNode(node: HTMLElement): ChatTreeItem | undefined;
+	/**
+	 * Suppresses auto-scrolling the transcript to the bottom until the returned
+	 * disposable is disposed. Holds compose, so concurrent callers do not
+	 * clobber each other.
+	 */
+	holdAutoScroll(): IDisposable;
 	clear(targetSessionType?: string): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;

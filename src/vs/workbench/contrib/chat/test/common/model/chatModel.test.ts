@@ -8,6 +8,7 @@ import * as sinon from 'sinon';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -26,7 +27,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, extractExportableSessionData, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
@@ -208,6 +209,31 @@ suite('ChatModel', () => {
 			usage: { kind: 'usage', promptTokens: 10, completionTokens: 3 },
 			completionTokenCount: 5,
 			responseContent: '',
+		});
+	});
+
+	test('voice progress is live-only response metadata', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Before ') });
+		model.acceptResponseProgress(request, { kind: 'voiceProgress', id: 'investigating', value: 'Investigating the relevant code.' });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('after') });
+
+		const response = request.response!.response;
+		assert.deepStrictEqual({
+			responseKinds: response.value.map(part => part.kind),
+			historyKinds: toChatHistoryContent(response.value).map(part => part.kind),
+			markdown: response.getMarkdown(),
+			copyText: response.toString(),
+			persistedKinds: model.toExport().requests[0].response?.map(part => hasKey(part, { kind: true }) ? part.kind : 'markdown'),
+		}, {
+			responseKinds: ['markdownContent', 'voiceProgress', 'markdownContent'],
+			historyKinds: ['markdownContent', 'markdownContent'],
+			markdown: 'Before after',
+			copyText: 'Before after',
+			persistedKinds: ['markdown', 'markdown'],
 		});
 	});
 
@@ -601,6 +627,30 @@ suite('Response', () => {
 		assert.strictEqual(response.toString(), 'markdown1markdown2');
 	});
 
+	test('mergeable markdown across nested subagent progress', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('I'), kind: 'markdownContent' });
+		response.updateContent(ChatToolInvocation.createStreaming({
+			toolCallId: 'child-tool',
+			toolId: 'view',
+			toolData: {
+				id: 'view',
+				modelDescription: 'Read a file',
+				displayName: 'Reading',
+				source: ToolDataSource.Internal,
+			},
+			subagentInvocationId: 'parent-tool',
+		}));
+		response.updateContent({ content: new MarkdownString('\'ve launched a background agent.'), kind: 'markdownContent' });
+
+		assert.deepStrictEqual(response.value.map(part => part.kind === 'markdownContent'
+			? { kind: part.kind, content: part.content.value }
+			: { kind: part.kind }), [
+			{ kind: 'markdownContent', content: 'I\'ve launched a background agent.' },
+			{ kind: 'toolInvocation' },
+		]);
+	});
+
 	test('not mergeable markdown', async () => {
 		const response = store.add(new Response([]));
 		const md1 = new MarkdownString('markdown1');
@@ -737,8 +787,22 @@ suite('Response', () => {
 		}, {
 			didResolve: false,
 			changes: 0,
-			responseText: 'foo.ts',
+			responseText: '`foo.ts:1`',
 		});
+	});
+
+	test('inline file reference copies as code with its line suffix', () => {
+		// Matches what the inline anchor widget renders, and keeps names containing `*` or `_`
+		// intact when the copied markdown is rendered somewhere else.
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'inlineReference', inlineReference: { uri, range: new Range(42, 1, 42, 8) } });
+		response.updateContent({ content: new MarkdownString(' and '), kind: 'markdownContent' });
+		response.updateContent({ kind: 'inlineReference', inlineReference: { uri, range: new Range(10, 1, 20, 1) } });
+		response.updateContent({ content: new MarkdownString(' and '), kind: 'markdownContent' });
+		response.updateContent({ kind: 'inlineReference', inlineReference: uri });
+
+		assert.strictEqual(response.toString(), '`foo.ts:42` and `foo.ts:10-20` and `foo.ts`');
 	});
 
 	test('consolidated edit summary', () => {
@@ -1310,6 +1374,23 @@ suite('isExportableSessionData', () => {
 	test('invalid - undefined', () => {
 		assert.strictEqual(isExportableSessionData(undefined), false);
 	});
+
+	test('extracts only exportable session fields', () => {
+		const data = {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'assistant',
+			sessionId: '../../../outside',
+			creationDate: 1,
+			customTitle: 'Injected title',
+		};
+
+		assert.deepStrictEqual(extractExportableSessionData(data), {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'assistant',
+		});
+	});
 });
 
 suite('isSerializableSessionData', () => {
@@ -1819,16 +1900,23 @@ suite('ChatModel - Pending Requests', () => {
 suite('serializeSendOptions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('preserves userSelectedModelConfiguration so per-editor config survives persist/restore (issue #320393)', () => {
+	test('preserves request-scoped options through persist/restore', () => {
 		// A pending/queued request is serialized and later restored (e.g. window
 		// reload). The editor-scoped model configuration must round-trip, otherwise
 		// the restored request falls back to the profile-global value.
 		const serialized = serializeSendOptions({
 			userSelectedModelId: 'copilot/gpt',
 			userSelectedModelConfiguration: { thinkingEffort: 'high', contextSize: 2000 },
+			isVoiceModeInput: true,
 		});
 
-		assert.deepStrictEqual(serialized.userSelectedModelConfiguration, { thinkingEffort: 'high', contextSize: 2000 });
+		assert.deepStrictEqual({
+			modelConfiguration: serialized.userSelectedModelConfiguration,
+			isVoiceModeInput: serialized.isVoiceModeInput,
+		}, {
+			modelConfiguration: { thinkingEffort: 'high', contextSize: 2000 },
+			isVoiceModeInput: true,
+		});
 	});
 });
 

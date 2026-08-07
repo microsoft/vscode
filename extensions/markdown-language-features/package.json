@@ -12,8 +12,7 @@
     "customEditorDiffs",
     "documentDiff",
     "documentSyntaxHighlighting",
-    "textEditorDiffInformation",
-    "customEditorPriority"
+    "textEditorDiffInformation"
   ],
   "engines": {
     "vscode": "^1.70.0"
@@ -864,8 +863,7 @@
         "displayName": "Markdown Preview",
         "priority": {
           "diffEditor": "option",
-          "textEditor": "option",
-          "mergeEditor": "never"
+          "textEditor": "option"
         },
         "selector": [
           {
@@ -875,11 +873,10 @@
       },
       {
         "viewType": "vscode.markdown.editor",
-        "displayName": "Markdown Editor (Experimental)",
+        "displayName": "Markdown Editor",
         "priority": {
-          "diffEditor": "never",
-          "textEditor": "option",
-          "mergeEditor": "never"
+          "diffEditor": "explicit",
+          "textEditor": "option"
         },
         "selector": [
           {
@@ -909,7 +906,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "^0.0.2-40",
+    "@vscode/markdown-editor": "^0.0.2-52",
     "dompurify": "^3.4.10",
     "highlight.js": "^11.8.0",
     "katex": "^0.16.33",

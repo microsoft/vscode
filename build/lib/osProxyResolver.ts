@@ -6,9 +6,10 @@
 import * as path from 'path';
 import { ensureNpmPackage, type EnsureNpmPackageOptions } from './npmPackage.ts';
 
+// The musl variants are never selected as a target, but must be listed so they are excluded from packaging.
 export const osProxyResolverPlatforms = [
 	'darwin-arm64', 'darwin-x64',
-	'linux-arm-gnueabihf', 'linux-arm64-gnu', 'linux-x64-gnu',
+	'linux-arm-gnueabihf', 'linux-arm64-gnu', 'linux-arm64-musl', 'linux-x64-gnu', 'linux-x64-musl',
 	'win32-arm64-msvc', 'win32-x64-msvc',
 ];
 

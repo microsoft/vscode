@@ -318,9 +318,13 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(mcpDefs[0].name, 'open-server');
 	}));
 
-	test('Agent Plugin root takes priority and exposes only portable core components', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('Agent Plugin root takes priority and exposes portable and Copilot extension components', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/agent-plugin');
-		await writeFile('/plugins/agent-plugin/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'agent-plugin' }));
+		await writeFile('/plugins/agent-plugin/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'agent-plugin',
+			extensions: { 'com.github.copilot': {} },
+		}));
 		await writeFile('/plugins/agent-plugin/.plugin/plugin.json', JSON.stringify({
 			name: 'legacy',
 			mcpServers: { legacy: { command: 'node' } },
@@ -328,6 +332,14 @@ suite('AgentPlugin format detection', () => {
 		await writeFile('/plugins/agent-plugin/skills/portable/SKILL.md', '---\nname: portable\ndescription: Portable skill\n---');
 		await writeFile('/plugins/agent-plugin/commands/ignored.md', '# Ignored');
 		await writeFile('/plugins/agent-plugin/agents/ignored.md', '# Ignored');
+		await writeFile('/plugins/agent-plugin/com.github.copilot/commands/ship.md', '# Ship');
+		await writeFile('/plugins/agent-plugin/com.github.copilot/agents/helper.md', '# Helper');
+		await writeFile('/plugins/agent-plugin/com.github.copilot/rules/project.instructions.md', '# Project');
+		await writeFile('/plugins/agent-plugin/com.github.copilot/hooks/hooks.json', JSON.stringify({
+			hooks: {
+				PostToolUse: [{ type: 'command', command: 'echo done' }],
+			},
+		}));
 		await writeFile('/plugins/agent-plugin/.mcp.json', JSON.stringify({ mcpServers: { ignored: { command: 'node' } } }));
 		await writeFile('/plugins/agent-plugin/mcp.json', JSON.stringify({
 			$schema: AGENT_PLUGIN_MCP_SCHEMA,
@@ -342,23 +354,27 @@ suite('AgentPlugin format detection', () => {
 		await Promise.all([
 			waitForState(plugin.skills, skills => skills.length > 0),
 			waitForState(plugin.mcpServerDefinitions, definitions => definitions.length > 0),
+			waitForState(plugin.commands, commands => commands.length > 0),
+			waitForState(plugin.agents, agents => agents.length > 0),
+			waitForState(plugin.hooks, hooks => hooks.length > 0),
+			waitForState(plugin.instructions, instructions => instructions.length > 0),
 		]);
 		assert.deepStrictEqual({
 			label: plugin.label,
 			skills: plugin.skills.get().map(skill => skill.name),
 			mcp: plugin.mcpServerDefinitions.get().map(server => server.name),
-			commands: plugin.commands.get(),
-			agents: plugin.agents.get(),
-			hooks: plugin.hooks.get(),
-			instructions: plugin.instructions.get(),
+			commands: plugin.commands.get().map(command => command.name),
+			agents: plugin.agents.get().map(agent => agent.name),
+			hooks: plugin.hooks.get().map(hook => hook.type),
+			instructions: plugin.instructions.get().map(instruction => instruction.name),
 		}, {
 			label: 'agent-plugin',
 			skills: ['portable'],
 			mcp: ['portable'],
-			commands: [],
-			agents: [],
-			hooks: [],
-			instructions: [],
+			commands: ['ship'],
+			agents: ['helper'],
+			hooks: ['PostToolUse'],
+			instructions: ['project'],
 		});
 	}));
 
