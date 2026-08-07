@@ -78,7 +78,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	const store = new DisposableStore();
 	const getPushToTalkKeybindingLabel = () => (
 		keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
-			?? keybindingService.lookupKeybinding('agentsVoice.pushToTalk')
+		?? keybindingService.lookupKeybinding('agentsVoice.pushToTalk')
 	)?.getLabel();
 
 	inputContainerEl.style.position = 'relative';
