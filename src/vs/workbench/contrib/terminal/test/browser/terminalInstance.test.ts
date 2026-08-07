@@ -136,8 +136,7 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 				this._resolveProcessCreated();
 				return this._register(new TestTerminalChildProcess(shouldPersist));
 			},
-			getLatency: () => Promise.resolve([]),
-			getShellEnvironment: () => Promise.resolve({})
+			getLatency: () => Promise.resolve([])
 		} as unknown as ITerminalBackend;
 	}
 }

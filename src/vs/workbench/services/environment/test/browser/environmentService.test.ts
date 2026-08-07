@@ -100,4 +100,39 @@ suite('BrowserWorkbenchEnvironmentService', () => {
 			extensionEnabledProposedApi: []
 		});
 	});
+
+	test('accepts extension host options from payload in production smoke tests', () => {
+		const environmentService = new BrowserWorkbenchEnvironmentService('', URI.file('/logs'), {
+			developmentOptions: { enableSmokeTestDriver: true, logLevel: LogLevel.Info },
+			workspaceProvider: {
+				workspace: undefined,
+				trusted: true,
+				payload: privilegedPayload,
+				open: async () => true
+			}
+		}, { ...TestProductService, commit: 'built' });
+
+		assert.deepStrictEqual({
+			debugExtensionHost: environmentService.debugExtensionHost,
+			debugRenderer: environmentService.debugRenderer,
+			isExtensionDevelopment: environmentService.isExtensionDevelopment,
+			extensionDevelopmentLocationURI: environmentService.extensionDevelopmentLocationURI,
+			extensionDevelopmentLocationKind: environmentService.extensionDevelopmentLocationKind,
+			extensionTestsLocationURI: environmentService.extensionTestsLocationURI,
+			extensionEnabledProposedApi: environmentService.extensionEnabledProposedApi
+		}, {
+			debugExtensionHost: {
+				port: 1234,
+				break: true,
+				debugId: 'debug-id',
+				env: { NODE_OPTIONS: '--import=data:text/javascript,' }
+			},
+			debugRenderer: true,
+			isExtensionDevelopment: true,
+			extensionDevelopmentLocationURI: [URI.parse('file:///extension')],
+			extensionDevelopmentLocationKind: ['workspace'],
+			extensionTestsLocationURI: URI.parse('file:///extension/test.js'),
+			extensionEnabledProposedApi: []
+		});
+	});
 });
