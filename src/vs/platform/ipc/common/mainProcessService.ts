@@ -35,10 +35,7 @@ export class MainProcessService implements IMainProcessService {
 		this.server.registerChannel(channelName, channel);
 	}
 
-		// Optional: A specific prefix or rule requirement can be added.
-		// if (!channelName.startsWith('vscode:')) {
-		// 	throw new Error(`Unauthorized channel registration attempt: ${channelName}`);
-		// }
+	
 
 		this.server.registerChannel(channelName, channel);
 	}
