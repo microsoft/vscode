@@ -1184,14 +1184,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// didn't hand us one (e.g. workspace-less single-root).
 		const materializedWorkingDirectories = workingDirectories ?? session.workingDirectories;
 
-		// Capture the per-session baseline (turn/0) git checkpoint so per-turn
-		// diffs computed on `ChatTurnComplete` can reflect the full working-tree
-		// delta — including terminal-tool edits that are invisible to the
-		// FileEditTracker pipeline. Best-effort: a non-git folder or capture
-		// failure leaves the session running with the legacy `file_edits`-based
-		// per-turn diff path. Identical to the Copilot harness — the resolved
-		// directories are passed explicitly because the state manager does not
-		// learn about them until it observes the materialize event fired below.
+		// Pass the resolved directories before the materialize event updates them in the state manager.
 		this._checkpointService.captureBaselineCheckpoint(session.sessionUri, materializedWorkingDirectories).catch(err => {
 			this._logService.warn(`[Claude:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
 		});
