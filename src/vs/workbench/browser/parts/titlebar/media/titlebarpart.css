@@ -444,7 +444,9 @@
 	margin-left: 4px;
 }
 
-.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container,
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .update-toolbar-container {
+	position: relative;
 	right: 8px;
 }
 
