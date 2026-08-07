@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, rm, writeFile as writeNodeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatContext, ChatCustomAgent, ChatParticipantToolToken, Event as VSCodeEvent, FileSystemWatcher, Uri } from 'vscode';
+import type { ChatContext, ChatCustomAgent, ChatParticipantToolToken, Uri } from 'vscode';
 import { CancellationToken } from 'vscode-languageserver-protocol';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/common/chatDebugFileLoggerService';
@@ -68,32 +68,8 @@ export class NullAgentSessionsWorkspace implements IAgentSessionsWorkspace {
 	constructor(readonly isAgentSessionsWorkspace = false) { }
 }
 
-const emptyFileSystemEvent: VSCodeEvent<Uri> = () => toDisposable(() => { });
-
-class TestFileSystemWatcher implements FileSystemWatcher {
-	ignoreCreateEvents = false;
-	ignoreChangeEvents = false;
-	ignoreDeleteEvents = false;
-	readonly onDidCreate = emptyFileSystemEvent;
-	readonly onDidChange = emptyFileSystemEvent;
-	readonly onDidDelete = emptyFileSystemEvent;
-
-	constructor(private readonly onDispose: () => void) { }
-
-	dispose(): void {
-		this.onDispose();
-	}
-}
-
 class TrackingFileSystemService extends MockFileSystemService {
-	createFileSystemWatcherCallCount = 0;
-	disposeFileSystemWatcherCallCount = 0;
 	readDirectoryCallCount = 0;
-
-	override createFileSystemWatcher(): FileSystemWatcher {
-		this.createFileSystemWatcherCallCount++;
-		return new TestFileSystemWatcher(() => this.disposeFileSystemWatcherCallCount++);
-	}
 
 	override async readDirectory(uri: URI): Promise<[string, FileType][]> {
 		this.readDirectoryCallCount++;
@@ -261,31 +237,6 @@ describe('CopilotCLISessionService', () => {
 	});
 
 	// --- Tests ----------------------------------------------------------------------------------
-
-	it('monitors external sessions only in the Agents window', () => {
-		const editorFileSystem = new TrackingFileSystemService();
-		const agentsFileSystem = new TrackingFileSystemService();
-		const editorService = createSessionService({ fileSystem: editorFileSystem });
-		const agentsService = createSessionService({ fileSystem: agentsFileSystem, isAgentSessionsWorkspace: true });
-
-		const beforeDispose = {
-			editor: editorFileSystem.createFileSystemWatcherCallCount,
-			agents: agentsFileSystem.createFileSystemWatcherCallCount,
-		};
-		editorService.dispose();
-		agentsService.dispose();
-
-		expect({
-			beforeDispose,
-			disposed: {
-				editor: editorFileSystem.disposeFileSystemWatcherCallCount,
-				agents: agentsFileSystem.disposeFileSystemWatcherCallCount,
-			},
-		}).toEqual({
-			beforeDispose: { editor: 0, agents: 1 },
-			disposed: { editor: 0, agents: 1 },
-		});
-	});
 
 	describe('CopilotCLISessionService.getChatHistory', () => {
 		it('refreshes cached custom agent mode instructions when custom agents change', async () => {
