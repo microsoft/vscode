@@ -122,4 +122,61 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			},
 		}]);
 	});
+
+	test('forwards model-call cancellation attempt data', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+
+		forwarder.forward({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind: 'model_call_cancelled',
+				properties: {
+					event_id: 'event-1',
+					model: 'gpt-5.5',
+					api_endpoint: '/responses',
+					transport: 'websocket',
+					cancellation_source: 'abort_signal',
+					request_id: 'a1b2c3d4-0000-4000-8000-000000000000',
+					attempt_id: 'attempt-1',
+					interaction_type: 'conversation-agent',
+					is_byok: 'false',
+				},
+				metrics: {
+					duration_ms: 1200,
+					attempt_index: 1,
+					retry_index: 0,
+					prompt_token_count: 32000,
+				},
+			},
+		});
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'copilotCli/model_call_cancelled',
+			data: {
+				event_id: 'event-1',
+				model: 'gpt-5.5',
+				api_endpoint: '/responses',
+				transport: 'websocket',
+				cancellation_source: 'abort_signal',
+				request_id: 'a1b2c3d4-0000-4000-8000-000000000000',
+				attempt_id: 'attempt-1',
+				interaction_type: 'conversation-agent',
+				is_byok: 'false',
+				duration_ms: 1200,
+				attempt_index: 1,
+				retry_index: 0,
+				prompt_token_count: 32000,
+				created_at: undefined,
+				model_call_id: undefined,
+				exp_assignment_context: undefined,
+				session_id: 'session',
+				sdk_session_id: 'session',
+				copilot_tracking_id: undefined,
+				kind: 'model_call_cancelled',
+				restricted: false,
+			},
+		}]);
+	});
 });
