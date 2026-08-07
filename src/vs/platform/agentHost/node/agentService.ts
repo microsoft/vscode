@@ -43,6 +43,8 @@ import { AgentConfigurationService, IAgentConfigurationService } from './agentCo
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
+import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
+import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
@@ -4207,11 +4209,11 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._gitService) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
 		}
-		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.workingDirectories?.[0];
+		const workingDirectory = await this._resolveGitBlobWorkingDirectory(fields);
 		if (!workingDirectory) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Session has no working directory for git-blob URI: ${fields.sessionUri}`);
+			throw new ProtocolError(AhpErrorCodes.NotFound, `No session repository resolves git-blob path: ${fields.absolutePath || fields.repoRelativePath}`);
 		}
-		const blob = await this._gitService.showBlob(URI.parse(workingDirectory), fields.sha, fields.repoRelativePath);
+		const blob = await this._gitService.showBlob(workingDirectory, fields.sha, fields.repoRelativePath);
 		if (!blob) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git blob not found: ${fields.sha}:${fields.repoRelativePath}`);
 		}
@@ -4220,6 +4222,61 @@ export class AgentService extends Disposable implements IAgentService {
 			encoding: ContentEncoding.Utf8,
 			contentType: 'text/plain',
 		};
+	}
+
+	/**
+	 * Chooses, SERVER-SIDE, the working directory to run `git show` from for a
+	 * `git-blob:` URI. The directory is picked ONLY from the session's own,
+	 * server-trusted working directories — resolved to their repository roots
+	 * via {@link resolveSessionRepositories} — so a multi-root session opens a
+	 * changed file's before/after blob against the CORRECT repository. The
+	 * blob's absolute path (carried in the URI `path`) is used SOLELY to select
+	 * the deepest containing repo root; it is never used as a cwd itself, so a
+	 * path under no session repository resolves to `undefined` (→ NotFound)
+	 * rather than reading a wrong file from the primary. This is the security
+	 * invariant behind rejecting Q5 Option B (a client-supplied cwd in the URI).
+	 *
+	 * A single-folder session keeps today's behavior: its one repo root contains
+	 * the path and is selected.
+	 *
+	 * Backwards-compat: older persisted `git-blob:` URIs may carry no usable
+	 * absolute path (`absolutePath === ''`); without a path to match we cannot
+	 * select a root, so we fall back to the session's primary working directory
+	 * — today's behavior — so existing single-folder diffs still open.
+	 */
+	private async _resolveGitBlobWorkingDirectory(fields: IGitBlobUriFields): Promise<URI | undefined> {
+		const gitService = this._gitService;
+		if (!gitService) {
+			return undefined;
+		}
+		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(fields.sessionUri);
+		// Backwards-compat: no resolvable absolute path means we cannot match a
+		// repository root, so fall back to today's primary-directory behavior.
+		if (!fields.absolutePath) {
+			const primary = workingDirectories?.[0];
+			return primary ? URI.parse(primary) : undefined;
+		}
+		if (!workingDirectories?.length) {
+			return undefined;
+		}
+		// Single-folder sessions keep today's behavior EXACTLY: run against the
+		// one working directory directly, without the multi-root path-containment
+		// check. This preserves AC-1.1 (single-folder unchanged) — e.g. a
+		// git-blob URI whose stored absolute path no longer sits under the
+		// current root (a remapped/relocated worktree) still resolves against the
+		// primary directory as it did before multi-root support.
+		if (!isMultiRootSession(workingDirectories)) {
+			return URI.parse(workingDirectories[0]);
+		}
+		const { gitRepositories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), gitService);
+		if (!gitRepositories.length) {
+			return undefined;
+		}
+		// The absolute path was stored as a bare path (its scheme/authority were
+		// dropped when the URI was built); rebuild it against the session roots'
+		// own scheme/authority so it lines up with the repository roots.
+		const blobResource = gitRepositories[0].with({ path: fields.absolutePath });
+		return findDeepestContainingWorkingDirectory(blobResource, gitRepositories);
 	}
 
 	/**
