@@ -9,6 +9,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IAutomation, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
@@ -63,6 +65,10 @@ export interface ISessionModelsSnapshot {
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
 	readonly modelTarget: string | undefined;
+}
+
+export interface ISessionsProviderAutomations extends IAutomationStore {
+	importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<void>;
 }
 
 /**
@@ -161,6 +167,9 @@ export interface ISessionsProvider {
 	 * {@link supportsQuickChats}) changes at runtime, so they can re-evaluate.
 	 */
 	readonly onDidChangeCapabilities?: Event<void>;
+
+	/** Provider-owned Automation entities, persistence, and run history. */
+	readonly automations?: ISessionsProviderAutomations;
 
 	/**
 	 * Resolve a workspace for the given repository URI.
