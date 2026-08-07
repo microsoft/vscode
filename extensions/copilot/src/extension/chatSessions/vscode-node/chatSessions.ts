@@ -65,7 +65,6 @@ import { GHPR_EXTENSION_ID } from '../vscode/chatSessionsUriHandler';
 import { AgentSessionsWorkspace } from './agentSessionsWorkspace';
 import { UserQuestionHandler } from '../copilotcli/vscode-node/askUserQuestionHandler';
 import { ChatSessionMetadataStore } from '../copilotcli/vscode-node/chatSessionMetadataStoreImpl';
-import { ChatSessionRepositoryTracker } from './chatSessionRepositoryTracker';
 import { ChatSessionWorkspaceFolderService } from './chatSessionWorkspaceFolderServiceImpl';
 import { ClaudeWorkspaceFolderService } from './claudeWorkspaceFolderServiceImpl';
 import { ChatSessionWorktreeCheckpointService } from './chatSessionWorktreeCheckpointServiceImpl';
@@ -207,7 +206,6 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 			));
 
 		const copilotcliChatSessionContentProvider = copilotcliAgentInstaService.createInstance(CopilotCLIChatSessionContentProvider);
-		this._register(copilotcliAgentInstaService.createInstance(ChatSessionRepositoryTracker, undefined));
 		const promptResolver = copilotcliAgentInstaService.createInstance(CopilotCLIPromptResolver);
 		const gitService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IGitService));
 		const gitCommitMessageService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IGitCommitMessageService));
@@ -282,7 +280,6 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		const copilotcliSessionItemProvider = this._register(copilotcliAgentInstaService.createInstance(CopilotCLIChatSessionItemProviderV1));
 		const providerRegistration = vscode.chat.registerChatSessionItemProvider(this.copilotcliSessionType, copilotcliSessionItemProvider);
 		this._register(providerRegistration);
-		this._register(copilotcliAgentInstaService.createInstance(ChatSessionRepositoryTracker, copilotcliSessionItemProvider));
 		const copilotcliChatSessionContentProvider = copilotcliAgentInstaService.createInstance(CopilotCLIChatSessionContentProviderV1, copilotcliSessionItemProvider);
 		const promptResolver = copilotcliAgentInstaService.createInstance(CopilotCLIPromptResolver);
 		const gitService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IGitService));

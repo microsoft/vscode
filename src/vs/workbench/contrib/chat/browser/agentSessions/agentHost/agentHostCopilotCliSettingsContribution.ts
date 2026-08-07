@@ -16,7 +16,7 @@ import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './ag
 /**
  * Forwards Copilot-CLI settings into the **local** agent host's root config so
  * `CopilotAgent` and `CopilotSessionLauncher` can read them. Gated on
- * `chat.agentHost.enabled`. The schema-gate / hydration-retry / loop-guard
+ * Agent Host runtime availability. The schema-gate / hydration-retry / loop-guard
  * machinery lives in the shared
  * {@link AgentHostRootConfigForwarder}; this contribution only declares the keys.
  */

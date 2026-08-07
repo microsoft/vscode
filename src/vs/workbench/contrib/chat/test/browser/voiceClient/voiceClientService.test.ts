@@ -11,8 +11,9 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
+import { resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceConnectionIssue, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { normalizeAgentsVoiceId } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -523,7 +524,7 @@ suite('VoiceClientService', () => {
 		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), []);
 	});
 
-	test('serializes configured language in start_session context', async () => {
+	test('normalizes a legacy voice identifier in start_session', async () => {
 		const { service } = createService({
 			'agents.voice.language': 'fr-fr',
 			'agents.voice.voice': 'kevin_neutral',
@@ -540,9 +541,37 @@ suite('VoiceClientService', () => {
 		})), [{
 			type: 'start_session',
 			session_context: { sessions: [], display_locale: 'fr-FR' },
-			voice: 'kevin_neutral',
+			voice: 'oak_neutral',
 			auto_narrate: false,
 		}]);
+	});
+
+	test('normalizes every canonical and legacy voice identifier, and falls back for invalid values', () => {
+		assert.deepStrictEqual(
+			[
+				'harper_neutral', 'birch_neutral', 'junho_neutral', 'oak_neutral',
+				'victoria_neutral', 'maya_neutral', 'daniel_neutral', 'kevin_neutral',
+				undefined, '  ', 42, 'unknown_voice',
+			].map(normalizeAgentsVoiceId),
+			[
+				'harper_neutral', 'birch_neutral', 'junho_neutral', 'oak_neutral',
+				'harper_neutral', 'birch_neutral', 'junho_neutral', 'oak_neutral',
+				'birch_neutral', 'birch_neutral', 'birch_neutral', 'birch_neutral',
+			]
+		);
+	});
+
+	test('uses Birch for missing and legacy Maya values in start_session', async () => {
+		const voices = [];
+		for (const configuration of [undefined, { 'agents.voice.voice': 'maya_neutral' }]) {
+			const { service } = createService(configuration);
+			await service.connect(createTestWindow());
+			service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+			voices.push(socket().sent[0].voice);
+			service.disconnect();
+		}
+
+		assert.deepStrictEqual(voices, ['birch_neutral', 'birch_neutral']);
 	});
 
 	test('sends voice instructions when starting a session', async () => {
@@ -560,20 +589,36 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
-	test('uses browser locale for auto and falls back when unavailable', async () => {
+	test('uses the display language for auto', async () => {
 		const first = createService({ 'agents.voice.language': 'auto' });
 		await first.service.connect(createTestWindow('pt-BR'));
 		first.service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const browserLocale = socket().sent[0].session_context;
+		const withBrowserLocale = socket().sent[0].session_context;
 
 		const second = createService({ 'agents.voice.language': 'auto' });
 		await second.service.connect(createTestWindow(''));
 		second.service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const fallbackLocale = socket().sent[0].session_context;
+		const withoutBrowserLocale = socket().sent[0].session_context;
 
-		assert.deepStrictEqual({ browserLocale, fallbackLocale }, {
-			browserLocale: { sessions: [], display_locale: 'pt-BR' },
-			fallbackLocale: { sessions: [], display_locale: 'en-US' },
+		assert.deepStrictEqual({ withBrowserLocale, withoutBrowserLocale }, {
+			withBrowserLocale: { sessions: [], display_locale: 'en' },
+			withoutBrowserLocale: { sessions: [], display_locale: 'en' },
+		});
+	});
+
+	test('resolves automatic language from display language before browser locale', () => {
+		assert.deepStrictEqual({
+			displayLanguage: resolveAutomaticVoiceLanguage('en-US', 'de'),
+			englishDisplayLanguage: resolveAutomaticVoiceLanguage('de-DE', 'en'),
+			browserLocale: resolveAutomaticVoiceLanguage('pt-BR', undefined),
+			unsupportedDisplayLanguage: resolveAutomaticVoiceLanguage('pt-BR', 'he-IL'),
+			missing: resolveAutomaticVoiceLanguage(undefined, undefined),
+		}, {
+			displayLanguage: 'de',
+			englishDisplayLanguage: 'en',
+			browserLocale: 'pt-BR',
+			unsupportedDisplayLanguage: 'pt-BR',
+			missing: 'en-US',
 		});
 	});
 
@@ -601,7 +646,7 @@ suite('VoiceClientService', () => {
 		});
 	});
 
-	test('preserves an automatic ASR-only browser locale', async () => {
+	test('prefers the display language over an ASR-only browser locale', async () => {
 		const { service } = createService({ 'agents.voice.language': 'auto' });
 
 		await service.connect(createTestWindow('ar-SA'));
@@ -609,11 +654,11 @@ suite('VoiceClientService', () => {
 
 		assert.deepStrictEqual(socket().sent[0].session_context, {
 			sessions: [],
-			display_locale: 'ar-SA',
+			display_locale: 'en',
 		});
 	});
 
-	test('falls back for an unsupported automatic browser locale', async () => {
+	test('prefers the display language over an unsupported browser locale', async () => {
 		const { service } = createService({ 'agents.voice.language': 'auto' });
 
 		await service.connect(createTestWindow('he-IL'));
@@ -621,7 +666,7 @@ suite('VoiceClientService', () => {
 
 		assert.deepStrictEqual(socket().sent[0].session_context, {
 			sessions: [],
-			display_locale: 'en-US',
+			display_locale: 'en',
 		});
 	});
 
@@ -643,8 +688,8 @@ suite('VoiceClientService', () => {
 		} : message), [
 			{
 				type: 'start_session',
-				session_context: { sessions: [], display_locale: 'en-GB' },
-				voice: 'victoria_neutral',
+				session_context: { sessions: [], display_locale: 'en' },
+				voice: 'harper_neutral',
 			},
 			{ type: 'set_language', language: 'fr-FR' },
 		]);
@@ -700,7 +745,7 @@ suite('VoiceClientService', () => {
 				type: 'resume_session',
 				session_id: 'session-1',
 				session_context: { sessions: [], display_locale: 'de-DE' },
-				voice: 'daniel_neutral',
+				voice: 'junho_neutral',
 				voice_instructions: 'Keep replies concise.',
 				auto_narrate: false,
 			}],

@@ -295,6 +295,14 @@ interface IActiveDictation {
  */
 let _active: IActiveDictation | undefined;
 
+/**
+ * The in-flight {@link stopDictation} finalization, if any. `stopDictation`
+ * clears {@link _active} before awaiting the final transcript, so this lets a
+ * concurrent stop/submit for the same editor await that same finalization (and
+ * the final transcript it inserts) instead of racing ahead with interim text.
+ */
+let _finalizing: { readonly editor: ICodeEditor; readonly promise: Promise<void> } | undefined;
+
 /** True while a dictation is in progress. */
 export function isDictating(): boolean {
 	return !!_active;
@@ -307,7 +315,22 @@ export function activeDictationEditor(): ICodeEditor | undefined {
 
 /** Start dictating into `editor`, rendering the transcript live. */
 export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService, surface: ChatDictationSurface = 'chat'): Promise<void> {
-	if (_active || service.state !== ChatSpeechToTextState.Idle) {
+	// Already dictating into this exact editor: nothing to do (callers toggle
+	// stopping separately).
+	if (_active?.editor === editor) {
+		return;
+	}
+	// Only one surface can use the shared on-device engine at a time. If a
+	// dictation is already running — in the chat input, another editor, or the
+	// terminal — cancel it so this surface can take over. The previous surface
+	// clears its own state and UI when it observes the engine go Idle, keeping
+	// whatever transcript it had already inserted.
+	if (_active || service.isBusy) {
+		await service.cancel();
+	}
+	// If the engine did not return to Idle (an unexpected busy state), do not
+	// attach this surface's listeners to it.
+	if (service.state !== ChatSpeechToTextState.Idle) {
 		return;
 	}
 	const inserter = new LiveTranscriptInserter(editor, logService);
@@ -409,9 +432,25 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 export async function stopDictation(): Promise<void> {
 	const active = _active;
 	if (!active) {
+		// A finalization started by an earlier stop may still be running for the
+		// same editor (it cleared `_active` before awaiting the transcript); wait
+		// for it so callers observe the final transcript rather than returning early.
+		await _finalizing?.promise;
 		return;
 	}
 	_active = undefined;
+	const promise = finalizeDictation(active);
+	_finalizing = { editor: active.editor, promise };
+	try {
+		await promise;
+	} finally {
+		if (_finalizing?.promise === promise) {
+			_finalizing = undefined;
+		}
+	}
+}
+
+async function finalizeDictation(active: IActiveDictation): Promise<void> {
 	active.logService.trace(`${LOG_PREFIX} stopDictation begin, state=${active.service.state}`);
 	// Drop the interim styling and lock out interim updates right away so a
 	// trailing interim transcript emitted while transcription finalizes cannot
@@ -441,6 +480,18 @@ export async function stopDictation(): Promise<void> {
 	}
 }
 
+/** Stop dictation only when it is targeting `editor`. */
+export async function stopDictationForEditor(editor: ICodeEditor): Promise<void> {
+	if (_active?.editor === editor) {
+		await stopDictation();
+	} else if (_finalizing?.editor === editor) {
+		// A stop for this editor is already finalizing (it cleared `_active` before
+		// awaiting the transcript); await that finalization so a second submit does
+		// not send interim text ahead of the final transcript being inserted.
+		await _finalizing.promise;
+	}
+}
+
 /** Abort the active dictation, discarding whatever was recorded. */
 export function cancelDictation(): void {
 	const active = _active;
@@ -452,7 +503,7 @@ export function cancelDictation(): void {
 	// the input exactly as it was before dictation started.
 	active.inserter.revert();
 	active.disposables.dispose();
-	active.service.cancel();
+	void active.service.cancel();
 }
 
 /**

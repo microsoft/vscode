@@ -251,6 +251,8 @@ export interface IChatListItemRendererOptions {
 export interface IChatWidgetViewOptions {
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
+	/** Show the read-only status banner above the transcript instead of beside the composer. */
+	readOnlyBannerAtTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
@@ -534,3 +536,6 @@ export const ChatViewContainerId = 'workbench.panel.chat';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
+export const UpdateAgentPluginsCommandId = 'workbench.agentPlugins.checkForUpdates';
+export const ForceUpdateAgentPluginsCommandId = 'workbench.agentPlugins.forceUpdate';
+export const UpdatingAgentPluginsContext = new RawContextKey<boolean>('agentPluginsUpdating', false);

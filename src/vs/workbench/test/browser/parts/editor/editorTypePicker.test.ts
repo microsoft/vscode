@@ -64,13 +64,12 @@ suite('Editor Type Picker', () => {
 			diffDefaultEditor: true,
 		});
 	});
-
 	test('inline custom diff editor is classified as a diff editor', () => {
 		const original = URI.file('/original/test.md');
 		const modified = URI.file('/modified/test.md');
 		const registeredEditors = [
 			editor(DEFAULT_EDITOR_ASSOCIATION.id, RegisteredEditorPriority.builtin),
-			editor('test.markdownEditor', RegisteredEditorPriority.option, RegisteredEditorPriority.never),
+			editor('test.markdownEditor', RegisteredEditorPriority.option, RegisteredEditorPriority.explicit),
 		];
 		const input = disposables.add(new class extends EditorInput implements IEditorInputWithDiffResources {
 			override get typeId(): string { return 'test.inlineCustomDiffEditor'; }

@@ -22,27 +22,29 @@
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type {
+	CreateResourceWatchResult,
 	ResourceListResult,
 	ResourceReadResult,
 	ResourceResolveResult,
 	SubscribeResult,
 } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding, ResourceType, ResourceWriteMode } from '../../../../common/state/protocol/common/commands.js';
-import type { ResourceWatchState } from '../../../../common/state/protocol/channels-resource-watch/state.js';
+import { ResourceChangeType, type ResourceChange, type ResourceWatchState } from '../../../../common/state/protocol/channels-resource-watch/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { AhpErrorCodes } from '../../../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, type AhpNotification } from '../../../../common/state/sessionProtocol.js';
 import { CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs } = context;
+	const { config, createdSessions, tempDirs, isWindows } = context;
 
 	function createWorkspace(prefix: string): string {
 		const workspace = mkdtempSync(join(tmpdir(), prefix));
@@ -172,19 +174,65 @@ export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): 
 		});
 	});
 
-	conformanceTest(context, 'createResourceWatch returns a subscribable watch channel', async function () {
+	conformanceTest(context, 'resource watch reports changes on its subscribed channel', async function () {
 		await initializeClient('resource-watch');
 		const root = createWorkspace('ahp-resource-watch-');
+		const rootUri = URI.file(root).toString();
+		const watchedFile = fileUri(root, 'watched.txt');
 
-		// `CreateResourceWatchResult.channel` is declared as a `URI`, but it
-		// crosses the wire as a string, so it is typed here as what actually
-		// arrives rather than what the declaration promises.
-		const watch = await context.client.call<{ channel: string }>('createResourceWatch', {
-			channel: ROOT_STATE_URI, uri: URI.file(root).toString(), recursive: true,
+		const watch = await context.client.call<CreateResourceWatchResult>('createResourceWatch', {
+			channel: ROOT_STATE_URI, uri: rootUri, recursive: false,
 		});
+		let subscribed = false;
 
-		assert.strictEqual(URI.parse(watch.channel).scheme, 'ahp-resource-watch');
-	});
+		try {
+			const subscribedWatch = await context.client.call<SubscribeResult>('subscribe', { channel: watch.channel });
+			subscribed = true;
+			const descriptor = subscribedWatch.snapshot!.state as ResourceWatchState;
+			context.client.clearReceived();
+
+			const changed = context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'resourceWatch/changed') || getActionEnvelope(n).channel !== watch.channel) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as { readonly changes: { readonly items: readonly ResourceChange[] } };
+				return action.changes.items.some(change =>
+					change.uri === watchedFile
+					&& (change.type === ResourceChangeType.Added || change.type === ResourceChangeType.Updated)
+				);
+			}, 30_000);
+
+			let changedNotification: AhpNotification | undefined;
+			// The OS watcher attaches asynchronously, so keep producing change edges until it is ready.
+			for (let attempt = 1; attempt <= 30 && !changedNotification; attempt++) {
+				await context.client.call('resourceWrite', {
+					channel: ROOT_STATE_URI, uri: watchedFile, data: `WATCHED-${attempt}`, encoding: ContentEncoding.Utf8,
+				});
+				changedNotification = await raceTimeout(changed, 1_000);
+			}
+
+			const action = getActionEnvelope(changedNotification ?? await changed).action as { readonly changes: { readonly items: readonly ResourceChange[] } };
+			const observed = action.changes.items.find(change => change.uri === watchedFile);
+			assert.deepStrictEqual({
+				scheme: URI.parse(watch.channel).scheme,
+				descriptor,
+				observedUri: observed?.uri,
+				observedMutation: observed?.type === ResourceChangeType.Added || observed?.type === ResourceChangeType.Updated,
+			}, {
+				scheme: 'ahp-resource-watch',
+				descriptor: {
+					root: rootUri,
+					recursive: false,
+				},
+				observedUri: watchedFile,
+				observedMutation: true,
+			});
+		} finally {
+			if (subscribed) {
+				context.client.notify('unsubscribe', { channel: watch.channel });
+			}
+		}
+	}, !isWindows);
 
 	conformanceTest(context, 'resource watch subscription preserves its descriptor', async function () {
 		await initializeClient('resource-watch-descriptor');

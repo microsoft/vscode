@@ -93,6 +93,7 @@ import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnly
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
 import { ChatPetWidget, isChatPetVisible } from './chatPetWidget.js';
 import { IChatPetService } from '../chatPetService.js';
+import { stopDictationForEditor } from '../speechToText/dictationSession.js';
 
 const $ = dom.$;
 
@@ -325,6 +326,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _gettingStartedTipPartRef: ChatTipContentPart | undefined;
 	private _isInputOnboardingVisible = false;
+	private _isInputNotificationVisible = false;
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
@@ -483,7 +485,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 
-		this.readOnlyBanner = viewOptions.isSessionsWindow ? undefined : this._register(instantiationService.createInstance(ChatReadOnlyBanner));
+		this.readOnlyBanner = viewOptions.isSessionsWindow
+			? undefined
+			: this._register(instantiationService.createInstance(
+				ChatReadOnlyBanner,
+				viewOptions.readOnlyBannerAtTop ? localize('chatReadOnlyBanner.message', "This chat is read-only") : undefined,
+			));
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
 		this._readOnlyContextKey = ChatContextKeys.readOnly.bindTo(this.contextKeyService);
@@ -795,7 +802,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.attachmentModel;
 	}
 
-	render(parent: HTMLElement): void {
+	render(parent: HTMLElement, petMovementBounds?: HTMLElement): void {
 		const viewId = isIChatViewViewContext(this.viewContext) ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
@@ -817,15 +824,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		if (renderInputOnTop) {
-			if (this.readOnlyBanner) {
+			if (this.readOnlyBanner && !this.viewOptions.readOnlyBannerAtTop) {
 				this.container.appendChild(this.readOnlyBanner.domNode);
 			}
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
+			if (this.readOnlyBanner && this.viewOptions.readOnlyBannerAtTop) {
+				this.container.appendChild(this.readOnlyBanner.domNode);
+			}
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
+			if (this.readOnlyBanner && this.viewOptions.readOnlyBannerAtTop) {
+				this.container.appendChild(this.readOnlyBanner.domNode);
+			}
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 			dom.append(this.container, this.chatSuggestNextWidget.domNode);
-			if (this.readOnlyBanner) {
+			if (this.readOnlyBanner && !this.viewOptions.readOnlyBannerAtTop) {
 				this.container.appendChild(this.readOnlyBanner.domNode);
 			}
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
@@ -833,7 +846,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
-			const petHost = inputContainer?.parentElement ?? this.inputPart.element;
+			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
 			const targetWindow = dom.getWindow(this.container);
 			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
@@ -844,7 +857,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}));
 			const petVisible = derived(this, reader => isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader)));
 			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petVisible.read(reader))));
-			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, petVisible, this.inputEditor.onDidChangeModelContent));
+			const petWidget = this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, petMovementBounds ?? parent, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, petVisible, this.inputEditor.onDidChangeModelContent));
+			petWidget.setPlatformTopProvider(() => this.inputPart.getChatPetPlatformTop());
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
@@ -1226,7 +1240,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.inputPart || !this.viewModel) {
 			return;
 		}
-		if (this.isInputOnboardingVisible()) {
+		if (this.isGettingStartedTipSuppressed()) {
 			this.clearGettingStartedTip();
 			return;
 		}
@@ -1288,7 +1302,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private setInputOnboardingVisible(visible: boolean): void {
 		this._isInputOnboardingVisible = visible;
-		if (visible) {
+		this.updateGettingStartedTipVisibility();
+	}
+
+	private setInputNotificationVisible(visible: boolean): void {
+		this._isInputNotificationVisible = visible;
+		this.updateGettingStartedTipVisibility();
+	}
+
+	private isGettingStartedTipSuppressed(): boolean {
+		return this.isInputOnboardingVisible() || this._isInputNotificationVisible;
+	}
+
+	private updateGettingStartedTipVisibility(): void {
+		if (this.isGettingStartedTipSuppressed()) {
 			this.clearGettingStartedTip();
 		} else if (this.isEmpty()) {
 			this.renderGettingStartedTipIfNeeded();
@@ -2089,6 +2116,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
 			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
+			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
 		};
 
 		if (this.viewModel?.editing) {
@@ -2574,6 +2602,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this._readOnly || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
+		}
+
+		if (!options?.preserveInput) {
+			// preserveInput submissions (e.g. /compact or programmatic maintenance
+			// requests) leave the input draft untouched, so they must not stop an
+			// unrelated dictation and flush its final transcript into that draft.
+			await stopDictationForEditor(this.inputEditor);
 		}
 
 		if (this.viewModel) {
