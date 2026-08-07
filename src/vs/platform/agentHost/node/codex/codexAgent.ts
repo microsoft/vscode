@@ -4713,6 +4713,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		return Promise.resolve({ values: resolvedValues, schema });
 	}
 
+	getInheritedSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		const inherited: Record<string, unknown> = migrateCodexPermissionValues(config, {
+			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
+			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
+		});
+		if (config[SessionConfigKey.Permissions] !== undefined) {
+			inherited[SessionConfigKey.Permissions] = config[SessionConfigKey.Permissions];
+		}
+		return Object.keys(inherited).length > 0 ? inherited : undefined;
+	}
+
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		if (params.property !== CodexSessionConfigKey.AdditionalDirectories) {
 			return { items: [] };

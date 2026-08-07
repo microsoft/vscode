@@ -2031,6 +2031,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		});
 	}
 
+	getInheritedSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		const inherited: Record<string, unknown> = {};
+		for (const key of [ClaudeSessionConfigKey.PermissionMode, SessionConfigKey.Permissions]) {
+			if (config[key] !== undefined) {
+				inherited[key] = config[key];
+			}
+		}
+		return Object.keys(inherited).length > 0 ? inherited : undefined;
+	}
+
 	sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		// Plan section 3.3.5: Claude's only schema property is the
 		// `permissionMode` static enum, so dynamic completion is
