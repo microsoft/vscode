@@ -336,3 +336,7 @@
 	top: 10px;
 	right: var(--vscode-spacing-size20);
 }
+
+.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon.codicon-more:hover {
+	background: transparent;
+}
