@@ -35,6 +35,7 @@ export interface ICodexSessionOverlay {
 	readonly modelId?: string;
 	readonly agent?: AgentSelection;
 	readonly workingDirectories?: readonly URI[];
+	readonly ownsManagedWorkingDirectory?: boolean;
 }
 
 export interface ICodexSessionOverlayUpdate {
@@ -43,6 +44,7 @@ export interface ICodexSessionOverlayUpdate {
 	readonly modelId?: string;
 	readonly agent?: AgentSelection | null;
 	readonly workingDirectories?: readonly URI[];
+	readonly ownsManagedWorkingDirectory?: boolean;
 }
 
 export class CodexSessionMetadataStore {
@@ -51,6 +53,7 @@ export class CodexSessionMetadataStore {
 	private static readonly KEY_CWD = 'codex.cwd';
 	private static readonly KEY_MODEL = 'codex.model';
 	private static readonly KEY_AGENT = 'codex.agent';
+	private static readonly KEY_OWNS_MANAGED_WORKING_DIRECTORY = 'codex.ownsManagedWorkingDirectory';
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
@@ -86,6 +89,12 @@ export class CodexSessionMetadataStore {
 						fields.agent === null ? '' : JSON.stringify({ uri: fields.agent.uri }),
 					));
 				}
+				if (fields.ownsManagedWorkingDirectory !== undefined) {
+					work.push(db.setMetadata(
+						CodexSessionMetadataStore.KEY_OWNS_MANAGED_WORKING_DIRECTORY,
+						fields.ownsManagedWorkingDirectory ? 'true' : 'false',
+					));
+				}
 				await Promise.all(work);
 			} finally {
 				ref.dispose();
@@ -107,11 +116,12 @@ export class CodexSessionMetadataStore {
 				return {};
 			}
 			try {
-				const [threadId, cwdRaw, modelId, agentRaw] = await Promise.all([
+				const [threadId, cwdRaw, modelId, agentRaw, ownsManagedWorkingDirectoryRaw] = await Promise.all([
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_THREAD_ID),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_CWD),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_MODEL),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_AGENT),
+					ref.object.getMetadata(CodexSessionMetadataStore.KEY_OWNS_MANAGED_WORKING_DIRECTORY),
 				]);
 				const cwd = parseCwd(cwdRaw);
 				return {
@@ -120,6 +130,7 @@ export class CodexSessionMetadataStore {
 					modelId: modelId ?? undefined,
 					agent: parseAgentSelection(agentRaw),
 					workingDirectories: cwd.workingDirectories,
+					...(ownsManagedWorkingDirectoryRaw === 'true' ? { ownsManagedWorkingDirectory: true } : {}),
 				};
 			} finally {
 				ref.dispose();

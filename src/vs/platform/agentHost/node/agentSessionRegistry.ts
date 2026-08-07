@@ -30,6 +30,11 @@ interface IPersistedRegistry {
 	readonly sessions: Record<string, IPersistedRegistryEntry>;
 }
 
+interface IRegistryState {
+	readonly sessions: Map<string, IPersistedRegistryEntry>;
+	backfilled: boolean;
+}
+
 /**
  * The reserved URI whose per-session database backs the registry index. Its
  * scheme (`agent-host-registry`) cannot collide with a real session URI, which
@@ -74,19 +79,19 @@ export class AgentSessionRegistry extends Disposable {
 
 	/** Record (or refresh) a session in the registry. Idempotent per session URI. */
 	async register(session: URI, provider: AgentProvider, startTime: number): Promise<void> {
-		await this._enqueueWrite(cache => {
+		await this._enqueueWrite(state => {
 			const key = session.toString();
-			const existing = cache.get(key);
+			const existing = state.sessions.get(key);
 			// Preserve the first-observed startTime so a later re-register (e.g.
 			// a reconnect issuing createSession again) never rewrites it.
-			cache.set(key, { provider, startTime: existing?.startTime ?? startTime });
+			state.sessions.set(key, { provider, startTime: existing?.startTime ?? startTime });
 		});
 	}
 
 	/** Remove a session from the registry (true delete). No-op if absent. */
 	async unregister(session: URI): Promise<void> {
-		await this._enqueueWrite(cache => {
-			cache.delete(session.toString());
+		await this._enqueueWrite(state => {
+			state.sessions.delete(session.toString());
 		});
 	}
 
@@ -118,18 +123,24 @@ export class AgentSessionRegistry extends Disposable {
 
 	/** Records that the one-time provider backfill has completed. */
 	async markBackfilled(): Promise<void> {
-		await this._enqueueWrite(() => {
-			this._backfilled = true;
+		await this._enqueueWrite(state => {
+			state.backfilled = true;
 		});
 	}
 
-	private _enqueueWrite(mutate: (cache: Map<string, IPersistedRegistryEntry>) => void): Promise<void> {
+	private _enqueueWrite(mutate: (state: IRegistryState) => void): Promise<void> {
 		const next = this._writeChain
 			.catch(() => { /* a failed prior write must not block later ones */ })
 			.then(async () => {
 				const cache = await this._load();
-				mutate(cache);
-				await this._persist(cache);
+				const state: IRegistryState = {
+					sessions: new Map(cache),
+					backfilled: this._backfilled,
+				};
+				mutate(state);
+				await this._persist(state);
+				this._cache = state.sessions;
+				this._backfilled = state.backfilled;
 			});
 		this._writeChain = next.catch(() => { /* keep the chain alive */ });
 		return next;
@@ -139,7 +150,15 @@ export class AgentSessionRegistry extends Disposable {
 		if (this._cache) {
 			return Promise.resolve(this._cache);
 		}
-		this._loadPromise ??= this._doLoad();
+		if (!this._loadPromise) {
+			const load = this._doLoad();
+			this._loadPromise = load;
+			void load.then(undefined, () => {
+				if (this._loadPromise === load) {
+					this._loadPromise = undefined;
+				}
+			});
+		}
 		return this._loadPromise;
 	}
 
@@ -163,22 +182,24 @@ export class AgentSessionRegistry extends Disposable {
 				}
 			}
 		} catch (err) {
-			this._logService.warn(`[AgentSessionRegistry] Failed to load registry; starting empty: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[AgentSessionRegistry] Failed to load registry: ${err instanceof Error ? err.message : String(err)}`);
+			throw err;
 		}
 		this._cache = cache;
 		return cache;
 	}
 
-	private async _persist(cache: Map<string, IPersistedRegistryEntry>): Promise<void> {
+	private async _persist(state: IRegistryState): Promise<void> {
 		const sessions: Record<string, IPersistedRegistryEntry> = {};
-		for (const [key, entry] of cache) {
+		for (const [key, entry] of state.sessions) {
 			sessions[key] = entry;
 		}
-		const blob: IPersistedRegistry = { version: 1, backfilled: this._backfilled, sessions };
+		const blob: IPersistedRegistry = { version: 1, backfilled: state.backfilled, sessions };
 		try {
 			await this._db().setMetadata(REGISTRY_METADATA_KEY, JSON.stringify(blob));
 		} catch (err) {
 			this._logService.warn(`[AgentSessionRegistry] Failed to persist registry: ${err instanceof Error ? err.message : String(err)}`);
+			throw err;
 		}
 	}
 

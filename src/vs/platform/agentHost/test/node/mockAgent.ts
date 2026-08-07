@@ -432,7 +432,7 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent', capabilities: { multipleChats: { fork: true } } };
+		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent' };
 	}
 
 	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {

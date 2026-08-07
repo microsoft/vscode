@@ -945,7 +945,22 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Runs {@link _backfillRegistryFromProviders} at most once per host. */
 	private _ensureRegistryBackfilled(): Promise<void> {
-		this._registryBackfill ??= this._backfillRegistryFromProviders();
+		if (!this._registryBackfill) {
+			const attempt = this._backfillRegistryFromProviders();
+			this._registryBackfill = attempt;
+			void attempt.then(
+				() => {
+					if (this._registryBackfill === attempt) {
+						this._registryBackfill = undefined;
+					}
+				},
+				() => {
+					if (this._registryBackfill === attempt) {
+						this._registryBackfill = undefined;
+					}
+				}
+			);
+		}
 		return this._registryBackfill;
 	}
 
@@ -957,19 +972,19 @@ export class AgentService extends Disposable implements IAgentService {
 	 * recorded) rather than gating on emptiness. Peer-chat backings and subagent
 	 * sessions are filtered out here — mirroring the top-level filters in
 	 * {@link listSessions} — so they never become registered sessions.
-	 * Best-effort per provider: a provider whose enumeration fails is skipped.
+	 * The completion marker is written only after every provider was enumerated.
 	 */
 	private async _backfillRegistryFromProviders(): Promise<void> {
 		if (await this._sessionRegistry.isBackfilled()) {
 			return;
 		}
-		const perProvider = await Promise.all([...this._providers.values()].map(async (provider): Promise<IRegisteredSession[]> => {
+		const perProvider = await Promise.all([...this._providers.values()].map(async (provider): Promise<{ sessions: IRegisteredSession[]; error?: unknown }> => {
 			let sessions: IAgentSessionMetadata[];
 			try {
 				sessions = await this._enumerateProviderSessions(provider);
 			} catch (err) {
 				this._logService.warn(`[AgentService] registry backfill: listSessions failed for provider ${provider.id}`, err);
-				return [];
+				return { sessions: [], error: err };
 			}
 			const identities = await Promise.all(sessions.map(async (s): Promise<IRegisteredSession | undefined> => {
 				if (isSubagentSession(s.session.toString()) || await this._isPeerChatBacking(s.session)) {
@@ -977,12 +992,25 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				return { session: s.session, provider: provider.id, startTime: s.startTime };
 			}));
-			return identities.filter((s): s is IRegisteredSession => s !== undefined);
+			return { sessions: identities.filter((s): s is IRegisteredSession => s !== undefined) };
 		}));
-		for (const { session, provider, startTime } of perProvider.flat()) {
+		const failed = perProvider.find(result => result.error !== undefined);
+		if (failed) {
+			throw failed.error;
+		}
+		for (const { session, provider, startTime } of perProvider.flatMap(result => result.sessions)) {
 			await this._sessionRegistry.register(session, provider, startTime);
 		}
 		await this._sessionRegistry.markBackfilled();
+	}
+
+	private async _retryRegistryMutation(operation: () => Promise<void>, description: string): Promise<void> {
+		try {
+			await operation();
+		} catch (err) {
+			this._logService.warn(`[AgentService] Retrying failed session registry ${description}`, err);
+			await operation();
+		}
 	}
 
 	/** Whether a session is an internal peer-chat backing (per the persisted marker). */
@@ -1401,6 +1429,19 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
+		try {
+			await this._retryRegistryMutation(
+				() => this._sessionRegistry.register(session, provider.id, Date.now()),
+				`registration for ${session.toString()}`,
+			);
+		} catch (err) {
+			try {
+				await provider.disposeSession(session);
+			} catch (disposeError) {
+				this._logService.error(disposeError, `[AgentService] Failed to roll back provider session ${session.toString()}`);
+			}
+			throw err;
+		}
 
 		// Cancel any pending GC armed for this URI. A client may be
 		// re-issuing `createSession` for an existing URI mid-grace (e.g.
@@ -1574,11 +1615,6 @@ export class AgentService extends Disposable implements IAgentService {
 			// session, working directory, etc.
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
 		}
-
-		// Stage 1 (I3 removal): record the session in the orchestrator-owned
-		// registry alongside the existing state-manager creation. Additive and
-		// fire-and-forget — it does not yet drive enumeration.
-		void this._sessionRegistry.register(session, provider.id, Date.now());
 
 		const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0] ?? config?.workingDirectory;
 		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
@@ -1860,8 +1896,25 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _disposeSession(provider: IAgent, session: URI): Promise<void> {
+		const defaultChat = buildDefaultChatUri(session);
+		let firstError: unknown;
 		for (const chat of this._getSessionChatsInTeardownOrder(session)) {
-			await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+			if (chat.toString() === defaultChat) {
+				continue;
+			}
+			try {
+				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+			} catch (err) {
+				firstError ??= err;
+			}
+		}
+		try {
+			await provider.disposeSession(session);
+		} catch (err) {
+			firstError ??= err;
+		}
+		if (firstError !== undefined) {
+			throw firstError;
 		}
 	}
 
@@ -2418,6 +2471,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = this._findProviderForSession(session);
 		if (provider) {
 			await this._disposeSession(provider, session);
+		}
+		await this._retryRegistryMutation(
+			() => this._sessionRegistry.unregister(session),
+			`unregistration for ${session.toString()}`,
+		);
+		if (provider) {
 			this._sessionToProvider.delete(session.toString());
 			this._clearDownloadProgressInterest(session.toString());
 		}
@@ -2442,9 +2501,6 @@ export class AgentService extends Disposable implements IAgentService {
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
-		// Stage 1 (I3 removal): drop the session from the orchestrator-owned
-		// registry on true delete.
-		void this._sessionRegistry.unregister(session);
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
@@ -3301,12 +3357,11 @@ export class AgentService extends Disposable implements IAgentService {
 			this._readPersistedChatTitle(session, defaultChatUri),
 		]);
 		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
+		await this._retryRegistryMutation(
+			() => this._sessionRegistry.register(session, agent.id, meta.startTime),
+			`registration for restored session ${session.toString()}`,
+		);
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: defaultDraft, defaultChatTitle });
-
-		// Stage 1 (I3 removal): a session restored from disk (created in a prior
-		// process) enters the orchestrator-owned registry too, so the registry
-		// reflects every live session regardless of how it was surfaced.
-		void this._sessionRegistry.register(session, agent.id, meta.startTime);
 
 		// A freshly-adopted legacy session bridges its git checkpoints into the
 		// agent-host namespace once its turns are restored. Isolated so a failure

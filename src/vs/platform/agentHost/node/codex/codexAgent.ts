@@ -737,6 +737,7 @@ function mcpServersSignature(servers: Record<string, ICodexMcpServerConfigJson>)
 interface ICodexPersistedChat {
 	readonly sessionId: string;
 	readonly model?: ModelSelection;
+	readonly ownsManagedWorkingDirectory?: boolean;
 }
 
 function encodeCodexChat(chat: ICodexPersistedChat): string {
@@ -842,6 +843,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _sessionIdByChatUri = new Map<string, string>();
 	/** Inverse map: codex threadId → caller-facing sessionId, for routing codex notifications back to sessions. */
 	private readonly _sessionIdByThreadId = new Map<string, string>();
+	/** Managed directories retained by non-destructively released sessions. */
+	private readonly _releasedManagedWorkingDirectories = new Map<string, URI>();
 	/**
 	 * Live subagent (collab-agent) child threads, keyed by the child codex
 	 * thread id. Populated when a parent session's `spawnAgent` collab tool
@@ -3063,14 +3066,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		const existingSessionId = this._sessionIdByChatUri.get(chat.toString());
 		if (existingSessionId && existingSessionId !== parentSessionId) {
 			const existing = this._sessions.get(existingSessionId);
-			return { backingSession: existing?.sessionUri ?? AgentSession.uri(this.id, existingSessionId), providerData: encodeCodexChat({ sessionId: existingSessionId, ...(existing?.model ? { model: existing.model } : {}) }) };
+			const managedWorkingDirectory = existing?.managedWorkingDirectory ?? this._releasedManagedWorkingDirectories.get(existingSessionId);
+			return {
+				backingSession: existing?.sessionUri ?? AgentSession.uri(this.id, existingSessionId),
+				providerData: encodeCodexChat({
+					sessionId: existingSessionId,
+					...(existing?.model ? { model: existing.model } : {}),
+					...(managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
+				}),
+			};
 		}
 
 		const inherited = options?.inheritedContext;
-		const workingDirectory = inherited?.workingDirectory;
-		if (!workingDirectory) {
-			throw new Error(`[Codex] createChat: missing inherited working directory for session ${parentSession.toString()}`);
-		}
 		if (this._models.get().length === 0 && this._modelsRefreshPromise) {
 			await this._modelsRefreshPromise;
 		}
@@ -3081,66 +3088,88 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error('Codex has no available models.');
 		}
 		this._ensureModelProviderAuthenticated(model);
-
-		// Inherit the owning session's permissions and settings from the
-		// orchestrator-supplied config, never read back from the parent session.
-		const inheritedConfig = inherited?.config ?? {};
-		const forkDefaults = {
-			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
-			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
-		};
-		const { approvalPolicy, sandboxMode, approvalsReviewer } = resolveCodexPermissions(
-			migrateCodexPermissionValues(inheritedConfig, forkDefaults),
-			forkDefaults,
-		);
-
-		// A scratch entry (never registered) lets the MCP/dynamic-tool helpers
-		// compute the thread/start params while the new chat's own client state
-		// is empty; they read root config + server tools, not session config.
-		const scratch = this._createResumedSessionEntry(parentSessionId, '', parentSession, workingDirectory, model, chat);
-		const mcpServers = this._buildSessionMcpServers(scratch);
-		const dynamicTools = this._buildDynamicTools(scratch);
-		const validatedConfig = codexSessionConfigSchema.validateOrDefault(inheritedConfig, codexSessionConfigDefaults);
-		const threadConfig: Record<string, JsonValue> = {
-			web_search: narrowWebSearchMode(validatedConfig[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
-		};
-		if (Object.keys(mcpServers).length > 0) {
-			threadConfig.mcp_servers = mcpServers as JsonValue;
+		const managedWorkingDirectory = inherited?.workingDirectory
+			? undefined
+			: await this._createManagedWorkingDirectory(`chat-${generateUuid()}`);
+		const workingDirectory = inherited?.workingDirectory ?? managedWorkingDirectory;
+		if (!workingDirectory) {
+			throw new Error(`[Codex] createChat: failed to resolve a working directory for session ${parentSession.toString()}`);
 		}
 
-		const conn = await this._ensureConnection();
-		const resolvedModel = parseCodexModelSelection(model);
-		const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
-			cwd: workingDirectory.fsPath,
-			model: resolvedModel.modelId,
-			modelProvider: resolvedModel.modelProvider,
-			approvalPolicy,
-			sandbox: sandboxMode,
-			approvalsReviewer,
-			config: threadConfig,
-			dynamicTools,
-		});
-		const newThreadId = startResult.thread.id;
-		const newSessionUri = AgentSession.uri(this.id, newThreadId);
+		try {
+			// Inherit the owning session's permissions and settings from the
+			// orchestrator-supplied config, never read back from the parent session.
+			const inheritedConfig = inherited?.config ?? {};
+			const forkDefaults = {
+				approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
+				sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
+			};
+			const { approvalPolicy, sandboxMode, approvalsReviewer } = resolveCodexPermissions(
+				migrateCodexPermissionValues(inheritedConfig, forkDefaults),
+				forkDefaults,
+			);
 
-		// The freshly started thread is live and subscribed, so build a
-		// materialized (not resumed) entry keyed by the thread id.
-		const session = this._createResumedSessionEntry(newThreadId, newThreadId, newSessionUri, workingDirectory, model, chat);
-		session.needsResume = false;
-		session.firstTurnSent = false;
-		session.materializedEventFired = false;
-		session.materializedMcpSig = mcpServersSignature(mcpServers);
-		session.materializedToolsSig = toolsSignature(session.clientToolSet.merged());
-		this._sessions.set(newThreadId, session);
-		this._sessionIdByThreadId.set(newThreadId, newThreadId);
-		this._sessionIdByChatUri.set(chat.toString(), newThreadId);
-		if (!session.serverToolsAdvertised && this._serverToolHost) {
-			session.serverToolsAdvertised = true;
-			this._serverToolHost.advertise(newSessionUri.toString());
+			// A scratch entry (never registered) lets the MCP/dynamic-tool helpers
+			// compute the thread/start params while the new chat's own client state
+			// is empty; they read root config + server tools, not session config.
+			const scratch = this._createResumedSessionEntry(parentSessionId, '', parentSession, workingDirectory, model, chat);
+			const mcpServers = this._buildSessionMcpServers(scratch);
+			const dynamicTools = this._buildDynamicTools(scratch);
+			const validatedConfig = codexSessionConfigSchema.validateOrDefault(inheritedConfig, codexSessionConfigDefaults);
+			const threadConfig: Record<string, JsonValue> = {
+				web_search: narrowWebSearchMode(validatedConfig[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
+			};
+			if (Object.keys(mcpServers).length > 0) {
+				threadConfig.mcp_servers = mcpServers as JsonValue;
+			}
+
+			const conn = await this._ensureConnection();
+			const resolvedModel = parseCodexModelSelection(model);
+			const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
+				cwd: workingDirectory.fsPath,
+				model: resolvedModel.modelId,
+				modelProvider: resolvedModel.modelProvider,
+				approvalPolicy,
+				sandbox: sandboxMode,
+				approvalsReviewer,
+				config: threadConfig,
+				dynamicTools,
+			});
+			const newThreadId = startResult.thread.id;
+			const newSessionUri = AgentSession.uri(this.id, newThreadId);
+
+			// The freshly started thread is live and subscribed, so build a
+			// materialized (not resumed) entry keyed by the thread id.
+			const session = this._createResumedSessionEntry(newThreadId, newThreadId, newSessionUri, workingDirectory, model, chat);
+			session.needsResume = false;
+			session.firstTurnSent = false;
+			session.materializedEventFired = false;
+			session.materializedMcpSig = mcpServersSignature(mcpServers);
+			session.materializedToolsSig = toolsSignature(session.clientToolSet.merged());
+			session.managedWorkingDirectory = managedWorkingDirectory;
+			this._sessions.set(newThreadId, session);
+			this._sessionIdByThreadId.set(newThreadId, newThreadId);
+			this._sessionIdByChatUri.set(chat.toString(), newThreadId);
+			if (!session.serverToolsAdvertised && this._serverToolHost) {
+				session.serverToolsAdvertised = true;
+				this._serverToolHost.advertise(newSessionUri.toString());
+			}
+			this._persistMaterializedSession(session);
+			this._logService.info(`[Codex] created additional chat ${chat.toString()} backed by thread ${newThreadId} (parent ${parentSession.toString()})`);
+			return {
+				backingSession: newSessionUri,
+				providerData: encodeCodexChat({
+					sessionId: newThreadId,
+					model,
+					...(managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
+				}),
+			};
+		} catch (err) {
+			if (managedWorkingDirectory) {
+				await this._removeManagedWorkingDirectory(managedWorkingDirectory);
+			}
+			throw err;
 		}
-		this._persistMaterializedSession(session);
-		this._logService.info(`[Codex] created additional chat ${chat.toString()} backed by thread ${newThreadId} (parent ${parentSession.toString()})`);
-		return { backingSession: newSessionUri, providerData: encodeCodexChat({ sessionId: newThreadId, model }) };
 	}
 
 	/**
@@ -3157,7 +3186,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		const existingSessionId = this._sessionIdByChatUri.get(chat.toString());
 		if (existingSessionId && existingSessionId !== parentSessionId) {
 			const existing = this._sessions.get(existingSessionId);
-			return { backingSession: existing?.sessionUri ?? AgentSession.uri(this.id, existingSessionId), providerData: encodeCodexChat({ sessionId: existingSessionId, ...(existing?.model ? { model: existing.model } : {}) }) };
+			const managedWorkingDirectory = existing?.managedWorkingDirectory ?? this._releasedManagedWorkingDirectories.get(existingSessionId);
+			return {
+				backingSession: existing?.sessionUri ?? AgentSession.uri(this.id, existingSessionId),
+				providerData: encodeCodexChat({
+					sessionId: existingSessionId,
+					...(existing?.model ? { model: existing.model } : {}),
+					...(managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
+				}),
+			};
 		}
 
 		const sourceSession = this._resolveConversationSession(source.source);
@@ -3179,7 +3216,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		const newThreadId = AgentSession.id(result.session);
 		const forked = this._sessions.get(newThreadId);
 		this._logService.info(`[Codex] forked chat ${chat.toString()} from ${source.source.toString()} into thread ${newThreadId} (parent ${context.session.toString()})`);
-		return { backingSession: result.session, providerData: encodeCodexChat({ sessionId: newThreadId, ...(forked?.model ? { model: forked.model } : {}) }) };
+		return {
+			backingSession: result.session,
+			providerData: encodeCodexChat({
+				sessionId: newThreadId,
+				...(forked?.model ? { model: forked.model } : {}),
+				...(forked?.managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
+			}),
+		};
 	}
 
 	/**
@@ -3203,11 +3247,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const overlay = await this._metadataStore.read(sessionUri);
-		const workingDirectory = overlay.cwd;
+		const releasedManagedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId);
+		const workingDirectory = overlay.cwd ?? releasedManagedWorkingDirectory;
+		if (this._models.get().length === 0) {
+			await this.refreshModels();
+		}
 		const model = this._supportedModelOrUndefined(decoded.model);
 		// Codex's session id == thread id convention: the backing thread already
 		// exists on the app-server, so the entry resumes on first send.
 		const session = this._createResumedSessionEntry(sessionId, sessionId, sessionUri, workingDirectory, model, chat, undefined, undefined, overlay.agent);
+		if (decoded.ownsManagedWorkingDirectory || overlay.ownsManagedWorkingDirectory || releasedManagedWorkingDirectory) {
+			session.managedWorkingDirectory = workingDirectory;
+		}
+		this._releasedManagedWorkingDirectories.delete(sessionId);
 		this._sessions.set(sessionId, session);
 		this._sessionIdByThreadId.set(sessionId, sessionId);
 		this._sessionIdByChatUri.set(chat.toString(), sessionId);
@@ -3309,6 +3361,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sourceThreadId = sourceRead.thread.id;
 		const sourceTurns = sourceRead.thread.turns ?? [];
 		const sourceSession = this._sessions.get(AgentSession.id(fork.session));
+		const sourceOverlay = sourceSession ? undefined : await this._metadataStore.read(fork.session);
+		const sourceManagedWorkingDirectory = sourceSession?.managedWorkingDirectory
+			?? this._releasedManagedWorkingDirectories.get(AgentSession.id(fork.session))
+			?? (sourceOverlay?.ownsManagedWorkingDirectory ? sourceOverlay.cwd : undefined);
 		const sourcePrimary = sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : config.workingDirectories?.[0];
 		const sourceStoredWorkingDirectories = sourceSession?.workingDirectories ?? sourceRead.persistedWorkingDirectories;
 		const inheritedWorkingDirectories = sourcePrimary
@@ -3358,17 +3414,38 @@ export class CodexAgent extends Disposable implements IAgent {
 			migrateCodexPermissionValues({ ...sourceConfigValues, ...config.config }, forkDefaults),
 			forkDefaults,
 		);
-		const forkResult = await conn.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
-			threadId: sourceThreadId,
-			...(runtimeWorkspaceRoots?.length ? {
-				cwd: runtimeWorkspaceRoots[0],
-				runtimeWorkspaceRoots,
-			} : {}),
-			...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
-			approvalPolicy,
-			sandbox: sandboxMode,
-			approvalsReviewer,
-		});
+		const forkManagedWorkingDirectory = sourceManagedWorkingDirectory
+			? await this._createManagedWorkingDirectory(`fork-${generateUuid()}`)
+			: undefined;
+		if (forkManagedWorkingDirectory && sourceManagedWorkingDirectory) {
+			try {
+				await fs.promises.cp(sourceManagedWorkingDirectory.fsPath, forkManagedWorkingDirectory.fsPath, { recursive: true });
+			} catch (err) {
+				await this._removeManagedWorkingDirectory(forkManagedWorkingDirectory);
+				throw err;
+			}
+		}
+		let forkResult: ThreadForkResponse;
+		try {
+			forkResult = await conn.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
+				threadId: sourceThreadId,
+				...(forkManagedWorkingDirectory ? {
+					cwd: forkManagedWorkingDirectory.fsPath,
+				} : runtimeWorkspaceRoots?.length ? {
+					cwd: runtimeWorkspaceRoots[0],
+					runtimeWorkspaceRoots,
+				} : {}),
+				...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
+				approvalPolicy,
+				sandbox: sandboxMode,
+				approvalsReviewer,
+			});
+		} catch (err) {
+			if (forkManagedWorkingDirectory) {
+				await this._removeManagedWorkingDirectory(forkManagedWorkingDirectory);
+			}
+			throw err;
+		}
 		const newThreadId = forkResult.thread.id;
 
 		// The fork copies the full source history; drop the trailing turns so
@@ -3387,6 +3464,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				} catch (archiveErr) {
 					this._logService.warn(`[Codex:${newThreadId}] failed to archive orphaned fork after rollback failure: ${archiveErr instanceof Error ? archiveErr.message : String(archiveErr)}`);
 				}
+				if (forkManagedWorkingDirectory) {
+					await this._removeManagedWorkingDirectory(forkManagedWorkingDirectory);
+				}
 				throw new Error(`Failed to fork codex session ${sourceThreadId}: could not roll back forked thread ${newThreadId} to the requested turn (${message})`);
 			}
 		}
@@ -3394,9 +3474,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Codex convention (Decision 7): session id == thread id, so a restore
 		// round-trips through `getSessionMetadata`.
 		const newSessionUri = AgentSession.uri(this.id, newThreadId);
-		const workingDirectory = forkResult.cwd
-			? URI.file(forkResult.cwd)
-			: (sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : config.workingDirectories?.[0]);
+		const workingDirectory = forkManagedWorkingDirectory
+			?? (forkResult.cwd
+				? URI.file(forkResult.cwd)
+				: (sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : config.workingDirectories?.[0]));
 		const forkWorkingDirectories = multiRootEnabled
 			? distinctWorkingDirectories(
 				forkResult.runtimeWorkspaceRoots?.length
@@ -3416,6 +3497,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			multiRootEnabled,
 			config.agent ?? sourceSession?.agent,
 		);
+		session.managedWorkingDirectory = forkManagedWorkingDirectory;
 		this._sessions.set(newThreadId, session);
 		this._sessionIdByThreadId.set(newThreadId, newThreadId);
 		// Forked threads skip materialization (the thread already exists), so
@@ -3495,6 +3577,20 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._otelService.getSessionTraceContext(session.sessionId, session.sessionUri.toString());
 	}
 
+	private async _createManagedWorkingDirectory(ownerId: string): Promise<URI> {
+		const directory = URI.file(join(os.tmpdir(), 'vscode-agent-codex', ownerId));
+		await fs.promises.mkdir(directory.fsPath, { recursive: true });
+		return directory;
+	}
+
+	private async _removeManagedWorkingDirectory(directory: URI): Promise<void> {
+		try {
+			await fs.promises.rm(directory.fsPath, { recursive: true, force: true });
+		} catch (err) {
+			this._logService.info(`[Codex] failed to remove managed temp folder ${directory.fsPath}: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
 	private async _materialize(session: ICodexSession): Promise<void> {
 		if (session.disposed) {
 			return;
@@ -3503,11 +3599,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			// No working directory was supplied (e.g. an editor window with no
 			// workspace folder open). Codex requires one, so create a managed
 			// per-session temp folder and remember it for cleanup on dispose.
-			const dir = join(os.tmpdir(), 'vscode-agent-codex', session.sessionId);
-			await fs.promises.mkdir(dir, { recursive: true });
-			session.workingDirectory = URI.file(dir);
+			session.workingDirectory = await this._createManagedWorkingDirectory(session.sessionId);
 			session.managedWorkingDirectory = session.workingDirectory;
-			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed temp folder ${dir}`);
+			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed temp folder ${session.workingDirectory.fsPath}`);
 		}
 		const conn = await this._ensureConnection();
 		const config = this._readSessionConfig(session);
@@ -3685,6 +3779,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			modelId: session.model?.id,
 			agent: session.agent,
 			workingDirectories: multiRootActive ? session.workingDirectories : undefined,
+			ownsManagedWorkingDirectory: session.managedWorkingDirectory !== undefined,
 		};
 		void this._metadataStore.write(session.sessionUri, fields);
 		if (multiRootActive) {
@@ -4058,7 +4153,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (session) {
-			await this._teardownSessionInMemory(session, sessionId);
+			await this._teardownSessionInMemory(session, sessionId, true);
+		} else {
+			const overlay = await this._metadataStore.read(sessionUri);
+			const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId)
+				?? (overlay.ownsManagedWorkingDirectory ? overlay.cwd : undefined);
+			if (managedWorkingDirectory) {
+				await this._removeManagedWorkingDirectory(managedWorkingDirectory);
+			}
+			this._releasedManagedWorkingDirectories.delete(sessionId);
 		}
 		for (const [chat, owner] of this._sessionIdByChatUri) {
 			if (owner === sessionId) { this._sessionIdByChatUri.delete(chat); }
@@ -4094,7 +4197,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Codex:${session.threadId}] Releasing idle session from memory (durable state preserved)`);
-		await this._teardownSessionInMemory(session, sessionId);
+		if (session.managedWorkingDirectory) {
+			this._releasedManagedWorkingDirectories.set(sessionId, session.managedWorkingDirectory);
+		}
+		await this._teardownSessionInMemory(session, sessionId, false);
 	}
 
 	/**
@@ -4106,7 +4212,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * orchestrator pairs with durable deletion) and the non-destructive
 	 * {@link releaseSession}.
 	 */
-	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string): Promise<void> {
+	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string, deleteManagedWorkingDirectory: boolean): Promise<void> {
 		session.disposed = true;
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
@@ -4119,11 +4225,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Remove the managed temp folder created for a session that had no
 		// client-supplied working directory. Best-effort; the OS temp dir is
 		// reclaimed anyway, but clean up proactively so it doesn't accumulate.
-		if (session.managedWorkingDirectory) {
-			const dir = session.managedWorkingDirectory.fsPath;
-			fs.promises.rm(dir, { recursive: true, force: true }).catch(err => {
-				this._logService.info(`[Codex] failed to remove managed temp folder ${dir}: ${err instanceof Error ? err.message : String(err)}`);
-			});
+		if (deleteManagedWorkingDirectory && session.managedWorkingDirectory) {
+			await this._removeManagedWorkingDirectory(session.managedWorkingDirectory);
+		}
+		if (deleteManagedWorkingDirectory) {
+			this._releasedManagedWorkingDirectories.delete(sessionId);
 		}
 		if (session.customizationDirectory) {
 			const dir = session.customizationDirectory.fsPath;
@@ -4318,6 +4424,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			const overlay = await this._metadataStore.read(session);
 			const restoredModel = read.persistedModelId ? { id: read.persistedModelId } : undefined;
 			const restored = this._createResumedSessionEntry(sessionId, threadId, session, workingDirectory, restoredModel, undefined, metadata.workingDirectories, undefined, overlay.agent);
+			if (overlay.ownsManagedWorkingDirectory) {
+				restored.managedWorkingDirectory = workingDirectory;
+			}
 			this._sessions.set(sessionId, restored);
 			this._sessionIdByThreadId.set(threadId, sessionId);
 			if (restoredModel && parseCodexModelSelection(restoredModel).modelProvider !== read.thread.modelProvider) {
