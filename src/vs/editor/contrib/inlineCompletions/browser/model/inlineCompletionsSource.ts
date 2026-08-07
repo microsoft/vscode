@@ -82,6 +82,7 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
 	private readonly _renameProcessor: RenameSymbolProcessor;
+	private readonly _dataChannelTelemetryService: DataChannelForwardingTelemetryService;
 
 	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
 
@@ -98,6 +99,7 @@ export class InlineCompletionsSource extends Disposable {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		super();
+		this._dataChannelTelemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
 		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._sendRequestData = observableConfigValue('editor.inlineSuggest.emptyResponseInformation', true, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
@@ -550,8 +552,7 @@ export class InlineCompletionsSource extends Disposable {
 			editKind: undefined,
 		};
 
-		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
-		sendInlineCompletionsEndOfLifeTelemetry(dataChannel, emptyEndOfLifeEvent);
+		sendInlineCompletionsEndOfLifeTelemetry(this._dataChannelTelemetryService, emptyEndOfLifeEvent);
 	}
 
 	public clearSuggestWidgetInlineCompletions(tx: ITransaction): void {
