@@ -604,6 +604,22 @@ suite('RemoteAgentHostService', () => {
 			);
 		});
 
+		test('persists managed WebSocket connections in settings', async () => {
+			await addManaged('WebSocket Host', 'managed:1234');
+
+			assert.deepStrictEqual({
+				updateCallCount: configService.updateCallCount,
+				settings: configService.entries,
+			}, {
+				updateCallCount: 1,
+				settings: [{
+					name: 'WebSocket Host',
+					address: 'managed:1234',
+					connectionToken: undefined,
+				}],
+			});
+		});
+
 		test('does not persist ephemeral managed connections', async () => {
 			const tunnelClient = disposables.add(new MockProtocolClient('tunnel:tunnel-id'));
 			await service.addManagedConnection(
@@ -711,9 +727,11 @@ suite('RemoteAgentHostService', () => {
 			);
 
 			assert.deepStrictEqual({
+				updateCallCount: configService.updateCallCount,
 				settings: configService.entries,
 				configured: service.configuredEntries,
 			}, {
+				updateCallCount: 0,
 				settings: [],
 				configured: [{
 					name: 'SSH Host',

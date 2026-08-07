@@ -10,6 +10,7 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
+import { assertNever } from '../../../base/common/assert.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -342,9 +343,26 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 		}));
 
-		if (entry.connection.type === RemoteAgentHostEntryType.WebSocket || entry.connection.type === RemoteAgentHostEntryType.SSH) {
-			// Await persistence before notifying so _reconcile sees the configured entry.
-			await this._storeConfiguredEntries(this._upsertConfiguredEntry(entry));
+		switch (entry.connection.type) {
+			case RemoteAgentHostEntryType.WebSocket:
+				// WebSocket hosts are durable user configuration, so persist them in settings.
+				await this._storeConfiguredSettingEntries(this._upsertConfiguredEntry(entry));
+				break;
+			case RemoteAgentHostEntryType.SSH:
+				// SSH hosts are durable but managed by VS Code, so persist them only in application storage.
+				this._storeStoredSSHEntries(this._upsertConfiguredEntry(entry));
+				break;
+			case RemoteAgentHostEntryType.WSL:
+				// The WSL service owns its distro cache, so registration needs no persistence here.
+				break;
+			case RemoteAgentHostEntryType.Tunnel:
+				// The tunnel service owns discovery and its recent-tunnel cache, so registration needs no persistence here.
+				break;
+			case RemoteAgentHostEntryType.CloudSandbox:
+				// Cloud sandbox connections use short-lived credentials and must remain runtime-only.
+				break;
+			default:
+				assertNever(entry.connection);
 		}
 
 		this._onDidChangeConnections.fire();
@@ -677,6 +695,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	private async _storeConfiguredEntries(entries: IRemoteAgentHostEntry[]): Promise<void> {
 		this._storeStoredSSHEntries(entries.filter(entry => entry.connection.type === RemoteAgentHostEntryType.SSH));
+		await this._storeConfiguredSettingEntries(entries);
+	}
+
+	private async _storeConfiguredSettingEntries(entries: IRemoteAgentHostEntry[]): Promise<void> {
 		const raw = entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.SSH).map(entryToRawEntry).filter(isDefined);
 		await this._configurationService.updateValue(RemoteAgentHostsSettingId, raw, this._getConfigurationTarget());
 	}
