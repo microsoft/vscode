@@ -67,7 +67,7 @@ export function tagWithParent(
 		agentDisplayName: spawn.subagentType ?? 'Subagent',
 		agentDescription: spawn.description,
 		// The Task tool's short `description` input doubles as the concise
-		// per-task tab title for the subagent's read-only peer chat.
+		// per-task tab title for the subagent's read-only chat.
 		taskDescription: spawn.description,
 		// The Task tool's `prompt` input is the full delegated instruction
 		// that seeds the subagent peer chat's opening request.

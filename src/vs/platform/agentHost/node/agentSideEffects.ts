@@ -21,7 +21,7 @@ import type { SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -32,6 +32,7 @@ import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.j
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
+	buildDefaultChatUri,
 	buildSubagentChatUri,
 	chatStorageUri,
 	getToolFileEdits,
@@ -49,6 +50,7 @@ import {
 	PendingMessageKind,
 	ResponsePartKind,
 	ROOT_STATE_URI,
+	resolveChatUri,
 	SessionLifecycle,
 	SessionStatus,
 	ToolCallStatus,
@@ -346,6 +348,12 @@ export class AgentSideEffects extends Disposable {
 				}
 			}
 		}));
+	}
+
+	private _chatContext(session: ProtocolURI, chat: ProtocolURI): IAgentChatContext {
+		const sessionUri = URI.parse(session);
+		const chatUri = URI.parse(chat);
+		return { session: sessionUri, resource: resolveChatUri(sessionUri, chatUri) };
 	}
 
 	/**
@@ -1465,7 +1473,7 @@ export class AgentSideEffects extends Disposable {
 					: action.turnId;
 				// Route to the chat being truncated: the default chat (addressed
 				// by the session) or a peer chat with its own backing.
-				agent?.truncateSession?.(URI.parse(sessionChannel), sdkTurnId, URI.parse(chatChannel)).catch(err => {
+				agent?.truncateSession?.(URI.parse(sessionChannel), sdkTurnId, URI.parse(chatChannel), this._chatContext(sessionChannel, chatChannel)).catch(err => {
 					this._logService.error('[AgentSideEffects] truncateSession failed', err);
 				});
 				// Drop persisted local turns that no longer survive in the
@@ -1557,7 +1565,17 @@ export class AgentSideEffects extends Disposable {
 				// forward a live, session-mutable change (e.g. Claude's
 				// `permissionMode`) to its running SDK without re-entering its own
 				// tool callbacks.
-				this._options.getAgent(channel)?.onSessionConfigChanged?.(URI.parse(channel), values ?? {});
+				const agent = this._options.getAgent(channel);
+				if (agent?.onChatConfigChanged) {
+					const chats = sessionState?.chats.length
+						? sessionState.chats.map(chat => URI.parse(chat.resource))
+						: [URI.parse(buildDefaultChatUri(channel))];
+					for (const chat of chats) {
+						agent.onChatConfigChanged(chat, values ?? {});
+					}
+				} else {
+					agent?.onSessionConfigChanged?.(URI.parse(channel), values ?? {});
+				}
 				break;
 			}
 			case ActionType.ChatToolCallComplete: {
@@ -1860,19 +1878,19 @@ export class AgentSideEffects extends Disposable {
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		try {
 			// Host-owned working-directory resolution: resolve the session's working
-			// directories before the agent materializes, so the agent runs in
-			// index 0 (the process root) without ever knowing how it was derived.
-			// Index 0 is the created worktree for worktree sessions (created here on
-			// the first send) or the picked folder for folder sessions; undefined for
-			// workspace-less sessions. Any additional roots follow index 0.
+			// directory before the agent materializes, so the agent runs in it
+			// without ever knowing how it was derived. Returns the created worktree
+			// for worktree sessions (created here on the first send) or the picked
+			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
+			const chatContext = this._chatContext(options.sessionChannel, chat);
 
 			const selectionUpdates: Promise<void>[] = [];
 			if (message.model) {
 				failureStage = 'modelSelection';
-				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model));
+				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model, chatContext));
 			}
-			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent).catch(err => {
+			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent, chatContext).catch(err => {
 				this._logService.error('[AgentSideEffects] changeAgent failed', err);
 			}));
 
@@ -1880,7 +1898,7 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType);
+			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType, chatContext);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;

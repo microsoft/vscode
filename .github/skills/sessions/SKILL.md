@@ -26,6 +26,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Do not make an agent infer AH chat membership from shared SDK resources**: Agent Host owns the chat catalog, default-chat identity, lifecycle ordering, and config fan-out. Agents should keep flat chat-to-SDK and SDK-id reverse indexes and apply each AH request to exactly the addressed chat; shared resource placement does not justify sibling grouping or cascades.
+- **Do not encode AH membership terminology in an agent**: provider records must describe only concrete SDK backing data. Names and branches such as `isPeerChat`, `peerChat`, or provider-side default/session-chat roles leak AH grouping into the agent; route exact chats from their binding instead. If an operation needs session or persistence information, AH passes it as transient context; never retain or derive it from a chat URI.
 - **Paired experiment treatments must resolve atomically**: when a prompt and its editable placeholder are separate treatment values, use them only when both are non-empty; otherwise use both defaults so copy from different variants is never mixed. The prompt may omit the placeholder token entirely, in which case it is used literally and placeholder highlighting is simply absent.
 
 - **Onboarding variations share structural steps and vary only their run step**: keep one scenario for workspace selection, then resolve the experiment/developer variation when the run step executes. Personalized GitHub prompts use existing authentication silently, stay within a bounded cancellable lookup, verify that the selected draft workspace is still current, and fall back to the default prompt without surfacing an error.

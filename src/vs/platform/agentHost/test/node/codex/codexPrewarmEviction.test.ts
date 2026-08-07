@@ -8,6 +8,7 @@ import assert from 'assert';
 import { PassThrough } from 'stream';
 import * as fs from 'fs';
 import * as os from 'os';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -204,6 +205,12 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
+	const createSession = agent.createSession.bind(agent);
+	agent.createSession = async config => {
+		const created = await createSession(config);
+		await agent.chats.bindSessionChat?.(URI.parse(buildDefaultChatUri(created.session)), created.session);
+		return created;
+	};
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
 	await agent.refreshModels();
 	return agent;
@@ -285,8 +292,170 @@ suite('CodexAgent prewarm eviction', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('immediately releases, restores, and sends a workspace-less peer before metadata flushes', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const metadataWrite = new DeferredPromise<void>();
+		agent['_metadataStore'].write = async () => metadataWrite.p;
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const parent = await agent.createSession({ model: { id: COPILOT_TEST_MODEL } });
+		const chat = URI.parse('agent-chat://peer/workspace-less');
+		const creating = agent.chats.createChat(chat, { session: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'thread-peer' } } });
+		const created = await creating;
+		assert.ok(created);
+		const peerEntry = agent['_sessions'].get('thread-peer')!;
+		const managedDirectory = peerEntry.managedWorkingDirectory;
+		assert.ok(managedDirectory);
+		const backingSession = created.backingSession;
+		assert.ok(backingSession);
+
+		const releasing = agent.chats.releaseChat?.(chat);
+		const releaseUnsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: releaseUnsubscribe.id, result: {} });
+		await releasing;
+		assert.strictEqual(fs.existsSync(managedDirectory.fsPath), true);
+
+		await agent.materializeChat(chat, parent.session, created.providerData);
+		const restoredEntry = agent['_sessions'].get('thread-peer')!;
+		const sending = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-peer');
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({
+			id: resume.id,
+			result: {
+				thread: { id: 'thread-peer', cwd: managedDirectory.fsPath },
+				cwd: managedDirectory.fsPath,
+			},
+		});
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			start: { method: start.method, cwd: start.params.cwd },
+			release: { method: releaseUnsubscribe.method, threadId: releaseUnsubscribe.params.threadId },
+			resume: { method: resume.method, threadId: resume.params.threadId },
+			turn: { method: turn.method, threadId: turn.params.threadId },
+			parentMaterialized: agent['_sessions'].get(AgentSession.id(parent.session))?.threadId,
+			parentOwnsManagedDirectory: agent['_sessions'].get(AgentSession.id(parent.session))?.managedWorkingDirectory?.fsPath,
+			restoredPeerOwnsManagedDirectory: restoredEntry.managedWorkingDirectory?.fsPath,
+			managedDirectoryExists: fs.existsSync(managedDirectory.fsPath),
+		}, {
+			start: { method: 'thread/start', cwd: managedDirectory.fsPath },
+			release: { method: 'thread/unsubscribe', threadId: 'thread-peer' },
+			resume: { method: 'thread/resume', threadId: 'thread-peer' },
+			turn: { method: 'turn/start', threadId: 'thread-peer' },
+			parentMaterialized: undefined,
+			parentOwnsManagedDirectory: undefined,
+			restoredPeerOwnsManagedDirectory: managedDirectory.fsPath,
+			managedDirectoryExists: true,
+		});
+
+		const disposing = agent.chats.disposeChat(chat);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		await disposing;
+		assert.strictEqual(fs.existsSync(managedDirectory.fsPath), false);
+		await metadataWrite.complete(undefined);
+		peer.exit();
+	});
+
+	test('cold chat restore waits for model refresh before validating its provider-qualified model', async () => {
+		const agent = await createAgent(disposables);
+		const catalogModel = {
+			...agent.models.get()[0],
+			provider: 'chatgpt',
+			id: toCodexModelSelectionId('openai', 'gpt-test'),
+		};
+		const selectedModel = { id: catalogModel.id, config: { reasoningEffort: 'high' } };
+		const refresh = new DeferredPromise<void>();
+		agent['_models'].set([], undefined);
+		agent['_modelsRefreshPromise'] = refresh.p;
+		const chat = URI.parse('agent-chat://peer/restored');
+
+		const materializing = agent.materializeChat(chat, AgentSession.uri('codex', 'parent'), JSON.stringify({
+			sessionId: 'restored-peer',
+			model: selectedModel,
+		}));
+		await Promise.resolve();
+		assert.strictEqual(agent['_sessions'].has('restored-peer'), false);
+
+		agent['_models'].set([catalogModel], undefined);
+		await refresh.complete(undefined);
+		await materializing;
+
+		assert.deepStrictEqual(agent['_sessions'].get('restored-peer')?.model, selectedModel);
+	});
+
+	test('cold chat restore refreshes an empty model catalog before validation', async () => {
+		const agent = await createAgent(disposables);
+		const selectedModel = { id: COPILOT_TEST_MODEL, config: { reasoningEffort: 'high' } };
+		agent['_models'].set([], undefined);
+		assert.strictEqual(agent['_modelsRefreshPromise'], undefined);
+
+		await agent.materializeChat(
+			URI.parse('agent-chat://peer/restored-empty-catalog'),
+			AgentSession.uri('codex', 'parent'),
+			JSON.stringify({ sessionId: 'restored-empty-catalog', model: selectedModel }),
+		);
+
+		assert.deepStrictEqual(agent['_sessions'].get('restored-empty-catalog')?.model, selectedModel);
+	});
+
+	test('disposing a released workspace-less peer removes its managed directory', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const parent = await agent.createSession({ model: { id: COPILOT_TEST_MODEL } });
+		const chat = URI.parse('agent-chat://peer/release-dispose');
+		const creating = agent.chats.createChat(chat, { session: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'released-peer' } } });
+		const created = await creating;
+		assert.ok(created?.backingSession);
+		const managedDirectory = agent['_sessions'].get('released-peer')?.managedWorkingDirectory;
+		assert.ok(managedDirectory);
+		await agent['_metadataStore'].read(created.backingSession);
+
+		const releasing = agent.chats.releaseChat?.(chat);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		await releasing;
+		assert.strictEqual(fs.existsSync(managedDirectory.fsPath), true);
+
+		await agent.chats.disposeChat(chat);
+		assert.deepStrictEqual({
+			sessionExists: agent['_sessions'].has('released-peer'),
+			releasedOwnershipExists: agent['_releasedManagedWorkingDirectories'].has('released-peer'),
+			managedDirectoryExists: fs.existsSync(managedDirectory.fsPath),
+		}, {
+			sessionExists: false,
+			releasedOwnershipExists: false,
+			managedDirectoryExists: false,
+		});
+		peer.exit();
+	});
+
 	test('routes provider-qualified models independently and switches one session', async () => {
 		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -945,6 +1114,82 @@ suite('CodexAgent prewarm eviction', () => {
 				workingDirectories: [requestedA, requestedB],
 				fork: { session: source.session, turnId: 'turn-1', turnIndex: 0 },
 			});
+
+			test('fork from a workspace-less session owns an independent managed directory', async () => {
+				const agent = await createAgent(disposables);
+				const peer = disposables.add(createTestPeer());
+				agent['_connection'] = {
+					kind: 'ready',
+					client: new CodexAppServerClient(peer.transport),
+					usageSource: 'github',
+					child: { kill: () => true },
+				} as never;
+				agent['_refreshSkillHookCustomizations'] = async () => { };
+				agent['_refreshSkillExtraRoots'] = async () => { };
+
+				const source = await agent.createSession({ model: { id: COPILOT_TEST_MODEL } });
+				const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
+				const start = await readNextRequest(peer.outbound);
+				peer.push({ id: start.id, result: { thread: { id: 'managed-source', cwd: start.params.cwd } } });
+				await sourceEntry.materializePromise;
+				const sourceDirectory = sourceEntry.managedWorkingDirectory;
+				assert.ok(sourceDirectory);
+				await fs.promises.writeFile(join(sourceDirectory.fsPath, 'marker.txt'), 'fork me');
+
+				const forking = agent.createSession({
+					fork: { session: source.session, turnId: 'turn-1', turnIndex: 0 },
+				});
+				const read = await readNextRequest(peer.outbound);
+				peer.push({
+					id: read.id,
+					result: {
+						thread: {
+							id: 'managed-source',
+							cwd: sourceDirectory.fsPath,
+							turns: [{ id: 'turn-1' }],
+						},
+					},
+				});
+				const fork = await readNextRequest(peer.outbound);
+				const forkDirectory = fork.params.cwd;
+				assert.ok(forkDirectory);
+				assert.notStrictEqual(forkDirectory, sourceDirectory.fsPath);
+				peer.push({
+					id: fork.id,
+					result: {
+						thread: { id: 'managed-fork', cwd: forkDirectory },
+						cwd: forkDirectory,
+					},
+				});
+				const forked = await forking;
+				const forkedEntry = agent['_sessions'].get(AgentSession.id(forked.session))!;
+
+				const disposingSource = agent.disposeSession(source.session);
+				const sourceUnsubscribe = await readNextRequest(peer.outbound);
+				peer.push({ id: sourceUnsubscribe.id, result: {} });
+				await disposingSource;
+
+				assert.deepStrictEqual({
+					forkRequest: { method: fork.method, cwd: fork.params.cwd },
+					forkOwnsManagedDirectory: forkedEntry.managedWorkingDirectory?.fsPath,
+					sourceDirectoryExists: fs.existsSync(sourceDirectory.fsPath),
+					forkDirectoryExists: fs.existsSync(forkDirectory),
+					copiedMarker: await fs.promises.readFile(join(forkDirectory, 'marker.txt'), 'utf8'),
+				}, {
+					forkRequest: { method: 'thread/fork', cwd: forkDirectory },
+					forkOwnsManagedDirectory: forkDirectory,
+					sourceDirectoryExists: false,
+					forkDirectoryExists: true,
+					copiedMarker: 'fork me',
+				});
+
+				const disposingFork = agent.disposeSession(forked.session);
+				const forkUnsubscribe = await readNextRequest(peer.outbound);
+				peer.push({ id: forkUnsubscribe.id, result: {} });
+				await disposingFork;
+				assert.strictEqual(fs.existsSync(forkDirectory), false);
+				peer.exit();
+			});
 			const read = await readNextRequest(peer.outbound);
 			peer.push({
 				id: read.id,
@@ -1049,6 +1294,7 @@ suite('CodexAgent prewarm eviction', () => {
 			});
 			const metadata = await metadataPromise;
 
+			await agentB.chats.bindSessionChat?.(URI.parse(buildDefaultChatUri(created.session)), created.session);
 			const resumedSend = agentB.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'again', undefined, undefined, 'turn-2');
 			const resume = await readNextRequest(peerB.outbound);
 			peerB.push({
