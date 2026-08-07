@@ -281,6 +281,9 @@ While the editor area is hidden, the managed Changes editor and Files placeholde
 `EditorInputCapabilities.CannotClose`, so standard close actions cannot remove either tab from the
 visible detail panel. Revealing the editor area makes both tabs closeable again. Managed-tab
 reconciliation uses an explicit forced close when it removes stale inputs or tidies the Files placeholder.
+In a Details-only composition, the tab-collapse strategy re-runs after each session working-set restore
+and editor-list change. Any restored non-docked editors are closed and captured for reopening when the
+editor area is shown, so the hidden-editor tab strip contains only the docked Changes and Files inputs.
 While the detail is visible, every diff editor selects the Changes container and every file editor
 selects the Files container, regardless of whether the file is inside the active session workspace.
 Rendered Markdown preview and Markdown custom editors also select Files.
