@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as crypto from 'crypto';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from '../../common/workspaceTags.js';
+import { getCargoDependencyNames } from '../../common/rustWorkspaceTags.js';
 
 function hash(value: string): string {
 	return crypto.createHash('sha256').update(value.toString()).digest('hex');
@@ -51,6 +52,47 @@ suite('Telemetry - WorkspaceTags', () => {
 		// Compare Striped .git with no .git
 		const noDotGitConfig = ['https://github.com/microsoft/vscode', 'https://git.example.com/gitproject'].map(remote).join(' ');
 		assert.deepStrictEqual(await getHashedRemotesFromConfig(config, true), await getHashedRemotesFromConfig(noDotGitConfig));
+	});
+
+	test('Cargo dependencies', () => {
+		const manifest = `
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+http-client = { package = "reqwest", version = "0.12" }
+serde_json.workspace = true
+
+[dev-dependencies]
+pretty_assertions = "1"
+
+[build-dependencies.bindgen]
+version = "0.72"
+
+[workspace.dependencies]
+azure_identity = "1"
+renamed-azure.package = "azure_storage_blob"
+renamed-azure.version = "1"
+
+[target.'cfg(unix)'.dependencies]
+rustls = "0.23"
+
+[target."cfg(windows)".dependencies.windows-sys]
+version = "0.60"
+
+[package.metadata.example]
+not-a-dependency = "1"
+`;
+
+		assert.deepStrictEqual(getCargoDependencyNames(manifest).sort(), [
+			'azure_identity',
+			'azure_storage_blob',
+			'bindgen',
+			'pretty_assertions',
+			'reqwest',
+			'rustls',
+			'serde_json',
+			'tokio',
+			'windows-sys'
+		]);
 	});
 
 	function remote(url: string): string {
