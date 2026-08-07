@@ -927,6 +927,22 @@ export interface IDiffEditorBaseOptions {
 	ignoreTrimWhitespace?: boolean;
 
 	/**
+	 * Compute the diff by ignoring whitespace strictly between two non-whitespace characters
+	 * on a line. Leading/trailing whitespace (indentation) is unaffected by this option — see
+	 * {@link ignoreTrimWhitespace} for that.
+	 * Defaults to false.
+	 */
+	ignoreInteriorSpacing?: boolean;
+
+	/**
+	 * Compute the diff by ignoring whitespace everywhere on a line, both interior spacing and
+	 * leading/trailing whitespace (indentation). Equivalent to `git diff --ignore-all-space`.
+	 * When set, takes effect regardless of {@link ignoreTrimWhitespace} / {@link ignoreInteriorSpacing}.
+	 * Defaults to false.
+	 */
+	ignoreAllSpaces?: boolean;
+
+	/**
 	 * Render +/- indicators for added/deleted changes.
 	 * Defaults to true.
 	 */

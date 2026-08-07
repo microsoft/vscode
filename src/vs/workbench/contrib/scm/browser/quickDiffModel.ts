@@ -150,7 +150,10 @@ export class QuickDiffModel extends Disposable {
 		this._register(textFileModel.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 		this._register(
 			Event.filter(configurationService.onDidChangeConfiguration,
-				e => e.affectsConfiguration('scm.diffDecorationsIgnoreTrimWhitespace') || e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')
+				e => e.affectsConfiguration('scm.diffDecorationsIgnoreTrimWhitespace')
+					|| e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')
+					|| e.affectsConfiguration('diffEditor.ignoreInteriorSpacing')
+					|| e.affectsConfiguration('diffEditor.ignoreAllSpaces')
 			)(this.triggerDiff, this)
 		);
 		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
@@ -276,12 +279,16 @@ export class QuickDiffModel extends Disposable {
 			const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
 				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
 				: ignoreTrimWhitespaceSetting !== 'false';
+			// No separate scm.* overrides for these two (unlike ignoreTrimWhitespace above) — the
+			// gutter decorations simply inherit the diff editor's settings directly.
+			const ignoreInteriorSpacing = this.configurationService.getValue<boolean>('diffEditor.ignoreInteriorSpacing');
+			const ignoreAllSpaces = this.configurationService.getValue<boolean>('diffEditor.ignoreAllSpaces');
 
 			const diffs: QuickDiffChange[] = [];
 			const secondaryDiffs: QuickDiffChange[] = [];
 
 			for (const quickDiff of quickDiffs) {
-				const diff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
+				const diff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace, ignoreInteriorSpacing, ignoreAllSpaces);
 				if (diff.changes && diff.changes2 && diff.changes.length === diff.changes2.length) {
 					for (let index = 0; index < diff.changes.length; index++) {
 						const change2 = diff.changes2[index];
@@ -345,11 +352,11 @@ export class QuickDiffModel extends Disposable {
 		});
 	}
 
-	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
+	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, ignoreInteriorSpacing: boolean, ignoreAllSpaces: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
 		const maxComputationTimeMs = this.options.maxComputationTimeMs ?? Number.MAX_SAFE_INTEGER;
 
 		const result = await this.editorWorkerService.computeDiff(original, modified, {
-			computeMoves: false, ignoreTrimWhitespace, maxComputationTimeMs
+			computeMoves: false, ignoreTrimWhitespace, ignoreInteriorSpacing, ignoreAllSpaces, maxComputationTimeMs
 		}, this.options.algorithm);
 
 		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };

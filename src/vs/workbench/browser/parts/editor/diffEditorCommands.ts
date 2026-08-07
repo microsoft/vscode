@@ -20,6 +20,8 @@ export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSe
 export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
 export const DIFF_OPEN_SIDE = 'workbench.action.compareEditor.openSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
+export const TOGGLE_DIFF_IGNORE_INTERIOR_SPACING = 'toggle.diff.ignoreInteriorSpacing';
+export const TOGGLE_DIFF_IGNORE_ALL_SPACES = 'toggle.diff.ignoreAllSpaces';
 export const DIFF_SWAP_SIDES = 'workbench.action.compareEditor.swapSides';
 
 export function registerDiffEditorCommands(): void {
@@ -106,6 +108,22 @@ export function registerDiffEditorCommands(): void {
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, ...args) => accessor.get(IDiffEditorCommandsService).toggleDiffIgnoreTrimWhitespace(args)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: TOGGLE_DIFF_IGNORE_INTERIOR_SPACING,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, ...args) => accessor.get(IDiffEditorCommandsService).toggleDiffIgnoreInteriorSpacing(args)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: TOGGLE_DIFF_IGNORE_ALL_SPACES,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, ...args) => accessor.get(IDiffEditorCommandsService).toggleDiffIgnoreAllSpaces(args)
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({

@@ -10,6 +10,8 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { LinesSliceCharSequence } from '../../../common/diff/defaultLinesDiffComputer/linesSliceCharSequence.js';
 import { MyersDiffAlgorithm } from '../../../common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm.js';
 import { DynamicProgrammingDiffing } from '../../../common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing.js';
+import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { ILinesDiffComputerOptions } from '../../../common/diff/linesDiffComputer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ArrayText } from '../../../common/core/text/abstractText.js';
 
@@ -114,5 +116,161 @@ suite('LinesSliceCharSequence', () => {
 			{ result: sequence.getText(sequence.extendToFullLines(new OffsetRange(20, 45))) },
 			({ result: 'line3: barr\nline4: hello world\n' })
 		);
+	});
+});
+
+suite('LinesSliceCharSequence with ignoreInteriorWhitespace', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function textOf(seq: LinesSliceCharSequence): string {
+		return seq.getText(new OffsetRange(0, seq.length));
+	}
+
+	test('collapses interior spacing but keeps indentation, considerWhitespaceChanges=true', () => {
+		const seq = new LinesSliceCharSequence(
+			['  if ( x  ==  1 )   {'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			true,
+			true,
+		);
+		// leading indentation ("  ") and the single trailing space before "{" boundary handling
+		// are preserved; only whitespace strictly between non-whitespace tokens is dropped.
+		assert.strictEqual(textOf(seq), '  if(x==1){');
+	});
+
+	test('drops all whitespace when considerWhitespaceChanges=false too (ignoreAllSpaces equivalent)', () => {
+		const seq = new LinesSliceCharSequence(
+			['  if ( x  ==  1 )   {'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			false,
+			true,
+		);
+		assert.strictEqual(textOf(seq), 'if(x==1){');
+	});
+
+	test('leading indentation is preserved as literal characters when there is no interior spacing to strip', () => {
+		const seq = new LinesSliceCharSequence(
+			['    x;'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			true,
+			true,
+		);
+		assert.strictEqual(textOf(seq), '    x;');
+	});
+
+	test('a single interior space between tokens is stripped, even on an otherwise simple line', () => {
+		const seq = new LinesSliceCharSequence(
+			['    return 1;'],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			true,
+			true,
+		);
+		assert.strictEqual(textOf(seq), '    return1;');
+	});
+
+	test('translateOffset resolves back to real positions around collapsed interior whitespace', () => {
+		const raw = '  if ( x  ==  1 )   {';
+		const seq = new LinesSliceCharSequence(
+			[raw],
+			new Range(1, 1, 1, Number.MAX_SAFE_INTEGER),
+			true,
+			true,
+		);
+		// Leading indentation is kept as literal (non-interior) characters, so offset 0 legitimately
+		// resolves to the first raw character, a space, at column 1.
+		assert.strictEqual(seq.translateOffset(0).toString(), '(1,1)');
+
+		const leadingLen = raw.length - raw.trimStart().length;
+		const trailingLen = raw.length - raw.trimEnd().length;
+		const positions = OffsetRange.ofLength(seq.length).map(o => seq.translateOffset(o).toString());
+		let lastCol = 0;
+		for (let i = 0; i < positions.length; i++) {
+			const m = /\((\d+),(\d+)\)/.exec(positions[i])!;
+			const col = parseInt(m[2], 10);
+			// Positions must be strictly increasing: no two kept characters collapse onto the same column.
+			assert.ok(col > lastCol, `position ${positions[i]} for kept char index ${i} should advance past column ${lastCol}`);
+			lastCol = col;
+			const rawIdx = col - 1;
+			const isInterior = rawIdx >= leadingLen && rawIdx < raw.length - trailingLen;
+			if (isInterior) {
+				// Only non-interior (leading/trailing) whitespace may survive; any whitespace strictly
+				// between two kept characters must have been dropped from the sequence entirely.
+				assert.ok(!/\s/.test(raw[rawIdx]), `interior position ${positions[i]} for kept char index ${i} should not resolve to whitespace`);
+			}
+		}
+	});
+
+	test('end-to-end: interior-only diff produces no changes when ignoreInteriorWhitespace is set', () => {
+		const s1 = new LinesSliceCharSequence(['if(x==1){'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
+		const s2 = new LinesSliceCharSequence(['if ( x == 1 ) {'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
+		assert.strictEqual(textOf(s1), textOf(s2));
+	});
+
+	test('indentation-only diff still differs when ignoreInteriorWhitespace is set without ignoreAllSpaces', () => {
+		const s1 = new LinesSliceCharSequence(['  return 1;'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
+		const s2 = new LinesSliceCharSequence(['    return 1;'], new Range(1, 1, 1, Number.MAX_SAFE_INTEGER), true, true);
+		assert.notStrictEqual(textOf(s1), textOf(s2));
+	});
+});
+
+suite('DefaultLinesDiffComputer.computeDiff with ignoreInteriorSpacing/ignoreAllSpaces', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function computeDiff(originalLines: string[], modifiedLines: string[], options: Partial<ILinesDiffComputerOptions>) {
+		return new DefaultLinesDiffComputer().computeDiff(originalLines, modifiedLines, {
+			ignoreTrimWhitespace: false,
+			maxComputationTimeMs: Number.MAX_SAFE_INTEGER,
+			computeMoves: false,
+			...options,
+		});
+	}
+
+	test('ignoreInteriorSpacing alone hides an interior-only change across a whole file', () => {
+		const original = ['if ( x  ==  1 ) {', '  return   x+y;', '}'];
+		const modified = ['if(x==1){', '  return x + y;', '}'];
+		const diff = computeDiff(original, modified, { ignoreInteriorSpacing: true });
+		assert.deepStrictEqual(diff.changes, []);
+	});
+
+	test('ignoreInteriorSpacing alone still surfaces an indentation-only change', () => {
+		const original = ['if (x == 1) {', '  return x + y;', '}'];
+		const modified = ['if (x == 1) {', '    return x + y;', '}'];
+		const diff = computeDiff(original, modified, { ignoreInteriorSpacing: true });
+		assert.notDeepStrictEqual(diff.changes, []);
+	});
+
+	test('ignoreAllSpaces hides both interior and indentation changes together', () => {
+		const original = ['if ( x  ==  1 ) {', '  return   x+y;', '}'];
+		const modified = ['if(x==1){', '        return x + y;', '}'];
+		const diff = computeDiff(original, modified, { ignoreAllSpaces: true });
+		assert.deepStrictEqual(diff.changes, []);
+	});
+
+	test('ignoreTrimWhitespace + ignoreInteriorSpacing together behave like ignoreAllSpaces alone', () => {
+		const original = ['if ( x  ==  1 ) {', '  return   x+y;', '}'];
+		const modified = ['if(x==1){', '        return x + y;', '}'];
+		const combined = computeDiff(original, modified, { ignoreTrimWhitespace: true, ignoreInteriorSpacing: true });
+		const allSpaces = computeDiff(original, modified, { ignoreAllSpaces: true });
+		assert.deepStrictEqual(combined.changes, []);
+		assert.deepStrictEqual(allSpaces.changes, []);
+	});
+
+	test('a real content change still surfaces when ignoreAllSpaces also hides unrelated whitespace-only lines', () => {
+		const original = ['function f() {', 'if ( x  ==  1 ) {', '  return   x+y;', '}', '}'];
+		const modified = ['function f() {', 'if(x==1){', '        return x + y + 1;', '}', '}'];
+		const diff = computeDiff(original, modified, { ignoreAllSpaces: true });
+		assert.strictEqual(diff.changes.length, 1);
+		assert.strictEqual(diff.changes[0].original.startLineNumber, 3);
+		assert.strictEqual(diff.changes[0].modified.startLineNumber, 3);
+	});
+
+	test('empty document vs a whitespace-only document is not reported as a full change under ignoreAllSpaces', () => {
+		const diff = computeDiff([''], ['   '], { ignoreAllSpaces: true });
+		assert.deepStrictEqual(diff.changes, []);
+	});
+
+	test('empty document vs a whitespace-only document is still a full change when whitespace is not ignored', () => {
+		const diff = computeDiff([''], ['   '], {});
+		assert.notDeepStrictEqual(diff.changes, []);
 	});
 });

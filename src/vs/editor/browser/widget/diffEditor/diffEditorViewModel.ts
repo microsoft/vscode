@@ -293,6 +293,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 			let result = await documentDiffProvider.diffProvider.computeDiff(model.original, model.modified, {
 				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
+				ignoreInteriorSpacing: this._options.ignoreInteriorSpacing.read(reader),
+				ignoreAllSpaces: this._options.ignoreAllSpaces.read(reader),
 				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
 				computeMoves: this._options.showMoves.read(reader),
 			}, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);

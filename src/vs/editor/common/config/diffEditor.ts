@@ -14,6 +14,8 @@ export const diffEditorDefaultOptions = {
 	maxComputationTime: 5000,
 	maxFileSize: 50,
 	ignoreTrimWhitespace: true,
+	ignoreInteriorSpacing: false,
+	ignoreAllSpaces: false,
 	renderIndicators: true,
 	originalEditable: false,
 	diffCodeLens: false,
