@@ -14,6 +14,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
@@ -211,6 +212,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const data = events[0].data as Record<string, unknown>;
 		assert.strictEqual(data.provider, 'mock');
 		assert.strictEqual(data.agentSessionId, 'session-1');
+		assert.strictEqual(data.chatSessionId, getTelemetryChatSessionId(defaultChatUri));
 		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.result, 'success');
 		assert.deepStrictEqual(capturedModel(data), { trusted: true, value: 'gpt-5.5' });
@@ -299,6 +301,45 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
 		assert.strictEqual((events[0].data as Record<string, unknown>).errorType, 'oops');
+	});
+
+	test('correlates turn failure with chat and provider request identifiers', () => {
+		setupSession();
+		startTurn('turn-1');
+		fire({
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 1000,
+			error: {
+				errorType: 'quota',
+				message: 'quota exceeded',
+				_meta: {
+					chatError: {
+						fetchError: {
+							requestId: 'provider-request-id',
+							serverRequestId: 'service-request-id',
+						},
+					},
+				},
+			},
+		});
+
+		assert.deepStrictEqual(failedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				agentSessionId: data.agentSessionId,
+				chatSessionId: data.chatSessionId,
+				turnId: data.turnId,
+				providerCallId: data.providerCallId,
+				serviceRequestId: data.serviceRequestId,
+			};
+		}), [{
+			agentSessionId: 'session-1',
+			chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+			turnId: 'turn-1',
+			providerCallId: 'provider-request-id',
+			serviceRequestId: 'service-request-id',
+		}]);
 	});
 
 	test('emits a single turnCompleted per turn even when followed by duplicate completions', () => {

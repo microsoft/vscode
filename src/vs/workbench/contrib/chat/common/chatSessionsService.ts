@@ -86,7 +86,7 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
-		readonly endsAt: string;
+		readonly endsAt?: string;
 		readonly message: string;
 	};
 	readonly maxInputTokens?: number;
@@ -772,6 +772,11 @@ export interface IChatSessionsService {
 
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
 	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
+	/**
+	 * Reads a session's history without retaining a contributed session in the
+	 * global session cache. Intended for lightweight ranking and previews.
+	 */
+	getChatSessionHistory(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionHistoryItem[]>;
 
 	/**
 	 * Programmatically register a chat session contribution (for internal session types

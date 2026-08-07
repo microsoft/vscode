@@ -19,7 +19,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js';
 import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { SegmentedVoiceInputModePillInactive } from '../voiceInputMode/voiceInputModeContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -32,7 +32,7 @@ import { cancelDictation, isDictating, startDictation, stopDictation } from '../
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
 // hidden (not just disabled) when the user has turned AI features off; without
-// it the F1 "Dictate: Select Microphone" command stays discoverable.
+// it the F1 "Select Microphone" command stays discoverable.
 export const ChatSpeechToTextConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key));
 /** True while the selected dictation backend is preparing. */
 export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.speechToTextPreparing.key);
@@ -299,10 +299,12 @@ class SelectSpeechToTextMicrophoneAction extends Action2 {
 	constructor() {
 		super({
 			id: SelectSpeechToTextMicrophoneAction.ID,
-			title: localize2('chat.speechToText.selectMicrophone', "Dictate: Select Microphone"),
+			title: localize2('chat.speechToText.selectMicrophone', "Select Microphone"),
 			category: CHAT_CATEGORY,
 			f1: true,
-			precondition: ChatSpeechToTextConfigured,
+			// Shared by dictation and Voice Mode (both persist to the same
+			// device), so stay available whenever either feature is enabled.
+			precondition: ContextKeyExpr.or(ChatSpeechToTextConfigured, AGENTS_VOICE_ENABLED),
 		});
 	}
 

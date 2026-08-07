@@ -76,6 +76,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _newSession = observableValue<ISession | undefined>(this, undefined);
 	readonly newSession: IObservable<ISession | undefined> = this._newSession;
 
+	/** Tracks the Automation dialog's in-progress session draft. */
+	private readonly _automationSession = observableValue<ISession | undefined>(this, undefined);
+	readonly automationSession: IObservable<ISession | undefined> = this._automationSession;
+
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 
@@ -177,6 +181,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const current = this._newSession.get();
 			if (current && e.removed.some(r => r.sessionId === current.sessionId)) {
 				this._newSession.set(undefined, undefined);
+			}
+			const automationSession = this._automationSession.get();
+			if (automationSession && e.removed.some(r => r.sessionId === automationSession.sessionId)) {
+				this._automationSession.set(undefined, undefined);
 			}
 		}
 
@@ -371,6 +379,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidDiscardNewSession.fire(current);
 	}
 
+	discardAutomationSession(session?: ISession): void {
+		const current = this._automationSession.get();
+		if (!current || (session && session.sessionId !== current.sessionId)) {
+			return;
+		}
+		this._automationSession.set(undefined, undefined);
+		this._getProvider(current)?.deleteNewSession(current.sessionId);
+	}
+
 	/**
 	 * Resolve the provider and session type to use for a new session in the
 	 * given folder. Includes that provider's resolved workspace so headless
@@ -440,6 +457,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
 		}
 		this._newSession.set(session, undefined);
+		return session;
+	}
+
+	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
+		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
+		const previousAutomationSession = this._automationSession.get();
+		const session = provider.createNewSession(folderUri, sessionTypeId);
+		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
+			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
+		}
+		this._automationSession.set(session, undefined);
 		return session;
 	}
 
@@ -513,6 +541,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
 		}
+		return session;
+	}
+
+	createAutomationQuickChat(options?: ICreateNewSessionOptions): ISession {
+		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
+		const previousAutomationSession = this._automationSession.get();
+		const session = provider.createQuickChat(sessionTypeId);
+		if (previousAutomationSession && previousAutomationSession.sessionId !== session.sessionId) {
+			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
+		}
+		this._automationSession.set(session, undefined);
 		return session;
 	}
 

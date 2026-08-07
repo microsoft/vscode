@@ -5,11 +5,32 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { shouldShowDiscoveredConfigNudge } from '../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, shouldShowDiscoveredConfigNudge } from '../../browser/sessionsAuthGate.js';
 
 suite('Sessions - Auth Gate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('conditionalAuthState treats an unresolved account as unknown, never signed out', () => {
+		// The root-cause distinction: before the account resolves, its snapshot is
+		// null for signed-in and signed-out users alike, so `accountResolved: false`
+		// must map to Unresolved regardless of the (untrustworthy) signedIn snapshot —
+		// otherwise the conditional-auth UI flashes a sign-in modal at a signed-in
+		// user during startup.
+		const cases = [
+			{ accountResolved: false, signedIn: false },
+			{ accountResolved: false, signedIn: true },
+			{ accountResolved: true, signedIn: false },
+			{ accountResolved: true, signedIn: true },
+		];
+
+		assert.deepStrictEqual(cases.map(c => conditionalAuthState(c.accountResolved, c.signedIn)), [
+			ConditionalAuthState.Unresolved,
+			ConditionalAuthState.Unresolved,
+			ConditionalAuthState.SignedOut,
+			ConditionalAuthState.SignedIn,
+		]);
+	});
 
 	test('shows the discovered-config nudge only when signed out, opted in, the type is usable without GitHub, and not muted', () => {
 		// Independent source of truth: the nudge is the calm inverse of the gate —

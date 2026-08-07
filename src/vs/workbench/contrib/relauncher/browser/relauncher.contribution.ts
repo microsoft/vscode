@@ -70,7 +70,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'accessibility.verbosity.debug',
 		'telemetry.feedback.enabled',
 		'chat.extensionUnification.enabled',
-		'chat.agentHost.enabled',
 		'chat.agentHost.claudeAgent.enabled',
 		'chat.agentHost.byokModels.enabled',
 		'chat.agents.claude.preferAgentHost',
@@ -98,7 +97,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
-	private readonly agentHostEnabled = new ChangeObserver('boolean');
 	private readonly agentHostClaudeAgentEnabled = new ChangeObserver('boolean');
 	private readonly agentHostByokModelsEnabled = new ChangeObserver('boolean');
 	private readonly agentsClaudePreferAgentHost = new ChangeObserver('boolean');
@@ -203,7 +201,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		processChanged(this.extensionUnificationEnabled.handleChange(config.chat?.extensionUnification?.enabled) && config.chat?.extensionUnification?.enabled === true);
 
 		// Agent Host
-		processChanged(this.agentHostEnabled.handleChange(config.chat?.agentHost?.enabled));
 		processChanged(this.agentHostByokModelsEnabled.handleChange(config.chat?.agentHost?.byokModels?.enabled));
 
 		// Claude provider registration and implementation preferences are read at spawn.

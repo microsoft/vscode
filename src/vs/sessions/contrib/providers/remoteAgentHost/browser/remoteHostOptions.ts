@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { promptRemoteAgentHostLocationPreference } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
@@ -236,9 +241,154 @@ export interface IShowRemoteHostOptionsOptions {
 	readonly showBackButton?: boolean;
 }
 
+/** Stable per-host preference key prefix used by SSH remote agent hosts. Mirrors `computeSSHConnectionKey`. */
+const SSH_ADDRESS_PREFIX = 'ssh:';
+
+/**
+ * Whether `preferenceKey` identifies a host that can have a preferred agent
+ * run location. Only SSH and tunnel preference keys are supported today —
+ * WebSocket, WSL, and cloud-sandbox addresses are not stable/dedicated-host-capable
+ * targets for {@link IRemoteAgentHostLocationPreferenceService}.
+ *
+ * `preferenceKey` must be the host's *stable* preference key (e.g. an SSH
+ * host's `ssh:<alias>` from `computeSSHConnectionKey`, or `tunnel:<id>`),
+ * NOT its live connection address — a real SSH provider's `remoteAddress`
+ * is a forwarded local endpoint (e.g. `localhost:4321`) that never starts
+ * with `ssh:`, so passing it here would wrongly suppress this feature for
+ * every SSH host.
+ *
+ * The preference service and its shared modal are desktop-only (registered
+ * in `sessions.desktop.main.ts`; the web tunnel service does not consult a
+ * preference at all), so this always reports `false` on web regardless of
+ * key shape. `isWebPlatform` defaults to the ambient {@link isWeb}
+ * constant but can be passed explicitly so tests can cover both the
+ * desktop and web branches without depending on ambient platform state.
+ */
+export function supportsRemoteAgentHostLocationPreference(preferenceKey: string, isWebPlatform: boolean = isWeb): boolean {
+	if (isWebPlatform) {
+		return false;
+	}
+	return preferenceKey.startsWith(SSH_ADDRESS_PREFIX) || preferenceKey.startsWith(TUNNEL_ADDRESS_PREFIX);
+}
+
+export type RemoteOptionPickItem = IQuickPickItem & { id: string };
+
+export interface IBuildRemoteHostOptionItemsOptions {
+	/** The host's live connection address, used for Copy Address etc. */
+	readonly address: string;
+	/**
+	 * The host's stable preference key (see
+	 * {@link supportsRemoteAgentHostLocationPreference}), when it differs
+	 * from {@link address} - e.g. an SSH host's `ssh:<alias>` key versus its
+	 * live forwarded address. Defaults to {@link address} for hosts with no
+	 * separate stable identity (tunnels, WSL, cloud sandbox).
+	 */
+	readonly preferenceKey?: string;
+	readonly isConnected: boolean;
+	readonly upgradeMethod?: string;
+	/** Defaults to the ambient {@link isWeb} constant; overridable for tests. See {@link supportsRemoteAgentHostLocationPreference}. */
+	readonly isWebPlatform?: boolean;
+}
+
+/**
+ * Build the per-remote management option items (Reconnect / Remove / Copy
+ * Address / Open Settings / Change Preferred Agent Location) for a single
+ * host, given its resolved status. Pure so it can be unit-tested without a
+ * quickpick or DI.
+ */
+export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsOptions): RemoteOptionPickItem[] {
+	const items: RemoteOptionPickItem[] = [];
+	if (options.upgradeMethod) {
+		items.push({ label: '$(cloud-download) ' + localize('workspacePicker.updateServer', "Update Server"), id: 'upgrade' });
+	}
+	if (!options.isConnected) {
+		items.push({ label: '$(debug-restart) ' + localize('workspacePicker.reconnect', "Reconnect"), id: 'reconnect' });
+	}
+	items.push(
+		{ label: '$(trash) ' + localize('workspacePicker.removeRemote', "Remove Remote"), id: 'remove' },
+		{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
+		{ label: '$(settings-gear) ' + localize('workspacePicker.openSettings', "Open Settings"), id: 'settings' },
+	);
+	if (supportsRemoteAgentHostLocationPreference(options.preferenceKey ?? options.address, options.isWebPlatform ?? isWeb)) {
+		items.push({ label: '$(server-process) ' + localize('workspacePicker.changeLocationPreference', "Change Preferred Agent Location"), id: 'locationPreference' });
+	}
+	return items;
+}
+
+export interface IChangeRemoteAgentHostLocationPreferenceOptions {
+	/**
+	 * Stable preference key persisted via
+	 * {@link IRemoteAgentHostLocationPreferenceService} (e.g. an SSH host's
+	 * `ssh:<alias>` key, or `tunnel:<id>`). NOT the live connection
+	 * address - {@link provider}, when present, already carries its own
+	 * live address for reconnection.
+	 */
+	readonly preferenceKey: string;
+	readonly hostLabel: string;
+	readonly productName: string;
+	/**
+	 * The live provider for this host, when one can be resolved. Reconnected
+	 * immediately after the preference is persisted. `undefined` only for the
+	 * exceptional race where the target host is known (e.g. from configured
+	 * SSH entries or cached tunnels) but has no corresponding provider right
+	 * now - the preference is still saved, but nothing is reconnected.
+	 */
+	readonly provider: IAgentHostSessionsProvider | undefined;
+	readonly dialogService: IDialogService;
+	readonly locationPreferenceService: IRemoteAgentHostLocationPreferenceService;
+	readonly notificationService: INotificationService;
+	readonly remoteAgentHostService: IRemoteAgentHostService;
+	readonly progressService: IProgressService;
+}
+
+/**
+ * Prompt for, persist, and immediately apply a new preferred agent run
+ * location for `preferenceKey`. Shared by both the per-host "Options for {0}"
+ * item and the F1 "Change Preferred Remote Agent Location" command so
+ * they present identical prompt/persist/reconnect/notification behavior.
+ *
+ * Does nothing if the user cancels the modal. Otherwise persists the
+ * preference first, then reconnects the matching host via
+ * {@link reconnectRemoteHost} (respecting provider-specific SSH/tunnel
+ * connect callbacks) under a progress notification, reporting success or
+ * failure. If no {@link IChangeRemoteAgentHostLocationPreferenceOptions.provider}
+ * can be resolved, the preference is still saved and a warning explains it
+ * will apply the next time that host connects.
+ */
+export async function changeRemoteAgentHostLocationPreference(options: IChangeRemoteAgentHostLocationPreferenceOptions): Promise<void> {
+	const currentPreference = options.locationPreferenceService.getPreference(options.preferenceKey);
+	const preference = await promptRemoteAgentHostLocationPreference(options.dialogService, options.hostLabel, options.productName, currentPreference);
+	if (!preference) {
+		return;
+	}
+	options.locationPreferenceService.setPreference(options.preferenceKey, preference);
+
+	const provider = options.provider;
+	if (!provider) {
+		options.notificationService.warn(localize('workspacePicker.locationPreferenceSavedNoProvider', "Preference saved for {0}, but no active connection was found. This takes effect the next time it connects.", options.hostLabel));
+		return;
+	}
+
+	await options.progressService.withProgress(
+		{
+			location: ProgressLocation.Notification,
+			title: localize('workspacePicker.locationPreferenceReconnecting', "Reconnecting to {0}...", options.hostLabel),
+		},
+		async () => {
+			try {
+				await reconnectRemoteHost(provider, options.remoteAgentHostService);
+				options.notificationService.info(localize('workspacePicker.locationPreferenceUpdated', "Preference updated for {0}.", options.hostLabel));
+			} catch (err) {
+				options.notificationService.error(localize('workspacePicker.locationPreferenceReconnectFailed', "Preference saved for {0}, but reconnection failed: {1}", options.hostLabel, err instanceof Error ? err.message : String(err)));
+			}
+		},
+	);
+}
+
 /**
  * Show the per-remote management options quickpick (Reconnect / Remove /
- * Copy Address / Open Settings) for the given provider.
+ * Copy Address / Open Settings / Change Preferred Agent Location) for the
+ * given provider.
  *
  * Used by both the Workspace Picker's Manage submenu and the F1
  * "Manage Remote Agent Hosts..." command, so both surfaces drive the
@@ -260,24 +410,26 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	const preferencesService = accessor.get(IPreferencesService);
 	const productService = accessor.get(IProductService);
 	const instantiationService = accessor.get(IInstantiationService);
+	const dialogService = accessor.get(IDialogService);
+	const notificationService = accessor.get(INotificationService);
+	const progressService = accessor.get(IProgressService);
+	// IRemoteAgentHostLocationPreferenceService is only registered on
+	// desktop (see sessions.desktop.main.ts) - the web tunnel service does
+	// not honor a preference at all, so avoid resolving an unregistered
+	// service on web. buildRemoteHostOptionItems() likewise never offers
+	// the 'locationPreference' item on web, so this only gates the eager
+	// DI lookup, not user-visible behavior.
+	const locationPreferenceService = isWeb ? undefined : accessor.get(IRemoteAgentHostLocationPreferenceService);
 
 	const status = provider.connectionStatus?.get();
 	const isConnected = RemoteAgentHostConnectionStatus.isConnected(status);
 	const upgradeMethod = RemoteAgentHostConnectionStatus.isIncompatible(status) ? status.vscodeUpgradeMethod : undefined;
+	// Distinct from `address` for SSH hosts, whose live address is a
+	// forwarded local endpoint - falls back to `address` for hosts with no
+	// separate stable identity (tunnels, WSL, cloud sandbox).
+	const preferenceKey = provider.remoteLocationPreferenceKey ?? address;
 
-	type RemoteOptionPickItem = IQuickPickItem & { id: string };
-	const items: RemoteOptionPickItem[] = [];
-	if (upgradeMethod) {
-		items.push({ label: '$(cloud-download) ' + localize('workspacePicker.updateServer', "Update Server"), id: 'upgrade' });
-	}
-	if (!isConnected) {
-		items.push({ label: '$(debug-restart) ' + localize('workspacePicker.reconnect', "Reconnect"), id: 'reconnect' });
-	}
-	items.push(
-		{ label: '$(trash) ' + localize('workspacePicker.removeRemote', "Remove Remote"), id: 'remove' },
-		{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
-		{ label: '$(settings-gear) ' + localize('workspacePicker.openSettings', "Open Settings"), id: 'settings' },
-	);
+	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod });
 
 	const result = await new Promise<'back' | RemoteOptionPickItem | undefined>((resolve) => {
 		const store = new DisposableStore();
@@ -340,6 +492,26 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			break;
 		case 'settings':
 			await preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
+			break;
+		case 'locationPreference':
+			// Only reachable when buildRemoteHostOptionItems() offered the
+			// item, i.e. never on web - locationPreferenceService is
+			// guaranteed defined here, but guard defensively rather than
+			// asserting, since this switch has no other way to encode that
+			// invariant.
+			if (locationPreferenceService) {
+				await changeRemoteAgentHostLocationPreference({
+					preferenceKey,
+					hostLabel: provider.label,
+					productName: productService.nameShort,
+					provider,
+					dialogService,
+					locationPreferenceService,
+					notificationService,
+					remoteAgentHostService,
+					progressService,
+				});
+			}
 			break;
 	}
 	return undefined;

@@ -181,7 +181,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 	public readonly warningText?: Record<string, string> | undefined;
-	public readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string } | undefined;
+	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string } | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
