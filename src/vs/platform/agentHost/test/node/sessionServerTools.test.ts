@@ -16,11 +16,15 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import {
 	applyCreateChatTool,
 	applyDeleteSessionTool,
+	applyRenameChatTool,
+	applyRenameSessionTool,
 	applySendMessageTool,
 	createSessionServerToolGroup,
 	getCreateChatArgs,
 	getCreateSessionArgs,
 	getDeleteSessionArgs,
+	getRenameChatArgs,
+	getRenameSessionArgs,
 	getSendMessageArgs,
 	getSessionContextArgs,
 	serializeSessionContext,
@@ -45,7 +49,7 @@ suite('SessionServerTools', () => {
 		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status: status | SessionStatus.IsRead, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}` };
 	}
 
-	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: IAgentModelInfo }) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
+	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: IAgentModelInfo }) => void; onRenameSession?: (session: URI, title: string) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
@@ -53,6 +57,8 @@ suite('SessionServerTools', () => {
 			getModels: overrides?.getModels ?? (() => [model]),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt) => { overrides?.onPrompt?.(session, chat, prompt); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
+			renameSession: overrides?.renameSession ?? (async (session, title) => { overrides?.onRenameSession?.(session, title); }),
+			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),
 			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
@@ -61,13 +67,15 @@ suite('SessionServerTools', () => {
 	}
 
 	test('definitions and confirmation', () => {
-		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.RenameSession, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SendMessage), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.DeleteSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetCurrentSession), false);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.RenameSession), false);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.RenameChat), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetSessionContext), false);
 	});
 
@@ -466,5 +474,106 @@ suite('SessionServerTools', () => {
 		const text = await applyDeleteSessionTool(accessor, { session: 'copilot:/s2' }, URI.parse('copilot:/s1'));
 		assert.strictEqual(deleted?.toString(), 'copilot:/s2');
 		assert.ok(text.includes('copilot:/s2'));
+	});
+
+	test('getRenameSessionArgs validates inputs and resolves targets', () => {
+		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)];
+		assert.strictEqual(getRenameSessionArgs({ session: 'copilot:/s2', title: 'New Title' }, sessions).session.toString(), 'copilot:/s2');
+		assert.strictEqual(getRenameSessionArgs({ session: 'agent-host-session://copilot/s2', title: 'New Title' }, sessions).session.toString(), 'copilot:/s2');
+		assert.strictEqual(getRenameSessionArgs({ title: 'Current Session Title' }, sessions, URI.parse('copilot:/s1')).session.toString(), 'copilot:/s1');
+		assert.throws(() => getRenameSessionArgs({ session: 'copilot:/s1' }, sessions), /title/);
+		assert.throws(() => getRenameSessionArgs({ session: 'copilot:/s1', title: '   ' }, sessions), /title/);
+		assert.throws(() => getRenameSessionArgs({ session: 'copilot:/unknown', title: 'Title' }, sessions), /known session/);
+		assert.throws(() => getRenameSessionArgs({ title: 'Title' }, sessions), /current session/);
+	});
+
+	test('applyRenameSessionTool renames session via accessor', async () => {
+		let renamedSession: URI | undefined;
+		let renamedTitle: string | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
+			onRenameSession: (session, title) => {
+				renamedSession = session;
+				renamedTitle = title;
+			},
+		});
+		const text = await applyRenameSessionTool(accessor, { session: 'copilot:/s1', title: 'Fix Bug #123' });
+		assert.strictEqual(renamedSession?.toString(), 'copilot:/s1');
+		assert.strictEqual(renamedTitle, 'Fix Bug #123');
+		assert.ok(text.includes('Fix Bug #123'));
+	});
+
+	test('getRenameChatArgs validates inputs and resolves targets', () => {
+		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
+		// Targeted open-link with chat id
+		const res1 = getRenameChatArgs({ session: 'agent-host-session://copilot/s1?chat=c2', title: 'Refactored Chat' }, sessions);
+		assert.strictEqual(res1.session.toString(), 'copilot:/s1');
+		assert.strictEqual(res1.chat.toString(), buildChatUri('copilot:/s1', 'c2'));
+		assert.strictEqual(res1.title, 'Refactored Chat');
+
+		// Session + chat arguments
+		const res2 = getRenameChatArgs({ session: 'copilot:/s1', chat: 'c3', title: 'Peer Chat Title' }, sessions);
+		assert.strictEqual(res2.session.toString(), 'copilot:/s1');
+		assert.strictEqual(res2.chat.toString(), buildChatUri('copilot:/s1', 'c3'));
+
+		// Defaults to current channel
+		const res3 = getRenameChatArgs({ title: 'Current Chat Title' }, sessions, buildChatUri('copilot:/s1', 'c4'));
+		assert.strictEqual(res3.session.toString(), 'copilot:/s1');
+		assert.strictEqual(res3.chat.toString(), buildChatUri('copilot:/s1', 'c4'));
+
+		assert.throws(() => getRenameChatArgs({ title: '   ' }, sessions, 'copilot:/s1'), /title/);
+		assert.throws(() => getRenameChatArgs({ session: 'copilot:/unknown', title: 'Title' }, sessions), /known session/);
+	});
+
+	test('applyRenameChatTool renames chat via accessor', async () => {
+		let renamedSession: URI | undefined;
+		let renamedChat: URI | undefined;
+		let renamedTitle: string | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
+			onRenameChat: (session, chat, title) => {
+				renamedSession = session;
+				renamedChat = chat;
+				renamedTitle = title;
+			},
+		});
+		const text = await applyRenameChatTool(accessor, { session: 'copilot:/s1', chat: 'c1', title: 'New Chat Title' });
+		assert.strictEqual(renamedSession?.toString(), 'copilot:/s1');
+		assert.strictEqual(renamedChat?.toString(), buildChatUri('copilot:/s1', 'c1'));
+		assert.strictEqual(renamedTitle, 'New Chat Title');
+		assert.ok(text.includes('New Chat Title'));
+	});
+
+	test('createSessionServerToolGroup executes rename_session and rename_chat', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let renamedSession: string | undefined;
+		let renamedChat: string | undefined;
+		let sessionTitle: string | undefined;
+		let chatTitle: string | undefined;
+
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
+			onRenameSession: (session, title) => {
+				renamedSession = session.toString();
+				sessionTitle = title;
+			},
+			onRenameChat: (session, chat, title) => {
+				renamedChat = chat.toString();
+				chatTitle = title;
+			},
+		});
+
+		const group = createSessionServerToolGroup(accessor);
+
+		await group.execute(stateManager, 'copilot:/s1', SessionServerToolName.RenameSession, { title: 'Renamed Session' });
+		assert.strictEqual(renamedSession, 'copilot:/s1');
+		assert.strictEqual(sessionTitle, 'Renamed Session');
+
+		await group.execute(stateManager, buildChatUri('copilot:/s1', 'c5'), SessionServerToolName.RenameChat, { title: 'Renamed Chat' });
+		assert.strictEqual(renamedChat, buildChatUri('copilot:/s1', 'c5'));
+		assert.strictEqual(chatTitle, 'Renamed Chat');
+
+		store.dispose();
 	});
 });
