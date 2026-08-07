@@ -721,7 +721,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
 			tabSize: guessedIndentation.tabSize,
-			indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
+			indentSize: 'tabSize', // TODO@Alex: guess indentSize independent of tabSize
 		});
 	}
 
