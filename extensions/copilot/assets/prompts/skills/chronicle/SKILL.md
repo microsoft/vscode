@@ -181,17 +181,59 @@ If the current workspace has a `.github/` folder, check `.github/copilot-instruc
 - `.github/copilot-instructions.md` to encode project conventions the model otherwise has to be told every session.
 - For cloud-enabled users, the Copilot usage view to inspect current premium-request spend.
 
-**Step 3: Provide tips**
+**Step 3: Produce the report**
 
-Give the user 3-5 specific, actionable tips. Each tip should:
+The output has a fixed structure. Do not skip sections and do not reorder them.
 
-- **Be grounded in their data** — reference a specific session, file, model, or pattern you observed (with rough numbers when you have them: turn counts, token totals, file-read counts, etc.).
-- **Be non-obvious** — skip basics any returning user already knows. Assume they know compaction and fresh chats exist; help them notice they're not *using* them where it would matter.
-- **Quantify the win when possible** — "compacting around turn 30 of that 80-turn session would have shaved ~X input tokens off every subsequent turn" is far better than "consider compacting".
-- **Be concrete** — name the workflow change, command, or config file edit. If the suggestion is a custom skill or agent, sketch what it would cover.
-- **Stay within VS Code chat scope** — tips should target interactive VS Code chat usage (compaction, model picker, fresh chats, `.github/copilot-instructions.md`, custom skills/agents, subagent delegation). Do not propose CLI- or Coding-Agent–specific changes unless the user has explicitly broadened scope.
+*1. `## Top cost drivers` — MUST appear before any recommendations.*
 
-If the session store has little data (e.g., cloud store is empty, or only a handful of local interactive chat sessions), say so plainly and offer 2-3 non-obvious cost-saving habits anchored in available features rather than fabricating findings. If the user is on local-only storage, end by noting that enabling `chat.sessionSync.enabled` unlocks per-event token analysis for sharper future tips.
+List the material patterns you actually observed, most impactful first — **up to 5, fewer is fine** (do not pad the list with non-material findings just to reach a count). For each driver:
+
+- Name it in one line (e.g. "Late compaction on long chat sessions", "Premium model used for routine edits").
+- Give the evidence with rough numbers (session count, turn count, token totals when available, file paths, model names).
+- Classify **this driver's** evidence as one of **exact**, **proxy**, or **mixed** and label it inline:
+	- **exact** — grounded in cloud `events` fields `usage_input_tokens`, `usage_output_tokens`, `usage_model` (from `assistant.usage` rows).
+	- **proxy** — inferred from local turns, checkpoints, session_files, tool_requests, or message lengths only. No real token numbers.
+	- **mixed** — this same driver is backed by both exact usage rows and proxy signals reinforcing the same pattern (e.g. exact token totals plus a checkpoint-gap or repeated-file-read signal). A report that simply contains one exact driver and one proxy driver is not itself mixed — label each driver individually.
+
+	Every explicit token or cost claim requires **exact** evidence. Turn counts, checkpoint gaps, file-read counts, and message lengths are proxies — describe them as such, and do not translate them into token or dollar figures.
+
+- Only include percentages when you can compute them against a real **period grand total** (e.g. sum of `usage_input_tokens + usage_output_tokens` across every in-scope VS Code Chat `assistant.usage` event in the window). Never compute a share against a truncated top-N sum. If the grand total cannot be established, drop the percentage rather than guessing.
+- A context-growth driver ("input tokens keep climbing turn-over-turn") is only material when the late-window vs early-window input tokens grow by **>=50%** (inclusive). Anything smaller is noise; do not call it out.
+- Treat file references, images, and pasted content as neutral work artifacts. Do not label their presence itself as waste. Only flag them when you have concrete evidence — repeated `session_files` rows for the same path within one session, or repeated large `user_message` / `user_content` payloads containing the same content across turns — that the same material is being ingested when it did not need to be.
+
+*2. `## Recommendations` — at most 3, ordered by expected impact.*
+
+Each recommendation:
+
+- Ties back explicitly to one of the drivers above (by name). No recommendation without a matching material driver.
+- Is directly actionable in VS Code Chat: model picker, `/compact` (or starting a fresh chat when compaction isn't available), narrower task framing / smaller working sets, subagent delegation, reusable `.github/copilot-instructions.md` / `.github/skills/` / `.github/agents/` entries. Only recommend a custom skill, agent, or instructions entry when you observed a repeated pattern that justifies it.
+- Names the concrete change (command, setting, file edit) and, where possible, the specific session or file it applies to.
+- Ends with two clearly separated lines:
+	- `Expected impact:` a plain-language estimate of the size of the win (e.g. "shaves a large fraction of input tokens off subsequent turns of long chat sessions", "moves routine renames off the premium model"). Quantify only when the evidence is **exact**.
+	- `Confidence:` one of `high` / `medium` / `low`, reflecting how strong the evidence is (exact evidence + repeated pattern = high; single-session proxy = low).
+
+Do not copy Copilot CLI–only commands or Coding-Agent–only workflows into these recommendations.
+
+*3. `## Data caveats` — required disclosure so the user can weigh the report.*
+
+Include:
+
+- **Backend / source**: cloud DuckDB, local SQLite, or mixed, and which store you actually queried.
+- **Time window**: the date range the queries covered.
+- **In-scope**: which `agent_name` values were included (`'VS Code Chat'` on cloud, `'GitHub Copilot Chat'` on local by default), and how many sessions matched.
+- **Fallbacks and precision limits**: e.g. "no per-event token data on local — drivers are proxies from turn / checkpoint / file counts", "cloud store empty in window, all findings drawn from local proxies", "percentages omitted because the period grand total could not be computed".
+
+**Sparse or insufficient data (the only exception to the "no recommendation without a named driver" rule)**
+
+If the in-scope query returns very little data (e.g. cloud store is empty, only a small handful of VS Code Chat sessions matched, or local has almost no `checkpoints` / `session_files` rows), do NOT invent findings to pad the report. The fixed three-section structure above still applies — do not drop any section header. Instead:
+
+- Still fill out `## Data caveats` in full.
+- Emit `## Top cost drivers` with the literal placeholder body **`No material drivers observed in this window.`** (do not omit the section).
+- Under `## Recommendations`, in place of grounded recommendations, offer **no more than 2-3** clearly labeled **general habits**. Prefix each with `General habit — not observed in your data:`. These habits are the only recommendations allowed to appear without a matching driver, and only under this sparse-data path. Keep them anchored to VS Code chat features: model picker for routine work, `/compact` or a fresh chat on long sessions, reusable instructions when a workflow starts to repeat. Do not use arbitrary hard thresholds (turn counts, token counts) that the data cannot support.
+- If the user is on local-only storage, close by noting that enabling `chat.sessionSync.enabled` unlocks per-event token analysis for sharper future reports.
+
+Never fabricate specific sessions, files, models, token counts, or percentages to fill out the report.
 
 ### Improve
 
