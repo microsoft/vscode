@@ -38,7 +38,7 @@ export class CreateSlashCommandsUsageTracker extends Disposable {
 
 			// Fallback when parsing doesn't produce a slash command part.
 			const trimmed = message.text.trimStart();
-			const match = /^\/(create-(?:instruction|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
+			const match = /^\/(create-(?:instructions|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
 			if (match && CreateSlashCommandsUsageTracker._isCreateSlashCommand(match[1])) {
 				this._markUsed();
 			}
@@ -65,7 +65,7 @@ export class CreateSlashCommandsUsageTracker extends Disposable {
 
 	private static _isCreateSlashCommand(command: string): boolean {
 		switch (command) {
-			case 'create-instruction':
+			case 'create-instructions':
 			case 'create-prompt':
 			case 'create-agent':
 			case 'create-skill':

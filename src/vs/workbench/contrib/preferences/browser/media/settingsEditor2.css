@@ -62,6 +62,7 @@
 .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	margin-right: 3px;
 	padding-bottom: 3px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget:empty {
@@ -93,13 +94,6 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-target-container {
 	flex: auto;
-}
-
-.settings-editor > .settings-header > .settings-header-controls > .settings-right-controls {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding-bottom: 4px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
@@ -295,6 +289,7 @@
 	pointer-events: none;
 	z-index: 10;
 	position: absolute;
+	box-shadow: var(--vscode-shadow-sm);
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/singleeditortabscontrol.css';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod, IToolbarActions } from '../../../common/editor.js';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod, IToolbarActions, EditorInputCapabilities } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorTabsControl } from './editorTabsControl.js';
 import { ResourceLabel, IResourceLabel } from '../../labels.js';
@@ -119,7 +119,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		if (e.button === 1 /* Middle Button */ && this.tabsModel.activeEditor) {
 			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
-			if (!preventEditorClose(this.tabsModel, this.tabsModel.activeEditor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
+			if (!this.tabsModel.activeEditor.hasCapability(EditorInputCapabilities.CannotClose) && !preventEditorClose(this.tabsModel, this.tabsModel.activeEditor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
 				this.groupView.closeEditor(this.tabsModel.activeEditor);
 			}
 		}
@@ -192,6 +192,10 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	updateEditorSelections(): void { }
 
 	updateEditorLabel(editor: EditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	updateEditorCapabilities(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
@@ -357,6 +361,14 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 				secondary: editorActions.secondary
 			};
 		}
+	}
+
+	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
+		// Surface the editor layout actions (`MenuId.EditorTitleLayout`) even when tabs are
+		// shown as a single tab. This menu is only populated by the Agents window (e.g. the
+		// Maximize/Restore Editor Area actions), so showing it here has no effect on the
+		// regular workbench where the menu is empty.
+		return editorActions;
 	}
 
 	getHeight(): number {

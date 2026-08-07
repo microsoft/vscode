@@ -20,7 +20,7 @@ export class MainThreadDownloadService extends Disposable implements MainThreadD
 	}
 
 	$download(uri: UriComponents, to: UriComponents): Promise<void> {
-		return this.downloadService.download(URI.revive(uri), URI.revive(to));
+		return this.downloadService.download(URI.revive(uri), URI.revive(to), 'mainThreadDownloadService.download');
 	}
 
 }

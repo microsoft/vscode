@@ -56,7 +56,7 @@ export class AgentFeedbackAttachmentWidget extends Disposable {
 		if (options.supportsDeletion && !deletionCurrentlyNotSupported) {
 			const clearBtn = dom.append(this.element, dom.$('.chat-attached-context-clear-button'));
 			const clearIcon = dom.$('span');
-			clearIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
+			clearIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.closeCompact));
 			clearBtn.appendChild(clearIcon);
 			clearBtn.title = localize('removeAttachment', "Remove");
 			this._store.add(dom.addDisposableListener(clearBtn, dom.EventType.CLICK, (e) => {
@@ -73,6 +73,6 @@ export class AgentFeedbackAttachmentWidget extends Disposable {
 		this.element.ariaLabel = localize('chat.agentFeedback', "Attached agent feedback, {0}", this._attachment.name);
 
 		// Custom interactive hover
-		this._store.add(this._instantiationService.createInstance(AgentFeedbackHover, this.element, this._attachment));
+		this._store.add(this._instantiationService.createInstance(AgentFeedbackHover, this.element, this._attachment, options.supportsDeletion));
 	}
 }

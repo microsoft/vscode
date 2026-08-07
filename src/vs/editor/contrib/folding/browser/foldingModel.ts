@@ -9,6 +9,7 @@ import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from
 import { hash } from '../../../../base/common/hash.js';
 import { SelectedLines } from './folding.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IRange, Range } from '../../../common/core/range.js';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions;
@@ -94,11 +95,26 @@ export class FoldingModel implements IDisposable {
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: toggledRegions });
 	}
 
-	public removeManualRanges(ranges: ILineRange[]) {
+	public removeManualRanges(ranges: readonly IRange[]) {
+		const rangeIndexesToRemove = new Set<number>();
+		let removeAll = false;
+		for (const range of ranges) {
+			if (Range.isEmpty(range)) {
+				let index = this._regions.findRange(range.startLineNumber);
+				while (index !== -1 && this._regions.getSource(index) === FoldSource.provider) {
+					index = this._regions.getParentIndex(index);
+				}
+				if (index === -1) {
+					removeAll = true;
+				} else {
+					rangeIndexesToRemove.add(index);
+				}
+			}
+		}
 		const newFoldingRanges: FoldRange[] = new Array();
-		const intersects = (foldRange: FoldRange) => {
+		const intersectsSelection = (foldRange: FoldRange) => {
 			for (const range of ranges) {
-				if (!(range.startLineNumber > foldRange.endLineNumber || foldRange.startLineNumber > range.endLineNumber)) {
+				if (!Range.isEmpty(range) && !(range.startLineNumber > foldRange.endLineNumber || foldRange.startLineNumber > range.endLineNumber)) {
 					return true;
 				}
 			}
@@ -106,7 +122,7 @@ export class FoldingModel implements IDisposable {
 		};
 		for (let i = 0; i < this._regions.length; i++) {
 			const foldRange = this._regions.toFoldRange(i);
-			if (foldRange.source === FoldSource.provider || !intersects(foldRange)) {
+			if (foldRange.source === FoldSource.provider || (!removeAll && !rangeIndexesToRemove.has(i) && !intersectsSelection(foldRange))) {
 				newFoldingRanges.push(foldRange);
 			}
 		}

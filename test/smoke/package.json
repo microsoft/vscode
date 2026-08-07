@@ -4,9 +4,9 @@
   "license": "MIT",
   "main": "./src/main.js",
   "scripts": {
-    "compile": "cd ../automation && npm run compile && cd ../smoke && node ../../node_modules/typescript/bin/tsc",
+    "compile": "cd ../automation && npm run compile && cd ../smoke && node ../../node_modules/typescript/bin/tsc6",
     "watch-automation": "cd ../automation && npm run watch",
-    "watch-smoke": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
+    "watch-smoke": "node ../../node_modules/typescript/bin/tsc6 --watch --preserveWatchOutput",
     "watch": "npm-run-all2 -lp watch-automation watch-smoke",
     "mocha": "node ../node_modules/mocha/bin/mocha"
   },
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@types/ncp": "2.0.1",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/node-fetch": "^2.5.10",
     "npm-run-all2": "^8.0.4"
   }

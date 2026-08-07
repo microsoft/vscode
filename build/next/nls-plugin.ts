@@ -12,6 +12,7 @@ import {
 	analyzeLocalizeCalls,
 	parseLocalizeKeyOrValue
 } from '../lib/nls-analysis.ts';
+import type { TextEdit } from './private-to-property.ts';
 
 // ============================================================================
 // Types
@@ -148,12 +149,13 @@ export async function finalizeNLS(
 
 /**
  * Post-processes a JavaScript file to replace NLS placeholders with indices.
+ * Returns the transformed code and the edits applied (for source map adjustment).
  */
 export function postProcessNLS(
 	content: string,
 	indexMap: Map<string, number>,
 	preserveEnglish: boolean
-): string {
+): { code: string; edits: readonly TextEdit[] } {
 	return replaceInOutput(content, indexMap, preserveEnglish);
 }
 
@@ -244,7 +246,7 @@ function generateNLSSourceMap(
 	const generator = new SourceMapGenerator();
 	generator.setSourceContent(filePath, originalSource);
 
-	const lineCount = originalSource.split('\n').length;
+	const lines = originalSource.split('\n');
 
 	// Group edits by line
 	const editsByLine = new Map<number, NLSEdit[]>();
@@ -257,7 +259,7 @@ function generateNLSSourceMap(
 		arr.push(edit);
 	}
 
-	for (let line = 0; line < lineCount; line++) {
+	for (let line = 0; line < lines.length; line++) {
 		const smLine = line + 1; // source maps use 1-based lines
 
 		// Always map start of line
@@ -273,7 +275,8 @@ function generateNLSSourceMap(
 
 			let cumulativeShift = 0;
 
-			for (const edit of lineEdits) {
+			for (let i = 0; i < lineEdits.length; i++) {
+				const edit = lineEdits[i];
 				const origLen = edit.endCol - edit.startCol;
 
 				// Map start of edit: the replacement begins at the same original position
@@ -285,12 +288,20 @@ function generateNLSSourceMap(
 
 				cumulativeShift += edit.newLength - origLen;
 
-				// Map content after edit: columns resume with the shift applied
-				generator.addMapping({
-					generated: { line: smLine, column: edit.endCol + cumulativeShift },
-					original: { line: smLine, column: edit.endCol },
-					source: filePath,
-				});
+				// Source maps don't interpolate columns — each query resolves to the
+				// last segment with generatedColumn <= queryColumn. A single mapping
+				// at edit-end would cause every subsequent column on this line to
+				// collapse to that one original position. Add per-column identity
+				// mappings from edit-end to the next edit (or end of line) so that
+				// esbuild's source-map composition preserves fine-grained accuracy.
+				const nextBound = i + 1 < lineEdits.length ? lineEdits[i + 1].startCol : lines[line].length;
+				for (let origCol = edit.endCol; origCol < nextBound; origCol++) {
+					generator.addMapping({
+						generated: { line: smLine, column: origCol + cumulativeShift },
+						original: { line: smLine, column: origCol },
+						source: filePath,
+					});
+				}
 			}
 		}
 	}
@@ -302,17 +313,19 @@ function replaceInOutput(
 	content: string,
 	indexMap: Map<string, number>,
 	preserveEnglish: boolean
-): string {
-	// Replace all placeholders in a single pass using regex
-	// Two types of placeholders:
-	// - %%NLS:moduleId#key%% for localize() - message replaced with null
-	// - %%NLS2:moduleId#key%% for localize2() - message preserved
-	// Note: esbuild may use single or double quotes, so we handle both
+): { code: string; edits: readonly TextEdit[] } {
+	// Collect all matches first, then apply from back to front so that byte
+	// offsets remain valid. Each match becomes a TextEdit in terms of the
+	// ORIGINAL content offsets, which is what adjustSourceMap expects.
+
+	interface PendingEdit { start: number; end: number; replacement: string }
+	const pending: PendingEdit[] = [];
 
 	if (preserveEnglish) {
-		// Just replace the placeholder with the index (both NLS and NLS2)
-		return content.replace(/["']%%NLS2?:([^%]+)%%["']/g, (match, inner) => {
-			// Try NLS first, then NLS2
+		const re = /["']%%NLS2?:([^%]+)%%["']/g;
+		let m: RegExpExecArray | null;
+		while ((m = re.exec(content)) !== null) {
+			const inner = m[1];
 			let placeholder = `%%NLS:${inner}%%`;
 			let index = indexMap.get(placeholder);
 			if (index === undefined) {
@@ -320,45 +333,60 @@ function replaceInOutput(
 				index = indexMap.get(placeholder);
 			}
 			if (index !== undefined) {
-				return String(index);
+				pending.push({ start: m.index, end: m.index + m[0].length, replacement: String(index) });
 			}
-			// Placeholder not found in map, leave as-is (shouldn't happen)
-			return match;
-		});
+		}
 	} else {
-		// For NLS (localize): replace placeholder with index AND replace message with null
-		// For NLS2 (localize2): replace placeholder with index, keep message
-		// Note: Use (?:[^"\\]|\\.)* to properly handle escaped quotes like \" or \\
-		// Note: esbuild may use single or double quotes, so we handle both
-
-		// First handle NLS (localize) - replace both key and message
-		content = content.replace(
-			/["']%%NLS:([^%]+)%%["'](\s*,\s*)(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g,
-			(match, inner, comma) => {
-				const placeholder = `%%NLS:${inner}%%`;
-				const index = indexMap.get(placeholder);
-				if (index !== undefined) {
-					return `${index}${comma}null`;
-				}
-				return match;
+		// NLS (localize): replace placeholder with index AND replace message with null
+		const reNLS = /["']%%NLS:([^%]+)%%["'](\s*,\s*)(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g;
+		let m: RegExpExecArray | null;
+		while ((m = reNLS.exec(content)) !== null) {
+			const inner = m[1];
+			const comma = m[2];
+			const placeholder = `%%NLS:${inner}%%`;
+			const index = indexMap.get(placeholder);
+			if (index !== undefined) {
+				pending.push({ start: m.index, end: m.index + m[0].length, replacement: `${index}${comma}null` });
 			}
-		);
+		}
 
-		// Then handle NLS2 (localize2) - replace only key, keep message
-		content = content.replace(
-			/["']%%NLS2:([^%]+)%%["']/g,
-			(match, inner) => {
-				const placeholder = `%%NLS2:${inner}%%`;
-				const index = indexMap.get(placeholder);
-				if (index !== undefined) {
-					return String(index);
-				}
-				return match;
+		// NLS2 (localize2): replace only key, keep message
+		const reNLS2 = /["']%%NLS2:([^%]+)%%["']/g;
+		while ((m = reNLS2.exec(content)) !== null) {
+			const inner = m[1];
+			const placeholder = `%%NLS2:${inner}%%`;
+			const index = indexMap.get(placeholder);
+			if (index !== undefined) {
+				pending.push({ start: m.index, end: m.index + m[0].length, replacement: String(index) });
 			}
-		);
-
-		return content;
+		}
 	}
+
+	if (pending.length === 0) {
+		return { code: content, edits: [] };
+	}
+
+	// Sort by offset ascending, then apply back-to-front to keep offsets valid
+	pending.sort((a, b) => a.start - b.start);
+
+	// Build TextEdit[] (in original-content coordinates) and apply edits
+	const edits: TextEdit[] = [];
+	for (const p of pending) {
+		edits.push({ start: p.start, end: p.end, newText: p.replacement });
+	}
+
+	// Apply edits using forward-scanning parts array — O(N+K) instead of
+	// O(N*K) from repeated substring concatenation on large strings.
+	const parts: string[] = [];
+	let lastEnd = 0;
+	for (const p of pending) {
+		parts.push(content.substring(lastEnd, p.start));
+		parts.push(p.replacement);
+		lastEnd = p.end;
+	}
+	parts.push(content.substring(lastEnd));
+
+	return { code: parts.join(''), edits };
 }
 
 // ============================================================================
@@ -399,7 +427,11 @@ export function nlsPlugin(options: NLSPluginOptions): esbuild.Plugin {
 					// back to the original. Embed it inline so esbuild composes it
 					// with its own bundle source map, making the final map point to
 					// the original TS source.
-					const sourceName = relativePath.replace(/\\/g, '/');
+					// This inline source map is resolved relative to esbuild's sourcefile
+					// for args.path. Using the full repo-relative path here makes esbuild
+					// resolve it against the file's own directory, which duplicates the
+					// directory segments in the final bundled source map.
+					const sourceName = path.basename(args.path);
 					const sourcemap = generateNLSSourceMap(source, sourceName, edits);
 					const encodedMap = Buffer.from(sourcemap).toString('base64');
 					const contentsWithMap = code + `\n//# sourceMappingURL=data:application/json;base64,${encodedMap}\n`;

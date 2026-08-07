@@ -1,0 +1,33 @@
+import {Fragment, jsx} from '#jsx/jsx-runtime';
+import {ComponentContext} from '#prompt/components/components';
+import * as assert from 'assert';
+
+suite('JSX/TSX', function () {
+    test('Produces element from functional component', function () {
+        const fn = (props: unknown, context: ComponentContext) => [];
+        const element = jsx(fn, {children: ['Hello world']});
+
+        assert.deepStrictEqual(element.type, fn);
+        assert.deepStrictEqual(element.props, {
+            children: ['Hello world'],
+        });
+    });
+
+    test('Produces element from functional component with key', function () {
+        const fn = (props: unknown, context: ComponentContext) => [];
+        const element = jsx(fn, {children: ['Hello world']}, 'key');
+
+        assert.deepStrictEqual(element.type, fn);
+        assert.deepStrictEqual(element.props, {
+            children: ['Hello world'],
+            key: 'key',
+        });
+    });
+
+    test('Produces fragment function', function () {
+        const element = Fragment(['Hello world']);
+
+        assert.deepStrictEqual(element.type, 'f');
+        assert.deepStrictEqual(element.children, ['Hello world']);
+    });
+});

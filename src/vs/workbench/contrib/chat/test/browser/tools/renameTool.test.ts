@@ -15,7 +15,7 @@ import { ITextModelService } from '../../../../../../editor/common/services/reso
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IBulkEditService, IBulkEditResult } from '../../../../../../editor/browser/services/bulkEditService.js';
-import { RenameTool, RenameToolId } from '../../../browser/tools/renameTool.js';
+import { RenameTool } from '../../../browser/tools/renameTool.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../../common/tools/languageModelToolsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -122,30 +122,42 @@ suite('RenameTool', () => {
 
 	suite('getToolData', () => {
 
-		test('reports no providers when none registered', () => {
+		test('returns tool data when no providers are registered', () => {
 			const tool = disposables.add(createTool(createMockTextModelService(null!)));
-			const data = tool.getToolData();
-			assert.strictEqual(data.id, RenameToolId);
-			assert.ok(data.modelDescription.includes('No languages currently have rename providers'));
+			assert.ok(tool.getToolData());
 		});
 
-		test('lists registered language ids', () => {
+		test('description does not include a per-language list', () => {
 			const model = disposables.add(createTextModel('', 'typescript', undefined, testUri));
 			const tool = disposables.add(createTool(createMockTextModelService(model)));
 			disposables.add(langFeatures.renameProvider.register('typescript', {
 				provideRenameEdits: () => ({ edits: [] }),
 			}));
 			const data = tool.getToolData();
-			assert.ok(data.modelDescription.includes('typescript'));
+			assert.ok(!data.modelDescription.includes('Currently supported for'),
+				`expected modelDescription to not list languages, got: ${data.modelDescription}`);
+			assert.ok(!data.modelDescription.includes('typescript'),
+				'expected modelDescription to not include any specific language id');
+			assert.ok(!data.modelDescription.includes('all languages'),
+				'expected modelDescription to not mention "all languages"');
 		});
 
-		test('reports all languages for wildcard', () => {
-			const tool = disposables.add(createTool(createMockTextModelService(null!)));
-			disposables.add(langFeatures.renameProvider.register('*', {
+		test('description is identical regardless of which providers are registered', () => {
+			const tool1 = disposables.add(createTool(createMockTextModelService(null!)));
+			const data1 = tool1.getToolData();
+
+			const model = disposables.add(createTextModel('', 'typescript', undefined, testUri));
+			const tool2 = disposables.add(createTool(createMockTextModelService(model)));
+			disposables.add(langFeatures.renameProvider.register('typescript', {
 				provideRenameEdits: () => ({ edits: [] }),
 			}));
-			const data = tool.getToolData();
-			assert.ok(data.modelDescription.includes('all languages'));
+			disposables.add(langFeatures.renameProvider.register('python', {
+				provideRenameEdits: () => ({ edits: [] }),
+			}));
+			const data2 = tool2.getToolData();
+
+			assert.strictEqual(data1.modelDescription, data2.modelDescription,
+				'expected modelDescription to be byte-stable across provider registrations');
 		});
 	});
 
@@ -301,6 +313,38 @@ suite('RenameTool', () => {
 			);
 
 			assert.ok(getTextContent(result).includes('Renamed'));
+		});
+
+		test('rejects filePath that escapes the session working directory', async () => {
+			const outsideUri = URI.parse('file:///outside.ts');
+			const outsideModel = disposables.add(createTextModel('const OutsideSecretMarker = 1;', 'typescript', undefined, outsideUri));
+			const requestedUris: URI[] = [];
+			const textModelService = {
+				_serviceBrand: undefined,
+				createModelReference: async (uri: URI) => {
+					requestedUris.push(uri);
+					return { object: { textEditorModel: outsideModel }, dispose: () => { } };
+				},
+				registerTextModelContentProvider: () => ({ dispose: () => { } }),
+				canHandleResource: () => false,
+			} as unknown as ITextModelService;
+			disposables.add(langFeatures.renameProvider.register('typescript', {
+				provideRenameEdits: (): WorkspaceEdit & Rejection => ({ edits: [makeEdit(outsideUri, new Range(1, 7, 1, 26), 'RenamedSecretMarker')] }),
+			}));
+
+			const bulkEditService = createMockBulkEditService();
+			const tool = disposables.add(createTool(textModelService, { bulkEditService }));
+			const result = await tool.invoke(
+				{
+					parameters: { symbol: 'OutsideSecretMarker', newName: 'RenamedSecretMarker', filePath: '../outside.ts', lineContent: 'const OutsideSecretMarker = 1;' },
+					context: { workingDirectory: URI.parse('file:///session-dir') },
+				} as unknown as IToolInvocation,
+				noopCountTokens, noopProgress, CancellationToken.None
+			);
+
+			assert.ok(getTextContent(result).includes('Provide either'));
+			assert.strictEqual(requestedUris.length, 0);
+			assert.strictEqual(bulkEditService.appliedEdits.length, 0);
 		});
 
 		test('result includes toolResultMessage', async () => {

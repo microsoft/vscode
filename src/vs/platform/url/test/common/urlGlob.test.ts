@@ -56,8 +56,29 @@ suite('urlGlob', () => {
 			assert.strictEqual(testUrlMatchesGlob('https://sub.example.com', 'https://*.example.com'), true);
 			assert.strictEqual(testUrlMatchesGlob('https://sub.domain.example.com', 'https://*.example.com'), true);
 			assert.strictEqual(testUrlMatchesGlob('https://example.com', 'https://*.example.com'), true);
-			// *. matches any number of characters before the domain, including other domains
-			assert.strictEqual(testUrlMatchesGlob('https://notexample.com', 'https://*.example.com'), true);
+		});
+
+		test('subdomain wildcard must match on dot boundary', () => {
+			// Should NOT match: no dot boundary before the domain
+			assert.strictEqual(testUrlMatchesGlob('https://notexample.com', 'https://*.example.com'), false);
+			assert.strictEqual(testUrlMatchesGlob('https://evil-microsoft.com', 'https://*.microsoft.com'), false);
+			assert.strictEqual(testUrlMatchesGlob('https://evilmicrosoft.com', 'https://*.microsoft.com'), false);
+			assert.strictEqual(testUrlMatchesGlob('https://evil-example.com', 'https://*.example.com'), false);
+			assert.strictEqual(testUrlMatchesGlob('https://myexample.com', 'https://*.example.com'), false);
+			assert.strictEqual(testUrlMatchesGlob('https://notexample.com/path', 'https://*.example.com/path'), false);
+
+			// Should match: proper subdomain with dot boundary
+			assert.strictEqual(testUrlMatchesGlob('https://sub.microsoft.com', 'https://*.microsoft.com'), true);
+			assert.strictEqual(testUrlMatchesGlob('https://a.b.c.microsoft.com', 'https://*.microsoft.com'), true);
+			assert.strictEqual(testUrlMatchesGlob('https://microsoft.com', 'https://*.microsoft.com'), true);
+			assert.strictEqual(testUrlMatchesGlob('https://sub.example.com/path', 'https://*.example.com/path'), true);
+		});
+
+		test('subdomain wildcard without scheme must match on dot boundary', () => {
+			assert.strictEqual(testUrlMatchesGlob('https://evil-microsoft.com', '*.microsoft.com'), false);
+			assert.strictEqual(testUrlMatchesGlob('http://evil-microsoft.com', '*.microsoft.com'), false);
+			assert.strictEqual(testUrlMatchesGlob('https://sub.microsoft.com', '*.microsoft.com'), true);
+			assert.strictEqual(testUrlMatchesGlob('http://sub.microsoft.com', '*.microsoft.com'), true);
 		});
 
 		test('port matching', () => {

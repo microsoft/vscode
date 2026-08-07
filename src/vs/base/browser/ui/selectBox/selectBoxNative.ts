@@ -98,7 +98,7 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 			this.selectElement.options.length = 0;
 
 			this.options.forEach((option, index) => {
-				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
+				this.selectElement.add(this.createOption(option.text, index, option.isDisabled, option.isSeparator));
 			});
 
 		}
@@ -179,11 +179,15 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
 	}
 
-	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
+	private createOption(value: string, index: number, disabled?: boolean, isSeparator?: boolean): HTMLOptionElement {
 		const option = document.createElement('option');
 		option.value = value;
 		option.text = value;
-		option.disabled = !!disabled;
+		option.disabled = !!disabled || !!isSeparator;
+
+		if (isSeparator) {
+			option.setAttribute('role', 'separator');
+		}
 
 		return option;
 	}

@@ -21,10 +21,15 @@
 .monaco-action-bar .action-item .chat-session-option-picker {
 	align-items: center;
 	overflow: hidden;
+	padding: 2px 3px;
 
 	.chat-session-option-label {
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.codicon + .chat-session-option-label {
+		margin-left: 6px;
 	}
 
 	span.codicon {

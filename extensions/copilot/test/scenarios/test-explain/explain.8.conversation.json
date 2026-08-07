@@ -1,0 +1,16 @@
+[
+    {
+        "question": "/explain",
+        "description": "includes function definitions from same file",
+        "stateFile": "./explain.8.state.json",
+        "keywords": {
+            "allOf": [
+                "Console.WriteLine"
+            ],
+            "not": [
+                "1",
+                "Echo2"
+            ]
+        }
+    }
+]

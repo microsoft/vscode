@@ -315,20 +315,10 @@ export class ModelRawLineChanged {
 	 * The new line number the old one is mapped to (after the change was applied).
 	 */
 	public readonly lineNumberPostEdit: number;
-	/**
-	 * The new value of the line.
-	 */
-	public readonly detail: string;
-	/**
-	 * The injected text on the line.
-	 */
-	public readonly injectedText: LineInjectedText[] | null;
 
-	constructor(lineNumber: number, lineNumberPostEdit: number, detail: string, injectedText: LineInjectedText[] | null) {
+	constructor(lineNumber: number, lineNumberPostEdit: number) {
 		this.lineNumber = lineNumber;
 		this.lineNumberPostEdit = lineNumberPostEdit;
-		this.detail = detail;
-		this.injectedText = injectedText;
 	}
 }
 
@@ -397,10 +387,15 @@ export class ModelRawLinesDeleted {
 	 * At what line the deletion stopped (inclusive).
 	 */
 	public readonly toLineNumber: number;
+	/**
+	 * The last unmodified line in the updated buffer after the deletion is made.
+	 */
+	public readonly lastUntouchedLinePostEdit: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
+	constructor(fromLineNumber: number, toLineNumber: number, lastUntouchedLinePostEdit: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
+		this.lastUntouchedLinePostEdit = lastUntouchedLinePostEdit;
 	}
 }
 
@@ -434,21 +429,11 @@ export class ModelRawLinesInserted {
 	public get toLineNumberPostEdit(): number {
 		return this.fromLineNumberPostEdit + this.count - 1;
 	}
-	/**
-	 * The text that was inserted
-	 */
-	public readonly detail: string[];
-	/**
-	 * The injected texts for every inserted line.
-	 */
-	public readonly injectedTexts: (LineInjectedText[] | null)[];
 
-	constructor(fromLineNumber: number, fromLineNumberPostEdit: number, count: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
-		this.injectedTexts = injectedTexts;
+	constructor(fromLineNumber: number, fromLineNumberPostEdit: number, count: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.fromLineNumberPostEdit = fromLineNumberPostEdit;
 		this.count = count;
-		this.detail = detail;
 	}
 }
 

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/e1ac5c446c2531343393adbe8fff9d45d8a7c412",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/b2e04fbe2334bfe56940106b652f4c5799affbb1",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -57,6 +57,12 @@
 		},
 		{
 			"include": "#constants-and-special-vars"
+		},
+		{
+			"include": "#class-identifier-with-optional-factory-method"
+		},
+		{
+			"include": "#function-identifier"
 		},
 		{
 			"include": "#operators"
@@ -224,12 +230,49 @@
 				{
 					"name": "constant.numeric.dart",
 					"match": "(?<!\\$)\\b((0(x|X)[0-9a-fA-F][0-9a-fA-F_]*)|(([0-9][0-9_]*\\.?[0-9_]*)|(\\.[0-9][0-9_]*))((e|E)(\\+|-)?[0-9][0-9_]*)?)\\b(?!\\$)"
+				}
+			]
+		},
+		"class-identifier-with-optional-factory-method": {
+			"patterns": [
+				{
+					"match": "(?<!\\$)\\b(bool|num|int|double|dynamic)\\b(?!\\$)\\s*(factory\\b)?",
+					"captures": {
+						"1": {
+							"name": "support.class.dart"
+						},
+						"2": {
+							"name": "entity.name.function.dart"
+						}
+					}
 				},
 				{
-					"include": "#class-identifier"
+					"match": "(?<!\\$)\\b(void)\\b(?!\\$)\\s*(factory\\b)?",
+					"captures": {
+						"1": {
+							"name": "storage.type.primitive.dart"
+						},
+						"2": {
+							"name": "entity.name.function.dart"
+						}
+					}
 				},
 				{
-					"include": "#function-identifier"
+					"begin": "(?<![a-zA-Z0-9_$])([_$]*[A-Z][a-zA-Z0-9_$]*)\\b\\s*(factory\\b)?",
+					"end": "(?!<)",
+					"beginCaptures": {
+						"1": {
+							"name": "support.class.dart"
+						},
+						"2": {
+							"name": "entity.name.function.dart"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#type-args"
+						}
+					]
 				}
 			]
 		},
@@ -275,6 +318,10 @@
 							]
 						}
 					}
+				},
+				{
+					"match": "(?<=\\.)new\\b",
+					"name": "entity.name.function.dart"
 				}
 			]
 		},
@@ -330,8 +377,8 @@
 					"match": "(?<!\\$)\\bassert\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.control.new.dart",
-					"match": "(?<!\\$)\\b(new)\\b(?!\\$)"
+					"name": "keyword.new.dart",
+					"match": "(?<![\\$\\.])\\b(new)\\b(?!\\$)"
 				},
 				{
 					"name": "keyword.control.return.dart",
@@ -347,7 +394,7 @@
 				},
 				{
 					"name": "storage.type.primitive.dart",
-					"match": "(?<!\\$)\\b(?:void|var)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(?:var)\\b(?!\\$)"
 				}
 			]
 		},
@@ -403,6 +450,12 @@
 			"patterns": [
 				{
 					"include": "#constants-and-special-vars"
+				},
+				{
+					"include": "#class-identifier-with-optional-factory-method"
+				},
+				{
+					"include": "#function-identifier"
 				},
 				{
 					"include": "#strings"

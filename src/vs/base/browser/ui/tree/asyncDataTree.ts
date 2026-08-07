@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListTouchEvent, IListVirtualDelegate, NotSelectableGroupIdType } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
 import { ComposedTreeDelegate, TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions, IStickyScrollDelegate, AbstractTree } from './abstractTree.js';
@@ -837,7 +837,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	hasNode(element: TInput | T): boolean {
-		return element === this.root.element || this.nodes.has(element as T);
+		if (element === this.root.element) {
+			return true;
+		}
+
+		const node = this.nodes.get(element as T);
+
+		if (!node) {
+			return false;
+		}
+
+		return this.tree.hasElement(node);
 	}
 
 	// View
@@ -1309,7 +1319,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			diffIdentityProvider: options.diffIdentityProvider && {
 				getId(node: IAsyncDataTreeNode<TInput, T>): { toString(): string } {
 					return options.diffIdentityProvider!.getId(node.element as T);
-				}
+				},
+				getGroupId: options.diffIdentityProvider!.getGroupId ? (node: IAsyncDataTreeNode<TInput, T>): number | NotSelectableGroupIdType => {
+					return options.diffIdentityProvider!.getGroupId!(node.element as T);
+				} : undefined
 			}
 		};
 

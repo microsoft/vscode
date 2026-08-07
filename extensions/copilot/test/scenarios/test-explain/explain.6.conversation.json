@@ -1,0 +1,17 @@
+[
+    {
+        "question": "/explain",
+        "description": "includes class definitions from same file",
+        "stateFile": "./explain.6.state.json",
+        "keywords": {
+            "allOf": [
+                "MyClass",
+                "hello"
+            ],
+            "not": [
+                "MySecondClass",
+                "greet"
+            ]
+        }
+    }
+]

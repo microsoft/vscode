@@ -104,6 +104,7 @@ export interface IFilesConfigurationService {
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString;
 
 	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
+	updateReadonly(resource: URI[], readonly: true | false | 'reset'): Promise<void>;
 
 	//#endregion
 
@@ -239,7 +240,17 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return false;
 	}
 
-	async updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void> {
+	async updateReadonly(resource: URI | URI[], readonly: true | false | 'toggle' | 'reset'): Promise<void> {
+		if (Array.isArray(resource)) {
+			for (const r of resource) {
+				this.applyReadonly(r, readonly as true | false | 'reset');
+			}
+			if (resource.length > 0) {
+				this._onDidChangeReadonly.fire();
+			}
+			return;
+		}
+
 		if (readonly === 'toggle') {
 			let stat: IFileStatWithMetadata | undefined = undefined;
 			try {
@@ -251,13 +262,16 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			readonly = !this.isReadonly(resource, stat);
 		}
 
+		this.applyReadonly(resource, readonly);
+		this._onDidChangeReadonly.fire();
+	}
+
+	private applyReadonly(resource: URI, readonly: true | false | 'reset'): void {
 		if (readonly === 'reset') {
 			this.sessionReadonlyOverrides.delete(resource);
 		} else {
 			this.sessionReadonlyOverrides.set(resource, readonly);
 		}
-
-		this._onDidChangeReadonly.fire();
 	}
 
 	private registerListeners(): void {

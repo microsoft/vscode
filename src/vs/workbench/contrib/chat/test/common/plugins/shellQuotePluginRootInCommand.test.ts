@@ -98,14 +98,14 @@ suite('shellQuotePluginRootInCommand', () => {
 
 	test('uses default CLAUDE_PLUGIN_ROOT token when not specified', () => {
 		assert.strictEqual(
-			shellQuotePluginRootInCommand('${CLAUDE_PLUGIN_ROOT}/run.sh', '/safe/path'),
+			shellQuotePluginRootInCommand('${CLAUDE_PLUGIN_ROOT}/run.sh', '/safe/path', '${CLAUDE_PLUGIN_ROOT}'),
 			'/safe/path/run.sh',
 		);
 	});
 
 	test('uses default CLAUDE_PLUGIN_ROOT token with quoting', () => {
 		assert.strictEqual(
-			shellQuotePluginRootInCommand('${CLAUDE_PLUGIN_ROOT}/run.sh', '/my dir'),
+			shellQuotePluginRootInCommand('${CLAUDE_PLUGIN_ROOT}/run.sh', '/my dir', '${CLAUDE_PLUGIN_ROOT}'),
 			'"/my dir/run.sh"',
 		);
 	});

@@ -15,7 +15,7 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { isExportableSessionData } from '../../common/model/chatModel.js';
+import { extractExportableSessionData, isExportableSessionData } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { revive } from '../../../../../base/common/marshalling.js';
@@ -117,23 +117,28 @@ export function registerChatExportActions() {
 				if (!isExportableSessionData(data)) {
 					throw new Error('Invalid chat session data');
 				}
+				const importedData = extractExportableSessionData(data);
 
 				let sessionResource: URI;
 				let resolvedTarget: typeof ChatViewPaneTarget | PreferredGroup;
 				let options: IChatEditorOptions;
 
 				if (opts?.target === 'chatViewPane') {
-					const modelRef = chatService.loadSessionFromData(data);
-					sessionResource = modelRef.object.sessionResource;
-					resolvedTarget = ChatViewPaneTarget;
-					options = { pinned: true };
+					const modelRef = chatService.loadSessionFromData(importedData, 'ChatImportExport#importToChatView');
+					try {
+						sessionResource = modelRef.object.sessionResource;
+						resolvedTarget = ChatViewPaneTarget;
+						options = { pinned: true };
+						await widgetService.openSession(sessionResource, resolvedTarget, options);
+					} finally {
+						modelRef.dispose();
+					}
 				} else {
 					sessionResource = ChatEditorInput.getNewEditorUri();
 					resolvedTarget = ACTIVE_GROUP;
-					options = { target: { data }, pinned: true };
+					options = { target: { data: importedData }, pinned: true };
+					await widgetService.openSession(sessionResource, resolvedTarget, options);
 				}
-
-				await widgetService.openSession(sessionResource, resolvedTarget, options);
 			} catch (err) {
 				throw err;
 			}

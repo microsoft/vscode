@@ -47,19 +47,24 @@ import { IChatRequestVariableEntry, OmittedState } from '../../common/attachment
 import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { isQuickChat } from '../widget/chatWidget.js';
 import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { registerCreatePluginAction } from './createPluginAction.js';
 
-export function registerChatContextActions() {
-	registerAction2(AttachContextAction);
-	registerAction2(AttachFileToChatAction);
-	registerAction2(AttachFolderToChatAction);
-	registerAction2(AttachSelectionToChatAction);
-	registerAction2(AttachSearchResultAction);
-	registerAction2(AttachPinnedEditorsToChatAction);
-	registerPromptActions();
+export function registerChatContextActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AttachContextAction));
+	store.add(registerAction2(AttachFileToChatAction));
+	store.add(registerAction2(AttachFolderToChatAction));
+	store.add(registerAction2(AttachSelectionToChatAction));
+	store.add(registerAction2(AttachSearchResultAction));
+	store.add(registerAction2(AttachPinnedEditorsToChatAction));
+	store.add(registerCreatePluginAction());
+	registerPromptActions(); // TODO@jrieken: should also return a DisposableStore
+	return store;
 }
 
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
@@ -88,7 +93,7 @@ abstract class AttachResourceAction extends Action2 {
 	protected _getResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
-		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, args) : Array.isArray(args[1]) ? args[1] : [args[0]];
+		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, ...args) : Array.isArray(args[1]) ? args[1] : [args[0]];
 		const files = [];
 		for (const context of contexts) {
 			let uri;
@@ -466,7 +471,7 @@ export class AttachContextAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.attachContext',
 			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
-			icon: Codicon.add,
+			icon: Codicon.addCompact,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
@@ -501,6 +506,8 @@ export class AttachContextAction extends Action2 {
 			}, {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inQuickChat,
+					// Hide the attach-context button in the floating input window.
+					ChatContextKeys.inChatInputWindow.negate(),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.agentSupportsAttachments
@@ -603,6 +610,7 @@ export class AttachContextAction extends Action2 {
 	private async _handleQPPick(accessor: ServicesAccessor, widget: IChatWidget, isInBackground: boolean, pick: IQuickPickServicePickItem) {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
+		const chatAttachmentResolveService = accessor.get(IChatAttachmentResolveService);
 
 		const toAttach: IChatRequestVariableEntry[] = [];
 
@@ -621,6 +629,11 @@ export class AttachContextAction extends Action2 {
 						kind: 'image',
 						references: [{ reference: pick.resource, kind: 'reference' }]
 					});
+				}
+			} else if (pick.resource.scheme === Schemas.vscodeBrowser) {
+				const entry = await chatAttachmentResolveService.resolveEditorAttachContext({ resource: pick.resource });
+				if (entry) {
+					toAttach.push(entry);
 				}
 			} else {
 				let omittedState = OmittedState.NotOmitted;

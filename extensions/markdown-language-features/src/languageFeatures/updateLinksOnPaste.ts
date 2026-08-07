@@ -13,16 +13,20 @@ class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider 
 
 	public static readonly metadataMime = 'application/vnd.vscode.markdown.updatelinks.metadata';
 
+	readonly #client: MdLanguageClient;
+
 	constructor(
-		private readonly _client: MdLanguageClient,
-	) { }
+		client: MdLanguageClient,
+	) {
+		this.#client = client;
+	}
 
 	async prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
-		if (!this._isEnabled(document)) {
+		if (!this.#isEnabled(document)) {
 			return;
 		}
 
-		const metadata = await this._client.prepareUpdatePastedLinks(document.uri, ranges, token);
+		const metadata = await this.#client.prepareUpdatePastedLinks(document.uri, ranges, token);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -37,7 +41,7 @@ class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider 
 		context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
-		if (!this._isEnabled(document)) {
+		if (!this.#isEnabled(document)) {
 			return;
 		}
 
@@ -56,7 +60,7 @@ class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider 
 		// - copy empty line
 		// - Copy with multiple cursors and paste into multiple locations
 		// - ...
-		const edits = await this._client.getUpdatePastedLinksEdit(document.uri, ranges.map(x => new vscode.TextEdit(x, text)), metadata, token);
+		const edits = await this.#client.getUpdatePastedLinksEdit(document.uri, ranges.map(x => new vscode.TextEdit(x, text)), metadata, token);
 		if (!edits?.length || token.isCancellationRequested) {
 			return;
 		}
@@ -73,7 +77,7 @@ class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider 
 		return [pasteEdit];
 	}
 
-	private _isEnabled(document: vscode.TextDocument): boolean {
+	#isEnabled(document: vscode.TextDocument): boolean {
 		return vscode.workspace.getConfiguration('markdown', document.uri).get<boolean>('editor.updateLinksOnPaste.enabled', true);
 	}
 }

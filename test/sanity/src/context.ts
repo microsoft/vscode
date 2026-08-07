@@ -10,7 +10,7 @@ import { test } from 'mocha';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium, Page, webkit } from 'playwright';
+import { Browser, chromium, ElectronApplication, Page, webkit } from 'playwright';
 import { Capability, detectCapabilities } from './detectors.js';
 
 /**
@@ -28,16 +28,79 @@ interface ITargetMetadata {
 }
 
 /**
+ * Maps a sanity test target to the build pipeline artifact that carries it, for `--artifacts-dir`
+ * runs against builds that were never published. An unmapped target fails loudly rather than
+ * silently falling back to the update service.
+ */
+const targetArtifacts: Readonly<Record<string, string>> = {
+	'cli-alpine-arm64': 'vscode_cli_alpine_arm64_cli',
+	'cli-alpine-x64': 'vscode_cli_alpine_x64_cli',
+	'cli-darwin-arm64': 'vscode_cli_darwin_arm64_cli',
+	'cli-darwin-x64': 'vscode_cli_darwin_x64_cli',
+	'cli-linux-arm64': 'vscode_cli_linux_arm64_cli',
+	'cli-linux-armhf': 'vscode_cli_linux_armhf_cli',
+	'cli-linux-x64': 'vscode_cli_linux_x64_cli',
+	'cli-win32-arm64': 'vscode_cli_win32_arm64_cli',
+	'cli-win32-x64': 'vscode_cli_win32_x64_cli',
+	'darwin': 'vscode_client_darwin_x64_archive',
+	'darwin-arm64': 'vscode_client_darwin_arm64_archive',
+	'darwin-arm64-dmg': 'vscode_client_darwin_arm64_dmg',
+	'darwin-universal': 'vscode_client_darwin_universal_archive',
+	'darwin-universal-dmg': 'vscode_client_darwin_universal_dmg',
+	'darwin-x64-dmg': 'vscode_client_darwin_x64_dmg',
+	'linux-arm64': 'vscode_client_linux_arm64_archive-unsigned',
+	'linux-armhf': 'vscode_client_linux_armhf_archive-unsigned',
+	'linux-deb-arm64': 'vscode_client_linux_arm64_deb-package',
+	'linux-deb-armhf': 'vscode_client_linux_armhf_deb-package',
+	'linux-deb-x64': 'vscode_client_linux_x64_deb-package',
+	'linux-rpm-arm64': 'vscode_client_linux_arm64_rpm-package',
+	'linux-rpm-armhf': 'vscode_client_linux_armhf_rpm-package',
+	'linux-rpm-x64': 'vscode_client_linux_x64_rpm-package',
+	'linux-snap-x64': 'vscode_client_linux_x64_snap',
+	'linux-x64': 'vscode_client_linux_x64_archive-unsigned',
+	'server-alpine-arm64': 'vscode_server_alpine_arm64_archive-unsigned',
+	'server-alpine-arm64-web': 'vscode_web_alpine_arm64_archive-unsigned',
+	'server-darwin': 'vscode_server_darwin_x64_archive',
+	'server-darwin-arm64': 'vscode_server_darwin_arm64_archive',
+	'server-darwin-arm64-web': 'vscode_web_darwin_arm64_archive',
+	'server-darwin-web': 'vscode_web_darwin_x64_archive',
+	'server-linux-alpine': 'vscode_server_linux_alpine_archive-unsigned',
+	'server-linux-alpine-web': 'vscode_web_linux_alpine_archive-unsigned',
+	'server-linux-arm64': 'vscode_server_linux_arm64_archive-unsigned',
+	'server-linux-arm64-web': 'vscode_web_linux_arm64_archive-unsigned',
+	'server-linux-x64': 'vscode_server_linux_x64_archive-unsigned',
+	'server-linux-x64-web': 'vscode_web_linux_x64_archive-unsigned',
+	'server-win32-arm64': 'vscode_server_win32_arm64_archive',
+	'server-win32-arm64-web': 'vscode_web_win32_arm64_archive',
+	'server-win32-x64': 'vscode_server_win32_x64_archive',
+	'server-win32-x64-web': 'vscode_web_win32_x64_archive',
+	'win32-arm64': 'vscode_client_win32_arm64_setup',
+	'win32-arm64-archive': 'vscode_client_win32_arm64_archive',
+	'win32-arm64-user': 'vscode_client_win32_arm64_user-setup',
+	'win32-x64': 'vscode_client_win32_x64_setup',
+	'win32-x64-archive': 'vscode_client_win32_x64_archive',
+	'win32-x64-user': 'vscode_client_win32_x64_user-setup',
+};
+
+/**
  * Provides context and utilities for VS Code sanity tests.
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
+	// MXC SDK ships per-arch SPDX catalog manifests that Get-AuthenticodeSignature reports as UnknownError.
+	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
-	private static readonly versionInfoExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
+	private static readonly versionInfoFileExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
+	// MXC SDK binaries under bin are signed, but they do not carry a ProductName VersionInfo resource.
+	private static readonly versionInfoPathExclude = /(?:^|[\\/])node_modules(?:\.asar\.unpacked)?[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/]/i;
+	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
 	private nextPort = 3010;
+	private currentTestName: string | undefined;
+	private screenshotCounter = 0;
+	private wslVersion: number | undefined;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -47,6 +110,9 @@ export class TestContext {
 		checkSigning: boolean;
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
+		screenshotsDir: string | undefined;
+		crashDumpsDir: string | undefined;
+		artifactsDir: string | undefined;
 	}>) {
 	}
 
@@ -88,6 +154,8 @@ export class TestContext {
 
 		const self = this;
 		return test(name, async function () {
+			self.currentTestName = name;
+			self.screenshotCounter = 0;
 			self.log(`Starting test: ${name}`);
 
 			const homeDir = os.homedir();
@@ -102,6 +170,8 @@ export class TestContext {
 				throw error;
 
 			} finally {
+				self.currentTestName = undefined;
+
 				process.chdir(homeDir);
 				self.log(`Changed working directory to: ${homeDir}`);
 
@@ -136,8 +206,25 @@ export class TestContext {
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
 		this.consoleOutputs.push(line);
-		console.error(line);
+		console.error(`##vso[task.logissue type=error]${line}`);
 		throw new Error(message);
+	}
+
+	/**
+	 * Logs a warning message with a timestamp.
+	 */
+	public warn(message: string) {
+		const line = `[${new Date().toISOString()}] WARNING: ${message}`;
+		this.consoleOutputs.push(line);
+		console.warn(`##vso[task.logissue type=warning]${line}`);
+	}
+
+	/**
+	 * Returns a promise that resolves after the specified delay in milliseconds.
+	 * @param delay The delay in milliseconds to wait before resolving the promise.
+	 */
+	private timeout(delay: number) {
+		return new Promise(resolve => setTimeout(resolve, delay));
 	}
 
 	/**
@@ -196,6 +283,37 @@ export class TestContext {
 	}
 
 	/**
+	 * Returns the WSL version of the Ubuntu distribution, or undefined if not found.
+	 */
+	public getUbuntuWslVersion(): number | undefined {
+		if (this.wslVersion !== undefined) {
+			return this.wslVersion;
+		}
+
+		const result = this.runNoErrors('wsl', '--list', '--verbose');
+		for (const rawLine of result.stdout.split(/\r?\n/)) {
+			const line = rawLine.trim();
+			if (!line || /^NAME\s+STATE\s+VERSION$/i.test(line)) {
+				continue;
+			}
+
+			const normalizedLine = line.replace(/^\*\s*/, '');
+			const columns = normalizedLine.split(/\s+/);
+			if (columns.length < 3 || columns[0] !== 'Ubuntu') {
+				continue;
+			}
+
+			const version = Number(columns[columns.length - 1]);
+			if (!Number.isNaN(version)) {
+				this.wslVersion = version;
+				return this.wslVersion;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
 	 * Ensures that the directory for the specified file path exists.
 	 */
 	public ensureDirExists(filePath: string) {
@@ -215,7 +333,7 @@ export class TestContext {
 				fs.rmSync(dir, { recursive: true, force: true });
 				this.log(`Deleted temp directory: ${dir}`);
 			} catch (error) {
-				this.log(`Failed to delete temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.tempDirs.clear();
@@ -224,7 +342,7 @@ export class TestContext {
 			try {
 				this.deleteWslDir(dir);
 			} catch (error) {
-				this.log(`Failed to delete WSL temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete WSL temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.wslTempDirs.clear();
@@ -242,8 +360,8 @@ export class TestContext {
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			if (attempt > 0) {
 				const delay = Math.pow(2, attempt - 1) * 1000;
-				this.log(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
-				await new Promise(resolve => setTimeout(resolve, delay));
+				this.warn(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await this.timeout(delay);
 			}
 
 			try {
@@ -261,7 +379,7 @@ export class TestContext {
 				return response as Response & { body: NodeJS.ReadableStream };
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
-				this.log(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
+				this.warn(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
 			}
 		}
 
@@ -294,6 +412,10 @@ export class TestContext {
 	 * @returns The path to the downloaded file.
 	 */
 	public async downloadTarget(target: string): Promise<string> {
+		if (this.options.artifactsDir) {
+			return this.resolveArtifact(target);
+		}
+
 		const { url, sha256hash } = await this.fetchMetadata(target);
 		const filePath = path.join(this.createTempDir(), path.basename(url));
 
@@ -303,6 +425,51 @@ export class TestContext {
 
 		this.validateSha256Hash(filePath, sha256hash);
 		return filePath;
+	}
+
+	/**
+	 * Resolves a target from a directory of downloaded build pipeline artifacts, laid out as
+	 * `<artifacts-dir>/<artifact-name>/<file>`. There is no update service metadata for these
+	 * builds, so the SHA-256 check is skipped.
+	 * @param target The target platform (e.g., 'cli-linux-x64').
+	 * @returns The path to the artifact file.
+	 */
+	private resolveArtifact(target: string): string {
+		const artifact = targetArtifacts[target];
+		if (!artifact) {
+			this.error(`No pipeline artifact is mapped for target ${target}. Add it to 'targetArtifacts', or exclude the test from this run.`);
+		}
+
+		const artifactDir = path.join(this.options.artifactsDir!, artifact);
+		if (!fs.existsSync(artifactDir)) {
+			this.error(`Artifact ${artifact} for target ${target} was not downloaded to ${artifactDir}`);
+		}
+
+		const files: string[] = [];
+		this.collectFiles(artifactDir, files);
+		if (files.length !== 1) {
+			this.error(`Expected exactly one file in artifact ${artifact}, found ${files.length}: ${files.join(', ')}`);
+		}
+
+		this.log(`Resolved target ${target} to ${files[0]} from artifact ${artifact}`);
+		return files[0];
+	}
+
+	/**
+	 * Collects all files from the specified directory recursively, skipping the SBOM manifest
+	 * that 1ES injects into every published artifact.
+	 */
+	private collectFiles(dir: string, files: string[]): void {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			const filePath = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				if (entry.name !== '_manifest') {
+					this.collectFiles(filePath, files);
+				}
+			} else {
+				files.push(filePath);
+			}
+		}
 	}
 
 	/**
@@ -345,7 +512,11 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectAuthenticodeFiles(filePath, files);
 			} else if (TestContext.authenticodeInclude.test(entry.name)) {
-				files.push(filePath);
+				if (TestContext.authenticodeExclude.test(filePath)) {
+					this.log(`Skipping excluded file from Authenticode validation: ${filePath}`);
+				} else {
+					files.push(filePath);
+				}
 			}
 		}
 	}
@@ -405,7 +576,7 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectVersionInfoFiles(filePath, files);
 			} else if (TestContext.versionInfoInclude.test(entry.name)) {
-				if (TestContext.versionInfoExclude.test(entry.name)) {
+				if (TestContext.versionInfoFileExclude.test(entry.name) || TestContext.versionInfoPathExclude.test(filePath)) {
 					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
 				} else {
 					files.push(filePath);
@@ -639,6 +810,58 @@ export class TestContext {
 	}
 
 	/**
+	 * Runs a command with sudo if not running as root, and ensures it succeeds.
+	 * @param command The command to run.
+	 * @param args Optional arguments for the command.
+	 * @returns The result of the spawnSync call.
+	 */
+	private runSudoNoErrors(command: string, ...args: string[]): SpawnSyncReturns<string> {
+		if (this.isRootUser) {
+			return this.runNoErrors(command, ...args);
+		} else {
+			return this.runNoErrors('sudo', command, ...args);
+		}
+	}
+
+	/**
+	 * Runs a dpkg command with retries if the frontend lock is busy, and ensures it succeeds.
+	 */
+	private async runDpkgNoErrors(...args: string[]) {
+		const command = this.isRootUser ? 'dpkg' : 'sudo';
+		const commandArgs = this.isRootUser ? args : ['dpkg', ...args];
+		const maxRetries = 5;
+		let lastError: string | undefined;
+
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			if (attempt > 0) {
+				const delay = Math.pow(2, attempt - 1) * 1000;
+				this.log(`Retrying dpkg command (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await this.timeout(delay);
+			}
+
+			const result = this.run(command, ...commandArgs);
+			if (result.error !== undefined) {
+				lastError = `Failed to run command: ${result.error.message}`;
+				break;
+			}
+
+			if (result.status === 0) {
+				return;
+			}
+
+			lastError = `Command exited with code ${result.status}: ${result.stderr}`;
+			const output = `${result.stdout}${result.stderr}`;
+			if (!TestContext.dpkgLockError.test(output)) {
+				break;
+			}
+
+			this.log(`dpkg lock is busy, waiting for the other package manager process to finish`);
+		}
+
+		this.error(lastError ?? `Command failed after ${maxRetries} attempts because the dpkg frontend lock remained busy`);
+	}
+
+	/**
 	 * Kills a process and all its child processes.
 	 * @param pid The process ID to kill.
 	 */
@@ -722,7 +945,7 @@ export class TestContext {
 		this.runNoErrors(uninstallerPath, '/silent');
 		this.log(`Uninstalled VS Code from ${appDir} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 2000));
+		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
 			this.error(`Installation directory still exists after uninstall: ${appDir}`);
 		}
@@ -733,37 +956,39 @@ export class TestContext {
 	 * @param packagePath The path to the DEB file.
 	 * @returns The path to the installed VS Code executable.
 	 */
-	public installDeb(packagePath: string): string {
-		this.log(`Installing ${packagePath} using DEB package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('dpkg', '-i', packagePath);
-		} else {
-			this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
-		}
-		this.log(`Installed ${packagePath} successfully`);
-
+	public async installDeb(packagePath: string): Promise<string> {
 		const name = this.getLinuxBinaryName();
 		const entryPoint = path.join('/usr/share', name, name);
+		if (fs.existsSync(entryPoint)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${entryPoint}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
+		this.log(`Installing ${packagePath} using DEB package manager`);
+		await this.runDpkgNoErrors('-i', packagePath);
+		this.log(`Installed ${packagePath} successfully`);
+
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux DEB package.
+	 * Uninstalls VS Code Linux DEB package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallDeb() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/share', name, name);
 
-		this.log(`Uninstalling DEB package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('dpkg', '-r', name);
-		} else {
-			this.runNoErrors('sudo', 'dpkg', '-r', name);
+		if (!fs.existsSync(packagePath)) {
+			this.log(`DEB package ${name} not installed, skipping uninstall`);
+			return;
 		}
+
+		this.log(`Uninstalling DEB package ${packagePath}`);
+		await this.runDpkgNoErrors('-r', name);
 		this.log(`Uninstalled DEB package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -775,36 +1000,39 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installRpm(packagePath: string): string {
-		this.log(`Installing ${packagePath} using RPM package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('rpm', '-i', packagePath);
-		} else {
-			this.runNoErrors('sudo', 'rpm', '-i', packagePath);
+		const name = this.getLinuxBinaryName();
+		const installedBinary = path.join('/usr/bin', name);
+		if (fs.existsSync(installedBinary)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${installedBinary}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
 		}
+
+		this.log(`Installing ${packagePath} using RPM package manager`);
+		this.runSudoNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
 		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux RPM package.
+	 * Uninstalls VS Code Linux RPM package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallRpm() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/bin', name);
 
-		this.log(`Uninstalling RPM package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('rpm', '-e', name);
-		} else {
-			this.runNoErrors('sudo', 'rpm', '-e', name);
+		if (!fs.existsSync(packagePath)) {
+			this.log(`RPM package ${name} not installed, skipping uninstall`);
+			return;
 		}
+
+		this.log(`Uninstalling RPM package ${packagePath}`);
+		this.runSudoNoErrors('rpm', '-e', name);
 		this.log(`Uninstalled RPM package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -816,37 +1044,40 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installSnap(packagePath: string): string {
-		this.log(`Installing ${packagePath} using Snap package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
-		} else {
-			this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
+		const name = this.getLinuxBinaryName();
+		const snapWrapper = path.join('/snap/bin', name);
+		if (fs.existsSync(snapWrapper)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${snapWrapper}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
 		}
+
+		this.log(`Installing ${packagePath} using Snap package manager`);
+		this.runSudoNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
-		const name = this.getLinuxBinaryName();
 		const entryPoint = `/snap/${name}/current/usr/share/${name}/${name}`;
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux Snap package.
+	 * Uninstalls VS Code Linux Snap package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallSnap() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/snap/bin', name);
 
-		this.log(`Uninstalling Snap package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('snap', 'remove', name);
-		} else {
-			this.runNoErrors('sudo', 'snap', 'remove', name);
+		if (!fs.existsSync(packagePath)) {
+			this.log(`Snap package ${name} not installed, skipping uninstall`);
+			return;
 		}
+
+		this.log(`Uninstalling Snap package ${packagePath}`);
+		this.runSudoNoErrors('snap', 'remove', name);
 		this.log(`Uninstalled Snap package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -1071,6 +1302,73 @@ export class TestContext {
 	}
 
 	/**
+	 * Closes a Playwright Electron application gracefully, falling back to a forced
+	 * kill of the process tree if the close hangs (for example after a renderer crash).
+	 */
+	public async closeElectronApp(app: ElectronApplication, timeoutMs = 60_000): Promise<void> {
+		this.log('Closing the application');
+		const pid = app.process().pid;
+		let timeoutHandle: NodeJS.Timeout | undefined;
+		try {
+			await Promise.race([
+				app.close(),
+				new Promise<never>((_, reject) => {
+					timeoutHandle = setTimeout(
+						() => reject(new Error(`app.close() did not complete within ${timeoutMs}ms`)),
+						timeoutMs,
+					);
+				}),
+			]);
+		} catch (error) {
+			this.warn(`Failed to close application gracefully: ${error instanceof Error ? error.message : String(error)}`);
+			if (pid) {
+				try {
+					this.killProcessTree(pid);
+				} catch (killError) {
+					this.warn(`Failed to force-kill application process tree: ${killError instanceof Error ? killError.message : String(killError)}`);
+				}
+			}
+		} finally {
+			if (timeoutHandle) {
+				clearTimeout(timeoutHandle);
+			}
+		}
+	}
+
+	/**
+	 * Returns a per-test crash dump directory for the desktop app to use with
+	 * `--crash-reporter-directory`. Returns undefined if `--crash-dumps-dir` was
+	 * not provided.
+	 */
+	public getCrashDumpsDir(): string | undefined {
+		if (!this.options.crashDumpsDir || !this.currentTestName) {
+			return undefined;
+		}
+		const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+		return path.join(this.options.crashDumpsDir, sanitizedName);
+	}
+
+	/**
+	 * Captures a screenshot of the current page if one is active.
+	 */
+	public async captureScreenshot(page: Page) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			fs.mkdirSync(screenshotDir, { recursive: true });
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const screenshotPath = path.join(screenshotDir, `${sanitizedName}-${++this.screenshotCounter}.png`);
+			await page.screenshot({ path: screenshotPath, fullPage: true });
+			this.log(`Screenshot saved to: ${screenshotPath}`);
+		} catch (e) {
+			this.warn(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/**
 	 * Constructs a web server URL with optional token and folder parameters.
 	 * @param port The port number of the web server.
 	 * @param token The optional authentication token.
@@ -1158,14 +1456,14 @@ export class TestContext {
 		const app = spawn(command, args, {
 			shell: /\.(sh|cmd)$/.test(command),
 			detached: !this.capabilities.has('windows'),
-			stdio: ['ignore', 'pipe', 'pipe']
+			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 
 		try {
 			await new Promise<void>((resolve, reject) => {
 				app.stderr.on('data', (data) => {
 					const text = `[${name}] ${data.toString().trim()}`;
-					if (/ECONNRESET/.test(text)) {
+					if (this.isNonFatalCliStderr(text)) {
 						this.log(text);
 					} else {
 						reject(new Error(text));
@@ -1202,5 +1500,10 @@ export class TestContext {
 		} finally {
 			this.killProcessTree(app.pid!);
 		}
+	}
+
+	private isNonFatalCliStderr(text: string): boolean {
+		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
 	}
 }
