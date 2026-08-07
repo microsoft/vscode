@@ -248,11 +248,12 @@ export class SessionHeader extends Disposable {
 			}
 
 			// Don't initiate a drag when the gesture starts inside the header
-			// toolbar (Run, Open in VS Code, New Chat, pin, close). A small pointer
-			// move during a button click would otherwise start a session drag
-			// and swallow the click.
+			// toolbar (Run, Open in VS Code, New Chat, pin, close) or the meta
+			// row (workspace folder / changes / pull request pills). A small
+			// pointer move during a button click would otherwise start a
+			// session drag and swallow the click.
 			const target = e.target as Node | null;
-			if (target && this._titleActionsEl.contains(target)) {
+			if (target && (this._titleActionsEl.contains(target) || this._metaRow.contains(target))) {
 				e.preventDefault();
 				return;
 			}
