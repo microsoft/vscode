@@ -185,7 +185,7 @@ export class AgentsWindow {
 		while (Date.now() < deadline) {
 			try {
 				await trigger.click({ timeout: 5_000 });
-				await page.locator(ACTION_WIDGET).waitFor({ state: 'visible', timeout: 5_000 });
+				await enabledRows.first().waitFor({ state: 'visible', timeout: 5_000 });
 
 				const rowDeadline = Math.min(deadline, Date.now() + 5_000);
 				let clicked = false;
