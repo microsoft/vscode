@@ -134,4 +134,24 @@ suite('SessionsDiffEditorCommandsService', () => {
 			targetControlUpdates: [{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false }],
 		});
 	});
+
+	test('prefers a forwarded single-file diff over the active Changes editor', async () => {
+		const resource = URI.file('/workspace/target.ts');
+		const controlUpdates: IDiffEditorOptions[] = [];
+		const targetEditor = createTextDiffEditor(resource, true, controlUpdates);
+		const changesEditor = Object.create(SessionChangesEditor.prototype) as IEditorPane;
+		const { service, workspaceWrites, resourceWrites } = createService(changesEditor, true, [targetEditor as IVisibleEditorPane]);
+
+		await service.toggleRenderSideBySide([resource]);
+
+		assert.deepStrictEqual({
+			workspaceWrites,
+			resourceWrites,
+			controlUpdates,
+		}, {
+			workspaceWrites: [],
+			resourceWrites: [{ resource, key: 'diffEditor.renderSideBySide', value: false }],
+			controlUpdates: [{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false }],
+		});
+	});
 });

@@ -32,34 +32,36 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 	}
 
 	override async toggleRenderSideBySide(args: unknown[]): Promise<void> {
+		const resource = args[0] instanceof URI ? args[0] : undefined;
+		if (resource || !(this.editorService.activeEditorPane instanceof SessionChangesEditor)) {
+			for (const pane of [this.editorService.activeEditorPane, ...this.editorService.visibleEditorPanes]) {
+				if (!(pane instanceof TextDiffEditor)) {
+					continue;
+				}
+
+				const control = pane.getControl();
+				if (!isDiffEditor(control)) {
+					continue;
+				}
+
+				const modifiedResource = control.getModifiedEditor().getModel()?.uri;
+				if (resource && (!modifiedResource || !isEqual(resource, modifiedResource))) {
+					continue;
+				}
+
+				const renderSideBySide = !control.renderSideBySide;
+				if (modifiedResource) {
+					await this.sessionsTextResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', renderSideBySide);
+				}
+				control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited: false });
+				return;
+			}
+		}
+
 		if (this.editorService.activeEditorPane instanceof SessionChangesEditor) {
 			const key = 'diffEditor.renderSideBySide';
 			const value = this.configurationService.getValue<boolean>(key) ?? true;
 			await this.configurationService.updateValue(key, !value, ConfigurationTarget.WORKSPACE);
-			return;
-		}
-
-		const resource = args[0] instanceof URI ? args[0] : undefined;
-		for (const pane of [this.editorService.activeEditorPane, ...this.editorService.visibleEditorPanes]) {
-			if (!(pane instanceof TextDiffEditor)) {
-				continue;
-			}
-
-			const control = pane.getControl();
-			if (!isDiffEditor(control)) {
-				continue;
-			}
-
-			const modifiedResource = control.getModifiedEditor().getModel()?.uri;
-			if (resource && (!modifiedResource || !isEqual(resource, modifiedResource))) {
-				continue;
-			}
-
-			const renderSideBySide = !control.renderSideBySide;
-			if (modifiedResource) {
-				await this.sessionsTextResourceConfigurationService.updateValue(modifiedResource, 'diffEditor.renderSideBySide', renderSideBySide);
-			}
-			control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited: false });
 			return;
 		}
 
