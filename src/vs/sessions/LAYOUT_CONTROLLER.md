@@ -224,7 +224,10 @@ before un-maximizing, so maximize restoration cannot be captured as an explicit 
 
 The per-session record is updated whenever the user toggles the panel: an
 `onDidChangePartVisibility` listener for `PANEL_PART` writes the new visibility for the active
-session (suppressed while multiple sessions are visible).
+session (suppressed while multiple sessions are visible). Panel height is global workbench state,
+not per-session layout state. When Quick Chat hides the side pane, returning restores the panel first
+and then reveals the single-pane Editor. That Editor reveal must preserve the panel's current height;
+otherwise grid redistribution shrinks the panel to its minimum.
 
 ---
 
