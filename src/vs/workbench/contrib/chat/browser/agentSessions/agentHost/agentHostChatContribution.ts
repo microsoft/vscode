@@ -316,11 +316,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// Language model provider.
 		// Order matters: `updateModels` must be called after
 		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
-		const vendorDescriptors = [
-			{ vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined },
-		];
-		this._languageModelsService.deltaLanguageModelChatProviderDescriptors(vendorDescriptors, []);
-		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], vendorDescriptors)));
+		// One vendor descriptor for this harness. Claude's `anthropic`/`copilot`
+		// model groups (per-session provider selection) resolve their display names
+		// from the Copilot extension's pre-existing vendors, so registering them
+		// here would add nothing and risk clobbering those shared vendors on dispose.
+		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
+		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
+		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
 		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor));
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));

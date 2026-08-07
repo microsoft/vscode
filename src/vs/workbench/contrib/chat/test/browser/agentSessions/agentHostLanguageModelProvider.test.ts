@@ -160,6 +160,31 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.deepStrictEqual(info.metadata.modelGroup, { id: 'chatgpt' });
 	});
 
+	test('groups Claude models by transport provider: Copilot-routed vs native Anthropic', async () => {
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-claude', 'claude'));
+		// Per-session provider selection: the agent host's merged catalog keeps each
+		// model's `provider` as the routing owner (`claude`) and carries the transport
+		// (`copilot` for the Copilot-CAPI proxy, `anthropic` for the user's own Anthropic
+		// account) in `_meta.modelGroupId`, qualifying the id the same way. The picker
+		// buckets by that group token, so the same model offered by both transports
+		// yields two distinct rows in two distinct groups — and, unlike Codex, native
+		// Claude carries no `chatgptSubscription` source.
+		provider.updateModels([
+			{ id: '@provider=copilot:claude-opus-4.6', provider: 'claude', name: 'Claude Opus 4.6', _meta: { modelGroupId: 'copilot' } },
+			{ id: '@provider=anthropic:claude-opus-4.6', provider: 'claude', name: 'Claude Opus 4.6', _meta: { modelGroupId: 'anthropic' } },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => ({
+			identifier: info.identifier,
+			name: info.metadata.name,
+			group: info.metadata.modelGroup,
+		})), [
+			{ identifier: 'claude:@provider=copilot:claude-opus-4.6', name: 'Claude Opus 4.6', group: { id: 'copilot' } },
+			{ identifier: 'claude:@provider=anthropic:claude-opus-4.6', name: 'Claude Opus 4.6', group: { id: 'anthropic' } },
+		]);
+	});
+
 	test('carries the BYOK model identifier from _meta so the Manage Models toggle can be honoured', async () => {
 		const provider = createProvider();
 		// A grouped BYOK copy: the node agent host carried the original LM service identifier

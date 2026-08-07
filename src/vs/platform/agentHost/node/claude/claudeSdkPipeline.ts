@@ -397,6 +397,27 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
+	 * Advance the *desired* model / effort for the NEXT rebind WITHOUT pushing
+	 * them to the live Query.
+	 *
+	 * A cross-transport provider switch is about to discard the running
+	 * subprocess (it is pinned to the old transport / credential), so
+	 * hot-swapping it via {@link setModel} / {@link setEffort} is pointless —
+	 * and would 400 on a model the old transport does not serve. But
+	 * {@link _currentModel} / {@link _currentEffort} must still move to the new
+	 * selection: after the rebuild, {@link _rebindQuery} resets the applied
+	 * cache and {@link _replayCurrentConfig} re-asserts `_currentModel` onto the
+	 * fresh Query. The rebuild resumes the transcript, which replays the
+	 * pre-switch `/model`; without advancing the buffer here that stale replay
+	 * would win and the rebuilt subprocess would silently run the old model on
+	 * the new transport (→ `model_not_supported`).
+	 */
+	bufferConfigForRebind(model: string, effort: ClaudeRuntimeEffortLevel | undefined): void {
+		this._currentModel = model;
+		this._currentEffort = effort;
+	}
+
+	/**
 	 * Queue a user prompt for the SDK. Resolves when the matching
 	 * `result` message arrives.
 	 *

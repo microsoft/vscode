@@ -28,7 +28,7 @@ import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKin
 import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
-import { toSdkModelId } from './claudeModelId.js';
+import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
@@ -59,6 +59,14 @@ export type { IRematerializer } from './claudeSdkPipeline.js';
  * agent's per-session lookup, and the resume-vs-fresh discriminator).
  */
 export interface IMaterializeContext {
+	/**
+	 * Transport (proxy vs native) the agent resolved for this session's
+	 * provisional model, pinned here at materialize. The agent owns transport
+	 * resolution (it holds the live proxy handle and the host default mode); the
+	 * session only consumes the value and never calls back to re-resolve. A later
+	 * per-session provider switch is pushed in separately through
+	 * {@link ClaudeAgentSession.send}'s `switchTransport`.
+	 */
 	readonly transport: ClaudeTransport;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly onElicitation: OnElicitation;
@@ -293,6 +301,42 @@ export class ClaudeAgentSession extends Disposable {
 	private _transportKind: ClaudeTransport['kind'] = 'proxy';
 
 	/**
+	 * Set by {@link setModel} when a model change crosses transports (Copilot ↔
+	 * native) on an already-materialized session. Rather than hot-swapping the
+	 * live subprocess (which stays on the old transport), the switch is deferred:
+	 * the flag makes the next {@link send} pre-flight rebind. The agent resolves
+	 * the new transport at send time and hands it in via `switchTransport` (kept
+	 * in {@link _pendingSwitchTransport}); the rematerializer rebuilds onto it and
+	 * clears both on success. A failed rebuild leaves them set so the following
+	 * send retries. Exposed via {@link hasPendingTransportSwitch} so the agent
+	 * resolves a transport only when one is actually pending.
+	 */
+	private _pendingTransportSwitch = false;
+
+	/**
+	 * The transport the agent resolved for a pending {@link _pendingTransportSwitch},
+	 * pushed in through {@link send}'s `switchTransport` at send time (when the
+	 * live proxy handle is current and a signed-out proxy switch throws). Consumed
+	 * by the next rebuild in preference to {@link _materializedTransport}, then
+	 * cleared once the new subprocess is live. `undefined` between the deferring
+	 * {@link setModel} and the send that supplies it.
+	 */
+	private _pendingSwitchTransport: ClaudeTransport | undefined;
+
+	/**
+	 * The full transport (kind + any live proxy handle) that backs the current
+	 * {@link _transportKind}, captured the last time {@link materialize} or the
+	 * rematerializer actually built the subprocess. Ordinary rebuilds (a tool /
+	 * customization diff, a resume) reuse it verbatim so a runtime flip of the
+	 * host default transport — e.g. a config change or a Copilot sign-in mutating
+	 * the agent's live transport mode — never reroutes the live conversation. Only
+	 * a deliberate {@link _pendingSwitchTransport} rebuilds onto a freshly
+	 * resolved transport; this pin keeps ordinary rebuilds on the transport fixed
+	 * at materialize, never re-derived.
+	 */
+	private _materializedTransport: ClaudeTransport | undefined;
+
+	/**
 	 * Accumulate proxy-reported billed credits for the in-flight turn.
 	 * Called from {@link ClaudeAgent} for every proxy `onDidReportCredits`
 	 * routed to this session. Ignores non-positive / non-finite values.
@@ -494,6 +538,7 @@ export class ClaudeAgentSession extends Disposable {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
 		}
 		this._transportKind = ctx.transport.kind;
+		this._materializedTransport = ctx.transport;
 
 		const permissionMode = readClaudePermissionMode(this._configurationService, this._storageUri) ?? this._permissionModeFallback;
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
@@ -563,7 +608,7 @@ export class ClaudeAgentSession extends Disposable {
 		// the user's last-chosen model / effort without losing the picker
 		// config. Read provisional state directly off the session.
 		pipeline.seedCurrentConfig(
-			toSdkModelId(this._provisionalModel?.id),
+			toClaudeSdkModelId(this._provisionalModel),
 			toRuntimeEffortLevel(resolveClaudeEffort(this._provisionalModel)),
 			permissionMode,
 		);
@@ -611,6 +656,20 @@ export class ClaudeAgentSession extends Disposable {
 			const rebuildAbort = new AbortController();
 			let rebuildWarm: WarmQuery | undefined;
 			try {
+				// Pin the transport: prefer the one the agent staged for a deliberate
+				// per-session switch (`_pendingSwitchTransport`, already resolved and
+				// validated at `send` — the session only consumes it, never re-resolves),
+				// else reuse the transport captured at materialize. Reusing it keeps a
+				// runtime host-default flip (config change / Copilot sign-in) from
+				// rerouting a live conversation; an SDK-driven recover with nothing staged
+				// stays put and re-tries the switch on the next send.
+				const rebuildTransport = this._pendingSwitchTransport ?? this._materializedTransport;
+				if (!rebuildTransport) {
+					// Always set once `materialize` has run; a throwing guard (never a
+					// non-null assertion) keeps a rebuild honest rather than crashing on
+					// an impossible null.
+					throw new Error(`Cannot rebuild Claude session ${this.sessionId}: no transport resolved`);
+				}
 				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 				const rebuildOptions = await buildOptions(
@@ -632,7 +691,7 @@ export class ClaudeAgentSession extends Disposable {
 						telemetry,
 						traceContext,
 					},
-					ctx.transport,
+					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
 				);
 				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
@@ -648,6 +707,20 @@ export class ClaudeAgentSession extends Disposable {
 				this._pendingResumeSessionAt = undefined;
 				this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
 				this._watchCustomizations(this.workingDirectories);
+				// Commit the (possibly switched) transport now that the new
+				// subprocess is live, so credit enrichment tracks the running
+				// transport. A throw above leaves everything untouched so the next
+				// send retries.
+				this._transportKind = rebuildTransport.kind;
+				this._materializedTransport = rebuildTransport;
+				if (this._pendingSwitchTransport) {
+					// Only a rebuild that actually consumed a pushed switch transport
+					// resolves the pending switch. An ordinary/SDK-recover rebuild that
+					// reused the materialized transport leaves the flag set so the next
+					// send still performs the deferred switch.
+					this._pendingTransportSwitch = false;
+					this._pendingSwitchTransport = undefined;
+				}
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
 				rebuildAbort.abort();
@@ -723,6 +796,15 @@ export class ClaudeAgentSession extends Disposable {
 	/** Pre-materialize model selection accessor (read by materializer to build Options). */
 	get provisionalModel(): ModelSelection | undefined { return this._provisionalModel; }
 
+	/**
+	 * Whether a per-session provider switch is staged and awaiting the next
+	 * {@link send}. The agent reads this to decide whether to resolve a fresh
+	 * transport (it owns the live proxy handle) and push it in via `switchTransport`
+	 * — resolving one only when a switch is actually pending, so ordinary sends
+	 * never trip the signed-out proxy throw.
+	 */
+	get hasPendingTransportSwitch(): boolean { return this._pendingTransportSwitch; }
+
 	private _requirePipeline(): ClaudeSdkPipeline {
 		if (!this._pipeline) {
 			throw new Error('ClaudeAgentSession is not materialized');
@@ -773,14 +855,25 @@ export class ClaudeAgentSession extends Disposable {
 	 *   The pipeline's bijective cache dedupes a no-op `setPermissionMode`,
 	 *   so this is free when nothing changed.
 	 *
+	 * When {@link hasPendingTransportSwitch} is set, the agent resolves the new
+	 * transport (it owns the live proxy handle) and passes it as `switchTransport`.
+	 * It is staged for the pre-flight rebuild below, which rebinds the subprocess
+	 * onto it. The agent resolves one only when a switch is pending, so ordinary
+	 * sends never carry a transport and the session never calls back to re-resolve.
+	 *
 	 * Model / effort are not threaded through here — the pipeline's current
 	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string, workingDirectories?: readonly URI[]): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport): Promise<void> {
 		const pipeline = this._requirePipeline();
 		if (workingDirectories) {
 			this._replaceDesiredWorkingDirectories(workingDirectories);
+		}
+		if (switchTransport) {
+			// Stage the agent-resolved transport for the pending switch; the
+			// pre-flight rebuild below consumes it (see the rematerializer).
+			this._pendingSwitchTransport = switchTransport;
 		}
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
@@ -788,7 +881,8 @@ export class ClaudeAgentSession extends Disposable {
 		if (this.toolDiff.hasDifference
 			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
 			|| this._pendingResumeSessionAt !== undefined
-			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
+			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
+			|| this._pendingTransportSwitch) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback));
@@ -853,11 +947,52 @@ export class ClaudeAgentSession extends Disposable {
 	 *
 	 * In both cases the new model is persisted to the per-session
 	 * metadata overlay so a later resume sees the user's choice.
+	 *
+	 * A change that crosses transports (Copilot ↔ native) on a live session
+	 * defers to a rebuild on the next {@link send} rather than hot-swapping.
 	 */
 	async setModel(model: ModelSelection): Promise<void> {
 		this._provisionalModel = model;
-		if (this._pipeline) {
-			await this._pipeline.setModel(toSdkModelId(model.id));
+		// A model change that crosses transports (Copilot ↔ native) on a live
+		// session can't hot-swap — the running subprocess is pinned to the old
+		// transport. Detect that here and defer to a rebuild on the next `send`.
+		// A still-provisional session or a same-transport change resolves to
+		// `false`, preserving today's hot-swap exactly.
+		// Guard on `explicitProvider`: a bare/legacy id carries no provider of its
+		// own and the parser reports the `copilot` fallback, which must NOT
+		// masquerade as a native→proxy switch on a native session (mirrors the same
+		// guard in `resolveClaudeSessionTransport`). Only a genuinely
+		// provider-qualified id can move a live session across transports.
+		const parsed = parseClaudeModelSelection(model);
+		const crossesTransport =
+			this.isPipelineReady &&
+			parsed.explicitProvider &&
+			claudeTransportForProvider(parsed.provider) !== this._transportKind;
+		if (crossesTransport) {
+			// Cross-transport switch on a live session: the running subprocess is
+			// pinned to the old transport/credential, and pushing the new model onto
+			// it may 400 on a model that transport doesn't serve. Flag the switch and
+			// skip the hot-swap — the next `send` pre-flight rebuilds on the new
+			// transport (conversation preserved via the resume rebuild), and the
+			// rematerializer clears the flag once the new subprocess is live.
+			this._pendingTransportSwitch = true;
+			// Advance the pipeline's DESIRED model/effort (without touching the
+			// doomed old-transport Query) so the rebuild's config replay re-asserts
+			// THIS selection on the new subprocess. The resume replays the pre-switch
+			// `/model`, so skipping this lets the rebuilt subprocess silently revert
+			// to the old model on the new transport (→ `model_not_supported`).
+			this._pipeline?.bufferConfigForRebind(toClaudeSdkModelId(model), toRuntimeEffortLevel(resolveClaudeEffort(model)));
+		} else if (this._pipeline) {
+			// A same-transport hot-swap supersedes any still-pending cross-transport
+			// switch: the user has now landed on a model the live subprocess can serve,
+			// so clear the flag to spare the next `send` a needless full rebuild. The
+			// `setModel`/`setEffort` calls below re-assert this selection as the
+			// pipeline's desired config, overwriting whatever the deferred path buffered.
+			this._pendingTransportSwitch = false;
+			// Drop any transport a superseded switch's `send` had already staged, so a
+			// later ordinary rebuild can't pick it up and reroute this live session.
+			this._pendingSwitchTransport = undefined;
+			await this._pipeline.setModel(toClaudeSdkModelId(model));
 			// Always push the resolved effort, including `undefined`. Switching
 			// to a model that does not support reasoning effort (e.g. Haiku)
 			// resolves to `undefined`, which must actively CLEAR any effort the
