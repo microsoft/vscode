@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as vscode from 'vscode';
 import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { ExternalEditTracker } from '../externalEditTracker';
 
@@ -116,6 +117,143 @@ describe('ExternalEditTracker', () => {
 
 			// No files should be tracked
 			expect(stream.externalEditUris.length).toBe(0);
+		});
+	});
+
+	describe('acknowledgment handling', () => {
+		// Stream whose externalEdit never invokes the proceed callback and never resolves —
+		// reproducing core dropping the externalEdit acknowledgment (#320292).
+		class SilentExternalEditStream extends SpyChatResponseStream {
+			override externalEdit(): Promise<string> {
+				return new Promise<string>(() => { /* never resolves, callback never invoked */ });
+			}
+		}
+
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('proceeds after the timeout when core never acknowledges the edit', async () => {
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new SilentExternalEditStream();
+			const file = URI.file('/workspace/src/test.ts');
+
+			let resolved = false;
+			const tracking = tracker.trackEdit('edit-timeout', [file], stream, CancellationToken.None).then(() => { resolved = true; });
+
+			// Before the timeout elapses the edit is still pending.
+			await vi.advanceTimersByTimeAsync(999);
+			expect(resolved).toBe(false);
+
+			// Once the timeout elapses the permission is allowed to proceed anyway.
+			await vi.advanceTimersByTimeAsync(1);
+			await tracking;
+			expect(resolved).toBe(true);
+		});
+
+		it('proceeds immediately when the request is cancelled while awaiting acknowledgment', async () => {
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new SilentExternalEditStream();
+			const file = URI.file('/workspace/src/test.ts');
+			const tokenSource = new CancellationTokenSource();
+
+			let resolved = false;
+			const tracking = tracker.trackEdit('edit-cancel', [file], stream, tokenSource.token).then(() => { resolved = true; });
+
+			tokenSource.cancel();
+			await tracking;
+			expect(resolved).toBe(true);
+			tokenSource.dispose();
+		});
+
+		it('completeEdit resolves even when core never acknowledges the edit', async () => {
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new SilentExternalEditStream();
+			const file = URI.file('/workspace/src/test.ts');
+
+			// Start tracking and let the timeout release the permission response.
+			const tracking = tracker.trackEdit('edit-complete', [file], stream, CancellationToken.None);
+			await vi.advanceTimersByTimeAsync(1000);
+			await tracking;
+
+			// Finalizing the request must not hang on the missing acknowledgment.
+			const completion = tracker.completeEdit('edit-complete');
+			await vi.advanceTimersByTimeAsync(1000);
+			await expect(completion).resolves.toBeUndefined();
+		});
+
+		it('cancellation after acknowledgment still finishes the tracked edit', async () => {
+			// Stream that acknowledges the edit immediately (invokes the proceed callback) and then
+			// keeps the edit open until the tracked deferred resolves — mirroring core keeping the
+			// edit in progress until completeEdit. `callbackResolved` flips only once the deferred is
+			// completed, so it proves cancellation released the edit rather than leaking it.
+			class AckThenWaitStream extends SpyChatResponseStream {
+				callbackResolved = false;
+				override async externalEdit(_target: vscode.Uri | vscode.Uri[], callback: () => Thenable<unknown>): Promise<string> {
+					await callback();
+					this.callbackResolved = true;
+					return 'done';
+				}
+			}
+
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new AckThenWaitStream();
+			const file = URI.file('/workspace/src/test.ts');
+			const tokenSource = new CancellationTokenSource();
+
+			// Core acknowledges immediately, so the permission gate resolves without the timeout.
+			await tracker.trackEdit('edit-cancel-after-ack', [file], stream, tokenSource.token);
+			expect(stream.callbackResolved).toBe(false); // edit still open, awaiting completion
+
+			// Cancelling after acknowledgment but before completeEdit must finish the edit, not leak
+			// the map entry and the pending proceed callback (regression for the disposed-listener bug).
+			tokenSource.cancel();
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+			expect(stream.callbackResolved).toBe(true);
+
+			tokenSource.dispose();
+		});
+	});
+
+	describe('multiple files per edit key', () => {
+		// Stream that acknowledges each edit immediately but keeps it open until the tracked deferred
+		// resolves (mirroring core). `resolvedCount` only increments once a file's proceed callback
+		// returns, so it proves how many of the key's files were actually released.
+		class MultiFileAckStream extends SpyChatResponseStream {
+			resolvedCount = 0;
+			override async externalEdit(_target: vscode.Uri | vscode.Uri[], callback: () => Thenable<unknown>): Promise<string> {
+				await callback();
+				this.resolvedCount++;
+				return 'edit-id';
+			}
+		}
+
+		it('completeEdit releases every file tracked under the same edit key', async () => {
+			// The Copilot CLI path calls trackEdit once per file with the same tool call id. Each file
+			// must keep its own edit open — overwriting on the shared key would strand the earlier
+			// file's proceed callback and leak core's per-resource streaming-edit lock (#320292).
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new MultiFileAckStream();
+			const file1 = URI.file('/workspace/src/client.go');
+			const file2 = URI.file('/workspace/src/serve.go');
+
+			await tracker.trackEdit('tool-1', [file1], stream, CancellationToken.None);
+			await tracker.trackEdit('tool-1', [file2], stream, CancellationToken.None);
+
+			// Both edits are acknowledged but still open, awaiting completion.
+			expect(stream.resolvedCount).toBe(0);
+
+			const editId = await tracker.completeEdit('tool-1');
+
+			// Completing the shared key must release both files, not just the last one tracked.
+			expect(stream.resolvedCount).toBe(2);
+			expect(editId).toBe('edit-id');
 		});
 	});
 });
