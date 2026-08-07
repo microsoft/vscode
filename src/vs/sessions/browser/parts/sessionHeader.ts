@@ -81,6 +81,10 @@ export class SessionHeader extends Disposable {
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
 
+	// dragstart's own target is always the draggable container, so this tracks the
+	// preceding pointerdown's target to know where the gesture actually began.
+	private _lastPointerDownTarget: Node | undefined;
+
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
@@ -240,6 +244,10 @@ export class SessionHeader extends Disposable {
 	private _registerDragSource(): void {
 		this._container.draggable = true;
 
+		this._register(addDisposableGenericMouseDownListener(this._container, (e: MouseEvent) => {
+			this._lastPointerDownTarget = (e.target as Node | null) ?? undefined;
+		}));
+
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
 			if (!session || !e.dataTransfer) {
@@ -247,18 +255,14 @@ export class SessionHeader extends Disposable {
 				return;
 			}
 
-			// Don't initiate a drag when the gesture starts inside the header
-			// toolbar (Run, Open in VS Code, New Chat, pin, close). A small pointer
-			// move during a button click would otherwise start a session drag
-			// and swallow the click.
-			const target = e.target as Node | null;
-			if (target && this._titleActionsEl.contains(target)) {
+			// Don't swallow a click on the toolbar or meta row pills into a session drag.
+			const target = this._lastPointerDownTarget;
+			if (target && (this._titleActionsEl.contains(target) || this._metaRow.contains(target))) {
 				e.preventDefault();
 				return;
 			}
 
-			// Don't initiate a drag while the title is being renamed, otherwise
-			// the in-progress text selection / click would also start a drag.
+			// Don't initiate a drag while the title is being renamed.
 			if (this._renameInput) {
 				e.preventDefault();
 				return;
