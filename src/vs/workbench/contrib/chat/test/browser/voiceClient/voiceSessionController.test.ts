@@ -1018,6 +1018,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 
 		assert.deepStrictEqual({
 			afterDrop,
@@ -1073,6 +1074,7 @@ suite('VoiceSessionController', () => {
 
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 
 		assert.deepStrictEqual({
 			afterDrop,
@@ -3547,6 +3549,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 
 		controller.setActiveSessionShown(voiceSession);
 		controller.setActiveSessionShown(null);
@@ -3619,6 +3622,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setActiveSessionShown(voiceSession);
 
 		voiceClientService.fireAudioResponse({
@@ -3688,6 +3692,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setActiveSessionShown(firstSession);
 		assert.strictEqual(narrate.call(controller, firstSession.toString(), 'response', 'The first task is complete.'), true);
 		const firstNarrationId = voiceClientService.requests[0].narrationId;
@@ -3730,6 +3735,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setActiveSessionShown(voiceSession);
 
 		voiceClientService.fireAudioResponse({
@@ -4946,7 +4952,7 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.isReconnecting.get(), false);
 	});
 
-	test('offers Open Settings when no backend URL is configured', () => {
+	test('does not offer an action when no configurable backend URL is available', () => {
 		const notificationService = new VoiceTestNotificationService();
 		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
 		const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
@@ -4954,7 +4960,7 @@ suite('VoiceSessionController', () => {
 		handleFatalDisconnect.call(controller, { code: 0, reason: '', kind: 'fatal', clientSide: true });
 
 		assert.strictEqual(notificationService.prompts.length, 1);
-		assert.strictEqual(notificationService.prompts[0].choices.length, 1);
+		assert.strictEqual(notificationService.prompts[0].choices.length, 0);
 	});
 
 	test('an immediate fatal close after open does not activate the microphone', () => {
