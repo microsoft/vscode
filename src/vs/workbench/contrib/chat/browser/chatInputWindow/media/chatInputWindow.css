@@ -240,45 +240,8 @@
 .chat-input-window .chat-input-window-pending-widget {
 	width: 100%;
 	min-width: 0;
-}
-
-.chat-input-window .chat-input-window-pending-approval {
-	display: none;
-	padding: 10px 16px 16px;
-}
-
-.chat-input-window .chat-input-window-pending-panel.tool-approval-summary .chat-input-window-pending-approval {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.chat-input-window .chat-input-window-pending-approval-title {
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.chat-input-window .chat-input-window-pending-approval-title p {
-	margin: 0;
-}
-
-.chat-input-window .chat-input-window-pending-approval-command {
-	padding: 6px 8px;
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-widget-border));
-	border-radius: var(--vscode-cornerRadius-medium);
-	color: var(--vscode-textPreformat-foreground);
-	background: var(--vscode-textPreformat-background);
-	white-space: pre-wrap;
-	overflow-wrap: anywhere;
-}
-
-.chat-input-window .chat-input-window-pending-approval-actions {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.chat-input-window .chat-input-window-pending-panel.tool-approval-summary .chat-input-window-pending-widget {
-	display: none;
+	max-height: 360px;
+	overflow: auto;
 }
 
 .chat-input-window .chat-input-window-pending-widget .interactive-list {
@@ -299,7 +262,7 @@
 	display: none;
 }
 
-.chat-input-window .chat-input-window-pending-widget .interactive-item-container > .value > :not(.chat-confirmation-widget-container):not(:has(.chat-confirmation-widget-container)) {
+.chat-input-window .chat-input-window-pending-widget .interactive-item-container > .value:not(.chat-input-window-confirmation-value) > * {
 	display: none;
 }
 
@@ -321,19 +284,19 @@
 	height: auto !important;
 }
 
-.chat-input-window .chat-input-window-pending-widget .monaco-list-row:not(:has(.chat-confirmation-widget-container)) {
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row:not(.chat-input-window-confirmation-row) {
 	display: none !important;
 }
 
-.chat-input-window .chat-input-window-pending-widget .monaco-list-row:has(.chat-confirmation-widget-container) {
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row.chat-input-window-confirmation-row {
 	position: relative !important;
 	top: auto !important;
 	transform: none !important;
 	height: auto !important;
 }
 
-.chat-input-window .chat-input-window-pending-widget .monaco-list-row:has(.chat-confirmation-widget-container) .interactive-item-container,
-.chat-input-window .chat-input-window-pending-widget .monaco-list-row:has(.chat-confirmation-widget-container) .interactive-item-container > .value {
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row.chat-input-window-confirmation-row .interactive-item-container,
+.chat-input-window .chat-input-window-pending-widget .monaco-list-row.chat-input-window-confirmation-row .interactive-item-container > .value {
 	height: auto !important;
 }
 

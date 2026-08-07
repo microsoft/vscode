@@ -3940,6 +3940,48 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('session input atomically takes capture ownership from omni', () => {
+		const controller = createController(new TestVoiceClientService());
+		const session = URI.parse('agent-host-copilot:/session-owner');
+
+		controller.setOmniInputActive(true);
+		controller.setDraftTarget();
+		controller.takeSessionInputOwnership(session, mainWindow);
+
+		assert.deepStrictEqual({
+			omniInputActive: controller.omniInputActive.get(),
+			hasDraftTarget: controller.hasDraftTarget.get(),
+			targetSession: controller.targetSession.get()?.toString(),
+		}, {
+			omniInputActive: false,
+			hasDraftTarget: false,
+			targetSession: session.toString(),
+		});
+
+		controller.setOmniInputActive(true);
+		controller.takeDraftInputOwnership(mainWindow);
+		assert.deepStrictEqual({
+			omniInputActive: controller.omniInputActive.get(),
+			hasDraftTarget: controller.hasDraftTarget.get(),
+			targetSession: controller.targetSession.get(),
+		}, {
+			omniInputActive: false,
+			hasDraftTarget: true,
+			targetSession: undefined,
+		});
+
+		controller.takeOmniInputOwnership(mainWindow);
+		assert.deepStrictEqual({
+			omniInputActive: controller.omniInputActive.get(),
+			hasDraftTarget: controller.hasDraftTarget.get(),
+			targetSession: controller.targetSession.get(),
+		}, {
+			omniInputActive: true,
+			hasDraftTarget: true,
+			targetSession: undefined,
+		});
+	});
+
 	test('omni blur preserves an in-progress turn until voice returns to idle', async () => {
 		const controller = createController(new TestVoiceClientService());
 		const voiceState = Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void };

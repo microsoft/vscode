@@ -61,6 +61,7 @@ interface IDispatchResult {
 	readonly resource?: URI;
 	readonly requestId?: string;
 	readonly reason?: string;
+	readonly reasonCode?: 'cancelled' | 'providerRemoved';
 	readonly completion?: Promise<IDispatchResult>;
 }
 
@@ -73,6 +74,12 @@ function statusToString(status: AgentSessionStatus): string {
 		case AgentSessionStatus.InProgress: return 'working';
 		default: return 'unknown';
 	}
+}
+
+function isCopilotRoutingProvider(provider: string): boolean {
+	return provider === AgentSessionProviders.Background
+		|| provider === AgentSessionProviders.Cloud
+		|| provider === AgentSessionProviders.AgentHostCopilot;
 }
 
 /** Flatten a `string | IMarkdownString | undefined` field to plain text. */
@@ -362,7 +369,7 @@ export class ChatSessionRoutingController extends Disposable {
 		const ownResource = this.host.getOwnSessionResource()?.toString();
 		return this.agentSessionsService.model.sessions
 			.filter(session => session.resource.toString() !== ownResource
-				&& session.providerType !== AgentSessionProviders.Local
+				&& isCopilotRoutingProvider(session.providerType)
 				&& !session.isArchived()
 				&& this.chatSessionsService.getChatSessionContribution(getChatSessionType(session.resource))?.isReadOnly !== true)
 			.map(session => this._toRoutableSession(session));
@@ -560,9 +567,11 @@ export class ChatSessionRoutingController extends Disposable {
 			const score = dom.append(row, dom.$('span.chat-routing-badge-score'));
 			score.textContent = option.kind === 'session'
 				? index === 0
-					? localize('chatSessionRouting.bestMatch', "Best Match")
-					: localize('chatSessionRouting.highConfidenceMatch', "High Confidence")
-				: '';
+					? localize('chatSessionRouting.bestMatchSessionModel', "Best Match · Session model")
+					: localize('chatSessionRouting.highConfidenceSessionModel', "High Confidence · Session model")
+				: requestOptions.userSelectedModelId
+					? localize('chatSessionRouting.selectedModel', "Selected model")
+					: '';
 			if (option.kind === 'new' && this.workspaceContextService.getWorkspace().folders.length > 1) {
 				const changeFolder = dom.append(row, dom.$('button.chat-routing-badge-folder-action', {
 					type: 'button',
@@ -822,14 +831,13 @@ export class ChatSessionRoutingController extends Disposable {
 					labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
 					ariaAlert(labelEl.textContent);
 					trackActivity();
-				} else if (completion.reason === 'Request was removed from queue') {
-					mark.replaceChildren(renderIcon(Codicon.pass));
-					labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
-					ariaAlert(labelEl.textContent);
-					trackActivity();
 				} else {
-					mark.replaceChildren(renderIcon(Codicon.error));
-					labelEl.textContent = localize('chatSessionRouting.queuedNotSent', "Queued request to {0} was not sent", label);
+					mark.replaceChildren(renderIcon(completion.reasonCode === 'providerRemoved' ? Codicon.circleSlash : Codicon.error));
+					labelEl.textContent = completion.reasonCode === 'providerRemoved'
+						? localize('chatSessionRouting.noLongerQueued', "Request is no longer queued for {0}", label)
+						: completion.reasonCode === 'cancelled'
+							? localize('chatSessionRouting.queueCancelled', "Queued request to {0} was cancelled", label)
+							: localize('chatSessionRouting.queuedNotSent', "Queued request to {0} was not sent", label);
 					ariaAlert(labelEl.textContent);
 				}
 			});
@@ -897,13 +905,16 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			if (result.completion) {
 				void result.completion.then(completion => {
-					const completed = completion.status === 'sent' || completion.reason === 'Request was removed from queue';
-					icon.replaceChildren(renderIcon(completed ? Codicon.pass : Codicon.error));
+					icon.replaceChildren(renderIcon(completion.status === 'sent'
+						? Codicon.pass
+						: completion.reasonCode === 'providerRemoved' ? Codicon.circleSlash : Codicon.error));
 					text.textContent = completion.status === 'sent'
 						? localize('chatSessionRouting.targetSent', "{0}: sent", target.label)
-						: completion.reason === 'Request was removed from queue'
-							? localize('chatSessionRouting.targetCompleted', "{0}: completed", target.label)
-						: localize('chatSessionRouting.targetFailed', "{0}: failed", target.label);
+						: completion.reasonCode === 'providerRemoved'
+							? localize('chatSessionRouting.targetNoLongerQueued', "{0}: no longer queued", target.label)
+							: completion.reasonCode === 'cancelled'
+								? localize('chatSessionRouting.targetCancelled', "{0}: cancelled", target.label)
+								: localize('chatSessionRouting.targetFailed', "{0}: failed", target.label);
 				});
 			}
 		});
@@ -981,18 +992,31 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			let result: IDispatchResult;
 			let requestId: string | undefined;
+			let disposeReference = true;
 			try {
 				if (notifyRoute) {
 					this.host.onWillDispatchRoute?.(target);
 				}
 				result = await this._sendRequest(target, utterance, {
 					...requestOptions,
+					// Existing Agent Host queues retain their session model. Their
+					// remote queue protocol has no per-request model override.
+					userSelectedModelId: undefined,
 					agentIdSilent: getChatSessionType(target),
 					queue: ChatRequestQueueKind.Queued,
 				});
+				if (result.status === 'queued' && result.completion) {
+					disposeReference = false;
+					result = {
+						...result,
+						completion: result.completion.finally(() => ref.dispose()),
+					};
+				}
 				requestId = result.requestId ?? (result.status === 'sent' ? ref.object.lastRequest?.id : undefined);
 			} finally {
-				ref.dispose();
+				if (disposeReference) {
+					ref.dispose();
+				}
 			}
 			if (result.status === 'rejected') {
 				if (notifyRoute) {
@@ -1049,7 +1073,10 @@ export class ChatSessionRoutingController extends Disposable {
 				if (notifyRoute) {
 					this.host.onWillDispatchRoute?.(ref.object.sessionResource);
 				}
-				result = await this._sendRequest(ref.object.sessionResource, utterance, requestOptions);
+				result = await this._sendRequest(ref.object.sessionResource, utterance, {
+					...requestOptions,
+					agentIdSilent: sessionTarget === AgentSessionProviders.Local ? undefined : sessionTarget,
+				});
 				requestId = result.requestId ?? (result.status === 'sent' ? ref.object.lastRequest?.id : undefined);
 			} finally {
 				ref.dispose();
@@ -1081,7 +1108,7 @@ export class ChatSessionRoutingController extends Disposable {
 	private async _sendRequest(resource: URI, utterance: string, options: IChatSendRequestOptions): Promise<IDispatchResult> {
 		const result = await this.chatService.sendRequest(resource, utterance, options);
 		if (result.kind === 'rejected') {
-			return { status: 'rejected', reason: result.reason };
+			return { status: 'rejected', reason: result.reason, reasonCode: result.reasonCode };
 		}
 		if (result.kind === 'queued') {
 			return {
@@ -1108,7 +1135,7 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			return result.kind === 'sent'
 				? { status: 'sent', resource: result.newSessionResource ?? resource }
-				: { status: 'rejected', resource: result.newSessionResource ?? resource, reason: result.reason };
+				: { status: 'rejected', resource: result.newSessionResource ?? resource, reason: result.reason, reasonCode: result.reasonCode };
 		} catch (error) {
 			this.logService.warn('[chatSessionRouting] queued request failed:', error);
 			return { status: 'rejected', resource, reason: error instanceof Error ? error.message : String(error) };

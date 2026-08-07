@@ -293,6 +293,12 @@ export interface IVoiceSessionController {
 	clearRoutedRequest(resource: URI): void;
 	/** Bind Voice Mode to the currently shown new-session draft. */
 	setDraftTarget(): void;
+	/** Atomically transfer capture and target ownership from omni to a chat session. */
+	takeSessionInputOwnership(resource: URI, window: Window & typeof globalThis): void;
+	/** Atomically transfer capture ownership from omni to a new-session draft. */
+	takeDraftInputOwnership(window: Window & typeof globalThis): void;
+	/** Atomically transfer capture ownership to omni and start with its draft. */
+	takeOmniInputOwnership(window: Window & typeof globalThis): void;
 	/** Transfer Voice Mode surface ownership to or from the floating omni input. */
 	setOmniInputActive(active: boolean): void;
 	/** Report whether the floating omni surface exists, independently of focus. */
@@ -3067,6 +3073,40 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._targetOmniRoute = undefined;
 		this._targetSession.set(undefined, undefined);
 		this._hasDraftTarget.set(true, undefined);
+	}
+
+	takeSessionInputOwnership(resource: URI, window: Window & typeof globalThis): void {
+		this._omniBlurRelease.clear();
+		this.setActiveWindow(window);
+		transaction(tx => {
+			this._targetOmniRoute = undefined;
+			this._omniInputActive.set(false, tx);
+			this._hasDraftTarget.set(false, tx);
+			this._targetSession.set(resource, tx);
+		});
+		this.activateSession(resource);
+	}
+
+	takeDraftInputOwnership(window: Window & typeof globalThis): void {
+		this._omniBlurRelease.clear();
+		this.setActiveWindow(window);
+		transaction(tx => {
+			this._targetOmniRoute = undefined;
+			this._omniInputActive.set(false, tx);
+			this._targetSession.set(undefined, tx);
+			this._hasDraftTarget.set(true, tx);
+		});
+	}
+
+	takeOmniInputOwnership(window: Window & typeof globalThis): void {
+		this._omniBlurRelease.clear();
+		this.setActiveWindow(window);
+		transaction(tx => {
+			this._targetOmniRoute = undefined;
+			this._targetSession.set(undefined, tx);
+			this._hasDraftTarget.set(true, tx);
+			this._omniInputActive.set(true, tx);
+		});
 	}
 
 	setOmniInputActive(active: boolean): void {

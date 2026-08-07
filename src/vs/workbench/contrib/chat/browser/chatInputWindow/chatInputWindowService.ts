@@ -5,12 +5,9 @@
 
 import './media/chatInputWindow.css';
 import * as dom from '../../../../../base/browser/dom.js';
-import { IRenderedMarkdown, renderAsPlaintext, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -30,12 +27,11 @@ import { IRectangle } from '../../../../../platform/window/common/window.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { localize } from '../../../../../nls.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatMode } from '../../common/chatModes.js';
-import { IChatModelReference, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IChatModelReference, IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatWidget } from '../widget/chatWidget.js';
@@ -56,7 +52,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
-import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved } from '../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, isPendingIdResolved, markPendingIdResolved } from '../../common/voiceClient/voiceClientService.js';
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
@@ -116,6 +112,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private readonly _ownershipId = mainWindow.crypto.randomUUID();
 	private _ownershipClaim: { readonly timestamp: number; readonly id: string } | undefined;
 	private _actionWidgetRestoreHeight: number | undefined;
+	private _actionWidgetLayoutGeneration = 0;
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 
@@ -611,47 +608,22 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const navigation = dom.append(header, dom.$('.chat-input-window-pending-navigation'));
 		const previous = this._appendPendingNavigationButton(navigation, Codicon.chevronLeft, localize('chatInputWindow.pending.previous', "Previous Request"));
 		const next = this._appendPendingNavigationButton(navigation, Codicon.chevronRight, localize('chatInputWindow.pending.next', "Next Request"));
-		const approvalDetail = dom.append(panel, dom.$('.chat-input-window-pending-approval'));
-		const approvalTitle = dom.append(approvalDetail, dom.$('.chat-input-window-pending-approval-title'));
-		const approvalCommand = dom.append(approvalDetail, dom.$('code.chat-input-window-pending-approval-command'));
-		const approvalActions = dom.append(approvalDetail, dom.$('.chat-input-window-pending-approval-actions'));
-		const allowLabel = localize('chatInputWindow.pending.allow', "Allow");
-		const allowButton = this._windowDisposables.add(new Button(approvalActions, {
-			...defaultButtonStyles,
-			small: true,
-			title: allowLabel,
-			ariaLabel: allowLabel,
-		}));
-		allowButton.label = allowLabel;
-		const skipLabel = localize('chatInputWindow.pending.skip', "Skip");
-		const skipButton = this._windowDisposables.add(new Button(approvalActions, {
-			...defaultButtonStyles,
-			small: true,
-			secondary: true,
-			title: skipLabel,
-			ariaLabel: skipLabel,
-		}));
-		skipButton.label = skipLabel;
-		const renderedApprovalTitle = this._windowDisposables.add(new MutableDisposable<IRenderedMarkdown>());
-		let displayedApproval: IChatToolInvocation | undefined;
-		let displayedApprovalOccurrence: string | undefined;
 		let lastActivatedApproval: string | undefined;
-		const confirmDisplayedApproval = (reason: ToolConfirmKind.UserAction | ToolConfirmKind.Skipped) => {
-			const approval = displayedApproval;
-			const occurrence = displayedApprovalOccurrence;
-			if (!approval || !occurrence || isPendingIdResolved(occurrence)) {
-				return;
-			}
-			// Retire every rehydrated copy before the provider callback can publish
-			// another model update. Otherwise an older card can remain selectable and
-			// submit the same approval repeatedly.
-			markPendingIdResolved(occurrence);
-			IChatToolInvocation.confirmWith(approval, { type: reason });
-		};
-		this._windowDisposables.add(allowButton.onDidClick(() => confirmDisplayedApproval(ToolConfirmKind.UserAction)));
-		this._windowDisposables.add(skipButton.onDidClick(() => confirmDisplayedApproval(ToolConfirmKind.Skipped)));
+		let displayedApproval: { readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined;
 
 		const parent = dom.append(panel, dom.$('.chat-input-window-pending-widget.interactive-session'));
+		this._windowDisposables.add(dom.addDisposableListener(parent, dom.EventType.CLICK, event => {
+			const approval = displayedApproval;
+			const target = event.target;
+			if (!approval || !(target instanceof auxiliaryWindow.window.Element) || !target.closest('.chat-confirmation-widget-buttons')) {
+				return;
+			}
+			const state = approval.invocation.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				markPendingIdResolved(approval.occurrence);
+			}
+		}, { capture: true }));
 		const scopedContextKeyService = this._windowDisposables.add(this.contextKeyService.createScoped(parent));
 		ChatContextKeys.inChatInputWindow.bindTo(scopedContextKeyService).set(true);
 		const scopedInstantiationService = this._windowDisposables.add(this.instantiationService.createChild(
@@ -701,6 +673,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			layingOut = true;
 			try {
+				for (const row of getDescendantElements(list, 'monaco-list-row')) {
+					const hasConfirmation = !!row.querySelector('.chat-confirmation-widget-container');
+					row.classList.toggle('chat-input-window-confirmation-row', hasConfirmation);
+					for (const value of getDescendantElements(row, 'value')) {
+						value.classList.toggle('chat-input-window-confirmation-value', hasConfirmation);
+					}
+				}
 				const width = Math.max(0, panel.clientWidth);
 				if (lastPendingHeight === undefined || lastPendingWidth !== width) {
 					if (lastPendingWidth !== width) {
@@ -770,15 +749,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				confirmationWidgetLayoutHeight = 0;
 				displayedResource = undefined;
 				displayedApproval = undefined;
-				displayedApprovalOccurrence = undefined;
 				lastActivatedApproval = undefined;
-				allowButton.enabled = false;
-				skipButton.enabled = false;
-				renderedApprovalTitle.clear();
-				approvalTitle.replaceChildren();
 				this._activePendingSessionResource = undefined;
 				this._voiceConfirmationPending.set(false, undefined);
-				panel.classList.remove('shown', 'question', 'tool-approval-summary');
+				panel.classList.remove('shown', 'question');
 				widget.setModel(undefined);
 				this._fitWindowToContent();
 				return;
@@ -796,27 +770,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			panel.classList.add('shown');
 			const hasPendingQuestion = this._hasPendingQuestion(model);
 			const pendingApproval = this._getPendingToolApproval(model);
+			displayedApproval = pendingApproval;
 			const omniVoiceActive = this.voiceSessionController.omniInputActive.get();
 			if (!omniVoiceActive) {
 				lastActivatedApproval = undefined;
 			}
 			panel.classList.toggle('question', hasPendingQuestion);
-			panel.classList.toggle('tool-approval-summary', !hasPendingQuestion && !!pendingApproval);
-			displayedApproval = pendingApproval?.invocation;
-			displayedApprovalOccurrence = pendingApproval?.occurrence;
-			allowButton.enabled = !!displayedApproval;
-			skipButton.enabled = !!displayedApproval;
-			renderedApprovalTitle.clear();
-			approvalTitle.replaceChildren();
-			if (pendingApproval) {
-				const title = typeof pendingApproval.title === 'string'
-					? new MarkdownString(pendingApproval.title, { supportThemeIcons: true })
-					: new MarkdownString(pendingApproval.title.value, { supportThemeIcons: true, isTrusted: pendingApproval.title.isTrusted });
-				const renderedTitle = renderMarkdown(title);
-				renderedApprovalTitle.value = renderedTitle;
-				approvalTitle.append(renderedTitle.element);
-			}
-			approvalCommand.textContent = pendingApproval?.command ?? '';
 			const hasMultiple = pendingModels.length > 1;
 			const title = model.title || localize('chatInputWindow.pending.untitledSource', "Chat");
 			label.textContent = hasMultiple
@@ -962,7 +921,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				&& state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
 				continue;
 			}
-			const occurrence = derivePendingId(request.id, part, disposable => this._windowDisposables.add(disposable));
+			const occurrence = derivePendingId(request.id, part, this._windowDisposables);
 			if (!isPendingIdResolved(occurrence, reader)) {
 				return false;
 			}
@@ -971,45 +930,35 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return sawResolvedTool;
 	}
 
-	private _getPendingToolApproval(model: IChatModel): { readonly title: string | IMarkdownString; readonly command: string; readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined {
+	private _getPendingToolApproval(model: IChatModel): { readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined {
 		const request = model.lastRequest;
 		const parts = request?.response?.response.value;
 		if (!request || !parts) {
 			return undefined;
 		}
-		let candidate: { readonly title: string | IMarkdownString; readonly command: string; readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined;
 		for (const part of parts) {
 			if (part.kind !== 'toolInvocation') {
 				continue;
 			}
 			const state = part.state.get();
-			if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation && state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation
+				&& state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval
+				&& state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
 				continue;
 			}
 
-			const command = getVoiceToolApprovalCommand(part);
-			if (!command) {
-				continue;
+			const occurrence = derivePendingId(request.id, part, this._windowDisposables);
+			if (!isPendingIdResolved(occurrence)) {
+				return { invocation: part, occurrence };
 			}
-
-			const occurrence = derivePendingId(request.id, part, disposable => this._windowDisposables.add(disposable));
-			if (isPendingIdResolved(occurrence) || candidate) {
-				continue;
-			}
-
-			const title = state.confirmationMessages?.title ?? part.invocationMessage;
-			candidate = {
-				title: renderAsPlaintext(title).trim() ? title : localize('chatInputWindow.pending.approval', "Approval Required"),
-				command,
-				invocation: part,
-				occurrence,
-			};
 		}
-		return candidate;
+		return undefined;
 	}
 
 	private async _layoutForModelPicker(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
 		const win = auxiliaryWindow.window;
+		const generation = ++this._actionWidgetLayoutGeneration;
+		const hadFocus = win.document.hasFocus();
 		if (visible) {
 			if (this._actionWidgetRestoreHeight !== undefined) {
 				return;
@@ -1020,7 +969,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const windowChromeHeight = win.outerHeight - win.innerHeight;
 			await auxiliaryWindow.setBounds({ x: win.screenX, y: win.screenY, width: win.outerWidth, height: desiredHeight });
 			await this._waitForWindowHeight(auxiliaryWindow, desiredHeight - windowChromeHeight);
-			win.focus();
+			if (generation === this._actionWidgetLayoutGeneration
+				&& this._window === auxiliaryWindow
+				&& this._actionWidgetRestoreHeight !== undefined
+				&& hadFocus
+				&& win.document.hasFocus()) {
+				win.focus();
+			}
 		} else if (this._actionWidgetRestoreHeight !== undefined) {
 			const restoreHeight = this._actionWidgetRestoreHeight;
 			this._actionWidgetRestoreHeight = undefined;
@@ -1050,6 +1005,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._activePendingSessionResource = undefined;
 		this._voiceConfirmationPending.set(false, undefined);
 		this._actionWidgetRestoreHeight = undefined;
+		this._actionWidgetLayoutGeneration++;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;
 	}

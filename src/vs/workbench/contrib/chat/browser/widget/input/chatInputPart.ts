@@ -3388,8 +3388,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						isActive: isVoiceInputActive,
 						isVoiceActive: isVoiceSessionActive,
 						activateVoiceMode: isOmniInput ? () => {
-							this.voiceSessionController.setOmniInputActive(true);
-							this.voiceSessionController.setDraftTarget();
+							this.voiceSessionController.takeOmniInputOwnership(dom.getWindow(toolbarsContainer));
 						} : undefined,
 					});
 				}

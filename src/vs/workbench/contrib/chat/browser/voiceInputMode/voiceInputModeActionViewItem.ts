@@ -54,7 +54,7 @@ const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
  */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
 
-async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
+async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController, window: Window & typeof globalThis): Promise<boolean> {
 	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
 	if (!currentSession) {
 		return false;
@@ -62,10 +62,9 @@ async function retargetVoiceToCurrentSession(commandService: ICommandService, co
 	try {
 		const resource = URI.parse(currentSession);
 		if (resource.scheme === 'sessions-voice') {
-			controller.setDraftTarget();
+			controller.takeDraftInputOwnership(window);
 		} else {
-			controller.setTargetSession(resource);
-			controller.activateSession(resource);
+			controller.takeSessionInputOwnership(resource, window);
 		}
 		return true;
 	} catch {
@@ -175,7 +174,7 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
-			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
+			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller, win);
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
@@ -769,12 +768,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 
 		const controller = this.voiceSessionController;
+		const targetWindow = getWindow(this._voiceCell);
 		if (controller.isConnected.get() || controller.isConnecting.get()) {
 			if (this._options?.isVoiceActive?.get() === false) {
 				if (this._options.activateVoiceMode) {
 					await this._options.activateVoiceMode();
 				} else {
-					await retargetVoiceToCurrentSession(this.commandService, controller);
+					await retargetVoiceToCurrentSession(this.commandService, controller, targetWindow);
 				}
 				return;
 			}
@@ -783,9 +783,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			if (this._options?.activateVoiceMode) {
 				await this._options.activateVoiceMode();
 			} else {
-				await retargetVoiceToCurrentSession(this.commandService, controller);
+				await retargetVoiceToCurrentSession(this.commandService, controller, targetWindow);
 			}
-			const targetWindow = getWindow(this._voiceCell);
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}
 	}
