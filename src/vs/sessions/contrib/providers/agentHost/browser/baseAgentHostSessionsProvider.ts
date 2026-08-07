@@ -18,7 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agentService.js';
-import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
@@ -26,7 +26,7 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/age
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, StateComponents, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -3420,6 +3420,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				id: `${sessionUri.authority}/${c.id}`,
 				name: c.name,
 				enabled: isCustomizationEnabled(c),
+				enablement: c.enablement,
 				status: c.state.kind,
 				state: c.state,
 				setEnabled: (enabled: boolean) => {
@@ -3430,8 +3431,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					connection.dispatch(sessionUri.toString(), {
 						type: ActionType.SessionCustomizationToggled,
 						id: c.id,
-						// TODO: Select the enablement scope based on the requested action.
-						enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
+						enablement: withCustomizationEnablement(c.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled }),
 					});
 				},
 				start: async () => {
@@ -3457,25 +3457,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 	}
 
-	setMcpServerGlobalEnablement(sessionId: string, serverId: string, enabled: boolean): void {
-		const sessionState = this._lastSessionStates.get(sessionId);
+	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!sessionState || !cached || !connection) {
-			return;
-		}
-		const server = (sessionState.customizations ?? [])
-			.flatMap(c => c.type === CustomizationType.McpServer ? [c] : c.children?.filter(c => c.type === CustomizationType.McpServer) ?? [])
-			.find(c => c.id === serverId);
-		if (!server) {
+		if (!cached || !connection) {
 			return;
 		}
 		connection.dispatch(cached.backendUri.toString(), {
 			type: ActionType.SessionCustomizationToggled,
-			id: server.id,
-			// TODO step 7: Select the enablement scope based on the requested action.
-			enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+			id: customizationId,
+			enablement: [...enablement],
 		});
 	}
 

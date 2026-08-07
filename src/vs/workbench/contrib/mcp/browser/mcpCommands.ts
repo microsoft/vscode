@@ -26,7 +26,8 @@ import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { McpServerStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { getCustomizationScopeEnablement } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -393,37 +394,53 @@ function mcpServerStatusToLabel(status: McpServerStatus): string {
 	}
 }
 
-type AgentHostMcpServerEnablementAction = 'enableProfile' | 'disableProfile' | 'enableWorkspace' | 'disableWorkspace' | 'toggleGlobal';
+type AgentHostMcpServerEnablementAction = 'enableProfile' | 'disableProfile' | 'enableWorkspace' | 'disableWorkspace' | 'enableSession' | 'disableSession';
 
 interface AgentHostEnablementItemType extends IQuickPickItem {
 	action: AgentHostMcpServerEnablementAction;
 }
 
-function getAgentHostMcpServerEnablementItems(enabled: boolean): AgentHostEnablementItemType[] {
-	// TODO step 7: Offer the full scoped action matrix.
-	return [{
-		label: enabled ? localize('mcp.agentHost.disable', 'Disable') : localize('mcp.agentHost.enable', 'Enable'),
-		action: 'toggleGlobal',
-	}];
+function getAgentHostMcpServerEnablementItems(server: IAgentHostMcpServer, hasWorkspace: boolean, scopes: readonly ('global' | 'workspace' | 'session')[] = ['global', 'workspace', 'session']): AgentHostEnablementItemType[] {
+	const enablement = getCustomizationScopeEnablement(server);
+	const items: AgentHostEnablementItemType[] = [];
+	if (scopes.includes('global')) {
+		items.push({
+			label: enablement.global ? localize('mcp.agentHost.disable', 'Disable') : localize('mcp.agentHost.enable', 'Enable'),
+			action: enablement.global ? 'disableProfile' : 'enableProfile',
+		});
+	}
+	if (scopes.includes('workspace') && hasWorkspace) {
+		items.push({
+			label: enablement.workspace ? localize('mcp.agentHost.disableWorkspace', 'Disable (Workspace)') : localize('mcp.agentHost.enableWorkspace', 'Enable (Workspace)'),
+			action: enablement.workspace ? 'disableWorkspace' : 'enableWorkspace',
+		});
+	}
+	if (scopes.includes('session')) {
+		items.push({
+			label: enablement.session ? localize('mcp.agentHost.disableSession', 'Disable (Session)') : localize('mcp.agentHost.enableSession', 'Enable (Session)'),
+			action: enablement.session ? 'disableSession' : 'enableSession',
+		});
+	}
+	return items;
 }
 
-function getLocalMcpServerEnablementItems(disabled: boolean, isEmptyWorkbench: boolean): AgentHostEnablementItemType[] {
+function getLocalMcpServerEnablementItems(disabled: boolean, isEmptyWorkbench: boolean, includeWorkspace = true): AgentHostEnablementItemType[] {
 	const items: AgentHostEnablementItemType[] = [];
 	if (disabled) {
 		items.push({ label: localize('mcp.agentHost.enable', 'Enable'), action: 'enableProfile' });
-		if (!isEmptyWorkbench) {
+		if (includeWorkspace && !isEmptyWorkbench) {
 			items.push({ label: localize('mcp.agentHost.enableWorkspace', 'Enable (Workspace)'), action: 'enableWorkspace' });
 		}
 	} else {
 		items.push({ label: localize('mcp.agentHost.disable', 'Disable'), action: 'disableProfile' });
-		if (!isEmptyWorkbench) {
+		if (includeWorkspace && !isEmptyWorkbench) {
 			items.push({ label: localize('mcp.agentHost.disableWorkspace', 'Disable (Workspace)'), action: 'disableWorkspace' });
 		}
 	}
 	return items;
 }
 
-function enablementStateForAction(action: Exclude<AgentHostMcpServerEnablementAction, 'toggleGlobal'>): ContributionEnablementState {
+function enablementStateForAction(action: Exclude<AgentHostMcpServerEnablementAction, 'enableSession' | 'disableSession'>): ContributionEnablementState {
 	switch (action) {
 		case 'enableProfile':
 			return ContributionEnablementState.EnabledProfile;
@@ -471,7 +488,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			return;
 		}
 
-		type ItemType = { action: 'toggleSession' | 'showOutput' | 'authenticate' | AgentHostMcpServerLifecycleAction | AgentHostMcpServerEnablementAction } & IQuickPickItem;
+		type ItemType = { action: 'showOutput' | 'authenticate' | AgentHostMcpServerLifecycleAction | AgentHostMcpServerEnablementAction } & IQuickPickItem;
 
 		const items: (ItemType | IQuickPickSeparator)[] = [
 			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
@@ -491,26 +508,19 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		}
 
 		const localServer = findLocalMcpServer(mcpService, server);
-		const durableEnablement = localServer?.enablement.get();
-		const durableDisabled = durableEnablement !== undefined && isContributionDisabled(durableEnablement);
+		const durableProfileDisabled = localServer !== undefined && !mcpService.enablementModel.readProfileEnabled(localServer.definition.id);
 		const isEmptyWorkbench = aiCustomizationWorkspaceService.getActiveProjectRoot() === undefined;
 		items.push(
 			{ type: 'separator', label: localize('mcp.actions.enablement', 'Enablement') },
 			...(localServer
-				? getLocalMcpServerEnablementItems(durableDisabled, isEmptyWorkbench)
-				: getAgentHostMcpServerEnablementItems(server.enabled)),
-			{
-				label: server.enabled
-					? localize('mcp.agentHost.disableSession', 'Disable (Session)')
-					: localize('mcp.agentHost.enableSession', 'Enable (Session)'),
-				description: server.enabled
-					? mcpServerStatusToLabel(server.status)
-					: localize('mcp.disabled', 'Disabled'),
-				action: 'toggleSession',
-			},
+				? [
+					...getLocalMcpServerEnablementItems(durableProfileDisabled, isEmptyWorkbench, false),
+					...getAgentHostMcpServerEnablementItems(server, agentHostCustomizations.getWorkingDirectories(agentHostSession).length > 0, ['workspace', 'session']),
+				]
+				: getAgentHostMcpServerEnablementItems(server, agentHostCustomizations.getWorkingDirectories(agentHostSession).length > 0)),
 		);
 
-		if (server.state.kind === McpServerStatus.AuthRequired) {
+		if (server.enabled && server.state.kind === McpServerStatus.AuthRequired) {
 			items.push({
 				label: localize('mcp.agentHost.authenticate', 'Authenticate'),
 				description: server.state.resource.resource,
@@ -547,20 +557,19 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			return;
 		}
 
-		if (picked.action === 'toggleSession') {
-			server.setEnabled(!server.enabled);
-			return;
-		}
-
-		if (picked.action === 'toggleGlobal') {
-			agentHostCustomizations.setMcpServerGlobalEnablement(agentHostSession, server.id, !server.enabled);
-			return;
-		}
-
-		const state = enablementStateForAction(picked.action);
-		if (localServer) {
+		if (localServer && (picked.action === 'enableProfile' || picked.action === 'disableProfile')) {
+			const state = enablementStateForAction(picked.action);
 			mcpService.enablementModel.setEnabled(localServer.definition.id, state);
+			return;
 		}
+
+		const scope = picked.action === 'enableProfile' || picked.action === 'disableProfile'
+			? CustomizationEnablementKind.Global
+			: picked.action === 'enableWorkspace' || picked.action === 'disableWorkspace'
+				? CustomizationEnablementKind.Workspace
+				: CustomizationEnablementKind.Session;
+		const enabled = picked.action === 'enableProfile' || picked.action === 'enableWorkspace' || picked.action === 'enableSession';
+		agentHostCustomizations.setCustomizationEnablement(agentHostSession, server.id, server.enablement, scope, enabled);
 	}
 }
 

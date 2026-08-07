@@ -10,7 +10,7 @@ import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
@@ -32,6 +32,7 @@ export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
 	readonly enabled: boolean;
+	readonly enablement?: readonly CustomizationEnablement[];
 	readonly disabledReason?: CustomizationDisabledReason;
 	readonly status: McpServerStatus;
 	readonly state: McpServerState;
@@ -196,8 +197,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * servers.
 	 */
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
-	/** Sets a session MCP server's global enablement in the agent host. */
-	setMcpServerGlobalEnablement(sessionId: string, serverId: string, enabled: boolean): void;
+	/** Replaces an agent-host customization's explicit enablement decisions. */
+	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so

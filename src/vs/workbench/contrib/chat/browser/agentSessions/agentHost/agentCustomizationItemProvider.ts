@@ -26,6 +26,7 @@ import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js
 import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { localize } from '../../../../../../nls.js';
+import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
@@ -101,7 +102,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toItem(customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
+	private toItem(sessionResource: URI, customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
 		const clientId = customization.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
 		const uri = this.toRemoteUri(customization.uri);
@@ -122,7 +123,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
-			actions: this._getItemActions?.(customization, clientId),
+			actions: [
+				...(clientId === undefined ? getAgentHostPluginEnablementActions(this._customAgentsService, sessionResource, customization, this._customAgentsService.getWorkingDirectories(sessionResource).length > 0) : []),
+				...(this._getItemActions?.(customization, clientId) ?? []),
+			],
 		};
 	}
 
@@ -278,7 +282,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				// expanded below so individual user files appear in per-type tabs.
 				let item: ICustomizationItem;
 				if (!isBundleItem) {
-					item = this.toItem(sessionCustomization, AICustomizationSources.plugin);
+					item = this.toItem(sessionResource, sessionCustomization, AICustomizationSources.plugin);
 					items.set(customizationItemKey(sessionCustomization, sessionCustomization.clientId), item);
 				} else {
 					// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.

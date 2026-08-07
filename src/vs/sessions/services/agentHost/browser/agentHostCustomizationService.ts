@@ -14,6 +14,7 @@ import { ISessionsManagementService } from '../../sessions/common/sessionsManage
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ISession } from '../../sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -64,24 +65,20 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		if (!provider) {
 			return undefined;
 		}
-		const servers = provider.getMcpServers(session.sessionId);
 		return {
 			customizations: provider.getCustomizations(session.sessionId),
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
 			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),
 			authenticate: request => provider.authenticate(request),
-			setMcpServerSessionEnabled: (rawId, enabled) => {
-				servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.setEnabled(enabled);
-			},
-			setMcpServerGlobalEnabled: (rawId, enabled) => {
-				provider.setMcpServerGlobalEnablement(session.sessionId, rawId, enabled);
+			setCustomizationEnablement: (rawId, enablement: readonly CustomizationEnablement[]) => {
+				provider.setCustomizationEnablement(session.sessionId, rawId, enablement);
 			},
 			startMcpServer: rawId => {
-				return servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
 			},
 			stopMcpServer: rawId => {
-				return servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.stop() ?? Promise.resolve();
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.stop() ?? Promise.resolve();
 			},
 			setRootConfigValue: (property, value) => {
 				void provider.setRootConfigValue(property, value);

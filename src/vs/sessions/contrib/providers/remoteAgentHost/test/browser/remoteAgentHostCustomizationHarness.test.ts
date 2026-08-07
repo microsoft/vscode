@@ -165,7 +165,7 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		authenticateMcpServer(_sessionResource: URI, _serverId: string) {
 			return Promise.resolve(false);
 		},
-		setMcpServerGlobalEnablement() { },
+		setCustomizationEnablement() { },
 		async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>) {
 			await beforeShow?.();
 		},

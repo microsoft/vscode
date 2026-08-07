@@ -45,10 +45,10 @@ import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTO
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
-import { type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 
 const $ = DOM.$;
 
@@ -265,7 +265,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			templateData.description.style.display = 'none';
 		}
 
-		if (element.activeSessionServer) {
+		if (element.activeSessionServer !== undefined) {
 			this.updateKnownServerStatus(templateData, element);
 		} else if (this.workspaceService.isSessionsWindow) {
 			this.updateKnownServerStatus(templateData, element);
@@ -306,10 +306,10 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		const activeSessionServer = getActiveSessionServer(element);
 		const label = getMcpEntryLabel(element);
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
-		const showActiveSessionOutput = activeSessionServer
+		const showActiveSessionOutput = activeSessionServer !== undefined
 			? (beforeShow?: () => Promise<void>) => this.agentHostCustomizationService.showMcpServerLog(activeSessionResource, activeSessionServer.id, beforeShow)
 			: undefined;
-		if (state === McpServerStatus.AuthRequired && activeSessionServer) {
+		if (state === McpServerStatus.AuthRequired && activeSessionServer !== undefined) {
 			const signInLabel = localize('signInToMcpServer', "Sign in to {0}", label);
 			const signInButton = templateData.actionDisposables.add(new Button(templateData.actions, {
 				...defaultButtonStyles,
@@ -447,7 +447,7 @@ function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntr
 	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.get())) {
 		return 'disabled';
 	}
-	if (entry.activeSessionServer) {
+	if (entry.activeSessionServer !== undefined) {
 		return entry.activeSessionServer.enabled ? entry.activeSessionServer.status : 'disabled';
 	}
 	if (entry.type === 'server-item' && !isSessionsWindow) {
@@ -592,41 +592,67 @@ function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer): Acti
 		);
 }
 
-/** Creates the non-persistent enablement action for one agent-host session. */
-export function getSessionEnablementAction(server: AgentHostMcpServer): IAction {
+type AgentHostMcpServerEnablementScope = 'global' | 'workspace' | 'session';
+
+const agentHostMcpServerEnablementActionInfo = {
+	global: {
+		kind: CustomizationEnablementKind.Global,
+		enableLabel: () => localize('agentHostMcpServerEnable', "Enable"),
+		disableLabel: () => localize('agentHostMcpServerDisable', "Disable"),
+	},
+	workspace: {
+		kind: CustomizationEnablementKind.Workspace,
+		enableLabel: () => localize('agentHostMcpServerEnableWorkspace', "Enable (Workspace)"),
+		disableLabel: () => localize('agentHostMcpServerDisableWorkspace', "Disable (Workspace)"),
+	},
+	session: {
+		kind: CustomizationEnablementKind.Session,
+		enableLabel: () => localize('agentHostMcpServerEnableSession', "Enable (Session)"),
+		disableLabel: () => localize('agentHostMcpServerDisableSession', "Disable (Session)"),
+	},
+} satisfies Record<AgentHostMcpServerEnablementScope, {
+	readonly kind: CustomizationEnablementKind;
+	readonly enableLabel: () => string;
+	readonly disableLabel: () => string;
+}>;
+
+/** Creates enablement actions for an agent-host server. */
+export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer, scopes: readonly AgentHostMcpServerEnablementScope[] = ['global', 'workspace', 'session']): IAction[] {
+	const enablement = getCustomizationScopeEnablement(server);
+	const actions: IAction[] = [];
+	if (scopes.includes('global')) {
+		actions.push(createAgentHostMcpServerEnablementAction(agentHostCustomizations, sessionResource, server, !enablement.global, 'global'));
+	}
+	if (scopes.includes('workspace') && agentHostCustomizations.getWorkingDirectories(sessionResource).length > 0) {
+		actions.push(createAgentHostMcpServerEnablementAction(agentHostCustomizations, sessionResource, server, !enablement.workspace, 'workspace'));
+	}
+	if (scopes.includes('session')) {
+		actions.push(createAgentHostMcpServerEnablementAction(agentHostCustomizations, sessionResource, server, !enablement.session, 'session'));
+	}
+	return actions;
+}
+
+function createAgentHostMcpServerEnablementAction(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer, enabled: boolean, scope: AgentHostMcpServerEnablementScope): IAction {
+	const actionInfo = agentHostMcpServerEnablementActionInfo[scope];
 	return new Action(
-		server.enabled ? 'mcpServer.session.disable' : 'mcpServer.session.enable',
-		server.enabled ? localize('sessionMcpServerDisable', "Disable (Session)") : localize('sessionMcpServerEnable', "Enable (Session)"),
+		`mcpServer.agentHost.${enabled ? 'enable' : 'disable'}.${scope}`,
+		enabled ? actionInfo.enableLabel() : actionInfo.disableLabel(),
 		undefined,
 		true,
-		() => {
-			server.setEnabled(!server.enabled);
-			return Promise.resolve();
-		}
+		() => agentHostCustomizations.setCustomizationEnablement(sessionResource, server.id, server.enablement, actionInfo.kind, enabled),
 	);
 }
 
-/** Creates the temporary global-only enablement action for an agent-host-only server. */
-export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer): IAction[] {
-	// TODO step 7: Offer the full scoped action matrix.
-	return [new Action(
-		server.enabled ? 'mcpServer.agentHost.disable' : 'mcpServer.agentHost.enable',
-		server.enabled ? localize('agentHostMcpServerDisable', "Disable") : localize('agentHostMcpServerEnable', "Enable"),
-		undefined,
-		true,
-		() => agentHostCustomizations.setMcpServerGlobalEnablement(sessionResource, server.id, !server.enabled),
-	)];
-}
-
 /** Creates durable profile/workspace actions for a locally backed built-in server row. */
-export function getLocalMcpServerEnablementActions(mcpService: IMcpService, serverId: string, isEmptyWorkbench: boolean): IAction[] {
+export function getLocalMcpServerEnablementActions(mcpService: IMcpService, serverId: string, isEmptyWorkbench: boolean, options: { readonly includeWorkspace?: boolean } = {}): IAction[] {
+	const includeWorkspace = options.includeWorkspace ?? true;
 	const disabled = isContributionDisabled(mcpService.enablementModel.readEnabled(serverId));
 	const actions: IAction[] = [];
 	if (disabled) {
 		actions.push(new Action('mcpServer.builtin.enable', localize('builtinMcpServerEnable', "Enable"), undefined, true, () => {
 			mcpService.enablementModel.setEnabled(serverId, ContributionEnablementState.EnabledProfile);
 		}));
-		if (!isEmptyWorkbench) {
+		if (includeWorkspace && !isEmptyWorkbench) {
 			actions.push(new Action('mcpServer.builtin.enableWorkspace', localize('builtinMcpServerEnableForWorkspace', "Enable (Workspace)"), undefined, true, () => {
 				mcpService.enablementModel.setEnabled(serverId, ContributionEnablementState.EnabledWorkspace);
 			}));
@@ -635,7 +661,7 @@ export function getLocalMcpServerEnablementActions(mcpService: IMcpService, serv
 		actions.push(new Action('mcpServer.builtin.disable', localize('builtinMcpServerDisable', "Disable"), undefined, true, () => {
 			mcpService.enablementModel.setEnabled(serverId, ContributionEnablementState.DisabledProfile);
 		}));
-		if (!isEmptyWorkbench) {
+		if (includeWorkspace && !isEmptyWorkbench) {
 			actions.push(new Action('mcpServer.builtin.disableWorkspace', localize('builtinMcpServerDisableForWorkspace', "Disable (Workspace)"), undefined, true, () => {
 				mcpService.enablementModel.setEnabled(serverId, ContributionEnablementState.DisabledWorkspace);
 			}));
@@ -644,7 +670,18 @@ export function getLocalMcpServerEnablementActions(mcpService: IMcpService, serv
 	return actions;
 }
 
-/** Composes lifecycle, durable, session, and options actions for an agent-host-only row. */
+/** Creates enablement actions for a built-in row, using the active agent-host session for scoped actions. */
+export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, serverId: string, isEmptyWorkbench: boolean, agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, activeSessionServer: AgentHostMcpServer | undefined): IAction[] {
+	if (activeSessionServer === undefined) {
+		return getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench);
+	}
+	return [
+		...getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench, { includeWorkspace: false }),
+		...getAgentHostMcpServerEnablementActions(agentHostCustomizations, sessionResource, activeSessionServer, ['workspace', 'session']),
+	];
+}
+
+/** Composes lifecycle, scoped enablement, and options actions for an agent-host-only row. */
 export function getActiveSessionServerOptionsActions(commandService: ICommandService, agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer): IAction[] {
 	const actions: IAction[] = [];
 
@@ -660,8 +697,6 @@ export function getActiveSessionServerOptionsActions(commandService: ICommandSer
 		}
 		actions.push(...durableActions);
 	}
-
-	actions.push(getSessionEnablementAction(server));
 
 	actions.push(new Separator());
 	actions.push(new Action(
@@ -682,14 +717,49 @@ function shouldHideLocalActionForActiveSessionServer(action: IAction): boolean {
 		|| action instanceof StopServerAction
 		|| action instanceof RestartServerAction
 		|| action instanceof ConfigureModelAccessAction
-		|| action instanceof ShowSamplingRequestsAction;
+		|| action instanceof ShowSamplingRequestsAction
+		|| isLocalMcpServerWorkspaceEnablementAction(action);
 }
 
 function isLocalMcpServerEnablementAction(action: IAction): boolean {
-	return action instanceof EnableMcpServerGloballyAction
-		|| action instanceof EnableMcpServerForWorkspaceAction
-		|| action instanceof DisableMcpServerGloballyAction
-		|| action instanceof DisableMcpServerForWorkspaceAction;
+	return action.id === EnableMcpServerGloballyAction.ID
+		|| action.id === EnableMcpServerForWorkspaceAction.ID
+		|| action.id === DisableMcpServerGloballyAction.ID
+		|| action.id === DisableMcpServerForWorkspaceAction.ID;
+}
+
+function isLocalMcpServerWorkspaceEnablementAction(action: IAction): boolean {
+	return action.id === EnableMcpServerForWorkspaceAction.ID
+		|| action.id === DisableMcpServerForWorkspaceAction.ID;
+}
+
+export function getServerItemContextMenuActions(menuActionGroups: readonly (readonly IAction[])[], activeSessionServer: AgentHostMcpServer | undefined, activeSessionLifecycleAction: IAction | undefined, agentHostEnablementActions: readonly IAction[]): IAction[] {
+	const actions: IAction[] = [];
+	const hasActiveSession = activeSessionServer !== undefined;
+	let agentHostEnablementAdded = false;
+	if (activeSessionLifecycleAction) {
+		actions.push(activeSessionLifecycleAction, new Separator());
+	}
+	for (const menuActions of menuActionGroups) {
+		const visibleMenuActions = hasActiveSession
+			? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action))
+			: menuActions;
+		actions.push(...visibleMenuActions);
+		if (hasActiveSession && menuActions.some(isLocalMcpServerEnablementAction)) {
+			actions.push(...agentHostEnablementActions);
+			agentHostEnablementAdded = true;
+		}
+		if (visibleMenuActions.length > 0) {
+			actions.push(new Separator());
+		}
+	}
+	if (hasActiveSession && !agentHostEnablementAdded) {
+		actions.push(...agentHostEnablementActions);
+	}
+	if (actions[actions.length - 1] instanceof Separator) {
+		actions.pop();
+	}
+	return actions;
 }
 
 function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostMcpServer): IMcpBuiltinItemEntry {
@@ -1494,14 +1564,21 @@ export class McpListWidget extends Disposable {
 
 			const disposables = new DisposableStore();
 			const actions: IAction[] = [];
-			const lifecycleAction = e.element.activeSessionServer ? getActiveSessionServerLifecycleAction(e.element.activeSessionServer) : undefined;
+			const lifecycleAction = e.element.activeSessionServer !== undefined ? getActiveSessionServerLifecycleAction(e.element.activeSessionServer) : undefined;
 			if (lifecycleAction) {
 				actions.push(disposables.add(lifecycleAction));
 			}
 
 			if (e.element.localServer) {
 				const isEmptyWorkbench = this.workspaceService.getActiveProjectRoot() === undefined;
-				const enablementActions = getLocalMcpServerEnablementActions(this.mcpService, e.element.localServer.definition.id, isEmptyWorkbench);
+				const enablementActions = getBuiltinMcpServerEnablementActions(
+					this.mcpService,
+					e.element.localServer.definition.id,
+					isEmptyWorkbench,
+					this.agentHostCustomizationService,
+					this.customizationHarnessService.activeSessionResource.get(),
+					e.element.activeSessionServer,
+				);
 				if (enablementActions.length > 0) {
 					if (actions.length > 0) {
 						actions.push(new Separator());
@@ -1513,14 +1590,6 @@ export class McpListWidget extends Disposable {
 						actions.push(enablementAction);
 					}
 				}
-			}
-
-			if (e.element.activeSessionServer) {
-				const sessionAction = getSessionEnablementAction(e.element.activeSessionServer);
-				if (isDisposable(sessionAction)) {
-					disposables.add(sessionAction);
-				}
-				actions.push(sessionAction);
 			}
 
 			if (plugin) {
@@ -1582,46 +1651,26 @@ export class McpListWidget extends Disposable {
 		const disposables = new DisposableStore();
 		const mcpServer = this.mcpWorkbenchService.local.find(local => local.id === serverEntry.server.id) || serverEntry.server;
 
-		// Local server actions already include durable profile/workspace enablement.
+		// Local server actions include VS Code-owned profile/workspace enablement.
 		const groups: IAction[][] = getContextMenuActions(mcpServer, false, this.instantiationService);
-		const actions: IAction[] = [];
-		const activeSessionLifecycleAction = serverEntry.activeSessionServer ? getActiveSessionServerLifecycleAction(serverEntry.activeSessionServer) : undefined;
-		const activeSessionEnablementAction = serverEntry.activeSessionServer ? getSessionEnablementAction(serverEntry.activeSessionServer) : undefined;
-		let sessionEnablementAdded = false;
-		if (activeSessionLifecycleAction) {
-			actions.push(disposables.add(activeSessionLifecycleAction));
-			actions.push(new Separator());
-		}
-		if (activeSessionEnablementAction && isDisposable(activeSessionEnablementAction)) {
-			disposables.add(activeSessionEnablementAction);
-		}
+		const activeSessionServer = serverEntry.activeSessionServer;
+		const activeSessionLifecycleAction = activeSessionServer !== undefined ? getActiveSessionServerLifecycleAction(activeSessionServer) : undefined;
+		const agentHostEnablementActions = activeSessionServer !== undefined
+			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, ['workspace', 'session'])
+			: [];
 		for (const menuActions of groups) {
 			for (const menuAction of menuActions) {
 				if (isDisposable(menuAction)) {
 					disposables.add(menuAction);
 				}
 			}
-			const visibleMenuActions = serverEntry.activeSessionServer
-				? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action))
-				: menuActions;
-			for (const menuAction of visibleMenuActions) {
-				actions.push(menuAction);
-			}
-			if (activeSessionEnablementAction && menuActions.some(isLocalMcpServerEnablementAction)) {
-				actions.push(activeSessionEnablementAction);
-				sessionEnablementAdded = true;
-			}
-			if (visibleMenuActions.length > 0) {
-				actions.push(new Separator());
+		}
+		for (const action of [activeSessionLifecycleAction, ...agentHostEnablementActions]) {
+			if (action && isDisposable(action)) {
+				disposables.add(action);
 			}
 		}
-		if (activeSessionEnablementAction && !sessionEnablementAdded) {
-			actions.push(activeSessionEnablementAction);
-		}
-		// Remove trailing separator
-		if (actions.length > 0 && actions[actions.length - 1] instanceof Separator) {
-			actions.pop();
-		}
+		const actions = getServerItemContextMenuActions(groups, activeSessionServer, activeSessionLifecycleAction, agentHostEnablementActions);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,

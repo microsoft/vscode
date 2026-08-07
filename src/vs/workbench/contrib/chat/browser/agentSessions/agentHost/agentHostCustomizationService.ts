@@ -12,10 +12,10 @@ import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../.
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { getCustomizationDisabledReason, isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type McpServerState, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -74,8 +74,8 @@ export interface IAgentHostCustomizationService {
 	 */
 	authenticateMcpServer(sessionResource: URI, serverId: string): Promise<boolean>;
 
-	/** Sets an MCP server's global enablement in the agent host. */
-	setMcpServerGlobalEnablement(sessionResource: URI, serverId: string, enabled: boolean): void;
+	/** Changes one scope while preserving all other explicit decisions. */
+	setCustomizationEnablement(sessionResource: URI, customizationId: string, currentEnablement: readonly CustomizationEnablement[] | undefined, kind: CustomizationEnablementKind, enabled: boolean): void;
 
 	/**
 	 * Reveals the per-server MCP diagnostics Output channel for the server
@@ -113,7 +113,7 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	authenticateMcpServer(_sessionResource: URI, _serverId: string): Promise<boolean> {
 		return Promise.resolve(false);
 	}
-	setMcpServerGlobalEnablement(_sessionResource: URI, _serverId: string, _enabled: boolean): void {
+	setCustomizationEnablement(_sessionResource: URI, _customizationId: string, _currentEnablement: readonly CustomizationEnablement[] | undefined, _kind: CustomizationEnablementKind, _enabled: boolean): void {
 		// no-op
 	}
 	async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
@@ -127,8 +127,7 @@ export interface IAgentHostCustomizationTarget {
 	readonly workingDirectories?: readonly string[];
 	readonly rootConfig?: RootConfigState;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
-	setMcpServerSessionEnabled(rawId: string, enabled: boolean): void;
-	setMcpServerGlobalEnabled(rawId: string, enabled: boolean): void;
+	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
@@ -188,11 +187,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				id: this._scopedMcpServerId(sessionResource, c.id),
 				name: c.name,
 				enabled: isCustomizationEnabled(c),
+				enablement: c.enablement,
 				disabledReason: getCustomizationDisabledReason(c),
 				status: c.state.kind,
 				state: c.state,
 				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), c.id),
-				setEnabled: (enabled: boolean) => target.setMcpServerSessionEnabled(c.id, enabled),
+				setEnabled: (enabled: boolean) => target.setCustomizationEnablement(c.id, withCustomizationEnablement(c.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 				start: () => target.startMcpServer(c.id),
 				stop: () => target.stopMcpServer(c.id),
 			}));
@@ -287,12 +287,30 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		}
 	}
 
-	setMcpServerGlobalEnablement(sessionResource: URI, serverId: string, enabled: boolean): void {
+	setCustomizationEnablement(sessionResource: URI, customizationId: string, currentEnablement: readonly CustomizationEnablement[] | undefined, kind: CustomizationEnablementKind, enabled: boolean): void {
 		const target = this._resolveTarget(sessionResource);
-		const server = target && this._findMcpServer(target.customizations, serverId);
-		if (server) {
-			target.setMcpServerGlobalEnabled(server.id, enabled);
+		if (!target) {
+			this._logService.warn(`[AgentHostCustomizationService] Cannot change enablement for '${customizationId}' because its session is unavailable.`);
+			return;
 		}
+		const customization = this._findCustomization(target.customizations, customizationId);
+		if (!customization) {
+			this._logService.warn(`[AgentHostCustomizationService] Cannot change enablement for unavailable customization '${customizationId}'.`);
+			return;
+		}
+		const entry = kind === CustomizationEnablementKind.Workspace
+			? this._workspaceEnablementEntry(target, enabled)
+			: { kind, enabled };
+		if (!entry) {
+			this._logService.warn(`[AgentHostCustomizationService] Cannot set workspace enablement for '${customizationId}' without a working directory.`);
+			return;
+		}
+		target.setCustomizationEnablement(customization.id, withCustomizationEnablement(currentEnablement, kind, entry));
+	}
+
+	private _workspaceEnablementEntry(target: IAgentHostCustomizationTarget, enabled: boolean): CustomizationEnablement | undefined {
+		const workingDirectory = target.workingDirectories?.[0] ?? target.workingDirectory;
+		return workingDirectory ? { kind: CustomizationEnablementKind.Workspace, uri: workingDirectory, enabled } : undefined;
 	}
 
 	protected _fireCustomAgentsChanged(): void {
@@ -313,6 +331,19 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		for (const server of this._flattenMcpServers(customizations)) {
 			if (server.id === serverId || this._isScopedMcpServerIdForRawId(serverId, server.id)) {
 				return server;
+			}
+		}
+		return undefined;
+	}
+
+	private _findCustomization(customizations: readonly Customization[], customizationId: string): { readonly id: string } | undefined {
+		for (const customization of customizations) {
+			if (customization.id === customizationId || this._isScopedMcpServerIdForRawId(customizationId, customization.id)) {
+				return customization;
+			}
+			const child = (customization.type !== CustomizationType.McpServer ? customization.children : undefined)?.find(child => child.id === customizationId || this._isScopedMcpServerIdForRawId(customizationId, child.id));
+			if (child) {
+				return child;
 			}
 		}
 		return undefined;
@@ -385,19 +416,11 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 			workingDirectories: sessionState?.workingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			authenticate: request => target.connection.authenticate(request),
-			setMcpServerSessionEnabled: (rawId, enabled) => {
+			setCustomizationEnablement: (rawId, enablement) => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionCustomizationToggled,
 					id: rawId,
-					enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
-				});
-			},
-			setMcpServerGlobalEnabled: (rawId, enabled) => {
-				target.connection.dispatch(channel, {
-					type: ActionType.SessionCustomizationToggled,
-					id: rawId,
-					// TODO step 7: Select the enablement scope based on the requested action.
-					enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+					enablement: [...enablement],
 				});
 			},
 			startMcpServer: rawId => {

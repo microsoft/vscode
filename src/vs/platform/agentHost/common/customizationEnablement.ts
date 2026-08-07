@@ -33,6 +33,25 @@ export function isCustomizationEnabled(customization: { readonly enablement?: re
 	return getCustomizationEnablementDecision(customization)?.enabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
 }
 
+export interface ICustomizationScopeEnablement {
+	readonly global: boolean;
+	readonly workspace: boolean;
+	readonly session: boolean;
+}
+
+/**
+ * Resolves the value each scope would inherit if it had no explicit decision.
+ */
+export function getCustomizationScopeEnablement(customization: { readonly enablement?: readonly CustomizationEnablement[] }): ICustomizationScopeEnablement {
+	const global = customization.enablement?.find(decision => decision.kind === CustomizationEnablementKind.Global)?.enabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
+	const workspace = customization.enablement?.find(decision => decision.kind === CustomizationEnablementKind.Workspace)?.enabled ?? global;
+	return {
+		global,
+		workspace,
+		session: isCustomizationEnabled(customization),
+	};
+}
+
 /** Returns the published reason when the decisive enablement decision disables a customization. */
 export function getCustomizationDisabledReason(customization: { readonly enablement?: readonly CustomizationEnablement[] }): CustomizationDisabledReason | undefined {
 	const decision = getCustomizationEnablementDecision(customization);

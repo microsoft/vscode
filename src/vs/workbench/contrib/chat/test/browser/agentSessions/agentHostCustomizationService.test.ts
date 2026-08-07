@@ -7,24 +7,23 @@ import assert from 'assert';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
-	readonly sessionToggles: { readonly rawId: string; readonly enabled: boolean }[] = [];
-	readonly globalToggles: { readonly rawId: string; readonly enabled: boolean }[] = [];
+	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
 
-	constructor(readonly customizations: McpServerCustomization[]) { }
+	constructor(
+		readonly customizations: readonly Customization[],
+		readonly workingDirectory?: string,
+	) { }
 
 	authenticate(): Promise<unknown> { return Promise.resolve(undefined); }
-	setMcpServerSessionEnabled(rawId: string, enabled: boolean): void {
-		this.sessionToggles.push({ rawId, enabled });
-	}
-	setMcpServerGlobalEnabled(rawId: string, enabled: boolean): void {
-		this.globalToggles.push({ rawId, enabled });
+	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void {
+		this.enablementChanges.push({ rawId, enablement });
 	}
 	startMcpServer(): Promise<void> { return Promise.resolve(); }
 	stopMcpServer(): Promise<void> { return Promise.resolve(); }
@@ -74,7 +73,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));
 	}
 
-	test('dispatches session and global enablement independently', () => {
+	test('dispatches complete enablement decisions', () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
 		const target = new FakeTarget([mcpServer('server-1', 'Server One')]);
@@ -82,15 +81,60 @@ suite('AbstractAgentHostCustomizationService', () => {
 
 		const [server] = sut.getMcpServers(session);
 		server.setEnabled(false);
-		sut.setMcpServerGlobalEnablement(session, server.id, true);
+		sut.setCustomizationEnablement(session, server.id, undefined, CustomizationEnablementKind.Global, true);
 
-		assert.deepStrictEqual({
-			session: target.sessionToggles,
-			global: target.globalToggles,
-		}, {
-			session: [{ rawId: 'server-1', enabled: false }],
-			global: [{ rawId: 'server-1', enabled: true }],
-		});
+		assert.deepStrictEqual(target.enablementChanges, [
+			{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] },
+			{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+		]);
+	});
+
+	test('dispatches enablement for an MCP server contributed by a plugin', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const server = mcpServer('server-1', 'Server One');
+		const target = new FakeTarget([{
+			type: CustomizationType.Plugin,
+			id: 'plugin-1',
+			uri: 'file:///plugin-1',
+			name: 'Plugin One',
+			children: [server],
+		} as unknown as Customization]);
+		sut.setTarget(session, target);
+
+		const [pluginServer] = sut.getMcpServers(session);
+		sut.setCustomizationEnablement(session, pluginServer.id, undefined, CustomizationEnablementKind.Global, false);
+
+		assert.deepStrictEqual(target.enablementChanges, [
+			{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+		]);
+	});
+
+	test('preserves global and session decisions when re-enabling workspace enablement', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const enablement: CustomizationEnablement[] = [
+			{ kind: CustomizationEnablementKind.Global, enabled: false },
+			{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false },
+			{ kind: CustomizationEnablementKind.Session, enabled: false },
+		];
+		const server = {
+			...mcpServer('server-1', 'Server One'),
+			enablement,
+		};
+		const target = new FakeTarget([server], 'file:///workspace');
+		sut.setTarget(session, target);
+
+		sut.setCustomizationEnablement(session, server.id, server.enablement, CustomizationEnablementKind.Workspace, true);
+
+		assert.deepStrictEqual(target.enablementChanges, [{
+			rawId: 'server-1',
+			enablement: [
+				{ kind: CustomizationEnablementKind.Session, enabled: false },
+				{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: true },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			],
+		}]);
 	});
 
 	test('provides a stable diagnostics output channel id without creating a logger', () => {
