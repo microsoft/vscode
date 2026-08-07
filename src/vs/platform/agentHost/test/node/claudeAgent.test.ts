@@ -63,7 +63,8 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
-import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT, toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
+import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
+import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
@@ -1256,8 +1257,8 @@ suite('ClaudeAgent', () => {
 		// With the merged catalog always on, a native default no longer short-
 		// circuits sign-in: `authenticate` falls through to acquire a proxy handle
 		// so a session that later picks a Copilot-routed model has a started proxy
-		// to run against. The handle is acquired while `_transportMode` stays native
-		// (the default for model-less sessions).
+		// to run against — even though the explicit `claudeUseCopilotProxy: false`
+		// keeps the model-less default (`_defaultTransportMode`) native.
 		const { agent, proxy } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
 		await tick();
@@ -1332,13 +1333,12 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('re-authenticating an unchanged token starts the proxy when a prior start left no handle', async () => {
-		// The token-unchanged short-circuit in authenticate() is guarded by
-		// `&& this._proxyHandle`: an unchanged token must still start the proxy if a
-		// prior attempt failed and left the agent holding a recorded token but no
-		// handle. A native default now attempts the proxy (so the merged catalog's
-		// Copilot models are runnable); if that first start fails it commits native,
-		// recording the token with no handle. Re-authenticating with the SAME token
-		// must retry start() rather than short-circuit as "unchanged".
+		// authenticate() always attempts the proxy on sign-in (so the merged
+		// catalog's Copilot models are runnable), even under an explicit native
+		// default. A proxy-start failure is soft: it leaves BOTH the token and the
+		// handle unset. Re-authenticating with the SAME token must therefore retry
+		// start() — the uncommitted token reads as new, not as an "unchanged"
+		// short-circuit (which is additionally guarded by `&& this._proxyHandle`).
 		const { agent, proxy } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		let failNext = true;
 		proxy.start = async (token: string) => {
@@ -1350,10 +1350,10 @@ suite('ClaudeAgent', () => {
 			return { baseUrl: 'http://127.0.0.1:0', nonce: `nonce-for-${token}`, dispose: () => { proxy.disposeCount++; } };
 		};
 
-		// First authenticate: native default attempts the proxy, start fails, commits
-		// native — token 'T' recorded, no handle.
+		// First authenticate: the native default still attempts the proxy; start
+		// fails softly, leaving token 'T' uncommitted and no handle.
 		await agent.authenticate('https://api.github.com', 'T');
-		// Re-auth with the SAME token: no handle ⇒ must retry start() (now succeeds).
+		// Re-auth with the SAME token: uncommitted token ⇒ must retry start() (now succeeds).
 		await agent.authenticate('https://api.github.com', 'T');
 		await tick();
 
@@ -1609,8 +1609,9 @@ suite('ClaudeAgent', () => {
 		// before awaiting `start()`. If start threw, the token was recorded
 		// but no proxy was running, and the next authenticate() call with
 		// the same token took the "unchanged" path and falsely returned
-		// true. This test pins the corrected ordering: state mutates only
-		// after start() succeeds.
+		// true. The corrected ordering leaves BOTH `_githubToken` and
+		// `_proxyHandle` unset when start() throws (a soft failure), so a
+		// retry still sees the token as new and re-attempts start().
 		const proxy = new FakeClaudeProxyService();
 		const api = new FakeCopilotApiService();
 		api.models = async () => [...ALL_MODELS];
@@ -1646,22 +1647,28 @@ suite('ClaudeAgent', () => {
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
-		await assert.rejects(agent.authenticate('https://api.github.com', 'tok'), /proxy bind failed/);
-
-		// Models still empty (proxy never started, refresh never ran).
+		// A proxy-start failure is soft: GitHub sign-in still succeeds. The
+		// token and handle stay uncommitted, so the merged refresh that the
+		// soft path kicks off self-gates its proxy source to empty (and this
+		// fixture has no native setup), leaving the catalog empty.
+		const firstAccepted = await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
 		assert.deepStrictEqual(agent.models.get(), []);
 
-		// Retry with the SAME token MUST attempt start() again — not
-		// short-circuit on `tokenChanged === false`.
+		// Retry with the SAME token MUST attempt start() again — the soft
+		// failure left the token uncommitted, so this is seen as a new token
+		// rather than short-circuited as "unchanged".
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
 		await tick();
 
 		assert.deepStrictEqual({
+			firstAccepted,
 			accepted,
 			startTokens: proxy.startCalls.map(c => c.token),
 			disposeCount: proxy.disposeCount,
 			modelIds: agent.models.get().map(m => m.id),
 		}, {
+			firstAccepted: true,
 			accepted: true,
 			startTokens: ['tok', 'tok'],
 			disposeCount: 0,
@@ -5874,12 +5881,13 @@ suite('ClaudeAgent — per-session provider', () => {
 		});
 	});
 
-	test('a failing proxy start does not fail native-default sign-in', async () => {
-		// Regression (Finding D): with a native default
-		// (`claudeUseCopilotProxy: false`), `authenticate` still tries to start the
-		// proxy so the merged catalog's Copilot models can run — but native needs
-		// neither proxy nor token, so a transient `start()` failure must resolve
-		// sign-in as success (native), not reject.
+	test('a failing proxy start does not fail sign-in', async () => {
+		// Regression (Finding D): `authenticate` always tries to start the proxy so
+		// the merged catalog's Copilot models can run, but a `start()` failure is
+		// always soft — GitHub sign-in itself succeeded and a Copilot-routed model
+		// simply re-drives sign-in on its first send. So a transient failure must
+		// resolve sign-in as success, not reject. (Shown here under an explicit
+		// native default, where nothing downstream even needs the handle.)
 		const { agent, proxy } = createTestContext(disposables, {
 			rootConfig: { claudeUseCopilotProxy: false },
 		});
@@ -5932,7 +5940,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			instantiationService,
 		));
 		await session.materialize({
-			resolveTransport: () => ({ kind: 'proxy', handle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } } }),
+			transport: { kind: 'proxy', handle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } } },
 			canUseTool: async () => ({ behavior: 'deny', message: 'unused' }),
 			onElicitation: async () => ({ action: 'cancel' }),
 			isResume: false,

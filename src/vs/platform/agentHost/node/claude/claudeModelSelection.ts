@@ -10,14 +10,6 @@ import { toSdkModelId } from './claudeModelId.js';
 import type { ClaudeTransportMode } from './claudeTransportMode.js';
 
 /**
- * Re-exported so node callers (this module's SDK/transport helpers and their
- * tests) keep importing the provider tokens from one place, while the tokens
- * themselves live in `common` for the browser picker contribution to share. See
- * {@link CLAUDE_PROVIDER_COPILOT} / {@link CLAUDE_PROVIDER_ANTHROPIC}.
- */
-export { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT };
-
-/**
  * Prefix that marks a {@link ModelSelection.id} as carrying an explicit
  * provider. Mirrors Codex's `@provider=` convention so the two harnesses read
  * the same way. Kept module-private: callers encode/decode through the
