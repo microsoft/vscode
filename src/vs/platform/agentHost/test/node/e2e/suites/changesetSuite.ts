@@ -820,10 +820,12 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const branchChangeset = buildBranchChangesetUri(sessionUri);
 		const uncommittedChangeset = buildUncommittedChangesetUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchChangeset });
-		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedChangeset });
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedChangeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		await runBangTurn(sessionUri, 'turn-changeset-discard-last', writeFileCommand('seed.txt', 'edited'), 1);
 		await waitForChangesetFiles(branchChangeset, ['seed.txt']);
 		const [file] = await waitForChangesetFiles(uncommittedChangeset, ['seed.txt']);
+		await waitForIdleResourceOnlyOperation(uncommittedChangeset, 'discard-changes', initialOperations);
 
 		await invokeDiscard(uncommittedChangeset, fileUri(file));
 		await retry(async () => {

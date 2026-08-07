@@ -198,7 +198,7 @@ npm run test-agent-host-e2e -- --jobs 2
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
 
-The complete-suite runner starts one test process per entrypoint and runs up to four concurrently. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
+The complete-suite runner starts one test process per entrypoint and runs up to four concurrently. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
 Provider availability:
 
