@@ -322,6 +322,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (this._window !== auxiliaryWindow) {
 				return;
 			}
+			this._storeWindowPosition(auxiliaryWindow.window);
 			this._disposeWidget();
 			this._desiredOpen = false;
 			this._ownershipClaim = undefined;
@@ -341,6 +342,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._ownershipClaim = undefined;
 		if (!this._window) { return; }
 
+		this._storeWindowPosition(this._window.window);
 		this.storageService.store(ChatInputWindowStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		// Cancel any in-flight submission so routing can't dispatch after close.
@@ -538,9 +540,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			let y = win.screenY;
 			if (!didInitialPosition) {
 				didInitialPosition = true;
-				const invokingWindowBounds = this._invokingWindowBounds;
-				x = Math.round(invokingWindowBounds.x + (invokingWindowBounds.width - width) / 2);
-				y = Math.round(invokingWindowBounds.y + (invokingWindowBounds.height - contentHeight) / 2);
+				const initialBounds = this._positionedBounds(width, contentHeight);
+				x = initialBounds.x;
+				y = initialBounds.y;
 			}
 			void auxiliaryWindow.setBounds({ x, y, width, height: contentHeight });
 		};
@@ -1086,20 +1088,44 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
-		const invokingWindowBounds = this._invokingWindowBounds;
 		// Match Quick Chat's width so the model-detail hover has room to sit
 		// beside the picker: golden-cut of the invoking window, capped like the
 		// quick input widget (MAX_WIDTH = 600).
 		const width = this._defaultWidth();
-		// Center the omni bar within the window that invoked it.
-		const x = Math.round(invokingWindowBounds.x + (invokingWindowBounds.width - width) / 2);
-		const y = Math.round(invokingWindowBounds.y + (invokingWindowBounds.height - CHAT_INPUT_WINDOW_DEFAULT_HEIGHT) / 2);
+		return this._positionedBounds(width, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
+	}
+
+	private _positionedBounds(width: number, height: number): IRectangle {
+		const invoking = this._invokingWindowBounds;
+		const stored = this.storageService.getObject<{ readonly offsetX: number; readonly offsetY: number }>(
+			ChatInputWindowStorageKeys.WindowPosition,
+			StorageScope.WORKSPACE,
+		);
+		const centeredX = invoking.x + (invoking.width - width) / 2;
+		const centeredY = invoking.y + (invoking.height - height) / 2;
+		const desiredX = stored ? invoking.x + stored.offsetX : centeredX;
+		const desiredY = stored ? invoking.y + stored.offsetY : centeredY;
+		const maxX = invoking.x + Math.max(0, invoking.width - width);
+		const maxY = invoking.y + Math.max(0, invoking.height - height);
 		return {
-			x,
-			y,
+			x: Math.round(Math.min(Math.max(desiredX, invoking.x), maxX)),
+			y: Math.round(Math.min(Math.max(desiredY, invoking.y), maxY)),
 			width,
-			height: CHAT_INPUT_WINDOW_DEFAULT_HEIGHT,
+			height,
 		};
+	}
+
+	private _storeWindowPosition(window: Window): void {
+		const invoking = this._invokingWindowBounds;
+		this.storageService.store(
+			ChatInputWindowStorageKeys.WindowPosition,
+			JSON.stringify({
+				offsetX: window.screenX - invoking.x,
+				offsetY: window.screenY - invoking.y,
+			}),
+			StorageScope.WORKSPACE,
+			StorageTarget.MACHINE,
+		);
 	}
 
 	private _defaultWidth(): number {
