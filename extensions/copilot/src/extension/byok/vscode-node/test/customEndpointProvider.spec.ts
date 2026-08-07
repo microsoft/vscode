@@ -14,7 +14,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl, resolveGeminiBaseUrl } from '../customEndpointProvider';
 
 describe('CustomEndpointBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
@@ -74,19 +74,67 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('hasExplicitApiPath', () => {
-		it('detects /chat/completions, /responses, /messages, and rejects bare URLs', () => {
+		it('detects /chat/completions, /responses, /messages, /gemini, and rejects bare URLs', () => {
 			expect({
 				chat: hasExplicitApiPath('https://api.example.com/v1/chat/completions'),
 				responses: hasExplicitApiPath('https://api.example.com/v1/responses'),
 				messages: hasExplicitApiPath('https://api.example.com/v1/messages'),
+				gemini: hasExplicitApiPath('https://api.example.com/v1beta/models/gemini-3.6-flash:generateContent'),
+				geminiStreaming: hasExplicitApiPath('https://api.example.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse'),
 				bare: hasExplicitApiPath('https://api.example.com'),
 				baseV1: hasExplicitApiPath('https://api.example.com/v1'),
 			}).toEqual({
 				chat: true,
 				responses: true,
 				messages: true,
+				gemini: true,
+				geminiStreaming: true,
 				bare: false,
 				baseV1: false,
+			});
+		});
+	});
+
+	describe('resolveGeminiBaseUrl', () => {
+		it('strips a bare version segment into apiVersion', () => {
+			expect(resolveGeminiBaseUrl('https://generativelanguage.googleapis.com/v1beta')).toEqual({
+				baseUrl: 'https://generativelanguage.googleapis.com',
+				apiVersion: 'v1beta',
+			});
+		});
+
+		it('leaves a bare base URL with no version segment untouched', () => {
+			expect(resolveGeminiBaseUrl('https://generativelanguage.googleapis.com')).toEqual({
+				baseUrl: 'https://generativelanguage.googleapis.com',
+				apiVersion: undefined,
+			});
+		});
+
+		it('strips both the generateContent tail and the version segment', () => {
+			expect(resolveGeminiBaseUrl('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent')).toEqual({
+				baseUrl: 'https://generativelanguage.googleapis.com',
+				apiVersion: 'v1beta',
+			});
+		});
+
+		it('strips a streaming generateContent tail with a query string', () => {
+			expect(resolveGeminiBaseUrl('https://generativelanguage.googleapis.com/v1/models/gemini-3.6-flash:streamGenerateContent?alt=sse')).toEqual({
+				baseUrl: 'https://generativelanguage.googleapis.com',
+				apiVersion: 'v1',
+			});
+		});
+
+		it('preserves a gateway path prefix that has no version segment', () => {
+			expect(resolveGeminiBaseUrl('https://gateway.example.com/acct/gw/google-ai-studio')).toEqual({
+				baseUrl: 'https://gateway.example.com/acct/gw/google-ai-studio',
+				apiVersion: undefined,
+			});
+		});
+
+		it('strips a trailing slash before inspecting the URL', () => {
+			expect(resolveGeminiBaseUrl('https://generativelanguage.googleapis.com/')).toEqual({
+				baseUrl: 'https://generativelanguage.googleapis.com',
+				apiVersion: undefined,
 			});
 		});
 	});

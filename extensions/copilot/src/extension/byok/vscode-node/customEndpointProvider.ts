@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelResponsePart2, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
@@ -15,12 +16,24 @@ import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
-import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
+import { AbstractOpenAICompatibleLMProvider, ExtendedLanguageModelChatInformation, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
+import { GeminiModelConfiguration, GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
 
-export type CustomEndpointApiType = 'chat-completions' | 'responses' | 'messages';
+export type CustomEndpointApiType = 'chat-completions' | 'responses' | 'messages' | 'gemini';
 
+/** Matches the `:generateContent` / `:streamGenerateContent` method marker of a Gemini REST call. */
+const GEMINI_GENERATE_CONTENT_PATTERN = /:(?:stream)?generateContent\b/i;
+
+function isGeminiGenerateContentUrl(url: string): boolean {
+	return GEMINI_GENERATE_CONTENT_PATTERN.test(url);
+}
+
+/**
+ * Builds the request URL for `chat-completions` / `responses` / `messages`.
+ * Not used for `gemini`; see {@link resolveGeminiBaseUrl}.
+ */
 export function resolveCustomEndpointUrl(modelId: string, url: string, apiType?: CustomEndpointApiType): string {
 	// The fully resolved url was already passed in
 	if (hasExplicitApiPath(url)) {
@@ -49,16 +62,20 @@ function apiTypeToPath(apiType: CustomEndpointApiType | undefined): string {
 		case 'responses': return '/responses';
 		case 'messages': return '/messages';
 		case 'chat-completions':
+		case 'gemini':
 		default:
 			return '/chat/completions';
 	}
 }
 
 export function hasExplicitApiPath(url: string): boolean {
-	return url.includes('/responses') || url.includes('/chat/completions') || url.includes('/messages');
+	return url.includes('/responses') || url.includes('/chat/completions') || url.includes('/messages') || isGeminiGenerateContentUrl(url);
 }
 
 function inferApiTypeFromUrl(url: string): CustomEndpointApiType {
+	if (isGeminiGenerateContentUrl(url)) {
+		return 'gemini';
+	}
 	if (url.includes('/messages')) {
 		return 'messages';
 	}
@@ -66,6 +83,25 @@ function inferApiTypeFromUrl(url: string): CustomEndpointApiType {
 		return 'responses';
 	}
 	return 'chat-completions';
+}
+
+/**
+ * Normalizes a Custom Endpoint URL into `{ baseUrl, apiVersion }` for the Gemini
+ * SDK, which builds the full request URL itself
+ * (`{baseUrl}/{apiVersion}/models/{model}:generateContent`) rather than taking one.
+ * Strips a trailing version segment and a `models/...:generateContent` tail;
+ * leaves gateway path prefixes untouched.
+ */
+export function resolveGeminiBaseUrl(url: string): { baseUrl: string; apiVersion: string | undefined } {
+	let baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+
+	baseUrl = baseUrl.replace(/\/models\/[^/]+:(?:stream)?generateContent(?:\?.*)?$/i, '');
+
+	const versionMatch = baseUrl.match(/\/(v1(?:alpha|beta)?)$/);
+	if (!versionMatch) {
+		return { baseUrl, apiVersion: undefined };
+	}
+	return { baseUrl: baseUrl.slice(0, -versionMatch[0].length), apiVersion: versionMatch[1] };
 }
 
 function apiTypeToSupportedEndpoints(apiType: CustomEndpointApiType): ModelSupportedEndpoint[] | undefined {
@@ -111,6 +147,15 @@ export interface CustomEndpointModelConfig extends _CustomEndpointModelConfig {
 	id: string;
 }
 
+/**
+ * Resolves apiType: per-model override, then group default, then URL inference.
+ * Uses the raw URL, before {@link resolveCustomEndpointUrl} would append anything,
+ * so a bare Gemini URL infers correctly instead of defaulting to Chat Completions.
+ */
+function resolveModelApiType(url: string, modelApiType: CustomEndpointApiType | undefined, groupApiType: CustomEndpointApiType | undefined): CustomEndpointApiType {
+	return modelApiType ?? groupApiType ?? inferApiTypeFromUrl(url);
+}
+
 export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMProvider<CustomEndpointModelProviderConfig> {
 
 	public static readonly providerName = 'CustomEndpoint';
@@ -132,6 +177,51 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		return;
 	}
 
+	// Lazily created and reused for every `apiType: 'gemini'` request. Its constructor's
+	// legacy API-key migration re-running here is a harmless no-op: the registered Gemini
+	// provider singleton already completed it well before this delegate is ever created.
+	private _geminiDelegate: GeminiNativeBYOKLMProvider | undefined;
+
+	private _getGeminiDelegate(): GeminiNativeBYOKLMProvider {
+		this._geminiDelegate ??= this._instantiationService.createInstance(GeminiNativeBYOKLMProvider, undefined, this._byokStorageService);
+		return this._geminiDelegate;
+	}
+
+	/**
+	 * Adapts a Custom Endpoint model into the shape the native Gemini provider expects,
+	 * pointing it at the user's endpoint instead of the official Gemini Developer API.
+	 */
+	private _toGeminiModel(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): ExtendedLanguageModelChatInformation<GeminiModelConfiguration> {
+		const { baseUrl, apiVersion } = resolveGeminiBaseUrl(model.url);
+		return {
+			...model,
+			configuration: {
+				apiKey: model.configuration?.apiKey,
+				baseUrl,
+				apiVersion,
+			}
+		};
+	}
+
+	override async provideLanguageModelChatResponse(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<void> {
+		if (this._resolveApiType(model) === 'gemini') {
+			return this._getGeminiDelegate().provideLanguageModelChatResponse(this._toGeminiModel(model), messages, options, progress, token);
+		}
+		return super.provideLanguageModelChatResponse(model, messages, options, progress, token);
+	}
+
+	override async provideTokenCount(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Promise<number> {
+		if (this._resolveApiType(model) === 'gemini') {
+			return this._getGeminiDelegate().provideTokenCount(this._toGeminiModel(model), text, token);
+		}
+		return super.provideTokenCount(model, text, token);
+	}
+
+	private _resolveApiType(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): CustomEndpointApiType {
+		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
+		return resolveModelApiType(model.url, modelConfiguration?.apiType, model.configuration?.apiType);
+	}
+
 	protected override async getAllModels(silent: boolean, apiKey: string | undefined, configuration: CustomEndpointModelProviderConfig | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[]> {
 		if (configuration?.url) {
 			return super.getAllModels(silent, apiKey, configuration);
@@ -150,9 +240,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<OpenAIEndpoint> {
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
-		const apiTypeOverride = modelConfiguration?.apiType ?? model.configuration?.apiType;
-		const url = resolveCustomEndpointUrl(model.id, model.url, apiTypeOverride);
-		const apiType: CustomEndpointApiType = apiTypeOverride ?? inferApiTypeFromUrl(url);
+		const apiType = resolveModelApiType(model.url, modelConfiguration?.apiType, model.configuration?.apiType);
+		const url = resolveCustomEndpointUrl(model.id, model.url, apiType);
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,

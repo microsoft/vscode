@@ -26,7 +26,25 @@ import { AbstractLanguageModelChatProvider, ExtendedLanguageModelChatInformation
 import { IBYOKStorageService } from './byokStorageService';
 import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 
-export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvider {
+/** Adds an optional custom endpoint to the base BYOK config. Unset, behavior is unchanged. */
+export interface GeminiModelConfiguration extends LanguageModelChatConfiguration {
+	readonly baseUrl?: string;
+	readonly apiVersion?: string;
+}
+
+/** OTel server-address host: the custom base URL's host, or the default Gemini API host. */
+function getGeminiServerAddress(baseUrl: string | undefined): string {
+	if (!baseUrl) {
+		return 'generativelanguage.googleapis.com';
+	}
+	try {
+		return new URL(baseUrl).host;
+	} catch {
+		return 'generativelanguage.googleapis.com';
+	}
+}
+
+export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvider<GeminiModelConfiguration> {
 
 	public static readonly providerName = 'Gemini';
 	public static readonly providerId = this.providerName.toLowerCase();
@@ -42,7 +60,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		super(GeminiNativeBYOKLMProvider.providerId, GeminiNativeBYOKLMProvider.providerName, knownModels, byokStorageService, logService);
 	}
 
-	protected async getAllModels(silent: boolean, apiKey: string | undefined): Promise<ExtendedLanguageModelChatInformation<LanguageModelChatConfiguration>[]> {
+	protected async getAllModels(silent: boolean, apiKey: string | undefined): Promise<ExtendedLanguageModelChatInformation<GeminiModelConfiguration>[]> {
 		if (!apiKey && silent) {
 			return [];
 		}
@@ -78,7 +96,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		}
 	}
 
-	async provideLanguageModelChatResponse(model: ExtendedLanguageModelChatInformation<LanguageModelChatConfiguration>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<any> {
+	async provideLanguageModelChatResponse(model: ExtendedLanguageModelChatInformation<GeminiModelConfiguration>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<any> {
 		// Restore CapturingToken context if correlation ID was passed through modelOptions.
 		// This handles the case where AsyncLocalStorage context was lost crossing VS Code IPC.
 		const correlationId = (options as { modelOptions?: OTelModelOptions }).modelOptions?._capturingTokenCorrelationId;
@@ -98,7 +116,12 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				throw new Error('API key not found for the model');
 			}
 
-			const client = new GoogleGenAI({ apiKey });
+			// Set only when delegated to by Custom Endpoint; otherwise matches prior behavior exactly.
+			const baseUrl = model.configuration?.baseUrl;
+			const client = new GoogleGenAI({
+				apiKey,
+				...(baseUrl ? { httpOptions: { baseUrl, apiVersion: model.configuration?.apiVersion } } : {})
+			});
 			// Convert the messages from the API format into messages that we can use against Gemini
 			const { contents, systemInstruction } = apiMessageToGeminiMessage(messages as LanguageModelChatMessage[]);
 
@@ -108,7 +131,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				{
 					model: model.id,
 					modelMaxPromptTokens: model.maxInputTokens,
-					urlOrRequestMetadata: 'https://generativelanguage.googleapis.com',
+					urlOrRequestMetadata: baseUrl ?? 'https://generativelanguage.googleapis.com',
 				},
 				{
 					model: model.id,
@@ -395,7 +418,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
 					[GenAiAttr.AGENT_NAME]: 'GeminiBYOK',
 					[CopilotChatAttr.MAX_PROMPT_TOKENS]: model.maxInputTokens,
-					[StdAttr.SERVER_ADDRESS]: 'generativelanguage.googleapis.com',
+					[StdAttr.SERVER_ADDRESS]: getGeminiServerAddress(model.configuration?.baseUrl),
 				},
 			});
 			// Opt-in: capture input messages in OTel GenAI format

@@ -2024,17 +2024,20 @@
               "enum": [
                 "chat-completions",
                 "responses",
-                "messages"
+                "messages",
+                "gemini"
               ],
               "enumItemLabels": [
                 "Chat Completions",
                 "Responses",
-                "Messages"
+                "Messages",
+                "Gemini"
               ],
               "enumDescriptions": [
                 "Chat Completions API",
                 "Responses API",
-                "Messages API"
+                "Messages API",
+                "Gemini generateContent API"
               ],
               "default": "chat-completions",
               "title": "API Type",
@@ -2074,27 +2077,30 @@
                     "type": "string",
                     "pattern": "^https?://.+",
                     "patternErrorMessage": "URL must start with http:// or https://",
-                    "markdownDescription": "URL endpoint for the model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths are respected: `/chat/completions`, `/responses`, and `/v1/messages` (Anthropic-compatible). Use the `apiType` property to override the request/response format independently of the URL."
+                    "markdownDescription": "URL endpoint for the model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths are respected: `/chat/completions`, `/responses`, `/v1/messages` (Anthropic-compatible), and `models/{model}:generateContent` (Gemini-compatible). Use the `apiType` property to override the request/response format independently of the URL."
                   },
                   "apiType": {
                     "type": "string",
                     "enum": [
                       "chat-completions",
                       "responses",
-                      "messages"
+                      "messages",
+                      "gemini"
                     ],
                     "enumItemLabels": [
                       "Chat Completions",
                       "Responses",
-                      "Messages"
+                      "Messages",
+                      "Gemini"
                     ],
                     "enumDescriptions": [
                       "Chat Completions API",
                       "Responses API",
-                      "Messages API"
+                      "Messages API",
+                      "Gemini generateContent API"
                     ],
                     "title": "API Type",
-                    "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
+                    "markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: Chat Completions API (default).\n- `responses`: Responses API.\n- `messages`: Messages API.\n- `gemini`: Gemini `generateContent` API — for the official Google Generative Language API or a compatible gateway/proxy.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
                   },
                   "toolCalling": {
                     "type": "boolean",
