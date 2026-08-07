@@ -20,11 +20,12 @@
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats.
 	It lives in the same centered session-view content host as the header.
-	The left padding adds the header's status-icon column (icon + gap) on top of
-	the shared 10px so the first tab aligns under the title/meta main column
-	rather than under the status icon. */
+	Symmetric 10px gutter on both sides, matching the small, even inset editor
+	tabs use — the tab strip no longer tries to align its first tab under the
+	header's status-icon column, since that produced a much larger left gutter
+	than the shared modern-tab convention. */
 .chat-composite-bar.session-chat-tabs-bar {
-	padding: 0 10px 0 calc(10px + var(--vscode-codiconFontSize, 16px) + 6px);
+	padding: 0 10px;
 	box-sizing: border-box;
 	container-type: inline-size;
 
@@ -261,7 +262,14 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
-	gap: 4px;
+	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
+	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--session-view-background));
+	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--session-view-background));
+}
+
+.vs .chat-composite-bar-tabs {
+	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--session-view-background));
+	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--session-view-background));
 }
 
 /* "New Chat" button pinned at the end of the tab strip, after the Conversations menu. */
@@ -331,30 +339,55 @@
 	container-type: unset;
 }
 
-/* Base tab: preserve chat title casing while keeping the same pill treatment */
-.chat-composite-bar-tab {
+/* Chat tabs mirror the modern editor-tab geometry while remaining fully scoped
+	to the chat composite bar. State colors come from the shared modern-tab
+	tokens loaded by the always-modern Agents workbench. */
+.session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab {
 	display: flex;
 	align-items: center;
 	position: relative;
-	padding: 0 8px;
+	box-sizing: border-box;
+	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
+	background-color: transparent;
+	border-block: var(--vscode-spacing-size40) solid transparent;
+	border-right: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	box-shadow: none;
 	cursor: pointer;
 	color: var(--chat-tab-inactive-foreground);
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
-	line-height: 22px;
-	height: 26px;
-	border-radius: var(--vscode-cornerRadius-small);
-	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 4%, transparent);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
 }
 
-.chat-composite-bar-tab-label {
+.session-chat-tabs-bar .chat-composite-bar-tab-fill {
+	display: block;
+	position: absolute;
+	inset: 0 var(--vscode-spacing-size20);
+	z-index: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	box-sizing: border-box;
+	pointer-events: none;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab-label {
+	position: relative;
+	z-index: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-composite-bar-tab-lock,
+.chat-composite-bar-tab-input-container,
+.chat-composite-bar-tab-indicator {
+	position: relative;
+	z-index: 1;
 }
 
 /* Lock icon for read-only (non-interactive) chats, shown before the label.
@@ -374,9 +407,9 @@
 }
 
 /* While editing, the tab expands to its max width. */
-.chat-composite-bar-tab.editing {
+.session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab.editing {
 	cursor: default;
-	padding: 0 2px;
+	padding: 0 var(--vscode-spacing-size20);
 	width: var(--chat-tab-max-width);
 	max-width: var(--chat-tab-max-width);
 }
@@ -414,9 +447,12 @@
 	padding: 0 4px;
 }
 
-.chat-composite-bar-tab:hover {
+.chat-composite-bar-tab:hover:not(.active) {
 	color: var(--chat-tab-active-foreground);
-	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 8%, transparent);
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:hover:not(.active) > .chat-composite-bar-tab-fill {
+	background-color: var(--modern-ui-editor-tab-action-hover-background);
 }
 
 /* Active state: background container instead of underline — mirrors auxiliarybar checked */
@@ -424,16 +460,17 @@
 	color: var(--chat-tab-active-foreground);
 }
 
-.session-view.is-active .chat-composite-bar-tab.active {
-	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 10%, transparent);
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-view.is-active .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-fill {
+	background-color: var(--modern-ui-editor-tab-action-active-background);
 }
 
-/* Reduce right padding when close button is present to avoid excess spacing */
-.chat-composite-bar-tab:has(.chat-composite-bar-tab-actions) {
-	padding-right: 2px;
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-view:not(.is-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-fill,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-view:not(.is-active) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-view:not(.is-active) .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--vscode-tab-selectedBackground);
 }
 
-/* Indicator: rendered inline between the label and the close action.
+/* Indicator: rendered inline after the label and beneath the overlaid close action.
 	Shows a small blue dot for unread, a yellow dot when input is needed,
 	or a spinner for in-progress.
 	Only one mode is set on the element at a time (mutually exclusive in JS). */
@@ -488,20 +525,94 @@
 	outline-offset: -1px;
 }
 
-/* Close action — always visible, like the status indicator */
-.chat-composite-bar-tab-actions {
+.session-chat-tabs-bar .chat-composite-bar-tab-actions {
 	display: flex;
-	margin-left: 2px;
+	align-items: center;
+	justify-content: center;
+	position: absolute;
+	z-index: 7;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	margin: 0 var(--vscode-spacing-size20);
+	width: var(--vscode-spacing-size240);
+	overflow: visible;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+	pointer-events: none;
 }
 
-.chat-composite-bar-tab-actions .action-item .action-label {
-	width: 16px;
-	height: 16px;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--chat-tab-inactive-foreground, currentColor);
+.session-chat-tabs-bar .chat-composite-bar-tab-actions > .monaco-action-bar {
+	width: var(--vscode-spacing-size240);
 }
 
-.chat-composite-bar-tab-actions .action-item .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--chat-tab-active-foreground);
+.session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions,
+.session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-hover-background);
+	pointer-events: auto;
+}
+
+.session-view.is-active .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions,
+.session-view.is-active .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--modern-ui-editor-tab-action-active-background);
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab:not(:hover) > .chat-composite-bar-tab-actions .action-label:not(:focus) {
+	opacity: 0;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions .action-label,
+.session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions .action-label:focus {
+	opacity: 1;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab-actions .action-label.codicon {
+	box-sizing: content-box;
+	color: inherit;
+	font-size: var(--vscode-codiconFontSize);
+	padding: var(--vscode-spacing-size20);
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab {
+	outline: none;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:hover .chat-composite-bar-tab-actions,
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab-actions:focus-within {
+	background-color: var(--session-view-background);
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab-actions .action-label {
+	background-color: transparent;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	border-block: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:not(.active):hover > .chat-composite-bar-tab-actions {
+	border-block: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	border-right: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
+	border-block: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab.active:not(:focus) > .chat-composite-bar-tab-fill {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:not(.active):not(:focus):hover > .chat-composite-bar-tab-fill {
+	border: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar .chat-composite-bar-tab:focus > .chat-composite-bar-tab-fill {
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }

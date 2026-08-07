@@ -113,6 +113,23 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>): IChatComposit
 suite('Sessions - ChatCompositeBar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('creates scoped chat tab presentation elements', () => {
+		const { tabs } = createHarness(disposables);
+
+		assert.deepStrictEqual({
+			tabs: tabs.map(tab => ({
+				hasFill: tab.querySelector(':scope > .chat-composite-bar-tab-fill') !== null,
+				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label') !== null,
+				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
+			})),
+		}, {
+			tabs: [
+				{ hasFill: true, hasLabel: true, hasActions: false },
+				{ hasFill: true, hasLabel: true, hasActions: true },
+			],
+		});
+	});
+
 	test('middle-click closes the targeted inactive non-main chat', () => {
 		const { store, commandService, sessionsService, bar, session, tabs } = createHarness(disposables);
 		let bubbled = 0;

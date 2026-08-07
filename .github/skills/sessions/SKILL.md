@@ -26,7 +26,7 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
-- **Shared visual-module gates must not activate broader layout contracts**: the Agents window may opt into shared editor-tab styles through a tab-specific root class, but must not apply the broad `style-override` class unless it also loads every matching Modern UI layout module. Keep shared tab runtime metrics aware of both gates, and preserve structural behavior such as a sticky add-tab action when removing a Sessions-owned stylesheet.
+- **Shared visual-module gates must not activate broader layout contracts**: the Agents window may opt into shared editor-tab styles through a tab-specific root class, but must not apply the broad `style-override` class unless it also loads every matching Modern UI layout module. Keep shared tab runtime metrics aware of both gates, and preserve structural behavior such as a sticky add-tab action when removing a Sessions-owned stylesheet. Since the Agents workbench is always modern, chat-tab presentation belongs in the owning `chatCompositeBar.css`, scoped through `.session-chat-tabs-bar` and chat-specific classes while consuming shared state tokens; do not add Sessions selectors to or rewrite the shared editor stylesheet.
 
 - **Minimum-size activation across the Sessions/Editor split must be symmetric and layout-aware**: when either part is at minimum width, pointer or keyboard activation expands it by shrinking its sibling to minimum width. In single-pane layout, the Editor grid node's effective minimum includes the visible docked Auxiliary Bar width; using `editorPartView.minimumWidth` alone collapses Details.
 
