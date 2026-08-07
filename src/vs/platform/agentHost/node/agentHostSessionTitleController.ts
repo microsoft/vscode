@@ -18,7 +18,6 @@ import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/co
 import { AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
-export const AGENT_HOST_SESSION_TITLE_MAX_LENGTH = MAX_TITLE_LENGTH;
 const MAX_TITLE_TOKENS = 32;
 const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
 const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;

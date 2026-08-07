@@ -13,7 +13,6 @@ import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLi
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
-import { AGENT_HOST_SESSION_TITLE_MAX_LENGTH } from '../agentHostSessionTitleController.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
 /**
@@ -31,6 +30,7 @@ const maxCreatedChats = 25;
 
 /** Process-wide backstop against runaway `send_message` fan-out. */
 const maxSentMessages = 50;
+const maxRenameTitleCharacters = 40;
 
 const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
 
@@ -90,7 +90,7 @@ const renameSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
 		session: { type: 'string', description: 'Optional session to rename: a session URI from `list_sessions` or an `agent-host-session://` link. Defaults to the current session when omitted.' },
-		title: { type: 'string', description: 'Short human-friendly title in sentence case, ideally about 1-6 words. Avoid kebab_case, snake_case, raw branch names, URLs, or path dumps.', maxLength: AGENT_HOST_SESSION_TITLE_MAX_LENGTH },
+		title: { type: 'string', description: 'Short, descriptive session title, ideally 1-4 words.', maxLength: maxRenameTitleCharacters },
 	},
 	required: ['title'],
 };
@@ -100,7 +100,7 @@ const renameChatInputSchema: ToolDefinition['inputSchema'] = {
 	properties: {
 		session: { type: 'string', description: 'Optional owning session: a session URI from `list_sessions` or an `agent-host-session://` link. When provided with `chat`, it must match that chat\'s session.' },
 		chat: { type: 'string', description: 'The chat to rename: pass the `agent-host-session://` link returned by `create_chat`. Omit only when this tool is already running inside that non-default chat.' },
-		title: { type: 'string', description: 'Short human-friendly title in sentence case, ideally about 1-6 words. Avoid kebab_case, snake_case, raw branch names, URLs, or path dumps.', maxLength: AGENT_HOST_SESSION_TITLE_MAX_LENGTH },
+		title: { type: 'string', description: 'Short, descriptive chat title, ideally 1-4 words.', maxLength: maxRenameTitleCharacters },
 	},
 	required: ['title'],
 };
@@ -171,14 +171,14 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.RenameSession,
 		title: 'Rename Session',
-		description: 'Rename a session once its work scope is clear, typically soon after `create_session` or early in a fresh session. Keep the title short, sentence case, and human-friendly (aim about 1-6 words). Do not use kebab_case, snake_case, raw branch names, URLs, or file paths. Do not call again if the session already has a meaningful non-provisional title — this tool reports whether it renamed or skipped.',
+		description: 'Rename a session so it is easy to find later. For project sessions, use a short, human-friendly session name in sentence case (1-4 words, e.g. "Adding JWT auth"). Never use kebab-case, snake_case, or raw git branch names. Use this once the work scope is clear, typically soon after `create_session` or early in a fresh session. Do not call again if the session already has a meaningful non-provisional title; this tool reports whether it renamed or skipped.',
 		inputSchema: renameSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
 	{
 		name: SessionServerToolName.RenameChat,
 		title: 'Rename Chat',
-		description: 'Rename one specific non-default chat within a session once its scope is clear, typically soon after `create_chat` or early in that chat. Pass the `agent-host-session://` link returned by `create_chat`, or omit `chat` only when this tool is running inside that peer chat already. Keep the title short, sentence case, and human-friendly (aim about 1-6 words). Do not use kebab_case, snake_case, raw branch names, URLs, or file paths. Do not call again if the chat already has a meaningful non-provisional title — this tool reports whether it renamed or skipped.',
+		description: 'Rename one specific non-default chat so it is easy to find later. Use a short, human-friendly chat name in sentence case (1-4 words). Pass the `agent-host-session://` link returned by `create_chat`, or omit `chat` only when this tool is running inside that peer chat already. Use this once the scope is clear, typically soon after `create_chat` or early in that chat. Do not call again if the chat already has a meaningful non-provisional title; this tool reports whether it renamed or skipped.',
 		inputSchema: renameChatInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -315,8 +315,55 @@ function getOptionalString(value: unknown, field: string, toolName: string): str
 	return value;
 }
 
-function normalizeRequestedTitle(title: string): string {
-	return title.trim().replace(/\s+/g, ' ').slice(0, AGENT_HOST_SESSION_TITLE_MAX_LENGTH);
+function decodeHtmlEntities(value: string): string {
+	const namedEntities: Record<string, string> = {
+		amp: '&',
+		apos: '\'',
+		gt: '>',
+		lt: '<',
+		nbsp: '\u00a0',
+		quot: '"',
+	};
+	return value.replace(/&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi, (match, decimal: string | undefined, hexadecimal: string | undefined, named: string | undefined) => {
+		const numeric = decimal ?? hexadecimal;
+		if (numeric !== undefined) {
+			const codePoint = Number.parseInt(numeric, decimal !== undefined ? 10 : 16);
+			return Number.isSafeInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10FFFF
+				? String.fromCodePoint(codePoint)
+				: match;
+		}
+		return named ? namedEntities[named.toLowerCase()] ?? match : match;
+	});
+}
+
+function normalizeGeneralChatTitle(title: string): string {
+	return Array.from(decodeHtmlEntities(title).trim().replace(/\s+/g, ' '))
+		.slice(0, maxRenameTitleCharacters)
+		.join('')
+		.trim();
+}
+
+function normalizeProjectSessionTitle(title: string): string {
+	const trimmed = decodeHtmlEntities(title)
+		.trim()
+		.replace(/^["'`]+|["'`]+$/g, '')
+		.trim()
+		.replace(/^[.,;:!?\-\u2014]+|[.,;:!?\-\u2014]+$/g, '')
+		.trim();
+	const humanized = !/\s/.test(trimmed) && /[/_-]/.test(trimmed)
+		? trimmed.replace(/[/_\-\s]+/g, ' ')
+		: trimmed;
+	const limited = Array.from(humanized.replace(/\s+/g, ' '))
+		.slice(0, maxRenameTitleCharacters)
+		.join('')
+		.trim();
+	return limited.split(/\s+/).map((word, index) => {
+		if (/^[A-Z]{2,3}$/.test(word)) {
+			return word;
+		}
+		const lower = word.toLowerCase();
+		return index === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
+	}).join(' ');
 }
 
 function parseWorkspaceUri(workspace: string): URI | undefined {
@@ -739,10 +786,7 @@ export interface IResolvedRenameSessionArgs {
 
 export function getRenameSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentSession?: URI): IResolvedRenameSessionArgs {
 	const args = (rawArgs ?? {}) as IRenameSessionArgs;
-	const title = normalizeRequestedTitle(getRequiredString(args.title, 'title', SessionServerToolName.RenameSession));
-	if (!title) {
-		throw new Error(`Invalid ${SessionServerToolName.RenameSession} input: title must contain non-whitespace characters.`);
-	}
+	const requestedTitle = getRequiredString(args.title, 'title', SessionServerToolName.RenameSession);
 	const sessionInput = getOptionalString(args.session, 'session', SessionServerToolName.RenameSession);
 	let session: URI;
 	if (sessionInput !== undefined) {
@@ -755,6 +799,13 @@ export function getRenameSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 		session = currentSession;
 	} else {
 		throw new Error(`Invalid ${SessionServerToolName.RenameSession} input: no session provided and the current session could not be determined.`);
+	}
+	const metadata = sessions.find(candidate => candidate.session.toString() === session.toString());
+	const title = metadata?.workingDirectories?.length
+		? normalizeProjectSessionTitle(requestedTitle)
+		: normalizeGeneralChatTitle(requestedTitle);
+	if (!title) {
+		throw new Error(`Invalid ${SessionServerToolName.RenameSession} input: title must contain non-whitespace characters.`);
 	}
 	return { session, title };
 }
@@ -801,7 +852,7 @@ function currentPeerChatUri(toolCallChannel?: ProtocolURI): URI | undefined {
 
 export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentChannel?: ProtocolURI): IResolvedRenameChatArgs {
 	const args = (rawArgs ?? {}) as IRenameChatArgs;
-	const title = normalizeRequestedTitle(getRequiredString(args.title, 'title', SessionServerToolName.RenameChat));
+	const title = normalizeGeneralChatTitle(getRequiredString(args.title, 'title', SessionServerToolName.RenameChat));
 	if (!title) {
 		throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: title must contain non-whitespace characters.`);
 	}
