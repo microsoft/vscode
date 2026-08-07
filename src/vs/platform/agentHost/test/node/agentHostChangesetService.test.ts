@@ -21,7 +21,6 @@ import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService
 import { NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -89,7 +88,6 @@ suite.skip('AgentHostChangesetService', () => {
 			createNullSessionDataService(),
 			createNoopGitService(),
 			NULL_CHECKPOINT_SERVICE,
-			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 			createOperationService(),
 			createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())),
 			NULL_REVIEW_SERVICE,
@@ -277,7 +275,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -355,7 +353,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
 			const sessionStr = sessionUri.toString();
 
 			localStateManager.createSession({
@@ -391,7 +389,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
 			const sessionStr = sessionUri.toString();
 
 			localStateManager.createSession({
@@ -424,7 +422,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -484,7 +482,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -558,7 +556,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE, createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -604,7 +602,6 @@ suite.skip('AgentHostChangesetService', () => {
 				createNullSessionDataService(),
 				stubGit,
 				NULL_CHECKPOINT_SERVICE,
-				disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())),
 				createOperationService(),
 				subscriptionService,
 				NULL_REVIEW_SERVICE,
@@ -926,7 +923,6 @@ suite.skip('AgentHostChangesetService', () => {
 				createNullSessionDataService(),
 				createNoopGitService(),
 				NULL_CHECKPOINT_SERVICE,
-				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				subscriptionService,
 				NULL_REVIEW_SERVICE,
@@ -1034,7 +1030,6 @@ suite.skip('AgentHostChangesetService', () => {
 				createSessionDataService(sessionDb),
 				createNoopGitService(),
 				NULL_CHECKPOINT_SERVICE,
-				disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(buildTurnChangesetUri(sessionUri.toString(), 'turn-1')),
 				NULL_REVIEW_SERVICE,
@@ -1112,7 +1107,6 @@ suite.skip('AgentHostChangesetService', () => {
 					'orig': { parent: 'ref-orig-parent', current: 'ref-orig' },
 					'mod': { parent: 'ref-orig', current: 'ref-mod' },
 				}),
-				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(),
 				NULL_REVIEW_SERVICE,
@@ -1146,7 +1140,6 @@ suite.skip('AgentHostChangesetService', () => {
 					'orig': { parent: 'ref-orig-parent', current: 'ref-orig' },
 					// 'mod' is intentionally absent
 				}),
-				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(),
 				NULL_REVIEW_SERVICE,
@@ -1177,7 +1170,6 @@ suite.skip('AgentHostChangesetService', () => {
 					'orig': { parent: 'p1', current: 'same-ref' },
 					'mod': { parent: 'same-ref', current: 'same-ref' },
 				}),
-				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(),
 				NULL_REVIEW_SERVICE,
@@ -1206,7 +1198,6 @@ suite.skip('AgentHostChangesetService', () => {
 					'orig': { parent: 'p', current: 'ref-orig' },
 					'mod': { parent: 'ref-orig', current: 'ref-mod' },
 				}),
-				disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
 				createOperationService(),
 				createSubscriptionService(),
 				NULL_REVIEW_SERVICE,

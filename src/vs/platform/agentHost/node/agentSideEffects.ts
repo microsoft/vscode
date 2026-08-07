@@ -29,6 +29,7 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
+import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
@@ -50,6 +51,7 @@ import {
 	ROOT_STATE_URI,
 	SessionLifecycle,
 	SessionStatus,
+	CustomizationType,
 	ToolCallStatus,
 	ToolResultContentType,
 	type ErrorInfo,
@@ -61,7 +63,10 @@ import {
 	type ToolCallState,
 	type ToolCallResult,
 	type ToolResultContent,
-	type Turn
+	type Turn,
+	type Customization,
+	type McpServerCustomization,
+	type PluginCustomization
 } from '../common/state/sessionState.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
@@ -71,7 +76,8 @@ import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type Agen
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
+import type { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
@@ -79,6 +85,7 @@ import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
+import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
@@ -145,6 +152,36 @@ interface ISubagentSessionRef {
 	readonly sessionUri: ProtocolURI;
 	readonly chatUri: ProtocolURI;
 	readonly turnStopWatch: StopWatch;
+}
+
+interface ICustomizationEnablementCandidate {
+	readonly customization: PluginCustomization | McpServerCustomization;
+	readonly owningPlugin: PluginCustomization | undefined;
+}
+
+function getCustomizationEnablementCandidates(customizations: readonly Customization[] | undefined): readonly ICustomizationEnablementCandidate[] {
+	const candidates: ICustomizationEnablementCandidate[] = [];
+	for (const customization of customizations ?? []) {
+		if (customization.type === CustomizationType.Plugin) {
+			candidates.push({ customization, owningPlugin: undefined });
+			for (const child of customization.children ?? []) {
+				if (child.type === CustomizationType.McpServer) {
+					candidates.push({ customization: child, owningPlugin: customization });
+				}
+			}
+		} else if (customization.type === CustomizationType.McpServer) {
+			candidates.push({ customization, owningPlugin: undefined });
+		} else if (customization.type === CustomizationType.Directory) {
+			for (const child of customization.children ?? []) {
+				if (child.type === CustomizationType.McpServer) {
+					// Directory containers do not own durable plugin keys. Their
+					// MCP children therefore use the unowned `mcpServers#<name>` key.
+					candidates.push({ customization: child, owningPlugin: undefined });
+				}
+			}
+		}
+	}
+	return candidates;
 }
 
 function getSessionMode(mode: unknown): SessionMode | undefined {
@@ -216,16 +253,15 @@ export class AgentSideEffects extends Disposable {
 	readonly onDidStartTurn: Event<string>;
 	/** Host-owned worktree isolation controller; injected post-construction. */
 	private _worktree: WorktreeIsolation | undefined;
-
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
+		private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		private readonly _options: IAgentSideEffectsOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
-		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -276,6 +312,20 @@ export class AgentSideEffects extends Disposable {
 		// Observe envelopes for side effects that must include server-dispatched
 		// actions, which bypass handleAction.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			const action = envelope.action;
+			if (action.type === ActionType.SessionCustomizationToggled) {
+				const sessionState = this._stateManager.getSessionState(envelope.channel);
+				const customization = getCustomizationEnablementCandidates(sessionState?.customizations)
+					.find(candidate => candidate.customization.id === action.id);
+				if (customization === undefined) {
+					// Toggle actions target entries from the immediately preceding
+					// session snapshot. A removed entry cannot be re-enabled, so
+					// this stale action is harmless but should remain diagnosable.
+					this._logService.warn(`[AgentSideEffects] Ignoring customization toggle for missing ${action.id} in ${envelope.channel}`);
+				} else {
+					this._recordCustomizationEnablement(envelope.channel, customization, action.enablement);
+				}
+			}
 			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
 				const chatState = this._stateManager.getChatState(envelope.channel);
 				const action = envelope.action;
@@ -917,7 +967,7 @@ export class AgentSideEffects extends Disposable {
 			// recomputes that are shared with subscription, truncation and
 			// mid-turn-debounce entry points, so it has no single point at
 			// which a caller-supplied set would apply.
-			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
+			const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, sessionUri)?.map(w => URI.parse(w));
 			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), turnId, workingDirectories).then(() => {
 				this._changesets.onTurnComplete(sessionUri, turnId);
 			}, err => {
@@ -1564,6 +1614,13 @@ export class AgentSideEffects extends Disposable {
 	/** Injects the host-owned worktree isolation controller (see {@link AgentService.setWorktreeIsolation}). */
 	setWorktreeIsolation(worktree: WorktreeIsolation): void {
 		this._worktree = worktree;
+	}
+
+	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {
+		const target = candidate.customization.type === CustomizationType.Plugin
+			? targetForPlugin(candidate.customization)
+			: targetForMcpServer(candidate.customization, candidate.owningPlugin);
+		this._customizationEnablementService.replaceEnablement(session, target, enablement);
 	}
 
 	cancelSessionTitleGeneration(session: ProtocolURI): void {

@@ -60,6 +60,13 @@ export const ContextTierConfigKey = 'contextTier';
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
+function futureDisabledMcpServersSessionOption(_plugins: readonly ICopilotPluginInfo[]): Partial<SessionConfig> {
+	// TODO: Pass `disabledMcpServers` here when https://github.com/github/copilot-sdk/pull/2260
+	// is available in the public SessionOptions API. This replaces the interim
+	// published-disabled state and auth-prompt suppression for directory-discovered servers.
+	return {};
+}
+
 /**
  * Narrows a reasoning-effort value to the SDK's declared union. The SDK type is
  * a strict subset of the tiers the runtime accepts, so newer tiers are forwarded
@@ -592,6 +599,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
+		const mcpServers = pluginsWithoutDirs.flatMap(plugin => plugin.mcpServers.filter(server => !plugin.disabledMcpServers?.includes(server.name)));
 		const customAgents = await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
@@ -627,6 +635,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		return {
 			...byok,
+			...futureDisabledMcpServersSessionOption(plugins),
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },
@@ -641,7 +650,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 			}),
-			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)) },
+			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(mcpServers) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,

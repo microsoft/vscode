@@ -25,6 +25,33 @@ import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
+/**
+ * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
+ */
+export function getEffectiveWorkingDirectory(stateManager: AgentHostStateManager, session: ProtocolURI): string | undefined {
+	const own = stateManager.getSessionState(session)?.workingDirectories?.[0];
+	if (own !== undefined) {
+		return own;
+	}
+	const parentInfo = parseSubagentSessionUri(session);
+	if (parentInfo) {
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
+	}
+	return undefined;
+}
+
+export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): string[] | undefined {
+	const own = stateManager.getSessionState(session)?.workingDirectories;
+	if (own !== undefined) {
+		return own;
+	}
+	const parentInfo = parseSubagentSessionUri(session);
+	if (parentInfo) {
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
+	}
+	return undefined;
+}
+
 export interface IAgentSessionConfigurationChangeEvent {
 	readonly session: ProtocolURI;
 	readonly config: Record<string, unknown>;
@@ -71,25 +98,6 @@ export interface IAgentConfigurationService {
 		schema: ISchema<D>,
 		key: K,
 	): SchemaValue<D[K]> | undefined;
-
-	/**
-	 * Returns the effective working directory for a session, falling back
-	 * to the parent (subagent) session's working directory when the
-	 * session itself does not have one set. The host layer does not carry
-	 * a working directory.
-	 * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
-	 */
-	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined;
-
-	/**
-	 * Returns the full ordered set of effective working directories for a
-	 * session (index 0 = primary), falling back to the parent (subagent)
-	 * session's set when the session itself does not have one set. Mirrors
-	 * {@link getEffectiveWorkingDirectory} but preserves every root instead
-	 * of collapsing to the primary. The host layer does not carry a working
-	 * directory.
-	 */
-	getEffectiveWorkingDirectories(session: ProtocolURI): string[] | undefined;
 
 	/**
 	 * Whether a fresh worktree-isolation session's worktree has not yet been
@@ -165,10 +173,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	/**
 	 * Host-owned worktree isolation controller. Injected after construction (via
-	 * {@link setWorktreeIsolation}) because it only becomes available once the
-	 * branch-name generator has been wired, which happens after this service is
-	 * built. Consulted by {@link isWorkingDirectoryPending}, which degrades to
-	 * folder behavior while it is unset (tests, early startup).
+	 * {@link setWorktreeIsolation}) after host startup finishes constructing its
+	 * Copilot API dependencies. Consulted by {@link isWorkingDirectoryPending},
+	 * which degrades to folder behavior while it is unset (tests, early startup).
 	 */
 	private _worktree: WorktreeIsolation | undefined;
 	private readonly _worktreePendingListener = this._register(new MutableDisposable());
@@ -232,30 +239,6 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				const reason = err instanceof ProtocolError ? err.message : String(err);
 				this._logService.warn(`[AgentConfigurationService] Value for '${key}' on ${session} failed schema validation, falling back: ${reason}`);
 			}
-		}
-		return undefined;
-	}
-
-	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined {
-		const own = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
-		if (own !== undefined) {
-			return own;
-		}
-		const parentInfo = parseSubagentSessionUri(session);
-		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
-		}
-		return undefined;
-	}
-
-	getEffectiveWorkingDirectories(session: ProtocolURI): string[] | undefined {
-		const own = this._stateManager.getSessionState(session)?.workingDirectories;
-		if (own !== undefined) {
-			return own;
-		}
-		const parentInfo = parseSubagentSessionUri(session);
-		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
 		}
 		return undefined;
 	}

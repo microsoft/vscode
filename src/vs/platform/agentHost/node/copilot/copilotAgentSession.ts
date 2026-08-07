@@ -1835,6 +1835,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
+		if (this._appliedSnapshot.plugins.some(plugin => plugin.disabledMcpServers?.includes(request.serverName))) {
+			this._logService.info(`[Copilot:${this.sessionId}] Suppressed authentication request from disabled MCP server '${request.serverName}'`);
+			return null;
+		}
 		const githubToken = request.reason === 'initial' && this._scopesFromChallenge(request.wwwAuthenticateParams?.scope).length === 0
 			? await this._initialGitHubMcpToken(request)
 			: undefined;

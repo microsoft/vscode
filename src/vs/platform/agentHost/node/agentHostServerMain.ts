@@ -39,7 +39,7 @@ import { CopilotAgent } from './copilot/copilotAgent.js';
 import { INetworkDiagnosticsService, NetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService } from './copilot/byokLmProxyService.js';
-import { WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
@@ -56,8 +56,8 @@ import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
-import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostStorageService } from './agentHostStorageService.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -259,23 +259,21 @@ async function main(): Promise<void> {
 	diServices.set(IAgentHostGitService, gitService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)]);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], storageResource);
 	disposables.add(agentService);
 	diServices.set(IAgentService, agentService);
 	diServices.set(IAgentHostStateManager, agentService.stateManager);
 	const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 	diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 	agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
-	const storageService = disposables.add(new AgentHostStorageService(storageResource, logService));
-	diServices.set(IAgentHostStorageService, storageService);
-	const customizationEnablementService = disposables.add(new AgentHostCustomizationEnablementService(
-		storageService,
-		sessionDataService,
-		agentService.configurationService,
-		agentService.stateManager,
-		logService,
-	));
-	diServices.set(IAgentHostCustomizationEnablementService, customizationEnablementService);
+	diServices.set(IAgentHostStorageService, agentService.storageService);
+	diServices.set(IAgentHostCustomizationEnablementService, agentService.customizationEnablementService);
+	diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
+	const copilotApiService = instantiationService.createInstance(CopilotApiService, fetchFn);
+	diServices.set(ICopilotApiService, copilotApiService);
+	const worktreeIsolation = disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined));
+	diServices.set(IAgentHostWorktreeIsolation, worktreeIsolation);
+	agentService.setWorktreeIsolation(worktreeIsolation);
 
 	// Register agents
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
@@ -292,18 +290,9 @@ async function main(): Promise<void> {
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
 		diServices.set(IEditArcReporterService, editArcReporterService);
-		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		diServices.set(IAgentHostCheckpointService, agentService.checkpointService);
 		diServices.set(IAgentHostGitService, gitService);
-		// Register `ICopilotApiService` BEFORE `IClaudeProxyService` —
-		// the proxy service constructor requires it.
-		const copilotApiService = instantiationService.createInstance(CopilotApiService, fetchFn);
-		diServices.set(ICopilotApiService, copilotApiService);
-		// Host-owned worktree isolation controller: a single instance drives folder
-		// / worktree isolation for every agent, so providers stay unaware of it. It
-		// owns its branch-name generator, created from ICopilotApiService.
-		agentService.setWorktreeIsolation(disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined)));
 		// CLI flags become env vars BEFORE the downloader is constructed so
 		// `isAvailable()` and `loadSdkRoot()` see them as dev overrides.
 		if (options.claudeSdkRoot) {
@@ -489,7 +478,7 @@ async function main(): Promise<void> {
 		// SIGTERM arriving during a session or agent-host storage write can
 		// drop the latest decision.
 		// Capped so a stuck write cannot hang shutdown indefinitely.
-		await raceTimeout(Promise.all([sessionDataService.whenIdle(), customizationEnablementService.whenIdle()]), 3000, () => {
+		await raceTimeout(Promise.all([sessionDataService.whenIdle(), agentService.customizationEnablementService.whenIdle()]), 3000, () => {
 			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
 		});
 		disposables.dispose();

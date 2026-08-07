@@ -8,7 +8,7 @@ import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../.
 import { URI } from '../../../base/common/uri.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
 import { parseSubagentSessionUri } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectory } from './agentConfigurationService.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -80,7 +80,6 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
-		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostFileMonitorService private readonly _fileMonitorService: IAgentHostFileMonitorService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
@@ -148,7 +147,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			if (!this._shouldAttachSession(sessionStr)) {
 				return;
 			}
-			const workingDirectory = this._configurationService.getEffectiveWorkingDirectory(sessionStr);
+			const workingDirectory = getEffectiveWorkingDirectory(this._stateManager, sessionStr);
 			if (!workingDirectory) {
 				this._pendingWatchInterest.add(sessionStr);
 				this._releaseSessionRoot(sessionStr);
@@ -355,7 +354,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	private _getActivityWorkingDirectory(sessionStr: string): string | undefined {
-		const workingDirectory = this._configurationService.getEffectiveWorkingDirectory(sessionStr);
+		const workingDirectory = getEffectiveWorkingDirectory(this._stateManager, sessionStr);
 		if (workingDirectory) {
 			return workingDirectory;
 		}
@@ -363,6 +362,6 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (!parsedSubagent) {
 			return undefined;
 		}
-		return this._configurationService.getEffectiveWorkingDirectory(parsedSubagent.parentSession.toString());
+		return getEffectiveWorkingDirectory(this._stateManager, parsedSubagent.parentSession.toString());
 	}
 }

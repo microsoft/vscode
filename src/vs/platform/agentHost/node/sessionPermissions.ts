@@ -31,7 +31,7 @@ import {
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover } from './commandAutoApprover.js';
 
@@ -265,7 +265,7 @@ export class SessionPermissionManager extends Disposable {
 		// contained by *any* root. Today the set has exactly one entry (the
 		// create-time length guard), so this is behaviour-identical to the
 		// previous single-directory logic.
-		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 		const workingDirectories = workDirs?.map(d => URI.parse(d));
 
 		// 0. Sandbox bypass: a shell command that opted out of the
@@ -345,7 +345,7 @@ export class SessionPermissionManager extends Disposable {
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 			return false;
 		}
-		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 		const workingDirectories = workDirs?.map(d => URI.parse(d));
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),

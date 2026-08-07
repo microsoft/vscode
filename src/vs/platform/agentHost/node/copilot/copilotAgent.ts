@@ -64,6 +64,8 @@ import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
+import { isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 
 interface ICopilotRuntimeManagedSettingsSdk {
 	getManagedSettings(input?: { token?: string; host?: string }): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }>;
@@ -162,7 +164,10 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
 }
 
-export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
+export type ICopilotPluginInfo = IParsedPlugin & {
+	readonly pluginDir?: URI;
+	readonly disabledMcpServers?: readonly string[];
+};
 
 /**
  * A session that has been requested by a client but has not yet been
@@ -4697,7 +4702,8 @@ class SessionPluginController extends Disposable {
 		private _directory: URI | undefined,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 	) {
 		super();
 	}
@@ -4757,6 +4763,10 @@ class SessionPluginController extends Disposable {
 	}
 
 	public getCustomizations(): readonly Customization[] {
+		return this._resolveCustomizationEnablement().customizations;
+	}
+
+	private _resolveCustomizationEnablement() {
 		const result: Customization[] = [
 			...this._parent.hostCustomizations().map(item => this._projectForPublish(item.customization)),
 			...this._flattenClientCustomizations().map(item => this._projectForPublish(item.customization)),
@@ -4766,7 +4776,7 @@ class SessionPluginController extends Disposable {
 		for (const customization of discovered) {
 			result.push(this._projectForPublish(customization));
 		}
-		return result;
+		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, result, this._clientChildEnablement(), this._clientPlugins());
 	}
 
 	/**
@@ -4823,15 +4833,28 @@ class SessionPluginController extends Disposable {
 			entry?.whenSettled(),
 		]);
 
+		const resolved = this._resolveCustomizationEnablement();
+		const desiredByUri = new Map(resolved.customizations.map(customization => [customization.uri, customization]));
+		const isEnabled = (customization: Customization) => {
+			const desired = desiredByUri.get(customization.uri) ?? customization;
+			return isCustomizationSdkEligible(resolved, desired) && (desired.type === CustomizationType.Directory ? desired.enabled : isCustomizationEnabled(desired));
+		};
+		const disabledChildren = (customization: Customization): readonly string[] | undefined => {
+			const desired = desiredByUri.get(customization.uri);
+			const children = desired && desired.type !== CustomizationType.McpServer
+				? desired.children?.filter(child => child.type === CustomizationType.McpServer && !isCustomizationEnabled(child)).map(child => child.name)
+				: undefined;
+			return children?.length ? children : undefined;
+		};
 		const discovered = entry?.currentCustomizations() ?? [];
-		const sessionPlugin = discovered.some(customization => this._isEnabled(customization)) ? mapToParsedPlugin(discovered) : undefined;
+		const sessionPlugin = discovered.some(isEnabled) ? mapToParsedPlugin(discovered) : undefined;
 		const sessionPlugins: IParsedPlugin[] = sessionPlugin ? [sessionPlugin] : [];
 
 		return [
-			...host.filter(item => !!item.plugin && this._isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
-			...this._flattenClientCustomizations().filter(item => !!item.plugin && this._isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
+			...host.filter(item => !!item.plugin && isEnabled(item.customization))
+				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
+			...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabled(item.customization))
+				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...sessionPlugins,
 		];
 	}
@@ -4987,6 +5010,7 @@ class SessionPluginController extends Disposable {
 		if (!this._directory) {
 			return undefined;
 		}
+
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry,
 				[this._directory, ...this._additionalDirectories],
@@ -4999,6 +5023,28 @@ class SessionPluginController extends Disposable {
 			);
 		}
 		return this._sessionDiscovered.value;
+	}
+
+	private _clientChildEnablement(): ReadonlyMap<string, Readonly<Record<string, readonly CustomizationEnablement[]>>> {
+		const result = new Map<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>();
+		for (const client of this._clients.values()) {
+			for (const customization of client.inputs) {
+				if (customization.childEnablement !== undefined) {
+					result.set(customization.uri, customization.childEnablement);
+				}
+			}
+		}
+		return result;
+	}
+
+	private _clientPlugins(): ReadonlyMap<string, ClientPluginCustomization> {
+		const result = new Map<string, ClientPluginCustomization>();
+		for (const client of this._clients.values()) {
+			for (const customization of client.inputs) {
+				result.set(customization.uri, customization);
+			}
+		}
+		return result;
 	}
 
 	private _isEnabled(customization: Customization): boolean {

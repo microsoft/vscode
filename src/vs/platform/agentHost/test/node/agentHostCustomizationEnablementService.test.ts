@@ -11,36 +11,109 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { SessionStatus, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType } from '../../common/state/protocol/channels-session/state.js';
-import { AgentHostCustomizationEnablementService, getCustomizationEnablementKey, type ICustomizationEnablementConfigurationService, type ICustomizationEnablementSessionState, type ICustomizationEnablementTarget, type ISessionEnablementDataService, type ISessionEnablementDatabase } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostCustomizationEnablementService, getCustomizationEnablementKey, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
+import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
-class TestSessionDataService implements ISessionEnablementDataService {
-	readonly values = new Map<string, string>();
+class EnablementSessionDatabase extends TestSessionDatabase {
 	metadataLoad: Promise<string | undefined> | undefined;
 
-	openDatabase(_session: URI): IReference<ISessionEnablementDatabase> {
-		return {
-			object: {
-				getMetadata: async key => this.metadataLoad ?? this.values.get(key),
-				setMetadata: async (key, value) => { this.values.set(key, value); },
-			},
-			dispose: () => { },
-		};
+	override getMetadata(key: string): Promise<string | undefined> {
+		return this.metadataLoad ?? super.getMetadata(key);
 	}
 }
 
-class TestConfigurationService implements ICustomizationEnablementConfigurationService {
-	readonly directories = new Map<string, string[] | undefined>();
+class TestSessionDataService implements ISessionDataService {
+	declare readonly _serviceBrand: undefined;
+	private readonly _databases = new Map<string, EnablementSessionDatabase>();
+	private _metadataLoad: Promise<string | undefined> | undefined;
+	readonly onWillDeleteSessionData = Event.None;
+
+	set metadataLoad(value: Promise<string | undefined> | undefined) {
+		this._metadataLoad = value;
+		for (const database of this._databases.values()) {
+			database.metadataLoad = value;
+		}
+	}
+
+	getSessionDataDir(session: URI): URI {
+		return URI.joinPath(URI.from({ scheme: 'inmemory', path: '/session-data' }), session.path);
+	}
+
+	getSessionDataDirById(sessionId: string): URI {
+		return URI.from({ scheme: 'inmemory', path: `/session-data/${sessionId}` });
+	}
+
+	openDatabase(session: URI): IReference<ISessionDatabase> {
+		return {
+			object: this._database(session),
+			dispose: () => { },
+		};
+	}
+
+	async tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> {
+		return this.openDatabase(session);
+	}
+
+	async deleteSessionData(): Promise<void> { }
+
+	async cleanupOrphanedData(): Promise<void> { }
+
+	async whenIdle(): Promise<void> { }
+
+	async getMetadata(session: string, key: string): Promise<string | undefined> {
+		return this._database(URI.parse(session)).getMetadata(key);
+	}
+
+	private _database(session: URI): EnablementSessionDatabase {
+		const key = session.toString();
+		let database = this._databases.get(key);
+		if (database === undefined) {
+			database = new EnablementSessionDatabase();
+			database.metadataLoad = this._metadataLoad;
+			this._databases.set(key, database);
+		}
+		return database;
+	}
+}
+
+function makeSummary(resource: string, workingDirectories?: string[], meta?: Record<string, unknown>): SessionSummary {
+	return {
+		resource,
+		provider: 'copilot',
+		title: 'Session',
+		status: SessionStatus.Idle,
+		createdAt: new Date().toISOString(),
+		modifiedAt: new Date().toISOString(),
+		project: { uri: 'file:///repo', displayName: 'repo' },
+		workingDirectories,
+		_meta: meta,
+	};
+}
+
+function serializableResolution(resolution: ReturnType<AgentHostCustomizationEnablementService['resolve']>) {
+	if (resolution.kind === 'pending' || resolution.workingDirectory.kind !== 'directory') {
+		return resolution;
+	}
+	return {
+		...resolution,
+		workingDirectory: {
+			kind: resolution.workingDirectory.kind,
+			uri: resolution.workingDirectory.uri.toString(),
+		},
+	};
+}
+
+class TestWorktreeIsolation {
+	declare readonly _serviceBrand: undefined;
 	readonly pending = new Set<string>();
 	private readonly _onDidChangeWorkingDirectoryPending = new Emitter<string>();
 	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
-
-	getEffectiveWorkingDirectories(session: string): string[] | undefined {
-		return this.directories.get(session);
-	}
 
 	isWorkingDirectoryPending(session: string): boolean {
 		return this.pending.has(session);
@@ -51,20 +124,6 @@ class TestConfigurationService implements ICustomizationEnablementConfigurationS
 	}
 }
 
-class TestSessionState implements ICustomizationEnablementSessionState {
-	readonly summaries = new Map<string, { readonly _meta?: Record<string, unknown> }>();
-	private readonly _onDidEmitEnvelope = new Emitter<{ readonly channel: string; readonly action: { readonly type: ActionType } }>();
-	readonly onDidEmitEnvelope = this._onDidEmitEnvelope.event;
-
-	getSessionSummary(session: string): { readonly _meta?: Record<string, unknown> } | undefined {
-		return this.summaries.get(session);
-	}
-
-	fireEnvelope(channel: string, type: ActionType): void {
-		this._onDidEmitEnvelope.fire({ channel, action: { type } });
-	}
-}
-
 suite('AgentHostCustomizationEnablementService', () => {
 
 	const disposables = new DisposableStore();
@@ -72,8 +131,8 @@ suite('AgentHostCustomizationEnablementService', () => {
 	const workspace = URI.file('/repo');
 	let storage: AgentHostStorageService;
 	let sessionData: TestSessionDataService;
-	let configuration: TestConfigurationService;
-	let state: TestSessionState;
+	let worktree: TestWorktreeIsolation;
+	let state: AgentHostStateManager;
 	let service: AgentHostCustomizationEnablementService;
 
 	const plugin: ICustomizationEnablementTarget = {
@@ -86,10 +145,11 @@ suite('AgentHostCustomizationEnablementService', () => {
 	setup(async () => {
 		storage = disposables.add(new AgentHostStorageService(undefined, new NullLogService()));
 		sessionData = new TestSessionDataService();
-		configuration = new TestConfigurationService();
-		configuration.directories.set(session, [workspace.toString()]);
-		state = new TestSessionState();
-		service = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, configuration, state, new NullLogService()));
+		state = disposables.add(new AgentHostStateManager(new NullLogService()));
+		state.createSession(makeSummary(session, [workspace.toString()]));
+		worktree = new TestWorktreeIsolation();
+		service = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
+		service.setWorktreeIsolation(worktree);
 		await service.initializeSession(session);
 	});
 
@@ -119,6 +179,73 @@ suite('AgentHostCustomizationEnablementService', () => {
 		}
 	});
 
+	test('resolves the complete global, workspace, and session matrix with sorted explicit decisions', () => {
+		const values: Array<boolean | undefined> = [undefined, true, false];
+		const cases = values.flatMap(global => values.flatMap(workspaceDecision => values.map(sessionDecision => {
+			service.setEnablement(session, plugin, CustomizationEnablementKind.Global, true);
+			service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, true);
+			service.setEnablement(session, plugin, CustomizationEnablementKind.Session, true);
+
+			if (global !== undefined) {
+				service.setEnablement(session, plugin, CustomizationEnablementKind.Global, global);
+			}
+			if (workspaceDecision !== undefined) {
+				service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, workspaceDecision);
+			}
+			if (sessionDecision !== undefined) {
+				service.setEnablement(session, plugin, CustomizationEnablementKind.Session, sessionDecision);
+			}
+
+			const globalEnabled = global ?? true;
+			const hasWorkspaceDecision = workspaceDecision !== undefined && workspaceDecision !== globalEnabled;
+			const workspaceEnabled = hasWorkspaceDecision ? workspaceDecision! : globalEnabled;
+			const hasSessionDecision = sessionDecision !== undefined && sessionDecision !== workspaceEnabled;
+			const resolved = service.resolve(session, plugin);
+			assert.strictEqual(resolved.kind, 'resolved');
+			return {
+				input: { global, workspace: workspaceDecision, session: sessionDecision },
+				resolution: resolved.kind === 'resolved' ? {
+					enabled: resolved.enabled,
+					enablement: resolved.enablement,
+				} : resolved,
+				expected: {
+					enabled: hasSessionDecision ? sessionDecision! : workspaceEnabled,
+					enablement: [
+						...(hasSessionDecision ? [{ kind: CustomizationEnablementKind.Session, enabled: sessionDecision! }] : []),
+						...(hasWorkspaceDecision ? [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: workspaceDecision! }] : []),
+						...(global === false ? [{ kind: CustomizationEnablementKind.Global, enabled: false }] : []),
+					],
+				},
+			};
+		})));
+
+		assert.deepStrictEqual(cases.map(({ input, resolution }) => ({ input, resolution })), cases.map(({ input, expected }) => ({ input, resolution: expected })));
+	});
+
+
+	test('applies a client global decision without replacing workspace or session decisions', () => {
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, true);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
+
+		const resolution = service.applyClientGlobalEnablement(session, plugin, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+
+		assert.strictEqual(resolution.kind, 'resolved');
+		if (resolution.kind === 'resolved') {
+			assert.deepStrictEqual({
+				enablement: resolution.enablement,
+				enabled: resolution.enabled,
+			}, {
+				enablement: [
+					{ kind: CustomizationEnablementKind.Session, enabled: false },
+					{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
+					{ kind: CustomizationEnablementKind.Global, enabled: true },
+				],
+				enabled: false,
+			});
+		}
+	});
+
 	test('clears entries that match inherited decisions through set, change, clear, and re-set transitions', () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
@@ -132,9 +259,169 @@ suite('AgentHostCustomizationEnablementService', () => {
 				'file:///plugins/example': false,
 			},
 		});
+
 	});
 
-	test('derives exact durable and session keys, preserving a plugin server decision across materialized edits', () => {
+	test('persists only scope decisions that differ from their inherited values', async () => {
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, true);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, true);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
+		await service.whenIdle();
+
+		const withOverrides = {
+			durable: structuredClone(storage.get<Record<string, unknown>>('customizationEnablement')),
+			session: await sessionData.getMetadata(session, 'customizationEnablement'),
+		};
+
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, true);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, true);
+		await service.whenIdle();
+
+		assert.deepStrictEqual({
+			withOverrides,
+			afterClearingInheritedValues: {
+				durable: storage.get('customizationEnablement'),
+				session: await sessionData.getMetadata(session, 'customizationEnablement'),
+			},
+		}, {
+			withOverrides: {
+				durable: {
+					global: { 'file:///plugins/example': false },
+					workingDirectories: {
+						'file:///repo': { 'file:///plugins/example': true },
+					},
+				},
+				session: '{"plugin-materialized-hash-one":false}',
+			},
+			afterClearingInheritedValues: {
+				durable: undefined,
+				session: '{}',
+			},
+		});
+	});
+
+	test('prunes workspace entries that match an incoming global decision without erasing opposing directories', async () => {
+		const matchingDirectory = URI.file('/matching');
+		const opposingDirectory = URI.file('/opposing');
+		const untouchedDirectory = URI.file('/untouched');
+		const preloadedStorage = disposables.add(new AgentHostStorageService(undefined, new NullLogService()));
+		preloadedStorage.set('customizationEnablement', {
+			workingDirectories: {
+				[matchingDirectory.toString()]: { 'file:///plugins/example': false },
+				[opposingDirectory.toString()]: { 'file:///plugins/example': true },
+			},
+		});
+		const pruningService = disposables.add(new AgentHostCustomizationEnablementService(preloadedStorage, sessionData, state, new NullLogService()));
+		pruningService.setWorktreeIsolation(worktree);
+		await pruningService.initializeSession(session);
+
+		pruningService.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
+
+		const resolutions = [];
+		for (const directory of [matchingDirectory, opposingDirectory, untouchedDirectory]) {
+			const directorySession = `ahp://copilot${directory.path}`;
+			state.createSession(makeSummary(directorySession, [directory.toString()]));
+			await pruningService.initializeSession(directorySession);
+			const resolution = pruningService.resolve(directorySession, plugin);
+			assert.strictEqual(resolution.kind, 'resolved');
+			resolutions.push({
+				directory: directory.toString(),
+				resolution: resolution.kind === 'resolved' ? {
+					enabled: resolution.enabled,
+					enablement: resolution.enablement,
+				} : resolution,
+			});
+		}
+
+		assert.deepStrictEqual({
+			persisted: preloadedStorage.get('customizationEnablement'),
+			resolutions,
+		}, {
+			persisted: {
+				global: { 'file:///plugins/example': false },
+				workingDirectories: {
+					'file:///opposing': { 'file:///plugins/example': true },
+				},
+			},
+			resolutions: [
+				{
+					directory: 'file:///matching',
+					resolution: {
+						enabled: false,
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					},
+				},
+				{
+					directory: 'file:///opposing',
+					resolution: {
+						enabled: true,
+						enablement: [
+							{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///opposing', enabled: true },
+							{ kind: CustomizationEnablementKind.Global, enabled: false },
+						],
+					},
+				},
+				{
+					directory: 'file:///untouched',
+					resolution: {
+						enabled: false,
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					},
+				},
+			],
+		});
+	});
+
+	test('replaces rather than patches decisions through set, replacement, clear, and re-set transitions', async () => {
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, true);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
+		await service.whenIdle();
+
+		const globalOnly = service.replaceEnablement(session, plugin, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, true);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
+		const sessionOnly = service.replaceEnablement(session, plugin, [{ kind: CustomizationEnablementKind.Session, enabled: false }]);
+		const empty = service.replaceEnablement(session, plugin, []);
+		await service.whenIdle();
+
+		assert.deepStrictEqual({
+			globalOnly: serializableResolution(globalOnly),
+			sessionOnly: serializableResolution(sessionOnly),
+			empty: serializableResolution(empty),
+			persisted: {
+				durable: storage.get('customizationEnablement'),
+				session: await sessionData.getMetadata(session, 'customizationEnablement'),
+			},
+		}, {
+			globalOnly: {
+				kind: 'resolved',
+				enabled: false,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			},
+			sessionOnly: {
+				kind: 'resolved',
+				enabled: false,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			},
+			empty: {
+				kind: 'resolved',
+				enabled: true,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [],
+			},
+			persisted: {
+				durable: undefined,
+				session: '{}',
+			},
+		});
+	});
+	test('derives exact durable and session keys without plugin-child collisions across materialized edits', () => {
 		const pluginServer: ICustomizationEnablementTarget = {
 			id: 'mcp-materialized-hash-one',
 			type: CustomizationType.McpServer,
@@ -158,46 +445,131 @@ suite('AgentHostCustomizationEnablementService', () => {
 			plugin: getCustomizationEnablementKey(plugin, CustomizationEnablementKind.Global),
 			pluginServer: getCustomizationEnablementKey(pluginServer, CustomizationEnablementKind.Workspace),
 			topLevelServer: getCustomizationEnablementKey(topLevelServer, CustomizationEnablementKind.Global),
-			session: getCustomizationEnablementKey(pluginServer, CustomizationEnablementKind.Session),
+			sessionBeforeEdit: getCustomizationEnablementKey(pluginServer, CustomizationEnablementKind.Session),
+			sessionAfterEdit: getCustomizationEnablementKey(editedPluginServer, CustomizationEnablementKind.Session),
+			pluginAndChildAreDistinct: getCustomizationEnablementKey(plugin, CustomizationEnablementKind.Global) !== getCustomizationEnablementKey(pluginServer, CustomizationEnablementKind.Global),
 		}, {
 			plugin: 'file:///plugins/example',
 			pluginServer: 'file:///plugins/example#mcp=slack',
 			topLevelServer: 'mcpServers#stdio',
-			session: 'mcp-materialized-hash-one',
+			sessionBeforeEdit: 'mcp-materialized-hash-one',
+			sessionAfterEdit: 'mcp-materialized-hash-two',
+			pluginAndChildAreDistinct: true,
 		});
 
 		service.setEnablement(session, pluginServer, CustomizationEnablementKind.Global, false);
+		service.setEnablement(session, pluginServer, CustomizationEnablementKind.Workspace, true);
+		service.setEnablement(session, pluginServer, CustomizationEnablementKind.Session, false);
 		const editedResolution = service.resolve(session, editedPluginServer);
 		assert.strictEqual(editedResolution.kind, 'resolved');
 		if (editedResolution.kind === 'resolved') {
-			assert.deepStrictEqual(editedResolution.enablement, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+			assert.deepStrictEqual(editedResolution.enablement, [
+				{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			]);
 		}
 	});
 
 	test('models working-directory states without treating pending as workspace-less', () => {
-		configuration.directories.delete(session);
+		state.deleteSession(session);
 		assert.deepStrictEqual(service.getWorkingDirectoryState(session), { kind: 'pending' });
 		assert.deepStrictEqual(service.resolve(session, plugin), { kind: 'pending', reason: 'workingDirectory' });
 		assert.deepStrictEqual(service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false), { kind: 'pending', reason: 'workingDirectory' });
 		assert.deepStrictEqual(storage.get('customizationEnablement'), { global: { 'file:///plugins/example': false } });
 
-		state.summaries.set(session, { _meta: withSessionWorkspaceless(undefined, true) });
+		state.createSession(makeSummary(session, undefined, withSessionWorkspaceless(undefined, true)));
 		assert.deepStrictEqual(service.getWorkingDirectoryState(session), { kind: 'workspaceless' });
 
-		state.summaries.set(session, {});
-		configuration.pending.add(session);
+		state.setSessionMeta(session, undefined);
+		worktree.pending.add(AgentSession.id(session));
 		assert.deepStrictEqual(service.getWorkingDirectoryState(session), { kind: 'pending' });
 
-		configuration.pending.delete(session);
-		configuration.directories.set(session, [workspace.toString()]);
+		worktree.pending.delete(AgentSession.id(session));
+		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
 		const directoryState = service.getWorkingDirectoryState(session);
 		assert.deepStrictEqual(directoryState.kind === 'directory' ? { kind: directoryState.kind, uri: directoryState.uri.toString() } : directoryState, { kind: 'directory', uri: workspace.toString() });
+	});
+
+	test('queues a workspace replacement while the working directory is pending and applies it when registered', () => {
+		state.deleteSession(session);
+		const replacement = service.replaceEnablement(session, plugin, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }]);
+		state.createSession(makeSummary(session));
+		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
+
+		assert.deepStrictEqual({
+			replacement,
+			resolution: serializableResolution(service.resolve(session, plugin)),
+		}, {
+			replacement: { kind: 'pending', reason: 'workingDirectory' },
+			resolution: {
+				kind: 'resolved',
+				enabled: false,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+			},
+		});
+
+	});
+
+	test('queues a workspace write while the working directory is pending and applies it when registered', () => {
+		state.deleteSession(session);
+		const write = service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
+		state.createSession(makeSummary(session));
+		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
+
+		assert.deepStrictEqual({
+			write,
+			resolution: serializableResolution(service.resolve(session, plugin)),
+		}, {
+			write: { kind: 'pending', reason: 'workingDirectory' },
+			resolution: {
+				kind: 'resolved',
+				enabled: false,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+			},
+		});
+	});
+
+	test('queues a replacement before loading the session cache and applies it after loading', async () => {
+		let resolveLoad: (value: string | undefined) => void;
+		sessionData.metadataLoad = new Promise(resolve => { resolveLoad = resolve; });
+		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
+		loading.setWorktreeIsolation(worktree);
+		const load = loading.initializeSession(session);
+		const replacement = loading.replaceEnablement(session, plugin, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }]);
+		resolveLoad!(undefined);
+		await load;
+
+		assert.deepStrictEqual({
+			replacement,
+			resolution: serializableResolution(loading.resolve(session, plugin)),
+		}, {
+			replacement: { kind: 'pending', reason: 'session' },
+			resolution: {
+				kind: 'resolved',
+				enabled: false,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+			},
+		});
+	});
+
+	test('rejects workspace writes for workspace-less sessions', () => {
+		state.deleteSession(session);
+		state.createSession(makeSummary(session, undefined, withSessionWorkspaceless(undefined, true)));
+
+		assert.throws(
+			() => service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false),
+			/Cannot record workspace enablement for a workspace-less session/,
+		);
 	});
 
 	test('announces when a session enablement cache transitions from pending to resolved', async () => {
 		let resolveLoad: (value: string | undefined) => void;
 		sessionData.metadataLoad = new Promise(resolve => { resolveLoad = resolve; });
-		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, configuration, state, new NullLogService()));
+		const loading = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
+		loading.setWorktreeIsolation(worktree);
 		const changes: string[] = [];
 		disposables.add(loading.onDidChange(value => changes.push(value)));
 
@@ -217,20 +589,19 @@ suite('AgentHostCustomizationEnablementService', () => {
 	});
 
 	test('announces working-directory and worktree-pending transitions', () => {
-		state.summaries.set(session, {});
-		configuration.directories.delete(session);
+		state.deleteSession(session);
 		const changes: string[] = [];
 		disposables.add(service.onDidChange(value => changes.push(value)));
 		assert.deepStrictEqual(service.resolve(session, plugin), { kind: 'pending', reason: 'workingDirectory' });
 
-		configuration.directories.set(session, [workspace.toString()]);
-		state.fireEnvelope(session, ActionType.SessionWorkingDirectorySet);
+		state.createSession(makeSummary(session));
+		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
 		assert.strictEqual(service.resolve(session, plugin).kind, 'resolved');
 
-		configuration.pending.add(session);
+		worktree.pending.add(AgentSession.id(session));
 		assert.deepStrictEqual(service.resolve(session, plugin), { kind: 'pending', reason: 'workingDirectory' });
-		configuration.pending.delete(session);
-		configuration.firePendingChange(AgentSession.id(session));
+		worktree.pending.delete(AgentSession.id(session));
+		worktree.firePendingChange(AgentSession.id(session));
 
 		assert.deepStrictEqual({
 			changes,
@@ -244,7 +615,8 @@ suite('AgentHostCustomizationEnablementService', () => {
 	test('rebuilds the authoritative synchronous session cache after reopening', async () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
 		await service.whenIdle();
-		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, configuration, state, new NullLogService()));
+		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
+		reopened.setWorktreeIsolation(worktree);
 		await reopened.initializeSession(session);
 
 		const resolved = reopened.resolve(session, plugin);
@@ -254,8 +626,55 @@ suite('AgentHostCustomizationEnablementService', () => {
 		}
 	});
 
-	test('evicts the least recently written durable decision at the 512-entry cap', () => {
-		for (let i = 0; i <= 512; i++) {
+	test('isolates persisted session decisions between sessions for the same customization', async () => {
+		const otherSession = 'ahp://copilot/session-2';
+		state.createSession(makeSummary(otherSession, [workspace.toString()]));
+		await service.initializeSession(otherSession);
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
+		await service.whenIdle();
+
+		const reopened = disposables.add(new AgentHostCustomizationEnablementService(storage, sessionData, state, new NullLogService()));
+		reopened.setWorktreeIsolation(worktree);
+		await Promise.all([reopened.initializeSession(session), reopened.initializeSession(otherSession)]);
+
+		assert.deepStrictEqual({
+			first: serializableResolution(reopened.resolve(session, plugin)),
+			second: serializableResolution(reopened.resolve(otherSession, plugin)),
+			persisted: {
+				first: await sessionData.getMetadata(session, 'customizationEnablement'),
+				second: await sessionData.getMetadata(otherSession, 'customizationEnablement'),
+			},
+		}, {
+			first: {
+				kind: 'resolved',
+				enabled: false,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			},
+			second: {
+				kind: 'resolved',
+				enabled: true,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [],
+			},
+			persisted: {
+				first: '{"plugin-materialized-hash-one":false}',
+				second: undefined,
+			},
+		});
+	});
+
+	test('emits once for a decision write and does not emit on a no-op session re-initialization', async () => {
+		const changes: string[] = [];
+		disposables.add(service.onDidChange(value => changes.push(value)));
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
+		await service.initializeSession(session);
+
+		assert.deepStrictEqual(changes, [session]);
+	});
+
+	test('evicts across global and workspace entries, updating recency only on writes', () => {
+		for (let i = 0; i <= 510; i++) {
 			service.setEnablement(session, {
 				id: `plugin-${i}`,
 				type: CustomizationType.Plugin,
@@ -263,18 +682,46 @@ suite('AgentHostCustomizationEnablementService', () => {
 				source: URI.file(`/plugins/${i}`),
 			}, CustomizationEnablementKind.Global, false);
 		}
+		const workspaceTarget: ICustomizationEnablementTarget = {
+			id: 'workspace-plugin',
+			type: CustomizationType.Plugin,
+			name: 'Workspace Plugin',
+			source: URI.file('/plugins/workspace'),
+		};
+		service.setEnablement(session, workspaceTarget, CustomizationEnablementKind.Workspace, false);
+		service.resolve(session, {
+			id: 'plugin-0',
+			type: CustomizationType.Plugin,
+			name: 'Plugin 0',
+			source: URI.file('/plugins/0'),
+		});
+		service.setEnablement(session, {
+			id: 'plugin-511',
+			type: CustomizationType.Plugin,
+			name: 'Plugin 511',
+			source: URI.file('/plugins/511'),
+		}, CustomizationEnablementKind.Global, false);
+		service.setEnablement(session, workspaceTarget, CustomizationEnablementKind.Workspace, false);
+		service.setEnablement(session, {
+			id: 'plugin-512',
+			type: CustomizationType.Plugin,
+			name: 'Plugin 512',
+			source: URI.file('/plugins/512'),
+		}, CustomizationEnablementKind.Global, false);
 
-		const persisted = storage.get<{ global: Record<string, boolean> }>('customizationEnablement')!;
+		const persisted = storage.get<{ global: Record<string, boolean>; workingDirectories: Record<string, Record<string, boolean>> }>('customizationEnablement')!;
 		assert.deepStrictEqual({
-			count: Object.keys(persisted.global).length,
-			evicted: persisted.global['file:///plugins/0'],
-			oldestRetained: persisted.global['file:///plugins/1'],
-			newestRetained: persisted.global['file:///plugins/512'],
+			count: Object.keys(persisted.global).length + Object.values(persisted.workingDirectories).reduce((total, decisions) => total + Object.keys(decisions).length, 0),
+			readDoesNotRefresh: persisted.global['file:///plugins/0'],
+			workspaceRewriteRefreshes: persisted.workingDirectories['file:///repo']?.['file:///plugins/workspace'],
+			oldestAfterRewrite: persisted.global['file:///plugins/1'],
+			newest: persisted.global['file:///plugins/512'],
 		}, {
 			count: 512,
-			evicted: undefined,
-			oldestRetained: false,
-			newestRetained: false,
+			readDoesNotRefresh: undefined,
+			workspaceRewriteRefreshes: false,
+			oldestAfterRewrite: undefined,
+			newest: false,
 		});
 	});
 });

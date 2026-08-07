@@ -13,6 +13,7 @@ import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
@@ -23,6 +24,14 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, AgentBranchNameGenerator, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { ICopilotApiService } from './copilotApiService.js';
+
+export const IAgentHostWorktreeIsolation = createDecorator<IAgentHostWorktreeIsolation>('agentHostWorktreeIsolation');
+
+export interface IAgentHostWorktreeIsolation {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeWorkingDirectoryPending: Event<string>;
+	isWorkingDirectoryPending(sessionId: string): boolean;
+}
 
 /**
  * Per-session-database metadata keys under which the worktree an agent
@@ -317,7 +326,8 @@ export interface IResolveWorkingDirectoryRequest {
  * (`_createdWorktrees`, pending markers, pending announcements) is keyed by the
  * globally-unique sessionId, so sharing one instance across agents is safe.
  */
-export class WorktreeIsolation extends Disposable {
+export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeIsolation {
+	declare readonly _serviceBrand: undefined;
 
 	/**
 	 * Worktrees created by this agent in the current process, keyed by

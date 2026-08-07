@@ -32,7 +32,7 @@ import {
 	SessionLifecycle,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from './agentConfigurationService.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
@@ -161,7 +161,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
-		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentHostReviewService private readonly _reviewService: IAgentHostReviewService,
@@ -179,7 +178,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
-		return !!this._configurationService.getEffectiveWorkingDirectory(session);
+		return !!getEffectiveWorkingDirectory(this._stateManager, session);
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -612,7 +611,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// For the time being we default to the first working directory in the list, if any.
 		// In the future we may want to support multiple working directories per session,
 		// but for now we only support one.
-		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
+		const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, session);
 		return workingDirectories && workingDirectories.length > 0
 			? URI.parse(workingDirectories[0])
 			: undefined;

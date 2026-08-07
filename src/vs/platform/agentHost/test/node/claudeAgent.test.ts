@@ -52,6 +52,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import type { ChildCustomization, McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -59,6 +60,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -853,6 +855,7 @@ function createTestContext(
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostOTelService, otelService],
+		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 		[IProductService, FakeProductService],
 		[IAgentHostGitHubEndpointService, overrides?.gitHubEndpointService ?? createTestGitHubEndpointService()],
 	);
@@ -923,7 +926,37 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostOTelService, new RecordingOTelService()],
+		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 	];
+}
+
+function reducerBackedEnablementService(stateManager: AgentHostStateManager): ICustomizationEnablementService {
+	const resolve = (session: string, target: { readonly id: string; readonly name: string; readonly source: URI }) => {
+		const customizations = stateManager.getSessionState(session)?.customizations ?? [];
+		const customization = customizations
+			.flatMap(item => [item, ...(item.type === CustomizationType.McpServer ? [] : item.children ?? [])])
+			.find(item => item.id === target.id || (item.name === target.name && item.uri === target.source.toString()));
+		const enablement = customization?.type === CustomizationType.Plugin || customization?.type === CustomizationType.McpServer
+			? customization.enablement ?? []
+			: [];
+		return {
+			kind: 'resolved' as const,
+			enablement,
+			enabled: isCustomizationEnabled({ enablement }),
+			workingDirectory: { kind: 'workspaceless' as const },
+		};
+	};
+	return {
+		_serviceBrand: undefined,
+		onDidChange: Event.None,
+		initializeSession: async () => { },
+		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+		resolve,
+		applyClientGlobalEnablement: resolve,
+		replaceEnablement: resolve,
+		setEnablement: resolve,
+		whenIdle: async () => { },
+	};
 }
 
 // #endregion
@@ -6805,6 +6838,30 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const resolveReducerEnablement = (session: string, target: { readonly id: string }) => {
+			const findCustomization = (customizations: readonly (Customization | ChildCustomization)[]): PluginCustomization | McpServerCustomization | undefined => {
+				for (const customization of customizations) {
+					if (customization.id === target.id && (customization.type === CustomizationType.Plugin || customization.type === CustomizationType.McpServer)) {
+						return customization;
+					}
+					if (customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory) {
+						const child = findCustomization(customization.children ?? []);
+						if (child !== undefined) {
+							return child;
+						}
+					}
+				}
+				return undefined;
+			};
+			const customization = findCustomization(stateManager.getSessionState(session)?.customizations ?? []);
+			const enablement = customization?.enablement ?? [];
+			return {
+				kind: 'resolved' as const,
+				enablement,
+				enabled: isCustomizationEnabled({ enablement }),
+				workingDirectory: { kind: 'workspaceless' as const },
+			};
+		};
 
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -6823,6 +6880,17 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostOTelService, otelService],
+			[IAgentHostCustomizationEnablementService, {
+				_serviceBrand: undefined,
+				onDidChange: Event.None,
+				initializeSession: async () => { },
+				getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+				resolve: resolveReducerEnablement,
+				applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+				replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+				setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+				whenIdle: async () => { },
+			} satisfies ICustomizationEnablementService],
 			[IProductService, FakeProductService],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);

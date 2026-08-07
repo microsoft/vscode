@@ -4,20 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, type IReference } from '../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, type IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
-import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement } from '../common/customizationEnablement.js';
+import { ISessionDataService, type ISessionDatabase } from '../common/sessionDataService.js';
+import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, readSessionWorkspaceless } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
+import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 
 const STORAGE_KEY = 'customizationEnablement';
 const LRU_STORAGE_KEY = 'customizationEnablementLru';
 const SESSION_METADATA_KEY = 'customizationEnablement';
+/** Bounds orphaned durable decisions, whose source-derived keys become unreachable when their plugin disappears. */
 const MAX_PERSISTED_DECISIONS = 512;
 
 interface IPersistedEnablement {
@@ -25,10 +30,30 @@ interface IPersistedEnablement {
 	readonly workingDirectories?: Record<string, Record<string, boolean>>;
 }
 
+
 interface ILruEntry {
 	readonly scope: 'global' | 'workspace';
 	readonly key: string;
 	readonly workingDirectory?: string;
+}
+
+interface IFullEnablementReplacement {
+	readonly replacementKind: 'full';
+	readonly enablement: readonly CustomizationEnablement[];
+}
+
+interface IScopedEnablementReplacement {
+	readonly replacementKind: 'scoped';
+	readonly scope: CustomizationEnablementKind;
+	readonly enabled: boolean;
+}
+
+type EnablementReplacement = IFullEnablementReplacement | IScopedEnablementReplacement;
+
+interface IPendingReplacement {
+	readonly target: ICustomizationEnablementTarget;
+	readonly enablement?: readonly CustomizationEnablement[];
+	readonly scopedReplacements: readonly IScopedEnablementReplacement[];
 }
 
 export interface ICustomizationEnablementTarget {
@@ -39,6 +64,10 @@ export interface ICustomizationEnablementTarget {
 	readonly owningPluginSource?: URI;
 }
 
+/**
+ * `pending` means the directory is not registered yet; `workspaceless` explicitly means there is none.
+ * Keeping them distinct prevents workspace decisions from being silently discarded while registration is pending.
+ */
 export type WorkingDirectoryState =
 	| { readonly kind: 'directory'; readonly uri: URI }
 	| { readonly kind: 'workspaceless' }
@@ -53,26 +82,6 @@ export type CustomizationEnablementResolution =
 	}
 	| { readonly kind: 'pending'; readonly reason: 'session' | 'workingDirectory' };
 
-export interface ISessionEnablementDatabase {
-	getMetadata(key: string): Promise<string | undefined>;
-	setMetadata(key: string, value: string): Promise<void>;
-}
-
-export interface ISessionEnablementDataService {
-	openDatabase(session: URI): IReference<ISessionEnablementDatabase>;
-}
-
-export interface ICustomizationEnablementConfigurationService {
-	getEffectiveWorkingDirectories(session: string): string[] | undefined;
-	isWorkingDirectoryPending(session: string): boolean;
-	readonly onDidChangeWorkingDirectoryPending: Event<string>;
-}
-
-export interface ICustomizationEnablementSessionState {
-	getSessionSummary(session: string): { readonly _meta?: Record<string, unknown> } | undefined;
-	readonly onDidEmitEnvelope: Event<{ readonly channel: string; readonly action: { readonly type: ActionType } }>;
-}
-
 export const IAgentHostCustomizationEnablementService = createDecorator<IAgentHostCustomizationEnablementService>('agentHostCustomizationEnablementService');
 
 export interface IAgentHostCustomizationEnablementService {
@@ -81,6 +90,8 @@ export interface IAgentHostCustomizationEnablementService {
 	initializeSession(session: string): Promise<void>;
 	getWorkingDirectoryState(session: string): WorkingDirectoryState;
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
+	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
+	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution;
 	whenIdle(): Promise<void>;
 }
@@ -88,9 +99,7 @@ export interface IAgentHostCustomizationEnablementService {
 /**
  * Returns the scope-appropriate identity for a customization decision.
  *
- * Durable keys deliberately use a plugin's source URI, rather than a
- * customization id: a plugin child id contains its materialized path and
- * content hash, so using it would forget a user's choice on every plugin edit.
+ * Session decisions use a customization id because it need only be stable within that session; durable decisions use stable source-derived identities because plugin child ids contain materialized paths and content hashes.
  */
 export function getCustomizationEnablementKey(target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind): string {
 	if (kind === CustomizationEnablementKind.Session) {
@@ -110,11 +119,9 @@ export function getCustomizationEnablementKey(target: ICustomizationEnablementTa
 }
 
 /**
- * Resolves and persists scoped customization enablement.
+ * Owns global, workspace, and session enablement decisions, resolving session > workspace > global > enabled.
  *
- * Session metadata is loaded into `_sessionEnablement` once and that cache is
- * authoritative for synchronous reads. Resolution must never issue an async DB
- * read, because an absent asynchronous result would be mistaken for no decision.
+ * Global and workspace decisions use host JSON storage; session decisions remain in that session's database across restarts.
  */
 export class AgentHostCustomizationEnablementService extends Disposable implements IAgentHostCustomizationEnablementService {
 	declare readonly _serviceBrand: undefined;
@@ -124,17 +131,27 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private _persistent: IPersistedEnablement;
 	private _lru: ILruEntry[];
+	/**
+	 * Loaded once and authoritative for synchronous resolution, which runs while customizations are published.
+	 * An async read here could mistake an unavailable result for an absent decision.
+	 */
 	private readonly _sessionEnablement = new Map<string, Map<string, boolean>>();
 	private readonly _sessionLoads = new Map<string, Promise<void>>();
 	private readonly _sessionsById = new Map<string, string>();
 	private readonly _pendingSessionWrites = new Set<Promise<void>>();
+	/**
+	 * Retains writes made before session metadata or directory registration resolves.
+	 * Replayed after either session load or a working-directory event, while resolution reports `pending` rather than no decision.
+	 */
+	private readonly _pendingReplacements = new Map<string, IPendingReplacement>();
+	private _worktree: IAgentHostWorktreeIsolation | undefined;
+	private readonly _worktreePendingListener = this._register(new MutableDisposable());
 
 	constructor(
-		private readonly _storageService: IAgentHostStorageService,
-		private readonly _sessionDataService: ISessionEnablementDataService,
-		private readonly _configurationService: ICustomizationEnablementConfigurationService,
-		private readonly _sessionState: ICustomizationEnablementSessionState,
-		private readonly _logService: ILogService,
+		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostStateManager private readonly _sessionState: AgentHostStateManager,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._persistent = this._readPersistentEnablement();
@@ -148,11 +165,17 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				this._sessionsById.set(AgentSession.id(session), session);
 				void this.initializeSession(session);
 				if (envelope.action.type === ActionType.SessionWorkingDirectorySet || envelope.action.type === ActionType.SessionWorkingDirectoryRemoved) {
+					this._applyPendingReplacements(session);
 					this._notifyDecisionChanged(session);
 				}
 			}
 		}));
-		this._register(this._configurationService.onDidChangeWorkingDirectoryPending(sessionId => {
+	}
+
+	/** Bound after AgentService construction because WorktreeIsolation depends on ICopilotApiService and AgentService's endpoint service. */
+	setWorktreeIsolation(worktree: IAgentHostWorktreeIsolation): void {
+		this._worktree = worktree;
+		this._worktreePendingListener.value = worktree.onDidChangeWorkingDirectoryPending(sessionId => {
 			const session = this._sessionsById.get(sessionId);
 			if (session === undefined) {
 				// A worktree can become pending before this service initializes its
@@ -161,7 +184,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				return;
 			}
 			this._notifyDecisionChanged(session);
-		}));
+		});
 	}
 
 	async initializeSession(session: string): Promise<void> {
@@ -181,10 +204,10 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		if (readSessionWorkspaceless(summary?._meta)) {
 			return { kind: 'workspaceless' };
 		}
-		if (this._configurationService.isWorkingDirectoryPending(session)) {
+		if (this._worktree?.isWorkingDirectoryPending(AgentSession.id(session))) {
 			return { kind: 'pending' };
 		}
-		const directory = this._configurationService.getEffectiveWorkingDirectories(session)?.[0];
+		const directory = getEffectiveWorkingDirectories(this._sessionState, session)?.[0];
 		if (directory === undefined) {
 			return { kind: 'pending' };
 		}
@@ -202,9 +225,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			return { kind: 'pending', reason: 'workingDirectory' };
 		}
 
-		const persistentKey = getCustomizationEnablementKey(target, CustomizationEnablementKind.Global);
+		const persistentKey = this._persistentKey(target);
 		const decisions: CustomizationEnablement[] = [];
-		const sessionDecision = sessionEnablement.get(getCustomizationEnablementKey(target, CustomizationEnablementKind.Session));
+		const sessionDecision = sessionEnablement.get(this._sessionKey(target));
 		if (sessionDecision !== undefined) {
 			decisions.push({ kind: CustomizationEnablementKind.Session, enabled: sessionDecision });
 		}
@@ -228,39 +251,135 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		};
 	}
 
+	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
+		const global = enablement.find(entry => entry.kind === CustomizationEnablementKind.Global);
+		if (global === undefined) {
+			throw new Error(`Client customization ${target.source.toString()} is missing its required global enablement entry`);
+		}
+
+		this._setClientGlobal(target, global.enabled);
+		const resolution = this.resolve(session, target);
+		if (resolution.kind === 'pending') {
+			return resolution;
+		}
+		return {
+			...resolution,
+			enablement: withCustomizationEnablement(resolution.enablement, CustomizationEnablementKind.Global, global),
+		};
+	}
+
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution {
-		switch (kind) {
-			case CustomizationEnablementKind.Global:
-				this._setGlobal(target, enabled);
-				break;
-			case CustomizationEnablementKind.Workspace: {
-				const workingDirectory = this.getWorkingDirectoryState(session);
-				if (workingDirectory.kind === 'pending') {
-					return { kind: 'pending', reason: 'workingDirectory' };
+		const resolution = this._replaceEnablement(session, target, { replacementKind: 'scoped', scope: kind, enabled });
+		this._notifyDecisionChanged(session);
+		return resolution;
+	}
+
+	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
+		return this._replaceEnablement(session, target, { replacementKind: 'full', enablement });
+	}
+
+	private _replaceEnablement(session: string, target: ICustomizationEnablementTarget, replacement: EnablementReplacement): CustomizationEnablementResolution {
+		const resolution = this.resolve(session, target);
+		if (resolution.kind === 'pending') {
+			if (replacement.replacementKind === 'full') {
+				this._setGlobal(target, this._getGlobalReplacement(replacement.enablement));
+				this._queueReplacement(session, target, replacement);
+			} else if (replacement.scope === CustomizationEnablementKind.Global) {
+				this._setGlobal(target, replacement.enabled);
+				if (this._pendingReplacements.has(`${session}\u0000${this._persistentKey(target)}`)) {
+					this._queueReplacement(session, target, replacement);
 				}
+			} else {
+				this._queueReplacement(session, target, replacement);
+			}
+			return resolution;
+		}
+
+		const enablement = this._replacementEnablement(resolution.enablement, resolution.workingDirectory, replacement);
+		this._applyReplacement(session, target, enablement, resolution.workingDirectory);
+		return this.resolve(session, target);
+	}
+
+	private _applyPendingReplacements(session: string): void {
+		for (const [key, replacement] of this._pendingReplacements) {
+			if (!key.startsWith(`${session}\u0000`)) {
+				continue;
+			}
+			const resolution = this.resolve(session, replacement.target);
+			if (resolution.kind === 'pending') {
+				continue;
+			}
+			let enablement = replacement.enablement ?? resolution.enablement;
+			for (const scopedReplacement of replacement.scopedReplacements) {
+				enablement = this._replacementEnablement(enablement, resolution.workingDirectory, scopedReplacement);
+			}
+			this._applyReplacement(session, replacement.target, enablement, resolution.workingDirectory);
+			this._pendingReplacements.delete(key);
+		}
+	}
+
+	private _queueReplacement(session: string, target: ICustomizationEnablementTarget, replacement: EnablementReplacement): void {
+		const key = `${session}\u0000${this._persistentKey(target)}`;
+		const existing = this._pendingReplacements.get(key);
+		if (replacement.replacementKind === 'full') {
+			this._pendingReplacements.set(key, { target, enablement: replacement.enablement, scopedReplacements: [] });
+			return;
+		}
+		const scopedReplacements = [
+			...(existing?.scopedReplacements.filter(entry => entry.scope !== replacement.scope) ?? []),
+			replacement,
+		];
+		this._pendingReplacements.set(key, {
+			target,
+			...(existing?.enablement ? { enablement: existing.enablement } : {}),
+			scopedReplacements,
+		});
+	}
+
+	private _replacementEnablement(current: readonly CustomizationEnablement[], workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>, replacement: EnablementReplacement): CustomizationEnablement[] {
+		if (replacement.replacementKind === 'full') {
+			return [...replacement.enablement];
+		}
+		return withCustomizationEnablement(current, replacement.scope, this._enablementEntry(replacement, workingDirectory));
+	}
+
+	private _enablementEntry(replacement: IScopedEnablementReplacement, workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>): CustomizationEnablement {
+		switch (replacement.scope) {
+			case CustomizationEnablementKind.Global:
+				return { kind: CustomizationEnablementKind.Global, enabled: replacement.enabled };
+			case CustomizationEnablementKind.Workspace:
 				if (workingDirectory.kind !== 'directory') {
 					throw new Error('Cannot record workspace enablement for a workspace-less session');
 				}
-				this._setWorkspace(target, workingDirectory.uri, enabled);
-				break;
-			}
-			case CustomizationEnablementKind.Session: {
-				const workingDirectory = this.getWorkingDirectoryState(session);
-				if (workingDirectory.kind === 'pending') {
-					return { kind: 'pending', reason: 'workingDirectory' };
-				}
-				this._setSession(session, target, workingDirectory, enabled);
-				break;
-			}
+				return { kind: CustomizationEnablementKind.Workspace, uri: workingDirectory.uri.toString(), enabled: replacement.enabled };
+			case CustomizationEnablementKind.Session:
+				return { kind: CustomizationEnablementKind.Session, enabled: replacement.enabled };
 			default: {
-				const exhaustiveKind: never = kind;
+				const exhaustiveKind: never = replacement.scope;
 				throw new Error(`Unknown customization enablement kind: ${exhaustiveKind}`);
 			}
 		}
-
-		this._notifyDecisionChanged(session);
-		return this.resolve(session, target);
 	}
+
+	private _applyReplacement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[], workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>): void {
+		// Update global first so workspace and session inheritance see the new value.
+		this._setGlobal(target, this._getGlobalReplacement(enablement));
+		this._replaceNonGlobalEnablement(session, target, enablement, workingDirectory);
+	}
+
+	private _getGlobalReplacement(enablement: readonly CustomizationEnablement[]): boolean {
+		return enablement.find(entry => entry.kind === CustomizationEnablementKind.Global)?.enabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
+	}
+
+	private _replaceNonGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[], workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>): void {
+		const byKind = new Map(enablement.map(entry => [entry.kind, entry]));
+		// A scope absent from the incoming list is CLEARED; replacement is never a patch.
+		if (workingDirectory.kind === 'directory') {
+			this._setWorkspace(target, workingDirectory.uri, byKind.get(CustomizationEnablementKind.Workspace)?.enabled);
+		}
+		this._setSession(session, target, workingDirectory, byKind.get(CustomizationEnablementKind.Session)?.enabled);
+	}
+
 
 	async whenIdle(): Promise<void> {
 		await this._storageService.whenIdle();
@@ -273,67 +392,99 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private async _loadSessionEnablement(session: string): Promise<void> {
 		const transitioned = !this._sessionEnablement.has(session);
-		const reference = this._sessionDataService.openDatabase(URI.parse(session));
+		let reference: IReference<ISessionDatabase> | undefined;
 		try {
+			reference = this._sessionDataService.openDatabase(URI.parse(session));
 			const raw = await reference.object.getMetadata(SESSION_METADATA_KEY);
 			this._sessionEnablement.set(session, this._parseSessionEnablement(raw));
 		} catch (err) {
 			this._logService.warn(`[AgentHostCustomizationEnablementService] Failed to read session enablement for ${session}`, err);
 			this._sessionEnablement.set(session, new Map());
 		} finally {
-			reference.dispose();
+			reference?.dispose();
 		}
 		if (transitioned) {
+			this._applyPendingReplacements(session);
 			this._notifyDecisionChanged(session);
 		}
 	}
 
 	private _setGlobal(target: ICustomizationEnablementTarget, enabled: boolean): void {
-		const key = getCustomizationEnablementKey(target, CustomizationEnablementKind.Global);
+		this._setGlobalEnablement(target, enabled, true);
+	}
+
+	private _setClientGlobal(target: ICustomizationEnablementTarget, enabled: boolean): void {
+		this._setGlobalEnablement(target, enabled, false);
+	}
+
+	/**
+		 * `_setGlobal` passes `true` for host/full updates, pruning workspace decisions that match the new global; `_setClientGlobal` passes `false` for client global refreshes.
+		 * Client updates must retain workspace overrides.
+		 */
+	private _setGlobalEnablement(target: ICustomizationEnablementTarget, enabled: boolean, removeRedundantWorkspaceDecisions: boolean): void {
+		const key = this._persistentKey(target);
 		const global = this._persistent.global ?? {};
-		if (enabled === DEFAULT_CUSTOMIZATION_ENABLED) {
-			delete global[key];
-			this._removeLru('global', key);
-		} else {
-			global[key] = enabled;
-			this._touchLru({ scope: 'global', key });
-		}
+		this._setPersistentDecision('global', global, key, enabled, DEFAULT_CUSTOMIZATION_ENABLED);
 		this._persistent = { ...this._persistent, global };
-		this._removeRedundantWorkspaceDecisions(key);
+		if (removeRedundantWorkspaceDecisions) {
+			this._removeRedundantWorkspaceDecisions(key);
+		}
 		this._persist();
 	}
 
-	private _setWorkspace(target: ICustomizationEnablementTarget, workingDirectory: URI, enabled: boolean): void {
-		const key = getCustomizationEnablementKey(target, CustomizationEnablementKind.Workspace);
+	/**
+	 * `undefined` clears a scope, and a decision matching its inherited value is cleared too.
+	 * This lets the UI restore inheritance without a third 'Inherit' action.
+	 */
+	private _setPersistentDecision(scope: ILruEntry['scope'], decisions: Record<string, boolean>, key: string, enabled: boolean | undefined, inherited: boolean, workingDirectory?: string): void {
+		if (enabled === undefined || enabled === inherited) {
+			delete decisions[key];
+			this._removeLru(scope, key, workingDirectory);
+		} else {
+			decisions[key] = enabled;
+			this._touchLru({ scope, key, ...(workingDirectory === undefined ? {} : { workingDirectory }) });
+		}
+	}
+
+	private _persistentKey(target: ICustomizationEnablementTarget): string {
+		return getCustomizationEnablementKey(target, CustomizationEnablementKind.Global);
+	}
+
+	private _sessionKey(target: ICustomizationEnablementTarget): string {
+		return getCustomizationEnablementKey(target, CustomizationEnablementKind.Session);
+	}
+
+	private _workspaceInheritedEnablement(target: ICustomizationEnablementTarget, workingDirectory: URI): boolean {
+		return this._persistent.workingDirectories?.[workingDirectory.toString()]?.[this._persistentKey(target)] ?? this._globalEnablement(target);
+	}
+
+	private _globalEnablement(target: ICustomizationEnablementTarget): boolean {
+		return this._persistent.global?.[this._persistentKey(target)] ?? DEFAULT_CUSTOMIZATION_ENABLED;
+	}
+
+	private _setWorkspace(target: ICustomizationEnablementTarget, workingDirectory: URI, enabled: boolean | undefined): void {
+		const key = this._persistentKey(target);
 		const directoryKey = workingDirectory.toString();
-		const inherited = this._persistent.global?.[key] ?? DEFAULT_CUSTOMIZATION_ENABLED;
 		const workingDirectories = this._persistent.workingDirectories ?? {};
 		const workspace = workingDirectories[directoryKey] ?? {};
-		if (enabled === inherited) {
-			delete workspace[key];
-			this._removeLru('workspace', key, directoryKey);
-		} else {
-			workspace[key] = enabled;
-			this._touchLru({ scope: 'workspace', key, workingDirectory: directoryKey });
-		}
+		this._setPersistentDecision('workspace', workspace, key, enabled, this._globalEnablement(target), directoryKey);
 		workingDirectories[directoryKey] = workspace;
 		this._persistent = { ...this._persistent, workingDirectories };
 		this._persist();
 	}
 
 	/** Needs the working-directory state to calculate the lower-scope inherited value before clearing. */
-	private _setSession(session: string, target: ICustomizationEnablementTarget, workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>, enabled: boolean): void {
+	private _setSession(session: string, target: ICustomizationEnablementTarget, workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>, enabled: boolean | undefined): void {
 		const enablement = this._sessionEnablement.get(session);
 		if (enablement === undefined) {
 			throw new Error(`Session enablement has not been initialized: ${session}`);
 		}
 
-		const persistentKey = getCustomizationEnablementKey(target, CustomizationEnablementKind.Global);
 		const inherited = workingDirectory.kind === 'directory'
-			? this._persistent.workingDirectories?.[workingDirectory.uri.toString()]?.[persistentKey] ?? this._persistent.global?.[persistentKey] ?? DEFAULT_CUSTOMIZATION_ENABLED
-			: this._persistent.global?.[persistentKey] ?? DEFAULT_CUSTOMIZATION_ENABLED;
-		const sessionKey = getCustomizationEnablementKey(target, CustomizationEnablementKind.Session);
-		if (enabled === inherited) {
+			? this._workspaceInheritedEnablement(target, workingDirectory.uri)
+			: this._globalEnablement(target);
+		const sessionKey = this._sessionKey(target);
+		if (enabled === undefined || enabled === inherited) {
 			enablement.delete(sessionKey);
 		} else {
 			enablement.set(sessionKey, enabled);
@@ -351,6 +502,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		write.then(untrack, untrack);
 	}
 
+	/** Prunes matching workspace decisions in every stored directory, preserving only overrides that beat the new global value. */
 	private _removeRedundantWorkspaceDecisions(key: string): void {
 		const inherited = this._persistent.global?.[key] ?? DEFAULT_CUSTOMIZATION_ENABLED;
 		for (const [directory, values] of Object.entries(this._persistent.workingDirectories ?? {})) {

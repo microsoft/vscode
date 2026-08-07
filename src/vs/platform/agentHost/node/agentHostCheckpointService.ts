@@ -11,7 +11,8 @@ import { IAgentHostCheckpointService, buildCheckpointRefName } from '../common/a
 import { AgentSession } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostCheckpointService extends Disposable implements IAgentHostCheckpointService {
 	declare readonly _serviceBrand: undefined;
@@ -26,7 +27,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
-		@IAgentConfigurationService private readonly _agentConfigService: IAgentConfigurationService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -192,7 +193,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 	async getBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined> {
 		if (!workingDirectory) {
-			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri.toString());
+			const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, sessionUri.toString());
 			if (!workingDirectories || workingDirectories.length === 0) {
 				return undefined;
 			}

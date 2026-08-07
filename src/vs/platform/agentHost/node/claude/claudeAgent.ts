@@ -2360,7 +2360,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				customizations,
 				options?.quiet ? undefined : status => this._fireCustomizationUpdated(session, { customization: status }),
 			);
-			sess.adoptClientCustomizations(clientId, synced);
+			sess.adoptClientCustomizations(clientId, synced, customizations);
 			return synced;
 		});
 	}

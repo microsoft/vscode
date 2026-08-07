@@ -24,7 +24,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { ChangesSummary, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -44,6 +44,7 @@ import type { IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHos
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -90,6 +91,22 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	}
 }
 
+function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnablementService {
+	return {
+		_serviceBrand: undefined,
+		onDidChange: Event.None,
+		initializeSession: async () => { },
+		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+		resolve: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		whenIdle: async () => { },
+	};
+}
+
+let customizationEnablementService = createNoopCustomizationEnablementService();
+
 /**
  * Constructs an {@link AgentSideEffects} with a minimal local instantiation
  * scope that satisfies its {@link IAgentConfigurationService} /
@@ -124,7 +141,7 @@ function createTestSideEffects(
 		...options,
 		localTurns: options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService),
 	};
-	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, resolvedOptions));
+	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, resolvedOptions));
 }
 
 class TestTelemetryService implements ITelemetryService {
@@ -234,6 +251,7 @@ suite('AgentSideEffects', () => {
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		agentList = observableValue<readonly IAgent[]>('agents', [agent]);
 		telemetryService = new TestTelemetryService();
+		customizationEnablementService = createNoopCustomizationEnablementService();
 		sideEffects = createTestSideEffects(disposables, stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
@@ -263,6 +281,34 @@ suite('AgentSideEffects', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- handleAction: session/turnStarted ------------------------------
+
+	test('records customization toggles in the enablement service', () => {
+		const calls: { session: string; target: string; enablement: unknown }[] = [];
+		customizationEnablementService.replaceEnablement = (session, target, enablement) => {
+			calls.push({ session, target: target.owningPluginSource ? `${target.owningPluginSource}#mcp=${target.name}` : target.source.toString(), enablement });
+			return { kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } };
+		};
+		setupSession();
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugin',
+			name: 'Plugin',
+			children: [{ type: CustomizationType.McpServer, id: 'server', uri: 'file:///plugin/.mcp.json', name: 'server', state: { kind: McpServerStatus.Starting } }],
+		};
+		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [plugin] });
+		stateManager.dispatchServerAction(sessionUri.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'server',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		});
+
+		assert.deepStrictEqual(calls, [{
+			session: sessionUri.toString(),
+			target: 'file:///plugin#mcp=server',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		}]);
+	});
 
 	suite('handleAction — session/turnStarted', () => {
 

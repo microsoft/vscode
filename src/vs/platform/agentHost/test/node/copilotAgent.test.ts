@@ -28,6 +28,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -654,6 +655,17 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
 	services.set(IAgentHostProxyResolver, options?.proxyResolver ?? new TestProxyResolver());
+	services.set(IAgentHostCustomizationEnablementService, {
+		_serviceBrand: undefined,
+		onDidChange: Event.None,
+		initializeSession: async () => { },
+		getWorkingDirectoryState: () => ({ kind: 'pending' }),
+		resolve: () => ({ kind: 'pending', reason: 'session' }),
+		applyClientGlobalEnablement: () => ({ kind: 'pending', reason: 'session' }),
+		replaceEnablement: () => ({ kind: 'pending', reason: 'session' }),
+		setEnablement: () => ({ kind: 'pending', reason: 'session' }),
+		whenIdle: async () => { },
+	} satisfies ICustomizationEnablementService);
 	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);

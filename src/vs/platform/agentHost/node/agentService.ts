@@ -39,7 +39,7 @@ import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, S
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
-import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
@@ -77,6 +77,8 @@ import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
+import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -235,6 +237,12 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Exposes the configuration service so agent providers can share root config plumbing. */
 	get configurationService(): IAgentConfigurationService { return this._configurationService; }
 
+	/** Exposes host-owned persistent storage to process-level DI. */
+	get storageService(): IAgentHostStorageService { return this._storageService; }
+
+	/** Exposes customization enablement to process-level DI. */
+	get customizationEnablementService(): IAgentHostCustomizationEnablementService { return this._customizationEnablementService; }
+
 	/** Exposes the GitHub endpoint service so agent providers share GitHub (Enterprise) resource resolution. */
 	get gitHubEndpointService(): IAgentHostGitHubEndpointService { return this._gitHubEndpointService; }
 
@@ -292,15 +300,17 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Server-side host for the agent host's server tools. */
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _configurationService: AgentConfigurationService;
+	private readonly _storageService: AgentHostStorageService;
+	private readonly _customizationEnablementService: AgentHostCustomizationEnablementService;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/**
 	 * Host-owned worktree isolation controller. Set post-construction via
-	 * {@link setWorktreeIsolation} because it depends on the branch-name
-	 * generator, which is wired after this service is built. All worktree
-	 * behavior — schema contribution, first-send resolution, project /
-	 * announcement, archive, and cleanup — is driven from the host so individual
-	 * agents stay unaware of the folder-vs-worktree distinction.
+	 * {@link setWorktreeIsolation} after host startup constructs the Copilot API
+	 * dependencies. All worktree behavior — schema contribution, first-send
+	 * resolution, project / announcement, archive, and cleanup — is driven from
+	 * the host so individual agents stay unaware of the folder-vs-worktree
+	 * distinction.
 	 */
 	private _worktree: WorktreeIsolation | undefined;
 	/** Successful list-time repository-root resolutions; eviction only causes safe re-resolution. */
@@ -399,6 +409,7 @@ export class AgentService extends Disposable implements IAgentService {
 		copilotApiService?: ICopilotApiService,
 		fetchFn?: typeof globalThis.fetch,
 		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
+		storageResource?: URI,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -422,6 +433,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const configurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource, providerConfigurations));
 		this._configurationService = configurationService;
 		const fileMonitorService = _fileMonitorService ?? this._register(new AgentHostFileMonitorService(this._fileService, this._logService));
+		this._storageService = this._register(new AgentHostStorageService(storageResource, this._logService));
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
 		const services = new ServiceCollection(
 			[ILogService, this._logService],
@@ -431,6 +443,7 @@ export class AgentService extends Disposable implements IAgentService {
 			[IAgentHostStateManager, this._stateManager],
 			[IAgentHostFileMonitorService, fileMonitorService],
 			[IAgentHostGitService, this._gitService],
+			[IAgentHostStorageService, this._storageService],
 			[ITelemetryService, this._telemetryService],
 			// The outer agent-host process DI registers `ISessionDataService`,
 			// but this nested strict `InstantiationService` does not inherit it.
@@ -455,6 +468,8 @@ export class AgentService extends Disposable implements IAgentService {
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
+		this._customizationEnablementService = this._register(instantiationService.createInstance(AgentHostCustomizationEnablementService));
+		services.set(IAgentHostCustomizationEnablementService, this._customizationEnablementService);
 
 		this._gitStateService = this._register(instantiationService.createInstance(AgentHostGitStateService));
 		services.set(IAgentHostGitStateService, this._gitStateService);
@@ -525,7 +540,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._localTurns = new AgentHostLocalTurns(this._sessionDataService, this._logService);
 
-		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
+		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, this._customizationEnablementService, {
 			getAgent: session => this._findProviderForSession(session),
 			sessionDataService: this._sessionDataService,
 			localTurns: this._localTurns,
@@ -587,13 +602,14 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * Injects the host-owned {@link WorktreeIsolation} controller and forwards it
 	 * to the collaborators that consult it. Called once at startup (from
-	 * agentHostMain / agentHostServerMain) after the branch-name generator has
-	 * been wired.
+	 * agentHostMain / agentHostServerMain) after the Copilot API dependencies
+	 * have been wired.
 	 */
 	setWorktreeIsolation(worktree: WorktreeIsolation): void {
 		this._worktree = worktree;
 		this._configurationService.setWorktreeIsolation(worktree);
 		this._sideEffects.setWorktreeIsolation(worktree);
+		this._customizationEnablementService.setWorktreeIsolation(worktree);
 	}
 
 	private _toProviderConfig<T extends { readonly config?: Record<string, unknown> }>(request: T): T {
@@ -616,7 +632,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined> {
 		const sessionId = AgentSession.id(params.session);
-		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.session);
+		const pickedFolders = getEffectiveWorkingDirectories(this._stateManager, params.session);
 		const pickedFolderUri = pickedFolders?.[0] ? URI.parse(pickedFolders[0]) : undefined;
 		const tail = (pickedFolders ?? []).slice(1).map(d => URI.parse(d));
 
@@ -2157,7 +2173,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// repositories holding this session's refs, and reading them from
 		// session state would silently break the moment `deleteSession` below
 		// is reordered ahead of the data deletion.
-		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
+		const workingDirectories = getEffectiveWorkingDirectories(this._stateManager, session.toString());
 		const provider = this._findProviderForSession(session);
 		if (provider) {
 			await this._disposeSession(provider, session);

@@ -21,13 +21,13 @@ import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentMo
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
-import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostStorageService } from './agentHostStorageService.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
@@ -205,7 +205,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)]);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], storageResource);
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
@@ -222,16 +222,8 @@ async function startAgentHost(): Promise<void> {
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
-		const storageService = disposables.add(new AgentHostStorageService(storageResource, logService));
-		diServices.set(IAgentHostStorageService, storageService);
-		const customizationEnablementService = disposables.add(new AgentHostCustomizationEnablementService(
-			storageService,
-			sessionDataService,
-			agentService.configurationService,
-			agentService.stateManager,
-			logService,
-		));
-		diServices.set(IAgentHostCustomizationEnablementService, customizationEnablementService);
+		diServices.set(IAgentHostStorageService, agentService.storageService);
+		diServices.set(IAgentHostCustomizationEnablementService, agentService.customizationEnablementService);
 		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
 		diServices.set(IEditArcReporterService, editArcReporterService);
 		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
@@ -246,7 +238,9 @@ async function startAgentHost(): Promise<void> {
 		// Host-owned worktree isolation controller: a single instance drives folder
 		// / worktree isolation for every agent, so providers stay unaware of it. It
 		// owns its branch-name generator, created from ICopilotApiService.
-		agentService.setWorktreeIsolation(disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined)));
+		const worktreeIsolation = disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined));
+		diServices.set(IAgentHostWorktreeIsolation, worktreeIsolation);
+		agentService.setWorktreeIsolation(worktreeIsolation);
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
