@@ -770,8 +770,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			layingOut = true;
 			try {
 				for (const row of getDescendantElements(list, 'monaco-list-row')) {
-					const hasConfirmation = getDescendantElements(row, 'chat-confirmation-widget-container').length > 0;
+					const confirmations = getDescendantElements(row, 'chat-confirmation-widget-container');
+					const hasConfirmation = confirmations.length > 0;
 					row.classList.toggle('chat-input-window-confirmation-row', hasConfirmation);
+					for (const confirmation of confirmations) {
+						confirmation.classList.toggle(
+							'chat-input-window-modified-files-confirmation',
+							getDescendantElements(confirmation, 'chat-modified-files-confirmation').length > 0,
+						);
+					}
 					for (const value of getDescendantElements(row, 'value')) {
 						value.classList.toggle('chat-input-window-confirmation-value', hasConfirmation);
 					}
