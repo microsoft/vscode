@@ -342,10 +342,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 		}));
 
-		// Persist entries — await so that the config is written before
-		// onDidChangeConnections fires, ensuring _reconcile creates the provider.
-		// Tunnel entries are filtered out by _storeConfiguredEntries automatically.
-		await this._storeConfiguredEntries(this._upsertConfiguredEntry(entry));
+		if (entry.connection.type === RemoteAgentHostEntryType.WebSocket || entry.connection.type === RemoteAgentHostEntryType.SSH) {
+			// Await persistence before notifying so _reconcile sees the configured entry.
+			await this._storeConfiguredEntries(this._upsertConfiguredEntry(entry));
+		}
 
 		this._onDidChangeConnections.fire();
 

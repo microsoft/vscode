@@ -78,6 +78,7 @@ class TestConfigurationService {
 
 	private _entries: IRawRemoteAgentHostEntry[] = [];
 	private _enabled = true;
+	private _updateCallCount = 0;
 
 	getValue(key?: string): unknown {
 		if (key === RemoteAgentHostsEnabledSettingId) {
@@ -93,6 +94,7 @@ class TestConfigurationService {
 	}
 
 	async updateValue(_key: string, value: unknown): Promise<void> {
+		this._updateCallCount++;
 		const entries = (value as IRawRemoteAgentHostEntry[] | undefined) ?? [];
 		const changed = JSON.stringify(this._entries) !== JSON.stringify(entries);
 		this._entries = entries;
@@ -106,6 +108,10 @@ class TestConfigurationService {
 
 	get entries(): readonly IRawRemoteAgentHostEntry[] {
 		return this._entries;
+	}
+
+	get updateCallCount(): number {
+		return this._updateCallCount;
 	}
 
 	setEntries(entries: IRemoteAgentHostEntry[]): void {
@@ -596,6 +602,64 @@ suite('RemoteAgentHostService', () => {
 				() => addManaged('Managed', 'managed:1234'),
 				/not enabled/,
 			);
+		});
+
+		test('does not persist ephemeral managed connections', async () => {
+			const tunnelClient = disposables.add(new MockProtocolClient('tunnel:tunnel-id'));
+			await service.addManagedConnection(
+				{
+					name: 'Tunnel Host',
+					connection: {
+						type: RemoteAgentHostEntryType.Tunnel,
+						tunnelId: 'tunnel-id',
+						clusterId: 'use',
+					},
+				},
+				tunnelClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+			);
+
+			const wslClient = disposables.add(new MockProtocolClient('wsl:Ubuntu'));
+			await service.addManagedConnection(
+				{
+					name: 'WSL Host',
+					connection: {
+						type: RemoteAgentHostEntryType.WSL,
+						address: 'wsl:Ubuntu',
+						distro: 'Ubuntu',
+					},
+				},
+				wslClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+			);
+
+			const cloudSandboxClient = disposables.add(new MockProtocolClient('cloudsandbox:environment-id'));
+			await service.addManagedConnection(
+				{
+					name: 'Cloud Sandbox',
+					connection: {
+						type: RemoteAgentHostEntryType.CloudSandbox,
+						address: 'cloudsandbox:environment-id',
+						environmentId: 'environment-id',
+					},
+				},
+				cloudSandboxClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+			);
+
+			assert.deepStrictEqual({
+				updateCallCount: configService.updateCallCount,
+				configuredEntries: service.configuredEntries,
+				connections: service.connections.map(connection => ({
+					address: connection.address,
+					name: connection.name,
+				})),
+			}, {
+				updateCallCount: 0,
+				configuredEntries: [],
+				connections: [
+					{ address: 'tunnel:tunnel-id', name: 'Tunnel Host' },
+					{ address: 'wsl:Ubuntu', name: 'WSL Host' },
+					{ address: 'cloudsandbox:environment-id', name: 'Cloud Sandbox' },
+				],
+			});
 		});
 
 		test('does NOT dispose previous transportDisposable when entry is replaced', async () => {
