@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -96,10 +96,11 @@ export function getVoiceToolApprovalCommand(invocation: IChatToolInvocation, inc
 	let command: string | undefined;
 	if (terminalData?.kind === 'terminal') {
 		command = hasKey(terminalData, { commandLine: true })
-			? terminalData.presentationOverrides?.commandLine
-				?? terminalData.confirmation?.commandLine
-				?? terminalData.commandLine.toolEdited
-				?? terminalData.commandLine.original
+			? terminalData.commandLine.userEdited
+			?? terminalData.presentationOverrides?.commandLine
+			?? terminalData.confirmation?.commandLine
+			?? terminalData.commandLine.toolEdited
+			?? terminalData.commandLine.original
 			: terminalData.command;
 	}
 	if (!command && includeParameters) {
@@ -121,8 +122,8 @@ function pendingToolSemanticKey(requestId: string, invocation: IChatToolInvocati
 		: state.type === IChatToolInvocation.StateKind.WaitingForAuthentication
 			? 'authentication'
 			: 'pre';
-	const command = getVoiceToolApprovalCommand(invocation)?.replace(/\s+/g, ' ') ?? '';
-	const authenticationResource = state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? state.server.id : '';
+	const command = getVoiceToolApprovalCommand(invocation) ?? '';
+	const authenticationResource = state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? state.server.resource : '';
 	return JSON.stringify([requestId, invocation.toolCallId, phase, command, authenticationResource]);
 }
 
@@ -145,7 +146,7 @@ function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence):
 	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
 }
 
-function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, track?: (disposable: IDisposable) => void): IActivePendingToolOccurrence | undefined {
+function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore): IActivePendingToolOccurrence | undefined {
 	const semanticKey = pendingToolSemanticKey(requestId, invocation);
 	const current = pendingToolOccurrenceByPart.get(invocation);
 	if (!semanticKey) {
@@ -160,6 +161,7 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 	if (current) {
 		// The actionable command changed without a pending-state transition.
 		// Retire the old occurrence before publishing the refreshed card.
+		resolvePendingToolOccurrence(current);
 		releasePendingToolParticipant(invocation, current);
 	}
 
@@ -186,6 +188,7 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		if (pendingToolOccurrenceByPart.get(invocation) === trackedOccurrence) {
 			pendingToolOccurrenceByPart.delete(invocation);
 		}
+		store?.deleteAndLeak(tracking);
 		if (trackedOccurrence.participants.get(invocation) === tracking) {
 			trackedOccurrence.participants.delete(invocation);
 		}
@@ -207,7 +210,7 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		}
 	});
 	occurrence.participants.set(invocation, tracking);
-	track?.(tracking);
+	store?.add(tracking);
 	return occurrence;
 }
 
@@ -237,10 +240,10 @@ function fallbackPendingOccurrenceIdentity(part: object): object {
  */
 
 
-export function derivePendingId(requestId: string, part: object, track?: (disposable: IDisposable) => void): string {
+export function derivePendingId(requestId: string, part: object, store?: DisposableStore): string {
 	const invocation = part as Partial<IChatToolInvocation>;
 	if (invocation.kind === 'toolInvocation' && invocation.state) {
-		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, true, track);
+		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, true, store);
 		if (occurrence) {
 			return `${requestId}#${occurrence.token}`;
 		}
