@@ -194,8 +194,16 @@ export class AgentsWindow {
 					lastSeen = [];
 					for (let index = 0; index < rowCount; index++) {
 						const row = enabledRows.nth(index);
-						const text = (await row.textContent() ?? '').trim();
-						const ariaLabel = (await row.getAttribute('aria-label') ?? '').trim().toLowerCase();
+						const rowTimeout = Math.min(1_000, rowDeadline - Date.now());
+						if (rowTimeout <= 0) {
+							break;
+						}
+						const [textContent, ariaLabelAttribute] = await Promise.all([
+							row.textContent({ timeout: rowTimeout }),
+							row.getAttribute('aria-label', { timeout: rowTimeout }),
+						]);
+						const text = (textContent ?? '').trim();
+						const ariaLabel = (ariaLabelAttribute ?? '').trim().toLowerCase();
 						lastSeen.push(text);
 						if (ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && text.toLowerCase() === needle)) {
 							await row.click({ force: true, timeout: 5_000 });
