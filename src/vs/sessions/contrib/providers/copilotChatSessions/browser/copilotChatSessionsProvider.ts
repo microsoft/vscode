@@ -1459,7 +1459,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 }
 
 /**
- * Default sessions provider for Copilot CLI, Cloud, Claude, and Local session types.
+ * Default sessions provider for Copilot CLI, Cloud, and Claude session types.
  * Wraps the existing session infrastructure into the extensible provider model.
  */
 export class CopilotChatSessionsProvider extends Disposable implements ISessionsProvider {
@@ -3212,7 +3212,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				supportsDelete: this._sessionTypeSupportsDelete(primaryChat.sessionType),
 				// Cloud-agent sessions run worktreeCreated tasks server-side during
 				// environment provisioning, so the agents-window dispatcher must
-				// not re-run them. CLI / local sessions don't.
+				// not re-run them. Other session types don't.
 				runsWorktreeCreatedTasks: primaryChat.sessionType === CopilotCloudSessionType.id,
 			}),
 		};
