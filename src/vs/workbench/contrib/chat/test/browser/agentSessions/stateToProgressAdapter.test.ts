@@ -2385,6 +2385,7 @@ suite('stateToProgressAdapter', () => {
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'cat large-output.txt',
 				content: [
+					// TODO: Prefer shell_exit once the SDK exposes the saved output file path as structured data.
 					{ type: ToolResultContentType.Text, text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\nUse view with view_range to examine portions of the output.<shellId: 104 completed with exit code -1>' },
 					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: 'preview only\n', truncated: true } },
 				],
