@@ -133,8 +133,8 @@ export interface IIncrementalDiffOptions {
  *
  * When {@link incremental} is provided, only identities that were touched
  * by edits in the given turn are recomputed; all other identities reuse
- * the previous diff results. This avoids expensive content fetches and
- * diff computations for unchanged files.
+ * the previous diff results. Incremental computation does not support
+ * {@link IDiffFilterOptions}.
  *
  * Returns an {@link ISessionFileDiff} array with the "last known URI" for each
  * file and the total lines added/removed across the session.
@@ -146,6 +146,10 @@ export async function computeSessionDiffs(
 	incremental?: IIncrementalDiffOptions,
 	options?: IDiffFilterOptions,
 ): Promise<ISessionFileDiff[]> {
+	if (incremental && options) {
+		throw new Error('Incremental session diff computation does not support filtering.');
+	}
+
 	// Full mode (no incremental) is the single-source case of the unioned
 	// computation — delegate so the identity-graph + diff logic lives in one
 	// place and multi-chat sessions reuse the exact same code path.

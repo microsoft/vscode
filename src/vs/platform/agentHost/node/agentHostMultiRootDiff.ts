@@ -36,6 +36,12 @@ export interface IMultiRootDiffContext {
 	computeFallbackDiff(roots: readonly URI[]): Promise<readonly ISessionFileDiff[]>;
 }
 
+/** The aggregate diffs and availability outcome for the retained multi-root targets. */
+export interface IMultiRootDiffResult {
+	readonly diffs: readonly ISessionFileDiff[];
+	readonly outcome: 'complete' | 'partial' | 'failed';
+}
+
 /**
  * Computes parallel per-repository diffs with bounded targets and edit-tracker fallback.
  * Results are deduplicated by platform-aware file-resource identity.
@@ -43,7 +49,7 @@ export interface IMultiRootDiffContext {
 export async function computeDiffsAcrossWorkingDirectories(
 	workingDirectories: readonly URI[],
 	ctx: IMultiRootDiffContext,
-): Promise<readonly ISessionFileDiff[]> {
+): Promise<IMultiRootDiffResult> {
 	const resolved = await Promise.all(workingDirectories.map(async dir => {
 		try {
 			return { dir, repoRoot: await ctx.getRepositoryRoot(dir) };
@@ -78,6 +84,7 @@ export async function computeDiffsAcrossWorkingDirectories(
 	const fallbackRoots: URI[] = [];
 	const gitResults: ISessionFileDiff[] = [];
 	const gitTargets = effectiveTargets.filter((t): t is { kind: 'git'; repoRoot: URI } => t.kind === 'git');
+	let successfulTargetCount = 0;
 
 	await Promise.all(gitTargets.map(async ({ repoRoot }) => {
 		try {
@@ -87,6 +94,7 @@ export async function computeDiffsAcrossWorkingDirectories(
 				fallbackRoots.push(repoRoot);
 				return;
 			}
+			successfulTargetCount++;
 			gitResults.push(...diff);
 		} catch (err) {
 			ctx.logService.error(`[MultiRootDiff] Git diff failed for ${repoRoot.toString()} in ${ctx.session}: ${errText(err)}; falling back to edit-tracker.`);
@@ -104,6 +112,7 @@ export async function computeDiffsAcrossWorkingDirectories(
 	if (fallbackRoots.length > 0) {
 		try {
 			fallbackResults = await ctx.computeFallbackDiff(fallbackRoots);
+			successfulTargetCount += fallbackRoots.length;
 		} catch (err) {
 			ctx.logService.error(`[MultiRootDiff] Edit-tracker fallback failed for ${ctx.session} (${fallbackRoots.length} root(s)): ${errText(err)}.`);
 			fallbackResults = [];
@@ -122,7 +131,12 @@ export async function computeDiffsAcrossWorkingDirectories(
 			: id;
 		byId.set(key, diff);
 	}
-	return [...byId.values()];
+	const outcome: IMultiRootDiffResult['outcome'] = successfulTargetCount === effectiveTargets.length
+		? 'complete'
+		: successfulTargetCount > 0
+			? 'partial'
+			: 'failed';
+	return { diffs: [...byId.values()], outcome };
 }
 
 function errText(err: unknown): string {

@@ -28,7 +28,7 @@ import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataS
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationScope, ChangesetOperationStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -37,7 +37,8 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -787,6 +788,29 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, session, primary, secondary };
 		}
 
+		/**
+		 * Like {@link createDynamicWorkingDirectorySession}, but the session's
+		 * provider scheme is `copilotcli` (the only provider the Turn/Compare
+		 * operation-suppression policy applies to) and the initial working
+		 * directories are caller-controlled, so tests can start from either a
+		 * one-root or a multi-root session.
+		 */
+		async function createCopilotDynamicWorkingDirectorySession(
+			workingDirectories: readonly URI[] = [URI.file('/workspace/primary')],
+			gitService: IAgentHostGitService = createNoopGitService(),
+		): Promise<{ svc: AgentService; session: URI }> {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new DynamicWorkingDirectoryAgent('copilotcli');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({
+				provider: agent.id,
+				workingDirectories: [...workingDirectories],
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/demo.code-workspace').toString() }),
+			});
+			return { svc, session };
+		}
+
 		test('rejects working-directory mutations from non-Editor clients', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -964,6 +988,79 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				rejected: false,
 				confirmed: [secondary.toString()],
+			});
+		});
+
+		test('refreshes subscribed Turn/Compare operations for a copilotcli session only after the root-set mutation is applied to state', async () => {
+			const primary = URI.file('/workspace/primary');
+			const { svc, session } = await createCopilotDynamicWorkingDirectorySession([primary]);
+
+			const turnUri = buildTurnChangesetUri(session.toString(), 'turn-1');
+			const compareUri = buildCompareTurnsChangesetUri(session.toString(), 'turn-1', 'turn-2');
+			svc.stateManager.registerChangeset(turnUri);
+			svc.stateManager.registerChangeset(compareUri);
+			const idleOp = { id: 'op', label: 'Op', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle };
+			svc.stateManager.dispatchServerAction(turnUri, { type: ActionType.ChangesetOperationsChanged, operations: [idleOp] });
+			svc.stateManager.dispatchServerAction(compareUri, { type: ActionType.ChangesetOperationsChanged, operations: [idleOp] });
+			// Establishes the subscription the same way a real client does, via
+			// the public `subscribe` -> `addSubscriber` -> `onFirstSubscriber` path.
+			await svc.subscribe(URI.parse(turnUri), 'test-client');
+			await svc.subscribe(URI.parse(compareUri), 'test-client');
+
+			const added = URI.file('/workspace/added');
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: added.toString(),
+			}, 'test-client', 1, AgentHostClientType.EditorWindow);
+
+			assert.deepStrictEqual({
+				workingDirectories: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+				turnOperations: svc.stateManager.getChangesetState(turnUri)?.operations,
+				compareOperations: svc.stateManager.getChangesetState(compareUri)?.operations,
+			}, {
+				workingDirectories: [primary.toString(), added.toString()],
+				turnOperations: [],
+				compareOperations: [],
+			});
+		});
+
+		test('does not refresh Turn operations for a rejected or an idempotent accepted working-directory action', async () => {
+			const primary = URI.file('/workspace/primary');
+			const secondary = URI.file('/workspace/secondary');
+			const { svc, session } = await createCopilotDynamicWorkingDirectorySession([primary, secondary]);
+
+			const turnUri = buildTurnChangesetUri(session.toString(), 'turn-1');
+			svc.stateManager.registerChangeset(turnUri);
+			const idleOp = { id: 'op', label: 'Op', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle };
+			// Seed a stale Idle operation, exactly as it would still read if
+			// this (already two-root) session had never triggered a refresh:
+			// neither mutation below actually crosses the boundary, so a
+			// correct implementation never touches it.
+			svc.stateManager.dispatchServerAction(turnUri, { type: ActionType.ChangesetOperationsChanged, operations: [idleOp] });
+			await svc.subscribe(URI.parse(turnUri), 'test-client');
+
+			// Rejected: working-directory actions require an Editor Window client.
+			const rejectedEnvelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+			const rejectedEnvelope = await rejectedEnvelopePromise;
+
+			// Accepted but idempotent: `primary` is already the first entry.
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: primary.toString(),
+			}, 'test-client', 2, AgentHostClientType.EditorWindow);
+
+			assert.deepStrictEqual({
+				rejected: !!rejectedEnvelope.rejectionReason,
+				workingDirectories: svc.stateManager.getSessionState(session.toString())?.workingDirectories,
+				turnOperations: svc.stateManager.getChangesetState(turnUri)?.operations,
+			}, {
+				rejected: true,
+				workingDirectories: [primary.toString(), secondary.toString()],
+				turnOperations: [idleOp],
 			});
 		});
 

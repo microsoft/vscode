@@ -10,7 +10,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
-import { buildCompareTurnsChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
@@ -283,6 +283,180 @@ suite('AgentHostChangesetOperationService', () => {
 		}, {
 			singleFolderCopilot: ['op'],
 			multiFolderNonCopilot: ['op'],
+		});
+	});
+
+	test('rejects invoking a stale Turn operation once a Copilot session becomes multi-root, without calling the handler', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'copilotcli:/session';
+		stateManager.createSession({
+			resource: sessionKey, provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repoA'],
+		});
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+
+		const service = createService(stateManager);
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		// The session becomes multi-root *after* the operation was published,
+		// simulating a missed/delayed `updateOperations` refresh: the cached
+		// operation is still advertised as Idle even though invocation must
+		// now be rejected.
+		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+
+		const error = await service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId }).then(undefined, error => error);
+
+		assert.match(error.message, /multiple working directories/);
+		assert.strictEqual(handler.calls, 0);
+		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Idle);
+	});
+
+	test('rejects invoking a stale Compare operation once a Copilot session becomes multi-root, without calling the handler', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'copilotcli:/session';
+		stateManager.createSession({
+			resource: sessionKey, provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repoA'],
+		});
+		const changesetUri = buildCompareTurnsChangesetUri(sessionKey, 'turn-1', 'turn-2');
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+
+		const service = createService(stateManager);
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+
+		const error = await service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId }).then(undefined, error => error);
+
+		assert.match(error.message, /multiple working directories/);
+		assert.strictEqual(handler.calls, 0);
+	});
+
+	test('rejects a duplicate invocation racing a multi-root transition instead of joining the in-flight operation, and keeps rejecting after the original completes', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'copilotcli:/session';
+		stateManager.createSession({
+			resource: sessionKey, provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repoA'],
+		});
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+
+		const service = createService(stateManager);
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const params = { channel: changesetUri, operationId: testOperationId };
+		const first = service.invokeChangesetOperation(params);
+		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Running);
+
+		// Transition to multi-root while the first invocation is still in flight.
+		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+
+		const duplicateError = await service.invokeChangesetOperation(params).then(undefined, error => error);
+		assert.match(duplicateError.message, /multiple working directories/);
+
+		// The original (pre-transition) invocation still completes normally --
+		// its final status dispatch resets the advertised status back to Idle
+		// -- but that must not let a *later* invocation bypass the guard.
+		handler.complete({ message: { markdown: 'Committed' } });
+		await first;
+		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Idle);
+
+		const laterError = await service.invokeChangesetOperation(params).then(undefined, error => error);
+
+		assert.strictEqual(handler.calls, 1);
+		assert.match(laterError.message, /multiple working directories/);
+	});
+
+	test('keeps Branch/Uncommitted operations invokable across the same one-root -> multi-root transition that suppresses Turn/Compare', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'copilotcli:/session';
+		stateManager.createSession({
+			resource: sessionKey, provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repoA'],
+		});
+		const branchUri = buildBranchChangesetUri(sessionKey);
+		const uncommittedUri = buildUncommittedChangesetUri(sessionKey);
+		stateManager.registerChangeset(branchUri);
+		stateManager.registerChangeset(uncommittedUri);
+		for (const uri of [branchUri, uncommittedUri]) {
+			stateManager.dispatchServerAction(uri, {
+				type: ActionType.ChangesetOperationsChanged,
+				operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+			});
+		}
+
+		const service = createService(stateManager);
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		// Cross the same one-root -> multi-root boundary that suppresses Turn/Compare.
+		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+
+		const branchInvocation = service.invokeChangesetOperation({ channel: branchUri, operationId: testOperationId });
+		const uncommittedInvocation = service.invokeChangesetOperation({ channel: uncommittedUri, operationId: testOperationId });
+		handler.complete({ message: { markdown: 'Committed' } });
+		await Promise.all([branchInvocation, uncommittedInvocation]);
+
+		assert.strictEqual(handler.calls, 2);
+	});
+
+	test('clears subscribed Turn/Compare operations for a multi-root Copilot session even when no Git state is cached', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'copilotcli:/multi';
+		stateManager.createSession({
+			resource: sessionKey, provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repoA', 'file:///repoB'],
+		});
+		const turnUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		const compareUri = buildCompareTurnsChangesetUri(sessionKey, 'turn-1', 'turn-2');
+		const uncommittedUri = buildUncommittedChangesetUri(sessionKey);
+		stateManager.registerChangeset(turnUri);
+		stateManager.registerChangeset(compareUri);
+		stateManager.registerChangeset(uncommittedUri);
+
+		const subscriptions = new AgentHostChangesetSubscriptionService();
+		subscriptions.addSubscription(sessionKey, turnUri);
+		subscriptions.addSubscription(sessionKey, compareUri);
+		subscriptions.addSubscription(sessionKey, uncommittedUri);
+
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions));
+		disposables.add(service.registerContribution(new AlwaysOpContribution()));
+
+		// No Git state has ever been set on the session (`_meta` has no git key).
+		service.updateOperations(sessionKey);
+
+		assert.deepStrictEqual({
+			turn: stateManager.getChangesetState(turnUri)?.operations,
+			compare: stateManager.getChangesetState(compareUri)?.operations,
+			// Unsuppressed (Uncommitted is never Turn/Compare-suppressed) but
+			// with no Git state available, so left untouched (never published).
+			uncommitted: stateManager.getChangesetState(uncommittedUri)?.operations,
+		}, {
+			turn: [],
+			compare: [],
+			uncommitted: undefined,
 		});
 	});
 });

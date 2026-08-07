@@ -680,7 +680,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			},
 			computeFallbackDiff: roots => computeTurnDiffs(session, db, this._diffComputeService, turnId, { includeUnder: roots }),
 		};
-		return computeDiffsAcrossWorkingDirectories(dirs, ctx);
+		const result = await computeDiffsAcrossWorkingDirectories(dirs, ctx);
+		return result.diffs;
 	}
 
 	private async _resolveWorkingDirectory(session: ProtocolURI): Promise<URI | undefined> {
@@ -809,7 +810,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				: computeSessionFileDiffsAgainstDefaultBranch(this._gitService, repoRoot, session),
 			computeFallbackDiff: roots => computeUnionedDiffs([{ sessionUri: session, db }], this._diffComputeService, { includeUnder: roots }),
 		};
-		const [primaryDiffs, aggregate, reviewed] = await Promise.all([
+		const [primaryDiffs, aggregateResult, reviewed] = await Promise.all([
 			primaryDiffsPromise,
 			computeDiffsAcrossWorkingDirectories(dirs, ctx),
 			this._computeReviewedInfo(session, db),
@@ -824,7 +825,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 		}
 
-		const changesSummary = summariseDiffs(aggregate) ?? { additions: 0, deletions: 0, files: 0 };
+		if (aggregateResult.outcome === 'failed') {
+			this._logService.debug(`[AgentHostChangesetService] Multi-folder summary computation failed for ${session}; preserving cached summary data.`);
+			return;
+		}
+
+		const changesSummary = summariseDiffs(aggregateResult.diffs) ?? { additions: 0, deletions: 0, files: 0 };
 		this.persistChangesSummary(session, changesSummary);
 		this._stateManager.setSessionSummaryChanges(session, changesSummary);
 	}

@@ -654,6 +654,21 @@ suite('diff aggregators — includeUnder filter', () => {
 		assert.deepStrictEqual(result.map(getDiffUri), [URI.file('/repoA/x.ts').toString()]);
 	});
 
+	test('computeSessionDiffs rejects filtering in incremental mode', async () => {
+		const db = new TestSessionDatabase();
+
+		await assert.rejects(
+			computeSessionDiffs(
+				TEST_SESSION_URI,
+				db,
+				createTestDiffService(),
+				{ changedTurnId: 't1', previousDiffs: [] },
+				{ includeUnder: [URI.file('/repoA')] },
+			),
+			/Incremental session diff computation does not support filtering/,
+		);
+	});
+
 	test('computeUnionedDiffs applies includeUnder across sources', async () => {
 		const db = new TestSessionDatabase();
 		addEdit(db, 't1', '/repoA/x.ts');

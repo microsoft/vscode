@@ -2646,6 +2646,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType: AgentHostClientType): void {
 		const origin = { clientId, clientSeq };
+		let previousWorkingDirectories: readonly string[] | undefined;
+		let didAcceptWorkingDirectoryAction = false;
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientType !== AgentHostClientType.EditorWindow) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window client.');
@@ -2656,13 +2658,20 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			try {
+				previousWorkingDirectories = this._stateManager.getSessionState(sessionChannel)?.workingDirectories;
 				action = this._prepareWorkingDirectoryAction(sessionChannel, action);
+				didAcceptWorkingDirectoryAction = true;
 			} catch (error) {
 				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
 				return;
 			}
 		}
 		this._stateManager.dispatchClientAction(channel, action, origin);
+		if (didAcceptWorkingDirectoryAction) {
+			// Refresh after dispatch so operation policy reads the new root set.
+			const currentWorkingDirectories = this._stateManager.getSessionState(sessionChannel)?.workingDirectories;
+			this._changesetCoordinator.onWorkingDirectoriesChanged(sessionChannel, previousWorkingDirectories, currentWorkingDirectories);
+		}
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
