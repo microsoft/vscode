@@ -769,8 +769,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			layingOut = true;
 			try {
 				for (const row of getDescendantElements(list, 'monaco-list-row')) {
-					const hasConfirmation = getDescendantElements(row, 'chat-confirmation-widget-container').length > 0;
+					const confirmations = getDescendantElements(row, 'chat-confirmation-widget-container');
+					const hasConfirmation = confirmations.length > 0;
 					row.classList.toggle('chat-input-window-confirmation-row', hasConfirmation);
+					for (const confirmation of confirmations) {
+						confirmation.classList.toggle(
+							'chat-input-window-modified-files-confirmation',
+							getDescendantElements(confirmation, 'chat-modified-files-confirmation').length > 0,
+						);
+					}
 					for (const value of getDescendantElements(row, 'value')) {
 						value.classList.toggle('chat-input-window-confirmation-value', hasConfirmation);
 					}
@@ -856,7 +863,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				lastActivatedApproval = undefined;
 				this._activePendingSessionResource = undefined;
 				this._voiceConfirmationPending.set(false, undefined);
-				panel.classList.remove('shown', 'question', 'tool-approval-fallback', 'modified-files-confirmation');
+				panel.classList.remove('shown', 'question', 'tool-approval-fallback');
 				widget.setModel(undefined);
 				this._fitWindowToContent();
 				return;
@@ -882,7 +889,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-fallback', !hasPendingQuestion && !!pendingApproval);
-			panel.classList.toggle('modified-files-confirmation', this._hasPendingModifiedFilesConfirmation(model));
 			const hasMultiple = pendingModels.length > 1;
 			const title = model.title || localize('chatInputWindow.pending.untitledSource', "Chat");
 			label.textContent = hasMultiple
@@ -1000,17 +1006,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _hasPendingQuestion(model: IChatModel): boolean {
 		return model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed) ?? false;
-	}
-
-	private _hasPendingModifiedFilesConfirmation(model: IChatModel): boolean {
-		return model.lastRequest?.response?.response.value.some(part => {
-			if (part.kind !== 'toolInvocation' || part.toolSpecificData?.kind !== 'modifiedFilesConfirmation') {
-				return false;
-			}
-			const state = part.state.get();
-			return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
-				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
-		}) ?? false;
 	}
 
 	private _hasOnlyResolvedPendingTools(model: IChatModel, reader: IReader): boolean {
