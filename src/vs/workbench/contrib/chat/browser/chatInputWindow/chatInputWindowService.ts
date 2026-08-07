@@ -238,6 +238,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		this._window = auxiliaryWindow;
 		this._auxiliaryWindowRef.value = auxiliaryWindow;
+		this.voiceSessionController.setOmniInputOpen(true);
 
 		const workspace = this.workspaceContextService.getWorkspace();
 		const projectName = workspace.folders.length > 0 ? workspace.folders[0].name : '';
@@ -1038,6 +1039,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _disposeWidget(): void {
+		this.voiceSessionController.setOmniInputOpen(false);
 		this.voiceSessionController.setOmniInputActive(false);
 		this._routingController = undefined;
 		this._widget = undefined;
