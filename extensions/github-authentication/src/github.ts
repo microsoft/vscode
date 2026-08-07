@@ -283,7 +283,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			let userInfo: { id: string; accountName: string } | undefined;
+			let userInfo: { id: string; accountName: string; avatarUrl?: string } | undefined;
 			if (!session.account) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
@@ -314,7 +314,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 					label: session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
 						: userInfo?.accountName ?? '<unknown>',
-					id: accountId
+					id: accountId,
+					avatarUrl: userInfo?.avatarUrl ?? `https://avatars.githubusercontent.com/u/${accountId}?v=4`
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
@@ -412,7 +413,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return {
 			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
-			account: { label: userInfo.accountName, id: userInfo.id },
+			account: { label: userInfo.accountName, id: userInfo.id, avatarUrl: userInfo.avatarUrl },
 			scopes
 		};
 	}

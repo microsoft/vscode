@@ -21,7 +21,7 @@ const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 export interface IGitHubServer {
 	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
-	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
+	getUserInfo(token: string): Promise<{ id: string; accountName: string; avatarUrl?: string }>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 	friendlyName: string;
 }
@@ -217,7 +217,7 @@ export class GitHubServer implements IGitHubServer {
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
-	public async getUserInfo(token: string): Promise<{ id: string; accountName: string }> {
+	public async getUserInfo(token: string): Promise<{ id: string; accountName: string; avatarUrl?: string }> {
 		let result;
 		try {
 			this._logger.info('Getting user info...');
@@ -237,9 +237,9 @@ export class GitHubServer implements IGitHubServer {
 
 		if (result.ok) {
 			try {
-				const json = await result.json() as { id: number; login: string };
+				const json = await result.json() as { id: number; login: string; avatar_url?: string };
 				this._logger.info('Got account info!');
-				return { id: `${json.id}`, accountName: json.login };
+				return { id: `${json.id}`, accountName: json.login, avatarUrl: json.avatar_url };
 			} catch (e) {
 				this._logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
 				throw e;
