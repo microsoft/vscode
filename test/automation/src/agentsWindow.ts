@@ -642,6 +642,112 @@ export class AgentsWindow {
 	}
 
 	/**
+	 * Returns the model currently selected in the active session's model picker.
+	 * Reads the picker name button's accessible name (aria-label, e.g.
+	 * "Models, <modelName>") because at a narrow width the button collapses to an
+	 * icon-only layout with no visible model name. The leading "Models," group
+	 * label is stripped so the caller gets just the model name.
+	 */
+	async getSelectedModelName(timeoutMs: number = 30_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const nameButton = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`).first();
+		await nameButton.waitFor({ state: 'visible', timeout: timeoutMs });
+		const label = (await nameButton.getAttribute('aria-label')) ?? '';
+		return label.replace(/^\s*Models,\s*/i, '').trim();
+	}
+
+	/**
+	 * Waits until the active session's model picker reflects a selected model
+	 * whose name contains `modelName` (matched against the picker name button's
+	 * aria-label). Use to assert a model was restored after switching into a
+	 * session, which happens asynchronously as the model list loads.
+	 */
+	async waitForSelectedModel(modelName: string, timeoutMs: number = 30_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`).first()
+			.waitFor({ state: 'visible', timeout: timeoutMs });
+	}
+
+	/**
+	 * Selects the first non-default (non-"Auto") model offered by the active
+	 * session's model picker and returns its display name. Use when the exact set
+	 * of models a session type advertises is not known ahead of time (e.g. the
+	 * Local Agent Host / Copilot CLI pool is populated at runtime by the backend),
+	 * so a test cannot hard-code a model name.
+	 *
+	 * Robust against the `context-view-pointerBlock` overlay a prior picker (e.g.
+	 * the session-type dropdown) can leave animating over the model picker: it
+	 * dismisses lingering overlays before opening and force-clicks past the block,
+	 * retrying until a model commits or `timeoutMs` elapses.
+	 */
+	async selectFirstNonDefaultModel(timeoutMs: number = 60_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const nameButton = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			try {
+				// Dismiss any lingering action-widget / context-view overlay (e.g. from
+				// the session-type picker) whose pointer-block would otherwise intercept
+				// the open click for the full click timeout.
+				await this.dismissContextView();
+				await nameButton.click({ force: true });
+				await this.code.waitForElement(ACTION_WIDGET);
+
+				const rows = page.locator(`${ACTION_WIDGET_ROW}:visible`);
+				const count = await rows.count();
+				let chosenRow: ReturnType<typeof rows.nth> | undefined;
+				for (let i = 0; i < count; i++) {
+					const row = rows.nth(i);
+					const text = ((await row.textContent()) ?? '').replace(/\s+/g, ' ').trim();
+					// Skip the synthetic "Auto" model and empty rows; pick the first real model.
+					if (text && !/^auto\b/i.test(text)) {
+						chosenRow = row;
+						break;
+					}
+				}
+				if (!chosenRow) {
+					throw new Error('no non-default model row found in the model picker');
+				}
+				// `force` bypasses the transient `context-view-pointerBlock` overlay.
+				await chosenRow.click({ force: true });
+
+				// Confirm the selection committed: the picker name button must move off
+				// "Auto" to the chosen model.
+				const commitDeadline = Date.now() + 10_000;
+				while (Date.now() < commitDeadline) {
+					const name = await this.getSelectedModelName();
+					if (name && !/^auto\b/i.test(name)) {
+						return name;
+					}
+					await new Promise(r => setTimeout(r, 250));
+				}
+				throw new Error('model selection did not commit (picker still shows Auto)');
+			} catch (error) {
+				lastError = error;
+				try { await page.keyboard.press('Escape'); } catch { /* dropdown already gone */ }
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out selecting a non-default model in the active session picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Dismiss any open action-widget / context-view popup and wait for its
+	 * animating `context-view-pointerBlock` overlay to detach, so a subsequent
+	 * click is not intercepted. Best-effort: never throws.
+	 */
+	private async dismissContextView(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.keyboard.press('Escape').catch(() => { /* nothing open */ });
+		await page.mouse.move(0, 0).catch(() => { /* no page */ });
+		await page.locator('.context-view-pointerBlock').first()
+			.waitFor({ state: 'detached', timeout: 3_000 })
+			.catch(() => { /* already gone or never present */ });
+	}
+
+	/**
 	 * Open the combined model configuration dropdown (Thinking Effort / Context
 	 * Size) by clicking the active session model picker's configuration button.
 	 * The button is only visible when the selected model advertises configurable

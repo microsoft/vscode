@@ -471,6 +471,19 @@ const ALL_MODELS: MockModel[] = [
 	...EXTRA_MODELS,
 ];
 
+/**
+ * Ids of models currently HIDDEN from the advertised model list, so a test can
+ * simulate a model becoming temporarily unavailable (e.g. after a window
+ * reload) and later available again. Mutated over the wire via
+ * `POST /_control/models`; reset to empty each time a server starts.
+ */
+let hiddenModelIds = new Set<string>();
+
+/** The advertised model list with any {@link hiddenModelIds} filtered out. */
+function getVisibleModels(): MockModel[] {
+	return hiddenModelIds.size === 0 ? ALL_MODELS : ALL_MODELS.filter(m => !hiddenModelIds.has(m.id));
+}
+
 function makeChunk(content: string, index: number, finish: boolean) {
 	return {
 		id: 'chatcmpl-perf-benchmark',
@@ -665,6 +678,24 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	// -- Health -------------------------------------------------------
 	if (path === '/health') { res.writeHead(200); res.end('ok'); return; }
 
+	// -- Test control: mutate the advertised model list ---------------
+	// POST /_control/models  { hidden: string[] }  → hide (or re-show) models so a
+	// test can simulate a model becoming temporarily unavailable across a window
+	// reload and later available again. The value persists in-process, so a client
+	// that reloads and re-fetches `/models` sees the updated set.
+	if (path === '/_control/models' && req.method === 'POST') {
+		readBody().then(body => {
+			try {
+				const parsed = body ? JSON.parse(body) : {};
+				hiddenModelIds = new Set(Array.isArray(parsed.hidden) ? parsed.hidden : []);
+				json(200, { hidden: [...hiddenModelIds] });
+			} catch (e) {
+				json(400, { error: String(e) });
+			}
+		});
+		return;
+	}
+
 	// -- Token endpoints (DomainService.tokenURL / tokenNoAuthURL) ----
 	// /copilot_internal/v2/token, /copilot_internal/v2/nltoken
 	if (path.startsWith('/copilot_internal/')) {
@@ -705,7 +736,7 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	if (path === '/models/session' && req.method === 'POST') {
 		readBody().then(() => {
 			json(200, {
-				available_models: [MODEL, 'gpt-4o-mini', ...EXTRA_MODELS.map(m => m.id)],
+				available_models: getVisibleModels().map(m => m.id),
 				selected_model: 'gpt-5.3-codex',
 				session_token: 'perf-session-token-' + Date.now(),
 				expires_at: Math.floor(Date.now() / 1000) + 3600,
@@ -717,7 +748,7 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 
 	// -- Models (DomainService.capiModelsURL = /models) --------------
 	if (path === '/models' && req.method === 'GET') {
-		json(200, { data: ALL_MODELS });
+		json(200, { data: getVisibleModels() });
 		return;
 	}
 
@@ -728,7 +759,7 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 			json(200, { state: 'accepted', terms: '' });
 			return;
 		}
-		const knownModel = ALL_MODELS.find(m => m.id === modelId);
+		const knownModel = getVisibleModels().find(m => m.id === modelId);
 		// TODO: give a 404 for unknown models instead of a fallback response. This requires
 		const result = knownModel || {
 			id: modelId || MODEL,
@@ -1881,6 +1912,9 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 	return new Promise((resolve, reject) => {
 		let reqCount = 0;
 		let completions = 0;
+		// Start each server with a clean (fully-visible) model list; `hiddenModelIds`
+		// is module-level state so reset it so a prior suite's set can't leak in.
+		hiddenModelIds = new Set<string>();
 		let requestWaiters: Array<() => boolean> = [];
 		let completionWaiters: Array<() => boolean> = [];
 

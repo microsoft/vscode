@@ -304,6 +304,35 @@ export class Chat {
 	}
 
 	/**
+	 * Returns the model currently selected in the panel chat model picker.
+	 *
+	 * Reads the picker name button's accessible name (aria-label, e.g.
+	 * "Models, <modelName>") rather than its visible text, because at a narrow
+	 * input width the picker collapses to an icon-only layout with no visible
+	 * model name. The leading "Models," group label is stripped so the caller
+	 * gets just the model name (e.g. "Auto", "Mock Config Model").
+	 */
+	async getSelectedModelName(timeoutMs: number = 30_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const nameButton = page.locator(`${CHAT_MODEL_PICKER_NAME}:visible`).first();
+		await nameButton.waitFor({ state: 'visible', timeout: timeoutMs });
+		const label = (await nameButton.getAttribute('aria-label')) ?? '';
+		return label.replace(/^\s*Models,\s*/i, '').trim();
+	}
+
+	/**
+	 * Waits until the panel chat model picker reflects a selected model whose
+	 * name contains `modelName` (matched against the picker name button's
+	 * aria-label). Use to assert a model was restored after a window reload or a
+	 * new chat, which happens asynchronously as the model list loads.
+	 */
+	async waitForSelectedModel(modelName: string, timeoutMs: number = 30_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(`${CHAT_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`).first()
+			.waitFor({ state: 'visible', timeout: timeoutMs });
+	}
+
+	/**
 	 * Widens the panel chat (its host auxiliary bar) until the model picker leaves
 	 * its width-driven compact layout, i.e. until the inline model-config button
 	 * renders. At the auxiliary bar's default width the picker collapses to an
