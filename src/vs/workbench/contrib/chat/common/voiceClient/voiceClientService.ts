@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
 
@@ -58,22 +61,132 @@ export interface IVoiceSessionPending {
  * be submitted against another.
  *
  * Most parts use their own object identity. Tool invocations are different: the
- * agent host can re-arm the same tool card for another approval, so their
- * current confirmation/cancellation callback identifies the occurrence. Those
- * callbacks survive cosmetic state clones but change whenever the tool actually
- * enters a new pending state. Entries are weakly held, so they die with the
- * model.
+ * agent host can update or rehydrate one tool card while its approval stays
+ * pending, and callbacks are implementation details that can be recreated (or
+ * retained too long). Tool occurrences therefore use a semantic key plus a
+ * timestamped token, tracked below until every copy of that occurrence leaves
+ * its pending state.
  */
 const pendingOccurrenceTokens = new WeakMap<object, string>();
 let pendingOccurrenceCounter = 0;
 
-/** Return the identity of the currently actionable occurrence represented by a response part. */
-function pendingOccurrenceIdentity(part: object): object {
+interface IActivePendingToolOccurrence {
+	readonly semanticKey: string;
+	readonly token: string;
+	readonly participants: Map<IChatToolInvocation, IDisposable>;
+}
+
+const activePendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
+const pendingToolOccurrenceByPart = new WeakMap<IChatToolInvocation, IActivePendingToolOccurrence>();
+
+function isPendingToolState(state: IChatToolInvocation.State): boolean {
+	return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+		|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+		|| state.type === IChatToolInvocation.StateKind.WaitingForAuthentication;
+}
+
+/** The command currently presented for a tool approval, if it has one. */
+export function getVoiceToolApprovalCommand(invocation: IChatToolInvocation, includeParameters = true): string | undefined {
+	const terminalData = invocation.toolSpecificData;
+	let command: string | undefined;
+	if (terminalData?.kind === 'terminal') {
+		command = hasKey(terminalData, { commandLine: true })
+			? terminalData.presentationOverrides?.commandLine
+				?? terminalData.confirmation?.commandLine
+				?? terminalData.commandLine.toolEdited
+				?? terminalData.commandLine.original
+			: terminalData.command;
+	}
+	if (!command && includeParameters) {
+		const state = invocation.state.get();
+		const parameters = 'parameters' in state ? state.parameters as Record<string, unknown> | undefined : undefined;
+		const parameterCommand = parameters?.['command'] ?? parameters?.['input'];
+		command = typeof parameterCommand === 'string' ? parameterCommand : undefined;
+	}
+	return command?.trim() || undefined;
+}
+
+function pendingToolSemanticKey(requestId: string, invocation: IChatToolInvocation): string | undefined {
+	const state = invocation.state.get();
+	if (!isPendingToolState(state) || !invocation.toolCallId) {
+		return undefined;
+	}
+	const phase = state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+		? 'post'
+		: state.type === IChatToolInvocation.StateKind.WaitingForAuthentication
+			? 'authentication'
+			: 'pre';
+	const command = getVoiceToolApprovalCommand(invocation)?.replace(/\s+/g, ' ') ?? '';
+	const authenticationResource = state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? state.server.id : '';
+	return JSON.stringify([requestId, invocation.toolCallId, phase, command, authenticationResource]);
+}
+
+function releasePendingToolParticipant(invocation: IChatToolInvocation, occurrence: IActivePendingToolOccurrence): void {
+	occurrence.participants.get(invocation)?.dispose();
+}
+
+function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, track?: (disposable: IDisposable) => void): IActivePendingToolOccurrence | undefined {
+	const semanticKey = pendingToolSemanticKey(requestId, invocation);
+	const current = pendingToolOccurrenceByPart.get(invocation);
+	if (!semanticKey) {
+		if (current) {
+			releasePendingToolParticipant(invocation, current);
+		}
+		return undefined;
+	}
+	if (current?.semanticKey === semanticKey) {
+		return current;
+	}
+	if (current) {
+		// The actionable command changed without a pending-state transition.
+		// Retire the old occurrence before publishing the refreshed card.
+		releasePendingToolParticipant(invocation, current);
+	}
+
+	let occurrence = activePendingToolOccurrences.get(semanticKey);
+	if (!occurrence) {
+		if (!mint) {
+			return undefined;
+		}
+		occurrence = {
+			semanticKey,
+			token: `t${Date.now().toString(36)}-${++pendingOccurrenceCounter}`,
+			participants: new Map(),
+		};
+		activePendingToolOccurrences.set(semanticKey, occurrence);
+	}
+
+	pendingToolOccurrenceByPart.set(invocation, occurrence);
+	const trackedOccurrence = occurrence;
+	let observer: IDisposable | undefined;
+	const tracking = toDisposable(() => {
+		if (pendingToolOccurrenceByPart.get(invocation) === trackedOccurrence) {
+			pendingToolOccurrenceByPart.delete(invocation);
+		}
+		if (trackedOccurrence.participants.get(invocation) === tracking) {
+			trackedOccurrence.participants.delete(invocation);
+		}
+		if (trackedOccurrence.participants.size === 0 && activePendingToolOccurrences.get(trackedOccurrence.semanticKey) === trackedOccurrence) {
+			activePendingToolOccurrences.delete(trackedOccurrence.semanticKey);
+		}
+		observer?.dispose();
+	});
+	observer = autorun(reader => {
+		if (!isPendingToolState(invocation.state.read(reader))) {
+			tracking.dispose();
+		}
+	});
+	occurrence.participants.set(invocation, tracking);
+	track?.(tracking);
+	return occurrence;
+}
+
+/** Compatibility identity for incomplete/test invocation shapes without a protocol tool-call id. */
+function fallbackPendingOccurrenceIdentity(part: object): object {
 	const invocation = part as Partial<IChatToolInvocation>;
 	if (invocation.kind !== 'toolInvocation' || !invocation.state) {
 		return part;
 	}
-
 	const state = invocation.state.get();
 	if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
 		|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
@@ -94,12 +207,20 @@ function pendingOccurrenceIdentity(part: object): object {
  */
 
 
-export function derivePendingId(requestId: string, part: object): string {
-	const occurrence = pendingOccurrenceIdentity(part);
-	let token = pendingOccurrenceTokens.get(occurrence);
+export function derivePendingId(requestId: string, part: object, track?: (disposable: IDisposable) => void): string {
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind === 'toolInvocation' && invocation.state) {
+		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, true, track);
+		if (occurrence) {
+			return `${requestId}#${occurrence.token}`;
+		}
+	}
+
+	const fallbackIdentity = fallbackPendingOccurrenceIdentity(part);
+	let token = pendingOccurrenceTokens.get(fallbackIdentity);
 	if (token === undefined) {
 		token = `p${++pendingOccurrenceCounter}`;
-		pendingOccurrenceTokens.set(occurrence, token);
+		pendingOccurrenceTokens.set(fallbackIdentity, token);
 	}
 	return `${requestId}#${token}`;
 }
@@ -111,7 +232,14 @@ export function derivePendingId(requestId: string, part: object): string {
  * echoed id can only match the part it was issued for.
  */
 export function peekPendingId(requestId: string, part: object): string | undefined {
-	const token = pendingOccurrenceTokens.get(pendingOccurrenceIdentity(part));
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind === 'toolInvocation' && invocation.state) {
+		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, false);
+		if (occurrence) {
+			return `${requestId}#${occurrence.token}`;
+		}
+	}
+	const token = pendingOccurrenceTokens.get(fallbackPendingOccurrenceIdentity(part));
 	return token === undefined ? undefined : `${requestId}#${token}`;
 }
 

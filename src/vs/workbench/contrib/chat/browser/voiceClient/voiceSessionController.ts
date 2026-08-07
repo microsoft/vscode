@@ -22,7 +22,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
@@ -4522,7 +4522,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// their per-part occurrence id is what keeps debounce from collapsing that
 		// waiting -> thinking -> waiting burst into a false no-op.
 		const selected = this._selectPendingPart(this._modelForSession(sessionId));
-		return selected ? derivePendingId(selected.requestId, selected.part) : '';
+		return selected ? derivePendingId(selected.requestId, selected.part, disposable => this._register(disposable)) : '';
 	}
 
 	/**
@@ -6668,6 +6668,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const title = this._visibleConfirmationText(messages?.title) || this._visibleConfirmationText(toolInvocation.invocationMessage);
 		const message = this._visibleConfirmationText(messages?.message);
 		const lines = [localize('voice.toolConfirmation.title', "tool approval: {0}", title || message || fallback)];
+		// Only narrate a command the UI explicitly presents. Parameters can carry
+		// hidden/internal values that must remain identity-only.
+		const command = getVoiceToolApprovalCommand(toolInvocation, false);
+		if (command) {
+			lines.push(localize('voice.toolConfirmation.command', "command: {0}", command));
+		}
 		if (message && message !== title) {
 			lines.push(message);
 		}
@@ -6838,7 +6844,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return undefined;
 		}
 		const { requestId, type, part } = selected;
-		const routing = () => ({ pending_id: derivePendingId(requestId, part), request_id: requestId });
+		const routing = () => ({ pending_id: derivePendingId(requestId, part, disposable => this._register(disposable)), request_id: requestId });
 		if (type === 'questionnaire' && part.kind === 'questionCarousel') {
 			const carousel = part as IChatQuestionCarousel;
 			if (carousel.answeredExternally || carousel.questions.length === 0) {
