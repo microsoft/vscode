@@ -21,7 +21,7 @@ export interface NativeMpcDiscoveryAdapter {
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined>;
 }
 
-export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, cwd?: URI) {
+export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer) {
 	let parsed: {
 		mcpServers: Record<string, {
 			command: string;
@@ -49,7 +49,7 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 			command: server.command,
 			env: server.env || {},
 			envFile: undefined,
-			cwd: cwd?.fsPath,
+			cwd: undefined,
 			sandbox: undefined
 		};
 
@@ -83,8 +83,8 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 		}
 	}
 
-	adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
-		return claudeConfigToServerDefinition(this.id, contents, homedir);
+	adaptFile(contents: VSBuffer): Promise<McpServerDefinition[] | undefined> {
+		return claudeConfigToServerDefinition(this.id, contents);
 	}
 }
 
