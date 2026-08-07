@@ -33,7 +33,7 @@ import { ActionType, type AuthRequiredParams } from '../../common/state/sessionA
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isSubagentSession, parseSubagentSessionUri, isDefaultChatUri, ChatInputResponseKind, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, ChatInputResponseKind, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -1700,7 +1700,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	private _getSourceChatState(session: URI, chatUri: URI): ChatState | undefined {
-		if (isDefaultChatUri(chatUri) || chatUri.toString() === session.toString()) {
+		// A bare session URI is the legacy address for its default chat.
+		if (chatUri.toString() === session.toString()) {
 			return this._stateManager.getDefaultChatState(session.toString());
 		}
 		return this._stateManager.getChatState(chatUri.toString());
