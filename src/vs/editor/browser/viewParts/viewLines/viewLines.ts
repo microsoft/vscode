@@ -724,10 +724,13 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		if (!shouldIgnoreScrollOff) {
 			const maxLinesInViewport = (viewportHeight / this._lineHeight);
-			const surroundingLines = Math.max(this._cursorSurroundingLines, this._stickyScrollEnabled ? this._maxNumberStickyLines : 0);
-			const context = Math.min(maxLinesInViewport / 2, surroundingLines);
-			paddingTop = context * this._lineHeight;
-			paddingBottom = Math.max(0, (context - 1)) * this._lineHeight;
+			const surroundingLinesTop = Math.max(this._cursorSurroundingLines, this._stickyScrollEnabled ? this._maxNumberStickyLines : 0);
+			const surroundingLinesBottom = Math.max(this._cursorSurroundingLines, 0);
+			const contextTop = Math.min(maxLinesInViewport / 2, surroundingLinesTop);
+			const contextBottom = Math.min(maxLinesInViewport / 2, surroundingLinesBottom);
+			paddingTop = contextTop * this._lineHeight;
+			paddingBottom = Math.max(0, (contextBottom - 1)) * this._lineHeight;
+
 		} else {
 			if (!minimalReveal) {
 				// Reveal one more line above (this case is hit when dragging)
