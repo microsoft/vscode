@@ -5711,50 +5711,41 @@ suite('ClaudeAgent — per-session provider', () => {
 		});
 	});
 
-	test('getProtectedResources marks Copilot optional only for a discovered BYO-Anthropic setup', async () => {
-		// Whether GitHub is *required* tracks what the user can run without it. No
-		// local Anthropic credential means every model the merged catalog can offer
-		// is Copilot-routed, so the resource stays strictly required and the window
-		// / session-type gates force sign-in. A discovered credential (here a real
-		// `~/.claude/settings.json` under a temp home, with the signed-out opt-in
-		// on) flips it to `required: false` so a signed-out user is let in. The
-		// resource is never dropped, so the silent token probe survives both ways.
-		const withoutSetup = createTestContext(disposables).agent.getProtectedResources();
+	test('the Copilot resource is optional only when the opt-in AND a BYO-Anthropic credential are both present', async () => {
+		// Full 2x2 so no single input can carry the result on its own: in
+		// particular `optInOnNoCredential` is the regression this guards — the
+		// requirement must survive the opt-in being on when the user has no
+		// Anthropic credential to run on.
+		const copilotRequired = (agent: ClaudeAgent) =>
+			agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required;
+		const optIn = { rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true } };
 		await withNativeSetup(async userHome => {
-			const { agent } = createTestContext(disposables, {
-				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
-				userHome,
-			});
 			assert.deepStrictEqual({
-				withoutSetup: withoutSetup.map(r => ({ resource: r.resource, required: r.required })),
-				withSetup: agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
+				optInOnNoCredential: copilotRequired(createTestContext(disposables, { ...optIn }).agent),
+				optInOnWithCredential: copilotRequired(createTestContext(disposables, { ...optIn, userHome }).agent),
+				optInOffWithCredential: copilotRequired(createTestContext(disposables, { userHome }).agent),
+				optInOffNoCredential: copilotRequired(createTestContext(disposables).agent),
 			}, {
-				withoutSetup: [
-					{ resource: 'https://api.github.com', required: true },
-					{ resource: 'https://api.github.com/repos', required: false },
-				],
-				withSetup: [
-					{ resource: 'https://api.github.com', required: false },
-					{ resource: 'https://api.github.com/repos', required: false },
-				],
+				optInOnNoCredential: true,
+				optInOnWithCredential: false,
+				optInOffWithCredential: true,
+				optInOffNoCredential: true,
 			});
 		});
 	});
 
-	test('getProtectedResources keeps Copilot required for a BYO-Anthropic setup while the opt-in is off', async () => {
-		// The `allowSignedOutWhenUsable` opt-in is the kill switch for the whole
-		// signed-out experience, so with it off a discovered credential must not
-		// lift the sign-in requirement — exactly as the host-default transport
-		// (`resolveClaudeTransportMode` rule 1) stays on the proxy.
+	test('the Copilot resource is advertised, never dropped, so the silent token probe survives', async () => {
+		// `authenticateProtectedResources` matches on `resource` and ignores
+		// `required`, so dropping it would break sign-in forwarding.
 		await withNativeSetup(async userHome => {
-			const { agent } = createTestContext(disposables, { userHome });
-			assert.deepStrictEqual(
-				agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
-				[
-					{ resource: 'https://api.github.com', required: true },
-					{ resource: 'https://api.github.com/repos', required: false },
-				],
-			);
+			const optional = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+				userHome,
+			}).agent.getProtectedResources();
+			assert.deepStrictEqual(optional.map(r => ({ resource: r.resource, required: r.required })), [
+				{ resource: 'https://api.github.com', required: false },
+				{ resource: 'https://api.github.com/repos', required: false },
+			]);
 		});
 	});
 

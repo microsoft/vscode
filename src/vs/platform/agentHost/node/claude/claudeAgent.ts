@@ -497,18 +497,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Can Claude run without GitHub right now? True only when the signed-out
-	 * opt-in is on AND the user has a BYO-Anthropic credential we can discover —
-	 * `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` in the process environment
-	 * or in the `env` block of `~/.claude/settings.json` (see
-	 * {@link detectExistingClaudeSetup}).
-	 *
-	 * Read live on every call — never cached — so a credential appearing (or the
-	 * opt-in being flipped) takes effect without restarting the host; the `&&`
-	 * short-circuit also keeps the settings-file read off the path entirely while
-	 * the opt-in is off. Sign-in state is deliberately NOT an input: whether
-	 * GitHub is *required* is a property of what the user can run without it, not
-	 * of whether they happen to be connected at this instant.
+	 * Whether Claude can run without GitHub right now: the signed-out opt-in is on
+	 * AND a BYO-Anthropic credential is discoverable (see
+	 * {@link detectExistingClaudeSetup}). Backs both the advertised requirement and
+	 * the model-less transport default so the two cannot disagree.
 	 */
 	private _hasUsableNativeSetup(): boolean {
 		return this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true
@@ -534,28 +526,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
-		// Is GitHub needed to use Claude at all? Only when the user has no
-		// Anthropic credential of their own. With a discovered BYO-Anthropic setup
-		// (see {@link _hasUsableNativeSetup}) the native half of the merged catalog
-		// runs on that credential alone, so Copilot is advertised optional
-		// (`required: false`); with none, every model the picker can offer is
-		// Copilot-routed, so it stays strictly required and sign-in is forced.
-		//
-		// The resource is *kept* in the list either way rather than dropped, which
-		// preserves the silent sign-in probe: `authenticateProtectedResources`
-		// matches on `resource` and ignores `required`, so an already-signed-in user
-		// still has a GitHub token forwarded (no prompt when signed out) and
-		// `authenticate()` still acquires the proxy handle that Copilot-routed
-		// models need.
-		//
-		// `required` is read only by `protectedResourcesRequireGitHubCopilotSignIn`
-		// — the window gate and the per-session-type gate, which check
-		// `required !== false`.
-		//
-		// This is the host-level answer only. Per-session routing still follows the
-		// picked model, and `_ensureAuthenticated(model)` raises `AHP_AUTH_REQUIRED`
-		// for the sessions that pick a Copilot-routed model without a proxy handle.
-		// The optional repo resource is kept for git operations either way.
+		// Kept in the list even when optional, never dropped:
+		// `authenticateProtectedResources` matches on `resource` and ignores
+		// `required`, so advertising it is what lets the host silently forward a
+		// token to an already-signed-in user — and acquire the proxy handle
+		// Copilot-routed models need — without forcing sign-in on anyone else.
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
 			this._hasUsableNativeSetup() ? { ...copilotResource, required: false } : copilotResource,
