@@ -363,24 +363,6 @@ Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.p
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
-### Codex shell completion output on macOS
-
-When Codex runs a shell command that produces output, the model receives that output and can use it in its response, but the successful AHP `chat/toolCallComplete` action can omit the tool result. An AHP client then sees an empty completed shell tool call even though the command produced output, so this is a product limitation rather than an acceptable test variation.
-
-- Scope: Codex on macOS in deterministic replay.
-- Expected: the completed shell tool call contains the command output that Codex passed back to the model.
-- Observed: the completion is successful but has no result content. The recorded follow-up model request and final assistant response both contain the expected output.
-- Gate: replay skips the affected Codex/macOS variants while recording and other platforms remain enabled:
-  - `reads a file from a nested directory`
-  - `reads a value from JSON`
-- Reproduce after temporarily disabling `codexShellCompletionOutputAvailable` in `fileOperationsSuite.ts`:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "reads a file from a nested directory|reads a value from JSON"
-  ```
-
 ### Codex shell-tool replay on Linux
 
 - Scope: Codex on Linux in deterministic replay.
@@ -411,6 +393,20 @@ When Codex runs a shell command that produces output, the model receives that ou
   ```
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
+
+### Codex structured file-read result text
+
+- Tests:
+  - `reads a file from a nested directory`
+  - `reads a value from JSON`
+- Scope: Codex.
+- Expected: successful file-read tool completions include the file contents in their result text.
+- Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
+- Gate: these two tests remain enabled for other providers and are skipped for Codex.
+- Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
+- Failing runs:
+  - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
+  - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
 
 ### Claude subagent replay on Windows
 
