@@ -133,7 +133,7 @@ function folderForSessionMetadata(candidate: IRoutableSession, folders: readonly
 		if (!path) {
 			continue;
 		}
-		const normalizedPath = path.replaceAll('\\', '/').replace(/\/+$/, '').toLocaleLowerCase();
+		const normalizedPath = path.replaceAll('\\', '/').replace(/\/+$/, '').replace(/^([a-zA-Z]:\/)/, '/$1').toLocaleLowerCase();
 		const match = folders
 			.filter(folder => {
 				const folderPath = folder.uri.path.replace(/\/+$/, '').toLocaleLowerCase();
