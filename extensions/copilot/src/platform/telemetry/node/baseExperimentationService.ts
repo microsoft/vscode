@@ -124,8 +124,11 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	private readonly _refreshTimer = this._register(new IntervalTimer());
 	private readonly _previouslyReadTreatments = new Map<string, boolean | string | number | undefined>();
 
-	protected readonly _delegate: ITASExperimentationService;
+	protected _delegate: ITASExperimentationService;
 	protected readonly _userInfoStore: UserInfoStore;
+
+	private readonly _delegateFn: TASClientDelegateFn;
+	private readonly _globalState: vscode.Memento;
 
 	protected _onDidTreatmentsChange = this._register(new Emitter<TreatmentsChangeEvent>());
 	readonly onDidTreatmentsChange = this._onDidTreatmentsChange.event;
@@ -155,10 +158,26 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 			this._signalTreatmentsChangeEvent();
 		}, 60 * 60 * 1000);
 
-		this._delegate = delegateFn(context.globalState, this._userInfoStore);
-		this._delegate.initialFetch.then(() => {
+		this._delegateFn = delegateFn;
+		this._globalState = context.globalState;
+		this._delegate = this._createDelegate();
+	}
+
+	private _createDelegate(): ITASExperimentationService {
+		const delegate = this._delegateFn(this._globalState, this._userInfoStore);
+		delegate.initialFetch.then(() => {
 			this._logService.trace(`[BaseExperimentationService] Initial fetch completed`);
 		});
+		return delegate;
+	}
+
+	/**
+	 * Disposes the current delegate (stopping its polling) and creates a fresh one. Used
+	 * when inputs captured at delegate-creation time (e.g. the assignments endpoint) change.
+	 */
+	protected recreateDelegate(): void {
+		(this._delegate as unknown as { dispose?(): void }).dispose?.();
+		this._delegate = this._createDelegate();
 	}
 
 	private _signalTreatmentsChangeEvent = () => {

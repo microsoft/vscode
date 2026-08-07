@@ -243,3 +243,75 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		return filters;
 	}
 }
+
+/**
+ * userParam names for the new TAS assignments API (POST /api/v1/assignments) that carry
+ * the GitHub account signals available in core. Hex org/business ids are not yet parsed
+ * in core, so they are intentionally omitted here.
+ */
+export enum GitHubAssignmentsFilter {
+	CopilotTrackingId = 'copilottrackingid',
+	IsGhOrMsftStaff = 'github_core_isghormsftstaff',
+	GhMsftOrExternal = 'github_core_ghmsftorexternal',
+}
+
+/**
+ * Emits the core-available GitHub account filters for the new TAS assignments API using
+ * the new userParam key names.
+ */
+export class GitHubCoreAssignmentsFilterProvider extends Disposable implements IExperimentationFilterProvider {
+	private copilotTrackingId: string | undefined;
+	private internalOrg: 'vscode' | 'github' | 'microsoft' | undefined;
+
+	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
+	readonly onDidChangeFilters = this._onDidChangeFilters.event;
+
+	constructor(
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+	) {
+		super();
+
+		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		const newTrackingId = this._chatEntitlementService.copilotTrackingId;
+		const newInternalOrg = getInternalOrg(this._chatEntitlementService.organisations);
+
+		if (this.copilotTrackingId === newTrackingId && this.internalOrg === newInternalOrg) {
+			return;
+		}
+
+		this.copilotTrackingId = newTrackingId;
+		this.internalOrg = newInternalOrg;
+
+		this._onDidChangeFilters.fire();
+	}
+
+	getFilterValue(filter: string): string | null {
+		switch (filter) {
+			case GitHubAssignmentsFilter.CopilotTrackingId:
+				return this.copilotTrackingId ?? null;
+			case GitHubAssignmentsFilter.IsGhOrMsftStaff:
+				return this.internalOrg ? '1' : '0';
+			case GitHubAssignmentsFilter.GhMsftOrExternal:
+				return this.internalOrg === 'github'
+					? 'github'
+					: (this.internalOrg === 'microsoft' || this.internalOrg === 'vscode')
+						? 'microsoft'
+						: 'external';
+			default:
+				return null;
+		}
+	}
+
+	getFilters(): Map<string, string | null> {
+		const filters = new Map<string, string | null>();
+		for (const value of Object.values(GitHubAssignmentsFilter)) {
+			filters.set(value, this.getFilterValue(value));
+		}
+
+		return filters;
+	}
+}
