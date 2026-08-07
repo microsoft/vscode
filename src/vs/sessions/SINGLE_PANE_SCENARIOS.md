@@ -83,7 +83,7 @@ width) captures a width to restore later.
 | **Show Editor** (`right-panel-show`) | Editor title bar (tab strip), same slot as Hide Editor | Reveals the (possibly empty) editor content again. Always shown whenever the editor area is closed, regardless of the active tab's detail support. |
 | **Collapse All Diffs** | Changes editor header, primary inline | Collapses every file in the Changes multi-diff (`SessionChangesEditor.collapseAllDiffs`). |
 | **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`, Search `⌘K S`; a **Changes** entry when the Changes editor tab is closed, and a **Files** entry `⌘K B` when the Files tab is closed — both for any workspace session). Re-added managed Changes/Files tabs are inserted at the **end** of the tab strip. Search opens a new Search editor. **Hidden when the editor area is closed.** |
-| **Toggle Side Panel** | Command / keybinding | Closes/opens the **whole** side pane (editor + detail together) → chat-only and back. The mechanics live on the workbench layout service (`toggleSidePane`); while the editor area is maximized, the shared `Workbench.toggleSidePane()` emits its will event, un-maximizes, then performs the collapse so the restored detail is also hidden. Hiding a focused side pane moves focus to the sessions list. |
+| **Toggle Side Panel** | Command / keybinding | Closes/opens the **whole** side pane (editor + detail together) → chat-only and back. The mechanics live on the workbench layout service (`toggleSidePane`); while the editor area is maximized, the shared `Workbench.toggleSidePane()` remembers maximization, un-maximizes, then performs the collapse so the restored detail is also hidden. Reopening restores the complete side-pane composition before re-maximizing the editor. Hiding a focused side pane moves focus to the sessions list. |
 | **Toggle Sessions List** | Title bar / command | Collapses/opens the left sessions list. Collapsing it gives the freed width to the editor/detail side pane (not the chat); reopening restores the previous editor/detail width so the chat gets that space back. No single-pane editor or detail action changes this visibility. |
 | **Grid sash** | Between the chat and the third pane | Dragging a detail-only side pane wider keeps the editor content closed. When editor content and details are visible but no longer fit, the detail panel hides; widening past the hysteresis threshold restores it. |
 | **Changes pill** | Session header meta row | Opens the managed Changes multi-diff editor and explicitly reveals the editor area when the side pane was closed or in detail-only mode. The managed Changes tab still remains excluded from automatic reveal-on-open, so merely activating its tab does not reveal the editor. |
@@ -179,7 +179,7 @@ restored when returning to a workspace session.
 | *Editor + Detail* | Toggle Details (hide detail) | *Editor only* |
 | *Editor only* | Toggle Details (show detail) | *Editor + Detail* |
 | *Detail only* / *Editor only* / *Editor + Detail* | Toggle Side Panel | *Side pane closed* |
-| *Side pane closed* | Toggle Side Panel | previous state restored |
+| *Side pane closed* | Toggle Side Panel | previous editor/detail state and maximization restored |
 | any | Switch to another workspace session | same editor/detail visibility |
 | editor/detail side pane visible | Toggle Sessions List closed | same pane state; editor/detail side pane widens by the sessions-list width |
 | sessions list closed after side-pane growth | Toggle Sessions List open | same pane state; editor/detail side pane returns to its pre-collapse width |
@@ -205,7 +205,7 @@ restored when returning to a workspace session.
    stays; Hide Editor is then replaced by Show Editor in the same slot.
 6. **Detail toggle** from *Editor + Detail* → detail hides, editor stays (*Editor only*); toggle again
    → detail returns.
-7. **Toggle Side Panel** → the whole side pane closes (chat-only); toggle again → it restores.
+7. **Toggle Side Panel** → the whole side pane closes (chat-only); toggle again → it restores. Repeat while maximized and verify that reopening restores maximization.
 8. **Browser tab** → detail hides; switch back to Files/Changes → detail restores.
 9. **File tab** active → the Explorer detail is shown (revealed on activation).
 10. **Close the last editor tab** → the whole side pane closes (chat-only); opening any tab restores it.
