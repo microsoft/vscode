@@ -169,7 +169,7 @@ export class SurveyService implements ISurveyService {
 			"survey.show" : {
 				"owner": "digitarald",
 				"comment": "Measures survey notification result",
-				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last used feature before the survey." },
+				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The feature or attribution category associated with the survey." },
 				"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last used editor language before the survey." },
 				"activeDays": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of days the user has used the extension." },
 				"firstActive": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of days since the user first used the extension." },

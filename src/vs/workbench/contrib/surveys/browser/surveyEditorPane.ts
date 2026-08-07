@@ -271,7 +271,7 @@ export class SurveyEditorPane extends EditorPane {
 		};
 		type SurveySubmitClassification = {
 			surveyId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The survey identifier.' };
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature source that triggered the survey (e.g. completions, panel.agent, nps).' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature or attribution category associated with the survey (e.g. completions, agents, churn).' };
 			score: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Primary score as option index (e.g. PMF disappointment 0-4, NPS 0-10). -1 if not answered.' };
 			primaryBenefit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary value driver option ID selected by the user, empty if not applicable.' };
 			primaryFriction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The primary friction point option ID selected by the user, empty if not applicable.' };
