@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CustomizationHarnessServiceBase } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 
 /**
@@ -17,5 +18,13 @@ export class SessionsCustomizationHarnessService extends CustomizationHarnessSer
 		@IPromptsService promptsService: IPromptsService,
 	) {
 		super([], '', promptsService);
+	}
+
+	override registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable {
+		const registration = super.registerExternalHarness(descriptor);
+		if (!this.findHarnessById(this.activeHarness.get())) {
+			this.setActiveSession(this.getSessionResourceForHarness(descriptor.id));
+		}
+		return registration;
 	}
 }

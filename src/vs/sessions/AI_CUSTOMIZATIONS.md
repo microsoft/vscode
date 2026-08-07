@@ -119,7 +119,7 @@ Available harnesses:
 | `claude` | Claude | Restricts user roots to `~/.claude`; hides Prompts + Plugins sections |
 
 In core VS Code, all three harnesses are registered but CLI and Claude only appear when their respective agents are registered (`requiredAgentId` checked via `IChatAgentService`). VS Code is the default.
-In sessions, the Local harness is not registered. Harnesses are accepted for any session type that has a registered content provider (checked via `IChatSessionsService.getContentProviderSchemes()`). AHP remote servers register directly via `registerExternalHarness`.
+In sessions, the Local harness is not registered. Harnesses are accepted for any session type that has a registered content provider (checked via `IChatSessionsService.getContentProviderSchemes()`). The first provider harness becomes active until a session selects its own harness, and the editor uses no Local fallback label while none is available. AHP remote servers register directly via `registerExternalHarness`.
 
 Remote agent hosts can also register **external harnesses** dynamically. Each remote agent harness may contribute:
 - an `itemProvider` that surfaces plugins already configured on the remote host (or synced into the active remote session),
