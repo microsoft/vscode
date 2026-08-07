@@ -269,6 +269,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			// not chain via `previous_response_id` and must not ask it to `store`.
 			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
 			const body = super.createRequestBody(options);
+			body.prompt_cache_options = undefined;
 			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;

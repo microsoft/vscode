@@ -245,6 +245,24 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
+		it('does not include Copilot prompt cache options for custom endpoints', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					id: 'gpt-5.6-luna',
+					capabilities: {
+						...modelMetadata.capabilities,
+						family: 'gpt-5.6-luna',
+					},
+				},
+				'test-api-key',
+				'https://opencode.ai/zen/go/v1/responses');
+
+			const body = endpoint.createRequestBody(createTestOptions([]));
+
+			expect(body.prompt_cache_options).toBeUndefined();
+		});
+
 		it('should preserve reasoning object when thinking is supported', () => {
 			const modelWithReasoningEffort = {
 				...modelMetadata,
