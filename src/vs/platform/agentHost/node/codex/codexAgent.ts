@@ -49,6 +49,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
@@ -867,6 +868,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
@@ -3543,6 +3545,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 			return;
 		}
+
+		// Check needsResume before the resume block clears it so restored sessions never receive a late baseline.
+		if (!session.firstTurnSent && !session.needsResume) {
+			const baselineWorkingDirectories = session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined);
+			this._checkpointService.captureBaselineCheckpoint(sessionUri, baselineWorkingDirectories).catch(err => {
+				this._logService.warn(`[Codex:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
+			});
+		}
+
 		// Codex registers client tools and MCP servers only at `thread/start`.
 		// If the thread was prewarmed (or otherwise started) before the current
 		// client tools / MCP servers were known, restart it now — before any
