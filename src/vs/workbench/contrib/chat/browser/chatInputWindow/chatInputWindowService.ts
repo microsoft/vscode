@@ -119,8 +119,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _actionWidgetLayoutGeneration = 0;
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
-	/** Retained so a just-closed Omni window cannot become its own invoking window. */
-	private _lastAuxiliaryWindowId: number | undefined;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -192,7 +190,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._register(this.chatEntitlementService.onDidChangeSentiment(closeWhenDisabled));
 	}
 
-	async openWindow(invokingWindowBounds?: IRectangle, invokingWindowId?: number): Promise<void> {
+	async openWindow(invokingWindowBounds?: IRectangle): Promise<void> {
 		if (!this._isEnabled()) {
 			return;
 		}
@@ -204,9 +202,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		if (this._openOperation) {
 			return this._openOperation;
 		}
-		if (invokingWindowId !== this._lastAuxiliaryWindowId && this._isUsableWindowBounds(invokingWindowBounds)) {
-			this._invokingWindowBounds = invokingWindowBounds;
-		}
+		this._invokingWindowBounds = this._isUsableWindowBounds(invokingWindowBounds)
+			? invokingWindowBounds
+			: this._windowBounds(dom.getActiveWindow());
 		this._openOperation = this._doOpenWindow();
 		try {
 			await this._openOperation;
@@ -236,7 +234,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			noBackgroundThrottling: true,
 			backgroundColor: '#00000000',
 		});
-		this._lastAuxiliaryWindowId = auxiliaryWindow.window.vscodeWindowId;
 		if (!this._desiredOpen || !this._isEnabled()) {
 			auxiliaryWindow.dispose();
 			return;
@@ -266,7 +263,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
 			auxiliaryWindow.container.style.backgroundColor = surface;
 			auxiliaryWindow.container.style.border = `1px solid ${border}`;
-			auxiliaryWindow.container.style.boxSizing = 'border-box';
 		};
 
 		auxiliaryWindow.container.style.display = 'flex';
@@ -289,7 +285,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// compact ChatWidget. The response list is filtered out so only the input
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
-		this._renderChatWidget(auxiliaryWindow, row);
+		this._renderChatWidget(auxiliaryWindow, row, bounds);
 		const pendingActiveWindowSync = this._windowDisposables.add(new MutableDisposable());
 		this._windowDisposables.add(autorun(reader => {
 			const ownsVoice = this.voiceSessionController.omniInputActive.read(reader);
@@ -359,14 +355,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._onDidChangeOpen.fire(false);
 	}
 
-	async toggleWindow(invokingWindowBounds?: IRectangle, invokingWindowId?: number): Promise<void> {
+	async toggleWindow(invokingWindowBounds?: IRectangle): Promise<void> {
 		if (this._desiredOpen || this.isOpen) {
 			this.closeWindow();
 		} else {
 			const claim = { timestamp: Date.now(), id: this._ownershipId };
 			this._ownershipClaim = claim;
 			this._ownershipChannel.postMessage({ type: 'claim', ...claim });
-			await this.openWindow(invokingWindowBounds, invokingWindowId);
+			await this.openWindow(invokingWindowBounds);
 		}
 	}
 
@@ -384,7 +380,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return true;
 	}
 
-	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, row: HTMLElement): void {
+	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, row: HTMLElement, openingBounds: IRectangle): void {
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` - the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
@@ -517,6 +513,27 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// height the host assigned and creates a feedback loop with empty space.
 		let lastContentHeight: number | undefined;
 		let didInitialPosition = false;
+		// Renderer screen coordinates lag native moves, so retain the requested
+		// position until each queued bounds update has completed.
+		let currentPosition = { x: openingBounds.x, y: openingBounds.y };
+		let pendingBounds: IRectangle | undefined;
+		let applyingBounds = false;
+		const applyPendingBounds = async () => {
+			if (applyingBounds) {
+				return;
+			}
+			applyingBounds = true;
+			try {
+				while (pendingBounds && this._window === auxiliaryWindow) {
+					const bounds = pendingBounds;
+					pendingBounds = undefined;
+					currentPosition = { x: bounds.x, y: bounds.y };
+					await auxiliaryWindow.setBounds(bounds);
+				}
+			} finally {
+				applyingBounds = false;
+			}
+		};
 		fitWindowToInput = () => {
 			if (this._actionWidgetRestoreHeight !== undefined) {
 				return;
@@ -541,15 +558,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				return;
 			}
 			lastContentHeight = contentHeight;
-			let x = win.screenX;
-			let y = win.screenY;
 			if (!didInitialPosition) {
 				didInitialPosition = true;
 				const initialBounds = this._positionedBounds(width, contentHeight);
-				x = initialBounds.x;
-				y = initialBounds.y;
+				currentPosition = { x: initialBounds.x, y: initialBounds.y };
+			} else if (!applyingBounds) {
+				currentPosition = { x: win.screenX, y: win.screenY };
 			}
-			void auxiliaryWindow.setBounds({ x, y, width, height: contentHeight });
+			pendingBounds = { ...currentPosition, width, height: contentHeight };
+			void applyPendingBounds();
 		};
 		this._fitWindowToContent = fitWindowToInput;
 

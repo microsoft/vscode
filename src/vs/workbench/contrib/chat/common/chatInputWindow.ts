@@ -47,7 +47,7 @@ export interface IChatInputWindowService {
 	/**
 	 * Opens the floating chat input window. No-op if already open.
 	 */
-	openWindow(invokingWindowBounds?: IRectangle, invokingWindowId?: number): Promise<void>;
+	openWindow(invokingWindowBounds?: IRectangle): Promise<void>;
 
 	/**
 	 * Closes the floating chat input window. No-op if already closed.
@@ -57,5 +57,5 @@ export interface IChatInputWindowService {
 	/**
 	 * Toggles the floating chat input window open/closed.
 	 */
-	toggleWindow(invokingWindowBounds?: IRectangle, invokingWindowId?: number): Promise<void>;
+	toggleWindow(invokingWindowBounds?: IRectangle): Promise<void>;
 }

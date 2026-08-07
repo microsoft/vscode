@@ -62,7 +62,7 @@ registerAction2(class extends Action2 {
 			height: invokingWindow.outerHeight,
 		};
 		const chatInputWindowService = accessor.get(IChatInputWindowService);
-		await chatInputWindowService.toggleWindow(invokingWindowBounds, invokingWindow.vscodeWindowId);
+		await chatInputWindowService.toggleWindow(invokingWindowBounds);
 	}
 });
 

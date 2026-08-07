@@ -8,12 +8,13 @@
 	--omni-icon-column: 16px;
 	--omni-row-gap: 8px;
 
+	box-sizing: border-box;
 	border-radius: var(--vscode-cornerRadius-xLarge);
 	overflow: hidden;
 }
 
 .chat-input-window:focus-within {
-	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+	border-color: var(--vscode-focusBorder) !important;
 }
 
 .chat-input-window-body {
