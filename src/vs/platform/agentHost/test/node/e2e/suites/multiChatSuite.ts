@@ -95,7 +95,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		}
 	}
 
-	function providerTest(title: string, run: Mocha.AsyncFunc, enabled = config.supportsMultipleChats && config.supportsMultipleChatsE2E !== false): void {
+	function providerTest(title: string, run: Mocha.AsyncFunc, enabled = config.supportsMultipleChats): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
@@ -159,7 +159,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
-		(config.supportsChatForkE2E ? test : test.skip)(title, function () {
+		(config.supportsChatFork && (config.supportsChatForkE2E || RECORDING) ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});
