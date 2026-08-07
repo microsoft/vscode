@@ -147,6 +147,19 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(widget.domNode.querySelector('.chat-plan-review-footer'));
 		});
 
+		test('includes the border in the maximum height', () => {
+			createWidget(createMockReview());
+			const session = mainWindow.document.createElement('div');
+			session.classList.add('interactive-session');
+			session.appendChild(widget.domNode);
+			mainWindow.document.body.appendChild(session);
+
+			const root = widget.domNode.querySelector<HTMLElement>('.chat-plan-review');
+			const boxSizing = mainWindow.getComputedStyle(root!).boxSizing;
+			session.remove();
+			assert.strictEqual(boxSizing, 'border-box');
+		});
+
 		test('displays the review title', () => {
 			createWidget(createMockReview({ title: 'My Plan Title' }));
 

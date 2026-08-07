@@ -45,6 +45,7 @@
 	background-color: var(--vscode-panel-background);
 	max-height: min(420px, 50vh);
 	min-height: 0;
+	box-sizing: border-box;
 	overflow: hidden;
 	margin-bottom: 8px;
 }
