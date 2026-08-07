@@ -8,6 +8,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -28,7 +29,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 export class PromptTemplatePlaceholderController extends Disposable {
 	private static readonly _className = 'sessions-prompt-template-placeholder';
 
-	private readonly _decorations = this._editor.createDecorationsCollection();
+	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private _placeholder: string | undefined;
 	private _wasPresent = false;
@@ -38,6 +39,7 @@ export class PromptTemplatePlaceholderController extends Disposable {
 		private readonly _onWillReplace: () => void,
 	) {
 		super();
+		this._decorations = this._editor.createDecorationsCollection();
 		this._focusedContextKey = PromptTemplatePlaceholderFocused.bindTo(this._editor.contextKeyService);
 		this._register(toDisposable(() => this._decorations.clear()));
 		this._register(toDisposable(() => {
