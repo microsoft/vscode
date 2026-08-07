@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { derivePendingId, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
@@ -60,44 +60,88 @@ suite('derivePendingId', () => {
 		assert.strictEqual(peekPendingId('req-1', carousel), minted);
 	});
 
-	test('distinguishes re-armed approvals on the same tool part', () => {
+	test('keys tool approvals by command and active lifetime rather than callbacks', () => {
 		const firstConfirm = () => { };
 		const state = observableValue<IChatToolInvocation.State>('toolState', {
 			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
-			parameters: {},
+			parameters: { command: 'npm config get registry' },
 			confirm: firstConfirm,
 		});
-		const tool = { kind: 'toolInvocation', state };
+		const tool = { kind: 'toolInvocation', toolCallId: 'tool-call', state } as unknown as IChatToolInvocation;
 		const first = derivePendingId('req-1', tool);
 
-		// A presentation update clones the state but retains its callback, so it
-		// is still the same actionable occurrence.
+		// Callback churn while the command stays pending is presentation noise.
 		state.set({
 			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
-			parameters: {},
-			confirmationMessages: { title: 'Updated title' },
-			confirm: firstConfirm,
-		}, undefined);
-		const presentationUpdate = derivePendingId('req-1', tool);
-
-		// Re-arming the card installs a new confirmation callback.
-		state.set({
-			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
-			parameters: {},
+			parameters: { command: 'npm config get registry' },
 			confirmationMessages: { title: 'Updated title' },
 			confirm: () => { },
 		}, undefined);
-		const rearmed = derivePendingId('req-1', tool);
+		const presentationUpdate = derivePendingId('req-1', tool);
+
+		// Agent Host can refresh the actionable command without leaving the
+		// pending status. That is a new occurrence even if the callback is kept.
+		state.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command: 'npm install --registry=https://registry.npmjs.org' },
+			confirmationMessages: { title: 'Updated title' },
+			confirm: firstConfirm,
+		}, undefined);
+		const changedCommand = derivePendingId('req-1', tool);
+
+		state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+		state.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command: 'npm install --registry=https://registry.npmjs.org' },
+			confirm: () => { },
+		}, undefined);
+		const afterInteraction = derivePendingId('req-1', tool);
 
 		assert.deepStrictEqual({
 			presentationUpdateMatches: presentationUpdate === first,
-			rearmedDiffers: rearmed !== first,
+			changedCommandDiffers: changedCommand !== first,
+			afterInteractionDiffers: afterInteraction !== changedCommand,
 			currentPartNoLongerResolvesOldId: peekPendingId('req-1', tool) !== first,
 		}, {
 			presentationUpdateMatches: true,
-			rearmedDiffers: true,
+			changedCommandDiffers: true,
+			afterInteractionDiffers: true,
 			currentPartNoLongerResolvesOldId: true,
 		});
+
+		state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+	});
+
+	test('rehydrated copies share one active tool occurrence', () => {
+		const tool = () => {
+			const state = observableValue<IChatToolInvocation.State>('toolState', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'npm install' },
+				confirm: () => { },
+			});
+			return { part: { kind: 'toolInvocation', toolCallId: 'tool-call', state } as unknown as IChatToolInvocation, state };
+		};
+		const first = tool();
+		const rehydrated = tool();
+		const pendingId = derivePendingId('req-1', first.part);
+
+		assert.strictEqual(peekPendingId('req-1', rehydrated.part), pendingId);
+
+		for (const copy of [first, rehydrated]) {
+			copy.state.set({
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: ToolConfirmKind.Skipped,
+				parameters: {},
+			}, undefined);
+		}
 	});
 
 	test('keeps authentication identity stable until the tool leaves the pending state', () => {
@@ -134,5 +178,6 @@ suite('derivePendingId', () => {
 			nextDiffers: true,
 			nextUsesNewCancel: true,
 		});
+		tool.setAuthenticationResolved();
 	});
 });
