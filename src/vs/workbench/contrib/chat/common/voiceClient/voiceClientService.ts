@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -104,7 +104,7 @@ export function getVoiceToolApprovalCommand(invocation: IChatToolInvocation, inc
 	}
 	if (!command && includeParameters) {
 		const state = invocation.state.get();
-		const parameters = 'parameters' in state ? state.parameters as Record<string, unknown> | undefined : undefined;
+		const parameters = state.type === IChatToolInvocation.StateKind.Streaming ? undefined : state.parameters as Record<string, unknown> | undefined;
 		const parameterCommand = parameters?.['command'] ?? parameters?.['input'];
 		command = typeof parameterCommand === 'string' ? parameterCommand : undefined;
 	}
@@ -181,7 +181,7 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 
 	pendingToolOccurrenceByPart.set(invocation, occurrence);
 	const trackedOccurrence = occurrence;
-	let observer: IDisposable | undefined;
+	const observer = new MutableDisposable();
 	const tracking = toDisposable(() => {
 		if (pendingToolOccurrenceByPart.get(invocation) === trackedOccurrence) {
 			pendingToolOccurrenceByPart.delete(invocation);
@@ -195,9 +195,9 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		if (trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
 			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(trackedOccurrence));
 		}
-		observer?.dispose();
+		observer.dispose();
 	});
-	observer = autorun(reader => {
+	observer.value = autorun(reader => {
 		if (!isPendingToolState(invocation.state.read(reader))) {
 			// One authoritative copy leaving pending means the user or host handled
 			// this occurrence. Retire every rehydrated copy immediately instead of
