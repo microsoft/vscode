@@ -7,7 +7,6 @@ import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Event } from '../../../../base/common/event.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -22,11 +21,10 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ClaudeFileEditObserver } from '../../node/claude/claudeFileEditObserver.js';
 import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
-import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
+import { IEditArcReporterLaunchParams, IEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 interface IObserverHarness {
@@ -34,15 +32,17 @@ interface IObserverHarness {
 	readonly db: TestSessionDatabase;
 	readonly fileService: FileService;
 	readonly mapperState: ClaudeMapperState;
+	readonly arcReports: IEditArcReporterLaunchParams[];
 }
 
-function createObserver(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>): IObserverHarness {
+function createObserver(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>, mode: string = 'default'): IObserverHarness {
 	const fileService = disposables.add(new FileService(new NullLogService()));
 	const fs = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider('file', fs));
 
 	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
+	const arcReports: IEditArcReporterLaunchParams[] = [];
 
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
@@ -50,22 +50,11 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		[IDiffComputeService, createZeroDiffComputeService()],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
-		[IEditArcReporterService, new NullEditArcReporterService()],
-		[IAgentConfigurationService, {
+		[IEditArcReporterService, {
 			_serviceBrand: undefined,
-			onDidRootConfigChange: Event.None,
-			onDidSessionConfigChange: Event.None,
-			getEffectiveValue: () => undefined,
-			getEffectiveWorkingDirectory: () => undefined,
-			getEffectiveWorkingDirectories: () => undefined,
-			isWorkingDirectoryPending: () => false,
-			resolveWorkingDirectoryForResume: async (_session: string, workingDirectory: URI) => workingDirectory,
-			updateSessionConfig: () => { },
-			getSessionConfigValues: () => undefined,
-			getRootValue: () => undefined,
-			updateRootConfig: () => { },
-			persistRootConfig: () => { },
-			whenIdle: async () => { },
+			reportEdit: async (params: IEditArcReporterLaunchParams) => {
+				arcReports.push(params);
+			},
 		}],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
@@ -73,8 +62,9 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		ClaudeFileEditObserver,
 		'claude:/sess-1',
 		dbRef,
+		() => mode,
 	));
-	return { observer, db, fileService, mapperState: new ClaudeMapperState() };
+	return { observer, db, fileService, mapperState: new ClaudeMapperState(), arcReports };
 }
 
 function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
@@ -90,7 +80,7 @@ suite('ClaudeFileEditObserver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('observe assistant→user round-trip caches a file edit on the mapper state', async () => {
-		const { observer, fileService, mapperState } = createObserver(disposables);
+		const { observer, fileService, mapperState, arcReports } = createObserver(disposables, 'plan');
 		await fileService.writeFile(URI.file('/work/a.txt'), VSBuffer.fromString('before'));
 
 		observer.observeAssistant(assistantMessage([
@@ -105,8 +95,13 @@ suite('ClaudeFileEditObserver', () => {
 		]), 'turn-1', mapperState);
 
 		const cached = mapperState.takeFileEdit('tu-1');
-		assert.ok(cached, 'expected a cached file edit');
-		assert.strictEqual(cached.type, ToolResultContentType.FileEdit);
+		assert.deepStrictEqual({
+			cachedType: cached?.type,
+			arcMode: arcReports[0]?.mode,
+		}, {
+			cachedType: ToolResultContentType.FileEdit,
+			arcMode: 'plan',
+		});
 	});
 
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {

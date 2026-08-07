@@ -936,7 +936,12 @@ export class CopilotAgentSession extends Disposable {
 		this._register(toDisposable(() => this._databaseRef.dispose()));
 		this._sessionDataDir = sessionDataService.getSessionDataDir(this._storageUri);
 
-		this._editTracker = this._instantiationService.createInstance(FileEditTracker, this._storageUri.toString(), this._databaseRef.object);
+		this._editTracker = this._instantiationService.createInstance(
+			FileEditTracker,
+			this._storageUri.toString(),
+			this._databaseRef.object,
+			() => this._getConfiguredAgentMode(),
+		);
 
 		this._mcpCustomizations = this._register(this._instantiationService.createInstance(McpCustomizationController, {
 			providerId: this.sessionUri.scheme,

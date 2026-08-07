@@ -216,6 +216,7 @@ function createPipeline(
 		controller,
 		dbRef,
 		subagents,
+		() => 'default',
 		undefined,
 	));
 	return { pipeline, warm, controller };
@@ -288,6 +289,7 @@ suite('ClaudeSdkPipeline', () => {
 				controller,
 				dbRef,
 				subagents,
+				() => 'default',
 				undefined,
 			));
 			// Bind the query by issuing a send (iterator closes immediately).

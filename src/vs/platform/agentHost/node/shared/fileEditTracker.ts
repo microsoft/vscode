@@ -7,14 +7,11 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
 import { AttributedToolResultFileEditContent, FILE_EDIT_ATTRIBUTION_PROPERTY, IAgentEditAttributionService, IFileEditAttributionMarker } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
-import { FileEditKind, isAhpChatChannel, parseRequiredSessionUriFromChatUri, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
@@ -44,13 +41,13 @@ export class FileEditTracker {
 	constructor(
 		private readonly _sessionUri: string,
 		private readonly _db: ISessionDatabase,
+		private readonly _getMode: () => string | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
 		@IEditSurvivalReporterFactory private readonly _editSurvivalReporterFactory: IEditSurvivalReporterFactory,
 		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
 		@IEditArcReporterService private readonly _editArcReporterService: IEditArcReporterService,
-		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) { }
 
 	/**
@@ -199,7 +196,6 @@ export class FileEditTracker {
 
 		const initialEdit = extractArcTextEdit(toolName, toolInput, beforeText, afterText)
 			?? createArcTextEditFromDiff(changes, beforeText, afterText);
-		const sessionUri = isAhpChatChannel(this._sessionUri) ? parseRequiredSessionUriFromChatUri(this._sessionUri) : this._sessionUri;
 		this._editArcReporterService.reportEdit({
 			sessionUri: this._sessionUri,
 			turnId,
@@ -210,7 +206,7 @@ export class FileEditTracker {
 			initialEdit,
 			modelId,
 			toolName,
-			mode: this._configurationService.getEffectiveValue(sessionUri, platformSessionSchema, SessionConfigKey.Mode),
+			mode: this._getMode(),
 			completionTime,
 		}).catch(error => {
 			this._logService.warn(`[FileEditTracker] Failed to start ARC telemetry: ${filePath}`, error);

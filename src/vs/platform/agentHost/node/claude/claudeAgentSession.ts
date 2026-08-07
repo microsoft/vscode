@@ -590,6 +590,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.abortController,
 				dbRef,
 				this.subagents,
+				() => resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback),
 				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
 			));
 		} catch (err) {

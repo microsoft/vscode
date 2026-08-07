@@ -6,7 +6,6 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
-import { Event } from '../../../../base/common/event.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,7 +22,6 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
@@ -77,22 +75,6 @@ function createRouter(
 		[IAgentEditAttributionService, attributionService],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
 		[IEditArcReporterService, new NullEditArcReporterService()],
-		[IAgentConfigurationService, {
-			_serviceBrand: undefined,
-			onDidRootConfigChange: Event.None,
-			onDidSessionConfigChange: Event.None,
-			getEffectiveValue: () => undefined,
-			getEffectiveWorkingDirectory: () => undefined,
-			getEffectiveWorkingDirectories: () => undefined,
-			isWorkingDirectoryPending: () => false,
-			resolveWorkingDirectoryForResume: async (_session: string, workingDirectory: URI) => workingDirectory,
-			updateSessionConfig: () => { },
-			getSessionConfigValues: () => undefined,
-			getRootValue: () => undefined,
-			updateRootConfig: () => { },
-			persistRootConfig: () => { },
-			whenIdle: async () => { },
-		}],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
@@ -102,6 +84,7 @@ function createRouter(
 		chatChannelUri,
 		dbRef,
 		subagents,
+		() => 'default',
 		undefined,
 	));
 	const signals: AgentSignal[] = [];

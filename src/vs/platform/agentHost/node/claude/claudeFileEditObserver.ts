@@ -59,6 +59,7 @@ export class ClaudeFileEditObserver extends Disposable {
 	constructor(
 		sessionUri: string,
 		dbRef: IReference<ISessionDatabase>,
+		getMode: () => string | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -73,6 +74,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			FileEditTracker,
 			sessionUri,
 			dbRef.object,
+			getMode,
 		);
 	}
 

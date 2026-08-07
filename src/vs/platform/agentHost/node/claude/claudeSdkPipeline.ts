@@ -252,6 +252,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
+		getMode: () => string | undefined,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -271,7 +272,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, getMode, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*

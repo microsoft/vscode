@@ -44,6 +44,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		private readonly _chatChannelUri: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
+		getMode: () => string | undefined,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -51,7 +52,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		super();
 		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, resolveChatUri(sessionUri, this._chatChannelUri).toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, resolveChatUri(sessionUri, this._chatChannelUri).toString(), dbRef, getMode),
 		);
 	}
 
