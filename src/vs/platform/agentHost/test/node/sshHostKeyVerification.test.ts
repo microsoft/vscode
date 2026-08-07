@@ -328,7 +328,7 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 			}));
 		});
 
-		void service.connectSSHForTest(makeConfig());
+		const connectPromise = service.connectSSHForTest(makeConfig());
 		await service.client.verifierEntered;
 		// Drive ssh2's auth flow the way the real client would: ask for the
 		// next method, then invoke that method's `prompt` callback.
@@ -338,6 +338,12 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 		});
 		await prompted;
 		const afterAnswering = service.currentDeadlineMs;
+
+		// Settle the connect so its deadline timer is cleared. Leaving it armed
+		// would fire ~30s later, long after this test finished, and surface as
+		// an unexpected error in whichever suite happened to be running.
+		service.client.fireError(new Error('Connection lost'));
+		await connectPromise.catch(() => undefined);
 		store.dispose();
 
 		assert.deepStrictEqual(
