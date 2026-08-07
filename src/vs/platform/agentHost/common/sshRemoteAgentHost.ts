@@ -255,6 +255,19 @@ export interface ISSHConnectResult {
 }
 
 /**
+ * How OpenSSH should react to an unknown or changed host key, as reported by
+ * `ssh -G` (`stricthostkeychecking`). We honor the user's real SSH config here
+ * rather than introducing a parallel VS Code setting, so the escape hatch for
+ * users who genuinely cannot use verification stays where they expect it.
+ */
+export type SSHStrictHostKeyChecking = 'ask' | 'accept-new' | 'yes' | 'no' | 'off';
+
+/** Narrow an arbitrary `ssh -G` value to a {@link SSHStrictHostKeyChecking}. */
+export function isSSHStrictHostKeyChecking(value: string): value is SSHStrictHostKeyChecking {
+	return value === 'ask' || value === 'accept-new' || value === 'yes' || value === 'no' || value === 'off';
+}
+
+/**
  * Resolved SSH configuration for a host, obtained from `ssh -G`.
  */
 export interface ISSHResolvedConfig {
@@ -264,6 +277,16 @@ export interface ISSHResolvedConfig {
 	readonly identityFile: string[];
 	readonly identityAgent: string | undefined;
 	readonly forwardAgent: boolean;
+	/**
+	 * `UserKnownHostsFile` paths, in priority order. `ssh -G` emits these as a
+	 * single space-separated list, so this is already split. Typically
+	 * `~/.ssh/known_hosts` and `~/.ssh/known_hosts2`.
+	 */
+	readonly userKnownHostsFiles: string[];
+	/** `GlobalKnownHostsFile` paths, e.g. `/etc/ssh/ssh_known_hosts`. */
+	readonly globalKnownHostsFiles: string[];
+	/** Resolved `StrictHostKeyChecking`, when it is a value we recognize. */
+	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
 }
 
 export interface ISSHConnectProgress {
@@ -345,6 +368,97 @@ export type ISSHEndpointSelection =
 	| { readonly kind: 'spawn' };
 
 /**
+ * What the user's `known_hosts` files say about a presented host key. Mirrors
+ * `KnownHostsMatch` in `../node/sshKnownHosts.js`, redeclared here because
+ * this common-layer module cannot import from `node`.
+ */
+export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'revoked' | 'ca-only' | 'unknown';
+
+/**
+ * Error name for a connect attempt refused because the server's host key was
+ * not trusted. Matching on the name (rather than `instanceof`) is deliberate:
+ * the error is raised in the shared process and inspected in the renderer, and
+ * only `name`/`message` survive IPC serialization.
+ */
+export const SSH_HOST_KEY_DENIED_ERROR_NAME = 'SSHHostKeyDenied';
+
+/**
+ * Raised when host key verification refused the connection.
+ *
+ * The host key UI owns the conversation about *why* — either the user
+ * declined the prompt themselves, or a specific, actionable notification
+ * (with a "Forget Saved Host Key" action) is already on screen. Callers should
+ * therefore not add a generic "failed to connect" error on top; see
+ * {@link isSSHHostKeyDeniedError}.
+ */
+export class SSHHostKeyDeniedError extends Error {
+	constructor(displayHost: string) {
+		super(`Host key verification failed for ${displayHost}`);
+		this.name = SSH_HOST_KEY_DENIED_ERROR_NAME;
+	}
+}
+
+/** Whether `error` is an {@link SSHHostKeyDeniedError}, including across IPC. */
+export function isSSHHostKeyDeniedError(error: unknown): boolean {
+	return error instanceof Error && error.name === SSH_HOST_KEY_DENIED_ERROR_NAME;
+}
+
+/**
+ * Request from the shared process for the renderer to decide whether a
+ * server's host key should be trusted. Fired from ssh2's `hostVerifier` during
+ * key exchange — that is, *before* authentication — so declining guarantees no
+ * password or SSH agent access is ever exposed to an unverified server.
+ *
+ * The shared process only gathers evidence ({@link knownHostsMatch} and the
+ * fingerprint); the renderer owns the actual policy, since it holds the trust
+ * store and the UI. The renderer must answer via
+ * {@link ISSHRemoteAgentHostMainService.respondHostKeyVerification} with the
+ * same `requestId`, otherwise the connection stalls until the deadline.
+ *
+ * (`ISSHRemoteAgentHostMainService` is a misnomer inherited from its siblings:
+ * it and the WSL/tunnel equivalents are all registered in `sharedProcessMain`,
+ * so they run in the shared process, not the main process.)
+ */
+export interface ISSHHostKeyVerificationRequest {
+	readonly requestId: string;
+	readonly connectionKey: string;
+	/** Display-friendly host (e.g. SSH config alias or `user@host`). */
+	readonly displayHost: string;
+	/** Resolved hostname the key was presented for. */
+	readonly host: string;
+	readonly port: number;
+	/** Host key algorithm, e.g. `ssh-ed25519`. */
+	readonly keyType: string;
+	/** OpenSSH-style `SHA256:...` fingerprint, matching `ssh-keygen -lf`. */
+	readonly fingerprint: string;
+	/** What the user's `known_hosts` files say about this key. */
+	readonly knownHostsMatch: SSHKnownHostsMatch;
+	/** Resolved `StrictHostKeyChecking` from `ssh -G`, when recognized. */
+	readonly strictHostKeyChecking?: SSHStrictHostKeyChecking;
+	/**
+	 * Whether the owning connect attempt was directly requested by the user.
+	 * Background reconnects must never open a modal, so an unknown host key on
+	 * a silent reconnect is declined rather than prompted for.
+	 */
+	readonly userInitiated: boolean;
+}
+
+/**
+ * A host key proven to belong to an already-authenticated server, delivered
+ * via OpenSSH's `UpdateHostKeys` extension (`hostkeys-00@openssh.com`). ssh2
+ * completes the `hostkeys-prove-00@openssh.com` challenge and verifies the
+ * signatures before surfacing these, so they can be trusted without prompting
+ * — this is what lets a legitimate server key rotation be picked up silently
+ * instead of surfacing as a scary mismatch.
+ */
+export interface ISSHHostKeysAnnouncement {
+	readonly connectionKey: string;
+	readonly host: string;
+	readonly port: number;
+	readonly keys: readonly { readonly keyType: string; readonly fingerprint: string }[];
+}
+
+/**
  * Main-process service that performs the actual SSH work.
  * The renderer calls this over IPC and handles registration
  * with {@link IRemoteAgentHostService} locally.
@@ -373,7 +487,7 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Fires when the SSH server requests keyboard-interactive auth (typically
 	 * a password prompt). The renderer must answer via {@link respondKeyboardInteractive}
 	 * with the same `requestId`, otherwise the auth attempt will hang until the
-	 * SSH `readyTimeout` elapses.
+	 * SSH handshake deadline elapses.
 	 */
 	readonly onDidRequestKeyboardInteractive: Event<ISSHKeyboardInteractiveRequest>;
 
@@ -412,6 +526,36 @@ export interface ISSHRemoteAgentHostMainService {
 	 * aborts the owning connect attempt with a cancellation error.
 	 */
 	respondEndpointSelection(requestId: string, selection: ISSHEndpointSelection | undefined): Promise<void>;
+
+	/**
+	 * Fires when a server presents a host key during key exchange and the
+	 * renderer must decide whether to trust it. Answering is mandatory: until
+	 * {@link respondHostKeyVerification} is called with the same `requestId`,
+	 * the SSH handshake is suspended.
+	 */
+	readonly onDidRequestHostKeyVerification: Event<ISSHHostKeyVerificationRequest>;
+
+	/**
+	 * Fires when a previously requested host key verification is no longer
+	 * needed (e.g. the owning connect attempt failed or was aborted). The
+	 * renderer should dismiss any UI it opened for `requestId`.
+	 */
+	readonly onDidCancelHostKeyVerification: Event<string /* requestId */>;
+
+	/**
+	 * Provide the user's trust decision for a previously fired host key
+	 * verification request. Passing `false` fails the key exchange, which
+	 * tears the connection down before any authentication is attempted.
+	 */
+	respondHostKeyVerification(requestId: string, trusted: boolean): Promise<void>;
+
+	/**
+	 * Fires when a server announces its full set of host keys over an
+	 * already-authenticated connection. See {@link ISSHHostKeysAnnouncement} —
+	 * these keys are cryptographically proven, so consumers can persist them
+	 * without prompting.
+	 */
+	readonly onDidAnnounceHostKeys: Event<ISSHHostKeysAnnouncement>;
 
 	/**
 	 * Bootstrap a remote agent host over SSH. Returns serializable

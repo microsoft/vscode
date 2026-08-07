@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/sessionsSetUp.css';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { IObservable, runOnChange } from '../../base/common/observable.js';
 import { DeferredPromise, disposableTimeout } from '../../base/common/async.js';
@@ -37,6 +36,8 @@ import { Dialog, DialogContentsAlignment } from '../../base/browser/ui/dialog/di
 import { createWorkbenchDialogOptions } from '../../workbench/browser/parts/dialogs/dialog.js';
 import { MarkdownString } from '../../base/common/htmlContent.js';
 import { localize } from '../../nls.js';
+import { createSessionsSignInDialogOptions, SessionsSigningInDialog } from './sessionsSignInDialog.js';
+import { SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js';
 
 const AIDisabledConfig = 'chat.disableAIFeatures';
 
@@ -108,6 +109,7 @@ class SessionsSetUpWidget extends Disposable {
 		@IHostService private readonly hostService: IHostService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this._usableWithoutGitHub = observeUsableWithoutGitHub(this.sessionsManagementService, this.configurationService);
@@ -440,43 +442,40 @@ class SessionsSetUpWidget extends Disposable {
 		}
 		this.logService.info('[sessions welcome] Showing sign-in dialog');
 
-		const signingInDialogRef = new MutableDisposable<DisposableStore>();
+		while (true) {
+			const attemptDisposables = new DisposableStore();
+			const signingInDialogRef = attemptDisposables.add(new MutableDisposable<SessionsSigningInDialog>());
+			let canceled = false;
+			const showReturnToVSCodeEditor = !isWeb && (await this.commandService.executeCommand<boolean>(SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID)) === true;
 
-		const success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
-			forceSignInDialog: true,
-			dialogIcon: Codicon.agent,
-			dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
-			disableCloseButton: true,
-			onSignInStarted: () => {
-				const disposables = new DisposableStore();
-				signingInDialogRef.value = disposables;
-				const dialog = disposables.add(new Dialog(
-					this.layoutService.activeContainer,
-					localize('sessions.signingIn', "Signing in…"),
-					[],
-					createWorkbenchDialogOptions({
-						type: 'none',
-						extraClasses: ['chat-setup-dialog', 'sessions-welcome-dialog'],
-						detail: localize('sessions.signingIn.detail', "Please complete sign-in in the browser."),
-						icon: Codicon.agent,
-						alignment: DialogContentsAlignment.Vertical,
-						cancelId: 0,
-						disableCloseButton: true,
-						disableDefaultAction: true,
-					}, this.keybindingService, this.layoutService, this.hostService)
-				));
-				dialog.show();
+			let success: boolean | undefined;
+			try {
+				success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
+					...createSessionsSignInDialogOptions(this.commandService, showReturnToVSCodeEditor),
+					onSignInStarted: (cancel: () => void) => {
+						signingInDialogRef.value = this.instantiationService.createInstance(SessionsSigningInDialog, () => {
+							canceled = true;
+							cancel();
+						});
+					}
+				});
+			} finally {
+				attemptDisposables.dispose();
 			}
-		});
 
-		signingInDialogRef.dispose();
+			if (canceled) {
+				this.logService.info('[sessions welcome] Sign-in canceled; returning to sign-in dialog');
+				continue;
+			}
 
-		if (success) {
-			this.logService.info('[sessions welcome] Sign-in completed successfully');
-			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this.serviceMarkDone();
-		} else {
-			this.logService.info('[sessions welcome] Sign-in was canceled or failed');
+			if (success) {
+				this.logService.info('[sessions welcome] Sign-in completed successfully');
+				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.serviceMarkDone();
+			} else {
+				this.logService.info('[sessions welcome] Sign-in was canceled or failed');
+			}
+			return;
 		}
 	}
 

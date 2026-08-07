@@ -11,8 +11,8 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
-import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 /**
@@ -58,6 +58,11 @@ export interface IAccountPolicyGateService {
 	readonly _serviceBrand: undefined;
 	readonly gateInfo: IAccountPolicyGateInfo;
 	readonly onDidChangeGateInfo: Event<IAccountPolicyGateInfo>;
+}
+
+interface IResolvedPolicyData {
+	readonly policyData: IPolicyData;
+	readonly managedSettingResolutions: IManagedSettingsPick['resolutions'];
 }
 
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService, IAccountPolicyGateService {
@@ -126,7 +131,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		const managedSettings = await this.updateCopilotManagedSettingDefinitions(policyDefinitions);
 
 		const updated: string[] = [];
-		const policyData = this.getPolicyData(managedSettings);
+		const resolvedPolicyData = this.getPolicyData(managedSettings);
 
 		const previousInfo = this._gateInfo;
 		this._gateInfo = this.computeGateInfo();
@@ -146,26 +151,9 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			&& this._gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
 
 		for (const key in policyDefinitions) {
-			const policy = policyDefinitions[key];
-
-			let policyValue: PolicyValue | undefined;
-			if (gateRestricted && (policy.value !== undefined || policy.restrictedValue !== undefined)) {
-				// MDM-only policies (no `value`, no `restrictedValue`) — including the policy
-				// that DRIVES the gate itself — are left untouched so the admin remains in control.
-				policyValue = getRestrictedPolicyValue(policy);
-			} else if (policyData && policy.value) {
-				policyValue = policy.value(policyData);
-			}
-
-			if (policyValue !== undefined) {
-				if (this.policies.get(key) !== policyValue) {
-					this.policies.set(key, policyValue);
-					updated.push(key);
-				}
-			} else {
-				if (this.policies.delete(key)) {
-					updated.push(key);
-				}
+			const resolvedPolicy = this.resolvePolicyValue(policyDefinitions[key], resolvedPolicyData, gateRestricted);
+			if (this.updatePolicyValue(key, resolvedPolicy?.value, resolvedPolicy?.source)) {
+				updated.push(key);
 			}
 		}
 
@@ -177,6 +165,60 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}
 	}
 
+	private resolvePolicyValue(policy: PolicyDefinition, resolvedPolicyData: IResolvedPolicyData | undefined, gateRestricted: boolean): { value: PolicyValue; source: PolicyValueSource } | undefined {
+		if (gateRestricted && (policy.value !== undefined || policy.restrictedValue !== undefined)) {
+			return { value: getRestrictedPolicyValue(policy), source: PolicyValueSource.AccountGate };
+		}
+
+		const valueProvider = policy.value;
+		if (!resolvedPolicyData || !valueProvider) {
+			return undefined;
+		}
+
+		const { policyData, managedSettingResolutions } = resolvedPolicyData;
+		const value = valueProvider(policyData);
+		if (value === undefined) {
+			return undefined;
+		}
+
+		let source = PolicyValueSource.Account;
+		if (policy.managedSettings) {
+			const managedSettings = policyData.managedSettings ?? {};
+			const appliedKeys = Object.keys(policy.managedSettings).filter(key => Object.hasOwn(managedSettings, key));
+			if (appliedKeys.length > 0) {
+				const withoutManagedSettingKeys = (keys: ReadonlySet<string>): IPolicyData => ({
+					...policyData,
+					managedSettings: Object.fromEntries(Object.entries(managedSettings).filter(([key]) => !keys.has(key))),
+				});
+				const allAppliedKeys = new Set(appliedKeys);
+				if (valueProvider(withoutManagedSettingKeys(allAppliedKeys)) !== value) {
+					const contributingChannels = new Set<ManagedSettingsChannel>();
+					for (const key of appliedKeys) {
+						const channel = managedSettingResolutions.get(key)?.source;
+						if (channel) {
+							contributingChannels.add(channel);
+						}
+					}
+
+					const causalChannels = new Set<ManagedSettingsChannel>();
+					for (const channel of contributingChannels) {
+						const channelKeys = new Set(appliedKeys.filter(key => managedSettingResolutions.get(key)?.source === channel));
+						if (valueProvider(withoutManagedSettingKeys(channelKeys)) !== value) {
+							causalChannels.add(channel);
+						}
+					}
+
+					const channels = causalChannels.size > 0 ? causalChannels : contributingChannels;
+					source = channels.size === 1
+						? policyValueSourceForManagedSettingsChannel(Array.from(channels)[0])
+						: PolicyValueSource.MixedManagedSettings;
+				}
+			}
+		}
+
+		return { value, source };
+	}
+
 	private async updateCopilotManagedSettingDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData | undefined> {
 		if (!this.nativeManagedSettingsService || !hasManagedSettingsDefinitions(policyDefinitions)) {
 			return this.nativeManagedSettingsService?.managedSettings;
@@ -185,7 +227,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		return this.nativeManagedSettingsService.updatePolicyDefinitions(policyDefinitions);
 	}
 
-	private getPolicyData(mdmManagedSettings?: ManagedSettingsData): IPolicyData | undefined {
+	private getPolicyData(mdmManagedSettings?: ManagedSettingsData): IResolvedPolicyData | undefined {
 		const accountPolicyData = this.defaultAccountService.policyData ?? undefined;
 		const nativeManagedSettings = mdmManagedSettings ?? this.nativeManagedSettingsService?.managedSettings;
 		const fileManagedSettings = this.fileManagedSettingsService?.managedSettings;
@@ -207,8 +249,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		);
 
 		return {
-			...accountPolicyData,
-			managedSettings: managedSettingsData,
+			policyData: {
+				...accountPolicyData,
+				managedSettings: managedSettingsData,
+			},
+			managedSettingResolutions: pick.resolutions,
 		};
 	}
 
@@ -250,6 +295,17 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}
 
 		return { state: AccountPolicyGateState.Satisfied, approvedOrganizations: approvedOrgs };
+	}
+}
+
+function policyValueSourceForManagedSettingsChannel(channel: ManagedSettingsChannel): PolicyValueSource {
+	switch (channel) {
+		case 'nativeMdm':
+			return PolicyValueSource.NativeMdm;
+		case 'server':
+			return PolicyValueSource.ServerManagedSettings;
+		case 'file':
+			return PolicyValueSource.FileManagedSettings;
 	}
 }
 

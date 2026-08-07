@@ -24,24 +24,27 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
+import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ChangesetOperationTargetKind } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	ChangesetKind,
 	buildBranchChangesetUri,
 	buildCompareTurnsChangesetUri,
+	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
 } from '../../../../common/changesetUri.js';
-import { createRealSession, dispatchTurn, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -50,8 +53,8 @@ interface IObservedChangesetFile {
 	readonly id: string;
 	readonly reviewed?: boolean;
 	readonly edit: {
-		readonly before?: { readonly uri: string };
-		readonly after?: { readonly uri: string };
+		readonly before?: { readonly uri: string; readonly content?: { readonly uri: string } };
+		readonly after?: { readonly uri: string; readonly content?: { readonly uri: string } };
 		readonly diff?: { readonly added: number; readonly removed: number };
 	};
 }
@@ -138,6 +141,14 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return `!node -e "require('fs').writeFileSync(process.argv[1],process.argv[2])" ${file} ${contents}`;
 	}
 
+	function deleteFileCommand(file: string): string {
+		return `!node -e "require('fs').unlinkSync(process.argv[1])" ${file}`;
+	}
+
+	function renameFileCommand(source: string, target: string): string {
+		return `!node -e "require('fs').renameSync(process.argv[1],process.argv[2])" ${source} ${target}`;
+	}
+
 	function fileUri(file: IObservedChangesetFile): string {
 		return file.edit.after?.uri ?? file.edit.before?.uri ?? '';
 	}
@@ -183,6 +194,23 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			state = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!.state as typeof state;
 		}
 		return state;
+	}
+
+	async function waitForChangesetFiles(channel: string, basenames: readonly string[]): Promise<readonly IObservedChangesetFile[]> {
+		return retry(async () => {
+			const state = await changesetState(channel);
+			const files: IObservedChangesetFile[] = [];
+			for (const basename of basenames) {
+				const file = state.files.find(file => fileUri(file).endsWith(`/${basename}`));
+				if (file) {
+					files.push(file);
+				}
+			}
+			if (state.status !== 'ready' || files.length !== basenames.length) {
+				throw new Error(`Changeset ${channel} has not reported ${basenames.join(', ')}`);
+			}
+			return files;
+		}, 100, 100);
 	}
 
 	async function runBangTurn(sessionUri: string, turnId: string, command: string, clientSeq: number): Promise<void> {
@@ -272,6 +300,28 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return { workspace, changeset, file };
 	}
 
+	async function invokeDiscard(changeset: string, resource: string): Promise<string[]> {
+		context.client.clearReceived();
+		const completed = context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/operationStatusChanged')
+			&& getActionEnvelope(n).channel === changeset
+			&& (getActionEnvelope(n).action as { operationId: string; status: string }).operationId === 'discard-changes'
+			&& (getActionEnvelope(n).action as { operationId: string; status: string }).status === 'idle',
+		);
+		await context.client.call('invokeChangesetOperation', {
+			channel: changeset,
+			operationId: 'discard-changes',
+			target: { kind: ChangesetOperationTargetKind.Resource, resource },
+		});
+		await completed;
+		return context.client.receivedNotifications(n =>
+			isActionNotification(n, 'changeset/operationStatusChanged')
+			&& getActionEnvelope(n).channel === changeset,
+		).map(n => getActionEnvelope(n).action as { operationId: string; status: string })
+			.filter(action => action.operationId === 'discard-changes')
+			.map(action => action.status);
+	}
+
 
 	conformanceTest(context, 'subscribing to a changeset reaches ready status', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-status-');
@@ -350,6 +400,114 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}, {
 			hasBeforeSide: true,
 			hasAfterSide: true,
+		});
+	});
+
+	conformanceTest(context, 'committed changeset content can be read through its git blob reference', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-git-blob-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-git-blob');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+		await runBangTurn(sessionUri, 'turn-changeset-git-blob', writeFileCommand('seed.txt', 'edited'), 1);
+		const [file] = await waitForChangesetFiles(branchUri, ['seed.txt']);
+		assert.ok(file.edit.before?.content?.uri);
+
+		const content = await context.client.call<ResourceReadResult>('resourceRead', {
+			channel: ROOT_STATE_URI,
+			uri: file.edit.before.content.uri,
+			encoding: ContentEncoding.Utf8,
+		});
+
+		assert.strictEqual(content.data.replaceAll('\r\n', '\n'), 'seed\n');
+	});
+
+	conformanceTest(context, 'deleting a committed file reports only the before side', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-delete-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-delete');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+
+		await runBangTurn(sessionUri, 'turn-changeset-delete', deleteFileCommand('seed.txt'), 1);
+		const [file] = await waitForChangesetFiles(branchUri, ['seed.txt']);
+
+		assert.deepStrictEqual({
+			hasBeforeSide: file.edit.before !== undefined,
+			hasAfterSide: file.edit.after !== undefined,
+			diff: file.edit.diff,
+		}, {
+			hasBeforeSide: true,
+			hasAfterSide: false,
+			diff: { added: 0, removed: 1 },
+		});
+	});
+
+	conformanceTest(context, 'renaming a committed file reports the destination change', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-rename-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-rename');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+
+		await runBangTurn(sessionUri, 'turn-changeset-rename', renameFileCommand('seed.txt', 'renamed.txt'), 1);
+		const [file] = await waitForChangesetFiles(branchUri, ['renamed.txt']);
+
+		assert.deepStrictEqual({
+			after: file.edit.after?.uri.endsWith('/renamed.txt'),
+			sourceExists: existsSync(join(workspace, 'seed.txt')),
+			destinationExists: existsSync(join(workspace, 'renamed.txt')),
+		}, {
+			after: true,
+			sourceExists: false,
+			destinationExists: true,
+		});
+	});
+
+	conformanceTest(context, 'one turn reports mixed create edit and delete changes', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-mixed-');
+		writeFileSync(join(workspace, 'delete.txt'), 'delete\n');
+		execSync('git add .', { cwd: workspace });
+		execSync('git commit -q -m "second seed"', { cwd: workspace });
+		const sessionUri = await createSessionIn(workspace, 'changeset-mixed');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+
+		await runBangTurn(
+			sessionUri,
+			'turn-changeset-mixed',
+			'!node -e "const fs=require(\'fs\');fs.writeFileSync(\'seed.txt\',\'edited\');fs.writeFileSync(\'added.txt\',\'added\');fs.unlinkSync(\'delete.txt\')"',
+			1,
+		);
+		const files = await waitForChangesetFiles(branchUri, ['seed.txt', 'added.txt', 'delete.txt']);
+
+		assert.deepStrictEqual(files.map(file => ({
+			name: URI.parse(fileUri(file)).path.split('/').at(-1),
+			hasBefore: file.edit.before !== undefined,
+			hasAfter: file.edit.after !== undefined,
+		})), [
+			{ name: 'seed.txt', hasBefore: true, hasAfter: true },
+			{ name: 'added.txt', hasBefore: false, hasAfter: true },
+			{ name: 'delete.txt', hasBefore: true, hasAfter: false },
+		]);
+	});
+
+	conformanceTest(context, 'an empty repository reports an untracked file as added', async function () {
+		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-empty-repo-'));
+		tempDirs.push(workspace);
+		initTestGitRepo(workspace);
+		const sessionUri = await createSessionIn(workspace, 'changeset-empty-repo');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+
+		await runBangTurn(sessionUri, 'turn-changeset-empty-repo', writeFileCommand('first.txt', 'first'), 1);
+		const [file] = await waitForChangesetFiles(branchUri, ['first.txt']);
+
+		assert.deepStrictEqual({
+			hasBefore: file.edit.before !== undefined,
+			hasAfter: file.edit.after !== undefined,
+			diff: file.edit.diff,
+		}, {
+			hasBefore: false,
+			hasAfter: true,
+			diff: { added: 1, removed: 0 },
 		});
 	});
 
@@ -458,6 +616,255 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			contents: 'seed\n',
 			statuses: ['running', 'idle'],
 		});
+	});
+
+	// The operation is advertised but currently fails for untracked paths; see KNOWN_ISSUES.md.
+	conformanceTest(context, 'discarding an untracked file removes it from disk', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-discard-added-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-discard-added');
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		await runBangTurn(sessionUri, 'turn-changeset-discard-added', writeFileCommand('untracked.txt', 'untracked'), 1);
+		const [file] = await waitForChangesetFiles(changeset, ['untracked.txt']);
+
+		const statuses = await invokeDiscard(changeset, fileUri(file));
+
+		assert.deepStrictEqual({
+			exists: existsSync(join(workspace, 'untracked.txt')),
+			statuses,
+		}, {
+			exists: false,
+			statuses: ['running', 'idle'],
+		});
+	}, false);
+
+	conformanceTest(context, 'discarding a deleted tracked file restores its contents', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-discard-deleted-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-discard-deleted');
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		await runBangTurn(sessionUri, 'turn-changeset-discard-deleted', deleteFileCommand('seed.txt'), 1);
+		const [file] = await waitForChangesetFiles(changeset, ['seed.txt']);
+
+		const statuses = await invokeDiscard(changeset, fileUri(file));
+
+		assert.deepStrictEqual({
+			contents: readFileSync(join(workspace, 'seed.txt'), 'utf8').replaceAll('\r\n', '\n'),
+			statuses,
+		}, {
+			contents: 'seed\n',
+			statuses: ['running', 'idle'],
+		});
+	});
+
+	conformanceTest(context, 'discarding one file preserves sibling changes', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-discard-one-');
+		writeFileSync(join(workspace, 'first.txt'), 'original first\n');
+		writeFileSync(join(workspace, 'second.txt'), 'original second\n');
+		execSync('git add .', { cwd: workspace });
+		execSync('git commit -q -m "sibling seed"', { cwd: workspace });
+		const sessionUri = await createSessionIn(workspace, 'changeset-discard-one');
+		const changeset = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		await runBangTurn(
+			sessionUri,
+			'turn-changeset-discard-one',
+			'!node -e "const fs=require(\'fs\');fs.writeFileSync(\'first.txt\',\'changed first\');fs.writeFileSync(\'second.txt\',\'changed second\')"',
+			1,
+		);
+		const [first] = await waitForChangesetFiles(changeset, ['first.txt', 'second.txt']);
+
+		await invokeDiscard(changeset, fileUri(first));
+		const state = await retry(async () => {
+			const result = await changesetState(changeset);
+			if (result.files.some(file => fileUri(file).endsWith('/first.txt')) || !result.files.some(file => fileUri(file).endsWith('/second.txt'))) {
+				throw new Error('Changeset has not refreshed after discard');
+			}
+			return result;
+		}, 100, 100);
+
+		assert.deepStrictEqual({
+			firstExists: existsSync(join(workspace, 'first.txt')),
+			secondExists: existsSync(join(workspace, 'second.txt')),
+			files: state.files.map(file => URI.parse(fileUri(file)).path.split('/').at(-1)),
+		}, {
+			firstExists: true,
+			secondExists: true,
+			files: ['second.txt'],
+		});
+		assert.strictEqual(readFileSync(join(workspace, 'first.txt'), 'utf8').replaceAll('\r\n', '\n'), 'original first\n');
+	});
+
+	conformanceTest(context, 'review state can be applied to multiple changed files', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-review-multiple-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-review-multiple');
+		const changeset = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		await runBangTurn(
+			sessionUri,
+			'turn-changeset-review-multiple',
+			'!node -e "const fs=require(\'fs\');fs.writeFileSync(\'first.txt\',\'first\');fs.writeFileSync(\'second.txt\',\'second\')"',
+			1,
+		);
+		const files = await waitForChangesetFiles(changeset, ['first.txt', 'second.txt']);
+
+		context.client.dispatch({
+			channel: changeset,
+			clientSeq: nextClientSeq(),
+			action: { type: ActionType.ChangesetFilesReviewChanged, files: files.map(file => file.id), reviewed: true },
+		});
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/filesReviewChanged') && getActionEnvelope(n).channel === changeset,
+		);
+		const state = await changesetState(changeset);
+
+		assert.deepStrictEqual(state.files.map(file => file.reviewed), [true, true]);
+	});
+
+	conformanceTest(context, 'a client can clear review state from a changed file', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-review-unset-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-review-unset');
+		const changeset = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		await runBangTurn(sessionUri, 'turn-changeset-review-unset', writeFileCommand('seed.txt', 'edited'), 1);
+		const [file] = await waitForChangesetFiles(changeset, ['seed.txt']);
+
+		context.client.dispatch({
+			channel: changeset,
+			clientSeq: nextClientSeq(),
+			action: { type: ActionType.ChangesetFilesReviewChanged, files: [file.id], reviewed: true },
+		});
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/filesReviewChanged') && getActionEnvelope(n).channel === changeset,
+		);
+		context.client.clearReceived();
+		context.client.dispatch({
+			channel: changeset,
+			clientSeq: nextClientSeq(),
+			action: { type: ActionType.ChangesetFilesReviewChanged, files: [file.id], reviewed: false },
+		});
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/filesReviewChanged') && getActionEnvelope(n).channel === changeset,
+		);
+
+		const state = await changesetState(changeset);
+		assert.strictEqual(state.files.find(candidate => candidate.id === file.id)?.reviewed, false);
+	});
+
+	// Repeated edits currently leave the first ready diff in place; see KNOWN_ISSUES.md.
+	conformanceTest(context, 'a second edit updates one changeset entry in place', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-second-edit-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-second-edit');
+		const changeset = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		await runBangTurn(
+			sessionUri,
+			'turn-changeset-second-edit-first',
+			'!node -e "require(\'fs\').writeFileSync(\'seed.txt\',\'first\\nsecond\\n\')"',
+			1,
+		);
+		const [first] = await waitForChangesetFiles(changeset, ['seed.txt']);
+		await runBangTurn(
+			sessionUri,
+			'turn-changeset-second-edit-second',
+			'!node -e "require(\'fs\').writeFileSync(\'seed.txt\',\'first\\nsecond\\nthird\\n\')"',
+			2,
+		);
+		const second = await retry(async () => {
+			const [candidate] = await waitForChangesetFiles(changeset, ['seed.txt']);
+			if (candidate.edit.diff?.added !== 3) {
+				throw new Error('Changeset has not incorporated the second edit');
+			}
+			return candidate;
+		}, 100, 100);
+		const state = await changesetState(changeset);
+
+		assert.deepStrictEqual({
+			fileCount: state.files.length,
+			sameIdentity: first.id === second.id,
+			diff: second.edit.diff,
+		}, {
+			fileCount: 1,
+			sameIdentity: true,
+			diff: { added: 3, removed: 1 },
+		});
+	}, false);
+
+	conformanceTest(context, 'a nested untracked file retains its workspace-relative identity', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-nested-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-nested');
+		const changeset = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		await runBangTurn(
+			sessionUri,
+			'turn-changeset-nested',
+			'!node -e "const fs=require(\'fs\');fs.mkdirSync(\'nested\',{recursive:true});fs.writeFileSync(\'nested/added.txt\',\'nested\')"',
+			1,
+		);
+		const [file] = await waitForChangesetFiles(changeset, ['added.txt']);
+
+		assert.deepStrictEqual({
+			path: URI.parse(file.edit.after!.uri).path.endsWith('/nested/added.txt'),
+			hasBefore: file.edit.before !== undefined,
+			diff: file.edit.diff,
+		}, {
+			path: true,
+			hasBefore: false,
+			diff: { added: 1, removed: 0 },
+		});
+	});
+
+	conformanceTest(context, 'discarding the last tracked change clears changeset and list summaries', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-discard-last-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-discard-last');
+		const branchChangeset = buildBranchChangesetUri(sessionUri);
+		const uncommittedChangeset = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchChangeset });
+		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedChangeset });
+		await runBangTurn(sessionUri, 'turn-changeset-discard-last', writeFileCommand('seed.txt', 'edited'), 1);
+		await waitForChangesetFiles(branchChangeset, ['seed.txt']);
+		const [file] = await waitForChangesetFiles(uncommittedChangeset, ['seed.txt']);
+
+		await invokeDiscard(uncommittedChangeset, fileUri(file));
+		await retry(async () => {
+			const branch = await changesetState(branchChangeset);
+			const uncommitted = await changesetState(uncommittedChangeset);
+			const sessions = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+			assert.deepStrictEqual({
+				branchFiles: branch.files.length,
+				uncommittedFiles: uncommitted.files.length,
+				summary: sessions.items.find(item => item.resource === sessionUri)?.changes,
+			}, {
+				branchFiles: 0,
+				uncommittedFiles: 0,
+				summary: { additions: 0, deletions: 0, files: 0 },
+			});
+		}, 100, 100);
+	});
+
+	conformanceTest(context, 'listSessions reports the aggregate file change summary', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-list-summary-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-list-summary');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+		await runBangTurn(
+			sessionUri,
+			'turn-changeset-list-summary',
+			'!node -e "const fs=require(\'fs\');fs.writeFileSync(\'seed.txt\',\'edited\');fs.writeFileSync(\'added.txt\',\'added\')"',
+			1,
+		);
+		await waitForChangesetFiles(branchUri, ['seed.txt', 'added.txt']);
+
+		const changes = await retry(async () => {
+			const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+			const summary = result.items.find(item => item.resource === sessionUri)?.changes;
+			if (!summary || summary.files !== 2) {
+				throw new Error('Session list has not received the changes summary');
+			}
+			return summary;
+		}, 100, 100);
+
+		assert.deepStrictEqual(changes, { additions: 2, deletions: 1, files: 2 });
 	});
 
 	conformanceTest(context, 'invoking an unknown changeset operation is rejected', async function () {
@@ -636,4 +1043,67 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			hasCompare: true,
 		});
 	}, false);
+
+	if (context.tier === 'parity') {
+		(config.supportsMultipleChats && config.streamingFileCreateToolName ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
+			this.timeout(240_000);
+			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
+			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');
+			const peerUri = buildChatUri(sessionUri, generateUuid());
+			await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Changes Peer' });
+			await context.client.call<SubscribeResult>('subscribe', { channel: peerUri });
+			const sessionChangeset = buildSessionChangesetUri(sessionUri);
+			await context.client.call<SubscribeResult>('subscribe', { channel: sessionChangeset });
+
+			await driveTurnToCompletion(
+				context.client,
+				sessionUri,
+				'turn-provider-default-edit',
+				'Create default-provider.txt containing exactly DEFAULT_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".',
+				1,
+			);
+			const approval = startBackgroundApprovalLoop(context.client, {
+				approvalSeqStart: 100,
+				allow: [{ toolName: config.streamingFileCreateToolName! }],
+			});
+			try {
+				context.client.dispatch({
+					channel: peerUri,
+					clientSeq: 10,
+					action: {
+						type: ActionType.ChatTurnStarted,
+						turnId: 'turn-provider-peer-edit',
+						startedAt: '2025-01-01T00:00:00.000Z',
+						message: {
+							text: 'Create peer-provider.txt containing exactly PEER_PROVIDER using your file creation tool; do not run a shell command. Then reply exactly "created".',
+							origin: { kind: MessageKind.User },
+						},
+					},
+				});
+				await context.client.waitForNotification(n =>
+					isActionNotification(n, 'chat/turnComplete')
+					&& getActionEnvelope(n).channel === peerUri
+					&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === 'turn-provider-peer-edit',
+					90_000,
+				);
+			} finally {
+				await approval.stop();
+			}
+			assert.deepStrictEqual(approval.errors, []);
+
+			const files = await retry(async () => {
+				const state = await changesetState(sessionChangeset);
+				const matches = ['default-provider.txt', 'peer-provider.txt'].map(name => state.files.find(file => fileUri(file).endsWith(`/${name}`)));
+				if (matches.some(match => !match)) {
+					throw new Error('Session changeset has not aggregated both provider chats');
+				}
+				return matches;
+			}, 100, 100);
+
+			assert.deepStrictEqual(files.map(file => URI.parse(fileUri(file!)).path.split('/').at(-1)).sort(), [
+				'default-provider.txt',
+				'peer-provider.txt',
+			]);
+		});
+	}
 }

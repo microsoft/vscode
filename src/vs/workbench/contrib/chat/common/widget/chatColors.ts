@@ -8,13 +8,15 @@ import { localize } from '../../../../../nls.js';
 import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
+import { COMMAND_CENTER_BACKGROUND } from '../../../../common/theme.js';
 
-// This color intentionally matches commandCenter.background but is separate so that it
-// doesn't get overridden when debugging (the debug toolbar overrides commandCenter.background).
-// This allows themes to customize it while maintaining independence from debug mode changes.
+// This color inherits its default value from commandCenter.background but is registered
+// separately so that it doesn't get overridden when debugging (the debug toolbar overrides
+// commandCenter.background). This allows themes to customize it while maintaining
+// independence from debug mode changes.
 export const agentStatusIndicatorBackground = registerColor(
 	'agentStatusIndicator.background',
-	{ dark: Color.white.transparent(0.05), light: Color.black.transparent(0.05), hcDark: null, hcLight: null },
+	COMMAND_CENTER_BACKGROUND,
 	localize('agentStatusIndicator.background', 'Background color of the agent status indicator in the titlebar.')
 );
 

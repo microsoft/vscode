@@ -45,13 +45,8 @@ interface SessionConfig {
 }
 
 const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Copilot', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2' },
 	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE', scenarioId2: 'smoke-hello-claude-2', reply2: 'MOCKED_CLAUDE_RESPONSE_2' },
-	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE', scenarioId2: 'smoke-hello-local-2', reply2: 'MOCKED_LOCAL_RESPONSE_2' },
 ];
-
-const COPILOT_SANDBOX_SCENARIO_ID = 'smoke-hello-copilot-sandbox';
-const COPILOT_SANDBOX_REPLY = 'MOCKED_COPILOT_SANDBOX_RESPONSE';
 
 const CODEX_SCENARIO_ID = 'smoke-hello-codex';
 const CODEX_REPLY = 'MOCKED_CODEX_RESPONSE';
@@ -84,40 +79,6 @@ const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-hello-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
-// --- Model configuration (Local session) ---
-
-/**
- * Display name of the dedicated mock model that advertises both a Thinking
- * Effort and a Context Size picker (see `mock-config-model` in the mock
- * server). Selected in the Agents Window's active-session model picker by the
- * `Agents Window (model configuration)` suite.
- */
-const MODEL_CONFIG_MODEL_NAME = 'Mock Config Model';
-
-/**
- * Model id the mock server advertises for {@link MODEL_CONFIG_MODEL_NAME}. Used
- * to single out the main agent `/responses` request from ancillary requests
- * (e.g. title generation) that may also carry the conversation history.
- */
-const MODEL_CONFIG_MODEL_ID = 'mock-config-model';
-
-// Warm-up scenario for the model-configuration suite: the first Local message
-// activates copilot-chat in the Agents Window exthost and registers the
-// models, which populates the model picker, and creates the active session
-// whose input hosts the model + config pickers.
-const MODEL_CONFIG_WARMUP_SCENARIO_ID = 'smoke-agents-model-config-warmup';
-const MODEL_CONFIG_WARMUP_REPLY = 'MOCKED_AGENTS_MODEL_CONFIG_WARMUP';
-
-/**
- * A chat request captured by the mock LLM server, exposed via
- * {@link MockServerWithRequests.getRequests}.
- */
-interface CapturedRequest {
-	readonly path: string;
-	readonly method: string;
-	readonly body: any;
-}
-
 async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefined, mockServerUrl: string, additionalSettings: Record<string, string | boolean> = {}): Promise<void> {
 	if (!userDataDir) {
 		throw new Error('Cannot pre-seed Agents Window profiles without a user data directory');
@@ -128,11 +89,7 @@ async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefine
 		'github.copilot.advanced.debug.overrideAuthType': 'token',
 		'chat.allowAnonymousAccess': true,
 		'github.copilot.chat.githubMcpServer.enabled': false,
-		// This suite exercises the extension-host session providers directly.
-		'chat.agentHost.enabled': false,
-		'sessions.chat.localAgent.enabled': true,
-		'github.copilot.chat.cli.sandbox.enabled': 'on',
-		'github.copilot.chat.cli.sessionEventLogging.enabled': true,
+		'chat.agents.claude.preferAgentHost': false,
 		// Keep follow-up turns in the same chat so the test flow is deterministic.
 		'sessions.github.copilot.multiChatSessions': false,
 		// Capture enough runtime detail to diagnose CI hangs.
@@ -147,98 +104,6 @@ async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefine
 		fs.writeFileSync(settingsPath, settings);
 	}
 	await preseedChatExtensionEnablement(userDataDir);
-}
-
-/**
- * The mock server handle plus the request-capture accessor the perf/smoke
- * harness exposes (see `scripts/chat-simulation/common/mock-llm-server.ts`).
- */
-interface MockServerWithRequests extends MockLlmServer {
-	getRequests(): CapturedRequest[];
-}
-
-/**
- * Combinations of model-configuration picker selections to exercise. Each case
- * selects a Thinking Effort and a Context Size in the model-picker UI, sends a
- * tagged prompt, and verifies the values the mock server received in the
- * `/responses` request body:
- * - reasoning effort → `body.reasoning.effort`
- * - context size → `body.context_management[0].compact_threshold`
- *
- * Numbers mirror a GPT-5.5-class model. The compaction threshold is
- * `floor(maxPromptTokens * 0.9)`. The default tier exposes a 272000 prompt
- * window (→ 244800). The long tier is the full window minus the 128000 output
- * reserve — `1050000 - 128000 = 922000` (→ 829800); note `formatTokenCount`
- * renders 922000 as "1M" (its `>900K → 1M` branch). The context-usage gauge
- * total is `maxInputTokens(tier) + maxOutputTokens`, i.e. `272000 + 128000 =
- * 400000` ("400K") and `922000 + 128000 = 1050000` ("1M").
- */
-interface ModelConfigCase {
-	readonly name: string;
-	readonly effortLabel: string;
-	readonly expectedEffort: string;
-	readonly contextLabel: string;
-	readonly expectedCompactThreshold: number;
-	/**
-	 * The context-window denominator the context-usage gauge details popup should
-	 * show after this case's selection (the gauge total is
-	 * `maxInputTokens(tier) + maxOutputTokens`, formatted via `formatTokenCount`).
-	 */
-	readonly expectedContextWindowLabel: string;
-	readonly scenarioId: string;
-	readonly reply: string;
-}
-
-const MODEL_CONFIG_CASES: readonly ModelConfigCase[] = [
-	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedContextWindowLabel: '400K', scenarioId: 'smoke-agents-model-config-low-default', reply: 'MOCKED_AGENTS_MODEL_CONFIG_LOW_DEFAULT' },
-	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedContextWindowLabel: '1M', scenarioId: 'smoke-agents-model-config-high-long', reply: 'MOCKED_AGENTS_MODEL_CONFIG_HIGH_LONG' },
-];
-
-/**
- * Find the latest `/responses` request (at or after `fromIndex`) sent for the
- * mock model whose *current* user turn carries the given scenario tag.
- *
- * The Responses API request replays the whole conversation in its `input`
- * array, so an earlier turn's `[scenario:...]` tag lingers in the history of
- * later requests — and ancillary requests (e.g. title generation) can replay
- * that same history. Matching the serialized body anywhere would therefore pick
- * the wrong request, so we check only the latest `user` input item (the prompt
- * just sent for this turn), mirroring how the mock server resolves the active
- * scenario.
- */
-function findResponsesRequest(requests: CapturedRequest[], fromIndex: number, scenarioTag: string): any | undefined {
-	for (let i = requests.length - 1; i >= fromIndex; i--) {
-		const request = requests[i];
-		if (request.path !== '/responses' || request.body?.model !== MODEL_CONFIG_MODEL_ID) {
-			continue;
-		}
-		if (latestUserInputCarriesTag(request.body, scenarioTag)) {
-			return request.body;
-		}
-	}
-	return undefined;
-}
-
-/**
- * Whether the latest `user` item in a Responses API request's `input` array
- * contains `scenarioTag`. The item's `content` is either a plain string or an
- * array of `{ text }` parts (matching the mock server's own scenario parsing).
- */
-function latestUserInputCarriesTag(body: any, scenarioTag: string): boolean {
-	const input = Array.isArray(body?.input) ? body.input : [];
-	for (let i = input.length - 1; i >= 0; i--) {
-		const item = input[i];
-		if (item?.role !== 'user') {
-			continue;
-		}
-		const content = typeof item.content === 'string'
-			? item.content
-			: Array.isArray(item.content)
-				? item.content.map((part: any) => part?.text ?? '').join('')
-				: '';
-		return content.includes(scenarioTag);
-	}
-	return false;
 }
 
 export function setup(logger: Logger) {
@@ -266,60 +131,19 @@ export function setup(logger: Logger) {
 			claudeModelPrepared = true;
 		};
 
-		// Shell-tool scenarios for each session type. Each entry carries
-		// everything the registration step and the corresponding test need —
-		// scenario id, expected echoed reply, and the mock-LLM scenario
-		// factory (different tool names per surface: `bash`/`pwsh`/
-		// `powershell` for SDK sessions vs `run_in_terminal` for the Local
-		// agent), plus optional per-session hooks for cold-start warm-up and
-		// extra assertions. Keeping the data here avoids drift between the
-		// scenario registration and the test that consumes it.
+		// Shell-tool scenarios for each session type. Each entry carries the
+		// scenario and optional cold-start warm-up used by its corresponding test.
 		interface ShellSession {
 			readonly name: string;
 			readonly sessionType: string;
 			readonly scenarioId: string;
 			readonly reply: string;
 			readonly scenarioFactory: (reply: string) => unknown;
-			/**
-			 * Override `chat.cli.sandbox.enabled` to `'off'` for this test.
-			 * The Agents Window suite enables the Copilot CLI sandbox at the
-			 * suite level (for the "Test Copilot CLI session (sandbox)"
-			 * test), but the Win32 AppContainer backend returns
-			 * `Experimental_CreateProcessInSandbox returned E_NOTIMPL` on dev
-			 * machines without the corresponding velocity feature flags
-			 * (61389575, 61155944) enabled, which would fail any Copilot
-			 * shell-tool test on Windows. Set this for non-sandbox Copilot
-			 * tests so they exercise the plain (non-sandboxed) shell path
-			 * everywhere — including Windows dev machines and CI.
-			 */
-			readonly disableCliSandbox?: boolean;
 			/** Optional cold-start warm-up (e.g. Claude SDK bundling). */
 			readonly warmUp?: (app: Application, label: string) => Promise<void>;
-			/** Optional extra assertion run after the chat reply lands. */
-			readonly extraAssertion?: (app: Application) => Promise<void>;
 		}
 
 		const SHELL_SESSIONS: readonly ShellSession[] = [
-			{
-				name: 'Copilot',
-				sessionType: 'Copilot',
-				scenarioId: 'smoke-hello-copilot-shell',
-				reply: 'MOCKED_COPILOT_SHELL_RESPONSE',
-				scenarioFactory: shellEchoScenario,
-				disableCliSandbox: true,
-				// Confirm the shell tool actually executed by checking the
-				// CopilotCLISession diagnostic log. We don't care whether
-				// the command was sandboxed for this test.
-				extraAssertion: async (app) => {
-					const chatLogPath = path.join(app.logsPath, 'window2', 'exthost', 'GitHub.copilot-chat', 'GitHub Copilot Chat.log');
-					const chatLog = await fs.promises.readFile(chatLogPath, 'utf8');
-					assert.match(
-						chatLog,
-						/\[CopilotCLISession\] tool\.execution_complete /,
-						`expected tool.execution_complete in ${chatLogPath}`
-					);
-				},
-			},
 			{
 				name: 'Claude',
 				sessionType: 'Claude',
@@ -330,13 +154,6 @@ export function setup(logger: Logger) {
 				// below runs against a warm pipeline (see warmUpClaudeModel).
 				warmUp: prepareClaudeModel,
 			},
-			// Note: there is intentionally no "Local" entry. The Local agent
-			// in the Agents Window does not include `run_in_terminal` in its
-			// advertised tool set, so the model's tool call is rejected with
-			// "Tool run_in_terminal is currently disabled by the user".
-			// The Chat Sessions "Test Local session run in terminal" test
-			// already covers `run_in_terminal` against the regular chat panel
-			// where the tool is available.
 		];
 
 		// Start the mock server BEFORE installAllHandlers' `before` runs so
@@ -355,8 +172,6 @@ export function setup(logger: Logger) {
 				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
 				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
 			}
-
-			registerScenario(COPILOT_SANDBOX_SCENARIO_ID, shellEchoScenario(COPILOT_SANDBOX_REPLY));
 
 			// Shell-tool scenarios for the non-sandbox shell-tool tests
 			// (auto-approved by the default `chat.tools.terminal.autoApprove`
@@ -454,42 +269,13 @@ export function setup(logger: Logger) {
 					logger.log(`Agents Window (${session.name}) response 1: ${text}`);
 
 					if (!session.skipReply2) {
-						// Copilot CLI: after a request completes, the Agents Window
-						// auto-switches the active view to a fresh untitled session;
-						// sending a follow-up prompt there would spawn a brand new
-						// agent session (with its own session id and branch) rather
-						// than continuing the existing one. Click back into the
-						// just-completed session before sending message 2 so the
-						// follow-up lands in the same session. Identify the row by
-						// EITHER the first prompt or the msg1 reply: the row text is
-						// the session title, which starts as the prompt (synchronous
-						// fallback) and is asynchronously replaced by a generated
-						// title (the reply, in the mock). Matching either avoids a
-						// race on when title generation lands. The sessions list also
-						// contains workspace folder group headers and historical
-						// sessions, so we can't just click the topmost row.
-						if (session.name === 'Copilot') {
-							await app.workbench.agentsWindow.activateSessionByLabel([firstPrompt, session.reply], session.reply);
-						}
-
 						// Follow-up message in the same session — exercises the
 						// active-session input path (not the new-session homepage).
-						// For Copilot CLI, pass the expected active label so
-						// `sendFollowUpMessage` re-verifies the active slot right
-						// before sending (the workbench can auto-swap the slot to
-						// a fresh untitled session between `activateSessionByLabel`
-						// returning and the send-button click).
-						const expectedActiveLabel = session.name === 'Copilot' ? session.reply : undefined;
-						const activeRowMatch = session.name === 'Copilot' ? [firstPrompt, session.reply] : undefined;
 						await app.workbench.agentsWindow.sendFollowUpMessage(
 							`hello again [scenario:${session.scenarioId2}]`,
-							undefined,
-							expectedActiveLabel,
-							activeRowMatch,
 						);
 
-						const secondTurnTimeout = session.name === 'Copilot' ? 180_000 : 60_000;
-						const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, secondTurnTimeout);
+						const text2 = await app.workbench.agentsWindow.waitForAssistantText(session.reply2, 60_000);
 						logger.log(`Agents Window (${session.name}) response 2: ${text2}`);
 					} else {
 						logger.log(`[Agents Window/${session.name}] skipping second reply assertion (skipReply2=true)`);
@@ -500,76 +286,13 @@ export function setup(logger: Logger) {
 						`expected the mock LLM server to have received a new request from the ${session.name} session`
 					);
 				} catch (error) {
-					logger.log(`[Agents Window/Copilot] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-					logger.log(`[Agents Window/Copilot] mock server requestCount at failure: ${mockServer.requestCount()}`);
-					await dumpFailureDiagnostics(app, logger, 'Agents Window/Copilot', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+					logger.log(`[Agents Window/${session.name}] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					logger.log(`[Agents Window/${session.name}] mock server requestCount at failure: ${mockServer.requestCount()}`);
+					await dumpFailureDiagnostics(app, logger, `Agents Window/${session.name}`, { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 					throw error;
 				}
 			});
 		}
-
-		it('Test Copilot CLI session (sandbox)', async function () {
-			// To debug a CI run, download the per-platform logs artifact from
-			// the Azure DevOps build:
-			//
-			//   az pipelines runs artifact download \
-			//     --org <ORG_URL> --project <PROJECT_NAME> \
-			//     --run-id <BUILD_ID> --artifact-name logs-<os>-<arch>-1 \
-			//     --path ./logs-<os>
-			//
-			// where <os>-<arch> is one of `linux-x64`, `macos-arm64`,
-			// `windows-x64`. Inside the artifact:
-			//
-			// - `smoke-tests-electron/smoke-test-runner.log` — the mock LLM's
-			//   verbose request/response bodies (look for `request body:`)
-			//   alongside the mocha test driver output.
-			// - `smoke-tests-electron/<N>_suite_Agents_Window/window2/exthost/
-			//   GitHub.copilot-chat/GitHub Copilot Chat.log` — the
-			//   CopilotCLISession diagnostic log: `[sandboxSpawn]` lines from
-			//   the runtime and `[CopilotCLISession] tool.execution_complete
-			//   ... success=… sandboxed=… [error=…] content=…` lines from
-			//   `_logSessionEvent` (gated by the
-			//   `github.copilot.chat.cli.sessionEventLogging.enabled`
-			//   setting that this suite sets in the `before` hook).
-			// - `smoke-tests-electron/<N>_suite_Agents_Window/playwright-screenshot-
-			//   *-Test_Copilot_CLI_session*.png` — last-frame screenshot of
-			//   the Agents Window when a test fails; the JSON dump in the
-			//   chat usually surfaces the raw `tool_result` payload.
-			if (process.platform === 'win32') {
-				this.skip();
-			}
-
-			const app = this.app as Application;
-
-			await app.workbench.agentsWindow.startNewSession();
-			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Copilot');
-
-			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SANDBOX_SCENARIO_ID}]`);
-
-			// 120s timeout: Windows sandbox cold-start can take ~60s before the
-			// shell tool returns its first output.
-			// Match the JSON `output` field of the tool result in the final
-			// response, not the `echo <reply>` command preview — see
-			// shellEchoScenario / shellEchoResponseMatcher.
-			const text = await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(COPILOT_SANDBOX_REPLY), 120_000);
-			logger.log(`Agents Window (Copilot sandbox) response: ${text}`);
-
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Copilot sandbox session'
-			);
-
-			// Confirm the shell tool actually ran inside the sandbox.
-			const chatLogPath = path.join(app.logsPath, 'window2', 'exthost', 'GitHub.copilot-chat', 'GitHub Copilot Chat.log');
-			const chatLog = await fs.promises.readFile(chatLogPath, 'utf8');
-			assert.match(
-				chatLog,
-				/\[CopilotCLISession\] tool\.execution_complete .* sandboxed=true/,
-				`expected tool.execution_complete with sandboxed=true in ${chatLogPath}`
-			);
-		});
 
 		// Shell-tool variants for each session type — exercise the
 		// model-driven shell tool (`bash` / `pwsh` / `powershell` for the SDK
@@ -584,18 +307,6 @@ export function setup(logger: Logger) {
 				const app = this.app as Application;
 				const label = `Agents Window/${shellSession.name} shell`;
 				try {
-					if (shellSession.disableCliSandbox) {
-						// Override the suite-level `chat.cli.sandbox.enabled: 'on'`
-						// (set in the suite `before` for the sandbox test) so the
-						// SDK runs the shell tool without the Win32 AppContainer
-						// backend, which fails with E_NOTIMPL on dev machines and
-						// CI agents that lack the velocity feature flags. Write
-						// directly to settings.json on disk (the configuration
-						// service has a file watcher) rather than opening the
-						// settings editor — that would steal focus from the
-						// Agents Window UI under test.
-						await overrideUserSettingOnDisk(app, 'github.copilot.chat.cli.sandbox.enabled', 'off');
-					}
 					await app.workbench.agentsWindow.startNewSession();
 					await app.workbench.agentsWindow.waitForNewSessionView();
 					if (shellSession.warmUp) {
@@ -615,9 +326,6 @@ export function setup(logger: Logger) {
 						`expected the mock LLM server to have received a new request from the ${shellSession.name} shell session`
 					);
 
-					if (shellSession.extraAssertion) {
-						await shellSession.extraAssertion(app);
-					}
 				} catch (error) {
 					logger.log(`[${label}] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 					await dumpFailureDiagnostics(app, logger, label, { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
@@ -625,150 +333,6 @@ export function setup(logger: Logger) {
 				}
 			});
 		}
-	});
-
-	extensionSuite('Agents Window (model configuration)', function () {
-		// Cold start of the Local session's copilot-chat exthost plus model
-		// registration can take a while on CI; match the 5-minute budget used
-		// by the other Agents Window describes.
-		this.timeout(5 * 60 * 1000);
-
-		let mockServer: MockServerWithRequests;
-
-		// Start the mock server BEFORE installAllHandlers' `before` runs so the
-		// mock URL is available when we configure the app's env vars.
-		before(async function () {
-			const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
-
-			// Fallback for ancillary requests (title/branch) that don't carry a [scenario:...] tag.
-			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
-			registerScenario(MODEL_CONFIG_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(MODEL_CONFIG_WARMUP_REPLY).build());
-
-			// One scenario per case, each emitting a distinct reply so the
-			// response-text assertion unambiguously identifies the current turn.
-			for (const testCase of MODEL_CONFIG_CASES) {
-				registerScenario(testCase.scenarioId, new ScenarioBuilder().emit(testCase.reply).build());
-			}
-
-			mockServer = await startServer(0, mockServerStartOptions((msg: string) => logger.log(`[mock-llm] ${msg}`), true)) as MockServerWithRequests;
-			logger.log(`[Agents Window/model-config] mock LLM server started at ${getMockLlmServerUrl(mockServer)}`);
-		});
-
-		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
-			return {
-				...opts,
-				extraEnv: {
-					...(opts.extraEnv ?? {}),
-					...copilotEnv,
-				},
-			};
-		}, app => preseedExtensionHostAgentsProfiles(app.userDataPath, getMockLlmServerUrl(mockServer), {
-			'github.copilot.advanced.debug.overrideCapiUrl': getMockLlmServerUrl(mockServer),
-			'chat.mcp.discovery.enabled': false,
-			'chat.mcp.enabled': false,
-			'github.copilot.chat.responsesApiContextManagement.enabled': true,
-			'chat.contextUsage.enabled': true,
-		}));
-
-		before(async function () {
-			const app = this.app as Application;
-
-			// Reset any uncommitted changes left by earlier smoke test suites so
-			// session/worktree creation isn't blocked by a dirty workspace.
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-
-			const windowsBefore = app.code.driver.getAllWindows().length;
-			await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
-			await app.workbench.agentsWindow.switchToAgentsWindow(windowsBefore);
-			logger.log(`[Agents Window/model-config] switched to Agents Window; requestCount=${mockServer.requestCount()}`);
-		});
-
-		after(async function () {
-			if (mockServer) {
-				await mockServer.close();
-			}
-		});
-
-		it('forwards the selected reasoning effort and context size from the Local session', async function () {
-			const app = this.app as Application;
-
-			try {
-				await app.workbench.agentsWindow.waitForNewSessionView();
-				await app.workbench.agentsWindow.selectSessionType('Local');
-
-				// Warm up: the first Local message activates copilot-chat in the
-				// Agents Window exthost (registering the models that populate the
-				// picker) and creates the active session whose input hosts the
-				// model + config pickers.
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`warm up [scenario:${MODEL_CONFIG_WARMUP_SCENARIO_ID}]`);
-				await app.workbench.agentsWindow.waitForAssistantText(MODEL_CONFIG_WARMUP_REPLY, 120_000);
-
-				// Select the mock model that exposes both configuration pickers in
-				// the active session input.
-				await app.workbench.agentsWindow.selectModel(MODEL_CONFIG_MODEL_NAME);
-
-				for (const testCase of MODEL_CONFIG_CASES) {
-					logger.log(`[Agents Window/model-config] case '${testCase.name}': selecting effort='${testCase.effortLabel}', context='${testCase.contextLabel}'`);
-
-					// Select the Thinking Effort and Context Size in the combined
-					// model-configuration dropdown.
-					await app.workbench.agentsWindow.openModelConfig();
-					await app.workbench.agentsWindow.selectModelConfigOption(testCase.effortLabel);
-					await app.workbench.agentsWindow.selectModelConfigOption(testCase.contextLabel);
-					await app.workbench.agentsWindow.closeModelConfig();
-
-					const requestsBefore = mockServer.getRequests().length;
-					const scenarioTag = `[scenario:${testCase.scenarioId}]`;
-
-					await app.workbench.agentsWindow.sendFollowUpMessage(`explain this ${scenarioTag}`);
-					const responseText = (await app.workbench.agentsWindow.waitForAssistantText(testCase.reply, 120_000)).trim();
-
-					assert.ok(
-						responseText.includes(testCase.reply),
-						`Expected response for '${testCase.name}' to include "${testCase.reply}".\n\nResponse:\n${responseText}`
-					);
-
-					const requestBody = findResponsesRequest(mockServer.getRequests(), requestsBefore, scenarioTag);
-					assert.ok(
-						requestBody,
-						`Expected a /responses request carrying ${scenarioTag} for '${testCase.name}'.`
-					);
-
-					assert.strictEqual(
-						requestBody.reasoning?.effort,
-						testCase.expectedEffort,
-						`Expected reasoning.effort='${testCase.expectedEffort}' for '${testCase.name}', got '${requestBody.reasoning?.effort}'.`
-					);
-
-					const compactThreshold = requestBody.context_management?.[0]?.compact_threshold;
-					assert.strictEqual(
-						compactThreshold,
-						testCase.expectedCompactThreshold,
-						`Expected context_management compact_threshold=${testCase.expectedCompactThreshold} for '${testCase.name}', got ${compactThreshold}.`
-					);
-
-					// Verify the context-usage gauge's context-window denominator reflects
-					// the selected Context Size (gauge total = maxInputTokens(tier) +
-					// maxOutputTokens). The gauge renders once the response's token usage
-					// lands, so this reads the click-through details popup.
-					const usageLabel = await app.workbench.agentsWindow.readContextUsageTokenLabel();
-					const contextWindowLabel = usageLabel.match(/\/\s*([\d.]+[KM]?)\s*tokens/)?.[1];
-					logger.log(`[Agents Window/model-config] case '${testCase.name}' context-usage label: '${usageLabel}' (denominator='${contextWindowLabel}')`);
-					assert.strictEqual(
-						contextWindowLabel,
-						testCase.expectedContextWindowLabel,
-						`Expected context-usage gauge denominator='${testCase.expectedContextWindowLabel}' for '${testCase.name}', got '${contextWindowLabel}' (full label '${usageLabel}').`
-					);
-
-					logger.log(`[Agents Window/model-config] case '${testCase.name}' verified: reasoning.effort='${requestBody.reasoning?.effort}', compact_threshold=${compactThreshold}, contextWindow='${contextWindowLabel}'`);
-				}
-			} catch (error) {
-				logger.log(`[Agents Window/model-config] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				await dumpFailureDiagnostics(app, logger, 'Agents Window (model configuration)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
-				throw error;
-			}
-		});
 	});
 
 	describe('Agents Window (local AgentHost)', () => {
@@ -1283,9 +847,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		}));
 
 		// Pre-seed settings.json on disk into BOTH the default profile and the
-		// Agents profile. Writing settings after the workbench is up would race
-		// with AgentHostContribution’s startup (it gates on
-		// `chat.agentHost.enabled` at construction).
+		// Agents profile so Agent Host startup observes the test configuration.
 		const userDataDir = (this.app as Application).userDataPath;
 		if (userDataDir) {
 			const settings = JSON.stringify({
@@ -1297,7 +859,6 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'http.proxySupport': 'override',
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
-				'chat.agentHost.enabled': true,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
 				// Verbose Copilot runtime logging for capturable failure diagnostics.
@@ -1368,35 +929,4 @@ function ahpJsonlFiles(ahpLogDir: string): string[] {
 /** Concatenates every AHP JSONL transcript in `ahpLogDir` into one string. */
 function readAhpFrames(ahpLogDir: string): string {
 	return ahpJsonlFiles(ahpLogDir).map(f => fs.readFileSync(path.join(ahpLogDir, f), 'utf8')).join('\n');
-}
-
-/**
- * Override a single user-scope VS Code setting by editing
- * `<userDataDir>/User/settings.json` directly on disk. The configuration
- * service watches the file and picks up the change. Preferred over
- * {@link Settings.addUserSetting} when the workbench has switched to a
- * secondary window (Agents Window) where opening the settings editor would
- * steal focus from the UI under test.
- */
-async function overrideUserSettingOnDisk(app: Application, key: string, value: unknown): Promise<void> {
-	const userDataDir = app.userDataPath;
-	if (!userDataDir) {
-		throw new Error('overrideUserSettingOnDisk: app.userDataPath is unset');
-	}
-	const settingsPath = path.join(userDataDir, 'User', 'settings.json');
-	let current: Record<string, unknown> = {};
-	try {
-		const raw = await fs.promises.readFile(settingsPath, 'utf8');
-		// Strip trailing comma the settings editor may emit and accept JSONC.
-		current = JSON.parse(raw.replace(/,(\s*[}\]])/g, '$1')) as Record<string, unknown>;
-	} catch (err) {
-		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-			throw err;
-		}
-	}
-	current[key] = value;
-	await fs.promises.writeFile(settingsPath, JSON.stringify(current, null, '\t'));
-	// The configuration service debounces file watcher events; give it a
-	// moment to pick up the change before downstream code reads the setting.
-	await new Promise(resolve => setTimeout(resolve, 500));
 }
