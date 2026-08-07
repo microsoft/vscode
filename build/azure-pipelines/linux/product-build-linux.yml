@@ -125,3 +125,117 @@ jobs:
           VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
           VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
           VSCODE_RUN_CHECKS: ${{ parameters.VSCODE_RUN_CHECKS }}
+          VSCODE_RUN_TESTS_IN_PARALLEL: ${{ or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: ../common/product-test-job.yml@self
+      parameters:
+        jobName: Linux_${{ parameters.VSCODE_ARCH }}_Unit
+        displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) Unit Tests
+        platform: linux
+        arch: ${{ parameters.VSCODE_ARCH }}
+        testName: unit
+        artifactPrefix: product-tests-linux-${{ parameters.VSCODE_ARCH }}
+        waitForArtifactsArgs: '"--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo'
+        timeoutInMinutes: 60
+        publishNodeModulesOnFailure: true
+        publishCrashReportsOnFailureOnly: true
+        downloadElectronAndPlaywright: false
+        display: ":10"
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+        extractArtifactSteps:
+          - script: tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+            displayName: Extract built workspace
+        setupSteps:
+          - template: ./steps/product-build-linux-test-setup.yml@self
+        testSteps:
+          - template: ./steps/product-build-linux-test.yml@self
+            parameters:
+              VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+              VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+              VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+              VSCODE_TEST_TYPE: Unit
+
+    - template: ../common/product-test-job.yml@self
+      parameters:
+        jobName: Linux_${{ parameters.VSCODE_ARCH }}_Integration
+        displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) Integration Tests
+        platform: linux
+        arch: ${{ parameters.VSCODE_ARCH }}
+        testName: integration
+        artifactPrefix: product-tests-linux-${{ parameters.VSCODE_ARCH }}
+        waitForArtifactsArgs: '"--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-app=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-server=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-web=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo product-tests-linux-${{ parameters.VSCODE_ARCH }}-app product-tests-linux-${{ parameters.VSCODE_ARCH }}-server product-tests-linux-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 60
+        publishNodeModulesOnFailure: true
+        publishCrashReportsOnFailureOnly: true
+        downloadElectronAndPlaywright: false
+        display: ":10"
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+          - name: server
+            displayName: Download packaged server
+          - name: web
+            displayName: Download packaged web server
+        extractArtifactSteps:
+          - script: |
+              set -e
+              tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-app/app.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-server/server.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-web/web.tar.gz -C $(Agent.BuildDirectory)
+            displayName: Extract built workspace and products
+        setupSteps:
+          - template: ./steps/product-build-linux-test-setup.yml@self
+        testSteps:
+          - template: ./steps/product-build-linux-test.yml@self
+            parameters:
+              VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+              VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+              VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+              VSCODE_TEST_TYPE: Integration
+
+    - template: ../common/product-test-job.yml@self
+      parameters:
+        jobName: Linux_${{ parameters.VSCODE_ARCH }}_Smoke
+        displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) Smoke Tests
+        platform: linux
+        arch: ${{ parameters.VSCODE_ARCH }}
+        testName: smoke
+        artifactPrefix: product-tests-linux-${{ parameters.VSCODE_ARCH }}
+        waitForArtifactsArgs: '"--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-app=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-server=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-web=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo product-tests-linux-${{ parameters.VSCODE_ARCH }}-app product-tests-linux-${{ parameters.VSCODE_ARCH }}-server product-tests-linux-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 60
+        publishNodeModulesOnFailure: true
+        publishCrashReportsOnFailureOnly: true
+        downloadElectronAndPlaywright: false
+        display: ":10"
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+          - name: server
+            displayName: Download packaged server
+          - name: web
+            displayName: Download packaged web server
+        extractArtifactSteps:
+          - script: |
+              set -e
+              tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-app/app.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-server/server.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-web/web.tar.gz -C $(Agent.BuildDirectory)
+            displayName: Extract built workspace and products
+        setupSteps:
+          - template: ./steps/product-build-linux-test-setup.yml@self
+        testSteps:
+          - template: ./steps/product-build-linux-test.yml@self
+            parameters:
+              VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+              VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+              VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+              VSCODE_TEST_TYPE: Smoke

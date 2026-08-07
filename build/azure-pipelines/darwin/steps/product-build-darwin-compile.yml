@@ -15,6 +15,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_RUN_TESTS_IN_PARALLEL
+    type: boolean
+    default: false
 
 steps:
   - template: ../../common/checkout.yml@self
@@ -353,6 +356,49 @@ steps:
         echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
       displayName: Package server (web)
 
+    - ${{ if eq(parameters.VSCODE_RUN_TESTS_IN_PARALLEL, true) }}:
+      - template: ../../common/product-test-artifacts.yml@self
+        parameters:
+          artifactPrefix: product-tests-macos-$(VSCODE_ARCH)
+          archiveExt: tar.gz
+          prepareTestSteps:
+            - script: |
+                set -e
+                npm run gulp \
+                  compile-extension:configuration-editing \
+                  compile-extension:css-language-features-server \
+                  compile-extension:emmet \
+                  compile-extension:git \
+                  compile-extension:github-authentication \
+                  compile-extension:html-language-features-server \
+                  compile-extension:ipynb \
+                  compile-extension:notebook-renderers \
+                  compile-extension:json-language-features-server \
+                  compile-extension:markdown-language-features \
+                  compile-extension-media \
+                  compile-extension:microsoft-authentication \
+                  compile-extension:typescript-language-features \
+                  compile-extension:vscode-api-tests \
+                  compile-extension:vscode-colorize-tests \
+                  compile-extension:vscode-colorize-perf-tests \
+                  compile-extension:vscode-test-resolver
+              displayName: Build integration tests
+          archiveWorkspaceSteps:
+            - script: |
+                set -e
+                mkdir -p $(Build.ArtifactStagingDirectory)
+                tar -czf $(Build.ArtifactStagingDirectory)/repo.tar.gz --exclude=.git -C $(Build.SourcesDirectory) .
+              displayName: Archive built workspace for tests
+          archiveAppSteps:
+            - script: tar -czf $(Build.ArtifactStagingDirectory)/app.tar.gz -C $(Agent.BuildDirectory) VSCode-darwin-$(VSCODE_ARCH)
+              displayName: Archive packaged app for tests
+          archiveServerSteps:
+            - script: tar -czf $(Build.ArtifactStagingDirectory)/server.tar.gz -C $(Agent.BuildDirectory) vscode-server-darwin-$(VSCODE_ARCH)
+              displayName: Archive packaged server for tests
+          archiveWebSteps:
+            - script: tar -czf $(Build.ArtifactStagingDirectory)/web.tar.gz -C $(Agent.BuildDirectory) vscode-server-darwin-$(VSCODE_ARCH)-web
+              displayName: Archive packaged web server for tests
+
     - task: UseDotNet@2
       inputs:
         version: 6.x
@@ -384,7 +430,7 @@ steps:
         BUILD_SOURCESDIRECTORY: $(Build.SourcesDirectory)
       displayName: ✍️ Codesign & Notarize
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if and(ne(parameters.VSCODE_RUN_TESTS_IN_PARALLEL, true), or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true))) }}:
     - template: product-build-darwin-test.yml@self
       parameters:
         VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}

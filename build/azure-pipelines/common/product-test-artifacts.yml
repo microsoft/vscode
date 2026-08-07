@@ -1,0 +1,56 @@
+parameters:
+  - name: artifactPrefix
+    type: string
+  - name: archiveExt
+    type: string
+  - name: archiveWorkspaceSteps
+    type: stepList
+  - name: archiveAppSteps
+    type: stepList
+  - name: archiveServerSteps
+    type: stepList
+  - name: archiveWebSteps
+    type: stepList
+  - name: prepareTestSteps
+    type: stepList
+
+steps:
+  - ${{ each step in parameters.prepareTestSteps }}:
+    - ${{ step }}
+
+  - ${{ each step in parameters.archiveWorkspaceSteps }}:
+    - ${{ step }}
+  - ${{ each step in parameters.archiveAppSteps }}:
+    - ${{ step }}
+  - ${{ each step in parameters.archiveServerSteps }}:
+    - ${{ step }}
+  - ${{ each step in parameters.archiveWebSteps }}:
+    - ${{ step }}
+
+  - template: ./publish-artifact.yml@self
+    parameters:
+      targetPath: $(Build.ArtifactStagingDirectory)/repo.${{ parameters.archiveExt }}
+      artifactName: ${{ parameters.artifactPrefix }}-repo
+      displayName: Publish built workspace for tests
+      sbomEnabled: false
+
+  - template: ./publish-artifact.yml@self
+    parameters:
+      targetPath: $(Build.ArtifactStagingDirectory)/app.${{ parameters.archiveExt }}
+      artifactName: ${{ parameters.artifactPrefix }}-app
+      displayName: Publish packaged app for tests
+      sbomEnabled: false
+
+  - template: ./publish-artifact.yml@self
+    parameters:
+      targetPath: $(Build.ArtifactStagingDirectory)/server.${{ parameters.archiveExt }}
+      artifactName: ${{ parameters.artifactPrefix }}-server
+      displayName: Publish packaged server for tests
+      sbomEnabled: false
+
+  - template: ./publish-artifact.yml@self
+    parameters:
+      targetPath: $(Build.ArtifactStagingDirectory)/web.${{ parameters.archiveExt }}
+      artifactName: ${{ parameters.artifactPrefix }}-web
+      displayName: Publish packaged web server for tests
+      sbomEnabled: false

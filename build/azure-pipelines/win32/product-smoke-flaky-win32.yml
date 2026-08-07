@@ -11,7 +11,7 @@ parameters:
     type: object
 
 jobs:
-  - template: ../common/product-smoke-flaky-build.yml@self
+  - template: ../common/product-test-build.yml@self
     parameters:
       jobName: WindowsSmokeFlakyBuild
       displayName: Windows Build (shared)
@@ -61,7 +61,7 @@ jobs:
           displayName: Archive packaged server for reuse by test jobs
 
   - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
+    - template: ../common/product-test-job.yml@self
       parameters:
         jobName: WindowsSmokeFlakyUnit
         buildJobName: WindowsSmokeFlakyBuild
@@ -98,7 +98,7 @@ jobs:
               timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
+    - template: ../common/product-test-job.yml@self
       parameters:
         jobName: WindowsSmokeFlakyIntegration
         buildJobName: WindowsSmokeFlakyBuild
@@ -162,7 +162,7 @@ jobs:
             condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
+    - template: ../common/product-test-job.yml@self
       parameters:
         jobName: WindowsSmokeFlakySmoke
         buildJobName: WindowsSmokeFlakyBuild

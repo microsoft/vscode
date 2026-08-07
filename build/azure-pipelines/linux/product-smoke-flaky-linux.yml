@@ -11,7 +11,7 @@ parameters:
     type: object
 
 jobs:
-  - template: ../common/product-smoke-flaky-build.yml@self
+  - template: ../common/product-test-build.yml@self
     parameters:
       jobName: LinuxSmokeFlakyBuild
       displayName: Linux Build (shared)
@@ -47,7 +47,7 @@ jobs:
           displayName: Archive packaged server for reuse by test jobs
 
   - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
+    - template: ../common/product-test-job.yml@self
       parameters:
         jobName: LinuxSmokeFlakyUnit
         buildJobName: LinuxSmokeFlakyBuild
@@ -108,7 +108,7 @@ jobs:
               timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
+    - template: ../common/product-test-job.yml@self
       parameters:
         jobName: LinuxSmokeFlakyIntegration
         buildJobName: LinuxSmokeFlakyBuild
@@ -178,7 +178,7 @@ jobs:
               timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
+    - template: ../common/product-test-job.yml@self
       parameters:
         jobName: LinuxSmokeFlakySmoke
         buildJobName: LinuxSmokeFlakyBuild

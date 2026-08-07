@@ -17,6 +17,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_RUN_TESTS_IN_PARALLEL
+    type: boolean
+    default: false
 
 steps:
   - template: ../../common/checkout.yml@self
@@ -284,6 +287,63 @@ steps:
         Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
       displayName: Move VS Code CLI
 
+    - ${{ if eq(parameters.VSCODE_RUN_TESTS_IN_PARALLEL, true) }}:
+      - template: ../../common/product-test-artifacts.yml@self
+        parameters:
+          artifactPrefix: product-tests-windows-$(VSCODE_ARCH)
+          archiveExt: zip
+          prepareTestSteps:
+            - powershell: |
+                . build/azure-pipelines/win32/exec.ps1
+                $ErrorActionPreference = "Stop"
+                exec { npm run gulp `
+                  compile-extension:configuration-editing `
+                  compile-extension:css-language-features-server `
+                  compile-extension:emmet `
+                  compile-extension:git `
+                  compile-extension:github-authentication `
+                  compile-extension:html-language-features-server `
+                  compile-extension:ipynb `
+                  compile-extension:notebook-renderers `
+                  compile-extension:json-language-features-server `
+                  compile-extension:markdown-language-features `
+                  compile-extension-media `
+                  compile-extension:microsoft-authentication `
+                  compile-extension:typescript-language-features `
+                  compile-extension:vscode-api-tests `
+                  compile-extension:vscode-colorize-tests `
+                  compile-extension:vscode-colorize-perf-tests `
+                  compile-extension:vscode-test-resolver `
+                }
+              displayName: Build integration tests
+          archiveWorkspaceSteps:
+            - powershell: |
+                . build/azure-pipelines/win32/exec.ps1
+                $ErrorActionPreference = "Stop"
+                exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" }
+              displayName: Archive built workspace for tests
+          archiveAppSteps:
+            - powershell: |
+                . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
+                $ErrorActionPreference = "Stop"
+                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\app.zip VSCode-win32-$(VSCODE_ARCH) }
+              workingDirectory: $(Agent.BuildDirectory)
+              displayName: Archive packaged app for tests
+          archiveServerSteps:
+            - powershell: |
+                . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
+                $ErrorActionPreference = "Stop"
+                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\server.zip vscode-server-win32-$(VSCODE_ARCH) }
+              workingDirectory: $(Agent.BuildDirectory)
+              displayName: Archive packaged server for tests
+          archiveWebSteps:
+            - powershell: |
+                . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
+                $ErrorActionPreference = "Stop"
+                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\web.zip vscode-server-win32-$(VSCODE_ARCH)-web }
+              workingDirectory: $(Agent.BuildDirectory)
+              displayName: Archive packaged web server for tests
+
     - task: UseDotNet@2
       inputs:
         version: 6.x
@@ -316,7 +376,7 @@ steps:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: ✍️ Codesign
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if and(ne(parameters.VSCODE_RUN_TESTS_IN_PARALLEL, true), or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true))) }}:
     - template: product-build-win32-test.yml@self
       parameters:
         VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}

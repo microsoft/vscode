@@ -5,6 +5,9 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
+  - name: VSCODE_TEST_TYPE
+    type: string
+    default: All
 
 steps:
   - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
@@ -16,17 +19,22 @@ steps:
 
   - script: |
       set -e
-      APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       ELECTRON_ROOT=.build/electron
-      sudo chown root $APP_ROOT/chrome-sandbox
       sudo chown root $ELECTRON_ROOT/chrome-sandbox
-      sudo chmod 4755 $APP_ROOT/chrome-sandbox
       sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
-      stat $APP_ROOT/chrome-sandbox
       stat $ELECTRON_ROOT/chrome-sandbox
-    displayName: Change setuid helper binary permission
+    displayName: Change Electron setuid helper binary permission
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if ne(parameters.VSCODE_TEST_TYPE, 'Unit') }}:
+    - script: |
+        set -e
+        APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+        sudo chown root $APP_ROOT/chrome-sandbox
+        sudo chmod 4755 $APP_ROOT/chrome-sandbox
+        stat $APP_ROOT/chrome-sandbox
+      displayName: Change app setuid helper binary permission
+
+  - ${{ if and(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Unit'))) }}:
     - script: ./scripts/test.sh --build --tfs "Unit Tests"
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
@@ -41,36 +49,37 @@ steps:
       displayName: 🧪 Run unit tests (node.js)
       timeoutInMinutes: 15
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Unit'))) }}:
     - script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
       env:
         DEBUG: "*browser*"
       displayName: 🧪 Run unit tests (Browser, Chromium)
       timeoutInMinutes: 15
 
-  - script: |
-      set -e
-      npm run gulp \
-        compile-extension:configuration-editing \
-        compile-extension:css-language-features-server \
-        compile-extension:emmet \
-        compile-extension:git \
-        compile-extension:github-authentication \
-        compile-extension:html-language-features-server \
-        compile-extension:ipynb \
-        compile-extension:notebook-renderers \
-        compile-extension:json-language-features-server \
-        compile-extension:markdown-language-features \
-        compile-extension-media \
-        compile-extension:microsoft-authentication \
-        compile-extension:typescript-language-features \
-        compile-extension:vscode-api-tests \
-        compile-extension:vscode-colorize-tests \
-        compile-extension:vscode-colorize-perf-tests \
-        compile-extension:vscode-test-resolver
-    displayName: Build integration tests
+  - ${{ if eq(parameters.VSCODE_TEST_TYPE, 'All') }}:
+    - script: |
+        set -e
+        npm run gulp \
+          compile-extension:configuration-editing \
+          compile-extension:css-language-features-server \
+          compile-extension:emmet \
+          compile-extension:git \
+          compile-extension:github-authentication \
+          compile-extension:html-language-features-server \
+          compile-extension:ipynb \
+          compile-extension:notebook-renderers \
+          compile-extension:json-language-features-server \
+          compile-extension:markdown-language-features \
+          compile-extension-media \
+          compile-extension:microsoft-authentication \
+          compile-extension:typescript-language-features \
+          compile-extension:vscode-api-tests \
+          compile-extension:vscode-colorize-tests \
+          compile-extension:vscode-colorize-perf-tests \
+          compile-extension:vscode-test-resolver
+      displayName: Build integration tests
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Integration'))) }}:
     - script: |
         # Figure out the full absolute path of the product we just built
         # including the remote server and configure the integration tests
@@ -87,14 +96,14 @@ steps:
       displayName: 🧪 Run integration tests (Electron)
       timeoutInMinutes: 20
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Integration'))) }}:
     - script: ./scripts/test-web-integration.sh --browser chromium
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
       displayName: 🧪 Run integration tests (Browser, Chromium)
       timeoutInMinutes: 20
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_RUN_REMOTE_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Integration'))) }}:
     - script: |
         set -e
         APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
@@ -108,29 +117,26 @@ steps:
       displayName: 🧪 Run integration tests (Remote)
       timeoutInMinutes: 20
 
-  - script: |
-      set -e
-      df -h
-      # Break down what is occupying the small OS root disk (`/`). The `-x` flag
-      # keeps `du` on the root filesystem so it does not descend into the large
-      # `/mnt` work volume. This identifies the directory that fills `/` and
-      # crashes the agent worker with "No space left on device".
-      echo "--- top consumers on / ---"
-      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under \$HOME ---"
-      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under /tmp ---"
-      du -xhd1 /tmp 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under /var ---"
-      du -xhd1 /var 2>/dev/null | sort -rh | head -30 || true
-      ps -ef
-      cat /proc/sys/fs/inotify/max_user_watches
-      lsof | wc -l
-    displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
-    continueOnError: true
-    condition: succeededOrFailed()
+  - ${{ if or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Smoke')) }}:
+    - script: |
+        set -e
+        df -h
+        echo "--- top consumers on / ---"
+        du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
+        echo "--- top consumers under \$HOME ---"
+        du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
+        echo "--- top consumers under /tmp ---"
+        du -xhd1 /tmp 2>/dev/null | sort -rh | head -30 || true
+        echo "--- top consumers under /var ---"
+        du -xhd1 /var 2>/dev/null | sort -rh | head -30 || true
+        ps -ef
+        cat /proc/sys/fs/inotify/max_user_watches
+        lsof | wc -l
+      displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
+      continueOnError: true
+      condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Smoke'))) }}:
     - script: |
         set -e
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
@@ -143,7 +149,7 @@ steps:
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Electron)
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Smoke'))) }}:
     - script: npm run smoketest-no-compile -- --web --tracing --headless
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
@@ -151,7 +157,7 @@ steps:
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Browser, Chromium)
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_RUN_REMOTE_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Smoke'))) }}:
     - script: |
         set -e
         APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
@@ -162,25 +168,24 @@ steps:
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Remote)
 
-  - script: |
-      set -e
-      df -h
-      # Same root-disk breakdown as the "before" step so the delta attributable to
-      # the smoke run itself is visible, plus the smoke test data dirs explicitly.
-      echo "--- top consumers on / ---"
-      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under \$HOME ---"
-      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
-      echo "--- smoke test data dirs ---"
-      du -sh "$(Agent.TempDirectory)"/vscsmoke-* /tmp/vscsmoke-* 2>/dev/null || true
-      ps -ef
-      cat /proc/sys/fs/inotify/max_user_watches
-      lsof | wc -l
-    displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
-    continueOnError: true
-    condition: succeededOrFailed()
+  - ${{ if or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Smoke')) }}:
+    - script: |
+        set -e
+        df -h
+        echo "--- top consumers on / ---"
+        du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
+        echo "--- top consumers under \$HOME ---"
+        du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
+        echo "--- smoke test data dirs ---"
+        du -sh "$(Agent.TempDirectory)"/vscsmoke-* /tmp/vscsmoke-* 2>/dev/null || true
+        ps -ef
+        cat /proc/sys/fs/inotify/max_user_watches
+        lsof | wc -l
+      displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
+      continueOnError: true
+      condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if and(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), or(eq(parameters.VSCODE_TEST_TYPE, 'All'), eq(parameters.VSCODE_TEST_TYPE, 'Integration'))) }}:
     - template: ../../copilot/test-integration-steps.yml@self
       parameters:
         OS: linux
