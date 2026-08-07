@@ -465,6 +465,23 @@ Emitted when a user votes on a chat response (thumbs up/down).
 | `conversation_id` | Conversation session ID |
 | `request_id` | Chat request identifier |
 
+##### `copilot_chat.inline_agent_survey`
+
+Emitted when a user submits the sampled inline agent-quality survey (`Did this do what you wanted?`). This is a standalone, structured feedback event and is distinct from the thumbs up/down `copilot_chat.user.feedback` vote. It never carries transcript, code, or free-text content.
+
+| Attribute | Description |
+|---|---|
+| `rating` | Task-outcome rating: `yes`, `partly`, or `no` |
+| `reason` | Finite reason ID (`wrong_result`, `too_slow`, `misunderstood`, `lost_context`, `incomplete`); omitted when none selected |
+| `trigger` | What surfaced the survey (`first_response` or `mature_response`) |
+| `surface` | Where it was shown (`agents_window` or `editor_chat`) |
+| `turn_count` | Completed user-turn count for the surveyed chat |
+| `conversation_id` | Chat session / conversation correlation ID (omitted when unavailable) |
+| `request_id` | Response / request correlation ID (omitted when unavailable) |
+| `gen_ai.request.model` | Model for the surveyed response (omitted when unavailable) |
+
+> The workbench inline survey widget forwards the validated, structured submission through the private internal command `github.copilot.chat.internal.inlineAgentSurvey.submit`, which drops any payload whose `rating`/`trigger`/`surface` are outside their finite allow-lists. `conversation_id`/`request_id` are explicit correlation identifiers on this event, not trace/span IDs.
+
 ##### `copilot_chat.cloud.session.invoke`
 
 Emitted when a cloud/remote agent session is started.
@@ -736,7 +753,7 @@ copilot-chat invoke_agent claude               [~33s]
 
 **Metrics** — Track token usage trends by model and provider, monitor tool success rates via `copilot_chat.tool.call.count`, and watch perceived latency with `copilot_chat.time_to_first_token`. Agent activity metrics (`copilot_chat.edit.acceptance.count`, `copilot_chat.edit.survival.four_gram`, `copilot_chat.lines_of_code.count`) power accept rate and edit survival dashboards. All metrics carry the same resource attributes (`service.name`, `service.version`, `session.id`) for consistent filtering.
 
-**Events** — `copilot_chat.session.start` tracks session creation. `copilot_chat.tool.call` events provide per-invocation timing and error details. `copilot_chat.edit.feedback` and `copilot_chat.edit.survival` events enable drill-down into which edits were accepted/rejected and how code survival varies by edit source. `copilot_chat.user.feedback` links thumbs-up/down votes to specific conversations for quality investigation. `gen_ai.client.inference.operation.details` gives the full LLM call record including token usage and, when content capture is enabled, the complete prompt/response messages. Use `gen_ai.conversation.id` to correlate all signals belonging to the same session.
+**Events** — `copilot_chat.session.start` tracks session creation. `copilot_chat.tool.call` events provide per-invocation timing and error details. `copilot_chat.edit.feedback` and `copilot_chat.edit.survival` events enable drill-down into which edits were accepted/rejected and how code survival varies by edit source. `copilot_chat.user.feedback` links thumbs-up/down votes to specific conversations for quality investigation. `copilot_chat.inline_agent_survey` records the sampled three-outcome task-quality survey (Yes/Partly/No) with structured reason IDs. `gen_ai.client.inference.operation.details` gives the full LLM call record including token usage and, when content capture is enabled, the complete prompt/response messages. Use `gen_ai.conversation.id` to correlate all signals belonging to the same session.
 
 ---
 

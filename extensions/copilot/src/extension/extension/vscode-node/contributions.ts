@@ -48,6 +48,7 @@ import { RenameSuggestionsContrib } from '../../prompt/vscode-node/renameSuggest
 import { PromptFileContextContribution } from '../../promptFileContext/vscode-node/promptFileContextService';
 import { SearchPanelCommands } from '../../search/vscode-node/commands';
 import { SettingsSchemaFeature } from '../../settingsSchema/vscode-node/settingsSchemaFeature';
+import { InlineAgentSurveyCommandContribution } from '../../survey/vscode-node/inlineAgentSurveyCommand';
 import { SurveyCommandContribution } from '../../survey/vscode-node/surveyCommands';
 import { SetupTestsContribution } from '../../testing/vscode/setupTestContributions';
 import { ToolsContribution } from '../../tools/vscode-node/tools';
@@ -89,6 +90,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(InternalConfigurationInformationCommandContribution),
 	asContributionFactory(WorkspaceRecorderFeature),
 	asContributionFactory(SurveyCommandContribution),
+	asContributionFactory(InlineAgentSurveyCommandContribution),
 	asContributionFactory(FeedbackCommandContribution),
 	asContributionFactory(InlineCompletionContribution),
 	asContributionFactory(NesRenameContribution),

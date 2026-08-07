@@ -167,6 +167,7 @@ src/extension/trajectory/vscode-node/
 | `claudeOTelTracker.ts` | `invoke_agent claude` span + per-session token/cost accumulation |
 | `claudeMessageDispatch.ts` | `execute_tool` and `execute_hook` spans for the Claude agent (incl. subagent nesting) |
 | `claudeLanguageModelServer.ts` | Wraps Claude → CAPI proxy requests in the active trace context (chat spans come from `chatMLFetcher`) |
+| `inlineAgentSurveyCommand.ts` | `copilot_chat.inline_agent_survey` log event — validates the workbench survey payload behind the private `github.copilot.chat.internal.inlineAgentSurvey.submit` command, then emits via `emitInlineAgentSurveyEvent` |
 | `otelSpanToChatDebugEvent.ts` | Span → debug panel event conversion |
 
 ---

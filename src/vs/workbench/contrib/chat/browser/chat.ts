@@ -482,6 +482,8 @@ export interface IChatWidget {
 	 * Returns the currently rendered chat item containing the node, if any.
 	 */
 	getElementFromNode(node: HTMLElement): ChatTreeItem | undefined;
+	/** Shows the transient developer survey on the latest completed response, when available. */
+	showInlineAgentSurveyForLatestResponse(): boolean;
 	/**
 	 * Suppresses auto-scrolling the transcript to the bottom until the returned
 	 * disposable is disposed. Holds compose, so concurrent callers do not

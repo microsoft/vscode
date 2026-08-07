@@ -124,6 +124,8 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { IInlineAgentSurveyPending, IInlineAgentSurveyResponseContext, IInlineAgentSurveyService, InlineAgentSurveySurface, InlineAgentSurveyTrigger } from '../../../surveys/common/inlineAgentSurveyService.js';
+import { ChatInlineAgentSurvey } from './chatInlineAgentSurvey.js';
 import { isAskQuestionsToolInvocation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { AgentSessionProviders, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
@@ -163,6 +165,9 @@ export interface IChatListItemTemplate {
 	 * element renders, allowing its managed hover to be updated in place.
 	 */
 	readonly responseTokenStatsHover: MutableDisposable<IManagedHover>;
+	readonly inlineAgentSurvey: MutableDisposable<ChatInlineAgentSurvey>;
+	readonly inlineAgentSurveyRenderWait: MutableDisposable<IDisposable>;
+	readonly inlineAgentSurveyBlurWait: MutableDisposable<IDisposable>;
 
 	/** Drag handle element for reordering pending requests, if currently rendered. */
 	dragHandle?: HTMLElement;
@@ -665,6 +670,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInlineAgentSurveyService private readonly inlineAgentSurveyService: IInlineAgentSurveyService,
 	) {
 		super();
 
@@ -677,6 +683,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined, undefined));
 
 		this._inlineTextModels = this._register(this.instantiationService.createInstance(InlineTextModelCollection));
+		this._snapshotHistoricalInlineAgentSurveyResponses();
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
 		// Auto-skip pending question carousels when user submits a new chat message
 		this._register(this.chatService.onDidSubmitRequest(e => {
@@ -806,6 +813,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.viewModel = viewModel;
+		this._snapshotHistoricalInlineAgentSurveyResponses();
 		this._announcedToolProgressKeys.clear();
 		this._notifiedQuestionCarousels.clear();
 		this.codeBlocksByEditorUri.clear();
@@ -824,6 +832,129 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._diffEditorPool.clear();
 		this._treePool.clear();
 		this._contentReferencesListPool.clear();
+	}
+
+	private _snapshotHistoricalInlineAgentSurveyResponses(): void {
+		const chatModel = this.viewModel?.model;
+		if (!chatModel) {
+			return;
+		}
+		this.inlineAgentSurveyService.snapshotHistoricalResponses(
+			chatModel.sessionResource,
+			chatModel.getRequests().flatMap(request => request.response?.isComplete ? [request.response.id] : []),
+		);
+	}
+
+	private renderInlineAgentSurvey(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+		if (!element.isComplete || element.isCanceled) {
+			return;
+		}
+		const context = this.toInlineAgentSurveyResponseContext(element);
+		if (templateData.inlineAgentSurvey.value && !context.isLatestResponse) {
+			const survey = templateData.inlineAgentSurvey.value;
+			if (survey.hasFocus()) {
+				if (templateData.inlineAgentSurveyBlurWait.value) {
+					return;
+				}
+				templateData.inlineAgentSurveyBlurWait.value = Event.once(survey.onDidBlur)(() => {
+					templateData.inlineAgentSurveyBlurWait.clear();
+					if (templateData.currentElement?.id === element.id && !this.toInlineAgentSurveyResponseContext(element).isLatestResponse) {
+						templateData.inlineAgentSurvey.clear();
+					}
+				});
+			} else {
+				templateData.inlineAgentSurvey.clear();
+			}
+		}
+		if (templateData.inlineAgentSurvey.value) {
+			return;
+		}
+
+		const pending = this.inlineAgentSurveyService.getPendingSurvey(context.chatResource, context.responseId);
+		if (pending) {
+			this.mountInlineAgentSurveyWhenRendered(element, templateData, context);
+			return;
+		}
+
+		void this.inlineAgentSurveyService.evaluateResponseCompletion(context).then(() => {
+			if (templateData.currentElement?.id !== element.id || !templateData.rowContainer.isConnected) {
+				return;
+			}
+			this.mountInlineAgentSurveyWhenRendered(element, templateData, this.toInlineAgentSurveyResponseContext(element));
+		}, error => this.logService.error('Failed to evaluate inline agent survey eligibility', error));
+	}
+
+	private mountInlineAgentSurveyWhenRendered(element: IChatResponseViewModel, templateData: IChatListItemTemplate, context: IInlineAgentSurveyResponseContext, pending = this.inlineAgentSurveyService.getPendingSurvey(context.chatResource, context.responseId), isDebug = false): void {
+		if (templateData.inlineAgentSurvey.value || templateData.currentElement?.id !== element.id || !context.isLatestResponse) {
+			return;
+		}
+		if (!pending) {
+			return;
+		}
+		const finalMarkdown = templateData.renderedParts?.findLast(part => part instanceof ChatMarkdownContentPart);
+		if (finalMarkdown instanceof ChatMarkdownContentPart && !finalMarkdown.isRenderComplete) {
+			if (templateData.inlineAgentSurveyRenderWait.value) {
+				return;
+			}
+			templateData.inlineAgentSurveyRenderWait.value = Event.once(finalMarkdown.onDidFinishRendering)(() => {
+				templateData.inlineAgentSurveyRenderWait.clear();
+				this.mountInlineAgentSurveyWhenRendered(element, templateData, this.toInlineAgentSurveyResponseContext(element), pending, isDebug);
+			});
+			return;
+		}
+		templateData.inlineAgentSurvey.value = templateData.instantiationService.createInstance(ChatInlineAgentSurvey, templateData.value, context, pending, isDebug);
+	}
+
+	showInlineAgentSurveyForLatestResponse(): boolean {
+		const element = this.viewModel?.getItems().findLast(isResponseVM);
+		if (!element?.isComplete) {
+			return false;
+		}
+		const templateData = this.responseTemplateDataByRequestId.get(element.requestId);
+		if (!templateData || templateData.currentElement?.id !== element.id || templateData.inlineAgentSurvey.value) {
+			return false;
+		}
+		const context = this.toInlineAgentSurveyResponseContext(element);
+		const pending: IInlineAgentSurveyPending = {
+			responseId: element.id,
+			trigger: InlineAgentSurveyTrigger.FirstResponse,
+			surface: context.surface,
+			dismissed: false,
+		};
+		this.mountInlineAgentSurveyWhenRendered(element, templateData, context, pending, true);
+		return true;
+	}
+
+	private toInlineAgentSurveyResponseContext(element: IChatResponseViewModel): IInlineAgentSurveyResponseContext {
+		const chatModel = element.model.session;
+		const sessionType = getChatSessionType(element.sessionResource);
+		const requests = chatModel.getRequests();
+		const completedUserTurns = requests.filter(request => !request.isSystemInitiated && request.response?.isComplete && !request.response.isCanceled).length;
+		const isCopilotProvider = sessionType === localChatSessionType
+			|| sessionType === SessionType.CopilotCLI
+			|| sessionType === SessionType.CopilotCloud
+			|| sessionType === SessionType.AgentHostCopilot
+			|| (isAgentHostTarget(sessionType) && sessionType.endsWith('-copilotcli'));
+		const response = element.response.value;
+		const resolvedModelId = element.result?.metadata?.resolvedModel;
+
+		return {
+			chatResource: element.sessionResource,
+			responseId: element.id,
+			requestId: element.requestId,
+			sessionType,
+			modelId: typeof resolvedModelId === 'string' ? resolvedModelId : element.model.request?.modelId,
+			surface: this.environmentService.isSessionsWindow ? InlineAgentSurveySurface.AgentsWindow : InlineAgentSurveySurface.EditorChat,
+			isCopilotProvider,
+			isAgentMode: element.model.request?.modeInfo?.kind === ChatModeKind.Agent,
+			completedUserTurns,
+			elapsedChatTimeMs: Math.max(0, Date.now() - chatModel.timestamp),
+			isLatestResponse: chatModel.lastRequest?.response?.id === element.id,
+			isSystemInitiated: element.model.request?.isSystemInitiated === true,
+			isTerminalSuccess: element.isComplete && !element.isCanceled && !element.errorDetails,
+			hasVisibleOutput: response.some(part => part.kind === 'markdownContent' && part.content.value.trim().length > 0),
+			isPendingInput: chatModel.requestNeedsInput.get() !== undefined,
+		};
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -981,6 +1112,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const elementDisposables = templateDisposables.add(new DisposableStore());
 		const completedResponseDisclosureDisposables = templateDisposables.add(new DisposableStore());
 		const responseTokenStatsHover = templateDisposables.add(new MutableDisposable<IManagedHover>());
+		const inlineAgentSurvey = templateDisposables.add(new MutableDisposable<ChatInlineAgentSurvey>());
+		const inlineAgentSurveyRenderWait = templateDisposables.add(new MutableDisposable<IDisposable>());
+		const inlineAgentSurveyBlurWait = templateDisposables.add(new MutableDisposable<IDisposable>());
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		if (this.rendererOptions.noFooter) {
@@ -1053,7 +1187,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover, inlineAgentSurvey, inlineAgentSurveyRenderWait, inlineAgentSurveyBlurWait };
 		this.templateDataByRow.set(rowContainer, template);
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
@@ -1143,6 +1277,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 */
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
 		this.removeCompletedResponseDisclosure(templateData);
+		templateData.inlineAgentSurvey.clear();
+		templateData.inlineAgentSurveyRenderWait.clear();
+		templateData.inlineAgentSurveyBlurWait.clear();
 		if (templateData.renderedParts) {
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
@@ -1622,6 +1759,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 		this.finalizeCompletedResponseParts(element, templateData);
+		this.renderInlineAgentSurvey(element, templateData);
 	}
 
 	private finalizeCompletedResponseParts(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
@@ -4256,6 +4394,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+		templateData.inlineAgentSurvey.clear();
+		templateData.inlineAgentSurveyRenderWait.clear();
+		templateData.inlineAgentSurveyBlurWait.clear();
 
 		if (templateData.currentElement && !this.viewModel?.editing) {
 			this.templateDataByRequestId.delete(templateData.currentElement.id);

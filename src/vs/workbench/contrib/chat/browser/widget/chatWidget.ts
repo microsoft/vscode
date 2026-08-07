@@ -3248,6 +3248,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.getElementFromNode(node);
 	}
 
+	showInlineAgentSurveyForLatestResponse(): boolean {
+		return this.listWidget.showInlineAgentSurveyForLatestResponse();
+	}
+
 	focusResponseItem(lastFocused?: boolean): void {
 		this.listWidget.focusLastItem(lastFocused);
 	}

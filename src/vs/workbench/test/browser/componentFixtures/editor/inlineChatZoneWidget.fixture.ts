@@ -75,6 +75,7 @@ import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ICustomizationHarnessService } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { IInlineAgentSurveyService } from '../../../../contrib/surveys/common/inlineAgentSurveyService.js';
 
 // Side-effect import: registers InputEditorDecorations into ChatWidget.CONTRIBS
 // so the placeholder decoration is rendered.
@@ -185,6 +186,18 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly onDidPerformUserAction = Event.None;
 				override readonly onDidSubmitRequest = Event.None;
 				override readonly requestInProgressObs = observableValue('requestInProgress', false);
+			}());
+			reg.defineInstance(IInlineAgentSurveyService, new class extends mock<IInlineAgentSurveyService>() {
+				override readonly isFeedbackEnabled = false;
+				override readonly onDidChangeFeedbackEnabled = Event.None;
+				override snapshotHistoricalResponses() { }
+				override async evaluateResponseCompletion() { }
+				override getPendingSurvey() { return undefined; }
+				override recordImpression() { }
+				override recordDismiss() { }
+				override recordUndo() { }
+				override recordRating() { }
+				override recordSubmission() { }
 			}());
 			reg.defineInstance(IChatAgentService, new class extends mock<IChatAgentService>() {
 				override readonly onDidChangeAgents = Event.None;
