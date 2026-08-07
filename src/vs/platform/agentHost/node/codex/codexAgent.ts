@@ -3543,12 +3543,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._startTurnStopWatch(session);
 		try {
 			const model = await this._resolveModel(session);
+			const resolvedModel = parseCodexModelSelection(model);
+			const customizationLaunch = await this._buildCustomizationLaunch(session);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId: session.threadId,
 				input: [],
-				model: model.id,
-				...this._turnStartOptions(session, model.id),
-			});
+				model: resolvedModel.modelId,
+				...this._turnStartOptions(session, resolvedModel.modelId, customizationLaunch.developerInstructions),
+			}, this._traceContext(session));
 			session.firstTurnSent = true;
 		} catch (error) {
 			session.currentTurnId = undefined;

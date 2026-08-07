@@ -1197,10 +1197,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 					chatURI = this._resolveChatUriFromState(sessionResource, rawState);
 					this._setChatURI(sessionResource, chatURI);
-					const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatURI);
+					const hydratedChatURI = chatURI;
+					const chatSub = this._ensureChatSubscription(resolvedSession.toString(), hydratedChatURI);
 					chatSubscription = chatSub;
 					await this._whenSubscriptionHydrated(chatSub, token);
-					const sessionState = this._getSessionState(resolvedSession.toString(), chatURI);
+					const sessionState = this._getSessionState(resolvedSession.toString(), hydratedChatURI);
 					if (sessionState) {
 						sessionTitle = sessionState.title;
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
@@ -1219,7 +1220,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							lookup,
 							this._chatErrorContext(),
 							this._config.connection.initializeResult.get()?.terminalCommandPrefix,
-							turn => this._getTurnErrorDetails(turn, turn.id === lastTurnId),
+							turn => this._getTurnErrorDetails(turn, turn.id === lastTurnId && !this._isChatReadOnly(resolvedSession.toString(), hydratedChatURI)),
 						));
 
 						// Enrich history with inner tool calls from subagent
@@ -1604,7 +1605,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			failureStage = 'prepareTurn';
 			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage);
 			const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
-			const errorDetails = this._getTurnErrorDetails(completedTurn);
+			const errorDetails = this._getTurnErrorDetails(completedTurn, !this._isChatReadOnly(resolvedSession.toString(), this._getChatURI(request.sessionResource)));
 
 			return {
 				timings: { firstProgress, totalElapsed: stopWatch.elapsed() },
@@ -1666,6 +1667,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 			],
 		};
+	}
+
+	private _isChatReadOnly(sessionUri: string, chatUri: string): boolean {
+		const sessionState = this._getRawSessionState(sessionUri);
+		if (!sessionState) {
+			return true;
+		}
+		const defaultChat = sessionState.defaultChat?.toString();
+		const chatState = chatUri === defaultChat
+			? this._getDefaultChatState(sessionUri)
+			: this._getAdditionalChatState(chatUri);
+		return !chatState || isChatReadOnly(chatState.interactivity, (sessionState.status & SessionStatus.IsArchived) === SessionStatus.IsArchived);
 	}
 
 	/**
@@ -2749,7 +2762,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const chatURI = this._getChatURI(request.sessionResource);
 		const state = this._getSessionState(session.toString(), chatURI);
 		const failedTurn = state?.turns.at(-1);
-		if (failedTurn?.id !== turnId || failedTurn.state !== TurnState.Error || failedTurn.resumable !== true) {
+		if (this._isChatReadOnly(session.toString(), chatURI) || failedTurn?.id !== turnId || failedTurn.state !== TurnState.Error || failedTurn.resumable !== true) {
 			this._logService.warn(`[AgentHost] Rejecting stale or unsupported turn resume: session=${session.toString()}, turnId=${turnId}`);
 			throw new Error(localize('agentHost.resumeTurnUnavailable', "This failed request can no longer be retried."));
 		}

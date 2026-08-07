@@ -6148,6 +6148,42 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('does not restore Try Again for an archived session', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionUri = AgentSession.uri('copilot', 'archived-resumable-error');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Error | SessionStatus.IsArchived, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'failed-turn',
+					message: { text: 'Try this', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Error,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/archived-resumable-error' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const response = session.history[1];
+			assert.deepStrictEqual(response.type === 'response' ? response.errorDetails : undefined, {
+				message: 'Error: (requestFailed) failed',
+			});
+		});
+
 		test('does not restore Try Again for an older failed turn', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			agentHostService.setRootState({

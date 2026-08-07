@@ -814,6 +814,52 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('rejects resume before reopening an archived session turn', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			const resumeEnvelopes: ActionEnvelope[] = [];
+			disposables.add(service.onDidAction(envelope => {
+				if (envelope.action.type === ActionType.ChatTurnResumed) {
+					resumeEnvelopes.push(envelope);
+				}
+			}));
+			service.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			copilotAgent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(chat),
+				action: {
+					type: ActionType.ChatError,
+					turnId: 'turn-1',
+					duration: 10,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				},
+			});
+			service.dispatchAction(session.toString(), {
+				type: ActionType.SessionIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 2);
+			service.dispatchAction(chat, {
+				type: ActionType.ChatTurnResumed,
+				turnId: 'turn-1',
+			}, 'test-client', 3);
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				resumeTurnCalls: copilotAgent.resumeTurnCalls,
+				rejections: resumeEnvelopes.map(envelope => envelope.rejectionReason),
+			}, {
+				resumeTurnCalls: [],
+				rejections: ['This session is archived and read-only. Restore the session to continue the conversation.'],
+			});
+		});
+
 		class DynamicWorkingDirectoryAgent extends MockAgent {
 			constructor(id: string, private readonly immutablePrimary = true) {
 				super(id);

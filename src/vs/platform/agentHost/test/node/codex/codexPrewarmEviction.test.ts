@@ -33,7 +33,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../../
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
-import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
+import { IAgentHostOTelService, type IAgentHostTraceContext } from '../../../common/otel/agentHostOTelService.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
@@ -49,6 +49,7 @@ interface ITestWireRequest {
 	readonly id: number;
 	readonly method: string;
 	readonly params: {
+		readonly input?: readonly { readonly type?: string }[];
 		readonly cwd?: string;
 		readonly threadId?: string;
 		readonly runtimeWorkspaceRoots?: readonly string[];
@@ -60,6 +61,7 @@ interface ITestWireRequest {
 		readonly developerInstructions?: string;
 		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
 	};
+	readonly trace?: { readonly traceparent: string; readonly tracestate?: string };
 }
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
@@ -131,6 +133,7 @@ interface ICreateAgentOptions {
 	readonly multiRootEnabled?: boolean;
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
+	readonly traceContext?: IAgentHostTraceContext;
 }
 
 class TestCodexLogService extends NullLogService {
@@ -192,7 +195,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentHostOTelService, {
 		_serviceBrand: undefined,
 		getNativeSdkTelemetryConfig: async () => undefined,
-		getSessionTraceContext: () => undefined,
+		getSessionTraceContext: () => options.traceContext,
 		releaseSessionTraceContext: () => { },
 	});
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
@@ -383,8 +386,14 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
-	test('thread start receives custom agents, instructions, skills, and MCP from client plugins', async () => {
-		const agent = await createAgent(disposables);
+	test('thread start and resumed turns receive customizations and trace context', async () => {
+		const traceContext: IAgentHostTraceContext = {
+			traceId: '1'.repeat(32),
+			spanId: '2'.repeat(16),
+			traceparent: `00-${'1'.repeat(32)}-${'2'.repeat(16)}-01`,
+			tracestate: 'test=value',
+		};
+		const agent = await createAgent(disposables, { traceContext });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		agent['_refreshSkillExtraRoots'] = async () => { };
@@ -425,7 +434,8 @@ suite('CodexAgent prewarm eviction', () => {
 			parsed,
 		}]);
 
-		const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repo], undefined, 'turn-1');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const send = agent.chats.sendMessage(chat, 'hello', [repo], undefined, 'turn-1');
 		const start = await readNextRequest(peer.outbound);
 		const agents = start.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
 		const roleFile = await fs.promises.readFile(agents.Reviewer.config_file, 'utf8');
@@ -433,6 +443,12 @@ suite('CodexAgent prewarm eviction', () => {
 		const turn = await readNextRequest(peer.outbound);
 		peer.push({ id: turn.id, result: {} });
 		await send;
+		const resumeTurn = agent.chats.resumeTurn;
+		assert.ok(resumeTurn);
+		const resume = resumeTurn(chat, 'turn-resumed');
+		const resumedTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: resumedTurn.id, result: {} });
+		await resume;
 
 		assert.deepStrictEqual({
 			mcp: start.params.config?.['mcp_servers'],
@@ -442,6 +458,13 @@ suite('CodexAgent prewarm eviction', () => {
 			capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
 			roleFile,
 			roleFileUsesHostGeneratedRoot: agents.Reviewer.config_file.startsWith(join(os.tmpdir(), 'vscode-agent-codex-customizations-')),
+			resumedTurn: {
+				method: resumedTurn.method,
+				input: resumedTurn.params.input,
+				model: resumedTurn.params.model,
+				developerInstructions: resumedTurn.params.collaborationMode?.settings.developer_instructions,
+				trace: resumedTurn.trace,
+			},
 		}, {
 			mcp: { local: { command: 'node', args: ['server.js'] } },
 			agentDescription: 'Reviews changes',
@@ -450,6 +473,13 @@ suite('CodexAgent prewarm eviction', () => {
 			capabilityPaths: [URI.file('/plugin/skills').fsPath],
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
 			roleFileUsesHostGeneratedRoot: true,
+			resumedTurn: {
+				method: 'turn/start',
+				input: [],
+				model: 'gpt-test',
+				developerInstructions: 'Run focused tests.\n\nReview carefully.',
+				trace: { traceparent: traceContext.traceparent, tracestate: traceContext.tracestate },
+			},
 		});
 		peer.exit();
 	});
