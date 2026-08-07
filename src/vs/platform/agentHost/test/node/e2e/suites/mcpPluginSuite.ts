@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { createRealSession, driveTurnToCompletion, driveTurnWithCancelledInputToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -24,6 +25,15 @@ interface IPluginSession {
 	readonly sessionUri: string;
 	readonly pluginUri: string;
 	readonly clientId: string;
+	readonly workspace: string;
+	readonly hookLog?: string;
+}
+
+interface IPluginSessionOptions {
+	readonly hookType?: 'PreToolUse' | 'PostToolUse' | 'UserPromptSubmit' | 'SessionStart' | 'SessionEnd';
+	readonly hookExitCode?: number;
+	readonly hookStdout?: string;
+	readonly pluginName?: string;
 }
 
 export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
@@ -35,7 +45,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		return;
 	}
 
-	async function createPluginSession(prefix: string): Promise<IPluginSession> {
+	async function createPluginSession(prefix: string, options: IPluginSessionOptions = {}): Promise<IPluginSession> {
 		const workspace = mkdtempSync(join(tmpdir(), `ahp-mcp-workspace-${prefix}-`));
 		const plugin = mkdtempSync(join(tmpdir(), `ahp-mcp-plugin-${prefix}-`));
 		tempDirs.push(workspace, plugin);
@@ -48,11 +58,39 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		]) {
 			mkdirSync(directory, { recursive: true });
 		}
+		let hookLog: string | undefined;
+		if (options.hookType) {
+			const hooksDirectory = join(plugin, 'hooks');
+			mkdirSync(hooksDirectory, { recursive: true });
+			hookLog = join(plugin, 'hook.log');
+			const hookScript = join(plugin, 'record-hook.cjs');
+			writeFileSync(hookScript, [
+				'const fs = require("fs");',
+				'const [log, tag, exitCode, stdout] = process.argv.slice(2);',
+				'let input = "";',
+				'process.stdin.setEncoding("utf8");',
+				'process.stdin.on("data", chunk => input += chunk);',
+				'process.stdin.on("end", () => {',
+				'  fs.appendFileSync(log, `${tag}:${input}\\n`);',
+				'  if (stdout) { process.stdout.write(stdout); }',
+				'  process.exit(Number(exitCode));',
+				'});',
+			].join('\n'));
+			const command = [process.execPath, hookScript, hookLog, options.hookType, String(options.hookExitCode ?? 0), options.hookStdout ?? '']
+				.map(value => JSON.stringify(value))
+				.join(' ');
+			writeFileSync(join(hooksDirectory, 'hooks.json'), JSON.stringify({
+				hooks: {
+					[options.hookType]: [{ hooks: [{ type: 'command', command }] }],
+				},
+			}));
+		}
 		const mcpScript = join(plugin, 'probe-mcp.cjs');
 		const mcpServerModule = nodeRequire.resolve('@modelcontextprotocol/sdk/server/index.js');
 		const mcpStdioModule = nodeRequire.resolve('@modelcontextprotocol/sdk/server/stdio.js');
 		const mcpTypesModule = nodeRequire.resolve('@modelcontextprotocol/sdk/types.js');
-		writeFileSync(join(plugin, manifestDirectory, 'plugin.json'), JSON.stringify({ name: 'E2E MCP Plugin' }));
+		const pluginName = options.pluginName ?? 'E2E MCP Plugin';
+		writeFileSync(join(plugin, manifestDirectory, 'plugin.json'), JSON.stringify({ name: pluginName }));
 		writeFileSync(join(plugin, 'agents', 'probe.agent.md'), '---\nname: Probe Agent\ndescription: Uses the probe MCP server\n---\nUse the probe tool when asked.');
 		writeFileSync(join(plugin, 'rules', 'probe.instructions.md'), '---\napplyTo:\n  - "**/*"\n---\nPrefer the customization_probe tool.');
 		writeFileSync(join(plugin, 'skills', 'probe-skill', 'SKILL.md'), '---\nname: probe-skill\ndescription: Uses the customization probe\n---\nCall customization_probe.');
@@ -65,6 +103,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			`  { name: "customization_probe", description: "Returns MCP_PLUGIN_RESULT", inputSchema: { type: "object", properties: {} } },`,
 			`  { name: "customization_elicit_form", description: "Asks for structured values and returns them", inputSchema: { type: "object", properties: {} } },`,
 			`  { name: "customization_elicit_extended", description: "Asks for text, number, and multiple selections", inputSchema: { type: "object", properties: {} } },`,
+			`  { name: "customization_elicit_coercion", description: "Asks for values that can be represented by different AHP answer kinds", inputSchema: { type: "object", properties: {} } },`,
 			`  { name: "customization_elicit_url", description: "Asks the user to approve opening a URL", inputSchema: { type: "object", properties: {} } },`,
 			`  { name: "customization_sample", description: "Samples a nested model response", inputSchema: { type: "object", properties: {} } },`,
 			`] }));`,
@@ -85,6 +124,20 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			`  if (request.params.name === "customization_elicit_url") {`,
 			`    const result = await server.elicitInput({ mode: "url", message: "Open the documentation", url: "https://example.com/docs", elicitationId: "e2e-url" });`,
 			`    return { content: [{ type: "text", text: \`ELICIT_URL:\${result.action}\` }] };`,
+			`  }`,
+			`  if (request.params.name === "customization_elicit_coercion") {`,
+			`    const result = await server.elicitInput({ mode: "form", message: "Provide coercion values", requestedSchema: {`,
+			`      type: "object",`,
+			`      properties: {`,
+			`        enabled: { type: "boolean", title: "Enabled" },`,
+			`        ratio: { type: "number", title: "Ratio" },`,
+			`        colors: { type: "array", title: "Colors", items: { type: "string", enum: ["Red", "Blue"] } },`,
+			`        choice: { type: "string", title: "Choice", enum: ["Apple", "Banana"] },`,
+			`      },`,
+			`      required: ["enabled", "ratio", "colors", "choice"],`,
+			`    } });`,
+			`    const value = result.content || {};`,
+			`    return { content: [{ type: "text", text: \`COERCION:\${typeof value.enabled}:\${value.enabled}:\${typeof value.ratio}:\${value.ratio}:\${Array.isArray(value.colors) ? "array" : typeof value.colors}:\${(value.colors || []).join("+")}:\${typeof value.choice}:\${value.choice}\` }] };`,
 			`  }`,
 			`  if (request.params.name === "customization_elicit_extended") {`,
 			`    const result = await server.elicitInput({ mode: "form", message: "Provide extended values", requestedSchema: {`,
@@ -125,7 +178,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			type: CustomizationType.Plugin,
 			id: customizationId(pluginUri),
 			uri: pluginUri,
-			name: 'E2E MCP Plugin',
+			name: pluginName,
 			nonce: '1',
 			enabled: true,
 		};
@@ -141,7 +194,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			isActionNotification(n, 'session/activeClientSet') && getActionEnvelope(n).channel === sessionUri,
 			30_000,
 		);
-		return { sessionUri, pluginUri, clientId };
+		return { sessionUri, pluginUri, clientId, workspace, hookLog };
 	}
 
 	async function pluginState(sessionUri: string, pluginUri: string): Promise<PluginCustomization> {
@@ -168,6 +221,36 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
 			.filter(({ envelope, action }) => envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === turnId)
 			.map(({ action }) => textFromContent(action.result.content ?? []));
+	}
+
+	async function waitForHook(hookLog: string | undefined, hookType: NonNullable<IPluginSessionOptions['hookType']>): Promise<string> {
+		assert.ok(hookLog);
+		return retry(async () => {
+			if (!existsSync(hookLog)) {
+				throw new Error(`${hookType} hook has not run`);
+			}
+
+			const content = readFileSync(hookLog, 'utf8');
+			if (!content.includes(`${hookType}:`)) {
+				throw new Error(`${hookType} hook has not recorded input`);
+			}
+			return content;
+		}, 100, 100);
+	}
+
+	async function driveCoercionTurn(
+		sessionUri: string,
+		turnId: string,
+		answers: (request: ChatInputRequest) => Record<string, ChatInputAnswer>,
+	): Promise<void> {
+		await driveTurnWithAnswersToCompletion(
+			context.client,
+			sessionUri,
+			turnId,
+			'Call customization_elicit_coercion exactly once, then reply with only its exact result.',
+			2,
+			answers,
+		);
 	}
 
 	providerHostOnlyTest(context, 'client plugin exposes agent rule skill and MCP server customizations', async function () {
@@ -235,6 +318,152 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 
 	const modelBackedEnabled = config.provider === 'copilotcli';
 	if (modelBackedEnabled) {
+		// The skill executes when named explicitly, but the completions command currently returns no item for it.
+		(context.runKnownIssueTests ? test : test.skip)('plugin skill is included in leading slash completions', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri } = await createPluginSession('skill-completion-leading', { pluginName: 'e2e-probe' });
+			await pluginState(sessionUri, pluginUri);
+			await driveTurnToCompletion(context.client, sessionUri, 'turn-skill-completion-leading', 'Reply exactly "ready".', 2);
+
+			const completions = await context.client.call<CompletionsResult>('completions', {
+				channel: buildDefaultChatUri(sessionUri),
+				kind: CompletionItemKind.UserMessage,
+				text: '/E2E',
+				offset: 4,
+			});
+
+			assert.ok(completions.items.some(item => item.insertText.includes('probe-skill')));
+		});
+
+		(context.runKnownIssueTests ? test : test.skip)('plugin skill is included in whitespace slash completions without runtime commands', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri } = await createPluginSession('skill-completion-whitespace', { pluginName: 'e2e-probe' });
+			await pluginState(sessionUri, pluginUri);
+			await driveTurnToCompletion(context.client, sessionUri, 'turn-skill-completion-whitespace', 'Reply exactly "ready".', 2);
+
+			const completions = await context.client.call<CompletionsResult>('completions', {
+				channel: buildDefaultChatUri(sessionUri),
+				kind: CompletionItemKind.UserMessage,
+				text: 'Use /E2E',
+				offset: 8,
+			});
+
+			assert.ok(completions.items.some(item => item.insertText.includes('probe-skill')));
+		});
+
+		test('plugin skill invocation is routed through the provider skill lifecycle', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri } = await createPluginSession('skill-invocation');
+			await pluginState(sessionUri, pluginUri);
+			const turnId = 'turn-skill-invocation';
+			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Invoke the probe-skill skill exactly once, follow its instructions, then reply with only the customization probe result.', 2);
+
+			assert.ok(toolResultTexts(sessionUri, turnId).includes('MCP_PLUGIN_RESULT'));
+		});
+
+		(context.runKnownIssueTests ? test : test.skip)('plugin skill lifecycle is reconstructed after a host restart', async function () {
+			this.timeout(240_000);
+			const { sessionUri, pluginUri, workspace } = await createPluginSession('skill-history-restart');
+			await pluginState(sessionUri, pluginUri);
+			const turnId = 'turn-skill-history-restart';
+			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Invoke the probe-skill skill exactly once, follow its instructions, then reply with only the customization probe result.', 2);
+			const before = await fetchSessionWithChat(context.client, sessionUri);
+			const beforeToolNames = before.turns.find(turn => turn.id === turnId)?.responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => part.toolCall.toolName) ?? [];
+
+			await context.restartServer();
+			context.client.setWorkingDirectory(workspace);
+			await context.client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: 'skill-history-restart-client',
+			}, 30_000);
+			await context.client.call('authenticate', {
+				channel: ROOT_STATE_URI,
+				resource: 'https://api.github.com',
+				token: config.githubToken ?? resolveGitHubToken(),
+			}, 30_000);
+			await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			const restored = await fetchSessionWithChat(context.client, sessionUri);
+			const restoredToolNames = restored.turns.find(turn => turn.id === turnId)?.responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => part.toolCall.toolName) ?? [];
+
+			assert.deepStrictEqual(restoredToolNames, beforeToolNames);
+		});
+
+		test('plugin SessionStart hook runs when the provider materializes', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-session-start', { hookType: 'SessionStart' });
+			await pluginState(sessionUri, pluginUri);
+			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-session-start', 'Reply exactly "ready".', 2);
+
+			await waitForHook(hookLog, 'SessionStart');
+		});
+
+		test('plugin UserPromptSubmit hook receives the submitted prompt', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-user-prompt', { hookType: 'UserPromptSubmit' });
+			await pluginState(sessionUri, pluginUri);
+			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-user-prompt', 'Reply exactly "HOOK_PROMPT_READY".', 2);
+			const hookContent = await waitForHook(hookLog, 'UserPromptSubmit');
+
+			assert.ok(hookContent.includes('HOOK_PROMPT_READY'));
+		});
+
+		test('plugin PreToolUse hook runs before an MCP tool', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-pre-tool', { hookType: 'PreToolUse' });
+			await pluginState(sessionUri, pluginUri);
+			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-pre-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+			const hookContent = await waitForHook(hookLog, 'PreToolUse');
+
+			assert.ok(hookContent.includes('customization_probe'));
+		});
+
+		test('plugin PostToolUse hook runs after an MCP tool result', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-post-tool', { hookType: 'PostToolUse' });
+			await pluginState(sessionUri, pluginUri);
+			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-post-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+			const hookContent = await waitForHook(hookLog, 'PostToolUse');
+
+			assert.ok(hookContent.includes('MCP_PLUGIN_RESULT'));
+		});
+
+		test('plugin SessionEnd hook runs when the session is disposed', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-session-end', { hookType: 'SessionEnd' });
+			await pluginState(sessionUri, pluginUri);
+			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-session-end', 'Reply exactly "ready".', 2);
+
+			await context.client.call('disposeSession', { channel: sessionUri }, 30_000);
+			createdSessions.splice(createdSessions.indexOf(sessionUri), 1);
+			await waitForHook(hookLog, 'SessionEnd');
+		});
+
+		test('failing plugin hook is non-fatal to the provider turn', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-failure', { hookType: 'UserPromptSubmit', hookExitCode: 7 });
+			await pluginState(sessionUri, pluginUri);
+			const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-failure', 'Reply exactly "HOOK_FAILURE_SURVIVED".', 2);
+
+			await waitForHook(hookLog, 'UserPromptSubmit');
+			assert.strictEqual(result.responseText.trim(), 'HOOK_FAILURE_SURVIVED');
+		});
+
+		test('non-JSON plugin hook output is ignored without failing the provider turn', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-non-json', { hookType: 'PostToolUse', hookStdout: 'not-json' });
+			await pluginState(sessionUri, pluginUri);
+			const turnId = 'turn-hook-non-json';
+			const result = await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+
+			await waitForHook(hookLog, 'PostToolUse');
+			assert.ok(result.responseText.includes('MCP_PLUGIN_RESULT'));
+		});
+
 		test('plugin MCP tool executes and returns its result to the model', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri } = await createPluginSession('tool');
@@ -342,6 +571,47 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 
 			assert.ok(result.sawInputRequest);
 			assert.ok(toolResultTexts(sessionUri, 'turn-mcp-elicit-extended').includes('ELICIT_EXTENDED:accept:sample:2.5:Red'));
+		});
+
+		test('plugin MCP form coerces text answers to boolean number and array values', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri } = await createPluginSession('elicit-coercion-text');
+			await pluginState(sessionUri, pluginUri);
+			const turnId = 'turn-mcp-elicit-coercion-text';
+			await driveCoercionTurn(sessionUri, turnId, request => Object.fromEntries(request.questions!.map(question => {
+				const value = question.id === 'enabled' ? 'false'
+					: question.id === 'ratio' ? '4.5'
+						: question.id === 'colors' ? 'Blue'
+							: 'Banana';
+				return [question.id, {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value },
+				} satisfies ChatInputAnswer];
+			})));
+
+			assert.ok(toolResultTexts(sessionUri, turnId).includes('COERCION:boolean:false:number:4.5:array:Blue:string:Banana'));
+		});
+
+		test('plugin MCP form combines selected and freeform array answers', async function () {
+			this.timeout(180_000);
+			const { sessionUri, pluginUri } = await createPluginSession('elicit-coercion-selected');
+			await pluginState(sessionUri, pluginUri);
+			const turnId = 'turn-mcp-elicit-coercion-selected';
+			await driveCoercionTurn(sessionUri, turnId, request => Object.fromEntries(request.questions!.map(question => {
+				let answer: ChatInputAnswer;
+				if (question.id === 'enabled') {
+					answer = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Boolean, value: true } };
+				} else if (question.id === 'ratio') {
+					answer = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Number, value: 2.5 } };
+				} else if (question.id === 'colors') {
+					answer = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.SelectedMany, value: ['Red'], freeformValues: ['Blue'] } };
+				} else {
+					answer = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'Apple' } };
+				}
+				return [question.id, answer];
+			})));
+
+			assert.ok(toolResultTexts(sessionUri, turnId).includes('COERCION:boolean:true:number:2.5:array:Red+Blue:string:Apple'));
 		});
 
 		test('plugin MCP form elicitation cancellation returns to the model', async function () {
