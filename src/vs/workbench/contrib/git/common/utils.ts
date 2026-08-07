@@ -49,7 +49,11 @@ export function getGitHubRemoteInfo(repositoryState: GitRepositoryState): IGitHu
 
 export function getGitHubRepositoryFromRemoteUrl(remoteUrl: string): IGitHubRemoteInfo | undefined {
 	const remote = parseRemoteUrl(remoteUrl);
-	if (!remote || (!equalsIgnoreCase(remote.host, 'github.com') && !equalsIgnoreCase(remote.host, 'www.github.com'))) {
+	if (!remote) {
+		return undefined;
+	}
+	const host = equalsIgnoreCase(remote.scheme, 'ssh') ? remote.host : remote.rawHost;
+	if (!equalsIgnoreCase(host, 'github.com') && !equalsIgnoreCase(host, 'www.github.com')) {
 		return undefined;
 	}
 	const segments = remote.path.replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.git$/i, '').split('/');
@@ -93,7 +97,7 @@ function getOrderedRemotes(repositoryState: GitRepositoryState): readonly GitRem
 	return Array.from(remotes.values());
 }
 
-function parseRemoteUrl(fetchUrl: string): { host: string; rawHost: string; path: string } | undefined {
+function parseRemoteUrl(fetchUrl: string): { scheme: string; host: string; rawHost: string; path: string } | undefined {
 	fetchUrl = fetchUrl.trim();
 	try {
 		// Normalize git shorthand syntax (git@github.com:user/repo.git) into an explicit ssh:// url
@@ -131,7 +135,7 @@ function parseRemoteUrl(fetchUrl: string): { host: string; rawHost: string; path
 			.replace(/^[\w\-]+-/, '') // Remove common ssh syntax: abc-github.com
 			.replace(/-[\w\-]+$/, '');// Remove common ssh syntax: github.com-abc
 
-		return { host: normalizedHost, rawHost, path: path };
+		return { scheme: repoUrl.scheme, host: normalizedHost, rawHost, path: path };
 	} catch (err) {
 		return undefined;
 	}

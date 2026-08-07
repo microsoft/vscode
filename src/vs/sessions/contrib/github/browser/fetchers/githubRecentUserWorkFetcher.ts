@@ -47,8 +47,8 @@ interface IGitHubRecentIssuesResponse {
 
 interface IGitHubIssueLinkageResponse {
 	readonly repository: Record<string, {
-			readonly closedByPullRequestsReferences: { readonly totalCount: number } | null;
-		} | null> | null;
+		readonly closedByPullRequestsReferences: { readonly totalCount: number } | null;
+	} | null> | null;
 }
 
 interface IGitHubRecentPullRequestsResponse {

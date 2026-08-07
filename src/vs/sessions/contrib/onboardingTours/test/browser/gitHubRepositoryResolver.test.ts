@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { getGitHubRepositoryFromRemoteUrl } from '../../../../../workbench/contrib/git/common/utils.js';
 import { parseGitHubRepositoryFromGitConfig, resolveGitHubRepositoryFromGitConfig } from '../../browser/gitHubRepositoryResolver.js';
 
 const ROOT = URI.from({ scheme: 'vscode-tests', path: '/workspace' });
@@ -27,6 +28,16 @@ suite('GitHubRepositoryResolver', () => {
 		`), {
 			owner: 'owner',
 			repo: 'project',
+		});
+	});
+
+	test('does not normalize HTTP hosts that merely end in github.com', () => {
+		assert.deepStrictEqual({
+			lookalike: getGitHubRepositoryFromRemoteUrl('https://evil-github.com/owner/project.git'),
+			sshAlias: getGitHubRepositoryFromRemoteUrl('ssh://work-github.com/owner/project.git'),
+		}, {
+			lookalike: undefined,
+			sshAlias: { owner: 'owner', repo: 'project' },
 		});
 	});
 

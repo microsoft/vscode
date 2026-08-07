@@ -2244,6 +2244,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			chats: [],
 			customizations: [],
 			_meta: {
+				github: {
+					owner: 'partial-owner',
+				},
 				git: {
 					hasGitHubRemote: true,
 					githubOwner: 'microsoft',

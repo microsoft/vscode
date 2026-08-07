@@ -253,16 +253,19 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const gitState = readSessionGitState(meta);
 	const pullRequests = toGitHubPullRequestRefs(state?.pullRequestUrls);
 	const pullRequest = pullRequests?.[0];
-	const owner = state?.owner ?? gitState?.githubOwner ?? pullRequest?.owner;
-	const repo = state?.repo ?? gitState?.githubRepo ?? pullRequest?.repo;
+	const repository = state?.owner && state.repo
+		? { owner: state.owner, repo: state.repo }
+		: gitState?.githubOwner && gitState.githubRepo
+			? { owner: gitState.githubOwner, repo: gitState.githubRepo }
+			: pullRequest;
 
-	if (!owner || !repo) {
+	if (!repository) {
 		return undefined;
 	}
 
 	return {
-		owner,
-		repo,
+		owner: repository.owner,
+		repo: repository.repo,
 		pullRequests,
 		pullRequest: pullRequest ? {
 			number: pullRequest.number,
