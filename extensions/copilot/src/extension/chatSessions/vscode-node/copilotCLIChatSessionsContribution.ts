@@ -332,13 +332,10 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		}
 
 		// Statistics (only returned for trusted workspace/worktree folders).
-		// `getWorktreeChanges`/`getWorkspaceChanges` shell out to `git diff` and dominate the cost
-		// of building an item — defer to `resolveChatSessionItem` for visible items.
-		// `buildChanges` runs `git diff` and is the slow leg of populating an item. Skip it on the
-		// eager pass and let `resolveChatSessionItem` fill it in lazily for visible items.
-		// But if computing changes is easy (cached or the like), then include them right away to avoid a second update pass.
+		// Building changes is expensive, so defer it to explicit resolve and refresh paths
+		// when lazy loading is enabled. Preserve eager loading when it is disabled.
 		let changes: vscode.ChatSessionChangedFile[] | undefined;
-		if (!token.isCancellationRequested && (options?.includeChanges || (await this.hasCachedChanges(session.id, worktreeProperties)))) {
+		if (!token.isCancellationRequested && (options?.includeChanges || !this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem))) {
 			changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory, token);
 			// We need to get an updated version of worktree properties here because when the
 			// changes are being computed, the worktree properties are also updated with the
@@ -452,18 +449,6 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 			metadata,
 		} satisfies vscode.ChatSessionItem;
 	}
-
-	private async hasCachedChanges(sessionId: string, worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>): Promise<boolean> {
-		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
-			return true;
-		}
-		const [hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
-			this.worktreeManager.hasCachedChanges(sessionId),
-			this.workspaceFolderService.hasCachedChanges(sessionId)
-		]);
-		return hasCachedWorktreeChanges || hasCachedWorkspaceChanges;
-	}
-
 
 	private async buildChanges(
 		sessionId: string,

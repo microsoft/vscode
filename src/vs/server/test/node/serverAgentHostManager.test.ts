@@ -233,6 +233,7 @@ suite('ServerAgentHostManager', () => {
 		assert.deepStrictEqual(telemetryService.errorEvents, [{
 			eventName: 'agentHost.processError',
 			data: {
+				hostLaunchKind: 'vscode_cli',
 				kind: 'unexpectedExit',
 				code: 17,
 				restartCount: 0,
@@ -253,6 +254,7 @@ suite('ServerAgentHostManager', () => {
 		assert.deepStrictEqual(telemetryService.errorEvents, [{
 			eventName: 'agentHost.processError',
 			data: {
+				hostLaunchKind: 'vscode_cli',
 				kind: 'startFailed',
 				restartCount: 0,
 				willRestart: true,
