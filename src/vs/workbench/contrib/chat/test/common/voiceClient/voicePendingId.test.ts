@@ -7,6 +7,8 @@ import assert from 'assert';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { derivePendingId, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
 
 suite('derivePendingId', () => {
@@ -95,6 +97,42 @@ suite('derivePendingId', () => {
 			presentationUpdateMatches: true,
 			rearmedDiffers: true,
 			currentPartNoLongerResolvesOldId: true,
+		});
+	});
+
+	test('keeps authentication identity stable until the tool leaves the pending state', () => {
+		const tool = new ChatToolInvocation(undefined, {
+			id: 'mcpTool',
+			displayName: 'MCP Tool',
+			modelDescription: 'Calls an MCP tool',
+			source: ToolDataSource.External,
+		}, 'tool-call', undefined, {}, {});
+		const firstCancel = () => { };
+		const refreshedCancel = () => { };
+		const nextCancel = () => { };
+		const server = { id: 'server', name: 'MCP Server', resource: 'https://mcp.example.com' };
+
+		tool.setAuthenticationRequired(server, firstCancel);
+		const first = derivePendingId('req-1', tool);
+		tool.setAuthenticationRequired({ ...server, reason: 'Updated scope' }, refreshedCancel);
+		const refreshed = derivePendingId('req-1', tool);
+		const refreshedState = tool.state.get();
+
+		tool.setAuthenticationResolved();
+		tool.setAuthenticationRequired(server, nextCancel);
+		const next = derivePendingId('req-1', tool);
+		const nextState = tool.state.get();
+
+		assert.deepStrictEqual({
+			refreshedMatches: refreshed === first,
+			refreshedUsesOriginalCancel: refreshedState.type === IChatToolInvocation.StateKind.WaitingForAuthentication && refreshedState.cancel === firstCancel,
+			nextDiffers: next !== first,
+			nextUsesNewCancel: nextState.type === IChatToolInvocation.StateKind.WaitingForAuthentication && nextState.cancel === nextCancel,
+		}, {
+			refreshedMatches: true,
+			refreshedUsesOriginalCancel: true,
+			nextDiffers: true,
+			nextUsesNewCancel: true,
 		});
 	});
 });
