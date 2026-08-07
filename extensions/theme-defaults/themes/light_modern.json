@@ -147,6 +147,9 @@
 		"titleBar.inactiveBackground": "#F8F8F8",
 		"titleBar.inactiveForeground": "#8B949E",
 		"welcomePage.tileBackground": "#F3F3F3",
+		"banner.background": "#005FB8",
+		"banner.foreground": "#FFFFFF",
+		"banner.iconForeground": "#FFFFFF",
 		"widget.border": "#E5E5E5"
 	},
 }
