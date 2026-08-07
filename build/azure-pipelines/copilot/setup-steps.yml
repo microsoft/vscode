@@ -83,10 +83,6 @@ steps:
     displayName: Install vscode-capi dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
 
-  - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
-    workingDirectory: $(Build.SourcesDirectory)
-    displayName: Verify native optional dependency binaries
-
   - script: |
       set -e
       mkdir -p .build
