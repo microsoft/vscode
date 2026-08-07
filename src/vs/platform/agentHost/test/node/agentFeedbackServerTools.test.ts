@@ -175,7 +175,7 @@ suite('AgentFeedbackServerTools', () => {
 			annotation('pr2', 'accepted', false, 'already accepted', 'prReview'),
 			annotation('u1', 'created', false, 'user comment', 'user'),
 		);
-		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {}, { autoApproved: true });
+		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {}, { approval: { kind: 'policy' } });
 		const submitted = outcome.actions.map(action => {
 			const annotation = (action as Extract<typeof action, { type: ActionType.AnnotationsSet }>).annotation;
 			const meta = annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
@@ -321,7 +321,7 @@ suite('AgentFeedbackServerTools', () => {
 				annotation: annotation('auto-submit', 'created', false, 'submit me', 'prReview'),
 			});
 
-			const result = await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {}, { autoApproved: true });
+			const result = await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {}, { approval: { kind: 'policy' } });
 			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
 			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta;
 
@@ -332,6 +332,81 @@ suite('AgentFeedbackServerTools', () => {
 				returnedIds: ['auto-submit'],
 				state: 'submitted',
 			});
+		});
+
+		test('getAutoApprovalContext returns the exact unreviewed comment snapshot', () => {
+			const annotationsUri = buildAnnotationsUri(sessionResource);
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('pr-review', 'created', false, 'check bounds', 'prReview'),
+			});
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('already-reviewed', 'accepted', false, 'not included', 'codeReview'),
+			});
+
+			const context = host.getAutoApprovalContext(
+				buildChatUri(sessionResource, 'peer-chat-1'),
+				viewUnreviewedCommentsToolName,
+				{},
+			);
+
+			assert.deepStrictEqual({
+				comments: JSON.parse(context!.untrustedContent).comments,
+				hasInstructions: context!.instructions.length > 0,
+				stateTokenLength: context!.stateToken.length,
+				requiresModelReview: context!.requiresModelReview,
+			}, {
+				comments: [{
+					id: 'pr-review',
+					resourceUri: fileUri,
+					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 },
+					text: 'check bounds',
+					kind: 'prReview',
+					resolved: false,
+				}],
+				hasInstructions: true,
+				stateTokenLength: 64,
+				requiresModelReview: true,
+			});
+		});
+
+		test('getAutoApprovalContext skips the judge when there are no unreviewed comments', () => {
+			manager.dispatchServerAction(buildAnnotationsUri(sessionResource), {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('already-reviewed', 'accepted', false, 'not included', 'codeReview'),
+			});
+
+			const context = host.getAutoApprovalContext(sessionResource, viewUnreviewedCommentsToolName, {})!;
+			assert.deepStrictEqual({
+				comments: JSON.parse(context.untrustedContent).comments,
+				requiresModelReview: context.requiresModelReview,
+				stateTokenLength: context.stateToken.length,
+			}, {
+				comments: [],
+				requiresModelReview: false,
+				stateTokenLength: 64,
+			});
+		});
+
+		test('assisted auto approval rejects a changed comment snapshot', () => {
+			const annotationsUri = buildAnnotationsUri(sessionResource);
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('changed-after-judge', 'created', false, 'original', 'prReview'),
+			});
+			const context = host.getAutoApprovalContext(sessionResource, viewUnreviewedCommentsToolName, {})!;
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('changed-after-judge', 'created', false, 'new unreviewed text', 'prReview'),
+			});
+
+			assert.throws(() => host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {}, {
+				approval: { kind: 'assisted', stateToken: context.stateToken },
+			}), /comments changed after automated safety review/i);
+			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
+			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta;
+			assert.strictEqual(meta.state, 'created');
 		});
 
 		test('advertise publishes the server tools as server tools', () => {

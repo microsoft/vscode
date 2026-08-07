@@ -459,7 +459,13 @@ feedback. This keeps the unreviewed count, picker contents, and reveal selection
 the same parent session even when the tool is invoked from an additional chat. When
 `viewUnreviewedComments` is auto-approved, no selection UI runs: every created PR
 and code-review comment is returned and transitioned directly to `submitted`.
-Interactive approval continues to return only the comments selected by the user.
+In Copilot sessions using assisted approvals, a tool-specific security judge receives
+the exact untrusted comments and tool-owned assessment criteria, supplementing the
+SDK approval judge without overriding an SDK exclusion or error. A safe verdict is
+bound to a state fingerprint before the comments are submitted; changed comments
+must be judged again. Unsafe, oversized, unavailable, timed-out, or invalid
+assessments fall back to the interactive picker, which shows the judge reason and
+returns only the comments selected by the user.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s

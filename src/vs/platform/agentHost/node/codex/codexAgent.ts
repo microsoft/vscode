@@ -1778,7 +1778,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const host = this._serverToolHost;
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
-				const context = host.requiresConfirmation(params.tool) ? { autoApproved: true } : undefined;
+				const context = host.requiresConfirmation(params.tool) ? { approval: { kind: 'policy' as const } } : undefined;
 				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments, context);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {

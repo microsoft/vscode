@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolExecutionContext, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolAutoApprovalContext, IAgentServerToolExecutionContext, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import type { StringOrMarkdown, ToolDefinition, URI } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
@@ -60,6 +60,8 @@ export interface IServerToolGroup {
 	 * means no confirmation is needed.
 	 */
 	requiresConfirmation?(toolName: string): boolean;
+	/** Supplies untrusted tool content and criteria for assisted auto-approval. */
+	getAutoApprovalContext?(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): IAgentServerToolAutoApprovalContext | undefined;
 	/**
 	 * Executes {@link toolName} (one of this group's {@link definitions})
 	 * against the session's state, dispatching any resulting actions through
@@ -130,6 +132,10 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 
 	requiresConfirmation(toolName: string): boolean {
 		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
+	}
+
+	getAutoApprovalContext(sessionUri: URI, toolName: string, rawArgs: unknown): IAgentServerToolAutoApprovalContext | undefined {
+		return this._groupByToolName.get(toolName)?.getAutoApprovalContext?.(this._stateManager, sessionUri, toolName, rawArgs);
 	}
 
 	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown, context?: IAgentServerToolExecutionContext): string | Promise<string> {

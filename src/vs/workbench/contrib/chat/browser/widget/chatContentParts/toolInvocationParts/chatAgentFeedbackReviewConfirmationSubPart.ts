@@ -32,6 +32,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
+import { createApprovalReasonBadge } from './toolRiskBadgeHelper.js';
 import '../media/chatAgentFeedbackReviewConfirmation.css';
 
 interface ICommentRow {
@@ -76,6 +77,10 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 		if (!data || data.kind !== 'agentFeedbackReviewConfirmation') {
 			throw new Error('Agent feedback review confirmation data is missing');
 		}
+		const state = toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			throw new Error('Agent feedback review confirmation is not pending');
+		}
 
 		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
@@ -103,6 +108,7 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 				icon: Codicon.commentDiscussion,
 				message: listElement,
 				buttons,
+				footerBanner: createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages?.approvalReason)?.domNode,
 			}
 		));
 
