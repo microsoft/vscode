@@ -8,11 +8,13 @@ import { Sequencer } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun, IObservable, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
+import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -20,7 +22,6 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import type { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
@@ -37,13 +38,16 @@ const enum DetailPanelTarget {
 	Preserve
 }
 
+const MARKDOWN_EDITOR_VIEW_TYPES = new Set([
+	'markdown.preview',
+	'vscode.markdown.editor',
+	'vscode.markdown.preview.editor',
+]);
+
 /**
  * Maps the active editor to its detail container (Changes / Files) and
- * reveals/hides the auxiliary bar accordingly. A created single-pane session
- * defaults to the Changes editor with the detail closed; a Changes/file editor
- * becoming active never force-reveals a hidden detail (except restoring it after
- * a transient browser-tab hide). Opening the empty Files placeholder (making it
- * the active editor) reveals the Files detail, since its content lives there.
+ * reveals/hides the auxiliary bar accordingly. See SINGLE_PANE_SCENARIOS.md
+ * section 5 for the full per-tab behavior catalog.
  */
 export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
@@ -68,11 +72,12 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		const activeEditorObs = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => this._isMainPartEmpty());
 		const auxBarVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
 
 		this._register(autorun(reader => {
 			const activeEditor = activeEditorObs.read(reader);
-			const target = this._computeDetailTarget(reader, activeEditor, mainPartEmptyObs, editorMaximizedObs);
+			const target = this._computeDetailTarget(reader, activeEditor, mainPartEmptyObs, editorMaximizedObs, editorPartVisibleObs);
 			const hasDockedDetails = target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced || target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced;
 			this._hasDockedDetailsContext!.set(hasDockedDetails);
 			auxBarVisibleObs.read(reader);
@@ -91,12 +96,18 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		}));
 	}
 
-	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>): DetailPanelTarget {
+	private _computeDetailTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>, editorPartVisibleObs: IObservable<boolean>): DetailPanelTarget {
 		const activeSession = this._sessionsService.activeSession.read(reader);
+		if (!activeSession) {
+			return DetailPanelTarget.Preserve;
+		}
 		const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
 		const workspace = activeSession?.workspace.read(reader);
-		if (isQuickChat || !workspace) {
+		if (isQuickChat) {
 			return DetailPanelTarget.Hidden;
+		}
+		if (!workspace) {
+			return DetailPanelTarget.Preserve;
 		}
 
 		// For a created session an empty editor group means the whole side pane was
@@ -123,14 +134,20 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		}
 
 		if (activeEditor instanceof BrowserEditorInput) {
-			return DetailPanelTarget.BrowserHidden;
+			// Browser has no detail of its own, so it only hides the panel
+			// while the editor area is visible; once hidden, fall back to the
+			// contextual Changes/Files default instead of leaving it blank.
+			if (editorPartVisibleObs.read(reader)) {
+				return DetailPanelTarget.BrowserHidden;
+			}
+			return activeSession?.isCreated.read(reader) ? DetailPanelTarget.Changes : DetailPanelTarget.Files;
 		}
 
 		if (this._isChangesEditor(activeEditor)) {
 			return DetailPanelTarget.ChangesForced;
 		}
 
-		if (this._isFileEditor(activeEditor, workspace)) {
+		if (this._isFileEditor(activeEditor)) {
 			return DetailPanelTarget.FilesForced;
 		}
 
@@ -203,9 +220,8 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
 	private async _syncForcedDetailTarget(viewContainerId: string, auxBarVisible: boolean): Promise<void> {
 		if (!auxBarVisible) {
-			// The detail panel is hidden. A created session defaults to the Changes
-			// editor with the detail closed, and an explicit / per-session hide is
-			// respected — so a Changes/file editor becoming active never
+			// The detail panel is hidden. The global visibility choice is respected,
+			// so a Changes/file editor becoming active never
 			// force-reveals the detail. The one exception is restoring the detail
 			// after a *transient* browser-tab hide (`_hiddenByBrowser`). Never reveal
 			// while the whole side pane is closed (the editor content is also hidden)
@@ -222,16 +238,17 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 	}
 
 	private _isChangesEditor(editor: EditorInput): boolean {
+		if (editor instanceof DiffEditorInput || editor instanceof MultiDiffEditorInput) {
+			return true;
+		}
 		const resource = editor.resource;
 		return !!resource && this._sessionChangesService.getSessionResource(resource) !== undefined;
 	}
 
-	private _isFileEditor(editor: EditorInput, workspace: ISessionWorkspace): boolean {
-		if (editor instanceof EmptyFileEditorInput) {
-			return true;
+	private _isFileEditor(editor: EditorInput): boolean {
+		if (editor instanceof WebviewInput) {
+			return MARKDOWN_EDITOR_VIEW_TYPES.has(editor.viewType) || MARKDOWN_EDITOR_VIEW_TYPES.has(editor.providerId ?? '');
 		}
-		const resource = editor instanceof FileEditorInput ? editor.resource : undefined;
-		return !!resource && workspace.folders.some(folder =>
-			isEqualOrParent(resource, folder.root) || isEqualOrParent(resource, folder.workingDirectory));
+		return editor instanceof EmptyFileEditorInput || editor instanceof FileEditorInput;
 	}
 }

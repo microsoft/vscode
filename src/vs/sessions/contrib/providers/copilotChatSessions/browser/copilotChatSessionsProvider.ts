@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbe
 import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -60,6 +60,8 @@ export const ClaudeCodeSessionType: ISessionType = {
 	id: 'claude-code',
 	label: localize('claudeCode', "Claude"),
 	icon: Codicon.claude,
+	// Extension-contributed (legacy) generation: no native mode, always Copilot-backed.
+	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
 
 /** Copilot Cloud session type - cloud-hosted agent. */
@@ -67,6 +69,7 @@ export const CopilotCloudSessionType: ISessionType = {
 	id: 'copilot-cloud-agent',
 	label: localize('copilotCloud', "Cloud"),
 	icon: Codicon.cloud,
+	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
@@ -1546,9 +1549,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * the agent-host implementation in via `chat.agents.claude.preferAgentHost`.
 	 * When the latter is true, the agent host registers Claude itself and this
 	 * provider stays out of the way so the picker shows a single entry. Stepping
-	 * aside only makes sense when the agent host is enabled to register Claude in
-	 * its place, so the preference is not respected unless `chat.agentHost.enabled`
-	 * is also on.
+	 * aside only makes sense when the agent host runtime is available to register
+	 * Claude in its place.
 	 */
 	private _isClaudeAvailable(): boolean {
 		const claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING) ?? false;
@@ -1566,9 +1568,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * The Extension Host Copilot CLI is offered by this provider unless the user
 	 * has hidden it via `chat.agents.copilotCli.hideExtensionHost`, in which case
 	 * the Agents window picker only surfaces the Agent Host Copilot CLI entry.
-	 * Hiding it only makes sense when the agent host is enabled to surface the
-	 * Agent Host Copilot CLI in its place, so the setting is not respected unless
-	 * `chat.agentHost.enabled` is also on.
+	 * Hiding it only makes sense when the agent host runtime is available to
+	 * surface the Agent Host Copilot CLI in its place.
 	 */
 	private _isCopilotCliAvailable(): boolean {
 		const hideExtensionHost = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;

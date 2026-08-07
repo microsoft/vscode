@@ -758,18 +758,22 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | { readonly section?: AICustomizationManagementSection; readonly sessionType: string }): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
+				const section = typeof target === 'string' ? target : target?.section;
 
 				// Detect the active chat session type and switch the harness
 				// so the customization editor opens in the matching context.
-				const widget = chatWidgetService.lastFocusedWidget;
+				const explicitSessionType = typeof target === 'string' ? undefined : target?.sessionType;
+				const widget = explicitSessionType ? undefined : chatWidgetService.lastFocusedWidget;
 				const pendingSessionType = widget?.input.pendingDelegationTarget;
-				const sessionResource = pendingSessionType
-					? harnessService.getSessionResourceForHarness(pendingSessionType)
-					: widget?.viewModel?.sessionResource;
+				const sessionResource = explicitSessionType
+					? harnessService.getSessionResourceForHarness(explicitSessionType)
+					: pendingSessionType
+						? harnessService.getSessionResourceForHarness(pendingSessionType)
+						: widget?.viewModel?.sessionResource;
 				if (sessionResource) {
 					harnessService.setActiveSession(sessionResource);
 				}

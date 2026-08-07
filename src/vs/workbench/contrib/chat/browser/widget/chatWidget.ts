@@ -93,6 +93,7 @@ import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnly
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
 import { ChatPetWidget, isChatPetVisible } from './chatPetWidget.js';
 import { IChatPetService } from '../chatPetService.js';
+import { stopDictationForEditor } from '../speechToText/dictationSession.js';
 
 const $ = dom.$;
 
@@ -845,7 +846,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
-			const petHost = inputContainer?.parentElement ?? this.inputPart.element;
+			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
 			const targetWindow = dom.getWindow(this.container);
 			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
@@ -2600,6 +2601,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this._readOnly || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
+		}
+
+		if (!options?.preserveInput) {
+			// preserveInput submissions (e.g. /compact or programmatic maintenance
+			// requests) leave the input draft untouched, so they must not stop an
+			// unrelated dictation and flush its final transcript into that draft.
+			await stopDictationForEditor(this.inputEditor);
 		}
 
 		if (this.viewModel) {

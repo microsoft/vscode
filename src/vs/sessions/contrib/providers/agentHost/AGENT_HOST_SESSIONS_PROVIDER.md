@@ -25,7 +25,7 @@ Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions
 
 Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contribution.ts`:
 
-- **Gated on `chat.agentHost.enabled`** (`AgentHostEnabledSettingId`). If the setting is off the contribution returns early and registers nothing.
+- **Gated on Agent Host runtime availability.** If the runtime is unavailable, the contribution registers nothing.
 - The local provider rebinds its root/action/notification listeners on the initial `onAgentHostStart`. `LocalAgentHostServiceClient` exposes no-op getters before its protocol client exists, so rebinding is required when the service was instantiated while Agent Host was disabled and started later.
 - In web, Agent Host enablement additionally requires a remote authority. Web windows with a remote extension host use that server's Agent Host; serverless web keeps Agent Host disabled.
 - The local Codex session type is additionally gated directly on `chat.agentHost.codexAgent.enabled`. The Agents window does not register the OpenAI extension's Codex session type, so it has no separate Codex `preferAgentHost` setting.
@@ -50,7 +50,7 @@ The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only
 | `label` | `"Local Agent Host"` |
 | `icon` | `Codicon.vm` |
 | `supportsLocalWorkspaces` | `true` |
-| `supportsQuickChats` | snapshots agent-host enablement at construction — `true` when `chat.agentHost.enabled` was on then, else `false` |
+| `supportsQuickChats` | always `true`; the provider itself is registered only when Agent Host is available |
 | `browseActions` | `[]` (local folders are browsed through the shared workspace picker) |
 | `order` | `-1` when `chat.agentHost.defaultSessionsProvider` is enabled (sorts before all other providers), else `1` |
 | `sessionTypes` | Dynamically populated from the local agent host's `rootState.agents`; the type label is the agent's unadorned `displayName` (e.g. `"Copilot"`), the type **id** is the agent provider name (e.g. `copilotcli`) so the same agent shares one session type across local and remote hosts |
@@ -90,7 +90,7 @@ To avoid an empty list on window startup — before the agent host has started, 
 
 - A subclass opts in by calling `_enableSessionCachePersistence(storageKey)` at the end of its constructor (once the identity fields that `createAdapter` depends on are set). This hydrates persisted summaries into `_sessionCache` immediately, so `getSessions()` returns cached sessions before any live list.
 - `createAdapter`/`updateAdapter` capture the source `IAgentSessionMetadata` in `_metaByRawId`; `onWillSaveState` lazily serializes the cache (overlaying mutable fields — title, `updatedAt`, `isRead`, `isArchived` — read from each adapter's observables), capped at the 100 most-recently-modified entries under `StorageScope.APPLICATION`.
-- Multi-root Editor sessions carry their originating workspace provenance in `_meta.multiRoot` as `{ workspaceFile, name? }`. `workspaceFile` is the complete workspace configuration URI string and `name` is `IWorkspace.name`; the Agent Host persists the validated object as JSON under the `multiRoot` session-database key, reconstructs it during listing/restoration, and the startup cache preserves it before the first live listing. The Editor session list matches this URI directly against `IWorkspace.configuration`; metadata-less sessions use current-folder containment without a separate workspace membership memento.
+- Multi-root Editor sessions carry their originating workspace provenance in `_meta.multiRoot` as `{ workspaceFile }`. `workspaceFile` is the complete workspace configuration URI string; the Agent Host persists the validated object as JSON under the `multiRoot` session-database key, reconstructs it during listing/restoration, and the startup cache preserves it before the first live listing. The Editor session list matches this URI directly against `IWorkspace.configuration`; metadata-less sessions use current-folder containment without a separate workspace membership memento.
 - Hydrated entries are reconciled against the authoritative `listSessions()` on the first successful `_refreshSessions()`: stale sessions that no longer exist are pruned.
 - `_shouldTrackSessionCacheChanges()` is a hook (default `true`) the remote provider overrides to suspend dirty-tracking while its sessions are unpublished (offline), so the on-disk snapshot survives an unreachable host.
 

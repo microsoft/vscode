@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentHostCodexAgentEnabledSettingId, AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -46,9 +46,8 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../../github/common/types.js';
+import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
-import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -351,7 +350,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string; name?: string } }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string } }): IAgentSessionMetadata {
 	let _meta = opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
 	return {
@@ -399,13 +398,12 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	const configurationService = options?.configurationService ?? new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(options?.agentHostEnabled ?? true) });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
 		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
@@ -429,6 +427,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getLanguageModelIds: () => options?.languageModelIds ?? [],
 		lookupLanguageModel: options?.lookupLanguageModel ?? (() => undefined),
 		hasResolvedVendor: () => true,
+		isModelHidden: (modelId: string) => options?.hiddenLanguageModelIds?.has(modelId) ?? false,
+		onDidChangeLanguageModels: Event.None,
+		onDidChangeModelVisibility: options?.languageModelVisibilityChanges ?? Event.None,
 	});
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
@@ -448,6 +449,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, ...(options?.activeClient ?? { tools: [], customizations: [] }) });
+		override getCustomAgents = (_sessionType: string) => options?.activeClientAgents ?? constObservable([]);
 	}());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
@@ -1415,7 +1417,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
-			name: 'Demo Workspace',
 		};
 		await persistCachedSessions(disposables, storageService, [
 			createSession('multi-root-cached', { summary: 'Multi Root', multiRoot }),
@@ -1624,6 +1625,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 			models: ['matching'],
 			modelTarget: 'agent-host-copilotcli',
 		});
+	});
+
+	test('getModelsSnapshot excludes hidden models and announces visibility changes', () => {
+		const matchingModel = { ...createTestLanguageModel('matching'), targetChatSessionType: 'agent-host-copilotcli' };
+		const hiddenLanguageModelIds = new Set(['matching']);
+		const visibilityChanges = disposables.add(new Emitter<void>());
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: ['matching'],
+			lookupLanguageModel: id => id === 'matching' ? matchingModel : undefined,
+			hiddenLanguageModelIds,
+			languageModelVisibilityChanges: visibilityChanges.event,
+		});
+		fireSessionAdded(agentHost, 'hidden-model-catalog', { title: 'Hidden Model Catalog Session' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Hidden Model Catalog Session');
+		assert.ok(session);
+
+		let changes = 0;
+		disposables.add(provider.onDidChangeModels(() => changes++));
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models, []);
+
+		hiddenLanguageModelIds.delete('matching');
+		visibilityChanges.fire();
+		assert.strictEqual(changes, 1);
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier), ['matching']);
 	});
 
 	test('getModelsSnapshot canonicalizes a matching logical-session model identifier', () => {
@@ -2053,6 +2078,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getCustomAgents(session!.sessionId), []);
 	});
 
+	test('new session exposes client custom agents before SessionState and updates the picker', () => {
+		const activeClientAgents = observableValue<readonly AgentCustomization[]>('activeClientAgents', []);
+		const provider = createProvider(disposables, agentHost, undefined, { activeClientAgents });
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+		let fired = 0;
+		disposables.add(provider.onDidChangeCustomAgents(() => fired++));
+
+		activeClientAgents.set([{
+			type: CustomizationType.Agent,
+			id: 'inbox',
+			uri: 'file:///plugins/github-inbox/agents/inbox.agent.md',
+			name: 'Inbox',
+		}], undefined);
+
+		assert.deepStrictEqual({
+			agents: provider.getCustomAgents(session.sessionId),
+			fired,
+		}, {
+			agents: [{
+				type: CustomizationType.Agent,
+				id: 'inbox',
+				uri: 'file:///plugins/github-inbox/agents/inbox.agent.md',
+				name: 'Inbox',
+			}],
+			fired: 1,
+		});
+	});
+
 	test('onDidChangeCustomAgents fires on root state and session state changes', async () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'cust-events', { title: 'Cust Events' });
@@ -2266,14 +2319,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Quick chats (workspace-less sessions) -------
 
-	test('declares quick chat support from the initial agent host setting', () => {
-		const provider = createProvider(disposables, agentHost, undefined, { agentHostEnabled: true });
+	test('declares quick chat support', () => {
+		const provider = createProvider(disposables, agentHost);
 		assert.strictEqual(provider.supportsQuickChats, true);
-	});
-
-	test('does not declare quick chat support when the agent host is disabled', () => {
-		const provider = createProvider(disposables, agentHost, undefined, { agentHostEnabled: false });
-		assert.strictEqual(provider.supportsQuickChats, false);
 	});
 
 	test('createQuickChat returns a workspace-less untitled session', () => {
@@ -3441,6 +3489,55 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('equivalent chat catalogs do not notify chat observers', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-stable');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-stable').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const makeCatalog = () => makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-stable', 'copilotcli', makeCatalog());
+			let updateCount = 0;
+			disposables.add(autorun(reader => {
+				session.chats.read(reader);
+				updateCount++;
+			}));
+
+			agentHost.setSessionState('multi-stable', 'copilotcli', makeCatalog());
+
+			assert.strictEqual(updateCount, 1);
+		});
+
+		test('equivalent peer chat values do not notify observers', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-values');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-values').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const makeCatalog = () => makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), activity: 'Working' },
+			], { defaultChat });
+
+			agentHost.setSessionState('multi-values', 'copilotcli', makeCatalog());
+			const peer = session.chats.get()[1];
+			let updateCount = 0;
+			disposables.add(autorun(reader => {
+				peer.updatedAt.read(reader);
+				peer.description.read(reader);
+				peer.lastTurnEnd.read(reader);
+				updateCount++;
+			}));
+
+			agentHost.setSessionState('multi-values', 'copilotcli', makeCatalog());
+
+			assert.strictEqual(updateCount, 1);
+		});
+
 		test('peer chats map protocol interactivity to the provider-agnostic tri-state', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-ro');
@@ -4583,6 +4680,74 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- gitHubInfo / PR icon -------
 
+	test('equivalent session descriptions do not notify observers', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'description-stable', { title: 'Session' });
+		const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'description-stable') as AgentHostSessionAdapter;
+		assert.ok(session);
+		session.status.set(SessionStatus.InProgress, undefined);
+		session.setActivity('Working');
+		let updateCount = 0;
+		disposables.add(autorun(reader => {
+			session.description.read(reader);
+			updateCount++;
+		}));
+
+		session.status.set(SessionStatus.NeedsInput, undefined);
+
+		assert.strictEqual(updateCount, 1);
+	});
+
+	test('equivalent GitHub info does not notify observers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const makePullRequest = (): IGitHubPullRequest => ({
+			number: 42,
+			title: 'PR',
+			body: '',
+			state: GitHubPullRequestState.Closed,
+			author: { login: 'author', avatarUrl: '' },
+			headRef: 'feature',
+			headSha: 'head',
+			baseRef: 'main',
+			isDraft: false,
+			createdAt: new Date(0).toISOString(),
+			updatedAt: new Date(0).toISOString(),
+			mergedAt: undefined,
+			mergeable: false,
+			mergeableState: 'blocked',
+		});
+		const pullRequest = observableValue<IGitHubPullRequest | undefined>('pullRequest', makePullRequest());
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+		agentHost.addSession(createSession('github-stable', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'PR Session');
+		assert.ok(session);
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('github-stable', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'PR Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+		});
+		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
+		let updateCount = 0;
+		disposables.add(autorun(reader => {
+			gitHubInfo.read(reader);
+			updateCount++;
+		}));
+
+		pullRequest.set(makePullRequest(), undefined);
+
+		assert.strictEqual(updateCount, 1);
+	}));
+
 	test.skip('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A GitHub service that resolves a PR number asynchronously (mirroring the
 		// real `findPullRequestNumberByHeadBranch` REST lookup) and hands out a
@@ -4670,16 +4835,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+			_meta: {
+				github: {
+					owner: 'owner',
+					repo: 'repo',
+					pullRequestUrls: [
+						'https://github.com/owner/repo/pull/42',
+						'https://github.com/owner/repo/pull/41',
+					]
+				}
+			},
 		});
 
 		const gitHubInfoObs = session!.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
 		const sub = autorun(reader => { gitHubInfoObs.read(reader); });
 		await timeout(0);
 
-		const pullRequest = gitHubInfoObs.get()?.pullRequest;
-		assert.strictEqual(pullRequest?.number, 42, 'PR is detected from the GitHub state URL');
-		assert.deepStrictEqual(pullRequest?.icon, computePullRequestIcon(GitHubPullRequestState.Open), 'a default open-PR icon is shown immediately while the live model is empty');
+		const gitHubInfo = gitHubInfoObs.get();
+		assert.deepStrictEqual({
+			activePullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				icon: gitHubInfo.pullRequest.icon,
+			},
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => ({
+				number: pullRequest.number,
+				uri: pullRequest.uri.toString(),
+				icon: pullRequest.icon,
+			}))
+		}, {
+			activePullRequest: {
+				number: 42,
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+			pullRequests: [
+				{
+					number: 42,
+					uri: 'https://github.com/owner/repo/pull/42',
+					icon: computePullRequestIcon(GitHubPullRequestState.Open),
+				},
+				{
+					number: 41,
+					uri: 'https://github.com/owner/repo/pull/41',
+					icon: undefined,
+				},
+			]
+		});
 		sub.dispose();
 	}));
 

@@ -10,6 +10,7 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
 	shellToolName: 'bash',
+	fileOperationStrategy: 'fileTools',
 	subagentToolNames: ['task'],
 	exitPlanModeToolName: 'exit_plan_mode',
 	streamingFileCreateToolName: 'create',
@@ -25,5 +26,4 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsMultipleChats: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
-	supportsFileTools: true,
 };

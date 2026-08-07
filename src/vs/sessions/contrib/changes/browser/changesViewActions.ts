@@ -24,11 +24,10 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
-import { ChangesetHasOperationsContext } from './changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -141,14 +140,7 @@ const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
 	MainEditorAreaVisibleContext
 );
 
-/**
- * Anchor action hosting the Create Pull Request button bar ({@link ChangesActionsBar})
- * in the single-pane editor tabs title (the editor-actions area of the docked tab bar).
- * The custom action view item is provided by the Changes editor pane
- * ({@link SessionChangesEditor.getActionViewItem}) when the Changes editor is active,
- * so the anchor is gated on the same. The bar hides itself when its underlying menu has
- * no actions.
- */
+/** Anchor action hosting the Create Pull Request button bar in the title bar. */
 class ChangesHeaderActionsAction extends Action2 {
 	constructor() {
 		super({
@@ -156,12 +148,15 @@ class ChangesHeaderActionsAction extends Action2 {
 			title: localize2('changesView.headerActions', "Changes Actions"),
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
+				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 5,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitle,
-					ChangesetHasOperationsContext
+					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
+					SinglePaneLayoutEnabledContext,
+					SessionIsCreatedContext,
+					SessionHasChangesContext
 				)
 			},
 		});
@@ -185,7 +180,7 @@ class SetChangesListViewModeAction extends Action2 {
 				// Always in the overflow ("…") of the right header, whether the editor
 				// area is visible or collapsed (as long as the changes list is shown).
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary',
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitle,
@@ -216,7 +211,7 @@ class SetChangesTreeViewModeAction extends Action2 {
 				// Always in the overflow ("…") of the right header, whether the editor
 				// area is visible or collapsed (as long as the changes list is shown).
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary',
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitle,

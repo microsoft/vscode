@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Language } from '../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -57,6 +58,26 @@ function asOptionalString(value: unknown): string | undefined {
 function asOptionalNonEmptyString(value: unknown): string | undefined {
 	const result = asOptionalString(value);
 	return result && result.length > 0 ? result : undefined;
+}
+
+function canonicalizeSupportedLanguage(value: string | undefined, supportedBases: ReadonlySet<string>): string | undefined {
+	const candidate = value?.trim();
+	if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
+		return undefined;
+	}
+
+	try {
+		const canonical = Intl.getCanonicalLocales(candidate)[0];
+		return supportedBases.has(canonical.split('-')[0]) ? canonical : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+export function resolveAutomaticVoiceLanguage(browserLanguage: string | undefined, displayLanguage: string | undefined): string {
+	return canonicalizeSupportedLanguage(displayLanguage, ASR_SUPPORTED_LANGUAGE_BASES)
+		?? canonicalizeSupportedLanguage(browserLanguage, ASR_SUPPORTED_LANGUAGE_BASES)
+		?? DEFAULT_LANGUAGE;
 }
 
 function asTranscriptionStatus(value: unknown): IVoiceTranscription['status'] | undefined {
@@ -201,7 +222,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _getLanguage(): string {
 		const configured = this._configurationService.getValue<string>('agents.voice.language');
 		if (typeof configured === 'string' && configured.trim().toLowerCase() !== 'auto') {
-			const language = this._canonicalizeSupportedLanguage(configured, TTS_SUPPORTED_LANGUAGE_BASES);
+			const language = canonicalizeSupportedLanguage(configured, TTS_SUPPORTED_LANGUAGE_BASES);
 			if (language) {
 				return language;
 			}
@@ -209,22 +230,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			return DEFAULT_LANGUAGE;
 		}
 
-		return this._canonicalizeSupportedLanguage(this._window?.navigator.language, ASR_SUPPORTED_LANGUAGE_BASES)
-			?? DEFAULT_LANGUAGE;
-	}
-
-	private _canonicalizeSupportedLanguage(value: string | undefined, supportedBases: ReadonlySet<string>): string | undefined {
-		const candidate = value?.trim();
-		if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
-			return undefined;
-		}
-
-		try {
-			const canonical = Intl.getCanonicalLocales(candidate)[0];
-			return supportedBases.has(canonical.split('-')[0]) ? canonical : undefined;
-		} catch {
-			return undefined;
-		}
+		return resolveAutomaticVoiceLanguage(this._window?.navigator.language, Language.value());
 	}
 
 	private _sendSetLanguage(): void {
