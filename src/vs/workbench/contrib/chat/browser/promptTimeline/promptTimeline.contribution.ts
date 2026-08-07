@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import product from '../../../../../platform/product/common/product.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ChatWidget } from '../widget/chatWidget.js';
@@ -35,8 +36,10 @@ configurationRegistry.registerConfiguration({
 				localize('sessions.chatTimeline.display.ruler', "Show an overview ruler beside the transcript scrollbar that fans into prompt pills on engagement."),
 				localize('sessions.chatTimeline.display.gutter', "Show a minimal handle in the transcript's left gutter that opens a list of prompts on hover."),
 			],
-			default: 'gutter',
+			// Still being tried out, so it is only on by default outside stable.
+			default: product.quality !== 'stable' ? 'gutter' : 'off',
 			description: localize('sessions.chatTimeline.display', "Controls how the prompt timeline is displayed next to the chat transcript in the Agents window."),
+			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
 	},
