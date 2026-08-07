@@ -676,11 +676,11 @@
 }
 
 .new-chat-input-container > .chat-input-notification-container.has-notification {
+	/* Overlap the following input-stack surface to avoid a gap between their rounded edges. */
 	margin-bottom: calc(-1 * var(--vscode-spacing-size80));
 }
 
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification {
-	/* Padding needs to be -6px for top to account for -10px margin in parent container and 4px for half of chat border radius. */
 	padding: 10px 16px 16px 16px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
