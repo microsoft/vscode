@@ -988,6 +988,36 @@ suite('authenticateProtectedResources', () => {
 
 		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' }]);
 	});
+
+	test('forwards token removal when the account signs out', async () => {
+		let token: string | undefined = 'cached-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => scopes && token
+				? Promise.resolve([{ scopes: ['read'], accessToken: token }])
+				: Promise.resolve([]),
+		});
+		const cache = new AgentHostAuthTokenCache();
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+			},
+		};
+
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		token = undefined;
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+
+		assert.deepStrictEqual(requests, [
+			{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' },
+			{ resource: protectedResource.resource, scopes: ['read'], token: '' },
+		]);
+	});
 });
 
 suite('resolveAuthenticationInteractively', () => {

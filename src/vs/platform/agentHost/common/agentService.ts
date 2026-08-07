@@ -1836,6 +1836,7 @@ export interface IAgent {
 	/**
 	 * Authenticate for a specific resource. Returns true if accepted.
 	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
+	 * An empty token revokes the previously forwarded credential.
 	 */
 	authenticate(resource: string, token: string): Promise<boolean>;
 

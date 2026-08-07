@@ -26,6 +26,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Auth changes must refresh model producers and rebuild consumers, not add view-local model policy**: Manage Models reflects `ILanguageModelsService` and must call its existing full refresh when the resolved account changes. Agent Host authentication must also forward token removal so providers republish their model catalogs; do not hide stale Copilot entries with widget-specific filtering.
+
 - **Paired experiment treatments must resolve atomically**: when a prompt and its editable placeholder are separate treatment values, use them only when both are non-empty; otherwise use both defaults so copy from different variants is never mixed. The prompt may omit the placeholder token entirely, in which case it is used literally and placeholder highlighting is simply absent.
 
 - **Onboarding variations share structural steps and vary only their run step**: keep one scenario for workspace selection, then resolve the experiment/developer variation when the run step executes. Personalized GitHub prompts use existing authentication silently, stay within a bounded cancellable lookup, verify that the selected draft workspace is still current, and fall back to the default prompt without surfacing an error.
