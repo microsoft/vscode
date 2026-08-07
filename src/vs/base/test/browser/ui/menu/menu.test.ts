@@ -18,8 +18,8 @@ suite('Menu', () => {
 		sinon.restore();
 	});
 
-	// A menu positioned under a resting pointer receives `mouseover` without any
-	// `mousemove`, so hover must react to `mousemove` to leave keyboard focus alone.
+	// A menu positioned under a resting pointer can receive synthetic pointer events,
+	// so hover must react only when the pointer coordinates actually change.
 	test('stationary mouse does not change focus (#110594, #148158)', () => {
 		const host = append(document.body, $('div'));
 		disposables.add(toDisposable(() => host.remove()));
@@ -39,13 +39,17 @@ suite('Menu', () => {
 		actionItems[1].dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true }));
 		focusStates.push(getFocusedActions());
 
-		actionItems[1].dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true }));
+		actionItems[1].dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
 		focusStates.push(getFocusedActions());
 
-		actionItems[0].dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true }));
+		actionItems[1].dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+		focusStates.push(getFocusedActions());
+
+		actionItems[0].dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: -1 }));
 		focusStates.push(getFocusedActions());
 
 		assert.deepStrictEqual(focusStates, [
+			[true, false],
 			[true, false],
 			[true, false],
 			[false, true],
@@ -71,12 +75,18 @@ suite('Menu', () => {
 
 		submenuAction.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true }));
 		clock.tick(250);
+		const expandedAfterStationaryMouseMove = submenuItem.getAttribute('aria-expanded');
+
+		submenuAction.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementY: 1 }));
+		clock.tick(250);
 
 		assert.deepStrictEqual({
 			expandedAfterMouseOver,
+			expandedAfterStationaryMouseMove,
 			expandedAfterMouseMove: submenuItem.getAttribute('aria-expanded')
 		}, {
 			expandedAfterMouseOver: 'false',
+			expandedAfterStationaryMouseMove: 'false',
 			expandedAfterMouseMove: 'true'
 		});
 	});
