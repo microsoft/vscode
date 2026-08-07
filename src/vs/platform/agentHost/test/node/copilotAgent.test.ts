@@ -5267,7 +5267,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('sendMessage refreshes a peer chat when managed permissions change', async () => {
+		test('sendMessage serializes concurrent peer chat refreshes when managed permissions change', async () => {
 			const { agent, configurationService } = createTestAgentContext(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'route-managed-refresh');
@@ -5275,19 +5275,56 @@ suite('CopilotAgent', () => {
 				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [];
 				const old = makeFakeChatSession(session, 'sdk-old');
 				const fresh = makeFakeChatSession(session, 'sdk-fresh');
+				Object.assign(fresh.fake, {
+					appliedSnapshot: {
+						tools: [],
+						plugins: [],
+						mcpServers: {},
+						managedPermissions: { disableBypassPermissionsMode: 'disable' },
+					} satisfies IActiveClientSnapshot,
+				});
+				setPeerChatStub(agent, chat, old.fake);
+				let oldDestroyCalls = 0;
+				Object.assign(old.fake, {
+					async destroySession(): Promise<void> {
+						oldDestroyCalls++;
+						old.rec.disposed = true;
+					}
+				});
 				let ensureCalls = 0;
 				(agent as unknown as ChatInternals)._ensureChatSession = async () => {
 					ensureCalls++;
-					return ensureCalls === 1 ? old.fake : fresh.fake;
+					const existing = getPeerChatStub(agent, chat);
+					if (existing) {
+						return existing;
+					}
+					setPeerChatStub(agent, chat, fresh.fake);
+					return fresh.fake;
 				};
 
 				configurationService.updateRootConfig({
 					[AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' },
 				});
-				await agent.chats.sendMessage(chat, 'after-policy-change', undefined);
+				await Promise.all([
+					agent.chats.sendMessage(chat, 'first-after-policy-change', undefined),
+					agent.chats.sendMessage(chat, 'second-after-policy-change', undefined),
+				]);
 
-				assert.strictEqual(old.rec.disposed, true);
-				assert.deepStrictEqual(fresh.rec.sends.map(send => send.prompt), ['after-policy-change']);
+				assert.deepStrictEqual({
+					oldDestroyCalls,
+					oldDisposed: old.rec.disposed,
+					freshDisposed: fresh.rec.disposed,
+					freshPrompts: fresh.rec.sends.map(send => send.prompt),
+					ensureCalls,
+					livePeerIsFresh: getPeerChatStub(agent, chat) === fresh.fake,
+				}, {
+					oldDestroyCalls: 1,
+					oldDisposed: true,
+					freshDisposed: false,
+					freshPrompts: ['first-after-policy-change', 'second-after-policy-change'],
+					ensureCalls: 3,
+					livePeerIsFresh: true,
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

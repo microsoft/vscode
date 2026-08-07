@@ -2654,28 +2654,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Additional (non-default) chats are backed by their own SDK
 		// chat hosted on the owning session entry, keyed by the chat URI.
 		if (context.isPeerChat) {
-			let entry = await this._ensureChatSession(context.session, chat);
-			if (!entry) {
-				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
-			}
-			const activeClient = this._activeClients.get(context.session);
-			if (activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
-				this._logService.info(`[Copilot:${context.sessionId}] Peer chat config changed (requiresRestart=true), refreshing ${chat.toString()}`);
-				this._sdkSessionsById.delete(entry.sessionId);
-				await entry.destroySession();
-				this._sessions.get(context.sessionId)?.disposePeerChat(chat.toString());
-				entry = await this._ensureChatSession(context.session, chat);
+			const chatKey = chat.toString();
+			await this._queueChat(context.sessionId, chatKey, async () => {
+				let entry = await this._ensureChatSession(context.session, chat);
 				if (!entry) {
-					throw new Error(`[Copilot] failed to refresh chat: ${chat.toString()}`);
+					throw new Error(`[Copilot] sendMessage for unknown chat: ${chatKey}`);
 				}
-			}
-			if (turnId) {
-				entry.resetTurnState(turnId, senderClientId, clientType);
-			}
-			const sideChat = this._chatBackings.get(chat.toString())?.sideChat;
-			const existingTurns = sideChat ? await entry.getMessages() : [];
-			const sdkPrompt = prepareSideChatPrompt(prompt, existingTurns, sideChat);
-			await entry.send(sdkPrompt, attachments, turnId, this._resolveSdkMode(context.session), senderClientId, clientType);
+				const activeClient = this._activeClients.get(context.session);
+				if (activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
+					this._logService.info(`[Copilot:${context.sessionId}] Peer chat config changed (requiresRestart=true), refreshing ${chatKey}`);
+					this._sdkSessionsById.delete(entry.sessionId);
+					await entry.destroySession();
+					this._sessions.get(context.sessionId)?.disposePeerChat(chatKey);
+					entry = await this._ensureChatSession(context.session, chat);
+					if (!entry) {
+						throw new Error(`[Copilot] failed to refresh chat: ${chatKey}`);
+					}
+				}
+				if (turnId) {
+					entry.resetTurnState(turnId, senderClientId, clientType);
+				}
+				const sideChat = this._chatBackings.get(chatKey)?.sideChat;
+				const existingTurns = sideChat ? await entry.getMessages() : [];
+				const sdkPrompt = prepareSideChatPrompt(prompt, existingTurns, sideChat);
+				await entry.send(sdkPrompt, attachments, turnId, this._resolveSdkMode(context.session), senderClientId, clientType);
+			});
 			return;
 		}
 		await this._queueSession(context.sessionId, async () => {
