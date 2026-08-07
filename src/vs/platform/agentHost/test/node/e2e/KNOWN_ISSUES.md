@@ -394,6 +394,20 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
 
+### Codex structured file-read result text
+
+- Tests:
+  - `reads a file from a nested directory`
+  - `reads a value from JSON`
+- Scope: Codex.
+- Expected: successful file-read tool completions include the file contents in their result text.
+- Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
+- Gate: these two tests remain enabled for other providers and are skipped for Codex.
+- Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
+- Failing runs:
+  - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
+  - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
+
 ### Claude subagent replay on Windows
 
 - Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.

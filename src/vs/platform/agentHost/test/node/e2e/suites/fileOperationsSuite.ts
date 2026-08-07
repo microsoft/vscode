@@ -47,14 +47,16 @@ function fileOperationPrompt(
 	return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
 }
 
-function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc): void {
-	const enabled = context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled;
+function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, providerEnabled = true): void {
+	const enabled = providerEnabled && (context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
 	(enabled ? test : test.skip)(title, run);
 }
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, isWindows } = context;
 	const shellOutputOracleAvailable = !(isWindows && config.provider === 'copilotcli');
+	// Codex intermittently reports successful structured reads with empty result text: https://github.com/microsoft/vscode/issues/329512
+	const structuredReadResultTextAvailable = config.provider !== 'codex';
 	const BEHAVIOR_SNAPSHOT = {
 		profile: 'behavior',
 		// Codex occasionally omits command completion; direct filesystem and response assertions are the success oracle.
@@ -114,7 +116,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, structuredReadResultTextAvailable);
 
 	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('lists workspace entries', async function () {
 		this.timeout(180_000);
@@ -217,7 +219,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, structuredReadResultTextAvailable);
 
 	fileOperationTest(context, 'counts lines in a file', async function () {
 		this.timeout(180_000);
