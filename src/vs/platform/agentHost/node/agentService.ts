@@ -77,7 +77,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostEditTelemetryEnabledConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostManagedPermissionsLogRedaction, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, normalizeManagedPermissions, platformRootSchema, type IManagedPermissions } from '../common/agentHostSchema.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -293,6 +293,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Server-side host for the agent host's server tools. */
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _configurationService: AgentConfigurationService;
+	/** Enterprise-managed permission restrictions contributed by each connected client. */
+	private readonly _managedPermissionsByClient = new Map<string, IManagedPermissions>();
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/**
@@ -2601,7 +2603,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
-		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
+		const logAction = action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AgentHostManagedPermissionsConfigKey)
+			? { ...action, config: { ...action.config, [AgentHostManagedPermissionsConfigKey]: AgentHostManagedPermissionsLogRedaction } }
+			: action;
+		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, logAction);
 
 		// Clients dispatch chat (chat) actions against a chat channel
 		// URI. Keep that chat channel for the optimistic state apply and for
@@ -2693,8 +2698,27 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 		}
+		let managedPermissionsChanged = false;
+		let effectiveManagedPermissions: IManagedPermissions | undefined;
+		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AgentHostManagedPermissionsConfigKey)) {
+			const managedPermissions = action.config[AgentHostManagedPermissionsConfigKey];
+			if (!platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, managedPermissions)) {
+				this._stateManager.rejectClientAction(channel, action, origin, `Invalid ${AgentHostManagedPermissionsConfigKey} root config value.`);
+				return;
+			}
+			effectiveManagedPermissions = this._setClientManagedPermissions(clientId, normalizeManagedPermissions(managedPermissions));
+			const config = { ...action.config };
+			delete config[AgentHostManagedPermissionsConfigKey];
+			action = { ...action, config };
+			managedPermissionsChanged = true;
+		}
 		this._stateManager.dispatchClientAction(channel, action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
+			if (managedPermissionsChanged) {
+				this._configurationService.publishRootTransientValues({
+					[AgentHostManagedPermissionsConfigKey]: effectiveManagedPermissions ?? {},
+				});
+			}
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
 			if (typeof editTelemetryEnabled === 'boolean') {
@@ -2702,6 +2726,56 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext);
+	}
+
+	removeClientManagedPermissions(clientId: string): void {
+		if (!this._managedPermissionsByClient.delete(clientId)) {
+			return;
+		}
+		this._configurationService.publishRootTransientValues({
+			[AgentHostManagedPermissionsConfigKey]: this._getEffectiveManagedPermissions() ?? {},
+		});
+	}
+
+	private _setClientManagedPermissions(clientId: string, permissions: IManagedPermissions | undefined): IManagedPermissions | undefined {
+		if (permissions) {
+			this._managedPermissionsByClient.set(clientId, permissions);
+		} else {
+			this._managedPermissionsByClient.delete(clientId);
+		}
+		return this._getEffectiveManagedPermissions();
+	}
+
+	private _getEffectiveManagedPermissions(): IManagedPermissions | undefined {
+		const permissions = [...this._managedPermissionsByClient.values()];
+		if (permissions.length === 0) {
+			return undefined;
+		}
+
+		const deny = new Set<string>();
+		const ask = new Set<string>();
+		let allow = new Set(permissions[0].allow ?? []);
+		let disableBypassPermissionsMode = false;
+		for (const clientPermissions of permissions) {
+			disableBypassPermissionsMode ||= clientPermissions.disableBypassPermissionsMode === 'disable';
+			for (const rule of clientPermissions.deny ?? []) {
+				deny.add(rule);
+			}
+			for (const rule of clientPermissions.ask ?? []) {
+				ask.add(rule);
+			}
+			// Managed allow rules grant automatic approval, so retain only rules
+			// explicitly allowed by every managed client.
+			const clientAllow = new Set(clientPermissions.allow ?? []);
+			allow = new Set([...allow].filter(rule => clientAllow.has(rule)));
+		}
+
+		return {
+			...(disableBypassPermissionsMode ? { disableBypassPermissionsMode: 'disable' as const } : {}),
+			...(deny.size ? { deny: [...deny] } : {}),
+			...(ask.size ? { ask: [...ask] } : {}),
+			...(allow.size ? { allow: [...allow] } : {}),
+		};
 	}
 
 	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {

@@ -28,8 +28,9 @@ import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js'
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentHostManagedPermissionsConfigKey, AgentHostManagedPermissionsLogRedaction } from '../../common/agentHostSchema.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, type IRootConfigChangedAction } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -986,17 +987,23 @@ suite('AgentService (node dispatcher)', () => {
 				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
 				svc.dispatchAction(ROOT_STATE_URI, {
 					type: ActionType.RootConfigChanged,
-					config: { customizations: [customization] },
+					config: {
+						customizations: [customization],
+						[AgentHostManagedPermissionsConfigKey]: { ask: ['Shell(*)'] },
+					},
 				}, 'test-client', 1);
 
 				let persisted = false;
 				for (let attempt = 0; attempt < 20; attempt++) {
 					try {
 						const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
-						assert.deepStrictEqual(
-							parsed.customizations,
-							[customization],
-						);
+						assert.deepStrictEqual({
+							customizations: parsed.customizations,
+							managedPermissions: parsed[AgentHostManagedPermissionsConfigKey],
+						}, {
+							customizations: [customization],
+							managedPermissions: undefined,
+						});
 						persisted = true;
 						break;
 					} catch {
@@ -1017,6 +1024,58 @@ suite('AgentService (node dispatcher)', () => {
 				localDisposables.dispose();
 				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 			}
+		});
+
+		test('combines managed permissions restrictively per client and redacts trace logs', () => {
+			const traces: { readonly message: string; readonly args: readonly unknown[] }[] = [];
+			const logService = new class extends NullLogService {
+				override trace(message: string, ...args: unknown[]): void {
+					traces.push({ message, args });
+				}
+			};
+			const svc = disposables.add(new AgentService(logService, fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const managedPermissions = {
+				ask: ['Domain(private.example)'],
+			};
+			const managedAction = {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostManagedPermissionsConfigKey]: managedPermissions },
+			} satisfies IRootConfigChangedAction;
+
+			svc.dispatchAction(ROOT_STATE_URI, managedAction, 'managed-client', 1);
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' } },
+			}, 'restricted-client', 1);
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostManagedPermissionsConfigKey]: {} },
+			}, 'unmanaged-client', 1);
+
+			const beforeDisconnect = svc.stateManager.rootState.config?.values[AgentHostManagedPermissionsConfigKey];
+			svc.removeClientManagedPermissions('managed-client');
+			const afterManagedDisconnect = svc.stateManager.rootState.config?.values[AgentHostManagedPermissionsConfigKey];
+			svc.removeClientManagedPermissions('restricted-client');
+			const afterAllManagedDisconnect = svc.stateManager.rootState.config?.values[AgentHostManagedPermissionsConfigKey];
+			const serializedTraces = JSON.stringify(traces);
+			assert.deepStrictEqual({
+				beforeDisconnect,
+				afterManagedDisconnect,
+				afterAllManagedDisconnect,
+				originalPermissions: managedAction.config[AgentHostManagedPermissionsConfigKey],
+				traceHasRedaction: serializedTraces.includes(AgentHostManagedPermissionsLogRedaction),
+				traceHasRule: serializedTraces.includes('private.example'),
+			}, {
+				beforeDisconnect: {
+					disableBypassPermissionsMode: 'disable',
+					ask: ['Domain(private.example)'],
+				},
+				afterManagedDisconnect: { disableBypassPermissionsMode: 'disable' },
+				afterAllManagedDisconnect: {},
+				originalPermissions: managedPermissions,
+				traceHasRedaction: true,
+				traceHasRule: false,
+			});
 		});
 
 		test('generates and persists an AI title after first-turn fallback title', async () => {

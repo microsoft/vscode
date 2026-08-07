@@ -126,6 +126,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
+	readonly removedManagedPermissionClients: string[] = [];
 	shutdownCalls = 0;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
@@ -148,6 +149,9 @@ class MockAgentService implements IAgentService {
 		this.handledClientContexts.push(clientContext);
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
+	}
+	removeClientManagedPermissions(clientId: string): void {
+		this.removedManagedPermissionClients.push(clientId);
 	}
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		this.createSessionConfigs.push(config);
@@ -1593,7 +1597,13 @@ suite('ProtocolServerHandler', () => {
 
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'After Disconnect' });
 
-		assert.strictEqual(transport.sent.length, 0);
+		assert.deepStrictEqual({
+			sentMessages: transport.sent.length,
+			removedManagedPermissionClients: agentService.removedManagedPermissionClients,
+		}, {
+			sentMessages: 0,
+			removedManagedPermissionClients: ['client-d'],
+		});
 	});
 
 	test('client disconnect retains active client during grace, then removes it and fails owned tool calls after grace period', () => {

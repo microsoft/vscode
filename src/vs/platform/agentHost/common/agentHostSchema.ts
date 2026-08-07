@@ -571,6 +571,9 @@ export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
  */
 export const AgentHostManagedPermissionsConfigKey = 'managedPermissions';
 
+/** Marker written to diagnostic logs instead of enterprise-managed permission rules. */
+export const AgentHostManagedPermissionsLogRedaction = '<redacted>';
+
 /**
  * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
  * setting changes. When `true`, the agent host auto-answers `ask_user`

@@ -536,6 +536,7 @@ export class ProtocolServerHandler extends Disposable {
 							lastSeenAt: Date.now(),
 							disconnectTimeouts: new DisposableMap(),
 						});
+						this._agentService.removeClientManagedPermissions(client.clientId);
 						this._handleClientDisconnected(client.clientId);
 						this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 					}
@@ -1755,7 +1756,8 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	override dispose(): void {
-		for (const record of this._clients.values()) {
+		for (const [clientId, record] of this._clients) {
+			this._agentService.removeClientManagedPermissions(clientId);
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;
