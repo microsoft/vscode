@@ -4,9 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDataChannelService } from '../../../../../platform/dataChannel/common/dataChannel.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Range } from '../../../../common/core/range.js';
+import { InlineCompletions, InlineCompletionsProvider, ProviderId } from '../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
 import { IWithAsyncTestCodeEditorAndInlineCompletionsModel, MockInlineCompletionsProvider, withAsyncTestCodeEditorAndInlineCompletionsModel } from './utils.js';
 import { ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
@@ -14,6 +21,49 @@ import { Selection } from '../../../../common/core/selection.js';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Emits empty response telemetry after instantiation service disposal', async function () {
+		const providerStarted = new DeferredPromise<void>();
+		const providerResponse = new DeferredPromise<InlineCompletions>();
+		const provider: InlineCompletionsProvider = {
+			providerId: ProviderId.fromExtensionId('GitHub.copilot'),
+			provideInlineCompletions: () => {
+				providerStarted.complete();
+				return providerResponse.p;
+			},
+			disposeInlineCompletions: () => { },
+		};
+		const sentEventNames: string[] = [];
+		const dataChannelService: IDataChannelService = {
+			_serviceBrand: undefined,
+			onDidSendData: Event.None,
+			getDataChannel: channelId => ({
+				sendData: data => {
+					if (channelId === 'editTelemetry' && hasKey(data, { eventName: true }) && typeof data.eventName === 'string') {
+						sentEventNames.push(data.eventName);
+					}
+				}
+			})
+		};
+		const serviceCollection = new ServiceCollection(
+			[IDataChannelService, dataChannelService],
+			[IConfigurationService, new TestConfigurationService({
+				'github.copilot.enable': { '*': true },
+			})],
+		);
+
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('', { provider, serviceCollection },
+			async ({ model, instantiationService }) => {
+				const request = model.triggerExplicitly();
+				await providerStarted.p;
+				instantiationService.dispose();
+				await providerResponse.complete({ items: [] });
+				await request;
+			}
+		);
+
+		assert.deepStrictEqual(sentEventNames, ['inlineCompletion.endOfLife']);
+	});
 
 	test('Does not trigger automatically if disabled', async function () {
 		const provider = new MockInlineCompletionsProvider();
