@@ -31,8 +31,8 @@ interface ResolvedCodeBlockEditor {
 	readonly sandbox?: MarkdownCodeBlockEditorSandbox;
 }
 
-interface MarkdownCodeBlockEditorExtensionApi {
-	getMarkdownCodeBlockEditorProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
+export interface MarkdownCodeBlockEditorApiV1 {
+	getProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
 }
 
 interface MarkdownCodeBlockEditorProviderApi {
@@ -384,6 +384,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const result: CodeBlockEditorProviderDefinition[] = [];
 		for (const provider of this.#contributions.contributions.codeBlockEditorProviders) {
 			if (provider.source.kind === 'exportApi') {
+				if (!isSupportedMarkdownCodeBlockEditorApiVersion(provider.source.apiVersion)) {
+					this.#logger.trace('Markdown code block editor', `Ignoring provider ${provider.id} because API version ${provider.source.apiVersion} is not supported`);
+					continue;
+				}
 				result.push({
 					id: provider.id,
 					selector: provider.selector,
@@ -492,15 +496,19 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	}
 
 	async #getCodeBlockEditorProvider(contribution: MarkdownCodeBlockEditorProvider): Promise<MarkdownCodeBlockEditorProviderApi | undefined> {
+		if (contribution.source.kind !== 'exportApi' || !isSupportedMarkdownCodeBlockEditorApiVersion(contribution.source.apiVersion)) {
+			return undefined;
+		}
 		let cached = this.#providerApis.get(contribution.id);
 		if (!cached) {
 			cached = (async () => {
 				const exports = await contribution.extension.activate();
-				if (!isMarkdownCodeBlockEditorExtensionApi(exports)) {
-					this.#logger.trace('Markdown code block editor', `Extension ${contribution.extension.id} does not export getMarkdownCodeBlockEditorProvider`);
+				const api = getMarkdownCodeBlockEditorApiV1(exports);
+				if (!api) {
+					this.#logger.trace('Markdown code block editor', `Extension ${contribution.extension.id} does not export markdownCodeBlockEditors.apiV1`);
 					return undefined;
 				}
-				const provider = exports.getMarkdownCodeBlockEditorProvider(contribution.providerId);
+				const provider = api.getProvider(contribution.providerId);
 				if (!isMarkdownCodeBlockEditorProviderApi(provider)) {
 					this.#logger.trace('Markdown code block editor', `Extension ${contribution.extension.id} did not return provider ${contribution.providerId}`);
 					return undefined;
@@ -750,10 +758,26 @@ function resolvedCodeBlockEditorsEqual(a: ResolvedCodeBlockEditor, b: ResolvedCo
 		&& a.sandbox?.clipboardWrite === b.sandbox?.clipboardWrite;
 }
 
-function isMarkdownCodeBlockEditorExtensionApi(value: unknown): value is MarkdownCodeBlockEditorExtensionApi {
+export function getMarkdownCodeBlockEditorApiV1(value: unknown): MarkdownCodeBlockEditorApiV1 | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const namespace = (value as Record<string, unknown>).markdownCodeBlockEditors;
+	if (!namespace || typeof namespace !== 'object') {
+		return undefined;
+	}
+	const api = (namespace as Record<string, unknown>).apiV1;
+	return isMarkdownCodeBlockEditorApiV1(api) ? api : undefined;
+}
+
+export function isSupportedMarkdownCodeBlockEditorApiVersion(value: number): value is 1 {
+	return value === 1;
+}
+
+function isMarkdownCodeBlockEditorApiV1(value: unknown): value is MarkdownCodeBlockEditorApiV1 {
 	return typeof value === 'object'
 		&& value !== null
-		&& typeof (value as Record<string, unknown>).getMarkdownCodeBlockEditorProvider === 'function';
+		&& typeof (value as Record<string, unknown>).getProvider === 'function';
 }
 
 function isMarkdownCodeBlockEditorProviderApi(value: unknown): value is MarkdownCodeBlockEditorProviderApi {
