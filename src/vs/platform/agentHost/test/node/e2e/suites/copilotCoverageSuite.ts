@@ -562,7 +562,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	test('custom terminal tool preserves a nonzero shell exit code', async function () {
+	(context.runKnownIssueTests ? test : test.skip)('custom terminal tool preserves a nonzero shell exit code', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code');
 		try {

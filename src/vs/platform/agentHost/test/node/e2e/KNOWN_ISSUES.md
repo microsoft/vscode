@@ -74,6 +74,23 @@ A user can start a shell command in the background, inspect or list the running 
     --grep "managed shell|custom terminal tool manages"
   ```
 
+### Custom Copilot terminal exit codes are intermittently absent
+
+A user can run a failing command through the custom Copilot terminal tool and expects the completed terminal entry to retain its nonzero exit code. The command result sent to the model includes the correct exit code, but the subscribed AHP terminal state intermittently leaves the matching command incomplete and omits its exit code.
+
+- Test: `custom terminal tool preserves a nonzero shell exit code`
+- Scope: Copilot on Linux and macOS.
+- Expected: the completed terminal command reports exit code `9`.
+- Observed: the command result reports exit code `9`, while the terminal command's `exitCode` is sometimes absent.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "custom terminal tool preserves a nonzero shell exit code"
+  ```
+
 ### Copilot deferred tool search cannot be replayed
 
 A Copilot session can defer client-provided tools, search for the relevant tool on demand, and then execute the selected tool. The live workflow succeeds, but the recorded Responses fixture loses the hosted tool-search output that triggers the AHP client-tool exchange, so replay ends the turn before either tool appears.
