@@ -20,7 +20,7 @@ export interface IDiffFilterOptions {
 	 * partition the global, path-based `file_edits` table by working directory so
 	 * a multi-root session's git repositories and non-git folders don't
 	 * double-count (git folders use the git diff; non-git folders use this DB
-	 * fallback restricted to their paths). Omitted ⇒ no filtering (unchanged).
+	 * fallback restricted to their paths). Omitted means no filtering (unchanged).
 	 */
 	readonly includeUnder?: readonly URI[];
 }
