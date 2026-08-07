@@ -260,6 +260,9 @@ export class ChatCompositeBar extends Disposable {
 		tab.dataset.chatResource = chat.resource.toString();
 		tab.dataset.isMainChat = String(isMainChat);
 
+		const tabFill = $('.chat-composite-bar-tab-fill', { 'aria-hidden': true });
+		tab.appendChild(tabFill);
+
 		const labelEl = $('.chat-composite-bar-tab-label');
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
