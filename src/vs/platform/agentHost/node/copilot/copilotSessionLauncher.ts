@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, ExitPlanModeRequest, ExitPlanModeResult, NamedProviderConfig, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, Tool } from '@github/copilot-sdk';
+import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -12,6 +12,8 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeToolSearchDeferThreshold } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentSession } from '../../common/agentService.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
@@ -23,13 +25,14 @@ import type { ActiveClientToolSet } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
-import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
-import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { buildSandboxConfigForSdk, type CopilotSandboxConfig } from './sandboxConfigForSdk.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import './prompts/allPrompts.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
+import { isGpt56Model } from './modelIdentifiers.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 /**
@@ -44,32 +47,41 @@ export const ContextSizeConfigKey = 'contextSize';
  */
 export const ContextTierConfigKey = 'contextTier';
 
-const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
-type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
+/**
+ * Every reasoning-effort tier that the runtime may advertise via a model's
+ * `supportedReasoningEfforts`. This is intentionally broader than the SDK's
+ * `SessionConfig['reasoningEffort']` union, which lags behind newly-introduced
+ * tiers such as `'max'`; values are passed through to the runtime as-is.
+ *
+ * Aliased from the canonical list rather than re-declared: a private copy that
+ * misses a tier silently drops it from the model picker, which is exactly how
+ * `'max'` went missing.
+ */
+const ReasoningEfforts = reasoningEffortLevels;
+type AgentHostReasoningEffort = ReasoningEffortLevel;
+
+/**
+ * Narrows a reasoning-effort value to the SDK's declared union. The SDK type is
+ * a strict subset of the tiers the runtime accepts, so newer tiers are forwarded
+ * unchanged rather than dropped.
+ */
+export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefined): SessionConfig['reasoningEffort'] {
+	return effort as SessionConfig['reasoningEffort'];
+}
 
 const ContextTiers = ['default', 'long_context'] as const;
-type ContextTier = NonNullable<SessionConfig['contextTier']>;
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputInvocation = Parameters<UserInputHandler>[1];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
-type ElicitationHandler = NonNullable<SessionConfig['onElicitationRequest']>;
-type ElicitationContext = Parameters<ElicitationHandler>[0];
-type ElicitationResult = Awaited<ReturnType<ElicitationHandler>>;
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthContext = Parameters<McpAuthHandler>[1];
 type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
-type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
-type CopilotSessionLaunchConfig = ResumeSessionConfig & {
-	readonly pluginDirectories?: string[];
-	readonly remoteSession?: 'export';
-};
-
 /**
  * Immutable snapshot of the active client's structural contributions at
  * session creation time. Used to detect when the session needs to be
@@ -96,7 +108,7 @@ export function clientToolNamesFromSnapshot(snapshot: IActiveClientSnapshot): Re
 }
 
 export interface ICopilotSessionRuntime {
-	handlePermissionRequest(request: ITypedPermissionRequest): Promise<PermissionRequestResult>;
+	handlePermissionRequest(request: PermissionRequest): Promise<PermissionRequestResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
@@ -175,7 +187,7 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-export function isCopilotReasoningEffort(value: unknown): value is ReasoningEffort {
+export function isCopilotReasoningEffort(value: unknown): value is AgentHostReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
@@ -243,10 +255,10 @@ function isCustomAgentNotFoundError(err: unknown): boolean {
  */
 export function getCopilotReasoningEffort(model: ModelSelection | undefined, effortOverride?: string): SessionConfig['reasoningEffort'] {
 	if (isCopilotReasoningEffort(effortOverride)) {
-		return effortOverride;
+		return toSdkReasoningEffort(effortOverride);
 	}
 	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
-	return isCopilotReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+	return isCopilotReasoningEffort(thinkingLevel) ? toSdkReasoningEffort(thinkingLevel) : undefined;
 }
 
 /**
@@ -389,6 +401,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IFileService private readonly _fileService: IFileService,
 		@IByokLmProxyService private readonly _byokLmProxyService: IByokLmProxyService,
 		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
@@ -403,7 +416,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		try {
 			const stopWatch = new StopWatch();
 			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
-			const raw = await plan.client.resumeSession(plan.sessionId, config);
+			const raw = await this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config));
 			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 			return new CopilotSessionWrapper(raw);
@@ -417,7 +430,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				fallbackConfig = { ...config, agent: undefined };
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
-					const raw = await fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig);
+					const raw = await this._withTraceContext(fallbackPlan.sessionId, () => fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig));
 					await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 					return new CopilotSessionWrapper(raw);
 				} catch (retryErr) {
@@ -446,8 +459,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: CopilotSessionLaunchConfig, sandboxConfig: ISdkSandboxConfig | undefined): Promise<CopilotSessionWrapper> {
-		const raw = await plan.client.createSession({
+	private _withTraceContext<T>(sessionId: string, fn: () => T): T {
+		const sessionUri = AgentSession.uri('copilotcli', sessionId).toString();
+		return this._otelService.withTraceContext(this._otelService.getSessionTraceContext(sessionId, sessionUri), fn);
+	}
+
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: CopilotSandboxConfig | undefined): Promise<CopilotSessionWrapper> {
+		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
 			streaming: true,
@@ -456,9 +474,25 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
-		});
+		}));
 		await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
+		// TODO: Remove this post-create update once the SDK exposes verbosity in
+		// SessionConfig, alongside create-session options such as reasoningEffort.
+		if (isGpt56Model(plan.model?.id)) {
+			await this._applyVerbosity(raw, 'medium', plan.sessionId);
+		}
+
 		return new CopilotSessionWrapper(raw);
+	}
+
+	/** Sets output verbosity after session creation. */
+	private async _applyVerbosity(session: CopilotSessionWrapper['session'], verbosity: Verbosity, sessionId: string): Promise<void> {
+		try {
+			await session.rpc.options.update({ verbosity });
+			this._logService.info(`[Copilot:${sessionId}] Applied '${verbosity}' verbosity`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to apply '${verbosity}' verbosity`, err);
+		}
 	}
 
 	/**
@@ -473,7 +507,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * `chat.agent.sandbox.*` settings), mirroring what
 	 * `buildSandboxConfigForCLI` does for the Copilot extension's CLI path.
 	 */
-	private _computeSandboxConfig(): ISdkSandboxConfig | undefined {
+	private _computeSandboxConfig(): CopilotSandboxConfig | undefined {
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		if (enableCustomTerminalTool) {
 			return undefined;
@@ -484,14 +518,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	/**
 	 * Forward the SDK-shaped sandbox policy to the runtime via
 	 * `session.options.update`, immediately after the session is created or
-	 * resumed. `SessionUpdateOptionsParams.sandboxConfig` is now typed by the
-	 * SDK (as `SandboxConfig`), and our {@link ISdkSandboxConfig} shape is
-	 * structurally assignable to it, so we forward it directly.
+	 * resumed.
 	 *
 	 * No-op when {@link _computeSandboxConfig} returned `undefined` (custom
 	 * terminal tool enabled, or the host sandbox config evaluates to disabled).
 	 */
-	private async _applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: ISdkSandboxConfig | undefined, sessionId: string): Promise<void> {
+	private async _applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: CopilotSandboxConfig | undefined, sessionId: string): Promise<void> {
 		if (!sandboxConfig) {
 			return;
 		}
@@ -541,7 +573,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
+	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<ResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
@@ -582,6 +614,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			workspaceless: plan.workspaceless === true,
 			toolSearchActive,
 		};
+		const additionalDirectories = plan.additionalDirectories?.map(d => d.fsPath);
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
@@ -596,6 +629,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...byok,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			enableMcpApps: true,
+			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
 			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
@@ -614,8 +648,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			agent: plan.resolvedAgentName,
 			skillDirectories,
 			instructionDirectories,
+			additionalDirectories,
 			systemMessage,
 			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
+			largeOutput: {
+				maxSizeBytes: 8 * 1024,
+			},
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],

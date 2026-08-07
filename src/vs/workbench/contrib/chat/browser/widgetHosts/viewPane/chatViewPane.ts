@@ -15,7 +15,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -81,6 +81,7 @@ import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMod
 import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
+import { IVoiceAttachmentResult, IVoiceModelSelectionResult, resolveVoiceModel } from '../../voiceClient/voiceToolDispatchService.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
@@ -170,6 +171,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.element.classList.add('chat-viewpane-container');
 
 		// View state for the ViewPane is currently global per-provider basically,
 		// but some other strictly per-model state will require a separate memento.
@@ -454,7 +456,38 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
 				return this._widget?.viewModel?.sessionResource?.toString();
 			}));
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
+				const widget = this._getVoiceActionWidget();
+				if (!widget) {
+					return { ok: false, reason: 'no_input' };
+				}
+				const resolved = resolveVoiceModel(widget.inputPart.availableLanguageModels, requestedModel);
+				if (!resolved.ok || !resolved.identifier) {
+					return resolved;
+				}
+				return widget.inputPart.switchModelByIdentifier(resolved.identifier, true, true)
+					? resolved
+					: { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
+			}));
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.attachFiles', async (_accessor, resourceStrings: readonly string[]): Promise<IVoiceAttachmentResult> => {
+				const widget = this._getVoiceActionWidget();
+				if (!widget) {
+					return { ok: false, reason: 'no_input' };
+				}
+				try {
+					const resources = resourceStrings.map(resource => URI.parse(resource));
+					await Promise.all(resources.map(resource => widget.attachmentModel.addFile(resource)));
+					return { ok: true, attached: resources.map(resource => basename(resource)) };
+				} catch {
+					return { ok: false, reason: 'attachment_failed' };
+				}
+			}));
 		}
+	}
+
+	private _getVoiceActionWidget() {
+		const target = this._currentVoiceInputResource();
+		return target ? this.chatWidgetService.getWidgetBySessionResource(target) : this._widget;
 	}
 
 	/**
@@ -466,6 +499,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * this pane plus a chat editor) exactly one lights up.
 	 */
 	private _currentVoiceInputResource(reader?: IReader): URI | undefined {
+		const omniInputActive = reader ? this.voiceSessionController.omniInputActive.read(reader) : this.voiceSessionController.omniInputActive.get();
+		if (omniInputActive) {
+			return undefined;
+		}
 		const target = reader ? this.voiceSessionController.targetSession.read(reader) : this.voiceSessionController.targetSession.get();
 		if (target) {
 			return target;
@@ -527,6 +564,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
 				const { connected, voiceState, simulating } = getEffectiveVoice();
+				const confirmationPending = isConfirmationPending();
+				const effectiveState: VoiceGlowState = confirmationPending ? 'confirmation' : voiceState;
 				// Only glow the input of the session voice is bound to. Mirrors the
 				// transcript overlay's ownership test (see below) so the glow and
 				// the "Listening..."/transcript overlay always render on the same
@@ -536,7 +575,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const currentSession = this._currentSessionResource.get();
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
+				const glowActive = confirmationPending || (connected && isGlowingVoiceState(voiceState) && (simulating || isOwner));
 
 				if (!glowActive) {
 					glowController.clear();
@@ -545,7 +584,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				// Get audio intensity from analyser
 				const analyser = this.ttsPlaybackService.analyserNode
-					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (effectiveState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 				let intensity: number;
 				if (!analyser && simulating) {
@@ -557,7 +596,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
 
-				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced());
+				glowController.render(effectiveState, intensity, this.accessibilityService.isMotionReduced());
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -568,17 +607,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 			glowController.clear();
 		};
+		const isConfirmationPending = (): boolean => {
+			const currentSession = this._currentSessionResource.get();
+			return !!currentSession && this.voiceSessionController.pendingToolConfirmations.get()
+				.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
+		};
 
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const currentSession = this._currentSessionResource.read(reader);
+			const confirmationPending = !!currentSession && this.voiceSessionController.pendingToolConfirmations.read(reader)
+				.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
+			if (confirmationPending || simGlow || (connected && isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -637,6 +684,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = showTranscriptSetting.read(reader);
@@ -644,7 +692,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
-			if (!connected) {
+			if (!connected || omniInputActive) {
 				listeningSession = undefined;
 				ownerSession = undefined;
 				transcriptOverlayNode.style.display = 'none';
@@ -1026,7 +1074,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,
 			}));
-		this._widget.render(chatControlsContainer);
+		this._widget.render(chatControlsContainer, parent);
 
 		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
 		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));

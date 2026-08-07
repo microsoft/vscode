@@ -370,6 +370,14 @@ export interface IAgentHostGitService {
 	revParse(repositoryRoot: URI, expression: string): Promise<string | undefined>;
 
 	/**
+	 * Lists refs matching `pattern` (a `git for-each-ref` glob such as
+	 * `refs/sessions/<id>/*`) with their resolved commit OIDs. Returns an empty
+	 * array when none match. Optional: implementations that don't support raw
+	 * ref enumeration may omit it.
+	 */
+	listRefNamesWithOids?(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
+
+	/**
 	 * Builds a new tree from `baseTreeOid` in which the single repo-relative
 	 * `path` is replaced by its content (blob + mode) from `sourceTreeOid`, or
 	 * removed when the path is absent in `sourceTreeOid`. All other paths are

@@ -242,6 +242,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				toolCallId: 'tu_1',
 				toolName: 'Read',
 				displayName: 'Read file',
+				_meta: { toolKind: 'read' },
 			},
 		}]);
 		assert.deepStrictEqual(log.warns, []);

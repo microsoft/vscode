@@ -5,6 +5,7 @@
 
 import { encodeBase64, VSBuffer, decodeBase64 } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localChatSessionType } from '../chatSessionsService.js';
 
@@ -70,6 +71,17 @@ export function chatSessionResourceToId(resource: URI): string {
 	}
 
 	return resource.toString();
+}
+
+/**
+ * Resolves a session resource that must be an immediate child of its storage root.
+ */
+export function getChatSessionStorageResource(storageRoot: URI, sessionId: string, suffix: string = ''): URI {
+	const resource = extUri.joinPath(storageRoot, `${sessionId}${suffix}`);
+	if (!extUri.isEqual(extUri.dirname(resource), storageRoot)) {
+		throw new Error(`Invalid chat session ID: ${sessionId}`);
+	}
+	return resource;
 }
 
 /**
