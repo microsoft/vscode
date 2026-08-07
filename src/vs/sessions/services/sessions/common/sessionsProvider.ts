@@ -10,7 +10,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomation, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationMutationGuard, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
@@ -67,10 +67,15 @@ export interface ISessionModelsSnapshot {
 	readonly modelTarget: string | undefined;
 }
 
+export type IGuardedAutomationTransferRemovalResult =
+	| { readonly kind: 'removed' }
+	| { readonly kind: 'changed'; readonly automation: IAutomation; readonly runs: readonly IAutomationRun[] }
+	| { readonly kind: 'missing' };
+
 export interface ISessionsProviderAutomations extends IAutomationStore {
-	importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<void>;
-	storeAutomationForTransfer(automation: IAutomation, runs: readonly IAutomationRun[], mutationGuard?: AutomationMutationGuard): Promise<void>;
-	removeAutomationForTransfer(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
+	importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean>;
+	storeAutomationForTransfer(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<void>;
+	tryRemoveAutomationSnapshot(expected: IAutomation, expectedRuns: readonly IAutomationRun[]): Promise<IGuardedAutomationTransferRemovalResult>;
 }
 
 /**

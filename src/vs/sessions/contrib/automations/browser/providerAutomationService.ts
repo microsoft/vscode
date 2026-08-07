@@ -19,6 +19,8 @@ interface IAutomationStoreEntry {
 	readonly store: ISessionsProviderAutomations;
 }
 
+const MAX_AUTOMATION_TRANSFER_ATTEMPTS = 3;
+
 export class ProviderAutomationService extends Disposable implements IAutomationService {
 
 	declare readonly _serviceBrand: undefined;
@@ -88,7 +90,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		const source = this.requireAutomationStore(id);
 		const result = await source.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 		if (result.kind === 'updated') {
-			await this.transferAutomationIfNeeded(source, result.automation, mutationGuard);
+			await this.transferAutomationIfNeeded(source, result.automation);
 		}
 		return result;
 	}
@@ -155,14 +157,33 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return this.legacyStore;
 	}
 
-	private async transferAutomationIfNeeded(source: ISessionsProviderAutomations, automation: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<void> {
-		const destination = this.getTargetStore(automation.target.providerId);
-		if (source === destination) {
-			return;
-		}
+	private async transferAutomationIfNeeded(source: ISessionsProviderAutomations, initialAutomation: IAutomation): Promise<void> {
+		let automation = initialAutomation;
+		let runs = source.runsFor(automation.id).get();
+		for (let attempt = 0; attempt < MAX_AUTOMATION_TRANSFER_ATTEMPTS; attempt++) {
+			const destination = this.getTargetStore(automation.target.providerId);
+			if (source === destination) {
+				return;
+			}
 
-		await destination.storeAutomationForTransfer(automation, source.runsFor(automation.id).get(), mutationGuard);
-		await source.removeAutomationForTransfer(automation.id, mutationGuard);
+			await destination.storeAutomationForTransfer(automation, runs);
+			const removal = await source.tryRemoveAutomationSnapshot(automation, runs);
+			switch (removal.kind) {
+				case 'removed':
+					return;
+				case 'missing':
+					await this.rollbackAutomationSnapshot(destination, automation, runs);
+					return;
+				case 'changed':
+					if (!await this.rollbackAutomationSnapshot(destination, automation, runs)) {
+						return;
+					}
+					automation = removal.automation;
+					runs = removal.runs;
+					break;
+			}
+		}
+		this.logService.warn(`[ProviderAutomationService] Automation '${automation.id}' kept changing while transferring storage ownership; leaving the source copy in place.`);
 	}
 
 	private findAutomationStore(id: string): IAutomationStoreEntry | undefined {
@@ -189,21 +210,56 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	private async migrateLegacyAutomations(): Promise<void> {
 		for (const automation of [...this.legacyStore.automations.get()]) {
+			try {
+				await this.migrateLegacyAutomation(automation);
+			} catch (error) {
+				this.logService.error(`[ProviderAutomationService] Failed to migrate Automation '${automation.id}'.`, error);
+			}
+		}
+	}
+
+	private async migrateLegacyAutomation(initialAutomation: IAutomation): Promise<void> {
+		let automation = initialAutomation;
+		let runs = this.legacyStore.runsFor(automation.id).get();
+		for (let attempt = 0; attempt < MAX_AUTOMATION_TRANSFER_ATTEMPTS; attempt++) {
 			const providerId = automation.target.providerId;
 			if (!providerId) {
-				continue;
+				return;
 			}
 			const providerStore = this.sessionsProvidersService.getProvider(providerId)?.automations;
 			if (!providerStore) {
-				continue;
+				return;
 			}
-			try {
-				await providerStore.importAutomation(automation, this.legacyStore.runsFor(automation.id).get());
-				await this.legacyStore.removeAutomationForTransfer(automation.id);
-			} catch (error) {
-				this.logService.error(`[ProviderAutomationService] Failed to migrate Automation '${automation.id}' to provider '${providerId}'.`, error);
+
+			const destinationCreated = await providerStore.importAutomation(automation, runs);
+			const removal = await this.legacyStore.tryRemoveAutomationSnapshot(automation, runs);
+			switch (removal.kind) {
+				case 'removed':
+					return;
+				case 'missing':
+					if (destinationCreated) {
+						await this.rollbackAutomationSnapshot(providerStore, automation, runs);
+					}
+					return;
+				case 'changed':
+					if (destinationCreated && !await this.rollbackAutomationSnapshot(providerStore, automation, runs)) {
+						return;
+					}
+					automation = removal.automation;
+					runs = removal.runs;
+					break;
 			}
 		}
+		this.logService.warn(`[ProviderAutomationService] Automation '${automation.id}' kept changing during legacy migration; leaving it in legacy storage.`);
+	}
+
+	private async rollbackAutomationSnapshot(store: ISessionsProviderAutomations, automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean> {
+		const result = await store.tryRemoveAutomationSnapshot(automation, runs);
+		if (result.kind === 'changed') {
+			this.logService.warn(`[ProviderAutomationService] Automation '${automation.id}' changed in the destination store during rollback; leaving both copies in place.`);
+			return false;
+		}
+		return true;
 	}
 
 }

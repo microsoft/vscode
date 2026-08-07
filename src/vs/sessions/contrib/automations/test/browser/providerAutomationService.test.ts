@@ -33,11 +33,11 @@ class FailingStaleRunRecoveryAutomationStore extends AutomationStore {
 }
 
 class PartiallyFailingMigrationAutomationStore extends AutomationStore {
-	override async importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<void> {
+	override async importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean> {
 		if (automation.id === 'automation-1') {
 			throw new Error('Import failed.');
 		}
-		await super.importAutomation(automation, runs);
+		return super.importAutomation(automation, runs);
 	}
 }
 
@@ -47,10 +47,47 @@ class FailingTransferAutomationStore extends AutomationStore {
 	}
 }
 
+class ConcurrentlyMutatingMigrationAutomationStore extends AutomationStore {
+	legacyWriter!: AutomationStore;
+	mutation!: 'update' | 'delete' | 'run' | 'continuousUpdate';
+	private didMutate = false;
+	private updateCount = 0;
+
+	override async importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean> {
+		const inserted = await super.importAutomation(automation, runs);
+		if (this.mutation === 'continuousUpdate') {
+			await this.legacyWriter.updateAutomation(automation.id, { name: `Concurrent update ${++this.updateCount}` });
+		} else if (!this.didMutate) {
+			this.didMutate = true;
+			if (this.mutation === 'update') {
+				await this.legacyWriter.updateAutomation(automation.id, { name: 'Concurrent update' });
+			} else if (this.mutation === 'delete') {
+				await this.legacyWriter.deleteAutomation(automation.id);
+			} else {
+				await this.legacyWriter.recordRunStart(automation.id, 'manual', 1);
+			}
+		}
+		return inserted;
+	}
+}
+
+class ConcurrentlyMutatingTransferAutomationStore extends AutomationStore {
+	legacyWriter!: AutomationStore;
+	private didMutate = false;
+
+	override async storeAutomationForTransfer(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<void> {
+		await super.storeAutomationForTransfer(automation, runs);
+		if (!this.didMutate) {
+			this.didMutate = true;
+			await this.legacyWriter.recordRunStart(automation.id, 'manual', 1);
+		}
+	}
+}
+
 suite('ProviderAutomationService', () => {
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer'): {
+	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun'): {
 		readonly service: ProviderAutomationService;
 		readonly providerStore: AutomationStore;
 		readonly storage: InMemoryStorageService;
@@ -75,6 +112,30 @@ suite('ProviderAutomationService', () => {
 			case 'transfer':
 				providerStore = new FailingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
 				break;
+			case 'concurrentMigrationUpdate':
+			case 'concurrentMigrationDelete':
+			case 'concurrentMigrationRun':
+			case 'continuousMigrationUpdate': {
+				const mutatingStore = new ConcurrentlyMutatingMigrationAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				mutatingStore.legacyWriter = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), NullTelemetryService, automationStorage));
+				if (providerFailure === 'concurrentMigrationUpdate') {
+					mutatingStore.mutation = 'update';
+				} else if (providerFailure === 'concurrentMigrationDelete') {
+					mutatingStore.mutation = 'delete';
+				} else if (providerFailure === 'continuousMigrationUpdate') {
+					mutatingStore.mutation = 'continuousUpdate';
+				} else {
+					mutatingStore.mutation = 'run';
+				}
+				providerStore = mutatingStore;
+				break;
+			}
+			case 'concurrentTransferRun': {
+				const mutatingStore = new ConcurrentlyMutatingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				mutatingStore.legacyWriter = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), NullTelemetryService, automationStorage));
+				providerStore = mutatingStore;
+				break;
+			}
 			default:
 				providerStore = new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
 		}
@@ -221,6 +282,58 @@ suite('ProviderAutomationService', () => {
 		});
 	});
 
+	test('retries ownership transfer when a run is added concurrently', async () => {
+		const { service, providerStore, storage } = createService(undefined, undefined, 'concurrentTransferRun');
+		const created = await service.createAutomation({
+			name: 'Legacy',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: 'provider-without-storage', sessionTypeId: 'other', isolation: { kind: 'default' } },
+		});
+
+		await service.updateAutomation(created.id, {
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+		});
+
+		assert.deepStrictEqual({
+			providerRunAutomationIds: providerStore.runs.get().map(run => run.automationId),
+			legacyAutomationIds: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations.map((automation: { id: string }) => automation.id),
+		}, {
+			providerRunAutomationIds: [created.id],
+			legacyAutomationIds: [],
+		});
+	});
+
+	test('does not re-run the mutation guard after the source update commits', async () => {
+		const { service, providerStore } = createService();
+		const created = await service.createAutomation({
+			name: 'Legacy',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: 'provider-without-storage', sessionTypeId: 'other', isolation: { kind: 'default' } },
+		});
+		let guardCalls = 0;
+
+		const result = await service.updateAutomationIfUnchanged(created.id, {
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+		}, created, () => {
+			guardCalls++;
+			if (guardCalls > 1) {
+				throw new Error('Guard called after commit.');
+			}
+		});
+
+		assert.deepStrictEqual({
+			result: result.kind,
+			guardCalls,
+			providerAutomationId: providerStore.getAutomation(created.id)?.id,
+		}, {
+			result: 'updated',
+			guardCalls: 1,
+			providerAutomationId: created.id,
+		});
+	});
+
 	test('migrates legacy Automations and runs unchanged into the provider store', async () => {
 		const legacy = JSON.stringify({
 			schemaVersion: 3,
@@ -273,6 +386,127 @@ suite('ProviderAutomationService', () => {
 			},
 			runIds: ['run-1'],
 			legacy: { schemaVersion: 3, revision: 2, automations: [], runs: [] },
+		});
+	});
+
+	test('retries migration when the legacy Automation changes during import', async () => {
+		const legacy = JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [{
+				id: 'automation-1',
+				name: 'Original',
+				prompt: 'prompt',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'workspace', folderUri: FOLDER.toJSON(), providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+				enabled: true,
+				createdAt: '2026-01-01T00:00:00.000Z',
+				updatedAt: '2026-01-01T00:00:00.000Z',
+			}],
+			runs: [],
+		});
+		const { service, providerStore, storage } = createService(legacy, undefined, 'concurrentMigrationUpdate');
+
+		await service.waitForMigrationForTesting();
+
+		assert.deepStrictEqual({
+			providerName: providerStore.getAutomation('automation-1')?.name,
+			legacyAutomationIds: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations.map((automation: { id: string }) => automation.id),
+		}, {
+			providerName: 'Concurrent update',
+			legacyAutomationIds: [],
+		});
+	});
+
+	test('rolls back migration when the legacy Automation is deleted during import', async () => {
+		const legacy = JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [{
+				id: 'automation-1',
+				name: 'Deleted concurrently',
+				prompt: 'prompt',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'workspace', folderUri: FOLDER.toJSON(), providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+				enabled: true,
+				createdAt: '2026-01-01T00:00:00.000Z',
+				updatedAt: '2026-01-01T00:00:00.000Z',
+			}],
+			runs: [],
+		});
+		const { service, providerStore, storage } = createService(legacy, undefined, 'concurrentMigrationDelete');
+
+		await service.waitForMigrationForTesting();
+
+		assert.deepStrictEqual({
+			providerAutomation: providerStore.getAutomation('automation-1'),
+			legacyAutomationIds: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations.map((automation: { id: string }) => automation.id),
+		}, {
+			providerAutomation: undefined,
+			legacyAutomationIds: [],
+		});
+	});
+
+	test('retries migration when a run is added during import', async () => {
+		const legacy = JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [{
+				id: 'automation-1',
+				name: 'Concurrent run',
+				prompt: 'prompt',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'workspace', folderUri: FOLDER.toJSON(), providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+				enabled: true,
+				createdAt: '2026-01-01T00:00:00.000Z',
+				updatedAt: '2026-01-01T00:00:00.000Z',
+			}],
+			runs: [],
+		});
+		const { service, providerStore, storage } = createService(legacy, undefined, 'concurrentMigrationRun');
+
+		await service.waitForMigrationForTesting();
+
+		assert.deepStrictEqual({
+			providerRunCount: providerStore.runs.get().length,
+			providerRunAutomationIds: providerStore.runs.get().map(run => run.automationId),
+			legacyRunIds: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).runs.map((run: { id: string }) => run.id),
+		}, {
+			providerRunCount: 1,
+			providerRunAutomationIds: ['automation-1'],
+			legacyRunIds: [],
+		});
+	});
+
+	test('bounds migration retries and leaves a continuously changing source in legacy storage', async () => {
+		const legacy = JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [{
+				id: 'automation-1',
+				name: 'Original',
+				prompt: 'prompt',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'workspace', folderUri: FOLDER.toJSON(), providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+				enabled: true,
+				createdAt: '2026-01-01T00:00:00.000Z',
+				updatedAt: '2026-01-01T00:00:00.000Z',
+			}],
+			runs: [],
+		});
+		const { service, providerStore, storage } = createService(legacy, undefined, 'continuousMigrationUpdate');
+
+		await service.waitForMigrationForTesting();
+		const legacyLedger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!);
+
+		assert.deepStrictEqual({
+			providerAutomation: providerStore.getAutomation('automation-1'),
+			legacyAutomationIds: legacyLedger.automations.map((automation: { id: string }) => automation.id),
+			legacyName: legacyLedger.automations[0]?.name,
+		}, {
+			providerAutomation: undefined,
+			legacyAutomationIds: ['automation-1'],
+			legacyName: 'Concurrent update 3',
 		});
 	});
 
