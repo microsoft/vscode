@@ -20,6 +20,7 @@ import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
+const WORKTREE_DOT_GIT_PATH_REGEX = /[\\/]\.git$/;
 
 export interface IGit {
 	path: string;
@@ -1352,6 +1353,14 @@ export interface PullOptions {
 
 export interface Worktree extends ApiWorktree {
 	readonly commitDetails?: ApiCommit;
+}
+
+export function getWorktreePathFromGitDir(gitdirPath: string, gitdirContent: string): string {
+	const worktreeGitDirPath = path.isAbsolute(gitdirContent)
+		? gitdirContent
+		: path.resolve(path.dirname(gitdirPath), gitdirContent);
+
+	return worktreeGitDirPath.replace(WORKTREE_DOT_GIT_PATH_REGEX, '');
 }
 
 export class Repository {
@@ -3062,8 +3071,7 @@ export class Repository {
 
 					result.push({
 						name: dirent.name,
-						// Remove '/.git' suffix
-						path: gitdirContent.replace(/\/.git.*$/, ''),
+						path: getWorktreePathFromGitDir(gitdirPath, gitdirContent),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '
