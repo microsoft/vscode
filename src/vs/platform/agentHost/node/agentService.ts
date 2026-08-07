@@ -49,7 +49,7 @@ import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
-import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
+import { type IChatContextSnapshot, type ISessionCreationDefaults, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 
 import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
@@ -840,9 +840,10 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				return models;
 			},
+			getCreationDefaults: source => this._getServerToolCreationDefaults(source),
 			startPrompt: (session, chat, prompt) => this._startSessionPrompt(session, chat, prompt),
 			createChat: (session, chat, options) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined)
-				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: { id: options.model.id } } : {}) }
+				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: options.model } : {}) }
 				: undefined),
 			deleteSession: session => this.disposeSession(session),
 			getChatContext: (session, chatId) => this._getChatContext(session, chatId),
@@ -853,6 +854,21 @@ export class AgentService extends Disposable implements IAgentService {
 				type: ActionType.SessionMetaChanged,
 				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
 			}),
+		};
+	}
+
+	private _getServerToolCreationDefaults(source: URI): ISessionCreationDefaults | undefined {
+		const session = this._stateManager.getSessionState(source.toString());
+		if (!session) {
+			return undefined;
+		}
+
+		const model = session.activeTurn?.message.model ?? session.draft?.model ?? session.turns.at(-1)?.message.model;
+		const config = this._providers.get(session.provider)?.getInheritedSessionConfig?.(session.config?.values ?? {});
+		return {
+			provider: session.provider,
+			...(model !== undefined ? { model } : {}),
+			...(config !== undefined ? { config } : {}),
 		};
 	}
 
