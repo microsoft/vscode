@@ -256,6 +256,10 @@ export class QuickDiffModel extends Disposable {
 	private diff(): Promise<{ allChanges: QuickDiffChange[]; changes: QuickDiffChange[]; mapChanges: Map<string, number[]>; versionId: number } | null> {
 		const location = this.environmentService.isSessionsWindow ? ProgressLocation.Window : ProgressLocation.Scm;
 		return this.progressService.withProgress({ location, delay: 250 }, async () => {
+			if (this._disposed || this._model.isDisposed()) {
+				return null; // the model was disposed while the diff was throttled/scheduled
+			}
+
 			const versionId = this._model.textEditorModel.getVersionId();
 			const originalURIs = await this.getQuickDiffsPromise();
 			if (this._disposed || this._model.isDisposed() || (originalURIs.length === 0)) {
