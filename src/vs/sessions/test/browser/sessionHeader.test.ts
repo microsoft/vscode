@@ -74,16 +74,24 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>) {
 suite('Sessions - SessionHeader', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	// A native drag always fires dragstart with `target` set to the draggable
+	// container itself (not the descendant the gesture began on), so a real
+	// mousedown must precede it for the header's exclusion logic to see it.
+	function simulateDragFrom(header: SessionHeader, gestureOrigin: HTMLElement): DragEvent {
+		gestureOrigin.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
+
+		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+		header.element.dispatchEvent(dragEvent);
+		return dragEvent;
+	}
+
 	test('a small pointer move over the meta row (e.g. the changed-files pill) does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 
 		const metaRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-meta-row');
 		assert.ok(metaRow, 'meta row should be rendered');
 
-		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
-		Object.defineProperty(dragEvent, 'target', { value: metaRow });
-
-		header.element.dispatchEvent(dragEvent);
+		const dragEvent = simulateDragFrom(header, metaRow);
 
 		assert.strictEqual(dragEvent.defaultPrevented, true, 'drag-start originating in the meta row must be prevented so the underlying click is not swallowed');
 	});
@@ -94,10 +102,7 @@ suite('Sessions - SessionHeader', () => {
 		const titleActions = header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions');
 		assert.ok(titleActions, 'title actions should be rendered');
 
-		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
-		Object.defineProperty(dragEvent, 'target', { value: titleActions });
-
-		header.element.dispatchEvent(dragEvent);
+		const dragEvent = simulateDragFrom(header, titleActions);
 
 		assert.strictEqual(dragEvent.defaultPrevented, true);
 	});
@@ -105,10 +110,7 @@ suite('Sessions - SessionHeader', () => {
 	test('a drag starting elsewhere in the header still initiates a session drag', () => {
 		const { header } = createHarness(disposables);
 
-		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
-		Object.defineProperty(dragEvent, 'target', { value: header.element });
-
-		header.element.dispatchEvent(dragEvent);
+		const dragEvent = simulateDragFrom(header, header.element);
 
 		assert.strictEqual(dragEvent.defaultPrevented, false);
 	});
