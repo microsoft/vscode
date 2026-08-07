@@ -932,7 +932,7 @@ suite('AgentService (node dispatcher)', () => {
 			await readStarted.p;
 			svc.dispatchAction(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
-				config: { [AgentHostManagedPermissionsConfigKey]: { ask: ['Shell(*)'] } },
+				config: { [AgentHostManagedPermissionsConfigKey]: { ask: ['Shell'] } },
 			}, clientId, 2);
 			svc.removeClientManagedPermissions(clientId);
 			const queueDrained = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientId === clientId && envelope.origin.clientSeq === 3));
@@ -1052,7 +1052,7 @@ suite('AgentService (node dispatcher)', () => {
 					type: ActionType.RootConfigChanged,
 					config: {
 						customizations: [customization],
-						[AgentHostManagedPermissionsConfigKey]: { ask: ['Shell(*)'] },
+						[AgentHostManagedPermissionsConfigKey]: { ask: ['Shell'] },
 					},
 				}, 'test-client', 1);
 

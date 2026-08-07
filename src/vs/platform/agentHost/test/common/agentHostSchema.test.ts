@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { createSchema, deriveManagedPermissions, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, normalizeManagedPermissions, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostManagedPermissionsConfigKey, MANAGED_PERMISSION_TERMINAL_ASK_RULE, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IManagedPermissions, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, deriveManagedPermissions, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, normalizeManagedPermissions, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostManagedPermissionsConfigKey, MANAGED_PERMISSION_TERMINAL_ASK_RULE, validateManagedPermissionRules, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IManagedPermissions, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -452,7 +452,7 @@ suite('agentHostSchema', () => {
 			assert.deepStrictEqual(deriveManagedPermissions({
 				globalAutoApprove: undefined,
 				terminalAutoApproveEnabled: false,
-			}), { ask: ['Shell(*)'] } satisfies IManagedPermissions);
+			}), { ask: ['Shell'] } satisfies IManagedPermissions);
 		});
 
 		test('derived value validates against the managed-permissions root schema', () => {
@@ -461,7 +461,21 @@ suite('agentHostSchema', () => {
 				terminalAutoApproveEnabled: false,
 			});
 			assert.ok(permissions);
-			assert.strictEqual(platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, permissions), true);
+			assert.deepStrictEqual({
+				schema: platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, permissions),
+				rules: validateManagedPermissionRules(permissions),
+			}, {
+				schema: true,
+				rules: [],
+			});
+		});
+
+		test('reports runtime-incompatible managed shell wildcards', () => {
+			assert.deepStrictEqual(validateManagedPermissionRules({
+				ask: ['Shell(*)', 'Shell(git *)', 'PowerShell(Get-Item:*)'],
+			}), [
+				`ask.0: Unsupported managed shell wildcard pattern '*'; use '<command> *' or the canonical '<command>:*' suffix`,
+			]);
 		});
 
 		test('normalizes the root-config clear sentinel to no policy', () => {

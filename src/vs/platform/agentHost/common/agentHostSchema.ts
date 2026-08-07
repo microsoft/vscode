@@ -319,12 +319,12 @@ export interface IManagedPermissions {
 
 /**
  * The runtime permission-rule string emitted when managed
- * `chat.tools.terminal.enableAutoApprove` is `false`. `Shell(*)` is the exact
- * all-shell boundary confirmed by the runtime managed-permission parser.
+ * `chat.tools.terminal.enableAutoApprove` is `false`. The kind-only `Shell`
+ * rule matches all shell commands in the runtime managed-permission parser.
  * Centralized as a single constant so the grammar lives in one place. Generic
  * `Tool(...)` rules are NOT supported by the runtime and must never be emitted.
  */
-export const MANAGED_PERMISSION_TERMINAL_ASK_RULE = 'Shell(*)';
+export const MANAGED_PERMISSION_TERMINAL_ASK_RULE = 'Shell';
 
 /**
  * The enterprise-policy inputs — read exclusively from
@@ -345,7 +345,7 @@ export interface IManagedPermissionPolicyInputs {
  * runtime-supported permission rules are emitted:
  *
  * - managed `chat.tools.global.autoApprove === false` → `disableBypassPermissionsMode: "disable"`;
- * - managed `chat.tools.terminal.enableAutoApprove === false` → the all-shell `ask` rule `Shell(*)`.
+ * - managed `chat.tools.terminal.enableAutoApprove === false` → the all-shell `ask` rule `Shell`.
  *
  * Per-tool eligibility (`chat.tools.eligibleForAutoApproval`) is intentionally
  * NOT mapped: the runtime rejects generic `Tool(...)` rules, so there is no
@@ -386,6 +386,66 @@ export function deriveManagedPermissions(inputs: IManagedPermissionPolicyInputs)
  */
 export function normalizeManagedPermissions(permissions: IManagedPermissions | undefined): IManagedPermissions | undefined {
 	return permissions && Object.keys(permissions).length > 0 ? permissions : undefined;
+}
+
+const managedPermissionRuleFamilies = new Set(['bash', 'shell', 'powershell', 'read', 'edit', 'write', 'domain']);
+const managedPermissionShellRuleFamilies = new Set(['bash', 'shell', 'powershell']);
+
+/**
+ * Return parser-compatible validation issues for managed permission rules.
+ * Provider runtimes remain authoritative for family-specific path and domain patterns.
+ */
+export function validateManagedPermissionRules(permissions: IManagedPermissions | undefined): readonly string[] {
+	if (!permissions) {
+		return [];
+	}
+
+	const issues: string[] = [];
+	for (const list of ['deny', 'ask', 'allow'] as const) {
+		for (const [index, rule] of (permissions[list] ?? []).entries()) {
+			const issue = validateManagedPermissionRule(rule);
+			if (issue) {
+				issues.push(`${list}.${index}: ${issue}`);
+			}
+		}
+	}
+	return issues;
+}
+
+function validateManagedPermissionRule(rule: string): string | undefined {
+	const openParenthesis = rule.indexOf('(');
+	let family = rule;
+	let argument: string | undefined;
+	if (openParenthesis !== -1) {
+		if (!rule.endsWith(')')) {
+			return `Invalid rule format: ${rule}`;
+		}
+		family = rule.slice(0, openParenthesis);
+		argument = rule.slice(openParenthesis + 1, -1);
+		if (!argument || argument.includes(')')) {
+			return `Invalid rule format: ${rule}`;
+		}
+	}
+	if (!family || ![...family].every(character => /[a-zA-Z0-9_./@-]/.test(character))) {
+		return `Invalid rule format: ${rule}`;
+	}
+
+	const normalizedFamily = family.toLowerCase();
+	if (!managedPermissionRuleFamilies.has(normalizedFamily)) {
+		return `Unsupported managed permission rule family '${family}'; expected Bash, Shell, PowerShell, Read, Edit, Write, or Domain`;
+	}
+	if (!argument || !managedPermissionShellRuleFamilies.has(normalizedFamily)) {
+		return undefined;
+	}
+	if (argument.endsWith(' *')) {
+		return argument.slice(0, -2).trimEnd()
+			? undefined
+			: 'Invalid managed shell permission rule: wildcard requires a command prefix';
+	}
+	if (argument.includes('*') && !argument.endsWith(':*')) {
+		return `Unsupported managed shell wildcard pattern '${argument}'; use '<command> *' or the canonical '<command>:*' suffix`;
+	}
+	return undefined;
 }
 
 const managedPermissionsProperty = schemaProperty<IManagedPermissions>({

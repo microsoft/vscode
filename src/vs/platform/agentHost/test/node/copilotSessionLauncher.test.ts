@@ -463,7 +463,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				return session;
 			},
 		};
-		const permissions = { disableBypassPermissionsMode: 'disable', ask: ['Shell(*)'] };
+		const permissions = { disableBypassPermissionsMode: 'disable', ask: ['Shell'] };
 		const launcher = createTestLauncherWithRootValues({ [AgentHostManagedPermissionsConfigKey]: permissions });
 		const basePlan = {
 			client,
