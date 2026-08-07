@@ -57,6 +57,7 @@ import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupVie
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType, Gesture } from '../../../../../base/browser/touch.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 
 const $ = dom.$;
@@ -213,10 +214,13 @@ export class OpenEditorsView extends ViewPane {
 		this.dirtyCountElement.tabIndex = 0;
 		this.dirtyCountElement.setAttribute('role', 'button');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.dirtyCountElement, nls.localize('openUnsavedEditor', "Open Unsaved Editor")));
-		this._register(dom.addDisposableListener(this.dirtyCountElement, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e, true); // prevent the pane from toggling its expanded state
-			this.openFirstDirtyEditor();
-		}));
+		this._register(Gesture.addTarget(this.dirtyCountElement));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(dom.addDisposableListener(this.dirtyCountElement, eventType, e => {
+				dom.EventHelper.stop(e, true); // prevent the pane from toggling its expanded state
+				this.openFirstDirtyEditor();
+			}));
+		}
 		this._register(dom.addDisposableListener(this.dirtyCountElement, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
