@@ -24,9 +24,10 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { AgentsVoiceSettingId } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceSettingId, AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 
@@ -56,6 +57,12 @@ export interface INewChatVoiceComposer {
 	prefillInput(text: string): void;
 	/** Focus the composer input. */
 	focus(): void;
+	/** Models currently offered by the composer. */
+	getVoiceModels(): readonly ILanguageModelChatMetadataAndIdentifier[];
+	/** Select a model by its exact frontend identifier. */
+	selectVoiceModel(identifier: string): boolean;
+	/** Attach files to this draft composer. */
+	attach(uris: URI[]): void;
 }
 
 export const INewChatVoiceTargetService = createDecorator<INewChatVoiceTargetService>('newChatVoiceTargetService');
@@ -141,7 +148,7 @@ registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, Instant
 
 export const SessionsNewChatVoiceMenu = new MenuId('SessionsNewChatVoiceMenu');
 
-const WHEN_VOICE_ENABLED = ContextKeyExpr.equals('config.agents.voice.enabled', true);
+const WHEN_VOICE_ENABLED = AGENTS_VOICE_ENABLED;
 const WHEN_VOICE_BUTTON_SHOWN = ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false);
 const WHEN_CONNECTING = ContextKeyExpr.equals('agentsVoiceConnecting', true);
 const WHEN_LISTENING = ContextKeyExpr.equals('agentsVoiceListening', true);

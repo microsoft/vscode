@@ -2839,7 +2839,7 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(publishedWorkspaces, ['c']);
 	});
 
-	test('[managed tabs / details-only] a details-only reveal restores the docked inputs even when one was closed', async () => {
+	test('[managed tabs / details-only] always restores both docked inputs while only details are visible', async () => {
 		createSinglePaneController({
 			activateAux: true,
 			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
@@ -2860,18 +2860,40 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidCloseEditor.fire({ editor: fileTab });
 		harness.onDidEditorsChange.fire();
 		await settle();
-		assert.strictEqual(hasFilesTab(), false);
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
-		// Close the side pane, then reopen it details-only (aux only, editor hidden).
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-		harness.onDidRevealSidePane.fire();
+		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(changesTab), 1);
+		harness.onDidCloseEditor.fire({ editor: changesTab });
+		harness.onDidEditorsChange.fire();
 		await settle();
 
-		// The details-only reveal always shows the docked inputs, so Files returns.
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+	});
+
+	test('[managed tabs / details-only] restores Files when the editor area hides without an editor change', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await settle();
+
+		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
+		harness.onDidCloseEditor.fire({ editor: fileTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+		assert.strictEqual(hasFilesTab(), false);
+
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), true);
 	});
 
 	test('[managed tabs / details-only] an editor reveal does NOT force back a closed managed tab', async () => {
