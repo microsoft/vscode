@@ -144,6 +144,10 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Capturing Feedback (meta-rule)
 
+- **Signed-out account actions belong to their provider identity**: present GitHub Copilot sign-in in the same provider row used by signed-out ChatGPT, with the explicit label "Sign in to use GitHub Copilot." Do not fall back to an ambiguous generic "Sign In" action in the account-panel footer or repeat the state in an "Agents is signed out" summary.
+- **Copilot sign-in affordances must share the setup command**: account-menu and chat-input sign-in actions invoke `workbench.action.chat.triggerSetup` so they present the same dialog and setup semantics. Do not call `IDefaultAccountService.signIn()` directly from one surface.
+- **The Add Models dropdown is also a signed-out Copilot entry point**: after the default account resolves as signed out, prepend a GitHub Copilot action before the separated BYOK vendor actions and route it through `workbench.action.chat.triggerSetup`. Keep it available even when BYOK additions are restricted, and do not treat the unresolved startup account snapshot as signed out.
+
 Whenever the user flags a wrong pattern, rejects an approach, or gives design/rules feedback, **automatically add it** as a concise pitfall/learning to this `Common Pitfalls` section (or the most relevant spec doc) in the same change — without being asked again. Keep each entry 1–3 sentences: the anti-pattern, why it is wrong, and the preferred pattern.
 
 - **Shared commands must delegate behavior to the layout service, not inspect a layout implementation**: `workbench.action.toggleAuxiliaryBar` must call the semantic `IWorkbenchLayoutService.toggleSecondarySideBar()` operation. Do not branch on optional layout properties or concrete workbench shape in the shared action; each workbench owns how its secondary-sidebar affordance maps to visible parts.
