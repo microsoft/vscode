@@ -190,6 +190,7 @@ class ChatModes extends Disposable implements IChatModes {
 						target: cachedMode.target ?? Target.Undefined,
 						visibility,
 						agents: cachedMode.agents,
+						skills: cachedMode.skills,
 						sessionTypes: cachedMode.sessionTypes,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local },
 						enabled: true
@@ -387,6 +388,7 @@ export interface IChatModeData {
 	readonly target?: Target;
 	readonly visibility?: ICustomAgentVisibility;
 	readonly agents?: readonly string[];
+	readonly skills?: readonly string[];
 	readonly sessionTypes?: readonly string[];
 	readonly infer?: boolean; // deprecated, only available in old cached data
 }
@@ -409,6 +411,7 @@ export interface IChatMode {
 	readonly target: IObservable<Target>;
 	readonly visibility?: IObservable<ICustomAgentVisibility | undefined>;
 	readonly agents?: IObservable<readonly string[] | undefined>;
+	readonly customSkills?: IObservable<readonly string[] | undefined>;
 	readonly sessionTypes?: readonly string[];
 }
 
@@ -458,6 +461,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.target === undefined || isTarget(mode.target)) &&
 		(mode.visibility === undefined || isCustomAgentVisibility(mode.visibility)) &&
 		(mode.agents === undefined || Array.isArray(mode.agents)) &&
+		(mode.skills === undefined || Array.isArray(mode.skills)) &&
 		(mode.sessionTypes === undefined || Array.isArray(mode.sessionTypes));
 }
 
@@ -473,6 +477,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _targetObservable: ISettableObservable<Target>;
 	private readonly _visibilityObservable: ISettableObservable<ICustomAgentVisibility | undefined>;
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
+	private readonly _customSkillsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
 	private _sessionTypes: readonly string[] | undefined;
 
@@ -538,6 +543,10 @@ export class CustomChatMode implements IChatMode {
 		return this._agentsObservable;
 	}
 
+	get customSkills(): IObservable<readonly string[] | undefined> {
+		return this._customSkillsObservable;
+	}
+
 	get sessionTypes(): readonly string[] | undefined {
 		return this._sessionTypes;
 	}
@@ -557,6 +566,7 @@ export class CustomChatMode implements IChatMode {
 		this._targetObservable = observableValue('target', customChatMode.target);
 		this._visibilityObservable = observableValue('visibility', customChatMode.visibility);
 		this._agentsObservable = observableValue('agents', customChatMode.agents);
+		this._customSkillsObservable = observableValue('customSkills', customChatMode.skills);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
@@ -587,6 +597,7 @@ export class CustomChatMode implements IChatMode {
 			update(this._targetObservable, newData.target);
 			update(this._visibilityObservable, newData.visibility, objectEquals);
 			update(this._agentsObservable, newData.agents, arraysEqual);
+			update(this._customSkillsObservable, newData.skills, arraysEqual);
 			if (!IAgentSource.isEquals(this._source, newData.source)) {
 				this._source = newData.source;
 				hasChanges = true;
@@ -615,6 +626,7 @@ export class CustomChatMode implements IChatMode {
 			target: this.target.get(),
 			visibility: this.visibility.get(),
 			agents: this.agents.get(),
+			skills: this.customSkills.get(),
 			sessionTypes: this.sessionTypes,
 		};
 	}

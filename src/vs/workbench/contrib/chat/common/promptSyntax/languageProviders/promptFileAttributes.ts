@@ -144,6 +144,11 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		description: localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.'),
 		defaults: ['["*"]'],
 	},
+	[PromptHeaderAttributes.skills]: {
+		type: 'scalar | sequence',
+		description: localize('promptHeader.agent.skills', 'Skills available to this agent. Omit for all skills; use `[]` for none; use `[\'*\']` for all.'),
+		defaults: ['[]', '["*"]'],
+	},
 	[PromptHeaderAttributes.userInvocable]: {
 		type: 'scalar',
 		description: localize('promptHeader.agent.userInvocable', 'Whether the agent can be selected and invoked by users in the UI.'),

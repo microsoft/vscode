@@ -81,6 +81,7 @@ export namespace PromptHeaderAttributes {
 	export const compatibility = 'compatibility';
 	export const metadata = 'metadata';
 	export const agents = 'agents';
+	export const skills = 'skills';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
@@ -307,6 +308,35 @@ export class PromptHeader {
 
 	public get agents(): string[] | undefined {
 		return this.getStringArrayAttribute(PromptHeaderAttributes.agents);
+	}
+
+	/**
+	 * Skills available to this agent (`skills:` frontmatter).
+	 * Supports a YAML sequence or a comma-separated scalar, matching `tools:`.
+	 * `undefined` means all skills; `[]` means none; `['*']` means all.
+	 * When the attribute is present but not a valid string list (e.g. a YAML map),
+	 * returns `[]` (deny-all) rather than `undefined`, so malformed values fail closed.
+	 */
+	public get skills(): string[] | undefined {
+		const skillsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.skills);
+		if (!skillsAttribute) {
+			return undefined;
+		}
+		let value = skillsAttribute.value;
+		if (value.type === 'scalar') {
+			value = parseCommaSeparatedList(value);
+		}
+		if (value.type === 'sequence') {
+			const skills: string[] = [];
+			for (const item of value.items) {
+				if (item.type === 'scalar' && item.value) {
+					skills.push(item.value);
+				}
+			}
+			return skills;
+		}
+		// Attribute present but not a list — fail closed for whitelist semantics.
+		return [];
 	}
 
 	public get userInvocable(): boolean | undefined {

@@ -181,7 +181,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		}
 
 		// Step 4: customizations index text variable.
-		const indexEntry = await this._buildCustomizationsIndex(instructionFiles, tools, modeInstructions2?.allowedSubagents, sessionType, telemetry, token);
+		const indexEntry = await this._buildCustomizationsIndex(instructionFiles, tools, modeInstructions2?.allowedSubagents, modeInstructions2?.allowedSkills, sessionType, telemetry, token);
 		if (indexEntry) {
 			newEntries.push(indexEntry);
 			telemetry.listedInstructionsCount++;
@@ -367,6 +367,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		instructionFiles: readonly vscode.ChatInstruction[],
 		tools: Map<vscode.LanguageModelToolInformation, boolean>,
 		enabledSubagents: readonly string[] | undefined,
+		enabledSkills: readonly string[] | undefined,
 		sessionType: string,
 		telemetry: InstructionsCollectionEvent,
 		token: CancellationToken,
@@ -440,21 +441,31 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			// ── <skills> section (lives inside the readTool branch) ───────
 			const allSkills = await this._promptsService.getSkills(token);
 			const isFileLoggingEnabled = this._configurationService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.ChatDebugFileLogging, this._experimentationService) === true;
-			const modelInvocableSkills = allSkills.filter(skill => {
-				if (!skill.description) {
-					return false;
-				}
-				if (skill.disableModelInvocation) {
-					return false;
-				}
-				if (!matchesSessionType(skill.sessionTypes, sessionType)) {
-					return false;
-				}
-				if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
-					return false;
-				}
-				return true;
-			});
+			const denyAllSkills = enabledSkills !== undefined && enabledSkills.length === 0;
+			const allowAllSkills = enabledSkills === undefined || enabledSkills.includes('*');
+			const allowedSkillNames = (!denyAllSkills && !allowAllSkills && enabledSkills)
+				? new Set(enabledSkills)
+				: undefined;
+			const modelInvocableSkills = denyAllSkills
+				? []
+				: allSkills.filter(skill => {
+					if (!skill.description) {
+						return false;
+					}
+					if (skill.disableModelInvocation) {
+						return false;
+					}
+					if (!matchesSessionType(skill.sessionTypes, sessionType)) {
+						return false;
+					}
+					if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
+						return false;
+					}
+					if (allowedSkillNames && !allowedSkillNames.has(skill.name)) {
+						return false;
+					}
+					return true;
+				});
 			if (modelInvocableSkills.length > 0) {
 				this._logSkillLoadedTelemetry(modelInvocableSkills);
 

@@ -340,6 +340,18 @@ suite('PromptHoverProvider', () => {
 			assert.strictEqual(hover, 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
 		});
 
+		test('hover on skills attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'skills: ["*"]',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'Skills available to this agent. Omit for all skills; use `[]` for none; use `[\'*\']` for all.');
+		});
+
 		test('hover on user-invocable attribute shows description', async () => {
 			const content = [
 				'---',
