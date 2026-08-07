@@ -4760,7 +4760,7 @@ suite('VoiceSessionController', () => {
 		assert.ok(voicePlaybackService.pendingSessions.has(confirmationResource.toString()), 'the confirmation returns to normal panel ownership');
 	});
 
-	test('without omni, focused responses narrate and background responses wait for focus', async () => {
+	test('without omni or a pinned target, focused responses narrate and background responses wait for focus', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const voicePlaybackService = new RecordingVoicePlaybackService();
 		const controller = createController(
@@ -4779,7 +4779,6 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
-		controller.setTargetSession(focusedSession);
 
 		handleStateChange.call(controller, focusedSession.toString(), 'idle', undefined, 'Focused response.', focusedSession.toString());
 		handleStateChange.call(controller, backgroundSession.toString(), 'idle', undefined, 'Background response.', focusedSession.toString());
