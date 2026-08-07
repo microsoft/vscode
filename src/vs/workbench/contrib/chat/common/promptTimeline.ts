@@ -6,14 +6,14 @@
 /** Id of the per-widget contribution that owns the prompt timeline surfaces. */
 export const PROMPT_TIMELINE_CONTRIB_ID = 'chat.promptTimeline';
 
-/** Setting that controls which prompt timeline rail (if any) is shown next to the chat transcript. Agents window only. */
-export const PROMPT_TIMELINE_RAIL_SETTING = 'sessions.promptTimeline.rail';
+/** Setting that controls how the prompt timeline is displayed next to the chat transcript. Agents window only. */
+export const PROMPT_TIMELINE_DISPLAY_SETTING = 'sessions.chatTimeline.display';
 
-/** Setting that controls whether the sticky prompt header pins the current prompt while scrolling. */
-export const PROMPT_TIMELINE_STICKY_HEADER_SETTING = 'chat.promptTimeline.stickyHeader';
+/** Setting that controls whether sticky scroll pins the current prompt while scrolling. */
+export const PROMPT_TIMELINE_STICKY_SCROLL_SETTING = 'chat.stickyScroll.enabled';
 
 /**
- * The rail styles the {@link PROMPT_TIMELINE_RAIL_SETTING} can select:
+ * The display styles the {@link PROMPT_TIMELINE_DISPLAY_SETTING} can select:
  * - `off` — no rail.
  * - `ruler` — an overview-ruler beside the transcript scrollbar that fans into prompt pills.
  * - `dock` — a minimal three-dot handle on the transcript's left edge that opens a prompt list on hover.

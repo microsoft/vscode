@@ -47,7 +47,7 @@ let dockIdSeq = 0;
  * reached with Arrow/Home/End and dismissed with Escape.
  *
  * It implements the same {@link IPromptTimelineRail} contract as the overview-ruler rail so the two
- * are interchangeable behind the `sessions.promptTimeline.rail` setting; the scroll-driven and
+ * are interchangeable behind the `sessions.chatTimeline.display` setting; the scroll-driven and
  * fisheye affordances the ruler needs (hard-wheel bloom, proportional scroll layout) are no-ops here.
  */
 export class PromptTimelineDockRail extends Disposable implements IPromptTimelineRail {
