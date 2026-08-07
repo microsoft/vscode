@@ -14,12 +14,12 @@ export interface ILocalizedString {
 	/**
 	 * The localized value of the string.
 	 */
-	value: string;
+	readonly value: string;
 
 	/**
 	 * The original (non localized value of the string)
 	 */
-	original: string;
+	readonly original: string;
 }
 
 export function isLocalizedString(thing: unknown): thing is ILocalizedString {
@@ -72,7 +72,7 @@ export interface ICommandActionSource {
 
 export interface ICommandAction {
 	id: string;
-	title: string | ICommandActionTitle;
+	readonly title: string | ICommandActionTitle;
 	shortTitle?: string | ICommandActionTitle;
 	/**
 	 * Metadata about this command, used for:
