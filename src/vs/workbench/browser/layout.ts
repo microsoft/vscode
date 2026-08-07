@@ -12,7 +12,7 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -102,6 +102,9 @@ enum LayoutClasses {
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	ACTIVITYBAR_HIDDEN = 'noactivitybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
+	// Set when no grid row sits above the middle section (both the title bar and the
+	// banner are hidden), so the floating cards abut the top window edge.
+	TOP_WINDOW_EDGE = 'top-window-edge',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
@@ -110,9 +113,10 @@ enum LayoutClasses {
 	// Presentation class for the Modern UI Update experiment, owned/toggled at
 	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
 	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
-	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
-	// height) via `.closest('.style-override')`.
-	STYLE_OVERRIDE = 'style-override'
+	// the 32px vs 35px part title height in `PartLayout`).
+	STYLE_OVERRIDE = 'style-override',
+	// Module-specific gate shared with the Agents workbench.
+	MODERN_UI_TABS = 'modern-ui-tabs'
 }
 
 interface IPathToOpen extends IPath {
@@ -1697,6 +1701,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 		}
 
+		// The floating cards abut the top window edge only while neither of the two grid rows
+		// above the middle section is showing, so track both rather than the title bar alone.
+		this._register(this.onDidChangePartVisibility(({ partId }) => {
+			if (partId === Parts.TITLEBAR_PART || partId === Parts.BANNER_PART) {
+				this.updateTopWindowEdgeClass();
+			}
+		}));
+
 		this._register(this.storageService.onWillSaveState(() => {
 
 			// Side Bar Size
@@ -1911,11 +1923,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
+			isFloatingTopEdgeExposed(this, mainWindow) ? LayoutClasses.TOP_WINDOW_EDGE : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
 			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
 			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI_TABS : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`
 		]);
@@ -2362,6 +2376,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
+	}
+
+	private updateTopWindowEdgeClass(): void {
+		this.mainContainer.classList.toggle(LayoutClasses.TOP_WINDOW_EDGE, isFloatingTopEdgeExposed(this, mainWindow));
 	}
 
 	toggleMenuBar(): void {

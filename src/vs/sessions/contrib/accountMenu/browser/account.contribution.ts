@@ -44,7 +44,7 @@ import { IAuthenticationUsageService } from '../../../../workbench/services/auth
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createCodexAccountMenuActions, ICodexAccountService, shouldShowCodexAccount } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
+import { createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -52,6 +52,8 @@ import { AICustomizationManagementSection } from '../../../../workbench/contrib/
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
+import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -63,16 +65,12 @@ const PERSONALIZE_ACTION_IDS: readonly string[] = [
 ];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
 const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
+const accountDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
+const accountTimeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 
-// Register the shared VS Code update title bar entry into the Agents titlebar layout.
-// Placed as the first (leftmost) item of the leftmost right-cluster container so that, in
-// the right-aligned title bar, the update button grows into the empty space on its left
-// when it appears and every other control (session toggles, account widget) stays anchored
-// and doesn't shift.
-registerUpdateTitleBarMenuPlacement(Menus.TitleBarSessionMenu, {
+// Register the shared VS Code update entry at the trailing edge of the Agents titlebar.
+registerUpdateTitleBarMenuPlacement(Menus.TitleBarUpdate, {
 	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
-	group: 'navigation',
-	order: -1,
 });
 
 // Sign In (shown when signed out)
@@ -215,7 +213,16 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.renderState()));
-		this._register(this.codexAccountService.onDidChangeAccount(() => this.renderState()));
+		this._register(this.codexAccountService.onDidChangeAccount(() => {
+			this.clickPanelDisposable.clear();
+			this.renderState();
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(AgentHostCodexAgentEnabledSettingId) || event.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.clickPanelDisposable.clear();
+				this.renderState();
+			}
+		}));
 		// A type becoming usable/unusable without GitHub, or toggling the opt-in,
 		// can flip the signed-out affordance between the calm and alarming states.
 		this._register(runOnChange(this.usableWithoutGitHub, () => this.renderState()));
@@ -323,7 +330,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
 		this.iconElement.classList.toggle('hidden', hasLoadedAvatar);
-		const hasChatGPTAccount = this.codexAccountService.account.status === 'signedIn';
+		const hasChatGPTAccount = hasSignedInCodexChatGPTAccount(
+			this.codexAccountService.account,
+			shouldShowCodexAccount(this.configurationService, true),
+		);
 		this.container.classList.toggle('has-chatgpt-account', hasChatGPTAccount);
 		this.codexIconElement.classList.toggle('visible', hasChatGPTAccount);
 		this.labelElement.textContent = '';
@@ -464,15 +474,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		menu.dispose();
 		const codexAccount = this.codexAccountService.account;
 		const codexAccountVisible = shouldShowCodexAccount(this.configurationService, true);
-		const codexAccountActions = codexAccount.status === 'signedIn' ? [] : createCodexAccountMenuActions(this.codexAccountService, codexAccountVisible);
-		if (codexAccountActions.length) {
-			if (rawActions.length) {
-				rawActions.push(new Separator());
-			}
-			for (const action of codexAccountActions) {
-				rawActions.push(action instanceof Action ? panelStore.add(action) : action);
-			}
-		}
 		const partitioned = this.partitionMenuActions(rawActions);
 
 		const identities = append(panel, $('.sessions-account-titlebar-panel-identities'));
@@ -525,7 +526,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			this.appendCopilotUsage(copilotAccount, panelStore);
 		}
 
-		if (codexAccountVisible && codexAccount.status === 'signedIn') {
+		if (hasSignedInCodexChatGPTAccount(codexAccount, codexAccountVisible)) {
 			const accountSection = append(identities, $('section.sessions-account-titlebar-panel-provider-account', {
 				'aria-label': localize('chatGPTAccountSectionLabel', "ChatGPT account")
 			}));
@@ -565,6 +566,25 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				() => this.codexAccountService.signOut(),
 			)), { icon: true, label: false });
 			this.appendChatGPTUsage(accountSection);
+		} else {
+			const codexAccountActions = createCodexAccountMenuActions(this.codexAccountService, codexAccountVisible);
+			if (codexAccountActions.length) {
+				const accountSection = append(identities, $('section.sessions-account-titlebar-panel-provider-account.signed-out', {
+					'aria-label': localize('chatGPTAccountSectionLabel', "ChatGPT account")
+				}));
+				const accountIdentity = append(accountSection, $('.sessions-account-titlebar-panel-provider-identity'));
+				const accountIcon = append(accountIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
+				accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
+				const signInActions = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
+				const signInActionBar = panelStore.add(new ActionBar(signInActions));
+				panelStore.add(signInActionBar.onWillRun(() => {
+					this.hoverService.hideHover(true);
+					this.clickPanelDisposable.clear();
+				}));
+				for (const action of codexAccountActions) {
+					signInActionBar.push(action instanceof Action ? panelStore.add(action) : action, { icon: false, label: true });
+				}
+			}
 		}
 
 		if (this.shouldShowCopilotDashboardHover()) {
@@ -615,21 +635,38 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		if (quota && !quota.unlimited) {
 			const usedPercentage = Math.max(0, Math.floor(100 - quota.percentRemaining));
 			const usageValue = append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', { tabIndex: 0 }));
-			const percentageLabel = localize('copilotCreditsUsedPercentage', "{0}% credits used", usedPercentage);
+			const percentageLabel = localize('copilotCreditsUsedPercentageValue', "{0}%", usedPercentage);
+			const percentageAriaLabel = localize('copilotCreditsUsedPercentage', "{0}% credits used", usedPercentage);
 			usageValue.textContent = percentageLabel;
+			usageValue.setAttribute('aria-label', percentageAriaLabel);
 			if (quota.entitlement) {
 				const formatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 				const used = quota.creditsUsed ?? (quota.quotaRemaining !== undefined
 					? quota.entitlement - quota.quotaRemaining
 					: quota.entitlement * (100 - quota.percentRemaining) / 100);
-				const creditsLabel = localize('copilotCreditsUsedRatio', "{0} / {1} credits used", formatter.value.format(used), formatter.value.format(quota.entitlement));
-				const showCredits = () => usageValue.textContent = creditsLabel;
-				const showPercentage = () => usageValue.textContent = percentageLabel;
+				const creditsValue = localize('copilotCreditsUsedRatioValue', "{0} / {1}", formatter.value.format(used), formatter.value.format(quota.entitlement));
+				const creditsAriaLabel = localize('copilotCreditsUsedRatio', "{0} / {1} credits used", formatter.value.format(used), formatter.value.format(quota.entitlement));
+				const showCredits = () => {
+					usageValue.textContent = creditsValue;
+					usageValue.setAttribute('aria-label', creditsAriaLabel);
+				};
+				const showPercentage = () => {
+					usageValue.textContent = percentageLabel;
+					usageValue.setAttribute('aria-label', percentageAriaLabel);
+				};
 				panelStore.add(addDisposableListener(usageValue, EventType.MOUSE_ENTER, showCredits));
 				panelStore.add(addDisposableListener(usageValue, EventType.MOUSE_LEAVE, showPercentage));
 				panelStore.add(addDisposableListener(usageValue, EventType.FOCUS, showCredits));
 				panelStore.add(addDisposableListener(usageValue, EventType.BLUR, showPercentage));
 			}
+			const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
+			const resetLabel = this.getCopilotResetLabel(quota.resetAt);
+			if (resetLabel) {
+				append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, resetLabel));
+			} else {
+				detailRow.classList.add('without-reset');
+			}
+			append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('copilotCreditsUsedLabel', "Credits used")));
 		}
 	}
 
@@ -645,17 +682,37 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 		const percentageFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 });
 		const usedPercentage = percentageFormatter.value.format(account.rateLimit.usedPercent);
-		let usageLabel = localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage);
+		append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-value', {
+			'aria-label': localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage),
+		}, localize('chatGPTLimitUsedPercentageValue', "{0}%", usedPercentage)));
+		const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
 		if (account.rateLimit.resetsAt) {
-			usageLabel = localize(
-				'chatGPTLimitUsedPercentageWithReset',
-				"{0}% used · {1} resets {2}",
-				usedPercentage,
+			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, localize(
+				'chatGPTLimitReset',
+				"{0} resets {1}",
 				this.getChatGPTLimitLabel(account.rateLimit.windowDurationMins),
 				fromNow(account.rateLimit.resetsAt * 1000, false, true),
-			);
+			)));
+		} else {
+			detailRow.classList.add('without-reset');
 		}
-		append(planRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, usageLabel));
+		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('chatGPTLimitUsedLabel', "Limit used")));
+	}
+
+	private getCopilotResetLabel(resetAt: number | undefined): string | undefined {
+		if (resetAt) {
+			const resetDate = new Date(resetAt * 1000);
+			return localize('copilotCreditsResetAt', "Resets {0} at {1}", accountDateFormatter.value.format(resetDate), accountTimeFormatter.value.format(resetDate));
+		}
+
+		const { resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
+		if (!resetDate) {
+			return undefined;
+		}
+		const date = new Date(resetDate);
+		return resetDateHasTime
+			? localize('copilotCreditsResetAt', "Resets {0} at {1}", accountDateFormatter.value.format(date), accountTimeFormatter.value.format(date))
+			: localize('copilotCreditsReset', "Resets {0}", accountDateFormatter.value.format(date));
 	}
 
 	private getChatGPTLimitLabel(windowDurationMins: number | undefined): string {

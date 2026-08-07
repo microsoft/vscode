@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Color } from '../../../../../../base/common/color.js';
+import { Color, HSLA } from '../../../../../../base/common/color.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
@@ -78,9 +78,21 @@ suite('VoiceGlow', () => {
 			},
 			{
 				dark: { mic: '202.0 96% 56%', voiceMode: '202.0 96% 56%' },
-				light: { mic: '202.0 96% 72%', voiceMode: '202.0 96% 72%' },
+				light: { mic: '202.0 41% 52%', voiceMode: '202.0 41% 52%' },
 				washedOut: { mic: '197.0 70% 56%', voiceMode: '197.0 70% 56%' },
 			}
 		);
+	});
+
+	test('the active rim keeps non-text contrast against custom input backgrounds', () => {
+		const accent = Color.fromHex('#7A8B99');
+		for (const [kind, background] of [
+			['light', Color.fromHex('#FAFAFA')],
+			['dark', Color.fromHex('#242424')],
+		] as const) {
+			const rim = resolveVoiceRimAccent(accent, 'cool', kind, background);
+			const rimColor = new Color(new HSLA(rim.hue, rim.saturation / 100, rim.lightness / 100, 1));
+			assert.ok(background.getContrastRatio(rimColor) >= 3, `${kind} rim contrast was ${background.getContrastRatio(rimColor)}`);
+		}
 	});
 });

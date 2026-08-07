@@ -34,11 +34,15 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
 			navigation: helpText.includes('use the up and down arrow keys to choose'),
-			actions: helpText.includes('Go on the Run') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			petMovement: helpText.includes('Drag it around the chat') && helpText.includes('use the arrow keys to move it'),
+			petRevival: helpText.includes('automatically returns to the input'),
 		}, {
 			keybinding: true,
 			navigation: true,
 			actions: true,
+			petMovement: true,
+			petRevival: true,
 		});
 	});
 

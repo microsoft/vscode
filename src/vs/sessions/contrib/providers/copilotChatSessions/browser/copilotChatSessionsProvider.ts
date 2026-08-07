@@ -1549,9 +1549,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * the agent-host implementation in via `chat.agents.claude.preferAgentHost`.
 	 * When the latter is true, the agent host registers Claude itself and this
 	 * provider stays out of the way so the picker shows a single entry. Stepping
-	 * aside only makes sense when the agent host is enabled to register Claude in
-	 * its place, so the preference is not respected unless `chat.agentHost.enabled`
-	 * is also on.
+	 * aside only makes sense when the agent host runtime is available to register
+	 * Claude in its place.
 	 */
 	private _isClaudeAvailable(): boolean {
 		const claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING) ?? false;
@@ -1565,20 +1564,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return true;
 	}
 
-	/**
-	 * The Extension Host Copilot CLI is offered by this provider unless the user
-	 * has hidden it via `chat.agents.copilotCli.hideExtensionHost`, in which case
-	 * the Agents window picker only surfaces the Agent Host Copilot CLI entry.
-	 * Hiding it only makes sense when the agent host is enabled to surface the
-	 * Agent Host Copilot CLI in its place, so the setting is not respected unless
-	 * `chat.agentHost.enabled` is also on.
-	 */
 	private _isCopilotCliAvailable(): boolean {
-		const hideExtensionHost = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
-		if (this.agentHostEnablementService.enabled.get() && hideExtensionHost) {
-			return false;
-		}
-		return true;
+		return !this.agentHostEnablementService.enabled.get();
 	}
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
@@ -1608,8 +1595,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			const affectsSessionTypes = e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)
-				|| e.affectsConfiguration(ClaudePreferAgentHostAgentsSettingId)
-				|| e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents);
+				|| e.affectsConfiguration(ClaudePreferAgentHostAgentsSettingId);
 			if (!affectsSessionTypes) {
 				return;
 			}

@@ -149,6 +149,14 @@ export abstract class BaseLayoutController extends Disposable {
 		return WORKING_SETS_STORAGE_KEY;
 	}
 
+	protected get _isEditorPartVisibilityPerSession(): boolean {
+		return true;
+	}
+
+	protected get _isViewStatePerSession(): boolean {
+		return true;
+	}
+
 	constructor(
 
 		@IAgentWorkbenchLayoutService protected readonly _layoutService: IAgentWorkbenchLayoutService,
@@ -200,7 +208,9 @@ export abstract class BaseLayoutController extends Disposable {
 				if (!session) {
 					continue;
 				}
-				this._viewStateBySession.delete(session.resource);
+				if (this._isViewStatePerSession) {
+					this._viewStateBySession.delete(session.resource);
+				}
 				this._panelVisibilityBySession.delete(session.resource);
 			}
 		}));
@@ -238,7 +248,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// during a session-switch restore (those changes are layout-driven, not
 		// user choices).
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
-			if (e.partId !== Parts.EDITOR_PART || this._isRestoringSessionLayout) {
+			if (!this._isEditorPartVisibilityPerSession || e.partId !== Parts.EDITOR_PART || this._isRestoringSessionLayout) {
 				return;
 			}
 			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
@@ -327,12 +337,6 @@ export abstract class BaseLayoutController extends Disposable {
 
 		this._register(this._layoutService.onWillToggleSidePane(() => {
 			this._togglingSidePane = true;
-		}));
-		this._register(this._layoutService.onDidRevealSidePane(() => {
-			if (this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
-				&& !this._editorGroupsService.groups.some(group => !group.isEmpty)) {
-				this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
-			}
 		}));
 		this._register(this._layoutService.onDidToggleSidePane(({ before, after }) => {
 			try {
@@ -432,6 +436,9 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerViewStateManagement(): void { }
 
 	protected _onSessionReplaced(from: ISession, to: ISession): void {
+		if (!this._isEditorPartVisibilityPerSession) {
+			return;
+		}
 		// `onDidReplaceSession` fires only when an untitled draft is atomically
 		// replaced by its committed session on submit, so it always means "the
 		// committed session inherits the draft's on-screen side-pane layout".
@@ -565,10 +572,10 @@ export abstract class BaseLayoutController extends Disposable {
 					if (entry.editorWorkingSet) {
 						this._workingSets.set(resource, entry.editorWorkingSet);
 					}
-					if (entry.editorPartHidden !== undefined) {
+					if (this._isEditorPartVisibilityPerSession && entry.editorPartHidden !== undefined) {
 						this._editorPartHiddenBySession.set(resource, entry.editorPartHidden);
 					}
-					if (entry.viewState) {
+					if (this._isViewStatePerSession && entry.viewState) {
 						this._viewStateBySession.set(resource, entry.viewState);
 					}
 				}
@@ -625,8 +632,12 @@ export abstract class BaseLayoutController extends Disposable {
 		// Collect all session resources across all maps
 		const allResources = new ResourceMap<true>();
 		this._workingSets.forEach((_, r) => allResources.set(r, true));
-		this._viewStateBySession.forEach((_, r) => allResources.set(r, true));
-		this._editorPartHiddenBySession.forEach((_, r) => allResources.set(r, true));
+		if (this._isViewStatePerSession) {
+			this._viewStateBySession.forEach((_, r) => allResources.set(r, true));
+		}
+		if (this._isEditorPartVisibilityPerSession) {
+			this._editorPartHiddenBySession.forEach((_, r) => allResources.set(r, true));
+		}
 
 		if (allResources.size === 0) {
 			this._storageService.remove(this._layoutStateStorageKey, StorageScope.WORKSPACE);
@@ -638,8 +649,8 @@ export abstract class BaseLayoutController extends Disposable {
 			entries.push({
 				sessionResource: resource.toString(),
 				editorWorkingSet: this._workingSets.get(resource),
-				viewState: this._viewStateBySession.get(resource),
-				editorPartHidden: this._editorPartHiddenBySession.get(resource),
+				viewState: this._isViewStatePerSession ? this._viewStateBySession.get(resource) : undefined,
+				editorPartHidden: this._isEditorPartVisibilityPerSession ? this._editorPartHiddenBySession.get(resource) : undefined,
 			});
 		});
 		this._storageService.store(this._layoutStateStorageKey, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -694,7 +705,9 @@ export abstract class BaseLayoutController extends Disposable {
 			// draft→committed submit records the draft's editor-part visibility onto
 			// the committed session (see `_onSessionReplaced`), so this restores the
 			// submitted layout too.
-			const editorPartHidden = sessionResource ? this._editorPartHiddenBySession.get(sessionResource) === true : false;
+			const editorPartHidden = this._isEditorPartVisibilityPerSession && sessionResource
+				? this._editorPartHiddenBySession.get(sessionResource) === true
+				: false;
 			const revealEditorPart = !options?.isInitialRestore
 				&& this._shouldRevealEditorPartOnApply(editorPartHidden, isModal);
 			// Restore a session that had its (docked) editor part closed by actively
@@ -716,11 +729,8 @@ export abstract class BaseLayoutController extends Disposable {
 
 			// On the initial restore after a reload, preserve the editor part
 			// visibility that the workbench already restored. Single-pane is the
-			// exception: its per-session editor-part visibility is authoritative and
-			// persisted, so a Detail-only (or whole-side-pane-closed) session must be
-			// restored with its editor hidden rather than left visible if the
-			// workbench (or an init-time width sync) revealed it. `_shouldHideEditorPartOnApply`
-			// returns `false` for the classic layout, so this is a no-op there.
+			// Layouts may opt into an authoritative editor-hidden restore through
+			// `_shouldHideEditorPartOnApply`; the classic and single-pane layouts do not.
 			if (options?.isInitialRestore) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {

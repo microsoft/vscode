@@ -9,11 +9,14 @@ import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js'
 import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
+import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
+import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
 import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import type { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -39,7 +42,11 @@ export type IAgentHostExecutionModeChangedClassification = {
 
 export interface IAgentHostUserMessageSentEvent {
 	provider: string;
+	hostLaunchKind: AgentHostLaunchKind;
+	initiatorClientId: string | undefined;
 	initiatorClientType: AgentHostClientType;
+	initiatorConnectionKind: AgentHostClientConnectionKind;
+	initiatorTransportKind: AgentHostTransportKind;
 	agentSessionId: string;
 	source: AgentHostUserMessageSentSource;
 	isSubagentSession: boolean;
@@ -52,7 +59,11 @@ export interface IAgentHostUserMessageSentEvent {
 
 export type IAgentHostUserMessageSentClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
+	initiatorClientId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The opaque AHP client identifier that initiated the user message.' };
 	initiatorClientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of AHP client that initiated the user message.' };
+	initiatorConnectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The route the initiating client declared it used to reach the agent host.' };
+	initiatorTransportKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The physical transport on which the agent host received the initiating client action.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user message was sent directly or from the queued-message flow.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
@@ -65,6 +76,61 @@ export type IAgentHostUserMessageSentClassification = {
 	comment: 'Tracks user messages sent from the agent host process to an agent provider.';
 };
 
+export type AgentHostClientConnectionAction = 'connected' | 'disconnected';
+
+export interface IAgentHostClientConnectionEvent {
+	action: AgentHostClientConnectionAction;
+	hostLaunchKind: AgentHostLaunchKind;
+	clientId: string;
+	clientType: AgentHostClientType;
+	clientImplementationName: string | undefined;
+	clientImplementationVersion: string | undefined;
+	connectionKind: AgentHostClientConnectionKind;
+	transportKind: AgentHostTransportKind;
+	protocolVersion: string;
+	isReconnect: boolean;
+	connectedClientCount: number;
+	connectedTransportCount: number;
+	clientTransportCount: number;
+	connectionDurationMs: number | undefined;
+	subscriptionCount: number | undefined;
+}
+
+export type IAgentHostClientConnectionClassification = {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an initialized AHP client transport connected or disconnected.' };
+	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
+	clientId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The opaque AHP client identifier.' };
+	clientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded type of the connected AHP client.' };
+	clientImplementationName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The implementation name declared by the AHP client.' };
+	clientImplementationVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The implementation version declared by the AHP client.' };
+	connectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The route the client declared it used to reach the agent host.' };
+	transportKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The physical transport accepted by the agent host.' };
+	protocolVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The negotiated AHP protocol version.' };
+	isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this client identifier was previously known to the agent host.' };
+	connectedClientCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of logical AHP clients with at least one live transport after this lifecycle change.' };
+	connectedTransportCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of live initialized AHP transports after this lifecycle change.' };
+	clientTransportCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of live initialized transports for this client after this lifecycle change.' };
+	connectionDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The duration of the disconnected transport in milliseconds.' };
+	subscriptionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of protocol subscriptions held by the client transport when it disconnected.' };
+	owner: 'roblourens';
+	comment: 'Tracks initialized Agent Host client connection topology and lifecycle.';
+};
+
+export interface IAgentHostClientConnectionReport {
+	action: AgentHostClientConnectionAction;
+	context: IAgentHostClientTelemetryContext;
+	clientId: string;
+	clientImplementationName: string | undefined;
+	clientImplementationVersion: string | undefined;
+	protocolVersion: string;
+	isReconnect: boolean;
+	connectedClientCount: number;
+	connectedTransportCount: number;
+	clientTransportCount: number;
+	connectionDurationMs?: number;
+	subscriptionCount?: number;
+}
+
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
@@ -73,6 +139,7 @@ export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'mod
 export interface IAgentHostTurnCompletedEvent {
 	provider: string;
 	agentSessionId: string;
+	chatSessionId: string;
 	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
@@ -87,6 +154,7 @@ export interface IAgentHostTurnCompletedEvent {
 export type IAgentHostTurnCompletedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
@@ -103,11 +171,14 @@ export type IAgentHostTurnCompletedClassification = {
 export interface IAgentHostTurnFailedEvent {
 	provider: string;
 	agentSessionId: string;
+	chatSessionId: string;
 	turnId: string;
 	failureStage: AgentHostTurnFailureStage;
 	errorType: string;
 	errorName: string | undefined;
 	errorCode: string | undefined;
+	providerCallId: string | undefined;
+	serviceRequestId: string | undefined;
 	msg: string;
 	callstack: string | undefined;
 }
@@ -115,11 +186,14 @@ export interface IAgentHostTurnFailedEvent {
 export type IAgentHostTurnFailedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the failed agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the failed turn within the agent host session.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
+	providerCallId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The GitHub provider request identifier, when available.' };
+	serviceRequestId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot service request identifier, when available.' };
 	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
@@ -154,6 +228,7 @@ export interface IAgentHostToolInvokedReport {
 	turnId: string;
 	toolId: string;
 	toolSourceKind: string;
+	toolCallId: string;
 	result: ToolInvokedResult;
 	invocationTimeMs?: number;
 	resultSizeInCharacters: number;
@@ -473,13 +548,17 @@ export class AgentHostTelemetryReporter {
 		});
 	}
 
-	userMessageSent(provider: string, clientType: AgentHostClientType, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
+	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
 		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			provider,
-			initiatorClientType: clientType,
+			hostLaunchKind: clientContext.hostLaunchKind,
+			initiatorClientId: clientId,
+			initiatorClientType: clientContext.clientType,
+			initiatorConnectionKind: clientContext.connectionKind,
+			initiatorTransportKind: clientContext.transportKind,
 			agentSessionId: AgentSession.id(sessionUri),
 			source,
 			isSubagentSession: isSubagentSession(sessionUri),
@@ -490,6 +569,26 @@ export class AgentHostTelemetryReporter {
 				activeClientCustomizationCount: activeClients.reduce((sum, client) => sum + (client.customizations?.length ?? 0), 0),
 			} : {}),
 			attachmentCount,
+		});
+	}
+
+	clientConnection(report: IAgentHostClientConnectionReport): void {
+		this._telemetryService.publicLog2<IAgentHostClientConnectionEvent, IAgentHostClientConnectionClassification>('agentHost.clientConnection', {
+			action: report.action,
+			hostLaunchKind: report.context.hostLaunchKind,
+			clientId: report.clientId,
+			clientType: report.context.clientType,
+			clientImplementationName: report.clientImplementationName,
+			clientImplementationVersion: report.clientImplementationVersion,
+			connectionKind: report.context.connectionKind,
+			transportKind: report.context.transportKind,
+			protocolVersion: report.protocolVersion,
+			isReconnect: report.isReconnect,
+			connectedClientCount: report.connectedClientCount,
+			connectedTransportCount: report.connectedTransportCount,
+			clientTransportCount: report.clientTransportCount,
+			connectionDurationMs: report.connectionDurationMs,
+			subscriptionCount: report.subscriptionCount,
 		});
 	}
 
@@ -778,10 +877,12 @@ export class AgentHostTelemetryReporter {
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const chatSessionId = getTelemetryChatSessionId(report.session);
 		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
+			chatSessionId,
 			turnId: report.turnId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
@@ -793,14 +894,18 @@ export class AgentHostTelemetryReporter {
 			failureStage: report.failure?.stage,
 		});
 		if (report.failure) {
+			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);
 			this._telemetryService.publicLogError2<IAgentHostTurnFailedEvent, IAgentHostTurnFailedClassification>('agentHost.turnFailed', {
 				provider: report.provider,
 				agentSessionId: AgentSession.id(session),
+				chatSessionId,
 				turnId: report.turnId,
 				failureStage: report.failure.stage,
 				errorType: report.failure.error.errorType,
 				errorName: report.failure.errorName,
 				errorCode: report.failure.errorCode,
+				providerCallId,
+				serviceRequestId,
 				msg: report.failure.error.message,
 				callstack: report.failure.errorStack ?? report.failure.error.stack,
 			});
@@ -818,6 +923,7 @@ export class AgentHostTelemetryReporter {
 			toolId: report.toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
+			toolCallId: report.toolCallId,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
 			resultSizeInCharacters: report.resultSizeInCharacters,

@@ -20,6 +20,10 @@
 	--segmented-icon-toggle-cell-radius: var(--vscode-cornerRadius-circle);
 }
 
+.monaco-segmented-icon-toggle-container.chat-voice-input-mode-item.single:has(.dictation.preparing) .monaco-segmented-icon-toggle {
+	border-color: var(--vscode-input-border, var(--vscode-editorWidget-border));
+}
+
 /* Walkthrough-only simulated hover mirrors the real :hover preview from the generic chrome. */
 .chat-voice-input-mode-cell.sim-hover::before {
 	background: var(--vscode-toolbar-hoverBackground, transparent);

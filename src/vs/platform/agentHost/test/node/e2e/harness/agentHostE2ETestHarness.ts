@@ -19,7 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
-	ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
+	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -27,7 +27,7 @@ import { TerminalClaimKind } from '../../../../common/state/protocol/channels-te
 import {
 	ActionType,
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
-	type ChatToolCallCompleteAction, type ChatToolCallStartAction,
+	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
@@ -263,6 +263,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * `Bash` for Claude.)
 	 */
 	readonly shellToolName: string;
+	/** How file-operation scenarios should drive this provider. */
+	readonly fileOperationStrategy: 'fileTools' | 'shell';
 	/**
 	 * Tool names the provider uses to dispatch a subagent. The first entry
 	 * is used in the subagent-routing prompt; all entries are exempted from
@@ -278,6 +280,32 @@ export interface IAgentHostE2EProviderConfig {
 	readonly exitPlanModeToolName: string;
 	/** File-creation tool that exposes model-generated argument deltas, when supported. */
 	readonly streamingFileCreateToolName?: string;
+	/** Alternate model used to verify a client-selected model reaches the provider. */
+	readonly modelSwitchTarget?: string;
+	/** Model used to switch an already-running provider session a second time. */
+	readonly modelSwitchReturnTarget?: string;
+	/** Provider-specific prompt that reliably triggers one interactive input request. */
+	readonly interactiveInputPrompt?: string;
+	/** Provider-specific prompt that expects a cancelled interactive input request. */
+	readonly cancelledInputPrompt?: string;
+	/** Provider-specific prompt that triggers a freeform text input request. */
+	readonly textInputPrompt?: string;
+	/** Provider-specific prompt that triggers a multi-select input request. */
+	readonly multiSelectInputPrompt?: string;
+	/** Provider supports a session with no working directory through the full model path. */
+	readonly supportsWorkspacelessE2E?: boolean;
+	/** Provider exposes runtime slash commands through AHP completions after materialization. */
+	readonly supportsRuntimeSlashCommandsE2E?: boolean;
+	/** Provider supports shared default-chat attachment scenarios. */
+	readonly supportsAttachmentsE2E?: boolean;
+	/** Provider supports truncating a materialized conversation and continuing. */
+	readonly supportsTruncateE2E?: boolean;
+	/** Provider supports worktree include-file materialization in deterministic replay. */
+	readonly supportsWorktreeIncludeFilesE2E?: boolean;
+	/** Provider can deterministically replay cancellation while paused on input or approval. */
+	readonly supportsPausedTurnCancellationE2E?: boolean;
+	/** Provider's denied file-creation flow mutates the workspace during replay on Linux. */
+	readonly fileToolDenialReplayUnstableOnLinux?: boolean;
 	/**
 	 * Whether the suite should be enabled. Returning false skips the suite
 	 * entirely (mirrors `suite.skip(...)`).
@@ -322,28 +350,6 @@ export interface IAgentHostE2EProviderConfig {
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
-	/**
-	 * Whether this provider offers file-reading/writing tools of its own.
-	 *
-	 * Scenarios whose prompt steers the agent to its file tools ("Use your file
-	 * tools; do not run a shell command.") cannot be satisfied by a provider
-	 * that only has a shell: it refuses the operation rather than falling back.
-	 * Codex is the current example — its captures contain only `exec_command`.
-	 *
-	 * Scenarios that pin a portable shell command instead are unaffected.
-	 */
-	readonly supportsFileTools: boolean;
-	/**
-	 * Whether this provider's file-manipulation scenarios replay stably when the
-	 * whole suite shares one server.
-	 *
-	 * A provider without file tools performs each of them through its shell, and
-	 * several such turns on one long-lived server hit the shared-server load
-	 * ceiling: the tool-call completion is reported inconsistently and the
-	 * failing scenario moves between runs. Individually they replay fine, so
-	 * this gates the family rather than any single test.
-	 */
-	readonly stableSharedServerFileScenarios?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -507,7 +513,24 @@ export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient
 	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
 }
 
-async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void): Promise<IDrivenTurnResult> {
+export async function driveTurnWithModelToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, model: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => c.dispatch({
+		channel: buildDefaultChatUri(session),
+		clientSeq,
+		action: {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text, origin: { kind: MessageKind.User }, model: { id: model } },
+		},
+	}));
+}
+
+export async function driveTurnWithCancelledInputToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
+}
+
+async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
@@ -537,7 +560,8 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 		seenNotifications.add(notification as object);
 
 		if (isActionNotification(notification, 'chat/error')) {
-			throw new Error(`Session error while driving ${turnId}`);
+			const action = getActionEnvelope(notification).action as ChatErrorAction;
+			throw new Error(`Session error while driving ${turnId}: ${action.error.errorType}: ${action.error.message}`);
 		}
 
 		if (isActionNotification(notification, 'chat/toolCallReady')) {
@@ -568,8 +592,8 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 				action: {
 					type: ActionType.ChatInputCompleted,
 					requestId: action.request.id,
-					response: ChatInputResponseKind.Accept,
-					answers: getAcceptedAnswers(action.request),
+					response: inputResponse,
+					answers: inputResponse === ChatInputResponseKind.Accept ? getAcceptedAnswers(action.request) : undefined,
 				},
 			});
 			continue;
@@ -722,7 +746,7 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 				}
 				const matchingRule = options.allow.find(rule =>
 					rule.toolName === toolName
-					&& (rule.matchInput?.(action.toolInput) ?? true));
+					&& (rule.matchInput?.(getInlineToolInput(action.toolInput)) ?? true));
 
 				if (!matchingRule) {
 					errors.push(`unexpected tool call: toolName=${toolName ?? '<unknown>'} input=${JSON.stringify(action.toolInput)}`);

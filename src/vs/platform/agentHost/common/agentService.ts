@@ -16,6 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -1276,11 +1277,11 @@ export interface IAgentChats {
 	disposeChat(chat: URI): Promise<void>;
 
 	/**
-	 * Send a user message into `chat`; on first send, the host passes the resolved
-	 * working directories (index 0 = the process root / resolved worktree, followed
-	 * by any additional roots). `undefined` for workspace-less sessions. Providers
-	 * launch their subprocess in index 0; the full set is recorded in the
-	 * materialization receipt.
+	 * Send a user message into `chat`. On every send, the host passes the complete
+	 * resolved, ordered working-directory snapshot (index 0 = the process root /
+	 * resolved worktree, followed by any additional roots), or `undefined` for
+	 * workspace-less sessions. Providers must make that snapshot effective before
+	 * the prompt enters their runtime.
 	 */
 	sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
@@ -1384,7 +1385,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
@@ -1603,6 +1604,15 @@ export interface IAgent {
 	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
 
 	/**
+	 * Fires (debounced) when the provider's on-disk session set may have changed
+	 * out of band (e.g. a legacy Copilot CLI session was created by the extension
+	 * host while the window is open). The {@link IAgentService} responds by
+	 * announcing any adoptable-legacy sessions not yet known to clients. Optional:
+	 * providers that cannot detect out-of-band changes omit it.
+	 */
+	readonly onDidChangeSessionList?: Event<void>;
+
+	/**
 	 * Provides the agent host's server-tool host so the provider can advertise
 	 * and execute the agent host's server tools (feedback "comments" today, more
 	 * in the future) against a session's state. Optional: providers that do not
@@ -1628,8 +1638,22 @@ export interface IAgent {
 	/** Create a new session. Host-owned worktree fields are omitted from `config.config`. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
+	/**
+	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
+	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
+	 * no agent-host metadata yet, seed that metadata in place — reusing the event
+	 * log verbatim — so the normal restore flow can resume it. Returns `true` iff
+	 * it newly adopted the session (so the caller can run a one-time checkpoint
+	 * bridge), `false` otherwise. Optional: providers without a legacy on-disk
+	 * format omit it.
+	 */
+	ensureSessionAdopted?(session: URI): Promise<boolean>;
+
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+
+	/** Select provider-owned configuration that a newly created session should inherit. */
+	getInheritedSessionConfig?(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
 
 	/** Return dynamic completions for a provider-owned session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
@@ -2111,7 +2135,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
