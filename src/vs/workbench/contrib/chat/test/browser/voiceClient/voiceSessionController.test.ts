@@ -4473,6 +4473,35 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('opening omni drops stale panel deferrals before narrating global work', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const staleSession = URI.parse('vscode-chat://stale-panel-deferral').toString();
+		const responseSession = URI.parse('vscode-chat://omni-response-after-stale').toString();
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+		) => void;
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		(Reflect.get(controller, '_deferredNarrations') as Map<string, unknown>).set(staleSession, {
+			narrationId: 'stale-panel-narration',
+			kind: 'confirmation',
+			text: 'No longer pending.',
+			reuseNarrationId: true,
+		});
+
+		controller.setOmniInputOpen(true);
+		handleStateChange.call(controller, responseSession, 'idle', undefined, 'Global Omni response.', undefined);
+
+		assert.strictEqual((Reflect.get(controller, '_deferredNarrations') as Map<string, unknown>).size, 0);
+		assert.strictEqual(voiceClientService.requests.at(-1)?.text, 'Global Omni response.');
+	});
+
 	test('open omni serializes actionable items and responses across background sessions', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const voicePlaybackService = new RecordingVoicePlaybackService();

@@ -3143,6 +3143,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			for (const key of this._pendingVoiceIndicatorKeys()) {
 				this._markPendingResponse(key, false);
 			}
+			// A panel narration can have been deferred while the backend was busy.
+			// Revalidate it before draining Omni: a stale entry otherwise blocks
+			// every new global narration while also waiting for an unblock signal
+			// that may already have fired before Omni opened.
+			for (const sessionKey of [...this._deferredNarrations.keys()]) {
+				this._retryDeferredNarration(sessionKey);
+			}
 			this._drainOmniInbox();
 		} else {
 			// Return unheard work to normal panel ownership. The active Omni
