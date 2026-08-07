@@ -36,6 +36,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
 import { NewChatView } from '../../browser/chatView.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 
 import '../../../../browser/media/style.css';
@@ -71,6 +72,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, commentCoun
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			reg.defineInstance(INewSessionComposerService, disposableStore.add(new NewSessionComposerService()));
 			reg.defineInstance(IChatTipService, new class extends mock<IChatTipService>() {
 				override readonly onDidDismissTip = Event.None;
 				override readonly onDidNavigateTip = Event.None;

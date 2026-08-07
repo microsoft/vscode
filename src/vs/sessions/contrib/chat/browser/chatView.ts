@@ -94,6 +94,7 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+
 	override sendQuery(text: string): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.sendQuery(text);

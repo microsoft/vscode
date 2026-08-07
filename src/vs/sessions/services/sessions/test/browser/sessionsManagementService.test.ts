@@ -417,7 +417,13 @@ suite('SessionsManagementService', () => {
 		// (mimicking an agent host provider whose cache has not loaded yet).
 		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
-		assert.deepStrictEqual(view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId), []);
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId),
+			restoreComplete: view.initialRestoreComplete.get(),
+		}, {
+			visible: [],
+			restoreComplete: false,
+		});
 
 		// Now the provider learns about the session and fires its change event.
 		// `onDidChangeProviders` does NOT fire here — only the per-provider
@@ -426,7 +432,13 @@ suite('SessionsManagementService', () => {
 		onDidChangeSessions.fire({ added: [targetSession], removed: [], changed: [] });
 
 		await restorePromise;
-		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId), [targetSession.sessionId]);
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(s => s?.sessionId),
+			restoreComplete: view.initialRestoreComplete.get(),
+		}, {
+			visible: [targetSession.sessionId],
+			restoreComplete: true,
+		});
 	});
 
 	test('ROUNDTRIP: opened session is retained across save + restore', async () => {

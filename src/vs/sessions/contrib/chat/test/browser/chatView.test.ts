@@ -33,4 +33,5 @@ suite('Sessions - Chat View', () => {
 
 		assert.doesNotThrow(() => view.setVisible(false));
 	});
+
 });

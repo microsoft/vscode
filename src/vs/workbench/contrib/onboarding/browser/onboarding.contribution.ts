@@ -16,8 +16,11 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
+import { onboardingSequenceStepPresentationRegistry } from '../common/onboardingSequence.js';
 import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
 import { OnboardingScenarioService } from './onboardingService.js';
+import { RunOnboardingStepPresentation } from './sequence/runOnboardingStep.js';
+import { OnboardingSequencePresentation } from './sequence/sequencePresentation.js';
 import { SpotlightPresentation } from './spotlight/spotlightPresentation.js';
 
 registerSingleton(IOnboardingScenarioService, OnboardingScenarioService, InstantiationType.Delayed);
@@ -95,6 +98,10 @@ class OnboardingContribution extends Disposable implements IWorkbenchContributio
 		this._register(onboardingScenarioRegistry.onDidChange(() => refreshDeveloperModeConfiguration()));
 		const spotlight = this._register(instantiationService.createInstance(SpotlightPresentation));
 		this._register(onboardingPresentationRegistry.register(spotlight));
+		this._register(onboardingSequenceStepPresentationRegistry.register(spotlight));
+		const sequence = this._register(new OnboardingSequencePresentation());
+		this._register(onboardingPresentationRegistry.register(sequence));
+		this._register(onboardingSequenceStepPresentationRegistry.register(new RunOnboardingStepPresentation()));
 		onboardingService.start();
 	}
 }
