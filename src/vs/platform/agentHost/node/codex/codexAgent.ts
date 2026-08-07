@@ -2808,15 +2808,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('codexAgent.displayName', "Codex"),
 			description: localize('codexAgent.description', "Codex agent using session-selected model providers"),
-			...(this._isMultiRootEnabled() ? { capabilities: { multipleWorkingDirectories: { immutablePrimary: true } } } : {}),
-			// TODO @sandy081 (I3-removal follow-up): Codex multi-chat is
-			// implemented (chats.createChat/fork/createSessionChat), but the
-			// end-to-end peer-chat replay fixtures have not been recorded yet, so
-			// the capability stays unadvertised to keep it aligned with the
-			// upstream single-chat E2E configuration. Re-add
-			// `capabilities: { multipleChats: { fork: true } }` here (and flip
-			// codexTestConfiguration's supportsMultipleChats/supportsChatFork)
-			// once the Codex peer fixtures are recorded.
+			capabilities: {
+				multipleChats: { fork: true },
+				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
+			},
 		};
 	}
 
@@ -2832,13 +2827,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * chat-URI shape parsing or host-side membership heuristics.
 	 */
 	private _resolveConversationSession(address: URI, sessionOrContext?: URI | IAgentChatContext): URI | undefined {
-		const explicit = sessionOrContext ? resolveAgentChatContext(sessionOrContext, address) : undefined;
-		if (explicit) {
-			return explicit.session;
-		}
 		const sessionId = this._sessionIdByChatUri.get(address.toString());
 		if (sessionId) {
 			return this._sessions.get(sessionId)?.sessionUri ?? AgentSession.uri(this.id, sessionId);
+		}
+		const explicit = sessionOrContext ? resolveAgentChatContext(sessionOrContext, address) : undefined;
+		if (explicit) {
+			return explicit.session;
 		}
 		return AgentSession.provider(address) === this.id ? address : undefined;
 	}
@@ -3114,9 +3109,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 
 		const conn = await this._ensureConnection();
+		const resolvedModel = parseCodexModelSelection(model);
 		const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
 			cwd: workingDirectory.fsPath,
-			model: model.id,
+			model: resolvedModel.modelId,
+			modelProvider: resolvedModel.modelProvider,
 			approvalPolicy,
 			sandbox: sandboxMode,
 			approvalsReviewer,
