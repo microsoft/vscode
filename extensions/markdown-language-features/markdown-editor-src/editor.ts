@@ -134,6 +134,7 @@ class Editor extends Disposable {
 			}
 		});
 
+		this.#setupClipboardHandlers();
 		this.#vscode.postMessage({ type: 'ready' });
 		this._register({
 			dispose: () => {
@@ -142,6 +143,105 @@ class Editor extends Disposable {
 				}
 				this.#codeBlockEditorRequests.clear();
 			},
+		});
+	}
+
+	#setupClipboardHandlers(): void {
+		const handlePaste = (clipboardData: DataTransfer | null) => {
+			if (this.model.readonlyMode.get()) {
+				return;
+			}
+			const selection = this.model.selection.get();
+			if (!selection) {
+				return;
+			}
+			const text = clipboardData?.getData('text/plain');
+			if (text) {
+				const range = selection.range;
+				this.model.applyEdit(
+					StringEdit.replace(range, text),
+					Selection.collapsed(range.start + text.length)
+				);
+			} else if (navigator.clipboard?.readText) {
+				navigator.clipboard.readText().then(textFromClipboard => {
+					if (textFromClipboard) {
+						const curSelection = this.model.selection.get();
+						if (!curSelection) { return; }
+						const range = curSelection.range;
+						this.model.applyEdit(
+							StringEdit.replace(range, textFromClipboard),
+							Selection.collapsed(range.start + textFromClipboard.length)
+						);
+					}
+				}).catch(() => {});
+			}
+		};
+
+		const handleCut = (clipboardData: DataTransfer | null) => {
+			if (this.model.readonlyMode.get()) {
+				return;
+			}
+			const selection = this.model.selection.get();
+			if (!selection || selection.isCollapsed) {
+				return;
+			}
+			const range = selection.range;
+			const selectedText = this.model.sourceText.get().value.slice(range.start, range.endExclusive);
+			if (!selectedText) {
+				return;
+			}
+			if (clipboardData) {
+				clipboardData.setData('text/plain', selectedText);
+			}
+			if (navigator.clipboard?.writeText) {
+				navigator.clipboard.writeText(selectedText).catch(() => {});
+			}
+			this.model.applyEdit(
+				StringEdit.replace(range, ''),
+				Selection.collapsed(range.start)
+			);
+		};
+
+		const onPaste = (e: ClipboardEvent) => {
+			if (this.model.readonlyMode.get()) { return; }
+			e.preventDefault();
+			e.stopPropagation();
+			handlePaste(e.clipboardData);
+		};
+
+		const onCut = (e: ClipboardEvent) => {
+			if (this.model.readonlyMode.get()) { return; }
+			e.preventDefault();
+			e.stopPropagation();
+			handleCut(e.clipboardData);
+		};
+
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (this.model.readonlyMode.get()) { return; }
+			const isMod = e.metaKey || e.ctrlKey;
+			if (!isMod || e.altKey) { return; }
+			const key = e.key.toLowerCase();
+			if (key === 'v') {
+				e.preventDefault();
+				e.stopPropagation();
+				handlePaste(null);
+			} else if (key === 'x') {
+				e.preventDefault();
+				e.stopPropagation();
+				handleCut(null);
+			}
+		};
+
+		window.addEventListener('paste', onPaste, true);
+		window.addEventListener('cut', onCut, true);
+		window.addEventListener('keydown', onKeyDown, true);
+
+		this._register({
+			dispose: () => {
+				window.removeEventListener('paste', onPaste, true);
+				window.removeEventListener('cut', onCut, true);
+				window.removeEventListener('keydown', onKeyDown, true);
+			}
 		});
 	}
 
