@@ -255,7 +255,46 @@
  * rounded box gives the active item its own shape, so the full-width rule under
  * the top (header) bar — and over the bottom (footer) bar — is removed for the
  * cleaner, default-position look. `.monaco-workbench` is added to outrank the
+ * base part rule.
  */
+
+.style-override.monaco-workbench .pane-composite-part:not(.empty) > .header {
+	border-bottom: none;
+	overflow: visible;
+}
+
+.style-override.monaco-workbench .pane-composite-part:not(.empty) > .footer {
+	border-top: none;
+}
+
+.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact {
+	overflow: visible;
+}
+
+.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content:empty {
+	padding: 2px;
+}
+
+.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content:empty {
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
+	top: 18px;
+	right: 2px;
+}
+
+.style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content:empty {
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	width: 16px;
+}
+
+.style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
+	top: 13px;
+	right: 2px;
+}
 
 .style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content:empty {
 	padding: 0;
@@ -296,16 +335,6 @@
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	top: 10px;
 	right: 2px;
-}
-
-.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
-.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
-.style-override.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
-.style-override.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
-	bottom: 0;
-	border: none;
-	height: 100%;
-	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
 
 .style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {

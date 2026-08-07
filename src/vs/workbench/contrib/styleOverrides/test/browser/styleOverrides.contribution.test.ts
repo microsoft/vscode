@@ -13,6 +13,8 @@ import { ConfigurationTarget } from '../../../../../platform/configuration/commo
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import '../../../../browser/parts/activitybar/media/activityaction.css';
+import '../../../../browser/parts/media/paneCompositePart.css';
 import { StyleOverridesContribution } from '../../browser/styleOverrides.contribution.js';
 
 class StyleOverridesTestPane extends Pane {
@@ -45,6 +47,31 @@ class StyleOverridesTestLayoutService extends TestLayoutService {
 		this.containers.push(container);
 		this.onDidAddContainerEmitter.fire({ container, disposables });
 	}
+}
+
+function appendElement(parent: HTMLElement, className: string): HTMLElement {
+	const element = document.createElement('div');
+	element.className = className;
+	parent.appendChild(element);
+	return element;
+}
+
+function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean): { actionItem: HTMLElement; indicator: HTMLElement } {
+	root.style.setProperty('--vscode-spacing-size20', '2px');
+	root.style.setProperty('--vscode-spacing-size40', '4px');
+	root.style.setProperty('--vscode-spacing-size240', '24px');
+	const part = appendElement(root, 'part pane-composite-part');
+	const title = appendElement(part, 'title');
+	title.style.height = `${titleHeight}px`;
+	const compositeBarContainer = appendElement(title, 'composite-bar-container');
+	const compositeBar = appendElement(compositeBarContainer, 'composite-bar');
+	const actionBar = appendElement(compositeBar, 'monaco-action-bar');
+	const actionsContainer = appendElement(actionBar, 'actions-container');
+	const actionItem = appendElement(actionsContainer, `action-item${checked ? ' checked' : ''}`);
+	actionItem.tabIndex = 0;
+	appendElement(actionItem, 'action-label');
+	const indicator = appendElement(actionItem, 'active-item-indicator');
+	return { actionItem, indicator };
 }
 
 suite('StyleOverridesContribution', () => {
@@ -117,6 +144,71 @@ suite('StyleOverridesContribution', () => {
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',
 			layoutCountAfterToggle: 1,
+		});
+	});
+
+	test('pane composite actions fill regular and Agents headers', () => {
+		const regularRoot = document.createElement('div');
+		regularRoot.className = 'monaco-workbench style-override modern-ui-tabs';
+		document.body.appendChild(regularRoot);
+		store.add(toDisposable(() => regularRoot.remove()));
+		const regular = createCompositeAction(regularRoot, 32, true);
+
+		const agentsRoot = document.createElement('div');
+		agentsRoot.className = 'monaco-workbench modern-ui-tabs';
+		document.body.appendChild(agentsRoot);
+		store.add(toDisposable(() => agentsRoot.remove()));
+		const agents = createCompositeAction(agentsRoot, 35, false);
+
+		const targetWindow = getWindow(agents.actionItem);
+		assert.deepStrictEqual({
+			regularTargetHeight: targetWindow.getComputedStyle(regular.actionItem).height,
+			regularIndicatorHeight: targetWindow.getComputedStyle(regular.indicator).height,
+			agentsTargetHeight: targetWindow.getComputedStyle(agents.actionItem).height,
+			agentsIndicatorHeight: targetWindow.getComputedStyle(agents.indicator).height,
+		}, {
+			regularTargetHeight: '32px',
+			regularIndicatorHeight: '24px',
+			agentsTargetHeight: '35px',
+			agentsIndicatorHeight: '24px',
+		});
+	});
+
+	test('preserves Modern UI activity badges and horizontal pane dividers', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override modern-ui-tabs';
+		root.style.setProperty('--activity-bar-action-height', '36px');
+		root.style.setProperty('--activity-bar-width', '36px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const activityBar = appendElement(root, 'activitybar');
+		const content = appendElement(activityBar, 'content');
+		const compositeBar = appendElement(content, 'composite-bar');
+		const actionBar = appendElement(compositeBar, 'monaco-action-bar');
+		const actionItem = appendElement(appendElement(actionBar, 'actions-container'), 'action-item');
+		appendElement(actionItem, 'action-label codicon');
+		const badgeContent = appendElement(appendElement(actionItem, 'badge'), 'badge-content');
+
+		const part = appendElement(root, 'part pane-composite-part');
+		const header = appendElement(part, 'header-or-footer header');
+		const footer = appendElement(part, 'header-or-footer footer');
+
+		const targetWindow = getWindow(root);
+		assert.deepStrictEqual({
+			badgeTop: targetWindow.getComputedStyle(badgeContent).top,
+			badgeWidth: targetWindow.getComputedStyle(badgeContent).width,
+			badgeHeight: targetWindow.getComputedStyle(badgeContent).height,
+			headerBorderWidth: targetWindow.getComputedStyle(header).borderBottomWidth,
+			headerOverflow: targetWindow.getComputedStyle(header).overflow,
+			footerBorderWidth: targetWindow.getComputedStyle(footer).borderTopWidth,
+		}, {
+			badgeTop: '18px',
+			badgeWidth: '16px',
+			badgeHeight: '16px',
+			headerBorderWidth: '0px',
+			headerOverflow: 'visible',
+			footerBorderWidth: '0px',
 		});
 	});
 });

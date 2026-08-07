@@ -420,13 +420,20 @@
 .modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
 	align-self: stretch;
 	box-sizing: border-box;
-	height: var(--vscode-spacing-size320);
-	min-height: var(--vscode-spacing-size320);
-	max-height: var(--vscode-spacing-size320);
+	height: 100%;
+	min-height: 100%;
+	max-height: 100%;
 	margin: 0 !important;
 	border-block: var(--vscode-spacing-size40) solid transparent;
 	border-radius: 0;
 	background-color: transparent !important;
+}
+
+.style-override.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+.style-override.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	height: var(--vscode-spacing-size320);
+	min-height: var(--vscode-spacing-size320);
+	max-height: var(--vscode-spacing-size320);
 }
 
 .modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon),
@@ -448,11 +455,15 @@
 .modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > .active-item-indicator,
 .modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon > .active-item-indicator,
 .modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon > .active-item-indicator {
-	inset: 0 var(--vscode-spacing-size20);
+	top: 50%;
+	right: var(--vscode-spacing-size20);
+	bottom: auto;
+	left: var(--vscode-spacing-size20);
 	z-index: 0;
 	width: auto;
-	height: auto;
+	height: var(--vscode-spacing-size240);
 	border-radius: var(--vscode-cornerRadius-small);
+	transform: translateY(-50%);
 }
 
 .modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > :is(.action-label, .badge),
@@ -481,6 +492,15 @@
 
 .modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover > .active-item-indicator {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus:not(.clicked) > .active-item-indicator {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus > .active-item-indicator:before {
+	display: none;
 }
 
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab,
