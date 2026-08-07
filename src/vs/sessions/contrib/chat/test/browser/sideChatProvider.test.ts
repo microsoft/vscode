@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSideChatProvider, IChatSideChatService } from '../../../../../workbench/contrib/chat/common/chatSideChatService.js';
 import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -40,6 +42,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		parentChat?: IChat;
 		widget?: IChatWidget;
 		widgetFactory?: (callOrder: string[]) => IChatWidget;
+		onOpenChat?: (callOrder: string[]) => void;
 	} = {}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -86,6 +89,7 @@ suite('SessionsSideChatProviderContribution', () => {
 			visibleSessions: constObservable([session]),
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
+				options.onOpenChat?.(callOrder);
 			},
 		}));
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
@@ -238,6 +242,64 @@ suite('SessionsSideChatProviderContribution', () => {
 			revealed: [request],
 		});
 	});
+
+	test('reveals the request a side chat branched from after its widget view model changes', async () => {
+		const store = disposables.add(new DisposableStore());
+		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const revealed: ChatTreeItem[] = [];
+		const request = upcastPartial<IChatRequestViewModel>({ id: 'turn-1', message: { parts: [], text: '' } });
+		const chat = upcastPartial<IChat>({
+			resource: sideChat.resource,
+			origin: { kind: ChatOriginKind.SideChat, parentChat: sourceChat.resource, turnId: 'turn-1' },
+		});
+		let viewModel = upcastPartial<IChatViewModel>({ sessionResource: sideChat.resource, getItems: () => [] });
+		const widget = upcastPartial<IChatWidget>({
+			get viewModel() { return viewModel; },
+			onDidChangeViewModel: onDidChangeViewModel.event,
+			reveal: item => {
+				callOrder.push(`reveal:${item.id}`);
+				revealed.push(item);
+			},
+		});
+		const { provider, callOrder } = setup({
+			chat,
+			widget,
+			onOpenChat: () => {
+				void timeout(0).then(() => {
+					viewModel = upcastPartial<IChatViewModel>({ sessionResource: sourceChat.resource, getItems: () => [request] });
+					onDidChangeViewModel.fire({ previousSessionResource: sideChat.resource, currentSessionResource: sourceChat.resource });
+				});
+			},
+		});
+
+		await provider()!.revealSideChatSource(sideChat.resource);
+
+		assert.deepStrictEqual({ callOrder, revealed }, {
+			callOrder: [`open:${sourceChat.resource.toString()}`, 'reveal:turn-1'],
+			revealed: [request],
+		});
+	});
+
+	test('does not reveal a source when its widget view model does not change', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const revealed: ChatTreeItem[] = [];
+		const chat = upcastPartial<IChat>({
+			resource: sideChat.resource,
+			origin: { kind: ChatOriginKind.SideChat, parentChat: sourceChat.resource, turnId: 'turn-1' },
+		});
+		const widget = upcastPartial<IChatWidget>({
+			viewModel: upcastPartial<IChatViewModel>({ sessionResource: sideChat.resource, getItems: () => [] }),
+			onDidChangeViewModel: Event.None,
+			reveal: item => { revealed.push(item); },
+		});
+		const { provider, callOrder } = setup({ chat, widget });
+
+		await provider()!.revealSideChatSource(sideChat.resource);
+
+		assert.deepStrictEqual({ callOrder, revealed }, {
+			callOrder: [`open:${sourceChat.resource.toString()}`],
+			revealed: [],
+		});
+	}));
 
 	test('does not reveal a source for a non-side chat', async () => {
 		const revealed: ChatTreeItem[] = [];

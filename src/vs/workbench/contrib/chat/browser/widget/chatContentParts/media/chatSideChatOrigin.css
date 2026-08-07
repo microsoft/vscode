@@ -34,7 +34,7 @@
 
 .hc-black .chat-side-chat-origin,
 .hc-light .chat-side-chat-origin {
-	border: 1px dotted var(--vscode-focusBorder);
+	border: var(--vscode-strokeThickness) dotted var(--vscode-focusBorder);
 }
 
 .chat-side-chat-origin:focus-visible {
