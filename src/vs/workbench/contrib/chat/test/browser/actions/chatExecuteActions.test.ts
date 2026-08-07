@@ -10,12 +10,21 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { IChatMode, IChatModes, IChatModeService, ICustomAgentInfo } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
@@ -443,5 +452,168 @@ suite('ChatSubmitAction', () => {
 		});
 
 		assert.deepStrictEqual(acceptedOptions, { cancelCurrentRequest: true });
+	});
+});
+
+suite('SendToNewChatAction', () => {
+	const store = new DisposableStore();
+	let instantiationService: TestInstantiationService;
+
+	let chatExecuteActions: DisposableStore;
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
+
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface ICallLog {
+		event: 'setInput' | 'clear' | 'addContext' | 'addReference' | 'acceptInput';
+		value?: unknown;
+	}
+
+	function createMockWidget(input: string, attachments: IChatRequestVariableEntry[], dynamicVariables: IDynamicVariable[]) {
+		const calls: ICallLog[] = [];
+		let currentInput = input;
+		let currentAttachments = [...attachments];
+		let currentVariables = [...dynamicVariables];
+
+		const mockDynamicVariableModel: Partial<ChatDynamicVariableModel> = {
+			get variables() { return currentVariables.slice(); },
+			addReference: (ref: IDynamicVariable) => {
+				calls.push({ event: 'addReference', value: ref });
+				currentVariables.push(ref);
+			},
+		};
+
+		const widget: Partial<IChatWidget> = {
+			viewContext: {},
+			viewModel: undefined,
+			get attachmentModel() {
+				return {
+					get attachments() { return currentAttachments.slice(); },
+					addContext: (...entries: IChatRequestVariableEntry[]) => {
+						calls.push({ event: 'addContext', value: entries });
+						currentAttachments.push(...entries);
+					},
+				} as unknown as IChatWidget['attachmentModel'];
+			},
+			getInput: () => currentInput,
+			setInput: (value?: string) => {
+				calls.push({ event: 'setInput', value });
+				currentInput = value ?? '';
+				if (value === '' || value === undefined) {
+					// Emulate the editor content being replaced; the dynamic variable model
+					// detaches variables whose decorations are invalidated.
+					currentVariables = [];
+				}
+			},
+			clear: async () => {
+				calls.push({ event: 'clear' });
+				// Emulate the local-session editor clear: attachments and variables are reset.
+				currentAttachments = [];
+				currentVariables = [];
+			},
+			acceptInput: async (query?: string) => {
+				calls.push({ event: 'acceptInput', value: { query, input: currentInput, attachments: currentAttachments.slice(), variables: currentVariables.slice() } });
+				return undefined;
+			},
+			getContrib: function <T>(id: string): T | undefined {
+				if (id === ChatDynamicVariableModel.ID) {
+					return mockDynamicVariableModel as unknown as T;
+				}
+				return undefined;
+			},
+		};
+
+		return { widget: widget as IChatWidget, calls };
+	}
+
+	function setSendToNewChatServices(widget: IChatWidget) {
+		const mockWidgetService = new class extends MockChatWidgetService {
+			override readonly lastFocusedWidget = widget;
+		};
+
+		instantiationService.set(IChatWidgetService, mockWidgetService);
+		instantiationService.set(IChatService, {} as unknown as IChatService);
+		instantiationService.set(IViewsService, {} as unknown as IViewsService);
+		instantiationService.set(IDialogService, {} as unknown as IDialogService);
+		instantiationService.set(IConfigurationService, new TestConfigurationService());
+		instantiationService.set(IChatSessionsService, {
+			getChatSessionContribution: () => undefined,
+			getAllChatSessionContributions: () => [],
+		} as unknown as IChatSessionsService);
+	}
+
+	test('preserves attachments and dynamic variables when sending to a new chat (issue #292064)', async () => {
+		const attachment: IChatRequestVariableEntry = {
+			kind: 'generic',
+			id: 'changes',
+			name: 'changes',
+			value: '',
+		};
+		const dynamicVariable: IDynamicVariable = {
+			id: 'changes',
+			fullName: 'changes',
+			range: { startLineNumber: 1, startColumn: 8, endLineNumber: 1, endColumn: 16 },
+			data: '',
+		};
+
+		const { widget, calls } = createMockWidget('review #changes', [attachment], [dynamicVariable]);
+
+		setSendToNewChatServices(widget);
+
+		const handler = CommandsRegistry.getCommand('workbench.action.chat.sendToNewChat')?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync(handler, instantiationService);
+
+		// The acceptInput call is the final event; it must see the restored input, attachments,
+		// and dynamic variables so that references like #changes survive the transition.
+		const acceptInputCall = calls.find(c => c.event === 'acceptInput');
+		assert.ok(acceptInputCall, 'acceptInput must be called');
+		const payload = acceptInputCall.value as { query: string | undefined; input: string; attachments: IChatRequestVariableEntry[]; variables: IDynamicVariable[] };
+		assert.strictEqual(payload.input, 'review #changes', 'input text must be restored');
+		assert.strictEqual(payload.attachments.length, 1, 'attachments must be restored');
+		assert.strictEqual(payload.attachments[0].id, 'changes');
+		assert.strictEqual(payload.variables.length, 1, 'dynamic variables must be restored');
+		assert.strictEqual(payload.variables[0].id, 'changes');
+
+		// Ensure the capture happened before the clear (otherwise the attachments would be lost).
+		const clearIdx = calls.findIndex(c => c.event === 'clear');
+		const addContextIdx = calls.findIndex(c => c.event === 'addContext');
+		const addReferenceIdx = calls.findIndex(c => c.event === 'addReference');
+		assert.ok(clearIdx >= 0, 'clear must be called');
+		assert.ok(addContextIdx > clearIdx, 'attachments must be re-added after clear');
+		assert.ok(addReferenceIdx > clearIdx, 'dynamic variables must be re-added after clear');
+	});
+
+	test('does not fail when there are no attachments or dynamic variables', async () => {
+		const { widget, calls } = createMockWidget('hello', [], []);
+
+		setSendToNewChatServices(widget);
+
+		const handler = CommandsRegistry.getCommand('workbench.action.chat.sendToNewChat')?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync(handler, instantiationService);
+
+		const acceptInputCall = calls.find(c => c.event === 'acceptInput');
+		assert.ok(acceptInputCall, 'acceptInput must be called');
+		const payload = acceptInputCall.value as { input: string };
+		assert.strictEqual(payload.input, 'hello');
+		assert.ok(!calls.some(c => c.event === 'addContext'), 'addContext should not be called for empty attachments');
+		assert.ok(!calls.some(c => c.event === 'addReference'), 'addReference should not be called for empty variables');
 	});
 });
