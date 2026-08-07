@@ -141,6 +141,11 @@
 	inset: 0;
 }
 
+.chat-input-window .chat-input-toolbars {
+	position: relative;
+	z-index: 11;
+}
+
 .chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
 	background: none !important;
 	color: var(--vscode-icon-foreground) !important;
