@@ -25,10 +25,11 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 	const sessionResource = URI.parse('agent-session://test/one');
 	const requestId = 'req-1';
 
-	function serviceFor(part: object): VoiceToolDispatchService {
+	function serviceFor(part: object | readonly object[]): VoiceToolDispatchService {
+		const parts = Array.isArray(part) ? part : [part];
 		const model = new class extends mock<IChatModel>() {
 			override getRequests() {
-				return [{ id: requestId, response: { response: { value: [part] } } }] as unknown as ReturnType<IChatModel['getRequests']>;
+				return [{ id: requestId, response: { response: { value: parts } } }] as unknown as ReturnType<IChatModel['getRequests']>;
 			}
 		};
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
@@ -217,6 +218,47 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 			result: { ok: false, reason: 'stale_pending' },
 			confirmations: [],
 		});
+	});
+
+	test('a spoken approval retires every rehydrated copy', async () => {
+		const confirmations: ToolConfirmKind[] = [];
+		const tool = () => {
+			const state = observableValue<IChatToolInvocation.State>('state', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'npm install' },
+				confirm: reason => confirmations.push(reason.type),
+			});
+			const part = new class extends mock<IChatToolInvocation>() {
+				override readonly kind = 'toolInvocation' as const;
+				override readonly toolId = 'testTool';
+				override readonly toolCallId = 'tool-call';
+				override readonly state = state;
+			}();
+			return { part, state };
+		};
+		const first = tool();
+		const staleCopy = tool();
+		const parts = [first.part, staleCopy.part];
+		const service = serviceFor(parts);
+		const call = approvalCall(first.part, 'approve');
+		assert.strictEqual(derivePendingId(requestId, staleCopy.part), call.args['pending_id']);
+
+		const firstResult = await service.respondToSession(call);
+		const duplicateResult = await service.respondToSession(call);
+
+		assert.deepStrictEqual({ firstResult, duplicateResult, confirmations }, {
+			firstResult: { ok: true },
+			duplicateResult: { ok: false, reason: 'stale_pending' },
+			confirmations: [ToolConfirmKind.UserAction],
+		});
+
+		for (const copy of [first, staleCopy]) {
+			copy.state.set({
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: ToolConfirmKind.Skipped,
+				parameters: {},
+			}, undefined);
+		}
 	});
 
 	test('a skip is refused when the form forbids it', async () => {

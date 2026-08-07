@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { derivePendingId, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, isPendingIdResolved, markPendingIdResolved, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
 
 suite('derivePendingId', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -142,6 +142,72 @@ suite('derivePendingId', () => {
 				parameters: {},
 			}, undefined);
 		}
+	});
+
+	test('retiring one copy makes every rehydrated copy stale', () => {
+		const tool = () => {
+			const state = observableValue<IChatToolInvocation.State>('toolState', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'npm install' },
+				confirm: () => { },
+			});
+			return { part: { kind: 'toolInvocation', toolCallId: 'tool-call', state } as unknown as IChatToolInvocation, state };
+		};
+		const first = tool();
+		const rehydrated = tool();
+		const pendingId = derivePendingId('req-retire', first.part);
+		assert.strictEqual(derivePendingId('req-retire', rehydrated.part), pendingId);
+
+		assert.strictEqual(markPendingIdResolved(pendingId), true);
+		assert.strictEqual(isPendingIdResolved(pendingId), true);
+		assert.strictEqual(peekPendingId('req-retire', first.part), undefined);
+		assert.strictEqual(peekPendingId('req-retire', rehydrated.part), undefined);
+		assert.strictEqual(derivePendingId('req-retire', rehydrated.part), pendingId);
+
+		// A new invocation published after the interaction is a new occurrence,
+		// even when the provider reuses the tool-call id and command.
+		const rearmed = tool();
+		const rearmedId = derivePendingId('req-retire', rearmed.part);
+		assert.notStrictEqual(rearmedId, pendingId);
+		assert.strictEqual(peekPendingId('req-retire', rearmed.part), rearmedId);
+
+		for (const copy of [first, rehydrated, rearmed]) {
+			copy.state.set({
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: ToolConfirmKind.Skipped,
+				parameters: {},
+			}, undefined);
+		}
+	});
+
+	test('one copy leaving pending retires the shared occurrence', () => {
+		const tool = () => {
+			const state = observableValue<IChatToolInvocation.State>('toolState', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'npm install' },
+				confirm: () => { },
+			});
+			return { part: { kind: 'toolInvocation', toolCallId: 'tool-call', state } as unknown as IChatToolInvocation, state };
+		};
+		const authoritative = tool();
+		const stale = tool();
+		const pendingId = derivePendingId('req-transition', authoritative.part);
+		assert.strictEqual(derivePendingId('req-transition', stale.part), pendingId);
+
+		authoritative.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+
+		assert.strictEqual(isPendingIdResolved(pendingId), true);
+		assert.strictEqual(peekPendingId('req-transition', stale.part), undefined);
+
+		stale.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
 	});
 
 	test('keeps authentication identity stable until the tool leaves the pending state', () => {
