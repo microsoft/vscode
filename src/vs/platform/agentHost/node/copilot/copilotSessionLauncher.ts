@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettings, ManagedSettingsPermissions, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -82,17 +82,18 @@ type McpAuthContext = Parameters<McpAuthHandler>[1];
 type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
-/**
- * Local mirror of the SDK's `managedSettings` session-config field, scoped to
- * the `permissions` object VS Code populates. The currently published SDK
- * exposes `enableManagedSettings` but not `managedSettings`; this precise
- * additive type lets VS Code forward enterprise-policy-derived permissions
- * until the SDK publishes the field.
- * Mirrors the local-type precedent used for `ICopilotRuntimeManagedSettingsSdk`
- * in copilotAgent.ts.
- */
-interface ICopilotManagedSettingsSdk {
-	readonly permissions?: IManagedPermissions;
+
+function toSdkManagedSettings(permissions: IManagedPermissions | undefined): ManagedSettings | undefined {
+	if (!permissions) {
+		return undefined;
+	}
+	const sdkPermissions: ManagedSettingsPermissions = {
+		...(permissions.disableBypassPermissionsMode ? { disableBypassPermissionsMode: permissions.disableBypassPermissionsMode } : {}),
+		...(permissions.deny ? { deny: [...permissions.deny] } : {}),
+		...(permissions.ask ? { ask: [...permissions.ask] } : {}),
+		...(permissions.allow ? { allow: [...permissions.allow] } : {}),
+	};
+	return { permissions: sdkPermissions };
 }
 
 /**
@@ -594,15 +595,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<ResumeSessionConfig & { managedSettings?: ICopilotManagedSettingsSdk }> {
+	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<ResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
-		const managedPermissions = normalizeManagedPermissions(
+		const managedSettings = toSdkManagedSettings(normalizeManagedPermissions(
 			this._configurationService.getRootValue(platformRootSchema, AgentHostManagedPermissionsConfigKey),
-		);
+		));
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
@@ -704,7 +705,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Forward enterprise-policy-derived managed permissions (synthesized
 			// by VS Code from managed policy values) as the runtime's
 			// `managedSettings.permissions`. Omitted when no policy applies.
-			...(managedPermissions ? { managedSettings: { permissions: managedPermissions } } : {}),
+			...(managedSettings ? { managedSettings } : {}),
 		};
 	}
 }
