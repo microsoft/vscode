@@ -84,7 +84,6 @@ function createRouter(
 		chatChannelUri,
 		dbRef,
 		subagents,
-		() => 'default',
 		undefined,
 	));
 	const signals: AgentSignal[] = [];

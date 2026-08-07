@@ -252,7 +252,6 @@ export class ClaudeSdkPipeline extends Disposable {
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
-		getMode: () => string | undefined,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -272,7 +271,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, getMode, clientToolOwner,
+			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -678,7 +677,10 @@ export class ClaudeSdkPipeline extends Disposable {
 				const turnId = this._queue.peekParent()?.turnId;
 				const turnDuration = this._queue.peekParent()?.stopWatch.elapsed();
 				try {
-					await this._router.handle(message, turnId, turnDuration);
+					await this._router.handle(message, turnId, {
+						turnDuration,
+						mode: this._currentPermissionMode,
+					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}

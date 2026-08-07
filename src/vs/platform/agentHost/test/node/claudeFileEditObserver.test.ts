@@ -35,7 +35,7 @@ interface IObserverHarness {
 	readonly arcReports: IEditArcReporterLaunchParams[];
 }
 
-function createObserver(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>, mode: string = 'default'): IObserverHarness {
+function createObserver(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>): IObserverHarness {
 	const fileService = disposables.add(new FileService(new NullLogService()));
 	const fs = disposables.add(new InMemoryFileSystemProvider());
 	disposables.add(fileService.registerProvider('file', fs));
@@ -62,7 +62,6 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		ClaudeFileEditObserver,
 		'claude:/sess-1',
 		dbRef,
-		() => mode,
 	));
 	return { observer, db, fileService, mapperState: new ClaudeMapperState(), arcReports };
 }
@@ -80,12 +79,12 @@ suite('ClaudeFileEditObserver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('observe assistant→user round-trip caches a file edit on the mapper state', async () => {
-		const { observer, fileService, mapperState, arcReports } = createObserver(disposables, 'plan');
+		const { observer, fileService, mapperState, arcReports } = createObserver(disposables);
 		await fileService.writeFile(URI.file('/work/a.txt'), VSBuffer.fromString('before'));
 
 		observer.observeAssistant(assistantMessage([
 			{ type: 'tool_use', id: 'tu-1', name: 'Write', input: { file_path: '/work/a.txt', content: 'after' } },
-		]));
+		]), 'plan');
 
 		// Tool runs (we simulate it here): file content changes.
 		await fileService.writeFile(URI.file('/work/a.txt'), VSBuffer.fromString('after'));
