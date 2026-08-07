@@ -524,12 +524,10 @@ export const ISessionsManagementService = createDecorator<ISessionsManagementSer
  *
  * "New Session" gestures default to the harness the user is currently working
  * in, but a harness can stop being advertised while one of its sessions is
- * still open — e.g. the extension-host Copilot CLI once
- * `chat.agents.copilotCli.hideExtensionHost` is on. Inheriting it then makes
- * session creation fail (the provider no longer offers the type), which drops
- * the folder and leaves the composer on an agent the harness picker doesn't
- * list. Contributing nothing lets the folder's preferred harness serve the new
- * session instead.
+ * still open. Inheriting it then makes session creation fail (the provider no
+ * longer offers the type), which drops the folder and leaves the composer on
+ * an agent the harness picker doesn't list. Contributing nothing lets the
+ * folder's preferred harness serve the new session instead.
  */
 export function inheritableSessionTarget(
 	sessionsManagementService: ISessionsManagementService,

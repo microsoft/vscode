@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call ask_user exactly once to ask "Continue?" with choices "Yes" and "No". If the request is cancelled, reply exactly "cancelled".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ask_user
+          input:
+            question: Continue?
+            choices:
+              - 'Yes'
+              - 'No'
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call ask_user exactly once to ask "Continue?" with choices "Yes" and "No". If the request is cancelled, reply exactly "cancelled".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: ask_user
+              input:
+                question: Continue?
+                choices:
+                  - 'Yes'
+                  - 'No'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'User responded:'
+    response:
+      content: cancelled
+      stopReason: end_turn

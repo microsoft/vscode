@@ -28,11 +28,22 @@ import {
 	type ISSHEndpointCandidate,
 	type ISSHEndpointSelection,
 	type ISSHEndpointSelectionRequest,
+	type ISSHHostKeyVerificationRequest,
+	type ISSHHostKeysAnnouncement,
 	type ISSHKeyboardInteractivePrompt,
 	type ISSHKeyboardInteractiveRequest,
 	type ISSHResolvedConfig,
 	type SSHAgentHostLifecycle,
+	type SSHStrictHostKeyChecking,
+	SSHHostKeyDeniedError,
 } from '../common/sshRemoteAgentHost.js';
+import {
+	computeHostKeyFingerprint,
+	matchKnownHosts,
+	parseKnownHosts,
+	readHostKeyType,
+	type IKnownHostsEntry,
+} from './sshKnownHosts.js';
 import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
 import {
@@ -78,6 +89,12 @@ interface SSHClient {
 	on(event: 'ready', listener: () => void): SSHClient;
 	on(event: 'error', listener: (err: Error) => void): SSHClient;
 	on(event: 'close', listener: () => void): SSHClient;
+	/**
+	 * OpenSSH's `UpdateHostKeys` announcement. ssh2 verifies the
+	 * `hostkeys-prove-00@openssh.com` signatures before emitting, so these keys
+	 * are proven to belong to the connected server.
+	 */
+	on(event: 'hostkeys', listener: (keys: readonly { getPublicSSH(): Buffer; type: string }[]) => void): SSHClient;
 	removeListener(event: 'close', listener: () => void): SSHClient;
 	removeListener(event: 'error', listener: (err: Error) => void): SSHClient;
 	connect(config: ConnectConfig): void;
@@ -103,6 +120,31 @@ const LOG_PREFIX = '[SSHRemoteAgentHost]';
  * the network is hard-down. Tests override this to a much smaller value.
  */
 const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
+
+/** Opaque handle for the handshake deadline timer; see `_armHandshakeDeadline`. */
+type IHandshakeDeadlineHandle = ReturnType<typeof setTimeout>;
+
+/**
+ * Deadline for the parts of the handshake that involve no human: TCP connect,
+ * key exchange, and authentication. Kept short so an unreachable or stalled
+ * server fails promptly.
+ */
+const HANDSHAKE_TIMEOUT_MS = 30_000;
+
+/**
+ * Deadline that applies only while we are waiting on a person — a host key
+ * confirmation or a keyboard-interactive prompt.
+ *
+ * We manage the handshake deadline ourselves (ssh2's `readyTimeout` is
+ * disabled) because ssh2's timer covers the whole handshake and keeps running
+ * while `hostVerifier` awaits a verdict. Leaving it armed would abort the
+ * connection out from under a user doing exactly what the host key dialog asks
+ * — going to compare a fingerprint against another source — while simply
+ * raising it for the whole handshake would make an unreachable host take
+ * minutes to fail. So the deadline is short by default and only stretched for
+ * the interval a prompt is actually outstanding.
+ */
+const INTERACTIVE_TIMEOUT_MS = 300_000;
 
 /**
  * One entry in the queue of authentication attempts handed to ssh2's
@@ -676,6 +718,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _onDidCancelEndpointSelection = this._register(new Emitter<string>());
 	readonly onDidCancelEndpointSelection: Event<string> = this._onDidCancelEndpointSelection.event;
 
+	private readonly _onDidRequestHostKeyVerification = this._register(new Emitter<ISSHHostKeyVerificationRequest>());
+	readonly onDidRequestHostKeyVerification: Event<ISSHHostKeyVerificationRequest> = this._onDidRequestHostKeyVerification.event;
+
+	private readonly _onDidCancelHostKeyVerification = this._register(new Emitter<string>());
+	readonly onDidCancelHostKeyVerification: Event<string> = this._onDidCancelHostKeyVerification.event;
+
+	private readonly _onDidAnnounceHostKeys = this._register(new Emitter<ISSHHostKeysAnnouncement>());
+	readonly onDidAnnounceHostKeys: Event<ISSHHostKeysAnnouncement> = this._onDidAnnounceHostKeys.event;
+
 	/**
 	 * Pending keyboard-interactive prompts awaiting a response from the renderer.
 	 * Keyed by `requestId`. Each entry can either finish the ssh2 prompt with
@@ -691,6 +742,18 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 */
 	private readonly _pendingEndpointSelections = new Map<string, (selection: ISSHEndpointSelection | undefined) => void>();
 	private _endpointSelectionCounter = 0;
+
+	/**
+	 * Pending host key verifications awaiting a verdict from the renderer,
+	 * keyed by `requestId`. Every entry must eventually be settled — leaving
+	 * one unanswered suspends the SSH handshake until the deadline elapses.
+	 *
+	 * `onUserDenied` lets the owning connect attempt distinguish "the renderer
+	 * refused this key" from any other handshake failure, so it can surface a
+	 * clean error instead of ssh2's internal wording.
+	 */
+	private readonly _pendingHostKeyRequests = new Map<string, { verify: (trusted: boolean) => void; onUserDenied?: () => void }>();
+	private _hostKeyRequestCounter = 0;
 
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
 
@@ -1274,11 +1337,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		config: ISSHAgentHostConfig,
 		connectionKey?: string,
 	): Promise<SSHClient> {
+		const port = config.port ?? 22;
 		const connectConfig: ConnectConfig = {
 			host: config.host,
-			port: config.port ?? 22,
+			port,
 			username: config.username,
-			readyTimeout: 30_000,
+			// We enforce the handshake deadline ourselves so it can be stretched
+			// while a prompt is outstanding; see INTERACTIVE_TIMEOUT_MS.
+			readyTimeout: 0,
 			keepaliveInterval: 15_000,
 		};
 
@@ -1290,14 +1356,28 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		// the connect attempt fails or completes.
 		const liveKbiRequests = new Set<string>();
 		let cancelConnectFromKbi: (() => void) | undefined;
+		// Forward reference into the connect promise below. Declared up here so
+		// every human-facing prompt can widen the handshake deadline while it
+		// is outstanding.
+		let armDeadline: ((ms: number) => void) | undefined;
+		// Once the user has answered, the human is out of the loop again, so
+		// the rest of the handshake goes back to the network-sized deadline.
+		const wrapPromptFinish = <T>(finish: (value: T) => void) => (value: T) => {
+			armDeadline?.(HANDSHAKE_TIMEOUT_MS);
+			finish(value);
+		};
 		const kbiHandler: SSHKeyboardInteractivePromptHandler | undefined = attempts.some(a => a.type === 'keyboard-interactive')
 			? (name, instructions, prompts, finish) => {
-				const requestId = this._handleKeyboardInteractive(connectionKey ?? displayHost, displayHost, config.username, name, instructions, prompts, finish, () => cancelConnectFromKbi?.());
+				// A human is now in the loop; don't hold them to the
+				// network-sized deadline while they find their password.
+				armDeadline?.(INTERACTIVE_TIMEOUT_MS);
+				const requestId = this._handleKeyboardInteractive(connectionKey ?? displayHost, displayHost, config.username, name, instructions, prompts, wrapPromptFinish(finish), () => cancelConnectFromKbi?.());
 				liveKbiRequests.add(requestId);
 			}
 			: undefined;
 		const keyPassphraseHandler: SSHKeyPassphrasePromptHandler | undefined = attempts.some(a => a.type === 'publickey' && a.encrypted)
 			? (keyPath, finish) => {
+				armDeadline?.(INTERACTIVE_TIMEOUT_MS);
 				const requestId = this._handleKeyboardInteractive(
 					connectionKey ?? displayHost,
 					displayHost,
@@ -1305,7 +1385,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					localize('sshKeyPassphraseName', "SSH Key Passphrase"),
 					'',
 					[{ prompt: localize('sshKeyPassphrasePrompt', "Enter passphrase for SSH key {0}.", keyPath), echo: false }],
-					responses => finish(responses[0]),
+					wrapPromptFinish((responses: readonly string[]) => finish(responses[0])),
 					() => cancelConnectFromKbi?.(),
 				);
 				liveKbiRequests.add(requestId);
@@ -1320,9 +1400,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			for (const requestId of liveKbiRequests) {
 				// Pull the pending finish callback (if any) and invoke it with
 				// empty responses so ssh2 stops waiting on this attempt — without
-				// this, ssh2 hangs until `readyTimeout` elapses when a connect
-				// attempt is aborted mid-prompt. The renderer also gets notified
-				// so it can dismiss any open quick-input UI.
+				// this, ssh2 hangs until the handshake deadline elapses when a
+				// connect attempt is aborted mid-prompt. The renderer also gets
+				// notified so it can dismiss any open quick-input UI.
 				const pending = this._pendingKbiRequests.get(requestId);
 				this._pendingKbiRequests.delete(requestId);
 				this._onDidCancelKeyboardInteractive.fire(requestId);
@@ -1345,17 +1425,87 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 		}
 
+		// Verify the server's host key during key exchange. Without this, ssh2
+		// accepts any key from any server ("Host accepted by default"), which
+		// would let an on-path attacker impersonate the remote and collect the
+		// password typed into our own keyboard-interactive prompt. hostVerifier
+		// runs before authentication, so declining guarantees no credential or
+		// forwarded agent access ever reaches an unverified server.
+		//
+		// Note we deliberately do not set `hostHash`: that would make ssh2
+		// pre-hash the key and hand us a hex digest, discarding the raw blob we
+		// need to compare against `known_hosts` entries.
+		const liveHostKeyRequests = new Set<string>();
+		// Set once the connect attempt settles, so a verification that is still
+		// gathering evidence at that moment can bail out instead of registering
+		// itself after cancellation has already swept the set.
+		let hostKeyVerificationAborted = false;
+		// Set when the renderer refuses a host key for this attempt, so the
+		// resulting handshake failure can be reported as what it actually is.
+		let hostKeyDenied = false;
+		const cancelLiveHostKeyRequests = () => {
+			hostKeyVerificationAborted = true;
+			for (const requestId of liveHostKeyRequests) {
+				const pending = this._pendingHostKeyRequests.get(requestId);
+				this._pendingHostKeyRequests.delete(requestId);
+				this._onDidCancelHostKeyVerification.fire(requestId);
+				// Fail closed: an aborted connect must never leave ssh2 waiting
+				// on a verdict until the deadline elapses.
+				pending?.verify(false);
+			}
+			liveHostKeyRequests.clear();
+		};
+		connectConfig.hostVerifier = (key: Buffer, verify: (permitted: boolean) => void) => {
+			void this._verifyHostKey(
+				connectionKey ?? displayHost,
+				displayHost,
+				config,
+				port,
+				key,
+				verify,
+				requestId => {
+					liveHostKeyRequests.add(requestId);
+					// A human is now in the loop; stop holding them to the
+					// network-sized deadline.
+					armDeadline?.(INTERACTIVE_TIMEOUT_MS);
+					return () => { hostKeyDenied = true; };
+				},
+				() => hostKeyVerificationAborted,
+				() => armDeadline?.(HANDSHAKE_TIMEOUT_MS),
+			);
+		};
+
 		const client = await this._createSSHClient();
 		return new Promise<SSHClient>((resolve, reject) => {
 			let settled = false;
+			let deadlineTimer: IHandshakeDeadlineHandle | undefined;
+
+			const clearDeadline = () => {
+				this._clearHandshakeDeadline(deadlineTimer);
+				deadlineTimer = undefined;
+			};
+
+			// Replaces ssh2's `readyTimeout` (disabled above) so the window can
+			// be widened only for the interval a prompt is actually outstanding.
+			armDeadline = (ms: number) => {
+				if (settled) {
+					return;
+				}
+				clearDeadline();
+				deadlineTimer = this._armHandshakeDeadline(ms, () => {
+					rejectConnect(new Error(`SSH handshake to ${config.host} timed out`), true);
+				});
+			};
 
 			const resolveConnect = () => {
 				if (settled) {
 					return;
 				}
 				settled = true;
+				clearDeadline();
 				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
 				cancelLiveKbiRequests();
+				cancelLiveHostKeyRequests();
 				resolve(client);
 			};
 
@@ -1364,7 +1514,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					return;
 				}
 				settled = true;
+				clearDeadline();
 				cancelLiveKbiRequests();
+				cancelLiveHostKeyRequests();
 				if (endClient) {
 					client.end();
 				}
@@ -1382,11 +1534,52 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			client.on('error', (err: Error) => {
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
-				rejectConnect(err, false);
+				// ssh2 reports a refused host key as "Host denied (verification
+				// failed)", which is both jargon and redundant — the host key
+				// UI has already told the user what happened.
+				rejectConnect(hostKeyDenied ? new SSHHostKeyDeniedError(displayHost) : err, false);
 			});
 
+			// A server can drop the connection cleanly mid-handshake (for
+			// example sshd refusing a session under MaxStartups), in which case
+			// ssh2 emits only 'end'/'close' with no 'error'. Without this the
+			// connect promise would never settle and any outstanding host key
+			// prompt would be left on screen forever.
+			client.on('close', () => {
+				rejectConnect(
+					hostKeyDenied
+						? new SSHHostKeyDeniedError(displayHost)
+						: new Error(`SSH connection to ${config.host} closed before the handshake completed`),
+					false);
+			});
+
+			// A server may announce its full host key set over the
+			// already-authenticated channel (OpenSSH's UpdateHostKeys). ssh2
+			// completes the `hostkeys-prove` challenge and verifies the
+			// signatures before emitting, so these are safe to persist without
+			// prompting — this is what lets a legitimate key rotation be
+			// learned silently instead of surfacing as a scary mismatch later.
+			client.on('hostkeys', (keys: readonly { getPublicSSH(): Buffer; type: string }[]) => {
+				this._handleAnnouncedHostKeys(connectionKey ?? displayHost, config.host, port, keys);
+			});
+
+			armDeadline(HANDSHAKE_TIMEOUT_MS);
 			client.connect(connectConfig);
 		});
+	}
+
+	/**
+	 * Arm the handshake deadline. Overridable so tests can observe how the
+	 * window changes as prompts come and go without waiting on real timers.
+	 */
+	protected _armHandshakeDeadline(ms: number, onExpired: () => void): IHandshakeDeadlineHandle {
+		return setTimeout(onExpired, ms);
+	}
+
+	protected _clearHandshakeDeadline(timer: IHandshakeDeadlineHandle | undefined): void {
+		if (timer) {
+			clearTimeout(timer);
+		}
 	}
 
 	protected async _createSSHClient(): Promise<SSHClient> {
@@ -1568,6 +1761,179 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			return;
 		}
 		pending.finish(responses);
+	}
+
+	/**
+	 * Read every `known_hosts` file that applies to `host` and return the
+	 * parsed entries. Overridable so tests can supply entries without touching
+	 * the developer's real SSH setup.
+	 *
+	 * Resolution deliberately goes through `ssh -G` rather than assuming
+	 * `~/.ssh/known_hosts`, so a user who has redirected `UserKnownHostsFile`
+	 * gets the files they actually configured. A failure here is not fatal: we
+	 * fall back to no entries, which downgrades to a trust prompt rather than
+	 * silently accepting an unverified key.
+	 */
+	protected async _readKnownHostsEntries(host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: SSHStrictHostKeyChecking | undefined }> {
+		let resolved: ISSHResolvedConfig | undefined;
+		try {
+			resolved = await this.resolveSSHConfig(host);
+		} catch (err) {
+			this._logService.warn(`${LOG_PREFIX} Could not resolve SSH config for known_hosts lookup of ${host}: ${err}`);
+		}
+
+		const paths = [
+			...(resolved?.userKnownHostsFiles ?? ['~/.ssh/known_hosts']),
+			...(resolved?.globalKnownHostsFiles ?? []),
+		];
+
+		const entries: IKnownHostsEntry[] = [];
+		for (const path of paths) {
+			const expanded = path.replace(/^~/, os.homedir());
+			try {
+				entries.push(...parseKnownHosts(await fsp.readFile(expanded, 'utf-8')));
+			} catch {
+				// Missing or unreadable known_hosts files are normal (most
+				// systems have no known_hosts2 and no global file).
+			}
+		}
+		return { entries, strictHostKeyChecking: resolved?.strictHostKeyChecking };
+	}
+
+	/**
+	 * Decide whether a presented host key should be trusted, by gathering the
+	 * evidence the renderer needs and asking it to apply policy.
+	 *
+	 * This process only collects facts — the fingerprint and what the user's
+	 * `known_hosts` files say. The renderer owns the decision because it holds
+	 * the trust store and the UI.
+	 */
+	private async _verifyHostKey(
+		connectionKey: string,
+		displayHost: string,
+		config: ISSHAgentHostConfig,
+		port: number,
+		key: Buffer,
+		verify: (permitted: boolean) => void,
+		onRequest: (requestId: string) => (() => void) | void,
+		isAborted: () => boolean,
+		onPromptSettled: () => void,
+	): Promise<void> {
+		let settled = false;
+		let prompted = false;
+		const verifyOnce = (permitted: boolean) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			if (prompted) {
+				// The human is out of the loop; restore the network deadline so
+				// the rest of the handshake is not held to the long window.
+				onPromptSettled();
+			}
+			verify(permitted);
+		};
+
+		try {
+			const keyType = readHostKeyType(key);
+			if (!keyType) {
+				// A blob whose self-declared algorithm we cannot read is not
+				// something we can meaningfully show the user or compare, so
+				// refuse rather than prompting about an unidentifiable key.
+				this._logService.error(`${LOG_PREFIX} Rejecting malformed host key from ${displayHost}`);
+				verifyOnce(false);
+				return;
+			}
+
+			const fingerprint = computeHostKeyFingerprint(key);
+			const { entries, strictHostKeyChecking } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
+
+			// Gathering evidence is asynchronous, so the connect attempt may
+			// have failed while we were reading known_hosts. Registering now
+			// would leak a pending entry that nothing will ever settle, and
+			// would prompt the user about a connection that is already gone.
+			if (isAborted()) {
+				this._logService.info(`${LOG_PREFIX} Abandoning host key verification for ${displayHost}: connect attempt already settled`);
+				verifyOnce(false);
+				return;
+			}
+
+			const knownHostsMatch = matchKnownHosts(entries, config.host, port, keyType, key);
+			this._logService.info(`${LOG_PREFIX} Host key for ${displayHost}: ${keyType} ${fingerprint} (known_hosts: ${knownHostsMatch})`);
+
+			const requestId = `hostkey-${++this._hostKeyRequestCounter}`;
+			prompted = true;
+			const onUserDenied = onRequest(requestId) ?? undefined;
+			this._pendingHostKeyRequests.set(requestId, { verify: verifyOnce, onUserDenied });
+			this._onDidRequestHostKeyVerification.fire({
+				requestId,
+				connectionKey,
+				displayHost,
+				host: config.host,
+				port,
+				keyType,
+				fingerprint,
+				knownHostsMatch,
+				...(strictHostKeyChecking ? { strictHostKeyChecking } : undefined),
+				userInitiated: config.userInitiated ?? true,
+			});
+		} catch (err) {
+			// Fail closed. Anything unexpected while gathering evidence must
+			// deny rather than accept, or a transient error becomes a way to
+			// bypass verification entirely.
+			this._logService.error(`${LOG_PREFIX} Host key verification failed for ${displayHost}`, err);
+			verifyOnce(false);
+		}
+	}
+
+	async respondHostKeyVerification(requestId: string, trusted: boolean): Promise<void> {
+		const pending = this._pendingHostKeyRequests.get(requestId);
+		if (!pending) {
+			this._logService.warn(`${LOG_PREFIX} respondHostKeyVerification: no pending request for ${requestId}`);
+			return;
+		}
+		this._pendingHostKeyRequests.delete(requestId);
+		this._logService.info(`${LOG_PREFIX} Host key ${trusted ? 'accepted' : 'rejected'} for request ${requestId}`);
+		if (!trusted) {
+			// Let the connect attempt report this as a host key refusal rather
+			// than surfacing ssh2's "Host denied (verification failed)".
+			pending.onUserDenied?.();
+		}
+		pending.verify(trusted);
+	}
+
+	/**
+	 * Surface host keys announced over an authenticated connection. ssh2 has
+	 * already proven each key belongs to this server (it runs the
+	 * `hostkeys-prove-00@openssh.com` challenge and verifies the signatures
+	 * before emitting), so consumers may persist them without prompting.
+	 */
+	private _handleAnnouncedHostKeys(
+		connectionKey: string,
+		host: string,
+		port: number,
+		keys: readonly { getPublicSSH(): Buffer; type: string }[],
+	): void {
+		const announced: { keyType: string; fingerprint: string }[] = [];
+		for (const key of keys) {
+			try {
+				const blob = key.getPublicSSH();
+				const keyType = readHostKeyType(blob);
+				// Skip anything whose blob disagrees with its declared type
+				// (notably certificates, which ssh2 misparses) rather than
+				// persisting trust in a key we did not correctly understand.
+				if (keyType && keyType === key.type) {
+					announced.push({ keyType, fingerprint: computeHostKeyFingerprint(blob) });
+				}
+			} catch (err) {
+				this._logService.warn(`${LOG_PREFIX} Skipping unreadable announced host key for ${host}: ${err}`);
+			}
+		}
+		if (!announced.length) {
+			return;
+		}
+		this._logService.info(`${LOG_PREFIX} Server ${host} announced ${announced.length} proven host key(s)`);
+		this._onDidAnnounceHostKeys.fire({ connectionKey, host, port, keys: announced });
 	}
 
 	/**
