@@ -4654,6 +4654,69 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(terminalManager.disposedTerminals, terminalUris);
 		});
 
+		test('emits todo store telemetry for successful built-in Copilot SQL', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
+				telemetryService,
+				sessionUri: AgentSession.uri('copilotcli', 'test-session-1'),
+			});
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-sql',
+				toolName: 'sql',
+				arguments: { query: 'INSERT INTO todos (id, title, status) VALUES (1, \'Test\', \'pending\')' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-sql',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation'), [{
+				eventName: 'todoStoreOperation',
+				data: {
+					operation: 'write',
+					target: 'todos',
+					toolCallId: 'tc-sql',
+					provider: 'copilotcli',
+					agentSessionId: 'test-session-1',
+					isSubagentSession: false,
+				},
+			}]);
+		});
+
+		test('does not emit todo store telemetry for failed or contributed SQL', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				sessionUri: AgentSession.uri('copilotcli', 'test-session-1'),
+				resolveMcpChildId: serverName => serverName === 'database' ? 'database-customization' : undefined,
+			});
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-failed',
+				toolName: 'sql',
+				arguments: { query: 'DELETE FROM todo_deps' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-failed',
+				success: false,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-mcp',
+				toolName: 'sql',
+				mcpServerName: 'database',
+				arguments: { query: 'SELECT * FROM todos' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-mcp',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation'), []);
+		});
+
 		test('tool partial results stream into an output-only terminal channel', async () => {
 			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			session.resetTurnState('turn-stream');
@@ -6947,6 +7010,28 @@ suite('CopilotAgentSession', () => {
 			return created;
 		}
 
+		async function runToolSearch(clientResultText: string, availableTools: CurrentToolMetadata[], query = 'search tools', success = true): Promise<ToolResultObject> {
+			const { session, runtime, mockSession } = await createToolSearchSession(false);
+			const [override] = runtime.createClientSdkTools();
+			const toolCallId = 'tc-tool-search-result';
+			const args = query ? { query } : {};
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId,
+				toolName: 'tool_search_tool',
+				arguments: args,
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const handlerPromise = invokeClientToolHandler(override, toolCallId, args, availableTools);
+			session.handleClientToolCallComplete(toolCallId, {
+				success,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: clientResultText }],
+				...(success ? {} : { error: { message: 'Tool search failed' } }),
+			});
+			return handlerPromise;
+		}
+
 		test('tool-search override routes to the client and injects deferred candidates', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(false);
 
@@ -6995,7 +7080,80 @@ suite('CopilotAgentSession', () => {
 
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
-			assert.deepStrictEqual(result.toolReferences, ['everything-get-sum']);
+			assert.deepStrictEqual({
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				textResultForLlm: '["everything-get-sum"]',
+				toolReferences: ['everything-get-sum'],
+			});
+		});
+
+		test('tool-search override aligns model-visible names with runtime references', async () => {
+			const cases: { clientResultText: string; availableTools: CurrentToolMetadata[]; expected: string[] }[] = [
+				{
+					clientResultText: '["github-pull-request_create_pull_request","github-pull-request_doSearch"]',
+					availableTools: [
+						{ name: 'create_pull_request', description: 'Create a pull request', deferLoading: true },
+						{ name: 'doSearch', description: 'Search GitHub', deferLoading: true },
+					],
+					expected: [],
+				},
+				{
+					clientResultText: '["github-pull-request/create_pull_request","github-pull-request/create_pull_request"]',
+					availableTools: [
+						{ name: 'create_pull_request', namespacedName: 'github-pull-request/create_pull_request', description: 'Create a pull request', deferLoading: true },
+					],
+					expected: ['create_pull_request'],
+				},
+			];
+
+			const results = [];
+			for (const testCase of cases) {
+				const result = await runToolSearch(testCase.clientResultText, testCase.availableTools);
+				results.push({
+					textResultForLlm: result.textResultForLlm,
+					toolReferences: result.toolReferences,
+				});
+			}
+			assert.deepStrictEqual(results, cases.map(testCase => ({
+				textResultForLlm: JSON.stringify(testCase.expected),
+				toolReferences: testCase.expected,
+			})));
+		});
+
+		test('tool-search override preserves non-list client result text', async () => {
+			const texts = ['Error: query parameter is required', '"create_pull_request"'];
+			const results = [];
+			for (const text of texts) {
+				const result = await runToolSearch(text, [], '');
+				results.push({
+					textResultForLlm: result.textResultForLlm,
+					toolReferences: result.toolReferences,
+				});
+			}
+			assert.deepStrictEqual(results, texts.map(text => ({
+				textResultForLlm: text,
+				toolReferences: [],
+			})));
+		});
+
+		test('tool-search override preserves failed client result text', async () => {
+			const result = await runToolSearch(
+				'["github-pull-request/create_pull_request"]',
+				[{ name: 'create_pull_request', namespacedName: 'github-pull-request/create_pull_request', description: 'Create a pull request', deferLoading: true }],
+				'create pull request',
+				false,
+			);
+			assert.deepStrictEqual({
+				resultType: result.resultType,
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				resultType: 'failure',
+				textResultForLlm: '["github-pull-request/create_pull_request"]',
+				toolReferences: ['create_pull_request'],
+			});
 		});
 
 		test('auto-approved tool search defers its only ready until candidates are available', async () => {
