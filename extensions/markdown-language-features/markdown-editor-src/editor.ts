@@ -56,17 +56,25 @@ class Editor extends Disposable {
 	#commentsView: VsCodeV2CommentsView | undefined;
 	/** Whether the workbench feedback store currently accepts new comments for this resource. */
 	readonly #acceptsComments = observableValue<boolean>('acceptsComments', false);
+	// the message secret allows to distinguish vscode sending us a message vs a nested iframe
+	readonly #messageSecret: string;
 	readonly #vscode = acquireVsCodeApi();
 	readonly #syntaxHighlighter = new WebviewSyntaxHighlighter((message) => this.#vscode.postMessage(message));
 
 	constructor(host: HTMLElement) {
 		super();
 
+		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
+		if (!messageSecret) {
+			throw new Error('Missing Markdown editor message secret');
+		}
+		this.#messageSecret = messageSecret;
+
 		mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
 		window.addEventListener('message', (event) => {
 			const message = event.data;
-			if (!message || typeof message !== 'object') {
+			if (!message || typeof message !== 'object' || message.messageSecret !== this.#messageSecret) {
 				return;
 			}
 			if (this.#syntaxHighlighter.handleMessage(message)) {
