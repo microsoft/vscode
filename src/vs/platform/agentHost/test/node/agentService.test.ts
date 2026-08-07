@@ -4998,6 +4998,58 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('session creation tools preserve the provider default model on the active turn', async () => {
+			class ServerToolAgent extends MockAgent {
+				readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+
+				override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+					this.createSessionConfigs.push(config);
+					return super.createSession(config);
+				}
+			}
+
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const sourceSession = await localService.createSession({ provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(sourceSession);
+			localService.stateManager.dispatchServerAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'previous-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'previous', origin: { kind: MessageKind.User }, model: { id: 'previous-model' } },
+			});
+			localService.stateManager.dispatchServerAction(sourceChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'previous-turn',
+				duration: 1,
+			});
+			localService.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'active-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'use provider default', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+
+			await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.CreateSession, {
+				workspace: URI.file('/workspace').toString(),
+				prompt: 'new session',
+			});
+
+			assert.deepStrictEqual({
+				provider: agent.createSessionConfigs.at(-1)?.provider,
+				model: agent.createSessionConfigs.at(-1)?.model,
+			}, {
+				provider: 'copilot',
+				model: undefined,
+			});
+		});
+
 		test('createChat resolves a restored peer fork source before creating the fork', async () => {
 			let materializeCalls = 0;
 			let providerForkTurnId: string | undefined;

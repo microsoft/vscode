@@ -863,7 +863,11 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 
-		const model = session.activeTurn?.message.model ?? session.draft?.model ?? session.turns.at(-1)?.message.model;
+		const model = session.activeTurn
+			? session.activeTurn.message.model
+			: session.draft
+				? session.draft.model
+				: session.turns.at(-1)?.message.model;
 		const config = this._providers.get(session.provider)?.getInheritedSessionConfig?.(session.config?.values ?? {});
 		return {
 			provider: session.provider,
