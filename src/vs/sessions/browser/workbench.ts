@@ -897,6 +897,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			'agent-sessions-workbench',
+			'style-override',
 			// LayoutClasses.SHELL_GRADIENT_BACKGROUND,
 			platformClass,
 			isWeb ? 'web' : undefined,

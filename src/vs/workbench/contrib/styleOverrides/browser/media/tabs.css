@@ -6,14 +6,13 @@
 /*
  * Style-override module: "Agents Window Tabs".
  *
- * Makes the editor tabs in the regular workbench look like the Agents window
- * tabs: transparent, rounded, borderless pills with a subtle active highlight.
+ * Shared modern tab presentation used by the regular workbench and the Agents
+ * window: transparent, rounded, borderless pills with a subtle active highlight.
  *
  * All rules are gated behind the `.style-override` class, which the
- * StyleOverridesContribution toggles onto the workbench container(s) when the
- * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled. Mirrors
- * the Agents window styling defined in
- * src/vs/sessions/browser/media/style.css.
+ * StyleOverridesContribution toggles onto regular workbench containers when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled. The
+ * Agents workbench applies the same gate directly.
  */
 
 .style-override.monaco-workbench {
@@ -182,6 +181,11 @@
 
 .style-override.monaco-workbench .part.editor .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab {
 	border-block: var(--vscode-spacing-size40) solid transparent;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab {
+	height: auto;
+	align-self: stretch;
 }
 
 /* Keep 24px fills inside 32px hit targets while avoiding an 8px double gutter
