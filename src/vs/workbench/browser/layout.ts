@@ -113,9 +113,10 @@ enum LayoutClasses {
 	// Presentation class for the Modern UI Update experiment, owned/toggled at
 	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
 	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
-	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
-	// height) via `.closest('.style-override')`.
-	STYLE_OVERRIDE = 'style-override'
+	// the 32px vs 35px part title height in `PartLayout`).
+	STYLE_OVERRIDE = 'style-override',
+	// Module-specific gate shared with the Agents workbench.
+	MODERN_UI_TABS = 'modern-ui-tabs'
 }
 
 interface IPathToOpen extends IPath {
@@ -1928,6 +1929,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
 			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
 			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI_TABS : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`
 		]);

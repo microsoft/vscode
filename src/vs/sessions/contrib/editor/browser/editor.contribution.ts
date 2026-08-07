@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/editorTabs.css';
+import '../../../../workbench/contrib/styleOverrides/browser/media/tabs.css';
 import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
 import './diffEditor.sessions.contribution.js';

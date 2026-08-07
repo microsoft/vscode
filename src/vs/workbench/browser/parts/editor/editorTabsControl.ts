@@ -103,11 +103,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private static readonly EDITOR_TAB_HEIGHT = {
 		normal: 35 as const,
 		compact: 22 as const,
-		// Style-override (Modern UI) multi-tab mode adds 4px top + 4px bottom padding to
+		// Modern UI multi-tab mode adds 4px top + 4px bottom padding to
 		// the tabs-and-actions-container (tabs.css), so the total title-bar height is the
 		// --editor-group-tab-height CSS value (24px / 20px) plus that 8px padding.
-		styleOverride: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
-		styleOverrideCompact: 28 as const, // 20px tab  + 4px top + 4px bottom padding (20px = minimum to fit 16px icon + 2px padding)
+		modernUI: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
+		modernUICompact: 28 as const, // 20px tab  + 4px top + 4px bottom padding (20px = minimum to fit 16px icon + 2px padding)
 	};
 
 	protected editorActionsToolbarContainer: HTMLElement | undefined;
@@ -580,12 +580,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected get tabHeight() {
 		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
-		// In style-override multi-tab mode the tabs-and-actions-container gains extra
+		// In modern multi-tab mode the tabs-and-actions-container gains extra
 		// padding (tabs.css), so the total height differs from the base values.
 		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab
 		// and no-tab modes are not affected by those CSS overrides.
-		if (this.parent.classList.contains('tabs') && this.parent.closest('.style-override')) {
-			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.styleOverrideCompact : EditorTabsControl.EDITOR_TAB_HEIGHT.styleOverride;
+		if (this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs')) {
+			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}
@@ -605,7 +605,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected updateTabHeight(): void {
 		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
-		// Signal compact mode via a CSS class so the style-override rules in tabs.css
+		// Signal compact mode via a CSS class so the modern tab rules in tabs.css
 		// can apply a proportionally smaller --editor-group-tab-height value.
 		this.parent.classList.toggle('compact-height', this.groupsView.partOptions.tabHeight === 'compact');
 	}
