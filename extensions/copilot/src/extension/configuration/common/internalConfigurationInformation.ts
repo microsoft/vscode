@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Config, ConfigType, ExperimentBasedConfig, ExperimentBasedConfigType } from '../../../platform/configuration/common/configurationService';
+import { Config, ExperimentBasedConfig, ExperimentBasedConfigType } from '../../../platform/configuration/common/configurationService';
 
 export interface IInternalConfigurationPropertyInformation {
 	defaultValue: unknown;
-	configType: 'simple' | 'experimentBased';
-	experimentName?: string;
-	oldId?: string;
 }
 
 export interface IInternalConfigurationInformation {
@@ -22,12 +19,7 @@ export function buildInternalConfigurationInformation(configs: Iterable<Config<u
 		if (!config.options?.valueIgnoredForExternals) {
 			continue;
 		}
-		configurationInformation[config.fullyQualifiedId] = {
-			defaultValue: config.defaultValue,
-			configType: config.configType === ConfigType.Simple ? 'simple' : 'experimentBased',
-			experimentName: config.configType === ConfigType.ExperimentBased ? config.experimentName : undefined,
-			oldId: config.fullyQualifiedOldId,
-		};
+		configurationInformation[config.fullyQualifiedId] = { defaultValue: config.defaultValue };
 	}
 	return configurationInformation;
 }
