@@ -541,8 +541,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					entry.status = RemoteAgentHostConnectionStatus.connected;
 					this._onDidChangeConnections.fire();
 					break;
-				case AgentHostClientState.Connecting:
 				case AgentHostClientState.Incompatible:
+					entry.connected = false;
+					entry.status = client.connectionError
+						? RemoteAgentHostConnectionStatus.fromConnectError(client.connectionError, [PROTOCOL_VERSION]) ?? RemoteAgentHostConnectionStatus.disconnected
+						: RemoteAgentHostConnectionStatus.disconnected;
+					this._reconnectAttempts.delete(address);
+					this._onDidChangeConnections.fire();
+					break;
+				case AgentHostClientState.Connecting:
 				case AgentHostClientState.Closed:
 					break;
 			}

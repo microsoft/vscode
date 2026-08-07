@@ -957,6 +957,71 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	test('requires a managed-permissions-capable protocol when restrictive policy is present', async () => {
+		const configurationService = new ManagedPermissionPolicyConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
+		});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		const connect = client.connect();
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+
+		assert.deepStrictEqual((initialize.params as { protocolVersions: string[] }).protocolVersions, [PROTOCOL_VERSION]);
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: '0.7.0', serverSeq: 0, snapshots: [] },
+		});
+
+		await assertRemoteProtocolError(connect, {
+			code: AhpErrorCodes.UnsupportedProtocolVersion,
+			message: 'Managed permissions require Agent Host protocol 0.8.0 or newer; negotiated 0.7.0.',
+			data: { supportedVersions: ['>=0.8.0'] },
+		});
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+		assert.strictEqual(transport.sentMessages.length, 1);
+	});
+
+	test('fails closed when restrictive policy appears on an older connected host', async () => {
+		const configurationService = new ManagedPermissionPolicyConfigurationService({});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		const connect = client.connect();
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: '0.7.0', serverSeq: 0, snapshots: [] },
+		});
+		await connect;
+		assert.strictEqual(
+			transport.sentMessages.some(message =>
+				hasKey(message, { method: true })
+				&& message.method === 'dispatchAction'
+				&& Object.hasOwn(getRootConfig(message as JsonRpcNotification), AgentHostManagedPermissionsConfigKey)),
+			false,
+		);
+
+		configurationService.setPolicyValue(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
+		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
+
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+		const sentBeforeReverseRequest = transport.sentMessages.length;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 42,
+			method: 'resourceRead',
+			params: { channel: ROOT_STATE_URI, uri: URI.file('/workspace/blocked.txt').toString() },
+		});
+		await flushMicrotasks();
+		assert.strictEqual(transport.sentMessages.length, sentBeforeReverseRequest);
+		assert.strictEqual(
+			transport.sentMessages.some(message =>
+				hasKey(message, { method: true })
+				&& message.method === 'dispatchAction'
+				&& Object.hasOwn(getRootConfig(message as JsonRpcNotification), AgentHostManagedPermissionsConfigKey)),
+			false,
+		);
+	});
+
 	test('forwards the empty clear sentinel when only non-policy values are set', async () => {
 		// User/workspace values are restrictive, but no enterprise policy is set —
 		// only `policyValue` maps, so nothing must be forwarded.
@@ -1690,7 +1755,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, configurationService: TestConfigurationService = new TestConfigurationService()): { client: RemoteAgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -1698,7 +1763,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new RemoteAgentHostProtocolClient(
-				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, new TestConfigurationService(),
+				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, configurationService,
 			));
 			return { client, transports };
 		}
@@ -1777,6 +1842,38 @@ suite('RemoteAgentHostProtocolClient', () => {
 			} finally {
 				client.dispose();
 			}
+		});
+
+		test('treats managed-permission protocol incompatibility during reconnect fallback as terminal', async function () {
+			this.timeout(10_000);
+			const configurationService = new ManagedPermissionPolicyConfigurationService({});
+			const { client, transports } = createFactoryClient(createPermissionService(), undefined, configurationService);
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			configurationService.setPolicyValue(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			assert.deepStrictEqual((initialize.params as { protocolVersions: string[] }).protocolVersions, [PROTOCOL_VERSION]);
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				error: { code: AhpErrorCodes.UnsupportedProtocolVersion, message: 'Protocol versions do not match' },
+			});
+			await flushMicrotasks();
+
+			assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+			assert.strictEqual(transports.length, 2);
 		});
 
 		test('replays pending optimistic actions after reconnect', async function () {

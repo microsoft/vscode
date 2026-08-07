@@ -27,7 +27,7 @@ import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHost
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
-import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
+import { compareProtocolVersions, SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -50,6 +50,7 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
+const MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION = '0.8.0';
 
 /** Initial delay before the first transport-level reconnect attempt. */
 const RECONNECT_INITIAL_DELAY_MS = 1_000;
@@ -276,6 +277,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	private readonly _grantedImplicitReadUris = new ResourceSet();
 	private readonly _implicitReadGrants = this._register(new DisposableStore());
+	private _didCloseConnectionResources = false;
 
 	get clientId(): string {
 		return this._clientId;
@@ -291,6 +293,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	get connectionState(): AgentHostClientState {
 		return this._state.kind;
+	}
+
+	get connectionError(): ProtocolError | undefined {
+		return this._state.kind === AgentHostClientState.Incompatible || this._state.kind === AgentHostClientState.Closed
+			? this._state.error
+			: undefined;
 	}
 
 	/**
@@ -447,7 +455,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				// Advertise every version this client can negotiate, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
-				protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+				protocolVersions: this._supportedProtocolVersions(),
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				...this._clientConnectionTelemetryMeta(),
@@ -626,6 +634,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
 		} catch (err) {
 			this._logService.warn(`[RemoteAgentHostProtocol] Reconnect attempt failed for ${this._address}: ${err instanceof Error ? err.message : String(err)}`);
+			if (err instanceof ProtocolError && err.code === AhpErrorCodes.UnsupportedProtocolVersion) {
+				this._markIncompatible(err);
+				return;
+			}
 			transport?.dispose();
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
 				return;
@@ -657,7 +669,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+			protocolVersions: this._supportedProtocolVersions(),
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			...this._clientConnectionTelemetryMeta(),
@@ -673,6 +685,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _applyInitializeResult(result: CommandMap['initialize']['result']): void {
+		this._assertManagedPermissionsSupported(result.protocolVersion);
 		this._initializeResult.set(result, undefined);
 		this._serverSeq = result.serverSeq;
 		if (result.defaultDirectory) {
@@ -1209,11 +1222,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _handleMessage(msg: ProtocolMessage): void {
-		if (this._state.kind === AgentHostClientState.Closed) {
+		if (this._state.kind === AgentHostClientState.Closed
+			|| (this._state.kind === AgentHostClientState.Incompatible && !isJsonRpcResponse(msg))) {
 			// After close, the transport may still emit late messages (e.g.
 			// because the same shared event source is also feeding a newer
-			// transport for the same connectionId). Drop them so they can't
-			// trigger any side effects.
+			// transport for the same connectionId). An incompatible connection
+			// only accepts responses for the explicit upgrade request.
 			return;
 		}
 
@@ -1310,11 +1324,19 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._state.outbox.length = 0;
 		}
 		this._rejectPendingRequests(error);
+		this._closeConnectionResources();
+		this._transitionTo({ kind: AgentHostClientState.Closed, error });
+		this._onDidClose.fire();
+	}
+
+	private _closeConnectionResources(): void {
+		if (this._didCloseConnectionResources) {
+			return;
+		}
+		this._didCloseConnectionResources = true;
 		this._grantedImplicitReadUris.clear();
 		this._implicitReadGrants.clear();
 		this._resourceService.connectionClosed(this._resourceIdentity);
-		this._transitionTo({ kind: AgentHostClientState.Closed, error });
-		this._onDidClose.fire();
 	}
 
 	private async _raceClose<T>(promise: Promise<T>): Promise<T> {
@@ -1509,13 +1531,72 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * merge-based root config drops any previously forwarded permissions.
 	 */
 	private _updateManagedPermissions(): void {
-		const permissions = deriveManagedPermissions({
-			globalAutoApprove: this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
-			terminalAutoApproveEnabled: this._configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
-		});
+		const permissions = this._deriveManagedPermissions();
+		const protocolVersion = this._initializeResult.get()?.protocolVersion;
+		if (protocolVersion && compareProtocolVersions(protocolVersion, MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION) < 0) {
+			if (!permissions) {
+				return;
+			}
+			const error = this._managedPermissionsUnsupportedError(protocolVersion);
+			const wasConnected = this._state.kind === AgentHostClientState.Connected;
+			this._markIncompatible(error);
+			if (!wasConnected) {
+				throw error;
+			}
+			return;
+		}
 		// Root config patches merge over existing values. An empty object is
 		// the wire-safe clear sentinel because JSON drops `undefined`.
 		this._dispatchRootConfig({ [AgentHostManagedPermissionsConfigKey]: permissions ?? {} });
+	}
+
+	private _deriveManagedPermissions() {
+		return deriveManagedPermissions({
+			globalAutoApprove: this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
+			terminalAutoApproveEnabled: this._configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
+		});
+	}
+
+	private _supportedProtocolVersions(): string[] {
+		if (!this._deriveManagedPermissions()) {
+			return [...SUPPORTED_PROTOCOL_VERSIONS];
+		}
+		return SUPPORTED_PROTOCOL_VERSIONS.filter(version =>
+			compareProtocolVersions(version, MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION) >= 0);
+	}
+
+	private _assertManagedPermissionsSupported(protocolVersion: string): void {
+		if (this._deriveManagedPermissions()
+			&& compareProtocolVersions(protocolVersion, MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION) < 0) {
+			throw this._managedPermissionsUnsupportedError(protocolVersion);
+		}
+	}
+
+	private _managedPermissionsUnsupportedError(protocolVersion: string): ProtocolError {
+		return new ProtocolError(
+			AhpErrorCodes.UnsupportedProtocolVersion,
+			`Managed permissions require Agent Host protocol ${MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION} or newer; negotiated ${protocolVersion}.`,
+			{ supportedVersions: [`>=${MANAGED_PERMISSIONS_MIN_PROTOCOL_VERSION}`] },
+		);
+	}
+
+	private _markIncompatible(error: ProtocolError): void {
+		this._cancelLivenessTimers();
+		if (this._state.kind === AgentHostClientState.Connecting) {
+			this._state.outbox.length = 0;
+		} else if (this._state.kind === AgentHostClientState.Reconnecting) {
+			const reconnect = this._state.reconnect;
+			if (reconnect.timeoutHandle !== undefined) {
+				clearTimeout(reconnect.timeoutHandle);
+			}
+			if (!reconnect.gate.isSettled) {
+				reconnect.gate.error(error);
+			}
+			reconnect.outbox.length = 0;
+		}
+		this._rejectPendingRequests(error);
+		this._closeConnectionResources();
+		this._transitionTo({ kind: AgentHostClientState.Incompatible, error });
 	}
 
 	private _updatePreferLongContextEnabled(): void {
