@@ -53,7 +53,7 @@ export interface RepoEntry {
 }
 
 export interface CodeSearchRemoteIndexState {
-	readonly status: 'disabled' | 'initializing' | 'loaded';
+	readonly status: 'disabled' | 'initializing' | 'loaded' | 'noWorkspace';
 
 	readonly repos: ReadonlyArray<RepoEntry>;
 
@@ -501,6 +501,14 @@ export class CodeSearchChunkSearch extends Disposable {
 	}
 
 	public getRemoteIndexState(hasPromptedForExternalIngest: boolean): CodeSearchRemoteIndexState {
+		// If there are no workspace folders, there's nothing to index
+		if (this._workspaceService.getWorkspaceFolders().length === 0) {
+			return {
+				status: 'noWorkspace',
+				repos: [],
+			};
+		}
+
 		const externalIngestEnablement = this.getExternalIngestEnablement();
 		if (!this.isCodeSearchEnabled() && !this.isExternalIngestEnabled()) {
 			return {
