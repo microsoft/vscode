@@ -79,6 +79,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		private readonly _renderSideBySide: IObservable<boolean | undefined>,
 		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
+		private readonly _paddingBottomPx: IObservable<number>,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 	) {
@@ -135,8 +136,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				}
 				const viewModels = vm.items.read(reader);
 				const map = new Map<DocumentDiffItemViewModel, VirtualizedViewItem>();
-				const items = viewModels.map(d => {
-					const item = reader.store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft, delta => {
+				const items = viewModels.map((d, index) => {
+					const item = reader.store.add(new VirtualizedViewItem(d, index === 0, this._objectPool, this.scrollLeft, delta => {
 						this._scrollableElement.setScrollPosition({ scrollTop: this._scrollableElement.getScrollPosition().scrollTop + delta });
 					}));
 					const data = this._lastDocStates?.[item.getKey()];
@@ -153,7 +154,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		);
 		this._viewItems = this._viewItemsInfo.map(this, items => items.items);
 		this._spaceBetweenPx = 0;
-		this._totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader) + this._spaceBetweenPx, 0));
+		this._totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader) + this._spaceBetweenPx, 0) + this._paddingBottomPx.read(reader));
 		this.activeControl = derived(this, reader => {
 			const activeDiffItem = this._viewModel.read(reader)?.activeDiffItem.read(reader);
 			if (!activeDiffItem) { return undefined; }
@@ -646,6 +647,7 @@ class VirtualizedViewItem extends Disposable {
 
 	constructor(
 		public readonly viewModel: DocumentDiffItemViewModel,
+		private readonly _isFirst: boolean,
 		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
 		private readonly _scrollLeft: IObservable<number>,
 		private readonly _deltaScrollVertical: (delta: number) => void,
@@ -741,7 +743,7 @@ class VirtualizedViewItem extends Disposable {
 
 		let ref = this._templateRef.get();
 		if (!ref) {
-			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel, this._deltaScrollVertical));
+			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel, this._deltaScrollVertical, this._isFirst));
 			this._templateRef.set(ref, undefined);
 
 			const selections = this.viewModel.lastTemplateData.get().selections;
