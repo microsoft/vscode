@@ -203,6 +203,10 @@
 	white-space: nowrap;
 }
 
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-count-button {
+	padding-block: 0;
+}
+
 .chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-workspace-button {
 	min-width: 0;
 	max-width: 100%;

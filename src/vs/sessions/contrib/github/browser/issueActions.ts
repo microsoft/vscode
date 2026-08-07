@@ -185,6 +185,11 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 			: localize('agentSessions.openIssue.count', "{0} issues", issues.length);
 	}
 
+	protected override updateLabel(): void {
+		super.updateLabel();
+		this.button?.element.classList.toggle('chat-composite-bar-meta-count-button', this._issuesObs.get().length > 1);
+	}
+
 	protected override getHoverContents(): IManagedHoverContent | undefined {
 		const issues = this._issuesObs.get();
 		if (issues.length !== 1) {

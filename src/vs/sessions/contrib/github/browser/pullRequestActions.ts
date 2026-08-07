@@ -281,6 +281,11 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 			: localize('agentSessions.openPullRequest.count', "{0} Pull Requests", pullRequests.length);
 	}
 
+	protected override updateLabel(): void {
+		super.updateLabel();
+		this.button?.element.classList.toggle('chat-composite-bar-meta-count-button', this._pullRequestsObs.get().length > 1);
+	}
+
 	protected override getHoverContents(): IManagedHoverContent | undefined {
 		const pullRequests = this._pullRequestsObs.get();
 		if (pullRequests.length !== 1) {
