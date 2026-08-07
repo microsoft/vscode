@@ -384,7 +384,7 @@ The Changes view's body is a vertical `SplitView` of File Changes, Other Files, 
 
 ### Panel
 
-The panel (terminal / debug output) is hidden by default for all sessions. Each session independently tracks the user's last explicit show/hide action, and that state is restored on session switch.
+The panel (terminal / debug output) is hidden by default for all sessions. Each session independently tracks the user's last explicit show/hide action, and that state is restored on session switch. Its height remains workbench-level state rather than per-session state. In single-pane layout, revealing the Editor preserves the visible panel height; otherwise the grid can shrink the panel to its minimum while it redistributes space for the restored Editor node.
 
 ### Editor Working Sets
 

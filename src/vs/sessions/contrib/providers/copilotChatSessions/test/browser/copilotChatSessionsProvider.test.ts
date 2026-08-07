@@ -27,7 +27,7 @@ import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/
 import { IAgentSessionsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -415,6 +415,11 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes.length, 2);
 	});
 
+	test('sessionTypes excludes Local', () => {
+		const provider = createProvider(disposables, model);
+		assert.ok(!provider.sessionTypes.some(type => type.id === SessionType.Local));
+	});
+
 	test('sessionTypes excludes Claude when setting is disabled', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: false });
 		assert.strictEqual(provider.sessionTypes.length, 1);
@@ -589,7 +594,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
-	test('getSessions excludes Local sessions (now owned by LocalChatSessionsProvider)', () => {
+	test('getSessions excludes Local sessions', () => {
 		const bgResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/bg-session' });
 		const localResource = URI.from({ scheme: AgentSessionProviders.Local, path: '/local-session' });
 		model.addSession(createMockAgentSession(bgResource));
