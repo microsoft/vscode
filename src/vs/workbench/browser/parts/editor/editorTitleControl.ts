@@ -153,6 +153,10 @@ export class EditorTitleControl extends Themable {
 		}
 	}
 
+	updateEditorCapabilities(editor: EditorInput): void {
+		this.editorTabsControl.updateEditorCapabilities(editor);
+	}
+
 	updateEditorDirty(editor: EditorInput): void {
 		return this.editorTabsControl.updateEditorDirty(editor);
 	}

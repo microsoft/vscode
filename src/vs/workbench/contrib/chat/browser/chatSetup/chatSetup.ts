@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -82,7 +83,9 @@ export interface IChatSetupRunOptions {
 	readonly dialogTitle?: string;
 	readonly setupStrategy?: ChatSetupStrategy;
 	readonly disableCloseButton?: boolean;
-	readonly onSignInStarted?: () => void;
+	readonly dialogExtraClasses?: readonly string[];
+	readonly renderDialogFooter?: (container: HTMLElement) => IDisposable | undefined;
+	readonly onSignInStarted?: (cancel: () => void) => void;
 }
 
 export interface IChatSetupCommandOptions extends IChatSetupRunOptions {

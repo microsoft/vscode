@@ -911,6 +911,7 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.strictEqual(model.getPendingRequests().length, 1, 'queued message should wait while the streamed turn is in progress');
+		assert.strictEqual(queued.requestId, model.getPendingRequests()[0].request.id, 'queued result should identify the pending request it created');
 
 		isCompleteObs.set(true, undefined);
 		await invoked.p;

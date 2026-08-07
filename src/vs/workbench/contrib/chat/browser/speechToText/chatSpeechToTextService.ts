@@ -34,6 +34,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
+import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
 import { resolveDictationLanguage } from './dictationLanguage.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 
@@ -740,6 +741,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private async _startEntitled(window: Window & typeof globalThis, surface: ChatDictationSurface, backend: DictationBackend, generation: number, startGeneration: number): Promise<void> {
+		const captureWindow = getMediaCaptureWindow(window);
 		this._sessionStartMs = Date.now();
 		this._sessionSegments = 0;
 		this._sessionPartialUpdates = 0;
@@ -757,7 +759,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		let stream: MediaStream;
 		try {
-			stream = await this._acquireStream(window);
+			stream = await this._acquireStream(captureWindow);
 		} catch (err) {
 			if (!this._isCurrentStart(generation, startGeneration, backend)) {
 				return;
@@ -776,7 +778,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._mediaStream = stream;
 
 		try {
-			await this._startBackendSession(window, generation);
+			await this._startBackendSession(captureWindow, generation);
 		} catch (err) {
 			if (!this._isCurrentStart(generation, startGeneration, backend)) {
 				return;
@@ -795,7 +797,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 
 		try {
-			await this._startCapture(window, stream);
+			await this._startCapture(captureWindow, stream);
 		} catch (err) {
 			if (!this._isCurrentStart(generation, startGeneration, backend)) {
 				return;
