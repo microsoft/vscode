@@ -27,10 +27,11 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { META_GITHUB_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -511,10 +512,16 @@ suite('AgentService (node dispatcher)', () => {
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
 		};
+		const github = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+			pullRequestBranchName: 'feature',
+		};
 		const session = await localService.createSession({
 			provider: agent.id,
 			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
-			_meta: { multiRoot, ignored: 'client value' },
+			_meta: { github, multiRoot, ignored: 'client value' },
 		});
 		const sourceChat = buildDefaultChatUri(session.toString());
 		localService.dispatchAction(sourceChat, {
@@ -545,11 +552,13 @@ suite('AgentService (node dispatcher)', () => {
 		assert.deepStrictEqual({
 			state: localService.stateManager.getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			github: readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta),
 			inherited: readSessionMultiRootMetadata(localService.stateManager.getSessionState(inherited.toString())?._meta),
 			overridden: readSessionMultiRootMetadata(localService.stateManager.getSessionState(overridden.toString())?._meta),
 		}, {
-			state: { multiRoot },
+			state: { github, multiRoot },
 			persisted: JSON.stringify(override),
+			github,
 			inherited: multiRoot,
 			overridden: override,
 		});
@@ -582,26 +591,43 @@ suite('AgentService (node dispatcher)', () => {
 		const multiRoot = {
 			workspaceFile: 'file:///work/demo.code-workspace',
 		};
+		const github = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+			pullRequestBranchName: 'feature',
+		};
 		const session = await localService.createSession({
 			provider: agent.id,
 			workingDirectories: [URI.file('/work/one'), URI.file('/work/two')],
-			_meta: { multiRoot },
+			_meta: { github, multiRoot },
 		});
 		const before = readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta);
 		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
+		const githubBefore = readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta);
+		const persistedGitHubBefore = await db.getMetadata(META_GITHUB_STATE);
 
 		agent.materialize(session, [URI.file('/work/materialized'), URI.file('/work/two')]);
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			before,
 			persistedBefore,
+			githubBefore,
+			persistedGitHubBefore,
 			after: readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta),
 			persistedAfter: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			githubAfter: readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta),
+			persistedGitHubAfter: await db.getMetadata(META_GITHUB_STATE),
 		}, {
 			before: multiRoot,
 			persistedBefore: undefined,
+			githubBefore: github,
+			persistedGitHubBefore: undefined,
 			after: multiRoot,
 			persistedAfter: JSON.stringify(multiRoot),
+			githubAfter: github,
+			persistedGitHubAfter: JSON.stringify(github),
 		});
 	});
 

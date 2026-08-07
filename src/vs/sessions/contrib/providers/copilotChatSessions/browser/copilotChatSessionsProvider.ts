@@ -2315,6 +2315,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext,
+			hideFromTranscript: options.hideFromTranscript,
 			agentHostSessionConfig: session instanceof CopilotCLISession ? session.getAgentHostSessionConfig() : undefined,
 		};
 
@@ -2459,6 +2460,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext,
+			hideFromTranscript: options.hideFromTranscript,
 			agentHostSessionConfig: newChatSession.getAgentHostSessionConfig(),
 		};
 
