@@ -103,6 +103,7 @@ export class ViewLine implements IVisibleLine {
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
+			this._isMaybeInvalid = true;
 			return false;
 		}
 
