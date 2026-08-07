@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from '../../../../base/common/arrays.js';
-import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { randomChance } from '../../../../base/common/numbers.js';
@@ -33,9 +34,7 @@ export class SearchService extends Disposable implements ISearchService {
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly aiTextSearchProviders = new Map<string, ISearchResultProvider>();
 
-	private deferredFileSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
-	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
-	private deferredAITextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
+	private readonly _onDidRegisterProvider = this._register(new Emitter<{ scheme: string; type: QueryType }>());
 
 	private loggedSchemesMissingProviders = new Set<string>();
 
@@ -53,26 +52,21 @@ export class SearchService extends Disposable implements ISearchService {
 
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
 		let list: Map<string, ISearchResultProvider>;
-		let deferredMap: Map<string, DeferredPromise<ISearchResultProvider>>;
 		if (type === SearchProviderType.file) {
 			list = this.fileSearchProviders;
-			deferredMap = this.deferredFileSearchesByScheme;
 		} else if (type === SearchProviderType.text) {
 			list = this.textSearchProviders;
-			deferredMap = this.deferredTextSearchesByScheme;
 		} else if (type === SearchProviderType.aiText) {
 			list = this.aiTextSearchProviders;
-			deferredMap = this.deferredAITextSearchesByScheme;
 		} else {
 			throw new Error('Unknown SearchProviderType');
 		}
 
 		list.set(scheme, provider);
-
-		if (deferredMap.has(scheme)) {
-			deferredMap.get(scheme)!.complete(provider);
-			deferredMap.delete(scheme);
-		}
+		const queryType = type === SearchProviderType.file ? QueryType.File :
+			type === SearchProviderType.text ? QueryType.Text :
+				QueryType.aiText;
+		this._onDidRegisterProvider.fire({ scheme, type: queryType });
 
 		return toDisposable(() => {
 			list.delete(scheme);
@@ -230,18 +224,6 @@ export class SearchService extends Disposable implements ISearchService {
 		return schemes;
 	}
 
-	private async waitForProvider(queryType: QueryType, scheme: string): Promise<ISearchResultProvider> {
-		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = this.getDeferredTextSearchesByScheme(queryType);
-
-		if (deferredMap.has(scheme)) {
-			return deferredMap.get(scheme)!.p;
-		} else {
-			const deferred = new DeferredPromise<ISearchResultProvider>();
-			deferredMap.set(scheme, deferred);
-			return deferred.p;
-		}
-	}
-
 	private getSearchProvider(type: QueryType): Map<string, ISearchResultProvider> {
 		switch (type) {
 			case QueryType.File:
@@ -255,28 +237,12 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	private getDeferredTextSearchesByScheme(type: QueryType): Map<string, DeferredPromise<ISearchResultProvider>> {
-		switch (type) {
-			case QueryType.File:
-				return this.deferredFileSearchesByScheme;
-			case QueryType.Text:
-				return this.deferredTextSearchesByScheme;
-			case QueryType.aiText:
-				return this.deferredAITextSearchesByScheme;
-			default:
-				throw new Error(`Unknown query type: ${type}`);
-		}
-	}
-
 	private async searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
 		const e2eSW = StopWatch.create(false);
 
 		const searchPs: Promise<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
-		const someSchemeHasProvider = [...fqs.keys()].some(scheme => {
-			return this.getSearchProvider(query.type).has(scheme);
-		});
 
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			if (query.onlyFileScheme && scheme !== Schemas.file) {
@@ -286,19 +252,18 @@ export class SearchService extends Disposable implements ISearchService {
 			let provider = this.getSearchProvider(query.type).get(scheme);
 
 			if (!provider) {
-				if (someSchemeHasProvider) {
-					if (!this.loggedSchemesMissingProviders.has(scheme)) {
-						this.logService.warn(`No search provider registered for scheme: ${scheme}. Another scheme has a provider, not waiting for ${scheme}`);
-						this.loggedSchemesMissingProviders.add(scheme);
-					}
-					return;
-				} else {
-					if (!this.loggedSchemesMissingProviders.has(scheme)) {
-						this.logService.warn(`No search provider registered for scheme: ${scheme}, waiting`);
-						this.loggedSchemesMissingProviders.add(scheme);
-					}
-					provider = await this.waitForProvider(query.type, scheme);
+				// The extension's $registerSearchProvider RPC is fire-and-forget and may
+				// arrive after the activateByEvent promise resolves. If extension hosts
+				// are still activating for this scheme, wait for the provider to register.
+				provider = await this.waitForSearchProvider(query.type, scheme);
+			}
+
+			if (!provider) {
+				if (!this.loggedSchemesMissingProviders.has(scheme)) {
+					this.logService.warn(`No search provider registered for scheme: ${scheme}`);
+					this.loggedSchemesMissingProviders.add(scheme);
 				}
+				return;
 			}
 
 			const oneSchemeQuery: ISearchQuery = {
@@ -337,6 +302,40 @@ export class SearchService extends Disposable implements ISearchService {
 			this.sendTelemetry(query, endToEndTime, undefined, searchError);
 
 			throw searchError;
+		});
+	}
+
+	private waitForSearchProvider(type: QueryType, scheme: string): Promise<ISearchResultProvider | undefined> {
+		const activationEvent = `onSearch:${scheme}`;
+
+		// If activation for this scheme is already complete, the provider should
+		// have been registered by now. If it wasn't, none is coming.
+		if (this.extensionService.activationEventIsDone(activationEvent)) {
+			return Promise.resolve(undefined);
+		}
+
+		// Extension hosts are still activating (e.g. a remote host is starting).
+		// Wait for the provider to register, bounded by activation completion.
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			const done = (result: ISearchResultProvider | undefined) => {
+				store.dispose();
+				resolve(result);
+			};
+
+			// Provider registered — success
+			store.add(this._onDidRegisterProvider.event(e => {
+				if (e.scheme === scheme && e.type === type) {
+					done(this.getSearchProvider(type).get(scheme));
+				}
+			}));
+
+			// Extension status changed — check whether activation completed
+			store.add(this.extensionService.onDidChangeExtensionsStatus(() => {
+				if (this.extensionService.activationEventIsDone(activationEvent)) {
+					done(this.getSearchProvider(type).get(scheme));
+				}
+			}));
 		});
 	}
 
