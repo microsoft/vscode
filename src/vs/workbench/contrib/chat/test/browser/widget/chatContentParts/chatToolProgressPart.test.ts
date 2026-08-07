@@ -55,7 +55,7 @@ suite('ChatToolProgressSubPart', () => {
 	let mockConfigurationService: TestConfigurationService;
 	let mockEditorPool: EditorPool;
 
-	function createRenderContext(isComplete: boolean = false, hasFollowingContent: boolean = false): IChatContentPartRenderContext {
+	function createRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
 			isComplete,
 			id: 'test-response-id',
@@ -69,10 +69,7 @@ suite('ChatToolProgressSubPart', () => {
 			inlineTextModels: {} as InlineTextModelCollection,
 			elementIndex: 0,
 			container: mainWindow.document.createElement('div'),
-			content: hasFollowingContent ? [
-				{ kind: 'progressMessage', content: { value: 'Current progress' } },
-				{ kind: 'progressMessage', content: { value: 'Following progress' } },
-			] : [],
+			content: [],
 			contentIndex: 0,
 			editorPool: mockEditorPool,
 			codeBlockStartIndex: 0,
@@ -83,7 +80,7 @@ suite('ChatToolProgressSubPart', () => {
 		};
 	}
 
-	function createStreamingToolInvocation(streamingMessage: string): IChatToolInvocation {
+	function createStreamingToolInvocation(streamingMessage: string, isAttachedToThinking: boolean = false): IChatToolInvocation {
 		const state = observableValue<IChatToolInvocation.State>('state', {
 			type: IChatToolInvocation.StateKind.Streaming,
 			partialInput: observableValue('partialInput', {}),
@@ -91,6 +88,7 @@ suite('ChatToolProgressSubPart', () => {
 		});
 		return {
 			...createToolInvocation({ invocationMessage: streamingMessage }),
+			isAttachedToThinking,
 			state,
 		};
 	}
@@ -435,7 +433,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
 	});
 
-	test('shimmers only the leading verb of streaming tool progress, not the moving parts', () => {
+	test('shimmers only the leading verb of standalone streaming progress, but not inside a thinking part', () => {
 		const patchPart = disposables.add(instantiationService.createInstance(
 			ChatToolStreamingSubPart,
 			createStreamingToolInvocation('Generating patch (282 lines)'),
@@ -450,8 +448,8 @@ suite('ChatToolProgressSubPart', () => {
 		));
 		const thinkingPart = disposables.add(instantiationService.createInstance(
 			ChatToolStreamingSubPart,
-			createStreamingToolInvocation('Generating patch (282 lines)'),
-			createRenderContext(false, true),
+			createStreamingToolInvocation('Generating patch (282 lines)', /* isAttachedToThinking */ true),
+			createRenderContext(false),
 			mockMarkdownRenderer
 		));
 
@@ -474,7 +472,7 @@ suite('ChatToolProgressSubPart', () => {
 		}, {
 			patch: { shimmer: true, spinner: false, shimmerText: 'Generating patch', shimmerPhaseSynced: true, text: 'Generating patch (282 lines)' },
 			edit: { shimmer: true, spinner: false, shimmerText: 'Editing', shimmerPhaseSynced: true, text: 'Editing 5 lines' },
-			thinking: { shimmer: true, spinner: false, shimmerText: 'Generating patch', shimmerPhaseSynced: true, text: 'Generating patch (282 lines)' },
+			thinking: { shimmer: false, spinner: false, shimmerText: undefined, shimmerPhaseSynced: false, text: 'Generating patch (282 lines)' },
 		});
 	});
 

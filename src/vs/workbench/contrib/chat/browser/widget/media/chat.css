@@ -3492,6 +3492,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+/* Reduced motion: render the shimmer text as static, solid progress text. */
+.monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
+.monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
+	animation: none;
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	color: var(--vscode-descriptionForeground);
+}
+
 .show-checkmarks .progress-container > .codicon.codicon-check,
 .progress-container.show-checkmarks > .codicon.codicon-check {
 	display: inline-flex;
