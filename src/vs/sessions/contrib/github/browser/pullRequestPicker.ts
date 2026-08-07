@@ -94,11 +94,21 @@ export function getExistingPullRequests(sessions: readonly ISession[], owner: st
 			}
 			const upstreamBranch = folder.gitRepository?.upstreamBranchName;
 			if (upstreamBranch) {
-				headRefs.add(upstreamBranch.replace(/^[^/]+\//, ''));
+				const headRef = upstreamBranch.replace(/^[^/]+\//, '');
+				headRefs.add(headRef);
+				const pullRequestNumber = getPullRequestNumberFromCheckoutRef(headRef);
+				if (pullRequestNumber !== undefined) {
+					numbers.add(pullRequestNumber);
+				}
 			}
 		}
 	}
 	return { numbers, headRefs };
+}
+
+export function getPullRequestNumberFromCheckoutRef(ref: string): number | undefined {
+	const match = /^(?:refs\/pull\/|pull\/)(?<number>\d+)\/head$/.exec(ref);
+	return match?.groups ? Number(match.groups.number) : undefined;
 }
 
 function getFirstGitHubRepository(sessions: readonly ISession[]): { readonly owner: string; readonly repo: string } | undefined {

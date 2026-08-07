@@ -13,7 +13,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readSessionGitHubState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
@@ -207,14 +207,16 @@ suite('Create Session from Pull Request', () => {
 	test('collects existing pull requests from matching metadata and repository-scoped branches', () => {
 		const repositoryRoot = URI.file('/repos/microsoft/vscode');
 		const repositorySessionAwaitingMetadata = sessionWithRepository(repositoryRoot, 'microsoft', 'vscode', false, 'origin/feature-three');
+		const pullRefSessionAwaitingMetadata = sessionWithRepository(repositoryRoot, 'microsoft', 'vscode', false, 'origin/pull/5/head');
 		const sessions = [
 			sessionWithPullRequest('microsoft', 'vscode', 1),
 			sessionWithPullRequest('microsoft', 'vscode', 2, 'origin/feature-two'),
 			sessionWithPullRequest('Microsoft', 'VSCode', 4),
 			repositorySessionAwaitingMetadata,
+			pullRefSessionAwaitingMetadata,
 			sessionWithPullRequest('other', 'vscode', 3),
 		];
-		const existing = getExistingPullRequests(sessions, 'microsoft', 'vscode', [repositorySessionAwaitingMetadata]);
+		const existing = getExistingPullRequests(sessions, 'microsoft', 'vscode', [repositorySessionAwaitingMetadata, pullRefSessionAwaitingMetadata]);
 		const availableItems = createPullRequestQuickPickItems([
 			pullRequest(5, { headRef: 'feature-three' }),
 			pullRequest(6),
@@ -224,9 +226,21 @@ suite('Create Session from Pull Request', () => {
 			headRefs: [...existing.headRefs],
 			availableNumbers: availableItems.flatMap(item => item.type === 'separator' ? [] : [item.pullRequest.number]),
 		}, {
-			numbers: [1, 2, 4],
-			headRefs: ['feature-two', 'feature-three'],
+			numbers: [1, 2, 4, 5],
+			headRefs: ['feature-two', 'feature-three', 'pull/5/head'],
 			availableNumbers: [6],
+		});
+	});
+
+	test('extracts PR numbers from checkout refs', () => {
+		assert.deepStrictEqual({
+			pull: getPullRequestNumberFromCheckoutRef('pull/42/head'),
+			full: getPullRequestNumberFromCheckoutRef('refs/pull/42/head'),
+			branch: getPullRequestNumberFromCheckoutRef('feature'),
+		}, {
+			pull: 42,
+			full: 42,
+			branch: undefined,
 		});
 	});
 
