@@ -11,6 +11,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDataChannelService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import product from '../../../../../platform/product/common/product.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Range } from '../../../../common/core/range.js';
 import { InlineCompletions, InlineCompletionsProvider, ProviderId } from '../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
@@ -45,6 +47,14 @@ suite('Inline Completions', () => {
 			[IConfigurationService, new TestConfigurationService({
 				'github.copilot.enable': { '*': true },
 			})],
+			[IProductService, {
+				_serviceBrand: undefined,
+				...product,
+				defaultChatAgent: {
+					...product.defaultChatAgent,
+					completionsEnablementSetting: 'github.copilot.enable',
+				},
+			}],
 		);
 
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('', { provider, serviceCollection },

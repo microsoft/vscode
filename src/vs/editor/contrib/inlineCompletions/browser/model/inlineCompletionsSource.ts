@@ -20,7 +20,7 @@ import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLik
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import product from '../../../../../platform/product/common/product.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -97,6 +97,7 @@ export class InlineCompletionsSource extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 		this._dataChannelTelemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
@@ -113,7 +114,7 @@ export class InlineCompletionsSource extends Disposable {
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 
-		const enablementSetting = product.defaultChatAgent?.completionsEnablementSetting ?? undefined;
+		const enablementSetting = productService.defaultChatAgent?.completionsEnablementSetting;
 		if (enablementSetting) {
 			this._updateCompletionsEnablement(enablementSetting);
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
