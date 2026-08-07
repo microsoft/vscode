@@ -113,7 +113,6 @@ Each provider lives in its own subfolder and implements `ISessionsProvider`:
 src/vs/sessions/contrib/providers/
 ├── agentHost/            # Agent host provider — shared base + local agent host
 ├── copilotChatSessions/  # Copilot chat sessions provider (wraps ChatSessionsService)
-├── localChatSessions/    # Local in-process VS Code chat sessions provider
 └── remoteAgentHost/      # Remote agent host provider (one instance per connection)
 ```
 
@@ -132,7 +131,6 @@ The sessions-layer `AgentHostCustomizationService` adapts the workbench customiz
 ### Provider-Specific Documentation
 
 - [Copilot Chat Sessions Provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) — wraps `ChatSessionsService`, metadata contract, workspace derivation
-- [Local Chat Sessions Provider](contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md) — local in-process VS Code chat, self-managed session list via storage
 - [Agent Host Provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) — shared base + local agent host, dynamic session config, draft/graduate send flow
 - [Remote Agent Host Provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) — remote connections, per-host provider instances
 
@@ -605,7 +603,7 @@ single-chat fork (which mints a new session via `createSession({ fork })`) is
 kept as the fallback for non-multi-chat sessions.
 
 Routing: `ForkConversationAction` exposes a `_tryForkAsChat` hook (default
-no-op). The Agents window override (in `localChatSessions.contribution.ts`)
+no-op). The Agents window override (in `agentHostForkActions.ts`)
 resolves the owning `ISession`, and only for agent-host sessions that
 `supportsMultipleChats`, calls
 `ISessionsManagementService.forkChatInSession(session, sourceChat, turnId)` →
@@ -893,8 +891,8 @@ vice-versa. Auto-titling from the first message
 titles the _session_ for the default chat and the _chat itself_ (via
 `updateChatTitle`) for additional chats — see `agentHostSessionTitleController`.
 
-Single-chat providers (`copilotChatSessions`, `localChatSessions`) implement
-`renameSession` by renaming their single main chat. `renameSession` is a mandatory
+Single-chat providers implement `renameSession` by renaming their single main
+chat. `renameSession` is a mandatory
 `ISessionsProvider` method (no optional methods — see the interface guideline).
 
 Whether the rename UI is _offered_ is gated on `capabilities.supportsRename`, not
@@ -905,10 +903,10 @@ session's first state update). The session header inline-rename
 (`SessionHeader._isTitleEditable`) and the sessions-list "Rename..." action (gated on
 the `sessionSupportsRename` context-menu-overlay key, set from
 `element.capabilities.get().supportsRename` in `sessionsList`) both read this flag.
-Providers declare it truthfully: agent-host and `localChatSessions` sessions are
-always renameable; `copilotChatSessions` sets it only for the CopilotCLI and Claude
-session types, since `renameChat` throws for other backends. Omitting the flag means
-the session is not renameable.
+Providers declare it truthfully: agent-host sessions are always renameable;
+`copilotChatSessions` sets it only for the CopilotCLI and Claude session types,
+since `renameChat` throws for other backends. Omitting the flag means the session
+is not renameable.
 
 ### Session Change Propagation
 
@@ -1078,9 +1076,9 @@ Model-picker-aware chat input notifications also stay input-scoped. Each `NewCha
 
 ### Delegate provider-specific decisions to the provider
 
-Core (non-provider) code must **not** branch on a provider's identity or session type to decide provider-specific behavior. Do not write `if (session.sessionType === SessionType.Local)` or `if (providerId === '…')` in the core to special-case a provider. Instead, add a method to `ISessionsProvider` that returns the decision and let each provider answer for itself.
+Core (non-provider) code must **not** branch on a provider's identity or session type to decide provider-specific behavior. Do not inspect `session.sessionType` or `providerId` in the core to special-case a provider. Instead, add a method to `ISessionsProvider` that returns the decision and let each provider answer for itself.
 
-**Example:** the sessions-core model picker presentation (grouping, featured models, the "Manage Models" action) is not decided in core. The core picker asks the active session's provider via `ISessionsProvider.getModelPickerOptions(sessionId)`, which returns an `ISessionModelPickerOptions`. The local provider returns `showManageModelsAction: true`; the others return `false`. Core never inspects the session type to make this choice. When the workbench entitlement still reports signed out but a provider already exposes targeted non-BYOK models, the shared picker promotes the available models that are featured in either control-manifest tier; it does not surface unavailable manifest entries until entitlement resolves.
+**Example:** the sessions-core model picker presentation (grouping, featured models, the "Manage Models" action) is not decided in core. The core picker asks the active session's provider via `ISessionsProvider.getModelPickerOptions(sessionId)`, which returns an `ISessionModelPickerOptions`. Core never inspects the session type to make this choice. When the workbench entitlement still reports signed out but a provider already exposes targeted non-BYOK models, the shared picker promotes the available models that are featured in either control-manifest tier; it does not surface unavailable manifest entries until entitlement resolves.
 
 Every model-picker trigger identifies the selected model's vendor with a leading provider icon derived from the model metadata (for example OpenAI, Claude, Gemini, or Copilot), including editor chat, active sessions, new sessions, and phone-layout pickers. Auto is provider-agnostic and always uses the Copilot icon, regardless of provider metadata or generic-icon presentation. Standard editor and Agents-window chat inputs collapse the trigger to that provider icon below 280px while retaining the full accessible model label.
 
