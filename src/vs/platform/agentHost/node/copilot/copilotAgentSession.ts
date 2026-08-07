@@ -2148,13 +2148,44 @@ export class CopilotAgentSession extends Disposable {
 
 		const sdkAttachments = await this._toSdkAttachments(attachments);
 
+		await this._prepareSdkTurn(mode);
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
+		await this._otelService.withTraceContext(traceContext, () => {
+			if (!this._environmentService.isBuilt && prompt === 'error' && !sdkAttachments?.length) {
+				return this._wrapper.session.rpc.sendMessages({
+					messages: [{ prompt }],
+					requestHeaders: {
+						Authorization: 'Bearer vscode-recoverable-error-test',
+					},
+				});
+			}
+			return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+		});
+		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string): Promise<void> {
+		this.resetTurnState(turnId, senderClientId);
+		this._logService.info(`[Copilot:${this.sessionId}] Resuming failed turn ${turnId}`);
+		const turn = this._currentTurn;
+		try {
+			await this._prepareSdkTurn(mode);
+			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
+			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] }));
+			this._logService.info(`[Copilot:${this.sessionId}] session.sendMessages() returned`);
+		} catch (err) {
+			if (turn && this._currentTurn === turn) {
+				this._clearActiveTurn();
+			}
+			throw err;
+		}
+	}
+
+	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._reconcileMcpServerEnablement();
-		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
-		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
-		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
 	private async _toSdkAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<CopilotSdkAttachment[] | undefined> {
@@ -4290,6 +4321,11 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
 			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.sessionUri, this._chatChannelUri, this._turnId, this.sessionId));
+			const parentToolCallId = e.agentId ? this._parentToolCallIdsByAgentId.get(e.agentId) : undefined;
+			if (e.agentId && parentToolCallId && !this._activeSubagentAgentIds.has(e.agentId)) {
+				this._logService.warn(`[Copilot:${sessionId}] Ignoring session error for completed subagent agentId=${e.agentId}`);
+				return;
+			}
 			if (this._currentTurn) {
 				this._reportToolCallDetails(this._currentTurn, 'failed');
 			}
@@ -4306,7 +4342,11 @@ export class CopilotAgentSession extends Disposable {
 					stack: e.data.stack,
 					...(meta ? { _meta: meta } : {}),
 				},
-			});
+				...(!parentToolCallId && this._currentTurn !== undefined ? { resumable: true } : {}),
+			}, parentToolCallId);
+			if (!parentToolCallId) {
+				this._clearActiveTurn();
+			}
 		}));
 
 		this._register(wrapper.onModelCallFailure(e => {

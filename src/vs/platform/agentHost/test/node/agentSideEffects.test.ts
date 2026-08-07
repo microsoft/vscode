@@ -283,6 +283,47 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 		});
 
+		suite('handleAction — chat/turnResumed', () => {
+			test('routes the resumed turn without sending another user message', async () => {
+				setupSession();
+				startTurn('turn-1');
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatError,
+					turnId: 'turn-1',
+					duration: 100,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				});
+				const action: ChatAction = {
+					type: ActionType.ChatTurnResumed,
+					turnId: 'turn-1',
+				};
+				stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'client-B', clientSeq: 2 });
+				sideEffects.handleAction(defaultChatUri, action, 'client-B');
+				await Promise.resolve();
+
+				assert.deepStrictEqual({
+					resumeTurnCalls: agent.resumeTurnCalls,
+					sendMessageCalls: agent.sendMessageCalls,
+					changeModelCalls: agent.changeModelCalls,
+					changeAgentCalls: agent.changeAgentCalls,
+					telemetry: telemetryService.events,
+				}, {
+					resumeTurnCalls: [{
+						session: URI.parse(sessionUri.toString()),
+						chat: URI.parse(defaultChatUri),
+						turnId: 'turn-1',
+						senderClientId: 'client-B',
+					}],
+					sendMessageCalls: [],
+					changeModelCalls: [],
+					changeAgentCalls: [],
+					telemetry: [],
+				});
+			});
+
+		});
+
 		test('passes the dispatching client id and type to sendMessage', async () => {
 			setupSession();
 			const action: ChatAction = {

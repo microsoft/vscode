@@ -130,6 +130,12 @@ export interface ISessionEventSystemNotification {
 	data: SessionEventPayload<'system.notification'>['data'];
 }
 
+export interface ISessionEventError {
+	type: 'session.error';
+	agentId?: string;
+	data: SessionEventPayload<'session.error'>['data'];
+}
+
 /** Minimal event shape for session history mapping. */
 export type ISessionEvent =
 	| ISessionEventToolStart
@@ -140,6 +146,7 @@ export type ISessionEvent =
 	| ISessionEventAbort
 	| ISessionEventAssistantTurn
 	| ISessionEventSystemNotification
+	| ISessionEventError
 	| { type: string; timestamp?: string; data?: unknown };
 
 /**

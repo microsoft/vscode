@@ -1285,6 +1285,9 @@ export interface IAgentChats {
 	 */
 	sendMessage(chat: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
+	/** Resume a failed turn without adding another user message. */
+	resumeTurn?(chat: URI, turnId: string, senderClientId?: string): Promise<void>;
+
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI): Promise<void>;
 
@@ -2252,6 +2255,11 @@ export interface IAgentConnection {
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
+	/**
+	 * Dispatches an action and returns the client sequence used to correlate its
+	 * eventual accepted or rejected server envelope.
+	 */
+	dispatchWithSequence(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;

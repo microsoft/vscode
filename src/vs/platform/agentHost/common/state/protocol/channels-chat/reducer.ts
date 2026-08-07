@@ -153,6 +153,7 @@ function endTurn(
 	duration: number,
 	terminalStatus?: SessionStatus.Error,
 	error?: { errorType: string; message: string; stack?: string },
+	resumable?: boolean,
 ): ChatState {
 	if (!state.activeTurn || state.activeTurn.id !== turnId) {
 		return state;
@@ -191,6 +192,7 @@ function endTurn(
 		usage: active.usage,
 		state: turnState,
 		error,
+		...(resumable === true ? { resumable: true } : {}),
 	};
 
 	const next: ChatState = {
@@ -355,6 +357,38 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			return next;
 		}
 
+		case ActionType.ChatTurnResumed: {
+			if (state.activeTurn) {
+				return state;
+			}
+			const turnIndex = state.turns.length - 1;
+			const turn = state.turns[turnIndex];
+			if (!turn || turn.id !== action.turnId) {
+				return state;
+			}
+			if (turn.state !== TurnState.Error || turn.resumable !== true) {
+				return state;
+			}
+			const turns = state.turns.slice();
+			turns.splice(turnIndex, 1);
+			const next: ChatState = {
+				...state,
+				turns,
+				activeTurn: {
+					id: turn.id,
+					startedAt: turn.startedAt ?? state.modifiedAt,
+					message: turn.message,
+					responseParts: turn.responseParts,
+					usage: turn.usage,
+				},
+			};
+			return {
+				...next,
+				status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false),
+				modifiedAt: new Date(Date.now()).toISOString(),
+			};
+		}
+
 		case ActionType.ChatDelta:
 			return updateResponsePart(state, action.turnId, action.partId, part => {
 				if (part.kind === ResponsePartKind.Markdown) {
@@ -382,7 +416,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			return endTurn(state, action.turnId, TurnState.Cancelled, action.duration);
 
 		case ActionType.ChatError:
-			return endTurn(state, action.turnId, TurnState.Error, action.duration, SessionStatus.Error, action.error);
+			return endTurn(state, action.turnId, TurnState.Error, action.duration, SessionStatus.Error, action.error, action.resumable);
 
 		case ActionType.ChatActivityChanged:
 			return { ...state, activity: action.activity };

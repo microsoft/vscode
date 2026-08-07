@@ -61,24 +61,35 @@ export type ForkedTurnIdMapEntry = readonly [hostTurnId: string, codexTurnId: st
  * @param sourceTurnIds Codex turn ids of the source thread, in order.
  * @param forkedTurnIds Codex turn ids of the forked thread (post-rollback), in order.
  * @param keepThroughIndex Index of the last kept turn (inclusive).
- * @param hostTurnIdBySourceCodexId Source session's codex→host turn id map (live sessions only).
+ * @param sourceCodexTurnIdByHostTurnId Source session's host→latest-codex turn id map.
  * @param turnIdMapping Old→new host turn id remapping supplied by the fork caller.
  */
 export function planForkedTurnIdMap(
 	sourceTurnIds: readonly string[],
 	forkedTurnIds: readonly string[],
 	keepThroughIndex: number,
-	hostTurnIdBySourceCodexId: ReadonlyMap<string, string> | undefined,
+	sourceCodexTurnIdByHostTurnId: ReadonlyMap<string, string> | undefined,
 	turnIdMapping: ReadonlyMap<string, string> | undefined,
 ): ForkedTurnIdMapEntry[] {
 	if (!turnIdMapping || turnIdMapping.size === 0) {
 		return [];
 	}
+	if (sourceCodexTurnIdByHostTurnId && sourceCodexTurnIdByHostTurnId.size > 0) {
+		return [...sourceCodexTurnIdByHostTurnId]
+			.map(([oldHostId, sourceCodexId]) => ({
+				oldHostId,
+				newHostId: turnIdMapping.get(oldHostId) ?? oldHostId,
+				sourceIndex: sourceTurnIds.indexOf(sourceCodexId),
+			}))
+			.filter(entry => entry.sourceIndex >= 0 && entry.sourceIndex <= keepThroughIndex && entry.sourceIndex < forkedTurnIds.length)
+			.sort((a, b) => a.sourceIndex - b.sourceIndex)
+			.map(entry => [entry.newHostId, forkedTurnIds[entry.sourceIndex]]);
+	}
 	const keptCount = Math.min(keepThroughIndex + 1, sourceTurnIds.length, forkedTurnIds.length);
 	const entries: ForkedTurnIdMapEntry[] = [];
 	for (let i = 0; i < keptCount; i++) {
 		const sourceCodexId = sourceTurnIds[i];
-		const oldHostId = hostTurnIdBySourceCodexId?.get(sourceCodexId) ?? sourceCodexId;
+		const oldHostId = sourceCodexId;
 		const newHostId = turnIdMapping.get(oldHostId) ?? oldHostId;
 		entries.push([newHostId, forkedTurnIds[i]]);
 	}

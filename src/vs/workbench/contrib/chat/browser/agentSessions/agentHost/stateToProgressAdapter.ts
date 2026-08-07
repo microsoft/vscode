@@ -813,7 +813,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -902,7 +902,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		// consistently with the live agent result.
 		let errorDetails: IChatResponseErrorDetails | undefined;
 		if (turn.state === TurnState.Error && turn.error) {
-			errorDetails = getChatErrorDetailsFromMeta(turn.error, errorContext)
+			errorDetails = errorDetailsProvider?.(turn)
+				?? getChatErrorDetailsFromMeta(turn.error, errorContext)
 				?? { message: `Error: (${turn.error.errorType}) ${turn.error.message}` };
 		}
 

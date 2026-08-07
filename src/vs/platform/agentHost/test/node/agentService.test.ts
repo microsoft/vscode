@@ -754,6 +754,112 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, agent, session, db };
 		}
 
+		test('runs resume side effects only for an accepted state transition', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			const resumeEnvelopes: ActionEnvelope[] = [];
+			disposables.add(service.onDidAction(envelope => {
+				if (envelope.action.type === ActionType.ChatTurnResumed) {
+					resumeEnvelopes.push(envelope);
+				}
+			}));
+			service.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+
+			const resumeAction = {
+				type: ActionType.ChatTurnResumed,
+				turnId: 'turn-1',
+			} as const;
+			service.dispatchAction(chat, resumeAction, 'test-client', 2);
+			copilotAgent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(chat),
+				action: {
+					type: ActionType.ChatError,
+					turnId: 'turn-1',
+					duration: 10,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				},
+			});
+			service.dispatchAction(chat, resumeAction, 'test-client', 3);
+			service.dispatchAction(chat, resumeAction, 'test-client', 4);
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				resumeTurnCalls: copilotAgent.resumeTurnCalls.map(call => ({
+					session: call.session.toString(),
+					chat: call.chat.toString(),
+					turnId: call.turnId,
+					senderClientId: call.senderClientId,
+				})),
+				rejections: resumeEnvelopes.map(envelope => envelope.rejectionReason),
+			}, {
+				resumeTurnCalls: [{
+					session: session.toString(),
+					chat,
+					turnId: 'turn-1',
+					senderClientId: 'test-client',
+				}],
+				rejections: [
+					'Another request is already in progress.',
+					undefined,
+					'Another request is already in progress.',
+				],
+			});
+		});
+
+		test('rejects resume before reopening an archived session turn', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			const resumeEnvelopes: ActionEnvelope[] = [];
+			disposables.add(service.onDidAction(envelope => {
+				if (envelope.action.type === ActionType.ChatTurnResumed) {
+					resumeEnvelopes.push(envelope);
+				}
+			}));
+			service.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			copilotAgent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(chat),
+				action: {
+					type: ActionType.ChatError,
+					turnId: 'turn-1',
+					duration: 10,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				},
+			});
+			service.dispatchAction(session.toString(), {
+				type: ActionType.SessionIsArchivedChanged,
+				isArchived: true,
+			}, 'test-client', 2);
+			service.dispatchAction(chat, {
+				type: ActionType.ChatTurnResumed,
+				turnId: 'turn-1',
+			}, 'test-client', 3);
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				resumeTurnCalls: copilotAgent.resumeTurnCalls,
+				rejections: resumeEnvelopes.map(envelope => envelope.rejectionReason),
+			}, {
+				resumeTurnCalls: [],
+				rejections: ['This session is archived and read-only. Restore the session to continue the conversation.'],
+			});
+		});
+
 		class DynamicWorkingDirectoryAgent extends MockAgent {
 			constructor(id: string, private readonly immutablePrimary = true) {
 				super(id);
@@ -4274,6 +4380,7 @@ suite('AgentService (node dispatcher)', () => {
 					this.chatCalls.push({ op: 'disposeChat', args: [chat.toString()] });
 				},
 				sendMessage: async () => { },
+				resumeTurn: async () => { },
 				abort: async () => { },
 				changeModel: async () => { },
 				changeAgent: async () => { },

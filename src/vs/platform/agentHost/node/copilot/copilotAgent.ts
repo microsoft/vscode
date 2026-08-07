@@ -2082,6 +2082,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		sendMessage: (chatUri: URI, prompt: string, workingDirectories: readonly URI[] | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
 			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, clientType, workingDirectories);
 		},
+		resumeTurn: (chatUri: URI, turnId: string, senderClientId?: string): Promise<void> => {
+			return this._resumeTurn(chatUri, turnId, senderClientId);
+		},
 		abort: (chatUri: URI): Promise<void> => {
 			return this._abortSession(chatUri);
 		},
@@ -2707,6 +2710,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.error(`[Copilot:${context.sessionId}] entry.send() failed: code=${errCode}, message=${errMsg}, hadCachedEntry=${hadCachedEntry}, errorType=${err?.constructor?.name}`);
 				throw err;
 			}
+		});
+	}
+
+	private async _resumeTurn(chat: URI, turnId: string, senderClientId?: string): Promise<void> {
+		const context = this._getChatContext(chat);
+		if (context.isPeerChat) {
+			const existing = await this._ensureChatSession(context.session, chat);
+			if (!existing) {
+				throw new Error(`[Copilot] resumeTurn for unknown chat: ${chat.toString()}`);
+			}
+			const entry = this._findPeerChat(context.session, chat);
+			if (!entry) {
+				throw new Error(`[Copilot] resumeTurn for unavailable chat: ${chat.toString()}`);
+			}
+			await entry.resume(turnId, this._resolveSdkMode(context.session), senderClientId);
+			return;
+		}
+
+		await this._queueSession(context.sessionId, async () => {
+			await this._activeClients.get(context.session)?.pluginController.retryFailedClientSyncIfNeeded();
+			if (this._provisionalSessions.has(context.sessionId)) {
+				throw new Error(`[Copilot] Cannot resume an unmaterialized session: ${context.sessionId}`);
+			}
+
+			let entry = this._getChatContext(chat).target;
+			const activeClient = this._activeClients.get(context.session);
+			if (entry && activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
+				this._sessions.get(context.sessionId)?.clearDefaultChat();
+				entry = undefined;
+			}
+			entry ??= await this._resumeSession(context.sessionId);
+			await entry.resume(turnId, this._resolveSdkMode(context.session), senderClientId);
 		});
 	}
 

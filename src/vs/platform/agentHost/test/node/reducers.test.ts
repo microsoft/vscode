@@ -106,6 +106,86 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 	});
 
+	test('resumes a resumable failed turn without duplicating it', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatResponsePart,
+			turnId: 'turn-1',
+			part: { kind: ResponsePartKind.Markdown, id: 'part-1', content: 'partial' },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatUsage,
+			turnId: 'turn-1',
+			usage: { inputTokens: 10, outputTokens: 2 },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 100,
+			error: { errorType: 'requestFailed', message: 'failed' },
+			resumable: true,
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatTurnResumed,
+			turnId: 'turn-1',
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'turn-1',
+			duration: 200,
+		});
+
+		assert.deepStrictEqual(state.turns, [{
+			id: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			duration: 200,
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+			responseParts: [{ kind: ResponsePartKind.Markdown, id: 'part-1', content: 'partial' }],
+			usage: { inputTokens: 10, outputTokens: 2 },
+			state: TurnState.Complete,
+			error: undefined,
+		}]);
+	});
+
+	test('does not resume a failed turn that is no longer the most recent turn', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'first', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 100,
+			error: { errorType: 'requestFailed', message: 'failed' },
+			resumable: true,
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-2',
+			startedAt: '2025-01-01T00:01:00.000Z',
+			message: { text: 'second', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'turn-2',
+			duration: 100,
+		});
+
+		const resumed = chatReducer(state, {
+			type: ActionType.ChatTurnResumed,
+			turnId: 'turn-1',
+		});
+
+		assert.strictEqual(resumed, state);
+	});
+
 	test('Chat status is InputNeeded when a tool call is PendingConfirmation', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 

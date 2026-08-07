@@ -46,6 +46,7 @@ export class NullAgentHostService implements IAgentHostService {
 	getInflightSessionCreate(_resource: URI): Promise<unknown> | undefined { return undefined; }
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
 	dispatch(_channel: string, _action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void { notSupported(); }
+	dispatchWithSequence(): number { return notSupported(); }
 
 	async restartAgentHost(): Promise<void> { notSupported(); }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return notSupported(); }

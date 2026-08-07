@@ -440,7 +440,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	override dispatch(channel: string, action: SessionAction | AgentHostChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
-		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
+		this.dispatchWithSequence(channel, action);
+	}
+
+	override dispatchWithSequence(channel: string, action: SessionAction | AgentHostChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
+		const clientSeq = this._nextSeq++;
+		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq });
 		// Apply state-management actions optimistically so state-dependent
 		// logic (e.g. customization re-dispatch) sees the correct activeClient.
 		// Turn lifecycle actions (turnStarted, toolCallConfirmed, etc.) are applied
@@ -456,6 +461,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				entry.emitter.fire(entry.state);
 			}
 		}
+		return clientSeq;
 	}
 
 	// Test helpers
@@ -474,7 +480,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			const entry = this._liveSubscriptions.get(chatUri);
 			if (entry) {
 				entry.onWillApply.fire(normalized);
-				entry.state = chatReducer(entry.state as ChatState, normalized.action as Parameters<typeof chatReducer>[1], noop);
+				if (!normalized.rejectionReason) {
+					entry.state = chatReducer(entry.state as ChatState, normalized.action as Parameters<typeof chatReducer>[1], noop);
+				}
 				entry.emitter.fire(entry.state);
 				entry.onDidApply.fire(normalized);
 			}
@@ -482,7 +490,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			const entry = this._liveSubscriptions.get(normalized.channel);
 			if (entry) {
 				entry.onWillApply.fire(normalized);
-				entry.state = sessionReducer(entry.state as SessionState, normalized.action as Parameters<typeof sessionReducer>[1], noop);
+				if (!normalized.rejectionReason) {
+					entry.state = sessionReducer(entry.state as SessionState, normalized.action as Parameters<typeof sessionReducer>[1], noop);
+				}
 				entry.emitter.fire(entry.state);
 				entry.onDidApply.fire(normalized);
 			}
@@ -1009,7 +1019,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1020,6 +1030,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		userSelectedModelId: overrides.userSelectedModelId,
 		modelConfiguration: overrides.modelConfiguration,
 		agentHostSessionConfig: overrides.agentHostSessionConfig,
+		acceptedConfirmationData: overrides.acceptedConfirmationData,
 	});
 }
 
@@ -5284,6 +5295,222 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.errorDetails?.message, 'Error: (test_error) Something went wrong');
 			assert.ok(!collected.flat().some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong')), 'Error should not be duplicated as a markdown progress part');
 		}));
+
+		test('resumable error offers Try Again and resumes without replaying partial output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/retry-turn' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: 'old-part', content: 'partial response' },
+			});
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				error: { errorType: 'requestFailed', message: 'failed' },
+				resumable: true,
+			});
+			const failedResult = await turnPromise;
+			const retryButton = failedResult.errorDetails?.confirmationButtons?.at(-1);
+			assert.deepStrictEqual(retryButton, {
+				data: { agentHostResumeTurnId: turnId },
+				label: 'Try Again',
+			});
+
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryProgress: IChatProgress[][] = [];
+			const retryPromise = registered.impl.invoke(
+				makeRequest({
+					sessionResource,
+					requestId: 'retry-request',
+					message: 'Try Again',
+					acceptedConfirmationData: [retryButton!.data],
+				}),
+				parts => retryProgress.push(parts),
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+
+			const resumeDispatch = agentHostService.dispatchedActions.find(entry => entry.action.type === ActionType.ChatTurnResumed);
+			assert.ok(resumeDispatch);
+			assert.strictEqual(agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatTurnStarted), false);
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: resumeDispatch.action,
+				serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: resumeDispatch.clientSeq },
+			});
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId,
+					part: { kind: ResponsePartKind.Markdown, id: 'new-part', content: 'resumed response' },
+				},
+				serverSeq: 101,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: ActionType.ChatTurnComplete, turnId, duration: 200 },
+				serverSeq: 102,
+				origin: undefined,
+			});
+			await retryPromise;
+
+			assert.deepStrictEqual(retryProgress.flat()
+				.filter((part): part is IChatMarkdownContent => part.kind === 'markdownContent')
+				.map(part => part.content.value), ['resumed response']);
+		}));
+
+		test('rejected same-turn resume follows the accepted peer turn without cancelling it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/retry-rejected' });
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				error: { errorType: 'requestFailed', message: 'failed' },
+				resumable: true,
+			});
+			const failedResult = await turnPromise;
+			const retryButton = failedResult.errorDetails?.confirmationButtons?.at(-1);
+			assert.ok(retryButton);
+
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryProgress: IChatProgress[][] = [];
+			const retryPromise = registered.impl.invoke(
+				makeRequest({
+					sessionResource,
+					requestId: 'rejected-retry-request',
+					message: 'Try Again',
+					acceptedConfirmationData: [retryButton.data],
+				}),
+				parts => retryProgress.push(parts),
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+			const resumeDispatch = agentHostService.dispatchedActions.find(entry => entry.action.type === ActionType.ChatTurnResumed);
+			assert.ok(resumeDispatch);
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: resumeDispatch.action,
+				serverSeq: 99,
+				origin: { clientId: 'other-client', clientSeq: 1 },
+			});
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: resumeDispatch.action,
+				serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: resumeDispatch.clientSeq },
+				rejectionReason: 'Another request is already in progress.',
+			});
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId,
+					part: { kind: ResponsePartKind.Markdown, id: 'peer-resume', content: 'peer response' },
+				},
+				serverSeq: 101,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: { type: ActionType.ChatTurnComplete, turnId, duration: 200 },
+				serverSeq: 102,
+				origin: undefined,
+			});
+			await retryPromise;
+			await timeout(10);
+			assert.deepStrictEqual({
+				content: retryProgress.flat().filter((part): part is IChatMarkdownContent => part.kind === 'markdownContent').map(part => part.content.value),
+				cancelled: agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatTurnCancelled),
+			}, {
+				content: ['peer response'],
+				cancelled: false,
+			});
+		}));
+
+		test('rejected resume surfaces the rejection without dispatching cancellation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/retry-rejected-without-peer' });
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError,
+				turnId,
+				duration: 100,
+				error: { errorType: 'requestFailed', message: 'failed' },
+				resumable: true,
+			});
+			const failedResult = await turnPromise;
+			const retryButton = failedResult.errorDetails?.confirmationButtons?.at(-1);
+			assert.ok(retryButton);
+
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retryPromise = registered.impl.invoke(
+				makeRequest({
+					sessionResource,
+					requestId: 'rejected-retry-request',
+					message: 'Try Again',
+					acceptedConfirmationData: [retryButton.data],
+				}),
+				() => { },
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+			const resumeDispatch = agentHostService.dispatchedActions.find(entry => entry.action.type === ActionType.ChatTurnResumed);
+			assert.ok(resumeDispatch);
+			agentHostService.fireAction({
+				channel: resumeDispatch.channel.toString(),
+				action: resumeDispatch.action,
+				serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: resumeDispatch.clientSeq },
+				rejectionReason: 'This failed request can no longer be retried.',
+			});
+
+			await assert.rejects(retryPromise, /This failed request can no longer be retried/);
+			assert.strictEqual(agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatTurnCancelled), false);
+		}));
 	});
 
 	// ---- Permission requests -----------------------------------------------
@@ -5879,6 +6106,124 @@ suite('AgentHostChatContribution', () => {
 				assert.strictEqual(response.parts.length, 1);
 				assert.strictEqual((response.parts[0] as IChatMarkdownContent).content.value, '4');
 			}
+		});
+
+		test('restores Try Again for a resumable failed turn', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionUri = AgentSession.uri('copilot', 'resumable-error');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Error, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'failed-turn',
+					message: { text: 'Try this', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Error,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/resumable-error' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const response = session.history[1];
+			assert.deepStrictEqual(response.type === 'response' ? response.errorDetails : undefined, {
+				message: 'Error: (requestFailed) failed',
+				confirmationButtons: [{
+					data: { agentHostResumeTurnId: 'failed-turn' },
+					label: 'Try Again',
+				}],
+			});
+		});
+
+		test('does not restore Try Again for an archived session', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionUri = AgentSession.uri('copilot', 'archived-resumable-error');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Error | SessionStatus.IsArchived, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'failed-turn',
+					message: { text: 'Try this', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Error,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/archived-resumable-error' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const response = session.history[1];
+			assert.deepStrictEqual(response.type === 'response' ? response.errorDetails : undefined, {
+				message: 'Error: (requestFailed) failed',
+			});
+		});
+
+		test('does not restore Try Again for an older failed turn', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+				}],
+				activeSessions: 1,
+			});
+			const sessionUri = AgentSession.uri('copilot', 'older-resumable-error');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'failed-turn',
+					message: { text: 'First', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Error,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				}, {
+					id: 'completed-turn',
+					message: { text: 'Second', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'done', content: 'done' }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/older-resumable-error' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const response = session.history[1];
+			assert.deepStrictEqual(response.type === 'response' ? response.errorDetails : undefined, {
+				message: 'Error: (requestFailed) failed',
+			});
 		});
 
 		test('restores agent feedback attachments into request history variable data', async () => {
@@ -9910,6 +10255,160 @@ suite('AgentHostChatContribution', () => {
 
 			// isCompleteObs should be false (turn in progress)
 			assert.strictEqual(chatSession.isCompleteObs!.get(), false);
+		}));
+
+		test('observes a same-turn retry initiated by another client', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/remote-retry' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Try this', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const dispatch = agentHostService.turnActions[0];
+			const started = dispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({
+				channel: dispatch.channel.toString(),
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId: started.turnId,
+					part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'Partial response' },
+				},
+				serverSeq: 2,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: dispatch.channel.toString(),
+				action: {
+					type: ActionType.ChatError,
+					turnId: started.turnId,
+					duration: 10,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				},
+				serverSeq: 3,
+				origin: undefined,
+			});
+			await turnPromise;
+
+			const serverRequests: { id: string; prompt: string }[] = [];
+			disposables.add(chatSession.onDidStartServerRequest!(event => serverRequests.push(event)));
+			agentHostService.fireAction({
+				channel: dispatch.channel.toString(),
+				action: {
+					type: ActionType.ChatTurnResumed,
+					turnId: started.turnId,
+				},
+				serverSeq: 4,
+				origin: { clientId: 'other-client', clientSeq: 1 },
+			});
+			await timeout(10);
+
+			agentHostService.fireAction({
+				channel: dispatch.channel.toString(),
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId: started.turnId,
+					part: { kind: ResponsePartKind.Markdown, id: 'resumed', content: 'Resumed response' },
+				},
+				serverSeq: 5,
+				origin: undefined,
+			});
+			await timeout(10);
+
+			const markdown = chatSession.progressObs!.get().filter((part): part is IChatMarkdownContent => part.kind === 'markdownContent');
+			const retryRequestId = serverRequests[0].id;
+			assert.ok(retryRequestId);
+			assert.deepStrictEqual({
+				serverRequests: serverRequests.map(request => ({ hasSyntheticId: request.id !== started.turnId, prompt: request.prompt })),
+				content: markdown.map(part => part.content.value).join(''),
+			}, {
+				serverRequests: [{ hasSyntheticId: true, prompt: 'Try this' }],
+				content: 'Resumed response',
+			});
+			await assert.rejects(
+				() => chatSession.forkSession!(upcastPartial<IChatSessionRequestHistoryItem>({ type: 'request', id: retryRequestId }), CancellationToken.None),
+				/Cannot fork from a retry request/,
+			);
+		}));
+
+		test('suppresses preserved output when another client resumes a loaded failure', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'loaded-remote-retry');
+			const chatURI = buildDefaultChatUri(backendSession.toString());
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Test',
+					status: SessionStatus.Error,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'failed-turn',
+					message: { text: 'Try this', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'partial', content: 'Partial response' }],
+					usage: { inputTokens: 4, outputTokens: 2 },
+					state: TurnState.Error,
+					error: { errorType: 'requestFailed', message: 'failed' },
+					resumable: true,
+				}],
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/loaded-remote-retry' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const serverRequestPrompts: string[] = [];
+			disposables.add(chatSession.onDidStartServerRequest!(event => serverRequestPrompts.push(event.prompt)));
+			agentHostService.fireAction({
+				channel: chatURI,
+				action: {
+					type: ActionType.ChatTurnResumed,
+					turnId: 'failed-turn',
+				},
+				serverSeq: 1,
+				origin: { clientId: 'other-client', clientSeq: 1 },
+			});
+			await timeout(10);
+			agentHostService.fireAction({
+				channel: chatURI,
+				action: {
+					type: ActionType.ChatUsage,
+					turnId: 'failed-turn',
+					usage: { inputTokens: 4, outputTokens: 2 },
+				},
+				serverSeq: 2,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: chatURI,
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId: 'failed-turn',
+					part: { kind: ResponsePartKind.Markdown, id: 'resumed', content: 'Resumed response' },
+				},
+				serverSeq: 3,
+				origin: undefined,
+			});
+			await timeout(10);
+
+			const progress = chatSession.progressObs!.get();
+			assert.deepStrictEqual({
+				serverRequestPrompts,
+				markdown: progress.filter((part): part is IChatMarkdownContent => part.kind === 'markdownContent').map(part => part.content.value),
+				usage: progress.filter(part => part.kind === 'usage'),
+			}, {
+				serverRequestPrompts: ['Try this'],
+				markdown: ['Resumed response'],
+				usage: [],
+			});
 		}));
 
 		test('server-initiated turn streams progress through progressObs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

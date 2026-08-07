@@ -59,16 +59,28 @@ suite('codexForkPlan', () => {
 	suite('planForkedTurnIdMap', () => {
 
 		test('maps new host ids to the forked thread\'s (regenerated) codex ids for a live source', () => {
-			// Live source: source session tracks codex→host ids; the fork remaps
+			// Live source: source session tracks host→codex ids; the fork remaps
 			// old host ids to new ones and regenerates the codex turn ids.
 			const sourceTurnIds = ['c0', 'c1', 'c2'];
 			const forkedTurnIds = ['f0', 'f1']; // t2 was rolled back
-			const hostBySourceCodex = new Map([['c0', 'h0'], ['c1', 'h1'], ['c2', 'h2']]);
+			const codexByHost = new Map([['h0', 'c0'], ['h1', 'c1'], ['h2', 'c2']]);
 			const turnIdMapping = new Map([['h0', 'n0'], ['h1', 'n1'], ['h2', 'n2']]);
 
 			assert.deepStrictEqual(
-				planForkedTurnIdMap(sourceTurnIds, forkedTurnIds, /*keepThroughIndex*/ 1, hostBySourceCodex, turnIdMapping),
+				planForkedTurnIdMap(sourceTurnIds, forkedTurnIds, /*keepThroughIndex*/ 1, codexByHost, turnIdMapping),
 				[['n0', 'f0'], ['n1', 'f1']],
+			);
+		});
+
+		test('maps a coalesced retry turn to the latest forked physical turn', () => {
+			const sourceTurnIds = ['c0', 'c1'];
+			const forkedTurnIds = ['f0', 'f1'];
+			const codexByHost = new Map([['h0', 'c1']]);
+			const turnIdMapping = new Map([['h0', 'n0']]);
+
+			assert.deepStrictEqual(
+				planForkedTurnIdMap(sourceTurnIds, forkedTurnIds, /*keepThroughIndex*/ 1, codexByHost, turnIdMapping),
+				[['n0', 'f1']],
 			);
 		});
 

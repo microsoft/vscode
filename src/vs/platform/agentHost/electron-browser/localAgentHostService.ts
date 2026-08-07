@@ -229,7 +229,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
-		this._requireClient().dispatch(channel, action);
+		this.dispatchWithSequence(channel, action);
+	}
+
+	dispatchWithSequence(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
+		return this._requireClient().dispatchWithSequence(channel, action);
 	}
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {

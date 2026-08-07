@@ -40,6 +40,7 @@ export {
 	type SessionTitleChangedAction,
 	type ChatTurnCancelledAction,
 	type ChatTurnCompleteAction,
+	type ChatTurnResumedAction,
 	type ChatTurnStartedAction,
 	type ChatUsageAction,
 	type SessionServerToolsChangedAction,
