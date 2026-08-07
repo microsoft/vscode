@@ -3607,8 +3607,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		for (const { rawId, sessionId, cached } of targets) {
 			await connection.disposeSession(cached.backendUri);
 			this._sessionCache.delete(rawId);
+			this._metaByRawId.delete(rawId);
 			this._runningSessionConfigs.delete(sessionId);
 			this._runningSessionConfigResolveSeq.delete(sessionId);
+			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
+			this._sessionStateSubscriptions.deleteAndDispose(sessionId);
+			this._lastSessionStates.delete(sessionId);
 		}
 		const removed = targets.map(target => target.cached);
 		this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
@@ -4902,6 +4906,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _handleSessionRemoved(session: URI | string): void {
 		const rawId = AgentSession.id(session);
+		this._metaByRawId.delete(rawId);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			this._sessionCache.delete(rawId);

@@ -3308,6 +3308,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const sessions = provider.getSessions();
 		const target = sessions.find(s => s.title.get() === 'To Delete');
 		assert.ok(target);
+		const metadata = Reflect.get(provider, '_metaByRawId') as Map<string, IAgentSessionMetadata>;
+		assert.strictEqual(metadata.has('del-sess'), true);
 
 		await provider.deleteSession(target!.sessionId);
 
@@ -3315,7 +3317,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const disposedUri = agentHost.disposedSessions[0];
 		assert.strictEqual(AgentSession.provider(disposedUri), 'copilotcli');
 		assert.strictEqual(AgentSession.id(disposedUri), 'del-sess');
-		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'To Delete'), undefined);
+		assert.deepStrictEqual({
+			session: provider.getSessions().find(s => s.title.get() === 'To Delete'),
+			metadata: metadata.get('del-sess'),
+		}, {
+			session: undefined,
+			metadata: undefined,
+		});
 	});
 
 	test('deleteSessions disposes all sessions and removes them from cache', async () => {
