@@ -9,6 +9,7 @@ import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../../platform/ag
 import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { resolveAgentAuthRequirement } from '../../browser/baseAgentHostSessionsProvider.js';
+import { areLocalModelsLoaded, hasAvailableAgentHostByokModels, shouldShowSignedOutModelsNotification } from '../../browser/agentHostSignedOutModelsNotification.js';
 import { SessionTypeAuthRequirement } from '../../../../../services/sessions/common/session.js';
 
 function agent(protectedResources: ProtectedResourceMetadata[] | undefined, modelCount: number): AgentInfo {
@@ -65,5 +66,46 @@ suite('Agent Host - session type auth requirement', () => {
 		].map(r => r === SessionTypeAuthRequirement.None);
 
 		assert.deepStrictEqual(usable, [true, false, false]);
+	});
+
+	test('no-model notification follows sign-in and model availability', () => {
+		assert.deepStrictEqual({
+			featureDisabled: shouldShowSignedOutModelsNotification(false, true, true, false, false),
+			loadingSignedOutWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, false, true, false, false),
+			unresolvedAccountNotification: shouldShowSignedOutModelsNotification(true, true, false, false, false),
+			signedOutWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, false, false),
+			signedOutWithModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, false, true),
+			signedOutWithTargetedByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(true, false)),
+			signedOutWithSourceByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(false, true)),
+			signedInWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, true, false),
+		}, {
+			featureDisabled: false,
+			loadingSignedOutWithoutModelsNotification: false,
+			unresolvedAccountNotification: false,
+			signedOutWithoutModelsNotification: true,
+			signedOutWithModelsNotification: false,
+			signedOutWithTargetedByokNotification: false,
+			signedOutWithSourceByokNotification: false,
+			signedInWithoutModelsNotification: false,
+		});
+	});
+
+	test('No-model notifications wait for extension, configuration, and provider discovery', () => {
+		const resolvedVendors = new Set(['anthropic']);
+		const hasResolvedVendor = (vendor: string) => resolvedVendors.has(vendor);
+
+		assert.deepStrictEqual({
+			extensionsLoading: areLocalModelsLoaded(false, true, [], hasResolvedVendor),
+			configurationLoading: areLocalModelsLoaded(true, false, [], hasResolvedVendor),
+			providerLoading: areLocalModelsLoaded(true, true, ['anthropic', 'openai'], hasResolvedVendor),
+			settledEmpty: areLocalModelsLoaded(true, true, [], hasResolvedVendor),
+			settledConfigured: areLocalModelsLoaded(true, true, ['anthropic'], hasResolvedVendor),
+		}, {
+			extensionsLoading: false,
+			configurationLoading: false,
+			providerLoading: false,
+			settledEmpty: true,
+			settledConfigured: true,
+		});
 	});
 });
