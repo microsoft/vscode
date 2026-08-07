@@ -484,8 +484,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
-	 * Cancel the in-flight SDK turn via the abort controller. Mirrors
-	 * the production reference (`claudeCodeAgent.ts:719`). Drops every
+	 * Cancel the in-flight SDK turn via the abort controller. Drops every
 	 * pending entry's deferred (rejected with `CancellationError`),
 	 * marks the pipeline for rebind on next {@link send}. Idempotent.
 	 *

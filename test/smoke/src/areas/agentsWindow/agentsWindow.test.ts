@@ -79,7 +79,7 @@ const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-hello-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
-async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefined, mockServerUrl: string, additionalSettings: Record<string, string | boolean> = {}): Promise<void> {
+async function preseedAgentsProfiles(userDataDir: string | undefined, mockServerUrl: string, additionalSettings: Record<string, string | boolean> = {}): Promise<void> {
 	if (!userDataDir) {
 		throw new Error('Cannot pre-seed Agents Window profiles without a user data directory');
 	}
@@ -89,7 +89,6 @@ async function preseedExtensionHostAgentsProfiles(userDataDir: string | undefine
 		'github.copilot.advanced.debug.overrideAuthType': 'token',
 		'chat.allowAnonymousAccess': true,
 		'github.copilot.chat.githubMcpServer.enabled': false,
-		'chat.agents.claude.preferAgentHost': false,
 		// Keep follow-up turns in the same chat so the test flow is deterministic.
 		'sessions.github.copilot.multiChatSessions': false,
 		// Capture enough runtime detail to diagnose CI hangs.
@@ -111,7 +110,7 @@ export function setup(logger: Logger) {
 	const extensionSuite = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? describe.skip : describe;
 
 	extensionSuite('Agents Window', function () {
-		// Cold start of the Copilot CLI SDK (first turn) routinely takes ~60-90s
+		// Cold start of the agent SDK (first turn) routinely takes ~60-90s
 		// on Windows CI. The default 120s mocha timeout fires while msg1 is
 		// still in flight, which then leaks the deferred msg2 send into the
 		// next test's window and corrupts that test's session view. Match the
@@ -198,7 +197,7 @@ export function setup(logger: Logger) {
 					...copilotEnv,
 				},
 			};
-		}, app => preseedExtensionHostAgentsProfiles(app.userDataPath, getMockLlmServerUrl(mockServer)));
+		}, app => preseedAgentsProfiles(app.userDataPath, getMockLlmServerUrl(mockServer)));
 
 		before(async function () {
 			// One-time setup: write VS Code settings and open the Agents Window
@@ -247,10 +246,8 @@ export function setup(logger: Logger) {
 					logger.log(`[Agents Window/${session.name}] new session view ready`);
 
 					if (session.name === 'Claude') {
-						// Pre-pay the Claude session cold-start cost (#321072): the first
-						// Claude session in the Agents Window's extension host has to
-						// bundle-load the SDK, start the localhost language model server,
-						// spawn the SDK subprocess and load plugins — collectively often
+						// Pre-pay the Claude session cold-start cost: the first Agent Host
+						// Claude session has to load the SDK and spawn its subprocess — often
 						// >60s on macOS arm64 CI. A throwaway prompt absorbs that cost so
 						// the real assertion below runs against a warm pipeline.
 						await prepareClaudeModel(app, 'Agents Window/Claude');
@@ -721,11 +718,9 @@ async function warmUpAgentHostModel(app: Application, logger: Logger, label: str
 
 
 /**
- * Pre-pays the Claude session cold-start cost (#321072): the first Claude
- * session in a fresh Agents Window extension host has to first-import the
- * bundled `@anthropic-ai/claude-agent-sdk`, start a localhost
- * `ClaudeLanguageModelServer`, spawn the SDK subprocess and load plugins
- * (8 from skill locations) before the first /messages request can complete.
+ * Pre-pays the Claude session cold-start cost: the first Claude session in a
+ * fresh Agents Window has to start Agent Host, load the SDK, and spawn its
+ * subprocess before the first request can complete.
  * On a busy macOS arm64 CI runner this can collectively exceed the default
  * 60s {@link AgentsWindow.waitForAssistantText} timeout, surfacing as a
  * `:not(.chat-response-loading)` selector timeout.

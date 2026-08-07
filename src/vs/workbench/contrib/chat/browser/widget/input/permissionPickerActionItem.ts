@@ -18,7 +18,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { IChatSessionProviderOptionItem, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem } from '../../../common/chatSessionsService.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -264,11 +264,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				class: undefined,
 				enabled: true,
 				run: async () => {
-					const ext = delegate.getExtensionPermissions?.();
-					const url = ext?.sessionType === SessionType.ClaudeCode
-						? 'https://code.claude.com/docs/en/permission-modes#available-modes'
-						: 'https://aka.ms/vscode/docs/permissions';
-					await openerService.open(URI.parse(url));
+					await openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },

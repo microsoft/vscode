@@ -114,7 +114,7 @@ function activate(context) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('smoketest.openClaudeChat', async () => {
-			const command = 'workbench.action.chat.openNewSessionEditor.claude-code';
+			const command = 'workbench.action.chat.openNewSessionEditor.agent-host-claude';
 			// Wait until copilot-chat is enabled and activated before invoking its
 			// diagnostic command: the preceding "Chat Disabled" suite disables AI
 			// features and this suite re-enables them, so there is a brief window
