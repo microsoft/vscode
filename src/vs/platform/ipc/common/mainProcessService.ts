@@ -27,11 +27,13 @@ export class MainProcessService implements IMainProcessService {
 		return this.server.getChannel(channelName, this.router);
 	}
 
-	registerChannel(channelName: string, channel: IServerChannel<string>): void {
-		// Güvenlik Kontrolü: Kanal adının boş veya geçersiz karakterler içerip içermediğini denetle
+ registerChannel(channelName: string, channel: IServerChannel<string>): void {
 		if (!channelName || typeof channelName !== 'string' || channelName.trim() === '') {
-			throw new Error('Geçersiz veya boş kanal ismi tespit edildi.');
+			throw new Error('Invalid or empty channel name received.');
 		}
+
+		this.server.registerChannel(channelName, channel);
+	}
 
 		// Optional: A specific prefix or rule requirement can be added.
 		// if (!channelName.startsWith('vscode:')) {
