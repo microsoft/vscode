@@ -21,6 +21,7 @@ const SIGNED_OUT_MODELS_NOTIFICATION_ID = 'agentHost.signedOutModels.copilot';
 const SIGNED_OUT_LOCAL_MODELS_NOTIFICATION_ID = 'local.signedOutModels';
 const SIGN_IN_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 const COPILOT_AGENT_HOST_PROVIDER_ID = 'copilotcli';
+const COPILOT_MODEL_TARGETS = [SessionType.AgentHostCopilot, SessionType.CopilotCLI];
 
 export function shouldShowSignedOutModelsNotification(allowSignedOutWhenUsable: boolean, modelsLoaded: boolean, accountResolved: boolean, signedIn: boolean, hasModels: boolean): boolean {
 	return allowSignedOutWhenUsable && modelsLoaded && accountResolved && !signedIn && !hasModels;
@@ -134,17 +135,17 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		this._setNotification(
 			SIGNED_OUT_MODELS_NOTIFICATION_ID,
 			shouldShowSignedOutModelsNotification(allowSignedOutWhenUsable, agentHostModelsLoaded, this._accountResolved, signedIn, hasVisibleAgentHostByokModels),
-			SessionType.AgentHostCopilot,
+			COPILOT_MODEL_TARGETS,
 		);
 
 		this._setNotification(
 			SIGNED_OUT_LOCAL_MODELS_NOTIFICATION_ID,
 			shouldShowSignedOutModelsNotification(allowSignedOutWhenUsable, byokModelsLoaded, this._accountResolved, signedIn, hasVisibleLocalByokModels),
-			localChatSessionType,
+			[localChatSessionType],
 		);
 	}
 
-	private _setNotification(id: string, show: boolean, sessionType: string): void {
+	private _setNotification(id: string, show: boolean, sessionTypes: readonly string[]): void {
 		// Reconcile by stable id so unrelated input notifications and user interaction state are preserved.
 		if (!show) {
 			if (this._shown.delete(id)) {
@@ -157,10 +158,10 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		}
 
 		this._shown.add(id);
-		this._chatInputNotificationService.setNotification(this._createNotification(id, sessionType));
+		this._chatInputNotificationService.setNotification(this._createNotification(id, sessionTypes));
 	}
 
-	private _createNotification(id: string, sessionType: string): IChatInputNotification {
+	private _createNotification(id: string, sessionTypes: readonly string[]): IChatInputNotification {
 		return {
 			id,
 			severity: ChatInputNotificationSeverity.Info,
@@ -182,7 +183,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			],
 			dismissible: false,
 			autoDismissOnMessage: false,
-			sessionTypes: [sessionType],
+			sessionTypes,
 		};
 	}
 }

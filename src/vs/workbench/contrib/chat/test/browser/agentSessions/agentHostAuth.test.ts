@@ -21,7 +21,8 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { commandId: string; args: unknown[] }[] = [];
@@ -941,6 +942,38 @@ suite('resolveMcpServerAuthentication', () => {
 				},
 			],
 			removedProviders: [dynamicProviderId, dynamicProviderId],
+		});
+	});
+});
+
+suite('modelRequiresAgentAuthentication', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const requiredResource: ProtectedResourceMetadata = { resource: 'https://api.github.com', required: true };
+	const byokModel = {
+		id: 'gemini/gemini-2.5-pro',
+		_meta: createAgentModelByokMeta('gemini/Gemini/gemini-2.5-pro'),
+	};
+	const copilotModel = { id: 'gpt-5' };
+	const agent = {
+		models: [byokModel, copilotModel],
+		protectedResources: [requiredResource],
+	} as AgentInfo;
+
+	test('bypasses required agent auth only for an advertised BYOK model', () => {
+		assert.deepStrictEqual({
+			byok: modelRequiresAgentAuthentication(agent, { id: byokModel.id }),
+			copilot: modelRequiresAgentAuthentication(agent, { id: copilotModel.id }),
+			unknown: modelRequiresAgentAuthentication(agent, { id: 'unknown' }),
+			noSelection: modelRequiresAgentAuthentication(agent, undefined),
+			noRequiredResource: modelRequiresAgentAuthentication({ ...agent, protectedResources: [{ ...requiredResource, required: false }] }, { id: copilotModel.id }),
+		}, {
+			byok: false,
+			copilot: true,
+			unknown: true,
+			noSelection: true,
+			noRequiredResource: false,
 		});
 	});
 });
