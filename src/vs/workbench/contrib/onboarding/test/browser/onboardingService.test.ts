@@ -24,7 +24,7 @@ import { OnboardingScenarioService } from '../../browser/onboardingService.js';
 import { IOnboardingPresentation, IOnboardingRunContext, onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
 import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
-import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../common/onboardingScenarioService.js';
+import { getOnboardingDeveloperModeVariation, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../common/onboardingScenarioService.js';
 
 function completedResult(outcome: OnboardingOutcome = OnboardingOutcome.Completed): IOnboardingRunResult {
 	const dismissReason = outcome === OnboardingOutcome.Skipped ? OnboardingDismissReason.SkipButton
@@ -115,6 +115,25 @@ suite('OnboardingScenarioService', () => {
 		// The Memento maintains a static cache keyed by id; clear it so each test
 		// starts with fresh persisted state instead of leaking across tests.
 		Memento.clear(StorageScope.APPLICATION);
+	});
+
+	test('developer variation only overrides while developer mode is enabled', () => {
+		const disabled = new TestConfigurationService({
+			[ONBOARDING_DEVELOPER_MODE_CONFIG]: { tour: false },
+			[ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG]: { tour: 'githubPrompt' },
+		});
+		const enabled = new TestConfigurationService({
+			[ONBOARDING_DEVELOPER_MODE_CONFIG]: { tour: true },
+			[ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG]: { tour: 'githubPrompt' },
+		});
+
+		assert.deepStrictEqual({
+			disabled: getOnboardingDeveloperModeVariation(disabled, 'tour'),
+			enabled: getOnboardingDeveloperModeVariation(enabled, 'tour'),
+		}, {
+			disabled: undefined,
+			enabled: 'githubPrompt',
+		});
 	});
 
 	let idSeed = 0;
