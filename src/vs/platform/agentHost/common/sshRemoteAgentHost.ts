@@ -375,22 +375,6 @@ export type ISSHEndpointSelection =
 export type SSHKnownHostsMatch = 'match' | 'mismatch' | 'revoked' | 'ca-only' | 'unknown';
 
 /**
- * Request from the shared process for the renderer to decide whether a
- * server's host key should be trusted. Fired from ssh2's `hostVerifier` during
- * key exchange — that is, *before* authentication — so declining guarantees no
- * password or SSH agent access is ever exposed to an unverified server.
- *
- * The shared process only gathers evidence ({@link knownHostsMatch} and the
- * fingerprint); the renderer owns the actual policy, since it holds the trust
- * store and the UI. The renderer must answer via
- * {@link ISSHRemoteAgentHostMainService.respondHostKeyVerification} with the
- * same `requestId`, otherwise the connection stalls until the deadline.
- *
- * (`ISSHRemoteAgentHostMainService` is a misnomer inherited from its siblings:
- * it and the WSL/tunnel equivalents are all registered in `sharedProcessMain`,
- * so they run in the shared process, not the main process.)
- */
-/**
  * Error name for a connect attempt refused because the server's host key was
  * not trusted. Matching on the name (rather than `instanceof`) is deliberate:
  * the error is raised in the shared process and inspected in the renderer, and
@@ -419,6 +403,22 @@ export function isSSHHostKeyDeniedError(error: unknown): boolean {
 	return error instanceof Error && error.name === SSH_HOST_KEY_DENIED_ERROR_NAME;
 }
 
+/**
+ * Request from the shared process for the renderer to decide whether a
+ * server's host key should be trusted. Fired from ssh2's `hostVerifier` during
+ * key exchange — that is, *before* authentication — so declining guarantees no
+ * password or SSH agent access is ever exposed to an unverified server.
+ *
+ * The shared process only gathers evidence ({@link knownHostsMatch} and the
+ * fingerprint); the renderer owns the actual policy, since it holds the trust
+ * store and the UI. The renderer must answer via
+ * {@link ISSHRemoteAgentHostMainService.respondHostKeyVerification} with the
+ * same `requestId`, otherwise the connection stalls until the deadline.
+ *
+ * (`ISSHRemoteAgentHostMainService` is a misnomer inherited from its siblings:
+ * it and the WSL/tunnel equivalents are all registered in `sharedProcessMain`,
+ * so they run in the shared process, not the main process.)
+ */
 export interface ISSHHostKeyVerificationRequest {
 	readonly requestId: string;
 	readonly connectionKey: string;

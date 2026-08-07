@@ -69,8 +69,12 @@ class HostKeyMockSSHClient {
 		return this;
 	}
 
+	/** ssh2's auth callback, so tests can drive the interactive prompt paths. */
+	authHandler: ((methodsLeft: string[] | null, partialSuccess: boolean, cb: (next: unknown) => void) => void) | undefined;
+
 	connect(config: ConnectConfig): void {
 		this.readyTimeout = config.readyTimeout;
+		this.authHandler = config.authHandler as unknown as typeof this.authHandler;
 		const hostVerifier = config.hostVerifier as ((key: Buffer, verify: (permitted: boolean) => void) => void) | undefined;
 		assert.ok(hostVerifier, 'hostVerifier must be installed — without it ssh2 accepts any host key');
 		this._verifierEntered();
@@ -116,8 +120,11 @@ class HostKeyTestService extends SSHRemoteAgentHostMainService {
 		return this.client as never;
 	}
 
+	/** Auth attempts to offer; set to exercise the interactive prompt paths. */
+	authAttempts: SSHAuthAttempt[] = [];
+
 	protected override async _buildAuthAttempts(_config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
-		return [];
+		return this.authAttempts;
 	}
 
 	protected override async _readKnownHostsEntries(_host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: undefined }> {
@@ -296,6 +303,46 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 				afterSettle: service.currentDeadlineMs,
 			},
 			{ ssh2TimerDisabled: 0, armedBeforeConnect: 30_000, whilePrompting: 300_000, afterSettle: undefined });
+	});
+
+	test('widens the deadline for the password prompt too, not just the host key dialog', async () => {
+		// The interactive window must bracket *every* human prompt. A user
+		// typing a password is no faster than one comparing a fingerprint, and
+		// holding them to the 30s network deadline would abort the connection
+		// out from under them.
+		const service = createService();
+		service.authAttempts = [{ type: 'keyboard-interactive', username: 'test' }];
+		service.client.deferVerification = true;
+
+		const store = new DisposableStore();
+		store.add(service.onDidRequestHostKeyVerification(request => {
+			void service.respondHostKeyVerification(request.requestId, true);
+		}));
+
+		let whilePrompting: number | undefined;
+		const prompted = new Promise<void>(resolve => {
+			store.add(service.onDidRequestKeyboardInteractive(request => {
+				whilePrompting = service.currentDeadlineMs;
+				void service.respondKeyboardInteractive(request.requestId, ['hunter2']);
+				resolve();
+			}));
+		});
+
+		void service.connectSSHForTest(makeConfig());
+		await service.client.verifierEntered;
+		// Drive ssh2's auth flow the way the real client would: ask for the
+		// next method, then invoke that method's `prompt` callback.
+		service.client.authHandler?.(['keyboard-interactive'], false, next => {
+			const method = next as { prompt: (name: string, instructions: string, lang: string, prompts: readonly { prompt: string; echo?: boolean }[], finish: (responses: string[]) => void) => void };
+			method.prompt('', '', '', [{ prompt: 'Password:', echo: false }], () => { });
+		});
+		await prompted;
+		const afterAnswering = service.currentDeadlineMs;
+		store.dispose();
+
+		assert.deepStrictEqual(
+			{ whilePrompting, afterAnswering },
+			{ whilePrompting: 300_000, afterAnswering: 30_000 });
 	});
 
 	test('a connection that dies during evidence gathering leaves nothing pending', async () => {

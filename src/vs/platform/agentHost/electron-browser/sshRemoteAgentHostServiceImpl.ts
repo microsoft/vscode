@@ -48,7 +48,7 @@ import {
 	type ISSHConnectProgress,
 } from '../common/sshRemoteAgentHost.js';
 import { ISSHHostKeyTrustService } from '../common/sshHostKeyTrust.js';
-import { decideHostKeyTrust } from '../common/sshHostKeyPolicy.js';
+import { decideHostKeyTrust, type SSHHostKeyDenial } from '../common/sshHostKeyPolicy.js';
 
 /**
  * Human-readable name for a host key algorithm, matching how OpenSSH labels
@@ -200,7 +200,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		// any key from any server, so this is what actually makes SSH agent
 		// host connections resistant to impersonation.
 		this._register(this._mainService.onDidRequestHostKeyVerification(request => {
-			this._handleHostKeyVerificationRequest(request);
+			this._trackHostKeyVerification(this._handleHostKeyVerificationRequest(request));
 		}));
 
 		// Learn host keys a server proves it owns over an already-authenticated
@@ -532,6 +532,16 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	 * the storage writes. Every path must respond exactly once — the SSH
 	 * handshake is suspended until it hears back.
 	 */
+	/**
+	 * Hook for observing when a host key verification has fully settled.
+	 * Overridden by tests so they can await the real operation instead of
+	 * sleeping for a fixed interval, which is load-dependent and flaky —
+	 * particularly for the cases that assert *nothing* happened.
+	 */
+	protected _trackHostKeyVerification(handled: Promise<void>): void {
+		void handled;
+	}
+
 	private async _handleHostKeyVerificationRequest(request: ISSHHostKeyVerificationRequest): Promise<void> {
 		this._logService.info(`[SSHRemoteAgentHost] Host key verification for ${request.displayHost}: ${request.keyType} ${request.fingerprint} (known_hosts: ${request.knownHostsMatch})`);
 
@@ -555,7 +565,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 					trusted = true;
 					break;
 				case 'deny':
-					this._reportHostKeyDenied(request, decision.reason);
+					this._reportHostKeyDenied(request, decision);
 					trusted = false;
 					break;
 				case 'prompt': {
@@ -645,15 +655,15 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	 * forgetting the host, so a possible impersonation cannot be dismissed
 	 * with a single reflexive click.
 	 */
-	private _reportHostKeyDenied(request: ISSHHostKeyVerificationRequest, reason: 'mismatch' | 'revoked' | 'strict-yes' | 'not-user-initiated'): void {
-		if (reason === 'not-user-initiated') {
+	private _reportHostKeyDenied(request: ISSHHostKeyVerificationRequest, denial: SSHHostKeyDenial): void {
+		if (denial.reason === 'not-user-initiated') {
 			// A background reconnect: log it, but do not interrupt with UI the
 			// user did not ask for. Connecting manually surfaces the prompt.
 			this._logService.warn(`[SSHRemoteAgentHost] Declining unknown host key for ${request.displayHost} during a background reconnect; connect manually to review it.`);
 			return;
 		}
 
-		if (reason === 'strict-yes') {
+		if (denial.reason === 'strict-yes') {
 			this._notificationService.error(localize(
 				'sshHostKeyStrictUnknown',
 				"Can't connect to '{0}': its host key is not known, and StrictHostKeyChecking is set to \"yes\" in your SSH configuration.",
@@ -661,13 +671,32 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			return;
 		}
 
-		const message = reason === 'revoked'
-			? localize('sshHostKeyRevoked', "Host key verification failed for '{0}'. This host's {1} key has been marked as revoked in your known_hosts file.", request.displayHost, describeHostKeyType(request.keyType))
-			: localize('sshHostKeyChanged', "Host key verification failed for '{0}'. Its {1} host key has changed, which could mean someone is impersonating the host — or that the host was legitimately rebuilt. Received {2}.", request.displayHost, describeHostKeyType(request.keyType), request.fingerprint);
+		// Forgetting our stored key only helps when our store is what
+		// disagreed. A revoked marker, or a conflicting `known_hosts` entry,
+		// lives in the user's own files and would keep winning afterwards — so
+		// offering the action there would send them in circles.
+		if (denial.reason !== 'mismatch') { // 'revoked'
+			this._notificationService.error(localize(
+				'sshHostKeyRevoked',
+				"Host key verification failed for '{0}'. This host's {1} key has been marked as revoked in your known_hosts file. Remove the @revoked line from known_hosts if this key should be trusted again.",
+				request.displayHost, describeHostKeyType(request.keyType)));
+			return;
+		}
+
+		if (denial.source === 'known-hosts') {
+			this._notificationService.error(localize(
+				'sshHostKeyChangedKnownHosts',
+				"Host key verification failed for '{0}'. Its {1} host key does not match the entry in your known_hosts file, which could mean someone is impersonating the host — or that the host was legitimately rebuilt. Received {2}. Update or remove the known_hosts entry if this change was expected.",
+				request.displayHost, describeHostKeyType(request.keyType), request.fingerprint));
+			return;
+		}
 
 		this._notificationService.notify({
 			severity: Severity.Error,
-			message,
+			message: localize(
+				'sshHostKeyChanged',
+				"Host key verification failed for '{0}'. Its {1} host key has changed, which could mean someone is impersonating the host — or that the host was legitimately rebuilt. Received {2}.",
+				request.displayHost, describeHostKeyType(request.keyType), request.fingerprint),
 			actions: {
 				primary: [toAction({
 					id: 'sshHostKey.forget',

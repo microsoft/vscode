@@ -123,9 +123,16 @@ suite('sshHostKeyPolicy', () => {
 				yesUnknown: decide('yes'),
 				no: decide('no'),
 				off: decide('off'),
-				// Disabling verification is an explicit opt-out, so it applies
-				// even to a changed key - but it must never persist trust.
+				// The opt-out covers *unknown* keys only. Verified against
+				// OpenSSH 9.9: with StrictHostKeyChecking=no and a changed key
+				// it warns and disables password auth, keyboard-interactive
+				// auth and agent forwarding. We refuse outright instead.
 				noWithMismatch: decide('no', 'mismatch'),
+				offWithMismatch: decide('off', 'mismatch'),
+				// A stored key that disagrees is refused under the opt-out too.
+				noWithStoredMismatch: summarize(decideHostKeyTrust(
+					makeRequest({ strictHostKeyChecking: 'no', knownHostsMatch: 'unknown' }),
+					trusted(OTHER_FINGERPRINT))),
 				// accept-new only relaxes *unknown* hosts; a changed key still
 				// hard-fails, matching OpenSSH.
 				acceptNewMismatch: decide('accept-new', 'mismatch'),
@@ -137,7 +144,9 @@ suite('sshHostKeyPolicy', () => {
 				yesUnknown: 'deny(strict-yes)',
 				no: 'trust(strict-disabled)',
 				off: 'trust(strict-disabled)',
-				noWithMismatch: 'trust(strict-disabled)',
+				noWithMismatch: 'deny(mismatch)',
+				offWithMismatch: 'deny(mismatch)',
+				noWithStoredMismatch: 'deny(mismatch)',
 				acceptNewMismatch: 'deny(mismatch)',
 				acceptNewRevoked: 'deny(revoked)',
 			});

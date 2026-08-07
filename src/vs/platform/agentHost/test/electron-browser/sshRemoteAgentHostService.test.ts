@@ -1059,6 +1059,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 	let confirmCalls: number;
 	/** When set, the confirm dialog blocks on this until the test releases it. */
 	let confirmGate: (() => Promise<void>) | undefined;
+	let inFlightVerifications: Promise<void>[];
 	/** The options the last confirm dialog was opened with. */
 	let lastConfirmOptions: IConfirmation | undefined;
 
@@ -1086,6 +1087,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		confirmCalls = 0;
 		confirmGate = undefined;
 		lastConfirmOptions = undefined;
+		inFlightVerifications = [];
 		instantiationService.stub(IDialogService, {
 			confirm: (async (confirmation: IConfirmation) => {
 				confirmCalls++;
@@ -1100,11 +1102,25 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		hostKeyTrustService = disposables.add(new SSHHostKeyTrustService(disposables.add(new InMemoryStorageService())));
 		instantiationService.stub(ISSHHostKeyTrustService, hostKeyTrustService as Partial<ISSHHostKeyTrustService>);
 
-		disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
+		// Subclassed so tests can await the real handler settling rather than
+		// sleeping for a fixed interval, which is load-dependent and flaky.
+		class TestableService extends SSHRemoteAgentHostService {
+			protected override _trackHostKeyVerification(handled: Promise<void>): void {
+				inFlightVerifications.push(handled);
+			}
+		}
+		disposables.add(instantiationService.createInstance(TestableService));
 	});
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Settles once every verification the test has triggered has finished. */
+	async function settleVerifications(): Promise<void> {
+		while (inFlightVerifications.length) {
+			await Promise.all(inFlightVerifications.splice(0));
+		}
+	}
 
 	const FINGERPRINT = 'SHA256:testfingerprintaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
@@ -1192,6 +1208,37 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 			});
 	});
 
+	test('a known_hosts mismatch or revocation offers no forget action', async () => {
+		// "Forget Saved Host Key" only clears *our* store. When the conflict
+		// lives in the user's own known_hosts file, forgetting would change
+		// nothing and the very same error would reappear on the next connect,
+		// so the message points at the file that actually decides instead.
+		await fireAndWait(makeHostKeyRequest({ knownHostsMatch: 'mismatch' }));
+		const fromKnownHosts = notificationService.notifications.at(-1);
+
+		await fireAndWait(makeHostKeyRequest({ requestId: 'hostkey-2', knownHostsMatch: 'revoked' }));
+		const fromRevoked = notificationService.notifications.at(-1);
+
+		assert.deepStrictEqual(
+			{
+				knownHostsHasForget: !!fromKnownHosts?.actions?.primary?.length,
+				knownHostsMentionsFile: !!fromKnownHosts?.message.toString().includes('known_hosts'),
+				revokedHasForget: !!fromRevoked?.actions?.primary?.length,
+				revokedMentionsFile: !!fromRevoked?.message.toString().includes('known_hosts'),
+				responses: mainService.hostKeyResponses,
+			},
+			{
+				knownHostsHasForget: false,
+				knownHostsMentionsFile: true,
+				revokedHasForget: false,
+				revokedMentionsFile: true,
+				responses: [
+					{ requestId: 'hostkey-1', trusted: false },
+					{ requestId: 'hostkey-2', trusted: false },
+				],
+			});
+	});
+
 	test('the forget action clears the stored key so the next connect can re-verify', async () => {
 		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:theoldkey', addedAt: 1 });
 		await fireAndWait(makeHostKeyRequest());
@@ -1263,7 +1310,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		mainService.fireHostKeyVerificationCancel('hostkey-1');
 		const dismissedAfterCancel = dialogToken?.isCancellationRequested;
 		releaseDialog();
-		await new Promise(resolve => setTimeout(resolve, 10));
+		await settleVerifications();
 
 		assert.deepStrictEqual(
 			{
@@ -1299,15 +1346,48 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 			['ssh-ed25519 SHA256:rotated', 'ssh-rsa SHA256:rsakey']);
 	});
 
-	test('an unverified session cannot poison stored trust via announcements', async () => {
-		// StrictHostKeyChecking=no accepts whatever key is presented without
-		// verifying it. ssh2 still proves announced keys belong to whoever we
-		// are talking to — but under `no` that could be an impostor, so the
-		// announcement must not be allowed to overwrite the real stored key.
-		// Mirrors OpenSSH, which only accepts additional host keys when the
-		// key that authenticated the host was already trusted.
+	test('a changed key is refused even when StrictHostKeyChecking is disabled', async () => {
+		// The opt-out means "I accept unknown keys", not "I accept a key that
+		// contradicts one I already trust". OpenSSH 9.9 keeps protecting this
+		// case too: it warns and disables password auth, keyboard-interactive
+		// auth and agent forwarding. We refuse outright, so no credential and
+		// no agent access ever reaches a possible impostor — and the
+		// announcement path is moot because the session never authenticates.
 		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
 		await fireAndWait(makeHostKeyRequest({ fingerprint: 'SHA256:impostorkey', strictHostKeyChecking: 'no' }));
+
+		mainService.fireHostKeysAnnouncement({
+			connectionKey: 'ssh:remote.example',
+			host: 'remote.example',
+			port: 22,
+			keys: [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:attackerkey' }],
+		});
+
+		assert.deepStrictEqual(
+			{
+				// Refused outright, before authentication.
+				connected: mainService.hostKeyResponses,
+				// And the genuine stored key is untouched.
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				connected: [{ requestId: 'hostkey-1', trusted: false }],
+				stored: [FINGERPRINT],
+			});
+	});
+
+	test('an unverified session cannot poison stored trust via announcements', async () => {
+		// A session accepted under StrictHostKeyChecking=no is unverified: the
+		// key was simply not checked. ssh2 still proves announced keys belong
+		// to whoever we are talking to — but that could be an impostor, so the
+		// announcement must not overwrite the real stored key. Mirrors
+		// OpenSSH, which only accepts additional host keys when the key that
+		// authenticated the host was already trusted.
+		//
+		// Uses an *unknown* key (a different algorithm), since a key that
+		// contradicts the stored one is now refused outright by the test above.
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({ keyType: 'ssh-rsa', fingerprint: 'SHA256:impostorkey', strictHostKeyChecking: 'no' }));
 
 		mainService.fireHostKeysAnnouncement({
 			connectionKey: 'ssh:remote.example',

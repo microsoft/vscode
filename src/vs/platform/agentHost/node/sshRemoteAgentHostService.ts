@@ -1353,14 +1353,28 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		// the connect attempt fails or completes.
 		const liveKbiRequests = new Set<string>();
 		let cancelConnectFromKbi: (() => void) | undefined;
+		// Forward reference into the connect promise below. Declared up here so
+		// every human-facing prompt can widen the handshake deadline while it
+		// is outstanding.
+		let armDeadline: ((ms: number) => void) | undefined;
+		// Once the user has answered, the human is out of the loop again, so
+		// the rest of the handshake goes back to the network-sized deadline.
+		const wrapPromptFinish = <T>(finish: (value: T) => void) => (value: T) => {
+			armDeadline?.(HANDSHAKE_TIMEOUT_MS);
+			finish(value);
+		};
 		const kbiHandler: SSHKeyboardInteractivePromptHandler | undefined = attempts.some(a => a.type === 'keyboard-interactive')
 			? (name, instructions, prompts, finish) => {
-				const requestId = this._handleKeyboardInteractive(connectionKey ?? displayHost, displayHost, config.username, name, instructions, prompts, finish, () => cancelConnectFromKbi?.());
+				// A human is now in the loop; don't hold them to the
+				// network-sized deadline while they find their password.
+				armDeadline?.(INTERACTIVE_TIMEOUT_MS);
+				const requestId = this._handleKeyboardInteractive(connectionKey ?? displayHost, displayHost, config.username, name, instructions, prompts, wrapPromptFinish(finish), () => cancelConnectFromKbi?.());
 				liveKbiRequests.add(requestId);
 			}
 			: undefined;
 		const keyPassphraseHandler: SSHKeyPassphrasePromptHandler | undefined = attempts.some(a => a.type === 'publickey' && a.encrypted)
 			? (keyPath, finish) => {
+				armDeadline?.(INTERACTIVE_TIMEOUT_MS);
 				const requestId = this._handleKeyboardInteractive(
 					connectionKey ?? displayHost,
 					displayHost,
@@ -1368,7 +1382,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					localize('sshKeyPassphraseName', "SSH Key Passphrase"),
 					'',
 					[{ prompt: localize('sshKeyPassphrasePrompt', "Enter passphrase for SSH key {0}.", keyPath), echo: false }],
-					responses => finish(responses[0]),
+					wrapPromptFinish((responses: readonly string[]) => finish(responses[0])),
 					() => cancelConnectFromKbi?.(),
 				);
 				liveKbiRequests.add(requestId);
@@ -1426,9 +1440,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		// Set when the renderer refuses a host key for this attempt, so the
 		// resulting handshake failure can be reported as what it actually is.
 		let hostKeyDenied = false;
-		// Forward references into the connect promise below, following the same
-		// pattern the keyboard-interactive path already uses.
-		let armDeadline: ((ms: number) => void) | undefined;
 		const cancelLiveHostKeyRequests = () => {
 			hostKeyVerificationAborted = true;
 			for (const requestId of liveHostKeyRequests) {
