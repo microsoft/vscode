@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import localizedStrings from '../../../../platform/languagePacks/common/localizedStrings.js';
 import { ILogFile, getLogs } from '../../../../platform/log/browser/log.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from '../common/driver.js';
@@ -25,7 +26,8 @@ export class BrowserWindowDriver implements IWindowDriver {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 	}
 
@@ -39,6 +41,10 @@ export class BrowserWindowDriver implements IWindowDriver {
 		this.logService.info('[driver] Restored lifecycle phase reached. Waiting for contributions...');
 		await Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored;
 		this.logService.info('[driver] Workbench contributions created.');
+	}
+
+	async executeCommand(commandId: string): Promise<void> {
+		await this.commandService.executeCommand(commandId);
 	}
 
 	async setValue(selector: string, text: string): Promise<void> {

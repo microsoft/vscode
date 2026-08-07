@@ -24,6 +24,7 @@ import '../workbench/electron-browser/desktop.contribution.js';
 
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
+import './contrib/chat/browser/sessionsPerfTest.contribution.js';
 
 //#endregion
 
