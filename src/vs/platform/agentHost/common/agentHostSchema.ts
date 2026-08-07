@@ -414,10 +414,8 @@ const managedPermissionsProperty = schemaProperty<IManagedPermissions>({
 			items: { type: 'string', title: localize('agentHost.config.managedPermissions.rule', "Permission rule") },
 		},
 	},
-	// Intentionally NO `default`: the key follows omit semantics. When no
-	// restrictive policy applies the renderer forwards `undefined`, so
-	// `getRootValue` stays `undefined` and the launcher omits `managedSettings`
-	// entirely rather than forwarding an empty (and misleading) object.
+	// No default: `{}` is the wire-level clear sentinel and is normalized to
+	// `undefined` before SDK launch, so `managedSettings` is omitted.
 });
 
 /**
