@@ -4289,6 +4289,51 @@ suite('VoiceSessionController', () => {
 		}]);
 	});
 
+	test('keeps routed ownership until an omni completion is heard after approvals', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		const sessionId = resource.toString();
+		const lastRequest = {
+			id: 'routed-request',
+			response: {
+				onDidChange: Event.None,
+				isPendingConfirmation: observableValue('pending', undefined),
+				isIncomplete: observableValue('incomplete', false),
+				response: { value: [], getMarkdown: () => 'The routed task is complete.' },
+			},
+		};
+		chatService.setModels([{
+			sessionResource: resource,
+			title: 'Omni target',
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+		} as unknown as IChatModel]);
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (sessionId: string, state: string, detail: string | undefined, summary: string | undefined, shown: string | undefined) => void;
+		const markNarrationHeard = Reflect.get(controller, '_markNarrationHeard') as (narrationId: string) => void;
+
+		controller.setTargetSession(resource, 'existing_session');
+		controller.markRoutedRequestPending(resource, lastRequest.id);
+		// Answering an approval releases the floating input's focus target. The
+		// routed request itself must keep voice ownership through the final reply.
+		controller.setOmniInputActive(true);
+		controller.setOmniInputActive(false);
+		handleStateChange.call(controller, sessionId, 'idle', undefined, 'The routed task is complete.', 'vscode-chat://different-session');
+
+		const [narration] = voiceClientService.requests;
+		assert.deepStrictEqual({
+			narration: narration && { sessionId: narration.sessionId, kind: narration.kind, text: narration.text },
+			routeBeforePlayback: Reflect.get(controller, '_routedRequests'),
+		}, {
+			narration: { sessionId, kind: 'response', text: 'The routed task is complete.' },
+			routeBeforePlayback: new Map([[sessionId, { requestId: lastRequest.id, phase: 'queued' }]]),
+		});
+
+		markNarrationHeard.call(controller, narration.narrationId);
+		assert.strictEqual((Reflect.get(controller, '_routedRequests') as Map<string, unknown>).size, 0);
+	});
+
 	test('narrates an omni-routed confirmation when its session is not shown', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);

@@ -1163,6 +1163,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							this._lastNarratedText.set(spokenSessionKey, finishedTranscript);
 						}
 						this._clearPendingResponse(spokenSessionKey);
+						this._completeRoutedResponse(spokenSessionId);
 					}
 				}
 				// The response actually played to the end: mark it heard (set the
@@ -2895,8 +2896,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._routedRequests.set(sessionKey, { requestId, phase: 'running' });
 			} else if (state.state === 'waiting_for_confirmation') {
 				this._routedRequests.set(sessionKey, { requestId, phase: 'waiting' });
-			} else if (requestId && state.last_response_summary) {
-				this._routedRequests.delete(sessionKey);
 			}
 		}
 	}
@@ -4302,6 +4301,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (solicited.kind === 'response') {
 			this._lastNarratedText.set(sessionKey, solicited.text);
 			this._clearPendingResponse(sessionKey);
+			this._completeRoutedResponse(solicited.sessionId);
 		} else if (solicited.kind === 'confirmation') {
 			// Confirmation heard: mark THIS occurrence spoken so a mere refocus
 			// while it is still pending doesn't re-narrate it (see
@@ -4311,6 +4311,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// text - narrates again.
 			this._narratedPending.set(sessionKey, this._narratableIdentity(solicited));
 			this.logService.trace(`[voice] confirmation heard for ${sessionKey.slice(-32)}; marking occurrence spoken`);
+		}
+	}
+
+	private _completeRoutedResponse(sessionId: string): void {
+		const sessionKey = this._sessionKey(sessionId);
+		if (this._routedRequests.delete(sessionKey)) {
+			this.logService.trace(`[voice] completed routed response after playback session=${sessionKey.slice(-32)}`);
 		}
 	}
 
@@ -5601,6 +5608,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._replyPlayedSinceSend = true;
 			}
 			if (isFinal) {
+				if (sessionId && (narration?.kind === 'response' || narration === undefined)) {
+					this._completeRoutedResponse(sessionId);
+				}
 				this._currentPlaybackSessionId = null;
 				this._currentPlaybackResponseId = undefined;
 				this._currentPlaybackNarration = undefined;
@@ -5726,9 +5736,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'running' });
 			} else if (currentState === 'waiting_for_confirmation') {
 				this._routedRequests.set(sessionKey, { ...routedRequest, phase: 'waiting' });
-			} else if (currentState === 'idle' && lastResponseSummary) {
-				this._routedRequests.delete(sessionKey);
-			} else if (currentState === 'idle') {
+			} else if (currentState === 'idle' && !lastResponseSummary) {
 				this.logService.trace(`[voice] retaining routed request through summary-less idle session=${sessionKey.slice(-32)} request=${routedRequest.requestId ?? '<unknown>'}`);
 			}
 		}
