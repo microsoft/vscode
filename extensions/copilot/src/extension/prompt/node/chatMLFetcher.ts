@@ -1223,11 +1223,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
 		if (request.tools) {
-			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+			void multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId,
 				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
-			}), telemetryData.measurements);
+			}).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', properties, telemetryData.measurements)).catch(() => { /* best-effort telemetry */ });
 		}
 
 		const requestStart = Date.now();
@@ -1507,11 +1507,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
 		if (request.tools) {
-			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+			void multiplexProperties({
 				headerRequestId: ourRequestId,
 				conversationId: telemetryProperties?.conversationId,
 				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
-			}), telemetryData.measurements);
+			}).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', properties, telemetryData.measurements)).catch(() => { /* best-effort telemetry */ });
 		}
 
 		const requestStart = Date.now();

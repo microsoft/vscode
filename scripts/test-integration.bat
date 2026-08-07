@@ -35,6 +35,7 @@ if defined SHOW_HELP (
 	echo.
 	echo Runs integration tests. When no filters are given, all integration tests
 	echo ^(node.js integration tests + extension host tests^) are run.
+	echo Agent Host E2E entrypoints run in parallel before the remaining node.js tests.
 	echo.
 	echo --run and --runGlob select which node.js integration test files to load.
 	echo Extension host tests are skipped when these options are used.
@@ -128,7 +129,10 @@ if defined RUN_GLOB (
 ) else if defined RUN_FILE (
 	call .\scripts\test.bat %*
 ) else (
-	call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
+	call node .\scripts\test-agent-host-e2e.ts %*
+	if errorlevel 1 exit /b 1
+	set VSCODE_SKIP_PRELAUNCH=1
+	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js" %*
 )
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests

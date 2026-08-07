@@ -567,6 +567,28 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(body.max_tokens, 8192);
 		});
 
+		test('sends utility maxTokens as max_tokens in the body', async () => {
+			let capturedBody: string | undefined;
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					return tokenResponse();
+				}
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				capturedBody = init?.body as string;
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-tok', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+				maxTokens: 32,
+			});
+
+			assert.strictEqual(JSON.parse(capturedBody ?? '{}').max_tokens, 32);
+		});
+
 		test('non-streaming sends stream=false in the body', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),

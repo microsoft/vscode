@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { chatRequiresSetup, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -38,7 +38,7 @@ import { IUpdateService } from '../../../../../../../platform/update/common/upda
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { buildModelPickerItems, createManageModelsAction, getControlModelsForEntitlement, getModelPickerAccessibilityProvider, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
+import { buildModelPickerItems, createManageModelsAction, getModelPickerAccessibilityProvider, getModelPickerControlModels, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
 import { getModelPickerIcon } from './modelProviderIcons.js';
 import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
@@ -439,10 +439,8 @@ export class ModelPickerWidget extends Disposable {
 
 		const models = this._delegate.getModels();
 		const presentation = this._delegate.getPresentationOptions();
-		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
 		const manifest = this._languageModelsService.getModelsControlManifest();
-		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
-		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : getControlModelsForEntitlement(manifest, this._entitlementService.entitlement);
+		const controlModelsForTier: IStringDictionary<IModelControlEntry> = getModelPickerControlModels(manifest, this._entitlementService.entitlement, models);
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {

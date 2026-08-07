@@ -21,6 +21,7 @@ import {
 	IServerHandle,
 	nextSessionUri,
 	startServer,
+	stopServer,
 	TestProtocolClient
 } from '../serverIntegrationTestHelpers.js';
 
@@ -28,6 +29,13 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	const secondaryClients: TestProtocolClient[] = [];
+
+	function createSecondaryClient(): TestProtocolClient {
+		const secondaryClient = new TestProtocolClient(server.port);
+		secondaryClients.push(secondaryClient);
+		return secondaryClient;
+	}
 
 	// Short idle-release grace so the release/restore test exercises a real
 	// release promptly. Safe on the shared server because the mock agent's
@@ -39,22 +47,26 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		server = await startServer({ env: { [AgentHostSessionReleaseGraceMsEnvVar]: String(RELEASE_GRACE_MS) } });
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
 
 	teardown(function () {
 		client.close();
+		for (const secondaryClient of secondaryClients.splice(0)) {
+			secondaryClient.close();
+		}
 	});
 
 	test('create session triggers sessionAdded notification', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-create-session' });
 
@@ -69,7 +81,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('listSessions returns sessions', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 90_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-list-sessions' });
 
@@ -78,13 +90,13 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 			n.method === 'root/sessionAdded'
 		);
 
-		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, getAgentHostE2ETestTimeout(5_000, 30_000));
 		assert.ok(Array.isArray(result.items));
 		assert.ok(result.items.length >= 1, 'should have at least one session');
 	});
 
 	test('dispose session sends sessionRemoved notification', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-dispose');
 		await client.call('disposeSession', { channel: sessionUri });
@@ -97,7 +109,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('subscribe to a pre-existing session restores turns from agent history', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-restore' });
 
@@ -130,7 +142,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Restoring should NOT emit a duplicate sessionAdded notification
 		// (the session is already known to clients via listSessions).
-		await new Promise(resolve => setTimeout(resolve, 200));
+		await client.call('ping');
 		const sessionAddedNotifs = client.receivedNotifications(n =>
 			n.method === 'root/sessionAdded'
 		);
@@ -138,7 +150,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('idle session is released after its last subscriber drops and restores losslessly on re-subscribe', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-release' });
 
@@ -168,7 +180,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('isRead and isArchived flags survive in listSessions after dispatch', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 120_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-read-archived-flags');
 
@@ -204,13 +216,13 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Poll listSessions until the persisted flags appear (async DB write)
 		client.close();
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-read-archived-flags-2' });
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {
-			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, getAgentHostE2ETestTimeout(5_000, 30_000));
 			session = result.items.find(s => s.resource === sessionUri);
 			if (session && (session.status & SessionStatus.IsArchived) && (session.status & SessionStatus.IsRead)) {
 				break;
@@ -221,11 +233,10 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		assert.ok(session.status & SessionStatus.IsArchived, 'IsArchived should be persisted in listSessions');
 		assert.ok(session.status & SessionStatus.IsRead, 'IsRead should be persisted in listSessions');
 
-		client2.close();
 	});
 
 	test('dispatching isRead=false explicitly persists as false', async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 120_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-isread-false');
 
@@ -244,13 +255,13 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'session/isReadChanged'));
 
 		client.close();
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-isread-false-2' });
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {
-			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+			const result = await client2.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, getAgentHostE2ETestTimeout(5_000, 30_000));
 			session = result.items.find(s => s.resource === sessionUri);
 			if (session && !(session.status & SessionStatus.IsRead)) {
 				break;
@@ -260,6 +271,5 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		assert.ok(session, 'session should appear in listSessions');
 		assert.strictEqual(session.status & SessionStatus.IsRead, 0, 'IsRead flag should not be set');
 
-		client2.close();
 	});
 });

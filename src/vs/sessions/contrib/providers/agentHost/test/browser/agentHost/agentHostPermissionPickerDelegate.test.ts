@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -49,12 +49,13 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 
 	config: ResolveSessionConfigResult | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
+	readonly resolving = observableValue<boolean>('resolving', false);
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.config;
 	}
 	isSessionConfigResolving(_sessionId: string) {
-		return constObservable(false);
+		return this.resolving;
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
@@ -141,6 +142,15 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Default);
 	});
 
+	test('reflects whether the active session config is resolving', () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		assert.strictEqual(delegate.isResolving.get(), false);
+
+		provider.resolving.set(true, undefined);
+
+		assert.strictEqual(delegate.isResolving.get(), true);
+	});
+
 	test('maps a legacy autoApprove=autopilot value to Default (Autopilot moved onto the mode axis)', () => {
 		const { delegate } = setup(store, makeActiveSession(), 'autopilot');
 
@@ -170,7 +180,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		]);
 	});
 
-	test('offers Default approvals, Assisted permissions, and Allow all in order', () => {
+	test('offers Default permissions, Assisted permissions, and Allow all in order', () => {
 		const { delegate } = setup(store, makeActiveSession(), 'assisted');
 
 		assert.deepStrictEqual({
@@ -184,7 +194,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		}, {
 			current: ChatPermissionLevel.Assisted,
 			metadata: [
-				{ label: 'Default approvals', detail: 'Asks when approval settings don\'t apply', hover: undefined },
+				{ label: 'Default permissions', detail: 'Asks when approval settings don\'t apply', hover: undefined },
 				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.' },
 				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined },
 			],

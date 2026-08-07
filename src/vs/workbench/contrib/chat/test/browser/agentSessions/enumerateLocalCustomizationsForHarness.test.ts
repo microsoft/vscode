@@ -59,18 +59,21 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		}]);
 	});
 
-	test('combines extension storage entries with built-in skills', async () => {
-		const userAgent = URI.file('/user/agents/foo.agent.md');
+	test('combines workspace, extension, and built-in storage entries', async () => {
+		const workspaceAgent = URI.file('/workspace/.github/agents/reviewer.agent.md');
+		const extensionAgent = URI.file('/extension/agents/foo.agent.md');
 		const builtinSkill = URI.file('/builtin/merge/SKILL.md');
 		const promptsService = makePromptsService(new Map([
-			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.extension)]],
+			[`${PromptsType.agent}/${PromptsStorage.local}`, [makePromptPath(workspaceAgent, PromptsType.agent, PromptsStorage.local)]],
+			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(extensionAgent, PromptsType.agent, PromptsStorage.extension)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtinSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 
 		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
 
 		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; source: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, source: e.source, disabled: e.disabled })), [
-			{ uri: userAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, disabled: false },
+			{ uri: workspaceAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.local, disabled: false },
+			{ uri: extensionAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, disabled: false },
 			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, disabled: false },
 		]);
 	});
@@ -86,6 +89,59 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(result[0].disabled, true);
+	});
+
+	test('includes all user prompt types only when user storage is enabled', async () => {
+		const userAgent = URI.file('/home/user/.copilot/agents/user.agent.md');
+		const userSkill = URI.file('/home/user/.claude/skills/user-skill/SKILL.md');
+		const userInstructions = URI.file('/home/user/.claude/rules/user.instructions.md');
+		const userPrompt = URI.file('/profile/prompts/user.prompt.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.agent}/${PromptsStorage.user}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.user)]],
+			[`${PromptsType.skill}/${PromptsStorage.user}`, [makePromptPath(userSkill, PromptsType.skill, PromptsStorage.user)]],
+			[`${PromptsType.instructions}/${PromptsStorage.user}`, [makePromptPath(userInstructions, PromptsType.instructions, PromptsStorage.user)]],
+			[`${PromptsType.prompt}/${PromptsStorage.user}`, [makePromptPath(userPrompt, PromptsType.prompt, PromptsStorage.user)]],
+		]));
+
+		const localResult = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
+		const remoteResult = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, { includeUserStorage: true });
+
+		assert.deepStrictEqual({
+			local: localResult,
+			remote: remoteResult.map(item => ({ uri: item.uri.toString(), type: item.type, source: item.source })),
+		}, {
+			local: [],
+			remote: [
+				{ uri: userAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.user },
+				{ uri: userSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.user },
+				{ uri: userInstructions.toString(), type: PromptsType.instructions, source: AICustomizationSources.user },
+				{ uri: userPrompt.toString(), type: PromptsType.prompt, source: AICustomizationSources.user },
+			],
+		});
+	});
+
+	test('keeps per-file user opt-out when user storage is enabled', async () => {
+		const enabled = URI.file('/home/user/.copilot/instructions/enabled.instructions.md');
+		const disabled = URI.file('/home/user/.claude/rules/disabled.instructions.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.instructions}/${PromptsStorage.user}`, [
+				makePromptPath(enabled, PromptsType.instructions, PromptsStorage.user),
+				makePromptPath(disabled, PromptsType.instructions, PromptsStorage.user),
+			]],
+		]));
+
+		const result = await enumerateLocalCustomizationsForHarness(
+			promptsService,
+			new FakeSyncProvider(new Set([disabled.toString()])),
+			SessionType.CopilotCLI,
+			CancellationToken.None,
+			{ includeUserStorage: true },
+		);
+
+		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
+			{ uri: enabled.toString(), disabled: false },
+			{ uri: disabled.toString(), disabled: true },
+		]);
 	});
 
 	test('returns empty when the prompts service exposes no built-in skills (regular workbench)', async () => {

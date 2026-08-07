@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { matchesFuzzy2 } from '../../../base/common/filters.js';
 import { localize } from '../../../nls.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 
@@ -171,7 +172,7 @@ function shouldOfferOption(option: IConfigSlashOption, state: ICopilotConfigSlas
 
 /**
  * Returns the flattened completion items (one per command form) whose command
- * name matches `typed` (the text after the leading `/`, case-insensitive prefix).
+ * name fuzzy matches `typed` (the text after the leading `/`, case-insensitive).
  * When `typed` is empty, all items are returned.
  *
  * When `state` (the session's current config values) is provided, pure toggle
@@ -182,7 +183,10 @@ export function getCopilotConfigSlashCommandItems(typed: string, state?: ICopilo
 	const typedLower = typed.trim().toLowerCase();
 	const items: ICopilotConfigSlashCommandItem[] = [];
 	for (const command of getConfigSlashCommands()) {
-		if (typedLower && !command.command.toLowerCase().startsWith(typedLower)) {
+		if (typedLower
+			&& !command.command.toLowerCase().startsWith(typedLower)
+			&& (typedLower.length === 1 || matchesFuzzy2(typedLower, command.command) === null)
+		) {
 			continue;
 		}
 		for (const option of command.options) {

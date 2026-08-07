@@ -11,12 +11,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, type IAgentService } from '../../common/agentService.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
-import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
+import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
+import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { AutoMergeMethod, CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
+import type { AutoMergeMethod, CreatedPullRequest, GitHubIssueOrPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -51,13 +51,17 @@ class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly calls: string[] = [];
+	readonly pushOptions: IPushOptions[] = [];
 	uncommitted = false;
 	upstream = false;
+	gitState: ISessionGitState | undefined;
 	branchChanges: readonly ISessionFileDiff[] | undefined = [{ after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } } }];
 
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
-	async getBranches(): Promise<string[]> { return []; }
+	async getBranch(): Promise<IBranch | undefined> { return undefined; }
+	async getRefs(): Promise<IBranch[]> { return []; }
+	async getBranches(): Promise<IBranch[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(): Promise<void> { }
@@ -81,8 +85,9 @@ class TestGitService implements IAgentHostGitService {
 	async pull(): Promise<void> { }
 	async push(_workingDirectory: URI, options: IPushOptions): Promise<void> {
 		this.calls.push(`push:${options.ref}:${options.setUpstream}`);
+		this.pushOptions.push(options);
 	}
-	async getSessionGitState(): Promise<undefined> { return undefined; }
+	async getSessionGitState(): Promise<ISessionGitState | undefined> { return this.gitState; }
 	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
 		return this.branchChanges;
@@ -115,18 +120,22 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 	created: CreatedPullRequest = { url: 'https://github.com/microsoft/vscode/pull/123', number: 123, nodeId: 'PR_node_123' };
 	lastTitle: string | undefined;
 	lastBody: string | undefined;
+	lastHead: string | undefined;
+	readonly findRequests: { branch: string; headOwner: string | undefined }[] = [];
 
-	async createPullRequest(_owner: string, _repo: string, title: string, body: string, _head: string, _base: string, draft: boolean, _token: string, _signal: AbortSignal): Promise<CreatedPullRequest> {
+	async createPullRequest(_owner: string, _repo: string, title: string, body: string, head: string, _base: string, draft: boolean, _token: string, _signal: AbortSignal): Promise<CreatedPullRequest> {
 		this.calls.push(`createPullRequest:${draft}`);
 		this.lastTitle = title;
 		this.lastBody = body;
+		this.lastHead = head;
 		if (this.createError) {
 			throw this.createError;
 		}
 		return this.created;
 	}
-	async findPullRequestByHeadBranch(_owner: string, _repo: string, branch: string, _token: string, _signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
+	async findPullRequestByHeadBranch(_owner: string, _repo: string, branch: string, _token: string, _signal: AbortSignal, headOwner?: string): Promise<CreatedPullRequest | undefined> {
 		this.calls.push(`findPullRequestByHeadBranch:${branch}`);
+		this.findRequests.push({ branch, headOwner });
 		if (this.calls.some(call => call.startsWith('createPullRequest:'))) {
 			if (this.findAfterCreateError) {
 				throw this.findAfterCreateError;
@@ -134,6 +143,9 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 			return this.existingAfterCreateFailure;
 		}
 		return this.existing;
+	}
+	async getIssueOrPullRequest(): Promise<GitHubIssueOrPullRequest> {
+		throw new Error('not used');
 	}
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, _token: string, _signal: AbortSignal): Promise<void> {
 		this.calls.push(`enablePullRequestAutoMerge:${pullRequestId}:${mergeMethod}`);
@@ -235,6 +247,33 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				'createPullRequest:false',
 			],
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
+		});
+	});
+
+	test('pushes, finds, and creates with the same fork upstream', async () => {
+		const gitService = new TestGitService();
+		gitService.upstream = true;
+		gitService.gitState = {
+			branchName: 'feature/test',
+			baseBranchName: 'main',
+			upstreamBranchName: 'fork/published-feature',
+			githubOwner: 'microsoft',
+			githubHeadOwner: 'fork-owner',
+			githubRepo: 'vscode',
+		};
+		const octoKitService = new TestOctoKitService();
+		const { handler, session } = setup(disposables, gitService, octoKitService);
+
+		await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			pushOptions: gitService.pushOptions,
+			findRequests: octoKitService.findRequests,
+			createHead: octoKitService.lastHead,
+		}, {
+			pushOptions: [{ remote: 'fork', ref: 'feature/test:published-feature', setUpstream: false }],
+			findRequests: [{ branch: 'published-feature', headOwner: 'fork-owner' }],
+			createHead: 'fork-owner:published-feature',
 		});
 	});
 

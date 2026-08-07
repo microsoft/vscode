@@ -19,7 +19,7 @@ import { ActionType, SessionCustomizationsChangedAction } from '../../../common/
 import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 /**
  * Whether `notification` is a *settled* `session/customizationsChanged` for
@@ -49,21 +49,42 @@ const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.
 };
 
-const SETUP_TIMEOUT_MS = 45_000;
-const TEST_TIMEOUT_MS = 90_000;
-const NOTIFICATION_TIMEOUT_MS = 10_000;
-const WATCH_ASSERT_TIMEOUT_MS = 30_000;
+const SETUP_TIMEOUT_MS = getAgentHostE2ETestTimeout(45_000, 120_000);
+const TEST_TIMEOUT_MS = getAgentHostE2ETestTimeout(90_000, 180_000);
+const NOTIFICATION_TIMEOUT_MS = getAgentHostE2ETestTimeout(10_000, 30_000);
+const WATCH_ASSERT_TIMEOUT_MS = getAgentHostE2ETestTimeout(30_000, 90_000);
 const WATCH_ASSERT_POLL_INTERVAL_MS = 100;
+/**
+ * Cadence at which {@link applyAndWaitForAssert} re-applies its mutation.
+ *
+ * Must stay comfortably above the agent's own refresh debounce
+ * (`REFRESH_DEBOUNCE_MS`). That debounce is a `Delayer`, so each new change
+ * event cancels and restarts its timer: a mutation stream at (or faster than)
+ * the debounce window starves the delayer and the re-scan never runs at all.
+ */
+const WATCH_MUTATION_RETRY_INTERVAL_MS = 2_000;
+
+interface IWaitForAssertOptions {
+	readonly timeoutMs?: number;
+	readonly pollIntervalMs?: number;
+	/** Run before each attempt, inside the same try/catch as the assertion. */
+	readonly beforeAttempt?: () => Promise<void> | void;
+}
 
 async function waitForAssert(
 	assertion: () => Promise<void> | void,
-	timeoutMs = WATCH_ASSERT_TIMEOUT_MS,
-	pollIntervalMs = WATCH_ASSERT_POLL_INTERVAL_MS,
+	options: IWaitForAssertOptions = {},
 ): Promise<void> {
+	const {
+		timeoutMs = WATCH_ASSERT_TIMEOUT_MS,
+		pollIntervalMs = WATCH_ASSERT_POLL_INTERVAL_MS,
+		beforeAttempt,
+	} = options;
 	const deadline = Date.now() + timeoutMs;
 	let lastError: unknown;
 	while (Date.now() < deadline) {
 		try {
+			await beforeAttempt?.();
 			await assertion();
 			return;
 		} catch (error) {
@@ -74,6 +95,36 @@ async function waitForAssert(
 	throw new Error(
 		`Timed out waiting for expected customizations state (${timeoutMs}ms). Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`
 	);
+}
+
+/**
+ * Apply a filesystem mutation and wait for the session's customization state
+ * to reflect it, periodically re-applying the mutation.
+ *
+ * Recursive filesystem watchers are subscribed asynchronously by the OS
+ * watcher process, so a mutation issued right after the initial discovery
+ * settles can land before the subscription is live and is then never
+ * reported: nothing triggers a re-scan and the wait burns its full timeout.
+ * Re-applying the mutation emits a fresh change event, so the first attempt
+ * that lands after the watcher is live drives the re-scan.
+ *
+ * The mutation is re-applied on {@link WATCH_MUTATION_RETRY_INTERVAL_MS}
+ * rather than on every poll so it can never starve the agent's refresh
+ * debounce. The mutation runs inside the retry loop, so a transient failure
+ * to apply it is retried too. A watcher that never comes up still fails the
+ * assertion.
+ */
+async function applyAndWaitForAssert(mutate: () => Promise<void>, assertion: () => Promise<void> | void): Promise<void> {
+	let nextMutationAt = 0;
+	await waitForAssert(assertion, {
+		beforeAttempt: async () => {
+			if (Date.now() < nextMutationAt) {
+				return;
+			}
+			nextMutationAt = Date.now() + WATCH_MUTATION_RETRY_INTERVAL_MS;
+			await mutate();
+		},
+	});
 }
 
 const TEST_WATCH = true;
@@ -297,7 +348,10 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	const builtInCustomizations = (customization: { type: CustomizationType; contents?: CustomizationType; uri: string }): boolean => {
-		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && customization.uri.endsWith('/builtin/customize-cloud-agent'));
+		// Filter out skills shipped inside the Copilot CLI package (node_modules/@github/copilot-<target>/builtin/<skill>),
+		// e.g. `customize-cloud-agent` and `github-pr-media`. These vary with the bundled CLI version and are not part of
+		// the workspace/user customizations under test.
+		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && /\/builtin\/[^/]+$/.test(customization.uri));
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
@@ -828,33 +882,39 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Initial Policy' }]));
 
 		client.clearReceived();
-		await writeFile(instructionFile, [
-			'---',
-			'name: Updated Policy',
-			'applyTo:',
-			'  - "**/*"',
-			'---',
-			'Updated instruction body.',
-		].join('\n'));
-		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' }]));
+		await applyAndWaitForAssert(
+			() => writeFile(instructionFile, [
+				'---',
+				'name: Updated Policy',
+				'applyTo:',
+				'  - "**/*"',
+				'---',
+				'Updated instruction body.',
+			].join('\n')),
+			() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' }]),
+		);
 
 		client.clearReceived();
-		await writeFile(addedInstructionFile, [
-			'---',
-			'name: Added Policy',
-			'applyTo:',
-			'  - "**/*"',
-			'---',
-			'Added instruction body.',
-		].join('\n'));
-		await waitForAssert(() => assertAllCustomizations([
-			{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' },
-			{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' },
-		]));
+		await applyAndWaitForAssert(
+			() => writeFile(addedInstructionFile, [
+				'---',
+				'name: Added Policy',
+				'applyTo:',
+				'  - "**/*"',
+				'---',
+				'Added instruction body.',
+			].join('\n')),
+			() => assertAllCustomizations([
+				{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' },
+				{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' },
+			]),
+		);
 
 		client.clearReceived();
-		await rm(instructionFile, { force: true });
-		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' }]));
+		await applyAndWaitForAssert(
+			() => rm(instructionFile, { force: true }),
+			() => assertAllCustomizations([{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' }]),
+		);
 	}
 
 	async function runSimpleAgentInstructionWatchTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
@@ -926,42 +986,52 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		));
 
 		client.clearReceived();
-		await writeFile(workspaceAgentInstructionsFile, 'Use updated workspace AGENTS instructions.');
-		await waitForAssert(() => assertAllCustomizations(
-			[URI.file(workspaceAgentInstructionsFile).toString()],
-			[URI.file(userCopilotInstructionsFile).toString()],
-		));
+		await applyAndWaitForAssert(
+			() => writeFile(workspaceAgentInstructionsFile, 'Use updated workspace AGENTS instructions.'),
+			() => assertAllCustomizations(
+				[URI.file(workspaceAgentInstructionsFile).toString()],
+				[URI.file(userCopilotInstructionsFile).toString()],
+			),
+		);
 
 		client.clearReceived();
-		await writeFile(userCopilotInstructionsFile, 'Use updated user copilot instructions.');
-		await waitForAssert(() => assertAllCustomizations(
-			[URI.file(workspaceAgentInstructionsFile).toString()],
-			[URI.file(userCopilotInstructionsFile).toString()],
-		));
+		await applyAndWaitForAssert(
+			() => writeFile(userCopilotInstructionsFile, 'Use updated user copilot instructions.'),
+			() => assertAllCustomizations(
+				[URI.file(workspaceAgentInstructionsFile).toString()],
+				[URI.file(userCopilotInstructionsFile).toString()],
+			),
+		);
 
 		client.clearReceived();
-		await writeFile(workspaceClaudeInstructionsFile, 'Use workspace CLAUDE instructions.');
-		await waitForAssert(() => assertAllCustomizations(
-			[
-				URI.file(workspaceAgentInstructionsFile).toString(),
-				URI.file(workspaceClaudeInstructionsFile).toString(),
-			],
-			[URI.file(userCopilotInstructionsFile).toString()],
-		));
+		await applyAndWaitForAssert(
+			() => writeFile(workspaceClaudeInstructionsFile, 'Use workspace CLAUDE instructions.'),
+			() => assertAllCustomizations(
+				[
+					URI.file(workspaceAgentInstructionsFile).toString(),
+					URI.file(workspaceClaudeInstructionsFile).toString(),
+				],
+				[URI.file(userCopilotInstructionsFile).toString()],
+			),
+		);
 
 		client.clearReceived();
-		await rm(workspaceAgentInstructionsFile, { force: true });
-		await waitForAssert(() => assertAllCustomizations(
-			[URI.file(workspaceClaudeInstructionsFile).toString()],
-			[URI.file(userCopilotInstructionsFile).toString()],
-		));
+		await applyAndWaitForAssert(
+			() => rm(workspaceAgentInstructionsFile, { force: true }),
+			() => assertAllCustomizations(
+				[URI.file(workspaceClaudeInstructionsFile).toString()],
+				[URI.file(userCopilotInstructionsFile).toString()],
+			),
+		);
 
 		client.clearReceived();
-		await rm(userCopilotInstructionsFile, { force: true });
-		await waitForAssert(() => assertAllCustomizations(
-			[URI.file(workspaceClaudeInstructionsFile).toString()],
-			[],
-		));
+		await applyAndWaitForAssert(
+			() => rm(userCopilotInstructionsFile, { force: true }),
+			() => assertAllCustomizations(
+				[URI.file(workspaceClaudeInstructionsFile).toString()],
+				[],
+			),
+		);
 	}
 
 
@@ -1028,32 +1098,40 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(skillFile).toString(), name: 'watch-skill' }]));
 
 		client.clearReceived();
-		await writeFile(skillFile, [
-			'---',
-			'name: watch-skill-renamed',
-			'description: Watches skill changes',
-			'---',
-			'Return a renamed greeting.',
-		].join('\n'));
-		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(skillFile).toString(), name: 'watch-skill-renamed' }]));
+		await applyAndWaitForAssert(
+			() => writeFile(skillFile, [
+				'---',
+				'name: watch-skill-renamed',
+				'description: Watches skill changes',
+				'---',
+				'Return a renamed greeting.',
+			].join('\n')),
+			() => assertAllCustomizations([{ uri: URI.file(skillFile).toString(), name: 'watch-skill-renamed' }]),
+		);
 
 		client.clearReceived();
-		await mkdir(addedSkillDir, { recursive: true });
-		await writeFile(addedSkillFile, [
-			'---',
-			'name: added-skill',
-			'description: Added after startup',
-			'---',
-			'Return another greeting.',
-		].join('\n'));
-		await waitForAssert(() => assertAllCustomizations([
-			{ uri: URI.file(skillFile).toString(), name: 'watch-skill-renamed' },
-			{ uri: URI.file(addedSkillFile).toString(), name: 'added-skill' },
-		]));
+		await applyAndWaitForAssert(
+			async () => {
+				await mkdir(addedSkillDir, { recursive: true });
+				await writeFile(addedSkillFile, [
+					'---',
+					'name: added-skill',
+					'description: Added after startup',
+					'---',
+					'Return another greeting.',
+				].join('\n'));
+			},
+			() => assertAllCustomizations([
+				{ uri: URI.file(skillFile).toString(), name: 'watch-skill-renamed' },
+				{ uri: URI.file(addedSkillFile).toString(), name: 'added-skill' },
+			]),
+		);
 
 		client.clearReceived();
-		await rm(skillFile, { force: true });
-		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(addedSkillFile).toString(), name: 'added-skill' }]));
+		await applyAndWaitForAssert(
+			() => rm(skillFile, { force: true }),
+			() => assertAllCustomizations([{ uri: URI.file(addedSkillFile).toString(), name: 'added-skill' }]),
+		);
 	}
 
 	async function runSimpleAgentWatchTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
@@ -1117,31 +1195,37 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(agentFile).toString(), name: 'Watch Agent' }]));
 
 		client.clearReceived();
-		await writeFile(agentFile, [
-			'---',
-			'name: Watch Agent Renamed',
-			'description: Watches agent changes',
-			'---',
-			'You are a renamed test agent.',
-		].join('\n'));
-		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(agentFile).toString(), name: 'Watch Agent Renamed' }]));
+		await applyAndWaitForAssert(
+			() => writeFile(agentFile, [
+				'---',
+				'name: Watch Agent Renamed',
+				'description: Watches agent changes',
+				'---',
+				'You are a renamed test agent.',
+			].join('\n')),
+			() => assertAllCustomizations([{ uri: URI.file(agentFile).toString(), name: 'Watch Agent Renamed' }]),
+		);
 
 		client.clearReceived();
-		await writeFile(addedAgentFile, [
-			'---',
-			'name: Added Agent',
-			'description: Added after startup',
-			'---',
-			'You are an added test agent.',
-		].join('\n'));
-		await waitForAssert(() => assertAllCustomizations([
-			{ uri: URI.file(agentFile).toString(), name: 'Watch Agent Renamed' },
-			{ uri: URI.file(addedAgentFile).toString(), name: 'Added Agent' },
-		]));
+		await applyAndWaitForAssert(
+			() => writeFile(addedAgentFile, [
+				'---',
+				'name: Added Agent',
+				'description: Added after startup',
+				'---',
+				'You are an added test agent.',
+			].join('\n')),
+			() => assertAllCustomizations([
+				{ uri: URI.file(agentFile).toString(), name: 'Watch Agent Renamed' },
+				{ uri: URI.file(addedAgentFile).toString(), name: 'Added Agent' },
+			]),
+		);
 
 		client.clearReceived();
-		await rm(agentFile, { force: true });
-		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(addedAgentFile).toString(), name: 'Added Agent' }]));
+		await applyAndWaitForAssert(
+			() => rm(agentFile, { force: true }),
+			() => assertAllCustomizations([{ uri: URI.file(addedAgentFile).toString(), name: 'Added Agent' }]),
+		);
 	}
 
 

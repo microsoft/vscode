@@ -145,15 +145,15 @@ function taskToSessionInfo(task: AgentTask): SessionInfo {
  * Also used by the provider to derive `{owner, repo}` for the "Create pull request" toolbar
  * action on PR-less tasks.
  */
-export function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
+export function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string; host: string } | undefined {
 	if (!htmlUrl) {
 		return undefined;
 	}
 	try {
-		const { pathname } = new URL(htmlUrl);
+		const { hostname, pathname } = new URL(htmlUrl);
 		const match = pathname.match(/^\/([^/]+)\/([^/]+)\//);
 		if (match) {
-			return { owner: match[1], name: match[2] };
+			return { owner: match[1], name: match[2], host: hostname };
 		}
 	} catch {
 		// not a parseable URL
@@ -281,7 +281,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 
 	async fetchSessionList(repoIds: GithubRepoId[] | undefined, isAgentWorkspace: boolean, _refresh: boolean): Promise<CloudSessionData[]> {
 		const listOpts: ListTasksOptions = { per_page: 100 };
-		const tasksWithRepo: { task: AgentTask; repo: { owner: string; name: string } | undefined }[] = [];
+		const tasksWithRepo: { task: AgentTask; repo: CloudSessionData['repo'] }[] = [];
 
 		// In the agents window we surface all of the user's sessions rather than scoping to the
 		// active workspace's repositories, so always use the global user-scoped list there.
@@ -308,11 +308,11 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 				repoIds.map(async repo => {
 					try {
 						const r = await this._taskApiClient.listTasksForRepo(repo.org, repo.repo, repoListOpts);
-						return { repo: { owner: repo.org, name: repo.repo }, response: r };
+						return { repo: { owner: repo.org, name: repo.repo, host: repo.host }, response: r };
 					} catch (e: unknown) {
 						this._logService.warn(`Failed to fetch tasks for ${repo.org}/${repo.repo}: ${e}`);
 						this._instrumentation.operationFailed('fetchSessionList', e);
-						return { repo: { owner: repo.org, name: repo.repo }, response: { tasks: [] as readonly AgentTask[] } satisfies AgentTaskListResponse };
+						return { repo: { owner: repo.org, name: repo.repo, host: repo.host }, response: { tasks: [] as readonly AgentTask[] } satisfies AgentTaskListResponse };
 					}
 				}),
 			);
@@ -329,7 +329,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		// id lookup is cached (by promise) per repo id so a page of same-repo tasks — resolved
 		// concurrently via `Promise.all` — shares a single in-flight call.
 		const repoByIdCache = new Map<number, Promise<{ owner: string; name: string } | undefined>>();
-		const resolveRepo = (task: AgentTask, listRepo: { owner: string; name: string } | undefined): Promise<{ owner: string; name: string } | undefined> => {
+		const resolveRepo = (task: AgentTask, listRepo: CloudSessionData['repo']): Promise<CloudSessionData['repo']> => {
 			const known = listRepo ?? parseRepoFromTaskUrl(task.html_url);
 			if (known) {
 				return Promise.resolve(known);

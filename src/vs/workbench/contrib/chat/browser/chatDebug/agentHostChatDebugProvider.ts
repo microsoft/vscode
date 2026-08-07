@@ -24,13 +24,13 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatDebugHookResult, ChatDebugLogLevel, IChatDebugCustomizationLogEntry, IChatDebugEvent, IChatDebugFileEntry, IChatDebugLogProvider, IChatDebugMessageSection, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostAgentDebugLogEnabledSettingId, AgentHostAgentDebugLogMaxEventsSettingId } from '../../common/promptSyntax/promptTypes.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, resolveEventsUri } from '../copilotCliEventsUri.js';
+import { buildLocalSessionStateUri, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, resolveEventsUri } from '../copilotCliEventsUri.js';
 import { AgentHostCustomizationRecorder, AgentHostUsageRecorder, buildAgentHostCustomizationsUri, buildAgentHostUsageUri, readAgentHostCustomizationsSnapshot, readAgentHostUsageRecords, type IAgentHostUsageRecord } from './agentHostUsageSidecar.js';
 
 /**
  * One record in an Agent Host Copilot CLI `events.jsonl` stream. The CLI
  * writes a line-delimited JSON log of the session under
- * `~/.copilot/session-state/<id>/events.jsonl`. Every record shares the same
+ * `<COPILOT_HOME>/session-state/<id>/events.jsonl`. Every record shares the same
  * envelope. Note that `parentId` is **not** a logical parent: the SDK defines
  * it as the chronologically preceding event in the session (a flat linked chain
  * over every event), not the user → model-turn → tool-call hierarchy. The
@@ -549,7 +549,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 
 	private async _discoverLocalSessions(token: CancellationToken): Promise<{ uri: URI; title?: string }[]> {
 		const userHome = this._pathService.userHome({ preferLocal: true });
-		const sessionStateDir = joinPath(userHome, '.copilot', 'session-state');
+		const sessionStateDir = buildLocalSessionStateUri(userHome);
 
 		let stat;
 		try {

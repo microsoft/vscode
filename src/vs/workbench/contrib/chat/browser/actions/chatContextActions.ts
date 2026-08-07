@@ -471,7 +471,7 @@ export class AttachContextAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.attachContext',
 			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
-			icon: Codicon.add,
+			icon: Codicon.addCompact,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),

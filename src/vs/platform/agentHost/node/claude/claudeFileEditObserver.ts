@@ -139,4 +139,11 @@ export class ClaudeFileEditObserver extends Disposable {
 			}
 		}
 	}
+
+	override dispose(): void {
+		void this._editTracker.flushAttribution().catch(error => {
+			this._logService.warn(`[ClaudeFileEditObserver] Failed to flush edit attribution: ${error}`);
+		});
+		super.dispose();
+	}
 }

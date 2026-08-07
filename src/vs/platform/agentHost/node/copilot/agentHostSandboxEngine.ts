@@ -109,9 +109,7 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 		// The agent host stores sandbox settings nested under a single
 		// top-level `sandbox` object with prefix-free sub-keys (e.g.
 		// `sandbox.enabled` rather than `chat.agent.sandbox.enabled`). Map
-		// from the engine's modern setting ID into that sub-key namespace;
-		// unknown IDs (which include all deprecated keys — handled host-side
-		// by the workbench client) resolve to undefined.
+		// from the engine's setting ID into that sub-key namespace.
 		const innerKey = sandboxSettingIdToAgentHostKey[settingId];
 		if (innerKey === undefined) {
 			return undefined;

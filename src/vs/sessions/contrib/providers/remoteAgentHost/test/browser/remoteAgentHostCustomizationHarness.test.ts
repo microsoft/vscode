@@ -6,11 +6,12 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, type AgentInfo, type Customization, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type AgentInfo, type Customization, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -153,6 +154,9 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		getWorkingDirectory(sessionResource: URI): string | undefined {
 			return undefined;
 		},
+		getWorkingDirectories(_sessionResource: URI): readonly string[] {
+			return [];
+		},
 		getMcpServers(_sessionResource: URI) {
 			return [];
 		},
@@ -241,6 +245,33 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
 		assert.strictEqual(items.length, 2);
 		assert.notStrictEqual(items[0].itemKey, items[1].itemKey);
+	});
+
+	test('provider uses draft agents before session customizations hydrate', async () => {
+		const connection = disposables.add(new MockAgentConnection());
+		const fileService = new class extends mock<IFileService>() { };
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'test-authority',
+			undefined,
+			undefined,
+			fileService,
+			new NullLogService(),
+			createTestCustomAgentsService(connection, []),
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
+			type: CustomizationType.Agent,
+			id: 'file:///workspace/.github/agents/reviewer.agent.md',
+			uri: 'file:///workspace/.github/agents/reviewer.agent.md',
+			name: 'Reviewer',
+			description: 'Review workspace changes',
+		}]));
+
+		const agents = await provider.provideCustomAgents(testSessionResource);
+
+		assert.deepStrictEqual(agents.map(agent => ({ name: agent.name, description: agent.description })), [{
+			name: 'Reviewer',
+			description: 'Review workspace changes',
+		}]);
 	});
 
 	test('provider keeps client-synced entries distinct from host-owned entries', async () => {
@@ -752,6 +783,60 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			{ uri: rule.uri.toString(), source: rule.source, extensionId: rule.extensionId, groupKey: rule.groupKey },
 			{ uri: originUri.toString(), source: 'extension', extensionId: 'pub.ext', groupKey: undefined },
 		);
+	});
+
+	test('provider keeps client group for recovered user provenance', async () => {
+		const connection = disposables.add(new MockAgentConnection());
+		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
+		const bundle: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', enabled: true };
+		connection.setRootState({ agents: [createAgentInfo([])] });
+
+		const ruleResource = URI.parse(`${bundleUri}/rules/user-rule.instructions.md`);
+		const fileService = new class extends mock<IFileService>() {
+			override async canHandleResource() { return true; }
+			override async resolveAll(toResolve: { resource: URI }[]): Promise<IFileStatResult[]> {
+				return toResolve.map(({ resource }) => resource.path.endsWith('/rules')
+					? { success: true, stat: { name: 'rules', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: [{ name: 'user-rule.instructions.md', resource: ruleResource, isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined }] } }
+					: { success: false });
+			}
+			override async readFile(resource: URI): Promise<IFileContent> {
+				const content = 'User rule';
+				return { resource, name: 'user-rule.instructions.md', value: VSBuffer.fromString(content), mtime: 0, ctime: 0, etag: '', size: content.length, readonly: false, locked: false, executable: false };
+			}
+		};
+		const originUri = URI.parse('file:///home/user/.copilot/instructions/user-rule.instructions.md');
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'test-authority',
+			() => { },
+			syncedUri => syncedUri.toString() === ruleResource.toString()
+				? { uri: originUri, source: 'user', extensionId: undefined, pluginUri: undefined }
+				: undefined,
+			fileService,
+			new NullLogService(),
+			createTestCustomAgentsService(connection, []),
+		));
+		connection.fireAction({
+			channel: agentHostSessionId,
+			serverSeq: 1,
+			origin: undefined,
+			action: {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [{ ...bundle, clientId: 'test-client' }],
+			},
+		});
+
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
+		const rule = items.find(item => item.type === PromptsType.instructions);
+		assert.ok(rule);
+		assert.deepStrictEqual({
+			uri: rule.uri.toString(),
+			source: rule.source,
+			groupKey: rule.groupKey,
+		}, {
+			uri: originUri.toString(),
+			source: 'user',
+			groupKey: 'remote-client',
+		});
 	});
 
 	test('provider leaves synthetic-bundle children unchanged when no origin is known', async () => {

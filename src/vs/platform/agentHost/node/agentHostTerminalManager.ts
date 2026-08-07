@@ -12,6 +12,7 @@ import * as platform from '../../../base/common/platform.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -32,7 +33,26 @@ const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
 const HEADLESS_TERMINAL_SCROLLBACK = 0;
 const DSR_CURSOR_POSITION_QUERY = '\x1b[6n';
 const DEC_DSR_CURSOR_POSITION_QUERY = '\x1b[?6n';
-const SERVER_HANDLED_QUERY_PREFIXES = ['\x1b[?6', '\x1b[?', '\x1b[6', '\x1b[', '\x1b'];
+const OSC_FOREGROUND_COLOR_QUERY_ST = '\x1b]10;?\x1b\\';
+const OSC_FOREGROUND_COLOR_QUERY_BEL = '\x1b]10;?\x07';
+const OSC_BACKGROUND_COLOR_QUERY_ST = '\x1b]11;?\x1b\\';
+const OSC_BACKGROUND_COLOR_QUERY_BEL = '\x1b]11;?\x07';
+const TERMINAL_QUERIES_SUPPRESSED_FROM_CLIENT = [
+	DEC_DSR_CURSOR_POSITION_QUERY,
+	DSR_CURSOR_POSITION_QUERY,
+	OSC_FOREGROUND_COLOR_QUERY_ST,
+	OSC_FOREGROUND_COLOR_QUERY_BEL,
+	OSC_BACKGROUND_COLOR_QUERY_ST,
+	OSC_BACKGROUND_COLOR_QUERY_BEL,
+];
+const TERMINAL_QUERY_SUPPRESSION_REGEX = /\x1b(?:\[\??6n|\]1[01];\?(?:\x07|\x1b\\))/g;
+const TERMINAL_QUERY_PREFIXES_SUPPRESSED_FROM_CLIENT = [...new Set(TERMINAL_QUERIES_SUPPRESSED_FROM_CLIENT.flatMap(query => {
+	const prefixes: string[] = [];
+	for (let i = 1; i < query.length; i++) {
+		prefixes.push(query.substring(0, i));
+	}
+	return prefixes;
+}))].sort((a, b) => b.length - a.length);
 
 export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
 
@@ -61,30 +81,21 @@ export interface IFormatTerminalTextOptions {
 	forceBracketedPasteMode?: boolean;
 }
 
-export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
-	if (
-		!state.pendingData
-		&& !data.includes(DSR_CURSOR_POSITION_QUERY)
-		&& !data.includes(DEC_DSR_CURSOR_POSITION_QUERY)
-		&& !getServerHandledTerminalQueryPrefix(data)
-	) {
+// Return immediately when no partial query is buffered and this chunk contains no escape character.
+export function removeTerminalQueriesSuppressedFromClient(data: string, state: ITerminalQueryFilterState): string {
+	if (!state.pendingData && !data.includes('\x1b')) {
 		return data;
 	}
 
 	const combinedData = state.pendingData + data;
-	const pendingData = getServerHandledTerminalQueryPrefix(combinedData);
+	const pendingData = getTerminalQueryPrefixSuppressedFromClient(combinedData);
 	const dataToFilter = pendingData ? combinedData.substring(0, combinedData.length - pendingData.length) : combinedData;
 	state.pendingData = pendingData;
-	if (!dataToFilter.includes(DSR_CURSOR_POSITION_QUERY) && !dataToFilter.includes(DEC_DSR_CURSOR_POSITION_QUERY)) {
-		return dataToFilter;
-	}
-	return dataToFilter
-		.replaceAll(DEC_DSR_CURSOR_POSITION_QUERY, '')
-		.replaceAll(DSR_CURSOR_POSITION_QUERY, '');
+	return dataToFilter.replace(TERMINAL_QUERY_SUPPRESSION_REGEX, '');
 }
 
-function getServerHandledTerminalQueryPrefix(data: string): string {
-	for (const prefix of SERVER_HANDLED_QUERY_PREFIXES) {
+function getTerminalQueryPrefixSuppressedFromClient(data: string): string {
+	for (const prefix of TERMINAL_QUERY_PREFIXES_SUPPRESSED_FROM_CLIENT) {
 		if (data.endsWith(prefix)) {
 			return prefix;
 		}
@@ -296,6 +307,9 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
+		// Attribute these commands to VS Code. Already inherited from the agent
+		// host process; set here as defense in depth.
+		env[AiAgentEnvVar] = AiAgentEnvValue;
 		if (options?.preventShellHistory) {
 			// Picked up by the shell integration scripts to set HISTCONTROL=ignorespace
 			// (bash) / HIST_IGNORE_SPACE (zsh), or suppress PSReadLine history (pwsh).
@@ -654,10 +668,10 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 				continue;
 			}
 
-			// Agent Host's server-side headless terminal answers CPR so terminals
-			// work without an attached client. Hide those queries from client xterms
-			// to avoid a second CPR response flowing back through AgentHostPty.input.
-			const cleanedData = removeServerHandledTerminalQueries(segment.data, managed.terminalQueryFilterState);
+			// Agent Host's server-side headless terminal answers CPR but cannot answer
+			// OSC color queries. Hide both from client xterms so terminal responses
+			// cannot flow back out of order through AgentHostPty.input.
+			const cleanedData = removeTerminalQueriesSuppressedFromClient(segment.data, managed.terminalQueryFilterState);
 			if (cleanedData.length > 0) {
 				this._appendToContent(managed, cleanedData);
 				pendingClientData += cleanedData;

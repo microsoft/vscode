@@ -11,6 +11,7 @@ import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../.
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
@@ -22,6 +23,7 @@ import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
+import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -37,6 +39,8 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -46,10 +50,62 @@ export interface IChatQuestionCarouselOptions {
 	shouldAutoFocus?: boolean;
 }
 
-type IOrderedQuestionOption = {
-	option: NonNullable<IChatQuestion['options']>[number];
-	originalIndex: number;
-};
+class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
+	constructor(
+		title: string,
+		private readonly prefix: string | undefined,
+		private readonly value: string,
+		private readonly answerIcon: ThemeIcon,
+		context: IChatContentPartRenderContext,
+		private readonly contentFactory: (() => HTMLElement) | undefined,
+		private readonly onDidChangeHeight: () => void,
+		hoverService: IHoverService,
+		configurationService: IConfigurationService,
+	) {
+		super(title, context, undefined, hoverService, configurationService);
+	}
+
+	protected override init(): HTMLElement {
+		const element = super.init();
+		element.classList.toggle('chat-question-answer-expandable', !!this.contentFactory);
+		if (this._collapseButton) {
+			const labelElement = this._collapseButton.labelElement;
+			labelElement.textContent = '';
+			const icon = dom.$('span.chat-question-summary-answer-icon');
+			icon.classList.add(...ThemeIcon.asClassNameArray(this.answerIcon));
+			icon.setAttribute('aria-hidden', 'true');
+			const value = dom.$('span.chat-question-summary-answer-value');
+			value.textContent = this.value;
+			this._register(this.hoverService.setupDelayedHover(value, { content: this.value }));
+			labelElement.appendChild(icon);
+			if (this.prefix) {
+				const prefix = dom.$('span.chat-question-summary-prefix');
+				prefix.textContent = this.prefix;
+				labelElement.append(prefix, labelElement.ownerDocument.createTextNode(' '));
+			}
+			labelElement.appendChild(value);
+			if (!this.contentFactory) {
+				this._collapseButton.element.tabIndex = -1;
+				this._collapseButton.element.setAttribute('aria-disabled', 'true');
+				this._collapseButton.element.removeAttribute('aria-expanded');
+				this._hoverChevron?.remove();
+			}
+		}
+		return element;
+	}
+
+	protected override initContent(): HTMLElement {
+		return this.contentFactory?.() ?? dom.$('.chat-question-summary-empty-content');
+	}
+
+	protected override expansionDidChange(): void {
+		this.onDidChangeHeight();
+	}
+
+	hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+		return false;
+	}
+}
 
 export class ChatQuestionCarouselPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -96,7 +152,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	constructor(
 		public readonly carousel: IChatQuestionCarousel,
-		context: IChatContentPartRenderContext,
+		private readonly _context: IChatContentPartRenderContext,
 		private readonly _options: IChatQuestionCarouselOptions,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -110,6 +166,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		super();
 
 		this.domNode = dom.$('.chat-question-carousel-container');
+		this.domNode.classList.toggle('chat-question-carousel-conversation', carousel.answerPresentation === 'conversation');
 		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
 		this._chatQuestionCarouselHasTerminalContextKey = ChatContextKeys.chatQuestionCarouselHasTerminal.bindTo(this._contextKeyService);
@@ -156,7 +213,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// If carousel was already used OR the response is complete, show summary of answers
 		// When response is complete, the carousel can no longer be interacted with
-		const responseIsComplete = isResponseVM(context.element) && context.element.isComplete;
+		const responseIsComplete = isResponseVM(this._context.element) && this._context.element.isComplete;
 		if (carousel.isUsed || responseIsComplete) {
 			this._isSkipped = true;
 			this.domNode.classList.add('chat-question-carousel-used');
@@ -391,7 +448,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.focus();
 		const question = this.carousel.questions[this._currentIndex];
 		if (question) {
-			const questionText = question.message ?? question.title;
+			const questionText = getDisplayedQuestionText(question);
 			const messageContent = this.getQuestionText(questionText);
 			const questionCount = this.carousel.questions.length;
 			const alertMessage = questionCount === 1
@@ -405,6 +462,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Hides the carousel UI and shows a summary of answers.
 	 */
 	private hideAndShowSummary(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		this._isSkipped = true;
 		this.domNode.classList.add('chat-question-carousel-used');
 
@@ -506,9 +567,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/**
 	 * Skips the carousel with default values - called when user wants to proceed quickly.
 	 * Returns defaults for all questions.
+	 *
+	 * `carousel.isUsed` covers resolution that did not come from this part: a
+	 * voice answer dismisses the carousel directly, and a later auto-skip on
+	 * request submit would otherwise overwrite the answer that actually landed
+	 * with defaults.
 	 */
 	public skip(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 
@@ -527,9 +593,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/**
 	 * Ignores the carousel completely - called when user wants to dismiss without data.
 	 * Returns undefined to signal the carousel was ignored.
+	 *
+	 * Guarded on `carousel.isUsed` for the same reason as {@link skip}.
 	 */
 	public ignore(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 		this._isSkipped = true;
@@ -618,7 +686,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		const questionText = question.message ?? question.title;
+		const questionText = getDisplayedQuestionText(question);
 		const messageContent = this.getQuestionText(questionText);
 		const questionCount = this.carousel.questions.length;
 
@@ -706,7 +774,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		// Render unified question title (message ?? title)
 		const headerRow = dom.$('.chat-question-header-row');
 		const titleRow = dom.$('.chat-question-title-row');
 
@@ -719,7 +786,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			headerRow.appendChild(carouselMessage);
 		}
 
-		const questionText = question.message ?? question.title;
+		const questionText = getDisplayedQuestionText(question);
 		if (questionText) {
 			const title = dom.$('.chat-question-title');
 			const messageContent = this.getQuestionText(questionText);
@@ -1053,7 +1120,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
-		const orderedOptions = this.getOptionsWithDefaultsFirst(question);
+		const orderedOptions = getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
 		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-label', question.title);
@@ -1276,7 +1343,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderMultiSelect(container: HTMLElement, question: IChatQuestion): void {
-		const orderedOptions = this.getOptionsWithDefaultsFirst(question);
+		const orderedOptions = getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
 		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-multiselectable', 'true');
@@ -1541,31 +1608,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 	}
 
-	private getOptionsWithDefaultsFirst(question: IChatQuestion): IOrderedQuestionOption[] {
-		const options = question.options ?? [];
-		const orderedOptions = options.map((option, index) => ({ option, originalIndex: index }));
-		const defaultOptionIds = Array.isArray(question.defaultValue)
-			? question.defaultValue
-			: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
-
-		if (defaultOptionIds.length === 0) {
-			return orderedOptions;
-		}
-
-		const defaultIds = new Set(defaultOptionIds);
-		const defaults: IOrderedQuestionOption[] = [];
-		const nonDefaults: IOrderedQuestionOption[] = [];
-		for (const item of orderedOptions) {
-			if (defaultIds.has(item.option.id)) {
-				defaults.push(item);
-			} else {
-				nonDefaults.push(item);
-			}
-		}
-
-		return [...defaults, ...nonDefaults];
-	}
-
 	/**
 	 * Renders a terminal-state message (Skipped/Answered) when the carousel is
 	 * dismissed without structured answers.
@@ -1581,7 +1623,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const skippedMessage = dom.$('.chat-question-summary-skipped');
 			skippedMessage.textContent = isDismissedByTerminal
 				? localize('chat.questionCarousel.deferredToTerminal', "Deferring to user's input in the terminal")
-				: localize('chat.questionCarousel.skipped', 'Skipped');
+				: localize('chat.questionCarousel.skipped', 'Skipped question');
 			summaryContainer.appendChild(skippedMessage);
 		}
 		this.domNode.appendChild(summaryContainer);
@@ -1593,9 +1635,31 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private renderSummary(): void {
 		// If no answers, show the terminal-state (Skipped/Answered) message
 		if (this._answers.size === 0) {
+			if (this.carousel.answerPresentation === 'conversation') {
+				if (this.carousel.autoReply) {
+					this.renderConversationSummary({
+						answerFallback: localize('chat.questionCarousel.answeredAutomatically', "Answered automatically"),
+						answerIcon: Codicon.copilotCompact,
+					});
+				} else if (this.carousel.answeredExternally) {
+					this.renderTerminalStateMessage();
+				} else if (this.carousel.isUsed) {
+					this.renderConversationSummary({
+						answerFallback: localize('chat.questionCarousel.skippedConversation', "Skipped question"),
+						answerIcon: Codicon.closeCompact,
+						hideAnswerPrefix: true,
+					});
+				}
+				return;
+			}
 			if (this.carousel.isUsed) {
 				this.renderTerminalStateMessage();
 			}
+			return;
+		}
+
+		if (this.carousel.answerPresentation === 'conversation') {
+			this.renderConversationSummary();
 			return;
 		}
 
@@ -1607,7 +1671,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const summaryItem = dom.$('.chat-question-summary-item');
 
 			const questionRow = dom.$('div.chat-question-summary-label');
-			const questionText = question.message ?? question.title;
+			const questionText = getDisplayedQuestionText(question);
 			let labelText = typeof questionText === 'string' ? questionText : questionText.value;
 			labelText = labelText.replace(/[:\s]+$/, '');
 			questionRow.textContent = localize('chat.questionCarousel.summaryQuestion', 'Q: {0}', labelText);
@@ -1630,10 +1694,129 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.appendChild(summaryContainer);
 	}
 
+	private renderConversationSummary(options?: { answerFallback?: string; answerIcon?: ThemeIcon; hideAnswerPrefix?: boolean }): void {
+		const summaryStore = new DisposableStore();
+		this._interactiveUIStore.value = summaryStore;
+		const summaryContainer = dom.$('.chat-question-carousel-summary.chat-question-carousel-conversation-summary');
+		this.domNode.setAttribute('aria-label', localize('chat.questionCarousel.answeredQuestions', "Answered chat questions"));
+
+		for (const question of this.carousel.questions) {
+			const answer = this._answers.get(question.id);
+			const summaryItem = dom.$('.chat-question-summary-item');
+			const questionValue = dom.$('.chat-question-summary-question');
+			const questionText = getDisplayedQuestionText(question);
+			const displayedQuestion = (typeof questionText === 'string' ? questionText : questionText.value).replace(/[:\s]+$/, '');
+			const questionPrefix = dom.$('span.chat-question-summary-prefix');
+			questionPrefix.textContent = localize('chat.questionCarousel.questionPrefix', "Question:");
+			const questionTextValue = dom.$('span.chat-question-summary-question-value');
+			questionTextValue.textContent = displayedQuestion;
+			summaryStore.add(this._hoverService.setupDelayedHover(questionTextValue, { content: displayedQuestion }));
+			questionValue.append(questionPrefix, questionValue.ownerDocument.createTextNode(' '), questionTextValue);
+			summaryItem.appendChild(questionValue);
+
+			const decision = dom.$('.chat-question-summary-decision');
+			const answerValue = answer === undefined
+				? options?.answerFallback ?? localize('chat.questionCarousel.conversationNotAnswered', "Not answered yet")
+				: this.formatAnswerForSummary(question, answer);
+			const answerPrefix = options?.hideAnswerPrefix ? undefined : localize('chat.questionCarousel.answerPrefix', "Answered:");
+			const answerTitle = answerPrefix
+				? localize('chat.questionCarousel.conversationAnswer', "{0} {1}", answerPrefix, answerValue)
+				: answerValue;
+			const collapsibleContext = {
+				...this._context,
+				content: this._context.content ?? [],
+				contentIndex: this._context.contentIndex ?? 0,
+			};
+			const answerPart = summaryStore.add(new ChatQuestionAnswerCollapsiblePart(
+				answerTitle,
+				answerPrefix,
+				answerValue,
+				options?.answerIcon ?? (this.carousel.autoReply ? Codicon.copilotCompact : Codicon.comment),
+				collapsibleContext,
+				question.options?.length ? () => this.renderConversationOptions(question, answer) : undefined,
+				() => this._onDidChangeHeight.fire(),
+				this._hoverService,
+				this._configurationService,
+			));
+			answerPart.domNode.classList.add('chat-question-answer-collapsible');
+			decision.appendChild(answerPart.domNode);
+			summaryItem.appendChild(decision);
+			summaryContainer.appendChild(summaryItem);
+		}
+
+		this.domNode.appendChild(summaryContainer);
+	}
+
+	private renderConversationOptions(question: IChatQuestion, answer: IChatQuestionAnswerValue | undefined): HTMLElement {
+		const selectedValues = new Set<string>();
+		let freeformValue: string | undefined;
+		if (typeof answer === 'string') {
+			selectedValues.add(answer);
+		} else if (answer) {
+			if (hasKey(answer, { selectedValues: true })) {
+				for (const selectedValue of answer.selectedValues) {
+					selectedValues.add(selectedValue);
+				}
+				freeformValue = answer.freeformValue;
+			} else {
+				const singleAnswer = answer as IChatSingleSelectAnswer;
+				if (singleAnswer.selectedValue !== undefined) {
+					selectedValues.add(singleAnswer.selectedValue);
+				}
+				freeformValue = singleAnswer.freeformValue;
+			}
+		}
+
+		const container = dom.$('.chat-question-summary-option-details.chat-used-context-list');
+		const optionsTitle = dom.$('.chat-question-summary-options-title');
+		optionsTitle.textContent = localize('chat.questionCarousel.optionsTitle', "Options");
+		container.appendChild(optionsTitle);
+
+		const optionList = dom.$('ul.chat-question-summary-option-list');
+		for (const option of question.options ?? []) {
+			const selected = selectedValues.has(option.value);
+			const optionItem = dom.$('li.chat-question-summary-option');
+			optionItem.classList.toggle('selected', selected);
+			optionItem.setAttribute('aria-label', selected
+				? localize('chat.questionCarousel.selectedOptionAriaLabel', "{0}, selected", option.label)
+				: option.label);
+			const optionLabel = dom.$('span.chat-question-summary-option-label');
+			optionLabel.textContent = option.label;
+			optionItem.appendChild(optionLabel);
+			if (selected) {
+				optionItem.appendChild(this.renderSelectedOptionState());
+			}
+			optionList.appendChild(optionItem);
+		}
+		if (freeformValue) {
+			const customItem = dom.$('li.chat-question-summary-option.selected');
+			customItem.setAttribute('aria-label', localize('chat.questionCarousel.selectedCustomAnswerAriaLabel', "Custom answer: {0}, selected", freeformValue));
+			const customLabel = dom.$('span.chat-question-summary-option-label');
+			customLabel.textContent = localize('chat.questionCarousel.customAnswer', "Custom answer: {0}", freeformValue);
+			customItem.append(customLabel, this.renderSelectedOptionState());
+			optionList.appendChild(customItem);
+		}
+		container.appendChild(optionList);
+		return container;
+	}
+
+	private renderSelectedOptionState(): HTMLElement {
+		const selectedState = dom.$('span.chat-question-summary-option-selected');
+		const selectedIcon = dom.$('span');
+		selectedIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.checkCompact));
+		selectedIcon.setAttribute('aria-hidden', 'true');
+		selectedState.appendChild(selectedIcon);
+		return selectedState;
+	}
+
 	/**
 	 * Formats an answer for display in the summary.
 	 */
 	private formatAnswerForSummary(question: IChatQuestion, answer: IChatQuestionAnswerValue): string {
+		if (this.carousel.autoReply && answer === AgentHostAutoReplyAnswer) {
+			return localize('chat.questionCarousel.autoReplyAnswer', "The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.");
+		}
+
 		switch (question.type) {
 			case 'text':
 				return String(answer);
@@ -1735,54 +1918,31 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns a validation error message for the given value, or undefined if valid.
 	 */
 	private getValidationError(value: string, validation: IChatQuestionValidation): string | undefined {
-		if (validation.minLength !== undefined && value.length < validation.minLength) {
-			return localize('chat.questionCarousel.validation.minLength', 'Minimum length is {0}', validation.minLength);
-		}
-		if (validation.maxLength !== undefined && value.length > validation.maxLength) {
-			return localize('chat.questionCarousel.validation.maxLength', 'Maximum length is {0}', validation.maxLength);
-		}
-		if (validation.format) {
-			switch (validation.format) {
-				case 'email':
-					if (!value.includes('@')) {
-						return localize('chat.questionCarousel.validation.email', 'Please enter a valid email address');
-					}
-					break;
-				case 'uri':
-					if (!URL.canParse(value)) {
-						return localize('chat.questionCarousel.validation.uri', 'Please enter a valid URI');
-					}
-					break;
-				case 'date': {
-					const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-					if (!dateRegex.test(value) || isNaN(new Date(value).getTime())) {
-						return localize('chat.questionCarousel.validation.date', 'Please enter a valid date (YYYY-MM-DD)');
-					}
-					break;
-				}
-				case 'date-time':
-					if (isNaN(new Date(value).getTime())) {
-						return localize('chat.questionCarousel.validation.dateTime', 'Please enter a valid date-time');
-					}
-					break;
-			}
-		}
-		if (validation.isInteger !== undefined || validation.minimum !== undefined || validation.maximum !== undefined) {
-			const num = Number(value);
-			if (isNaN(num)) {
+		const failure = findQuestionValidationFailure(value, validation);
+		switch (failure?.kind) {
+			case undefined:
+				return undefined;
+			case 'minLength':
+				return localize('chat.questionCarousel.validation.minLength', 'Minimum length is {0}', failure.limit);
+			case 'maxLength':
+				return localize('chat.questionCarousel.validation.maxLength', 'Maximum length is {0}', failure.limit);
+			case 'email':
+				return localize('chat.questionCarousel.validation.email', 'Please enter a valid email address');
+			case 'uri':
+				return localize('chat.questionCarousel.validation.uri', 'Please enter a valid URI');
+			case 'date':
+				return localize('chat.questionCarousel.validation.date', 'Please enter a valid date (YYYY-MM-DD)');
+			case 'dateTime':
+				return localize('chat.questionCarousel.validation.dateTime', 'Please enter a valid date-time');
+			case 'number':
 				return localize('chat.questionCarousel.validation.number', 'Please enter a valid number');
-			}
-			if (validation.isInteger && !Number.isInteger(num)) {
+			case 'integer':
 				return localize('chat.questionCarousel.validation.integer', 'Please enter a valid integer');
-			}
-			if (validation.minimum !== undefined && num < validation.minimum) {
-				return localize('chat.questionCarousel.validation.minimum', 'Minimum value is {0}', validation.minimum);
-			}
-			if (validation.maximum !== undefined && num > validation.maximum) {
-				return localize('chat.questionCarousel.validation.maximum', 'Maximum value is {0}', validation.maximum);
-			}
+			case 'minimum':
+				return localize('chat.questionCarousel.validation.minimum', 'Minimum value is {0}', failure.limit);
+			case 'maximum':
+				return localize('chat.questionCarousel.validation.maximum', 'Maximum value is {0}', failure.limit);
 		}
-		return undefined;
 	}
 
 	private showValidationError(message: string): void {

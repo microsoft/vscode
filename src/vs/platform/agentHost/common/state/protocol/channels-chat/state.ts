@@ -63,21 +63,6 @@ export interface ChatState {
 	 * update the subset on a running chat.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The chat's primary working directory — the distinguished root this chat is
-	 * centered on (e.g. the agent's process root for this chat, the default
-	 * location for relative paths). MUST be one of this chat's effective working
-	 * directories ({@link workingDirectories}, or the session's set when that is
-	 * absent). Present when the agent advertises
-	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}.
-	 *
-	 * **Read-only and fixed at creation.** It is set from
-	 * {@link CreateChatParams.primaryWorkingDirectory} (or, for the session's
-	 * default chat, {@link CreateSessionParams.primaryWorkingDirectory}) and does
-	 * not change over the chat's lifetime — there is no action to mutate it, and
-	 * it does not participate in `session/chatUpdated`.
-	 */
-	primaryWorkingDirectory?: URI;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -150,11 +135,6 @@ export interface ChatSummary {
 	 * See {@link ChatState.workingDirectories} for the full semantics.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The chat's primary working directory.
-	 * See {@link ChatState.primaryWorkingDirectory} for the full semantics.
-	 */
-	primaryWorkingDirectory?: URI;
 }
 
 /**
@@ -167,13 +147,55 @@ export const enum ChatOriginKind {
 	User = 'user',
 	/** Forked from an existing chat at a specific turn. */
 	Fork = 'fork',
+	/** Created as an independent side conversation from a specific turn. */
+	SideChat = 'sideChat',
 	/** Spawned by a tool call running in another chat (e.g. a sub-agent delegation). */
 	Tool = 'tool',
 }
 
 /**
+ * Immutable selected-text snapshot captured when a side chat is created.
+ *
+ * The host records this exact text when it accepts `createChat`; later changes
+ * to the source chat do not alter it.
+ *
+ * @category Chat State
+ */
+export interface SideChatSelection {
+	/**
+	 * Exact selected-text snapshot captured at `createChat` acceptance.
+	 *
+	 * MUST be non-empty.
+	 */
+	text: string;
+	/**
+	 * Optional provenance for the response part that contained {@link text} when
+	 * the host took the snapshot.
+	 *
+	 * Advisory only: this is not a live range or offset and MUST NOT be used to
+	 * recompute `text`.
+	 */
+	responsePartId?: string;
+}
+
+/**
  * How a chat came into existence. Clients MAY use it to render
  * contextual UI (parent indicators, fork markers, "spawned by tool" badges).
+ *
+ * Fork and side-chat origins both carry a stable top-level `turnId` alongside
+ * their discriminated `kind` value instead of snapshotting whether that turn
+ * was active or historical at creation time. Consumers resolve the identifier
+ * against the
+ * source chat's current `activeTurn` or retained `turns` as needed.
+ *
+ * When a host accepts side-chat creation from the source chat's current active
+ * turn, it snapshots the retained history plus that turn's current user
+ * message and any partial assistant response already available. Later
+ * source-turn deltas do not retroactively change the created side chat's
+ * starting context, and once the source turn completes it is still referenced
+ * by the same `turnId`. Side-chat origins MAY also retain an immutable
+ * {@link SideChatSelection | selected-text snapshot} captured at acceptance
+ * time; any `responsePartId` there is provenance only, not a range.
  *
  * The `tool` variant records a tool-spawned worker from the worker's side: its
  * `chat`/`toolCallId` identify the spawning tool call in the parent chat. This
@@ -186,6 +208,7 @@ export const enum ChatOriginKind {
 export type ChatOrigin =
 	| { kind: ChatOriginKind.User }
 	| { kind: ChatOriginKind.Fork; chat: URI; turnId: string }
+	| { kind: ChatOriginKind.SideChat; chat: URI; turnId: string; selection?: SideChatSelection }
 	| { kind: ChatOriginKind.Tool; chat: URI; toolCallId: string };
 
 /**
@@ -370,6 +393,17 @@ export type ChatInputQuestion = ChatInputTextQuestion
 	| ChatInputMultiSelectQuestion;
 
 /**
+ * Why the agent requested chat input.
+ *
+ * @category Chat Input Types
+ */
+export const enum ChatInputRequestPurpose {
+	AskUser = 'askUser',
+	Elicitation = 'elicitation',
+	PlanReview = 'planReview',
+}
+
+/**
  * The request payload carried by an {@link InputRequestResponsePart}.
  *
  * The server creates or replaces the containing response part with
@@ -381,6 +415,8 @@ export type ChatInputQuestion = ChatInputTextQuestion
 export interface ChatInputRequest {
 	/** Stable request identifier */
 	id: string;
+	/** Input lifecycle classification. Missing for requests from older clients or persisted sessions. */
+	purpose?: ChatInputRequestPurpose;
 	/** Display message for the request as a whole */
 	message?: string;
 	/** URL the user should review or open, for URL-style elicitations */
@@ -505,6 +541,8 @@ export const enum MessageAttachmentKind {
 	Resource = 'resource',
 	/** An attachment that references annotations on an annotations channel. */
 	Annotations = 'annotations',
+	/** An attachment that references a bounded transcript from another chat. */
+	Chat = 'chat',
 }
 
 /**
@@ -768,6 +806,42 @@ export interface MessageAnnotationsAttachment extends MessageAttachmentBase {
 }
 
 /**
+ * An attachment that references a chat transcript through a fixed completed
+ * turn.
+ *
+ * The referenced chat MAY belong to a different session than the message's
+ * chat. The attachment's model representation identifies the chat in a way
+ * that hosts can resolve regardless of the session that owns it.
+ *
+ * When `endTurn` is omitted, the host MUST resolve and pin the referenced
+ * chat's latest completed turn when accepting the message. This lets clients
+ * attach a chat without knowing its turn identifiers. When provided, `endTurn`
+ * MUST reference a completed, retained turn. The host resolves the transcript
+ * from its first retained turn through the pinned turn, inclusive. Later turns
+ * do not change the context represented by an already-sent attachment.
+ *
+ * When the referenced chat has no completed retained turns, the resolved
+ * transcript is empty and hosts MUST NOT reject the attachment on that basis.
+ *
+ * Hosts MUST NOT recursively expand chat attachments found inside the
+ * referenced transcript. Clients SHOULD keep rendering `label` if the
+ * referenced chat is later pruned, and treat opening `resource` as best-effort.
+ *
+ * @category Turn Types
+ */
+export interface MessageChatAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.Chat;
+	/** URI of the referenced chat. */
+	resource: URI;
+	/**
+	 * Last completed turn included in the referenced transcript. When omitted,
+	 * the host pins the latest completed turn when accepting the message.
+	 */
+	endTurn?: string;
+}
+
+/**
  * An attachment associated with a {@link Message}.
  *
  * @category Turn Types
@@ -776,7 +850,8 @@ export type MessageAttachment =
 	| SimpleMessageAttachment
 	| MessageEmbeddedResourceAttachment
 	| MessageResourceAttachment
-	| MessageAnnotationsAttachment;
+	| MessageAnnotationsAttachment
+	| MessageChatAttachment;
 
 // ─── Response Parts ──────────────────────────────────────────────────────────
 
@@ -811,7 +886,7 @@ export interface MarkdownResponsePart {
  *
  * @category Response Parts
  */
-export interface ResourceReponsePart extends ContentRef {
+export interface ResourceResponsePart extends ContentRef {
 	/** Discriminant */
 	kind: ResponsePartKind.ContentRef;
 }
@@ -851,7 +926,7 @@ export interface ReasoningResponsePart {
  */
 export type ResponsePart =
 	| MarkdownResponsePart
-	| ResourceReponsePart
+	| ResourceResponsePart
 	| ToolCallResponsePart
 	| ReasoningResponsePart
 	| SystemNotificationResponsePart
@@ -1115,9 +1190,23 @@ interface ToolCallBase {
 interface ToolCallParameterFields {
 	/** Message describing what the tool will do */
 	invocationMessage: StringOrMarkdown;
-	/** Raw tool input */
-	toolInput?: string;
+	/**
+	 * Final tool input.
+	 *
+	 * Referenced input is mutable until the tool call leaves
+	 * `pending-confirmation`. When the client confirms with `editedToolInput`,
+	 * the host MUST replace the resource contents before echoing the accepted
+	 * confirmation action. Clients MUST NOT cache tool input across confirmation.
+	 */
+	toolInput?: ToolInput;
 }
+
+/**
+ * Tool input represented inline or by reference.
+ *
+ * @category Tool Call Types
+ */
+export type ToolInput = string | ContentRef;
 
 /**
  * Tool execution result details, available after execution completes.
@@ -1152,7 +1241,7 @@ export interface ToolCallResult {
  */
 export interface ToolCallStreamingState extends ToolCallBase {
 	status: ToolCallStatus.Streaming;
-	/** Partial parameters accumulated so far */
+	/** Partial parameters accumulated from tool-call deltas. */
 	partialInput?: string;
 	/** Progress message shown while parameters are streaming */
 	invocationMessage?: StringOrMarkdown;

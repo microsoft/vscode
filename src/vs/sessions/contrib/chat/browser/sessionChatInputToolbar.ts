@@ -8,21 +8,19 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { localize } from '../../../../nls.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
+import { getTurnChangesEditorLabel, LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
+import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import './media/sessionChatInputToolbar.css';
 
@@ -48,12 +46,16 @@ const EMPTY_TURN_DATA: ITurnData = { stats: EMPTY_DIFF_STATS, previewFiles: [] }
 function computeTurnData(chat: IChat, reader: IReader): ITurnData {
 	const changes = chat.lastTurnChanges?.read(reader) ?? [];
 
-	let insertions = 0, deletions = 0;
+	let files = 0, insertions = 0, deletions = 0;
 	const created: IPreviewFile[] = [];
 	const edited: IPreviewFile[] = [];
 	for (const change of changes) {
-		insertions += change.insertions;
-		deletions += change.deletions;
+		if (!change.isOutsideWorkspace) {
+			files++;
+			insertions += change.insertions;
+			deletions += change.deletions;
+			continue;
+		}
 
 		if (change.modifiedUri === undefined) {
 			continue; // a deletion has nothing to preview
@@ -68,7 +70,7 @@ function computeTurnData(chat: IChat, reader: IReader): ITurnData {
 	}
 
 	return {
-		stats: { files: changes.length, insertions, deletions },
+		stats: { files, insertions, deletions },
 		previewFiles: [...created, ...edited],
 	};
 }
@@ -87,6 +89,7 @@ export class SessionChatInputToolbar extends Disposable {
 	/** The chat whose last-turn changes are reflected. */
 	private readonly _chat = observableValue<IChat | undefined>('chat', undefined);
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
+	private readonly _browsers: SessionBrowsersControl;
 	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
@@ -103,24 +106,9 @@ export class SessionChatInputToolbar extends Disposable {
 	});
 
 	/** The current turn's diff stats and previewable files. */
-	private readonly _turnData = derivedOpts<ITurnData>({ owner: this, equalsFn: turnDataEqual }, reader => {
-		const debugData = this._debugData.read(reader);
-		if (debugData) {
-			return {
-				stats: debugData.stats,
-				previewFiles: debugData.markdownFiles.map(name => ({
-					uri: URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` }),
-					kind: 'markdown',
-					created: true,
-				})),
-			};
-		}
-		const chat = this._chat.read(reader);
-		return chat ? computeTurnData(chat, reader) : EMPTY_TURN_DATA;
-	});
-
-	private readonly _diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => this._turnData.read(reader).stats);
-	private readonly _previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => this._turnData.read(reader).previewFiles);
+	private readonly _turnData: IObservable<ITurnData>;
+	private readonly _diffStats: IObservable<IDiffStats>;
+	private readonly _previewFiles: IObservable<readonly IPreviewFile[]>;
 
 	/** Whether pills may show at all: an agent host session with an active turn. */
 	private readonly _active = derived(reader => {
@@ -133,10 +121,8 @@ export class SessionChatInputToolbar extends Disposable {
 	});
 
 	constructor(
-		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ILogService private readonly _logService: ILogService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -145,6 +131,24 @@ export class SessionChatInputToolbar extends Disposable {
 
 		this.element = $('.session-chat-input-toolbar.hidden');
 
+		this._turnData = derivedOpts<ITurnData>({ owner: this, equalsFn: turnDataEqual }, reader => {
+			const debugData = this._debugData.read(reader);
+			if (debugData) {
+				return {
+					stats: debugData.stats,
+					previewFiles: debugData.markdownFiles.map(name => ({
+						uri: URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` }),
+						kind: 'markdown',
+						created: true,
+					})),
+				};
+			}
+			const chat = this._chat.read(reader);
+			return chat ? computeTurnData(chat, reader) : EMPTY_TURN_DATA;
+		});
+		this._diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => this._turnData.read(reader).stats);
+		this._previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => this._turnData.read(reader).previewFiles);
+
 		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
@@ -152,17 +156,21 @@ export class SessionChatInputToolbar extends Disposable {
 			changesEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
 			previewEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
 			openChanges: () => this._debugData.get() ? undefined : this._openChanges(),
-			openPreviewFile: file => this._debugData.get() ? undefined : openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
+			openFile: file => this._debugData.get() ? undefined : openChatTurnFile(file, this._openerService, this._configurationService),
 		};
 
 		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));
 		this.element.appendChild(pills.element);
 
+		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled));
+		this.element.appendChild(this._browsers.element);
+
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled));
 		this.element.appendChild(this._backgroundActivities.element);
 
 		this._register(autorun(reader => {
-			this.element.classList.toggle('hidden', !pills.isVisible.read(reader) && !this._backgroundActivities.isVisible.read(reader));
+			const anyVisible = pills.isVisible.read(reader) || this._browsers.isVisible.read(reader) || this._backgroundActivities.isVisible.read(reader);
+			this.element.classList.toggle('hidden', !anyVisible);
 		}));
 	}
 
@@ -190,6 +198,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 	setDebugData(data: ISessionChatPillsDebugData | undefined): void {
 		this._debugData.set(data, undefined);
+		this._browsers.setDebugData(data);
 		this._backgroundActivities.setDebugData(data);
 	}
 
@@ -212,14 +221,11 @@ export class SessionChatInputToolbar extends Disposable {
 		if (!chat) {
 			return;
 		}
-		// Open the multi-diff editor scoped to this chat's last turn. Its resource
-		// list is resolved reactively via the `LastTurnChangesMultiDiffSourceResolver`
-		// registered as a workbench contribution, so it live-updates as further
-		// edits stream in.
+		// The resolver live-updates the resources and title as the turn progresses.
 		const multiDiffSource = LastTurnChangesMultiDiffSourceResolver.getMultiDiffSourceUri(chat.resource);
 		await this._editorService.openEditor({
 			multiDiffSource,
-			label: localize('sessions.lastTurnChanges.title', "Last Turn Changes"),
+			label: getTurnChangesEditorLabel(isActiveSessionStatus(chat.status.get())),
 		});
 	}
 

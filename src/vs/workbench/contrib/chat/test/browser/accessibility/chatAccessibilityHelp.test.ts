@@ -24,4 +24,71 @@ suite('Chat Accessibility Help', () => {
 			unsupported: false,
 		});
 	});
+
+	test('describes the VS Code pet context menu', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const helpText = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
+			navigation: helpText.includes('use the up and down arrow keys to choose'),
+			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			petMovement: helpText.includes('Drag it around the chat') && helpText.includes('use the arrow keys to move it'),
+			petRevival: helpText.includes('automatically returns to the input'),
+		}, {
+			keybinding: true,
+			navigation: true,
+			actions: true,
+			petMovement: true,
+			petRevival: true,
+		});
+	});
+
+	test('only describes the selection side chat affordance in the sessions window', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Ask Question'),
+			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
+		}, {
+			sessionsWindow: true,
+			regularWindow: false,
+		});
+	});
+
+	test('only describes the sticky prompt header when it is shown', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const describesStickyHeader = (shown: boolean) =>
+			getAccessibilityHelpText('agentView', keybindingService, true, false, shown).includes('pinned to the top of the transcript');
+
+		assert.deepStrictEqual({
+			shown: describesStickyHeader(true),
+			notShown: describesStickyHeader(false),
+			byDefault: getAccessibilityHelpText('agentView', keybindingService, true).includes('pinned to the top of the transcript'),
+		}, {
+			shown: true,
+			notShown: false,
+			byDefault: false,
+		});
+	});
+
+	test('only describes spoken agent progress in agent mode', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('brief progress updates'),
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('brief progress updates'),
+		}, {
+			agentView: true,
+			panelChat: false,
+		});
+	});
 });

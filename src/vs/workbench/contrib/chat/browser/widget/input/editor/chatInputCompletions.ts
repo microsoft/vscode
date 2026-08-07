@@ -19,6 +19,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { ICodeEditor, getCodeEditor, isCodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IWordAtPosition } from '../../../../../../../editor/common/core/wordHelper.js';
@@ -62,7 +63,7 @@ import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
-import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
@@ -901,9 +902,15 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
-			const suggestions = widget.attachmentModel.attachments
+			const typedWord = getCompletionRangeWord(range) ?? typedLeader;
+			const suggestOptions = widget.inputEditor.getOption(EditorOption.suggest);
+			const suggestions = coalesce(widget.attachmentModel.attachments
 				.filter(attachment => !attachment.range)
-				.map((attachment): CompletionItem => {
+				.map((attachment): CompletionItem | undefined => {
+					const match = getAttachedContextCompletionMatch(typedWord, typedLeader, attachment.name, attachment.kind, suggestOptions);
+					if (!match) {
+						return undefined;
+					}
 					const text = `${typedLeader}attachment:${attachment.name}`;
 					const referenceRange = {
 						startLineNumber: range.replace.startLineNumber,
@@ -913,7 +920,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					};
 					return {
 						label: { label: attachment.name, description: localize('attachedContext', 'Attached context') },
-						filterText: getAttachedContextCompletionFilterText(typedLeader, attachment.name, attachment.kind),
+						filterText: match.filterText,
 						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
 						range,
 						kind: attachment.kind === 'directory'
@@ -921,17 +928,17 @@ class BuiltinDynamicCompletions extends Disposable {
 							: attachment.kind === 'file' || attachment.kind === 'image'
 								? CompletionItemKind.File
 								: CompletionItemKind.Reference,
-						sortText: attachedContextCompletionSortText,
+						sortText: getAttachedContextCompletionSortText(match.score),
 						command: {
 							id: BuiltinDynamicCompletions.addReferenceCommand,
 							title: '',
 							arguments: [new ReferenceArgument(widget, toAttachedContextDynamicVariable(attachment, referenceRange))]
 						}
 					};
-				});
+				}));
 
-			return { suggestions };
-		}, BuiltinDynamicCompletions.VariableNameDef, true);
+			return { suggestions, incomplete: true };
+		}, BuiltinDynamicCompletions.VariableNameDef, true, attachedContextCompletionAdditionalTriggerCharacters);
 
 		// File/Folder completions in one go and m
 		const fileWordPattern = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][^\\s]*`, 'g');
@@ -1119,10 +1126,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		return undefined;
 	}
 
-	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef, includeAgentHost = false) {
+	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef, includeAgentHost = false, additionalTriggerCharacters: readonly string[] = []) {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
-			triggerCharacters: [chatVariableLeader, chatAgentLeader],
+			triggerCharacters: [chatVariableLeader, chatAgentLeader, ...additionalTriggerCharacters],
 			provideCompletionItems: async (model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {

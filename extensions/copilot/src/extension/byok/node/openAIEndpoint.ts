@@ -6,9 +6,10 @@ import type { CancellationToken } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { isKimiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
-import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
+import { ChatEndpoint, normalizeKimiToolCallIds } from '../../../platform/endpoint/node/chatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
@@ -145,6 +146,21 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	 */
 	public readonly ownsAuthorization = true;
 
+	protected override getCompletionsCallback(): RawMessageConversionCallback {
+		const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
+		return (out, data) => {
+			if (data?.id) {
+				out.cot_id = data.id;
+				const text = Array.isArray(data.text) ? data.text.join('') : data.text;
+				out.cot_summary = text;
+				if (supportsThinking) {
+					out.reasoning_content = text;
+					out.reasoning = text;
+				}
+			}
+		};
+	}
+
 	protected _isReservedHeader(lowerKey: string): boolean {
 		return OpenAIEndpoint._reservedHeaders.has(lowerKey);
 	}
@@ -272,25 +288,10 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		} else {
-			// Handle Chat Completions: provide callback for thinking data processing
-			const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
-			const callback: RawMessageConversionCallback = (out, data) => {
-				if (data && data.id) {
-					out.cot_id = data.id;
-					const text = Array.isArray(data.text) ? data.text.join('') : data.text;
-					out.cot_summary = text;
-					if (supportsThinking) {
-						// Reasoning models require the assistant message to echo back its
-						// prior reasoning. DeepSeek, Moonshot (Kimi), Minimax, and similar
-						// OpenAI-compatible providers expect `reasoning_content`; OpenRouter's
-						// BYOK proxy expects `reasoning`. Without these, the turn after a tool
-						// call is rejected with HTTP 400.
-						out.reasoning_content = text;
-						out.reasoning = text;
-					}
-				}
-			};
-			const body = createCapiRequestBody(options, this.model, callback);
+			const body = createCapiRequestBody(options, this.model, this.getCompletionsCallback());
+			if (body.messages && isKimiFamily(this)) {
+				body.messages = normalizeKimiToolCallIds(body.messages);
+			}
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		}

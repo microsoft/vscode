@@ -25,9 +25,11 @@ export const all = Object.freeze<string[]>([
 	'!cli/**/*',
 	'!out*/**',
 	'!extensions/**/out*/**',
+	'!extensions/**/*-out/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
 	'!**/*.js.map',
+	'!**/*.tsbuildinfo',
 ]);
 
 export const unicodeFilter = Object.freeze<string[]>([

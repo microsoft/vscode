@@ -12,12 +12,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ContentEncoding, ResourceType, ResourceWriteMode, type ResourceListResult, type ResourceReadResult, type ResourceResolveResult } from '../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
-import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, type IServerHandle, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, type IServerHandle, startServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket - Resource Operations', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	const secondaryClients: TestProtocolClient[] = [];
 	let testDirectory: string;
 	let clientCounter = 0;
 
@@ -26,12 +27,13 @@ suite('Protocol WebSocket - Resource Operations', function () {
 		server = await startServer({ startupTimeoutMs: getAgentHostE2ETestTimeout(30_000, 50_000) });
 	});
 
-	suiteTeardown(function () {
-		server?.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 		testDirectory = mkdtempSync(join(tmpdir(), 'agent-host-resource-'));
 		client = new TestProtocolClient(server.port);
 		await client.connect();
@@ -40,7 +42,10 @@ suite('Protocol WebSocket - Resource Operations', function () {
 
 	teardown(function () {
 		client.close();
-		rmSync(testDirectory, { recursive: true, force: true });
+		for (const secondaryClient of secondaryClients.splice(0)) {
+			secondaryClient.close();
+		}
+		rmSync(testDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 	});
 
 	function resource(name: string): string {
@@ -405,6 +410,7 @@ suite('Protocol WebSocket - Resource Operations', function () {
 		const first = await client.call<{ snapshot: { state: { root: string } } }>('subscribe', { channel: watch.channel });
 
 		const secondClient = new TestProtocolClient(server.port);
+		secondaryClients.push(secondClient);
 		await secondClient.connect();
 		await secondClient.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `resource-client-${++clientCounter}` });
 		const second = await secondClient.call<{ snapshot: { state: { root: string } } }>('subscribe', { channel: watch.channel });
@@ -415,6 +421,5 @@ suite('Protocol WebSocket - Resource Operations', function () {
 		]);
 		client.notify('unsubscribe', { channel: watch.channel });
 		secondClient.notify('unsubscribe', { channel: watch.channel });
-		secondClient.close();
 	});
 });
