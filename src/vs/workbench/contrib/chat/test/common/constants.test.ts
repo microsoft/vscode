@@ -144,14 +144,13 @@ suite('ChatConfiguration defaults', () => {
 		}, {
 			computed: SessionType.AgentHostCopilot,
 			rememberedAware: SessionType.AgentHostCopilot,
-			localVisible: false,
+			localVisible: true,
 		});
 	});
 
-	test('editor default skips hidden extension host Copilot CLI', () => {
+	test('editor default skips extension host Copilot CLI', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
-			[ChatConfiguration.CopilotCliHideExtensionHostEditor]: true,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.CopilotCLI, SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
@@ -167,13 +166,12 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('hidden remembered extension host Copilot CLI falls back for a new chat', async () => {
+	test('remembered extension host Copilot CLI falls back for a new chat', () => {
 		const configurationService = new TestConfigurationService();
 		const chatSessionsService = createChatSessionsService(SessionType.CopilotCLI, SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
 		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.CopilotCLI, true);
-		await configurationService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor, true);
 
 		assert.deepStrictEqual({
 			remembered: getRememberedSessionType(storageService),
@@ -186,29 +184,14 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('hidden current extension host Copilot CLI is not inherited by a new chat', () => {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.CopilotCliHideExtensionHostEditor]: true,
-		});
+	test('current extension host Copilot CLI is not inherited by a new chat', () => {
+		const configurationService = new TestConfigurationService();
 		const chatSessionsService = createChatSessionsService(SessionType.CopilotCLI, SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual(
 			resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.CopilotCLI }),
 			{ sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false }
-		);
-	});
-
-	test('visible current extension host Copilot CLI is inherited by a new chat', () => {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.DefaultToCopilotHarness]: true,
-		});
-		const chatSessionsService = createChatSessionsService(SessionType.CopilotCLI, SessionType.AgentHostCopilot);
-		const storageService = disposables.add(new TestStorageService());
-
-		assert.deepStrictEqual(
-			resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.CopilotCLI }),
-			{ sessionType: SessionType.CopilotCLI, isPreferCopilotHarnessSwap: false }
 		);
 	});
 

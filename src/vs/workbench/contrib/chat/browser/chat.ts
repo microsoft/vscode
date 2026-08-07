@@ -536,3 +536,6 @@ export const ChatViewContainerId = 'workbench.panel.chat';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
+export const UpdateAgentPluginsCommandId = 'workbench.agentPlugins.checkForUpdates';
+export const ForceUpdateAgentPluginsCommandId = 'workbench.agentPlugins.forceUpdate';
+export const UpdatingAgentPluginsContext = new RawContextKey<boolean>('agentPluginsUpdating', false);

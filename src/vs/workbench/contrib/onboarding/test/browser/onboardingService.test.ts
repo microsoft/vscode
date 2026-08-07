@@ -233,6 +233,19 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual(order, ['high', 'low']);
 	});
 
+	test('higher priority wins when eligible scenarios share a seen key', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'low-shared', seenKey: 'shared', priority: 1, trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+		registerScenario({ id: 'high-shared', seenKey: 'shared', priority: 10, trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+
+		assert.deepStrictEqual(presentation.runs, ['high-shared']);
+	});
+
 	test('observable triggers start the scenario when the signal turns true', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);
