@@ -299,6 +299,8 @@ export interface IVoiceSessionController {
 	takeDraftInputOwnership(window: Window & typeof globalThis): void;
 	/** Atomically transfer capture ownership to omni and start with its draft. */
 	takeOmniInputOwnership(window: Window & typeof globalThis): void;
+	/** Keep an Omni-owned target pinned when a global barge-in keybinding starts. */
+	retainOmniInputOwnershipForBargeIn(window: Window & typeof globalThis): boolean;
 	/** Transfer Voice Mode surface ownership to or from the floating omni input. */
 	setOmniInputActive(active: boolean): void;
 	/** Report whether the floating omni surface exists, independently of focus. */
@@ -3107,6 +3109,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._hasDraftTarget.set(true, tx);
 			this._omniInputActive.set(true, tx);
 		});
+	}
+
+	retainOmniInputOwnershipForBargeIn(window: Window & typeof globalThis): boolean {
+		if (!this._omniInputActive.get()) {
+			return false;
+		}
+		this.setActiveWindow(window);
+		return true;
 	}
 
 	setOmniInputActive(active: boolean): void {

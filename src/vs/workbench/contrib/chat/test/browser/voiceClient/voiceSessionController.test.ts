@@ -3982,6 +3982,30 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('barge-in preserves the Omni route instead of retargeting to panel chat', () => {
+		const controller = createController(new TestVoiceClientService());
+		const omniSession = URI.parse('agent-host-copilot:/omni-route');
+
+		controller.setOmniInputActive(true);
+		controller.setTargetSession(omniSession, 'existing_session');
+		const retained = controller.retainOmniInputOwnershipForBargeIn(mainWindow);
+
+		assert.deepStrictEqual({
+			retained,
+			omniInputActive: controller.omniInputActive.get(),
+			hasDraftTarget: controller.hasDraftTarget.get(),
+			targetSession: controller.targetSession.get()?.toString(),
+		}, {
+			retained: true,
+			omniInputActive: true,
+			hasDraftTarget: false,
+			targetSession: omniSession.toString(),
+		});
+
+		controller.setOmniInputActive(false);
+		assert.strictEqual(controller.retainOmniInputOwnershipForBargeIn(mainWindow), false);
+	});
+
 	test('omni blur preserves an in-progress turn until voice returns to idle', async () => {
 		const controller = createController(new TestVoiceClientService());
 		const voiceState = Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void };

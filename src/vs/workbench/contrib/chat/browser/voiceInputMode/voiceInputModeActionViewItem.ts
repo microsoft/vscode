@@ -174,7 +174,9 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
-			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller, win);
+			if (!controller.retainOmniInputOwnershipForBargeIn(win)) {
+				await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller, win);
+			}
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
