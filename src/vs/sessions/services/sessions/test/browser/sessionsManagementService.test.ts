@@ -14,6 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -37,6 +39,7 @@ import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -239,6 +242,7 @@ function createView(instantiationService: TestInstantiationService, service: ISe
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
 	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService())));
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -413,7 +417,13 @@ suite('SessionsManagementService', () => {
 		// (mimicking an agent host provider whose cache has not loaded yet).
 		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
-		assert.deepStrictEqual(view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId), []);
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId),
+			restoreComplete: view.initialRestoreComplete.get(),
+		}, {
+			visible: [],
+			restoreComplete: false,
+		});
 
 		// Now the provider learns about the session and fires its change event.
 		// `onDidChangeProviders` does NOT fire here — only the per-provider
@@ -422,7 +432,13 @@ suite('SessionsManagementService', () => {
 		onDidChangeSessions.fire({ added: [targetSession], removed: [], changed: [] });
 
 		await restorePromise;
-		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId), [targetSession.sessionId]);
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(s => s?.sessionId),
+			restoreComplete: view.initialRestoreComplete.get(),
+		}, {
+			visible: [targetSession.sessionId],
+			restoreComplete: true,
+		});
 	});
 
 	test('ROUNDTRIP: opened session is retained across save + restore', async () => {
@@ -1108,9 +1124,7 @@ suite('SessionsManagementService', () => {
 	test('inheritableSessionTarget drops a harness the folder no longer offers', () => {
 		const folderUri = URI.parse('test:///folder');
 		// The provider still resolves the folder (its existing sessions stay
-		// usable) but no longer advertises the type they were created with —
-		// e.g. the extension-host Copilot CLI once
-		// `chat.agents.copilotCli.hideExtensionHost` is on.
+		// usable) but no longer advertises the type they were created with.
 		const hiddenHarnessSession = stubSession({ sessionId: 's1', providerId: 'test', sessionType: 'copilotcli' });
 		const provider = new class extends TestSessionsProvider {
 			override resolveWorkspace(_folderUri: URI): ISessionWorkspace {
@@ -1157,7 +1171,7 @@ suite('SessionsManagementService', () => {
 			override getSessions(): ISession[] { return [extHostSession]; }
 		}(extHostSession);
 
-		// The agent host sorts first (`chat.agentHost.defaultSessionsProvider`).
+		// The agent host sorts first.
 		const agentHostSession = stubSession({ sessionId: 'ah-draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilotcli' });
 		const agentHost = new class extends TestSessionsProvider {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -1794,6 +1808,52 @@ suite('SessionsManagementService', () => {
 			currentDraft: 's1',
 			replacements: [],
 			deleted: [],
+		});
+	});
+
+	test('automation draft lifecycle is isolated from the new-session draft', () => {
+		const drafts = [
+			stubSession({ sessionId: 'automation-workspace', providerId: 'test' }),
+			stubSession({ sessionId: 'new-session', providerId: 'test' }),
+			stubSession({ sessionId: 'automation-quick-chat', providerId: 'test' }),
+			stubSession({ sessionId: 'automation-replacement', providerId: 'test' }),
+		];
+		const deleted: string[] = [];
+		let createIndex = 0;
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
+				return {
+					uri: folderUri,
+					label: 'Workspace',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override createNewSession(): ISession { return drafts[createIndex++]; }
+			override createQuickChat(): ISession { return drafts[createIndex++]; }
+			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+		const folderUri = URI.parse('test:///folder');
+
+		const firstAutomationSession = service.createAutomationSession(folderUri);
+		service.createNewSession(folderUri);
+		service.createAutomationQuickChat();
+		service.discardAutomationSession(firstAutomationSession);
+		service.createAutomationSession(folderUri);
+		service.discardAutomationSession();
+
+		assert.deepStrictEqual({
+			newSession: service.newSession.get()?.sessionId,
+			automationSession: service.automationSession.get()?.sessionId,
+			deleted,
+		}, {
+			newSession: 'new-session',
+			automationSession: undefined,
+			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
 		});
 	});
 
@@ -2551,6 +2611,74 @@ suite('SessionsManagementService', () => {
 					{ providerId: 'quick-provider', sessionTypeId: 'quick' },
 					{ providerId: 'quick-provider', sessionTypeId: 'other' },
 				],
+			);
+		});
+	});
+
+	suite('legacy Copilot CLI migration', () => {
+
+		const RAW_ID = 'sess-abc';
+
+		function legacyCliSession(): ISession {
+			return stubSession({
+				sessionId: `legacy-${RAW_ID}`,
+				providerId: 'default-copilot',
+				sessionType: COPILOT_CLI_EH_SCHEME,
+				resource: URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${RAW_ID}` }),
+			});
+		}
+
+		function migratedCliSession(): ISession {
+			return stubSession({
+				sessionId: `migrated-${RAW_ID}`,
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				sessionType: COPILOT_CLI_EH_SCHEME,
+				resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` }),
+			});
+		}
+
+		function serviceWithSessions(sessions: readonly ISession[]): ISessionsManagementService {
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessions[0]); }
+				override getSessions(): ISession[] { return [...sessions]; }
+			};
+			return createSessionsManagementService(sessions[0], disposables, provider).service;
+		}
+
+		test('getSessions hides the legacy entry once its migrated agent-host entry exists', () => {
+			const legacy = legacyCliSession();
+			const migrated = migratedCliSession();
+			const service = serviceWithSessions([legacy, migrated]);
+
+			assert.deepStrictEqual(
+				service.getSessions().map(s => s.sessionId),
+				[migrated.sessionId],
+			);
+		});
+
+		test('getSessions keeps the legacy entry visible when no migrated entry exists', () => {
+			const legacy = legacyCliSession();
+			const service = serviceWithSessions([legacy]);
+
+			assert.deepStrictEqual(
+				service.getSessions().map(s => s.sessionId),
+				[legacy.sessionId],
+			);
+		});
+
+		test('getSession still resolves the hidden legacy entry so it can be migrated on open', () => {
+			const legacy = legacyCliSession();
+			const migrated = migratedCliSession();
+			const service = serviceWithSessions([legacy, migrated]);
+
+			// Hidden from the displayed list, yet still resolvable by resource so
+			// an explicit open can trigger migration.
+			assert.deepStrictEqual(
+				{
+					listed: service.getSessions().some(s => s.sessionId === legacy.sessionId),
+					resolved: service.getSession(legacy.resource)?.sessionId ?? null,
+				},
+				{ listed: false, resolved: legacy.sessionId },
 			);
 		});
 	});

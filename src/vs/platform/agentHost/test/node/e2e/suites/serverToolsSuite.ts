@@ -67,8 +67,16 @@ const sessionToolNames = [
 
 export function defineServerToolsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
-	// Session-reference captures need stable non-UUID resources, which only Copilot accepts.
-	const supportsReplayableSessionReferences = config.provider === 'copilotcli';
+	// Codex fails model authentication before a direct session lookup reaches the server tool.
+	const supportsDirectSessionLookup = config.provider !== 'codex';
+	// Claude omits the prior server-tool input from detailed session context.
+	const supportsFullSessionContext = config.provider !== 'claude';
+	// Codex fails model authentication while materializing the target session.
+	const supportsCrossSessionSend = config.provider !== 'codex';
+	// Claude leaves the target listed; Codex fails authentication while materializing it.
+	const supportsCrossSessionDelete = config.provider === 'copilotcli';
+	// Claude and Codex start another turn instead of rejecting a message to the current chat.
+	const supportsSelfSendRejection = config.provider === 'copilotcli';
 	// Model ids are not provider-qualified; Claude and Codex selections currently resolve to Copilot.
 	const supportsProviderModelSessionCreation = config.provider === 'copilotcli';
 	// Codex executes this server tool without surfacing its required confirmation.
@@ -84,7 +92,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	}
 
 	async function addSession(prefix: string, workspace: string, stableResource = false): Promise<IServerToolTestSession> {
-		const id = stableResource ? `e2e-server-tools-${prefix}` : generateUuid();
+		const id = stableResource && config.provider === 'copilotcli' ? `e2e-server-tools-${prefix}` : generateUuid();
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${id}` }).toString();
 		await context.client.call('createSession', {
 			channel: sessionUri,
@@ -457,7 +465,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		);
 		const result = JSON.parse(tool.resultText) as { sessions: readonly { session: string }[] };
 		assert.deepStrictEqual(result.sessions.map(item => item.session), [session.sessionUri]);
-	}, supportsReplayableSessionReferences);
+	}, supportsDirectSessionLookup);
 
 	serverToolTest('server tool: list_sessions workspace filter excludes sessions in other folders', async function () {
 		const session = await createSession('sessions-workspace');
@@ -601,7 +609,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			detail: 'summary',
 			first: { turn: 1, state: 'complete', user: 'Reply exactly "CONTEXT_READY".', assistant: 'CONTEXT_READY' },
 		});
-	}, supportsReplayableSessionReferences);
+	});
 
 	serverToolTest('server tool: get_session_context full includes prior server-tool input', async function () {
 		const session = await createSession('context-full', true);
@@ -619,7 +627,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		);
 		const result = JSON.parse(tool.resultText) as { transcript: readonly { toolCalls?: readonly { name: string; input?: string }[] }[] };
 		assert.deepStrictEqual(result.transcript[0]?.toolCalls, [{ name: SessionServerToolName.ListSessions, input: '{}' }]);
-	}, supportsReplayableSessionReferences);
+	}, supportsFullSessionContext);
 
 	serverToolTest('server tool: get_session_context transcriptLimit keeps only the newest turn', async function () {
 		const session = await createSession('context-limit', true);
@@ -639,7 +647,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			users: [`Call get_session_context exactly once with session "${session.sessionUri}" and transcriptLimit 1, then reply exactly "read".`],
 			truncated: true,
 		});
-	}, supportsReplayableSessionReferences);
+	});
 
 	serverToolTest('server tool: send_message starts a turn in another session', async function () {
 		const session = await createSession('send-message', true);
@@ -660,7 +668,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			sawPendingConfirmation: true,
 			messages: ['Reply exactly "TARGET_MATERIALIZED".', '/rename Target Via Send'],
 		});
-	}, supportsReplayableSessionReferences);
+	}, supportsCrossSessionSend);
 
 	serverToolTest('server tool: create_session materializes a selected-model child session and starts its prompt', async function () {
 		const session = await createSession('create-session');
@@ -730,7 +738,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		if (trackedIndex >= 0) {
 			createdSessions.splice(trackedIndex, 1);
 		}
-	}, supportsReplayableSessionReferences);
+	}, supportsCrossSessionDelete);
 
 	serverToolTest('server tool: send_message refuses to target the invoking chat', async function () {
 		const session = await createSession('send-self', true);
@@ -753,7 +761,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			queuedMessages: undefined,
 			steeringMessage: undefined,
 		});
-	}, supportsReplayableSessionReferences);
+	}, supportsSelfSendRejection);
 
 	serverToolTest('server tool: delete_session refuses to delete the invoking session', async function () {
 		const session = await createSession('delete-current', true);
@@ -766,5 +774,5 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		);
 		const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 		assert.strictEqual(result.items.some(item => item.resource === session.sessionUri), true);
-	}, supportsReplayableSessionReferences);
+	});
 }

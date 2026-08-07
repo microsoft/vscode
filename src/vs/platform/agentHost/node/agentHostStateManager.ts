@@ -695,7 +695,7 @@ export class AgentHostStateManager extends Disposable {
 	 * state is authoritative for those. No-ops for sessions that were already
 	 * announced (idempotent).
 	 */
-	markSessionPersisted(session: URI, summary: SessionSummary): void {
+	markSessionPersisted(session: URI, summary: SessionSummary, force = false): void {
 		const key = session.toString();
 		const entry = this._sessionStates.get(key);
 		if (!entry) {
@@ -705,8 +705,12 @@ export class AgentHostStateManager extends Disposable {
 		// The notifier records a session's announced summary whenever it has
 		// been surfaced to clients (either through `createSession` or here);
 		// using it as the idempotency check keeps us from firing `SessionAdded`
-		// twice for a session whose creation was not deferred.
-		if (this._summaryNotifier.isAnnounced(key)) {
+		// twice for a session whose creation was not deferred. `force` overrides
+		// this for adopt, where `restoreSession` marks the summary announced
+		// without ever emitting, so clients (e.g. the workspace-scoped editor
+		// session list) that rely on the notification would otherwise miss it —
+		// a redundant re-announce is harmless (`SessionAdded` is idempotent).
+		if (!force && this._summaryNotifier.isAnnounced(key)) {
 			return;
 		}
 		// Propagate the materialization-resolved fields so subscribers calling
@@ -723,6 +727,31 @@ export class AgentHostStateManager extends Disposable {
 			type: 'root/sessionAdded',
 			channel: ROOT_STATE_URI,
 			summary: full,
+		});
+	}
+
+	/**
+	 * Announce a legacy Copilot CLI session that the provider discovered on disk
+	 * (surfaced as adoptable) after startup, so clients add it to their list
+	 * without a manual reload. Does NOT create persistent state — the session is
+	 * materialized on demand when the user opens it (restore/adopt). No-ops if
+	 * the session is already in state or was already announced.
+	 */
+	announceSurfacedSession(summary: SessionSummary): void {
+		const key = summary.resource;
+		if (this._sessionStates.has(key)) {
+			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already in state ${key}`);
+			return;
+		}
+		if (this._summaryNotifier.isAnnounced(key)) {
+			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already announced ${key}`);
+			return;
+		}
+		this._summaryNotifier.announce(key, summary);
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionAdded',
+			channel: ROOT_STATE_URI,
+			summary,
 		});
 	}
 

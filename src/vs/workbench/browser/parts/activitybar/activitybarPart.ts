@@ -8,7 +8,8 @@ import './media/activityaction.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -57,10 +58,8 @@ export class ActivitybarPart extends Part {
 	static readonly COMPACT_ICON_SIZE = 16;
 
 	/**
-	 * Gutter reserved on the left and bottom edges under the floating panels
-	 * experiment so the activity bar aligns with the floating cards (it stays
-	 * flush with the title bar, so no top gutter). Must match the margins applied
-	 * in `part.css` under `.floating-panels`.
+	 * Base gutter reserved around the activity bar under the floating panels
+	 * experiment. Must match the margins applied in `floatingPanels.css`.
 	 */
 	static readonly FLOATING_MARGIN = FLOATING_PANEL_MARGIN;
 
@@ -93,8 +92,18 @@ export class ActivitybarPart extends Part {
 		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
 	}
 
-	/** Extra space reserved around the part when the floating panels experiment is enabled. */
-	private get floatingGutter(): number { return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN : 0; }
+	/** Extra horizontal space reserved around the part when floating panels are enabled. */
+	private get floatingGutter(): number {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return 0;
+		}
+
+		// Parts adjacent to a left activity bar already provide the inner gutter through
+		// their left margin. On the right, the activity bar owns both the inner and outer gutters.
+		return this.layoutService.getSideBarPosition() === Position.RIGHT
+			? ActivitybarPart.FLOATING_MARGIN * 2
+			: ActivitybarPart.FLOATING_MARGIN;
+	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
@@ -265,24 +274,34 @@ export class ActivitybarPart extends Part {
 	override layout(width: number, height: number): void {
 		super.layout(width, height, 0, 0);
 
-		if (!this.compositeBar.value) {
-			return;
+		if (!this.content) {
+			return; // not created yet
 		}
 
-		// When the floating panels experiment is enabled, reserve a gutter on the
-		// left and bottom so the activity bar lines up with the floating cards (it
-		// stays flush with the title bar, so no top gutter). The grid column is grown
-		// by the same amount (see minimum/maximumWidth) and the matching margins are
-		// applied in CSS (`.floating-panels .part.activitybar`).
-		const gutter = this.floatingGutter;
-		const contentWidth = Math.max(0, width - gutter);
-		const contentHeight = Math.max(0, height - gutter);
+		const { top, bottom } = this.getFloatingGutters();
+		const contentWidth = Math.max(0, width - this.floatingGutter);
+		const contentHeight = Math.max(0, height - top - bottom);
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
 		// Layout composite bar
-		this.compositeBar.value.layout(contentWidth, contentAreaSize.height);
+		this.compositeBar.value?.layout(contentWidth, contentAreaSize.height);
+	}
+
+	/**
+	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`. Each one
+	 * doubles on the window edge the activity bar faces.
+	 */
+	private getFloatingGutters(): { top: number; bottom: number } {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return { top: 0, bottom: 0 };
+		}
+
+		return {
+			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : 0,
+			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
+		};
 	}
 
 	toJSON(): object {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RequestType, type RequestMetadata } from '@vscode/copilot-api';
 import { OutputMode, Raw } from '@vscode/prompt-tsx';
 import { describe, expect, test } from 'vitest';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
@@ -16,7 +17,7 @@ import { createExtensionUnitTestingServices } from '../../../../test/node/servic
 import { PromptRenderer } from '../../base/promptRenderer';
 import { Image } from '../image';
 
-function createMockEndpoint(overrides: { supportsVision?: boolean; model?: string } = {}): IChatEndpoint {
+function createMockEndpoint(overrides: { supportsVision?: boolean; model?: string; modelProvider?: string; urlOrRequestMetadata?: string | RequestMetadata; isExtensionContributed?: boolean } = {}): IChatEndpoint {
 	return {
 		family: 'gpt-4.1',
 		model: overrides.model ?? 'gpt-4.1',
@@ -25,13 +26,14 @@ function createMockEndpoint(overrides: { supportsVision?: boolean; model?: strin
 		maxOutputTokens: 4096,
 		name: 'test-model',
 		version: '1.0',
-		modelProvider: 'test',
+		modelProvider: overrides.modelProvider ?? 'copilot',
+		isExtensionContributed: overrides.isExtensionContributed,
 		supportsToolCalls: true,
 		supportsPrediction: false,
 		showInModelPicker: false,
 		isFallback: false,
 		tokenizer: TokenizerType.O200K,
-		urlOrRequestMetadata: '',
+		urlOrRequestMetadata: overrides.urlOrRequestMetadata ?? { type: RequestType.ChatCompletions },
 		acquireTokenizer: (): ITokenizer => ({
 			mode: OutputMode.Raw,
 			tokenLength: async () => 0,
@@ -87,7 +89,7 @@ describe('Image', () => {
 		expect(hasImageContentPart(messages)).toBe(true);
 	});
 
-	test('omits image when organization policy disables editor preview features', async () => {
+	test('omits image from a Copilot model when organization policy disables editor preview features', async () => {
 		const testingServiceCollection = createExtensionUnitTestingServices();
 		const accessor = testingServiceCollection.createTestingAccessor();
 		// editor_preview_features=0 => org policy explicitly disabled preview features.
@@ -101,6 +103,24 @@ describe('Image', () => {
 		const { messages } = await renderer.render();
 
 		expect(hasImageContentPart(messages)).toBe(false);
+	});
+
+	test.each([
+		['custom endpoint model', { modelProvider: 'customendpoint', urlOrRequestMetadata: '' }],
+		['custom model provider', { modelProvider: 'custom-provider', urlOrRequestMetadata: '', isExtensionContributed: true }],
+	])('sends image to a vision-capable %s regardless of Copilot editor preview policy', async (_name, endpointOverrides) => {
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const accessor = testingServiceCollection.createTestingAccessor();
+		setCopilotToken(accessor.get(IAuthenticationService), new CopilotToken(createTestExtendedTokenInfo({ token: 'editor_preview_features=0' })));
+
+		const renderer = PromptRenderer.create(
+			accessor.get(IInstantiationService),
+			createMockEndpoint({ supportsVision: true, ...endpointOverrides }),
+			Image,
+			{ variableName: 'image', variableValue: new Uint8Array([1, 2, 3, 4]) });
+		const { messages } = await renderer.render();
+
+		expect(hasImageContentPart(messages)).toBe(true);
 	});
 
 	test('omits image when the model does not support vision', async () => {
