@@ -4558,6 +4558,20 @@ suite('VoiceSessionController', () => {
 		commitConnected.call(controller);
 		assert.strictEqual(controller.isConnected.get(), true, 'the ack must promote the socket to a live session');
 	});
+
+	test('a known transient code keeps its localized message despite a backend reason', () => {
+		// Every transient close carries a reason, so resolving the raw text first
+		// meant 4029/4500/4503 never reached the strings the registry defines.
+		const controller = createController(new TestVoiceClientService());
+		const resolve = Reflect.get(controller, '_reconnectingMessage') as (code: number, reason: string) => string;
+
+		const busy = resolve.call(controller, 4029, 'Voice service is at capacity, try again shortly');
+		assert.ok(busy.includes('at capacity'), busy);
+		assert.ok(!busy.includes('try again shortly'), 'the localized clause must win over the backend reason');
+
+		const unknown = resolve.call(controller, 4321, 'a code the client has never heard of');
+		assert.ok(unknown.includes('a code the client has never heard of'), 'an unknown code still falls back to the reason');
+	});
 });
 
 suite('VoiceSessionController live transcription', () => {

@@ -8,7 +8,7 @@ import { IObservable, observableValue, autorun, transaction, observableSignalFro
 import { addDisposableListener, disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
+import { alert as ariaAlert, status as ariaStatus } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
@@ -401,6 +401,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _sessionAckGrace = this._register(new MutableDisposable());
 	private static readonly _SESSION_ACK_GRACE_MS = 750;
+	/** Connect telemetry held until the backend acks; see {@link _commitConnected}. */
+	private _pendingConnectTelemetry: { connectMs: number; isResuming: boolean; at: number } | undefined;
 	private _connectAttemptGeneration = 0;
 	private _sessionInitializationGeneration = 0;
 	private readonly _autoApprovedSessions = new Set<string>();
@@ -1201,26 +1203,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					return;
 				}
 
-				// Must stay below the staleness guard: a refused socket briefly looks
-				// connected, and would otherwise log a session that never ends.
-				// --- Telemetry: session/connect ---
-				const connectMs = this._telemetryConnectStartMs ? now - this._telemetryConnectStartMs : 0;
-				if (this._telemetryFirstConnect) {
-					this._telemetryFirstConnect = false;
-					this.telemetryService.publicLog2<VoiceFirstConnectEvent, VoiceFirstConnectClassification>('voiceFirstConnect', { timeToConnectMs: connectMs });
-				}
-				if (isResuming) {
-					this._telemetryReconnectCount++;
-					const secSinceLast = this._telemetryLastConnectMs ? Math.round((now - this._telemetryLastConnectMs) / 1000) : 0;
-					this.telemetryService.publicLog2<VoiceReconnectEvent, VoiceReconnectClassification>('voiceReconnect', { timeSinceLastConnectSec: secSinceLast });
-				} else {
-					this._telemetrySessionIndex++;
-					this._telemetrySessionStart = now;
-					this._telemetryTurnCount = 0;
-					this._telemetryReconnectCount = 0;
-					this.telemetryService.publicLog2<VoiceSessionStartedEvent, VoiceSessionStartedClassification>('voiceSessionStarted', { sessionIndex: this._telemetrySessionIndex });
-				}
-				this._telemetryLastConnectMs = now;
+				// Deferred to the backend's session ack: an open socket is not proof of
+				// admission (a refusal is accepted before it is closed), so emitting
+				// here would log a session for every refused connect.
+				this._pendingConnectTelemetry = {
+					connectMs: this._telemetryConnectStartMs ? now - this._telemetryConnectStartMs : 0,
+					isResuming,
+					at: now,
+				};
 				if (isResuming) {
 					this.micCaptureService.stopCapture();
 				}
@@ -1989,9 +1979,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// A retryable failure still deserves an explanation rather than a bare
 		// "Reconnecting..." spinner.
 		this._voiceEventDisposables.add(this.voiceClientService.onConnectionIssue(e => {
-			if (this._isReconnecting.get()) {
-				this._statusText.set(this._reconnectingMessage(e.code, e.reason), undefined);
+			// A handshake that fails before `onopen` (DNS/TLS, surfaced as 1006) never
+			// produces a connection-state event, so the controller is still
+			// `connecting` rather than `reconnecting`. Covering only the latter would
+			// drop the sole explanation and strand the UI on "Connecting...".
+			if (!this._isReconnecting.get() && !this._isConnecting.get()) {
+				return;
 			}
+			if (!this._isReconnecting.get() && this.voiceClientService.willReconnect) {
+				transaction(tx => {
+					this._isConnecting.set(false, tx);
+					this._isReconnecting.set(true, tx);
+				});
+			}
+			this._statusText.set(this._reconnectingMessage(e.code, e.reason), undefined);
 		}));
 
 		await this.voiceClientService.connect(window, authToken);
@@ -2042,11 +2043,37 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		});
 		// Handshake completed — the connect watchdog is no longer needed.
 		this._connectWatchdog.clear();
+		this._flushConnectTelemetry();
 		if (viaFallback && this._enterListenOnSessionInit) {
 			this.logService.trace('[voice] session ack not seen within grace; entering listening via fallback');
 			this._enterListenOnSessionInit = false;
 			this._enterAutoListen('connect');
 		}
+	}
+
+	/** Emit the connect telemetry the socket-open path deferred until admission. */
+	private _flushConnectTelemetry(): void {
+		const pending = this._pendingConnectTelemetry;
+		if (!pending) {
+			return;
+		}
+		this._pendingConnectTelemetry = undefined;
+		if (this._telemetryFirstConnect) {
+			this._telemetryFirstConnect = false;
+			this.telemetryService.publicLog2<VoiceFirstConnectEvent, VoiceFirstConnectClassification>('voiceFirstConnect', { timeToConnectMs: pending.connectMs });
+		}
+		if (pending.isResuming) {
+			this._telemetryReconnectCount++;
+			const secSinceLast = this._telemetryLastConnectMs ? Math.round((pending.at - this._telemetryLastConnectMs) / 1000) : 0;
+			this.telemetryService.publicLog2<VoiceReconnectEvent, VoiceReconnectClassification>('voiceReconnect', { timeSinceLastConnectSec: secSinceLast });
+		} else {
+			this._telemetrySessionIndex++;
+			this._telemetrySessionStart = pending.at;
+			this._telemetryTurnCount = 0;
+			this._telemetryReconnectCount = 0;
+			this.telemetryService.publicLog2<VoiceSessionStartedEvent, VoiceSessionStartedClassification>('voiceSessionStarted', { sessionIndex: this._telemetrySessionIndex });
+		}
+		this._telemetryLastConnectMs = pending.at;
 	}
 
 	private _resetFailedConnection(notifyUser = true): void {
@@ -2084,6 +2111,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._isReconnecting.set(false, undefined);
 		this._connectWatchdog.clear();
 		this._sessionAckGrace.clear();
+		this._pendingConnectTelemetry = undefined;
 		this._voiceAutorunDisposable.clear();
 		this._voiceEventDisposables.clear();
 		this.ttsPlaybackService.closeContext();
@@ -2275,6 +2303,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (kind === 'fatal') {
 			// prompt() announces to screen readers itself; ariaAlert would double-speak.
 			this._promptFatalDisconnect(event, message);
+		} else if (kind === 'expected') {
+			// A normal end of session is not urgent, so announce it politely rather
+			// than interrupting whatever the screen reader is currently saying.
+			ariaStatus(message);
 		} else {
 			// The status text is a plain div, so announce it for screen-reader users.
 			ariaAlert(message);
@@ -2311,12 +2343,24 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _reconnectingMessage(code: number, reason: string): string {
+		// Known codes resolve to a stable localized clause first. The backend's raw
+		// reason is only a fallback: every transient close carries one, so checking
+		// it first would bypass every string below.
+		switch (code) {
+			case VoiceCloseCode.ServerBusy:
+			case 1013:
+				return localize('voice.reconnectingBusy', "Reconnecting - voice service is at capacity");
+			case VoiceCloseCode.InternalError:
+			case 1011:
+				return localize('voice.reconnectingInternal', "Reconnecting - the voice service hit an error");
+			case VoiceCloseCode.AuthUnavailable:
+				return localize('voice.reconnectingAuthUnavailable', "Reconnecting - can't reach GitHub to check your account");
+			// A browser reports 1006 with no reason for anything it cannot inspect.
+			case 1006:
+				return localize('voice.reconnectingUnreachable', "Reconnecting - can't reach the voice service");
+		}
 		if (reason) {
 			return localize('voice.reconnectingBecause', "Reconnecting - {0}", reason);
-		}
-		// A browser reports 1006 with no reason for anything it cannot inspect.
-		if (code === 1006) {
-			return localize('voice.reconnectingUnreachable', "Reconnecting - can't reach the voice service");
 		}
 		return localize('voice.reconnecting', "Reconnecting...");
 	}
@@ -2324,8 +2368,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _promptFatalDisconnect(event: IVoiceFatalDisconnect, message: string): void {
 		const info = voiceCloseCodeInfo(event.code);
 		// A known code without an action deliberately has none; only an unknown
-		// failure gets the generic Retry.
-		const action = event.clientSide ? 'openSettings' : (info ? info.action : 'retry');
+		// failure gets the generic Retry. A missing backend URL also gets none:
+		// `agents.voice.backendUrl` is registered `included: false`, so a Settings
+		// button would open a list of unrelated voice settings without the one
+		// that fixes this.
+		const action = event.clientSide ? undefined : (info ? info.action : 'retry');
 		const choices: IPromptChoice[] = [];
 		if (action === 'signIn') {
 			choices.push({
@@ -2338,11 +2385,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			choices.push({
 				label: localize('voice.retryAction', "Retry"),
 				run: () => { void this.connect(this._window ?? mainWindow); },
-			});
-		} else if (action === 'openSettings') {
-			choices.push({
-				label: localize('voice.openSettingsAction', "Open Settings"),
-				run: () => { void this.commandService.executeCommand('workbench.action.openSettings', { query: 'agents.voice' }); },
 			});
 		}
 		this.notificationService.prompt(Severity.Error, message, choices);
