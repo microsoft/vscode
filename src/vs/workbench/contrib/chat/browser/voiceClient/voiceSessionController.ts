@@ -2934,6 +2934,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			phase: 'queued' as const,
 		};
 		this._routedRequests.set(sessionKey, routedRequest);
+		this.logService.trace(`[voice] routed request pending session=${sessionKey.slice(-32)} request=${requestId ?? '<unknown>'} previous=${previousRequestId ?? '<none>'}`);
 		if (!wasAlreadyMarked) {
 			this._discardResponsesSupersededByPending(sessionKey);
 		}

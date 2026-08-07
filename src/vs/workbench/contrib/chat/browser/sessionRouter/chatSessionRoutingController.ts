@@ -1228,7 +1228,13 @@ export class ChatSessionRoutingController extends Disposable {
 				completion: this._resolveQueuedCompletion(resource, result.deferred),
 			};
 		}
-		return { status: 'sent', resource: result.newSessionResource ?? resource };
+		// A sent result does not carry the request id directly, and reading
+		// `model.lastRequest` here races request creation (especially when an
+		// untitled agent session is replaced by its durable resource). The response
+		// model is the authoritative owner of the stable request id and is created
+		// independently of response completion, so wait only for that model.
+		const response = await result.data.responseCreatedPromise;
+		return { status: 'sent', resource: result.newSessionResource ?? resource, requestId: response.requestId };
 	}
 
 	private async _resolveQueuedCompletion(resource: URI, deferred: Promise<ChatSendResult>): Promise<IDispatchResult> {

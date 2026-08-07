@@ -7,7 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
+import { ChatSessionRoutingController, IChatSessionRoutingHost, parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
+import { ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
 
 suite('ChatSessionRoutingController', () => {
 
@@ -103,6 +104,48 @@ suite('ChatSessionRoutingController', () => {
 		assert.strictEqual(parseExplicitNewSessionRequest('Please start a new chat session for fixing tests'), 'fixing tests');
 		assert.strictEqual(parseExplicitNewSessionRequest('Create a new session'), undefined);
 		assert.strictEqual(parseExplicitNewSessionRequest('Create a file in the current session'), undefined);
+	});
+
+	test('returns the stable request id for an immediately sent route', async () => {
+		const resource = URI.parse('agent-host-copilotcli:/untitled-route');
+		const chatService = {
+			sendRequest: async (): Promise<ChatSendResult> => ({
+				kind: 'sent',
+				newSessionResource: URI.parse('agent-host-copilotcli:/durable-route'),
+				data: {
+					agent: undefined!,
+					responseCreatedPromise: Promise.resolve({ requestId: 'stable-request-id' } as never),
+					responseCompletePromise: Promise.resolve(),
+				},
+			}),
+		} as unknown as IChatService;
+		const controller = new ChatSessionRoutingController(
+			{} as IChatSessionRoutingHost,
+			'test',
+			chatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const sendRequest = Reflect.get(controller, '_sendRequest') as (resource: URI, utterance: string, options: object) => Promise<{ status: string; resource?: URI; requestId?: string }>;
+
+		const result = await sendRequest.call(controller, resource, 'Run the build', {});
+
+		assert.deepStrictEqual({
+			status: result.status,
+			resource: result.resource?.toString(),
+			requestId: result.requestId,
+		}, {
+			status: 'sent',
+			resource: 'agent-host-copilotcli:/durable-route',
+			requestId: 'stable-request-id',
+		});
+		controller.dispose();
 	});
 });
 
