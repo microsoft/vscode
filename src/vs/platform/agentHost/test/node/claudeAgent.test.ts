@@ -55,6 +55,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -72,7 +73,7 @@ import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptReso
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { AgentService } from '../../node/agentService.js';
 import { injectSideChatContext } from '../../node/agentPeerChats.js';
-import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 // #region Test fakes
 
@@ -818,7 +819,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; checkpointService?: IAgentHostCheckpointService },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -849,6 +850,7 @@ function createTestContext(
 		[IClaudeAgentSdkService, sdk],
 		[IAgentPluginManager, new FakeAgentPluginManager()],
 		[IAgentHostGitService, createNoopGitService()],
+		[IAgentHostCheckpointService, overrides?.checkpointService ?? NULL_CHECKPOINT_SERVICE],
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostOTelService, otelService],
@@ -922,6 +924,7 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostOTelService, new RecordingOTelService()],
+		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 	];
 }
 
@@ -1900,6 +1903,30 @@ suite('ClaudeAgent', () => {
 			{ model: 'claude-opus-4-6', effort: 'medium' },
 			'resume must not clobber the overlay model',
 		);
+	});
+
+	test('captures the baseline checkpoint on fresh materialize but not on resume (parity with Copilot)', async () => {
+		const checkpointService = new RecordingCheckpointService();
+		const { agent, sdk } = createTestContext(disposables, { checkpointService });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const workDir = URI.file('/work-baseline');
+
+		// Fresh materialize captures the baseline for the resolved directories.
+		const created = await agent.createSession({ workingDirectories: [workDir] });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [workDir], undefined, 'turn-1');
+
+		// Cross-window resume (dispose + second send) must NOT capture a late baseline.
+		await agent.disposeSession(created.session);
+		sdk.sessionList = [{ sessionId, cwd: workDir.fsPath, summary: '', lastModified: Date.now() }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'turn 2', [workDir], undefined, 'turn-2');
+
+		assert.deepStrictEqual(checkpointService.baselineCalls, [
+			{ session: created.session.toString(), workingDirectories: [workDir.toString()] },
+		]);
 	});
 
 	test('createSession honors config.session when the workbench pre-mints the URI', async () => {
@@ -3651,6 +3678,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostOTelService, new RecordingOTelService()],
@@ -4907,6 +4935,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostOTelService, new RecordingOTelService()],
@@ -6819,6 +6848,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, pluginManager],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostOTelService, otelService],

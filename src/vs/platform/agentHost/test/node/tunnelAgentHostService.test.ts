@@ -10,6 +10,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { isTunnelGatewaySelectionRejectedError, TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME } from '../../common/tunnelAgentHost.js';
 import {
 	PendingGatewaySelection,
 	deletePendingGatewaySelectionForTests,
@@ -170,9 +171,36 @@ suite('TunnelAgentHostService - gateway selection', () => {
 			const resultPromise = service.completeSelection('sel1', { instanceId: 'gone' });
 			ws.emit('message', Buffer.from(JSON.stringify({ ok: false, error: 'instance no longer live' })));
 
-			await assert.rejects(() => resultPromise, /instance no longer live/);
-			assert.strictEqual(ws.closeCalls, 1, 'gateway socket must be closed on rejection');
-			assert.strictEqual(relayClient.disposeCalls, 1, 'relay client must be disposed on rejection');
+			const error = await resultPromise.then(() => undefined, (err: Error) => err);
+			assert.deepStrictEqual({
+				name: error?.name,
+				rejection: isTunnelGatewaySelectionRejectedError(error),
+				matchesMessage: /instance no longer live/.test(error?.message ?? ''),
+				closeCalls: ws.closeCalls,
+				disposeCalls: relayClient.disposeCalls,
+			}, {
+				name: TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME,
+				rejection: true,
+				matchesMessage: true,
+				closeCalls: 1,
+				disposeCalls: 1,
+			});
+		} finally {
+			service.dispose();
+		}
+	});
+
+	test('completeSelection reports a transport failure as a plain error, never as a gateway rejection', async () => {
+		const service = new TunnelAgentHostMainService(new NullLogService());
+		try {
+			const { ws, pending } = createPending();
+			setPendingGatewaySelectionForTests(service, 'sel1', pending);
+
+			const resultPromise = service.completeSelection('sel1', { instanceId: 'editor-1' });
+			ws.emit('error', new Error('socket hang up'));
+
+			const error = await resultPromise.then(() => undefined, (err: Error) => err);
+			assert.strictEqual(isTunnelGatewaySelectionRejectedError(error), false);
 		} finally {
 			service.dispose();
 		}

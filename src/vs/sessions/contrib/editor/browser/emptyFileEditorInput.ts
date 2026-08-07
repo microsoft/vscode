@@ -29,6 +29,7 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 		this._register(layoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.EDITOR_PART) {
 				this._onDidChangeLabel.fire();
+				this._onDidChangeCapabilities.fire();
 			}
 		}));
 	}
@@ -59,7 +60,8 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal;
+		const capabilities = super.capabilities | EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal;
+		return this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) ? capabilities : capabilities | EditorInputCapabilities.CannotClose;
 	}
 
 	override getName(): string {

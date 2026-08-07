@@ -33,6 +33,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../../
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
@@ -43,7 +44,7 @@ import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHo
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/SandboxPolicy.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
-import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
+import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -131,6 +132,7 @@ interface ICreateAgentOptions {
 	readonly multiRootEnabled?: boolean;
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
+	readonly checkpointService?: IAgentHostCheckpointService;
 }
 
 class TestCodexLogService extends NullLogService {
@@ -189,6 +191,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined, isSdkResolvableWithoutDownload: async () => true });
+	instantiationService.stub(IAgentHostCheckpointService, options.checkpointService ?? NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, {
 		_serviceBrand: undefined,
 		getNativeSdkTelemetryConfig: async () => undefined,
@@ -347,6 +350,40 @@ suite('CodexAgent prewarm eviction', () => {
 
 	test('waits for and evicts an in-flight folder prewarm when the first send resolves to a worktree', async () => {
 		await assertPrewarmEvictedOnSend(disposables, false);
+	});
+
+	test('/compact invokes thread/compact/start instead of starting a prompt turn', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo');
+		const { session } = await agent.createSession({ workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL } });
+		const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), '/compact', [repo], undefined, 'turn-compact');
+		const threadStart = await readNextRequest(peer.outbound);
+		peer.push({ id: threadStart.id, result: { thread: { id: 'thread-compact' } } });
+		const compactStart = await readNextRequest(peer.outbound);
+		peer.push({ id: compactStart.id, result: {} });
+		await send;
+
+		assert.deepStrictEqual({
+			threadStart: { method: threadStart.method, cwd: threadStart.params.cwd },
+			compactStart: { method: compactStart.method, threadId: compactStart.params.threadId },
+			firstTurnSent: agent['_sessions'].get(AgentSession.id(session))?.firstTurnSent,
+		}, {
+			threadStart: { method: 'thread/start', cwd: repo.fsPath },
+			compactStart: { method: 'thread/compact/start', threadId: 'thread-compact' },
+			firstTurnSent: true,
+		});
+		peer.exit();
 	});
 
 	test('thread start receives custom agents, instructions, skills, and MCP from client plugins', async () => {
@@ -1049,6 +1086,54 @@ suite('CodexAgent prewarm eviction', () => {
 		} finally {
 			peerB?.exit();
 			peerA.exit();
+		}
+	});
+});
+
+suite('CodexAgent baseline checkpoint', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('captures the baseline checkpoint on the fresh first send but not on subsequent sends', async () => {
+		const checkpointService = new RecordingCheckpointService();
+		const agent = await createAgent(disposables, { checkpointService });
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = { kind: 'ready', client, usageSource: 'github', child: { kill: () => true } } as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+
+		const folder = URI.file('/repo/baseline-folder');
+		const { session } = await agent.createSession({ workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const chat = URI.parse(buildDefaultChatUri(session));
+
+		// Complete the prewarm `thread/start` so the folder thread is materialized
+		// (which sets the tool/mcp/customization signatures).
+		const prewarmStart = await readNextRequest(peer.outbound);
+		try {
+			peer.push({ id: prewarmStart.id, result: { thread: { id: 'thread-baseline' } } });
+			await entry.materializePromise;
+
+			// Fresh first send: the folder is already materialized with matching
+			// signatures, so the only outbound request is `turn/start`.
+			const send1 = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1');
+			const turnStart1 = await readNextRequest(peer.outbound);
+			peer.push({ id: turnStart1.id, result: {} });
+			await send1;
+
+			// The second send has `firstTurnSent === true`, so the gate prevents
+			// a second capture.
+			const send2 = agent.chats.sendMessage(chat, 'again', [folder], undefined, 'turn-2');
+			const turnStart2 = await readNextRequest(peer.outbound);
+			peer.push({ id: turnStart2.id, result: {} });
+			await send2;
+
+			assert.deepStrictEqual(checkpointService.baselineCalls, [
+				{ session: session.toString(), workingDirectories: [folder.toString()] },
+			]);
+		} finally {
+			peer.exit();
 		}
 	});
 });
