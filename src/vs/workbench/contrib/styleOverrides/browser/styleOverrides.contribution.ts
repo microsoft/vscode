@@ -54,6 +54,7 @@ interface IStyleOverrideModule {
  * as a group.
  */
 const STYLE_OVERRIDE_CLASS = 'style-override';
+const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
 
 /**
  * The fixed catalog of built-in style-override modules. The CSS for each module
@@ -148,6 +149,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	private applyTo(container: HTMLElement, enabled: boolean): void {
 		container.classList.toggle(STYLE_OVERRIDE_CLASS, enabled);
+		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
 	}
 
 	private applyScrollbarSize(enabled: boolean): void {
@@ -166,6 +168,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		// Remove the class this contribution added so it leaves no DOM state behind.
 		for (const container of this.layoutService.containers) {
 			container.classList.remove(STYLE_OVERRIDE_CLASS);
+			container.classList.remove(MODERN_UI_TABS_CLASS);
 		}
 		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
 		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);

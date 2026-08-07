@@ -26,6 +26,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Shared visual-module gates must not activate broader layout contracts**: the Agents window may opt into shared editor-tab styles through a tab-specific root class, but must not apply the broad `style-override` class unless it also loads every matching Modern UI layout module. Keep shared tab runtime metrics aware of both gates, and preserve structural behavior such as a sticky add-tab action when removing a Sessions-owned stylesheet.
+
 - **Minimum-size activation across the Sessions/Editor split must be symmetric and layout-aware**: when either part is at minimum width, pointer or keyboard activation expands it by shrinking its sibling to minimum width. In single-pane layout, the Editor grid node's effective minimum includes the visible docked Auxiliary Bar width; using `editorPartView.minimumWidth` alone collapses Details.
 
 - **Do not inject `ISessionsService` into editor-part construction**: the sessions service depends on editor parts through the sessions-part graph, so injecting it into `SinglePaneMainEditorPart` causes recursive service instantiation during startup. Prefer lower-level services such as `ILabelService` when the editor only needs resource presentation.

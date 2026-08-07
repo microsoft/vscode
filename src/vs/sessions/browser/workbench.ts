@@ -100,6 +100,7 @@ export interface IWorkbenchOptions {
 //#region Layout Classes
 
 enum LayoutClasses {
+	MODERN_UI_TABS = 'modern-ui-tabs',
 	SIDEBAR_HIDDEN = 'nosidebar',
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
@@ -897,7 +898,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			'agent-sessions-workbench',
-			'style-override',
+			LayoutClasses.MODERN_UI_TABS,
 			// LayoutClasses.SHELL_GRADIENT_BACKGROUND,
 			platformClass,
 			isWeb ? 'web' : undefined,
