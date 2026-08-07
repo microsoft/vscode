@@ -1,7 +1,7 @@
 jobs:
   - job: Quality
     displayName: Quality Checks
-    timeoutInMinutes: 20
+    timeoutInMinutes: 30
     variables:
       - name: skipComponentGovernanceDetection
         value: true
