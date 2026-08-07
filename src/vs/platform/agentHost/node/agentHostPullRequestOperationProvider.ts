@@ -64,7 +64,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		return [{
 			id: 'create-pr',
-			label: localize('agentHost.changeset.createPR', "Create Pull Request"),
+			label: localize('agentHost.changeset.createPR', "Create PR"),
 			icon: 'git-pull-request-create',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -72,7 +72,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		},
 		{
 			id: 'create-pr-auto-merge',
-			label: localize('agentHost.changeset.createPRAutoMerge', "Create Pull Request (Auto-Merge)"),
+			label: localize('agentHost.changeset.createPRAutoMerge', "Create PR (Auto-Merge)"),
 			icon: 'git-merge',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -80,7 +80,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		},
 		{
 			id: 'create-pr-auto-squash',
-			label: localize('agentHost.changeset.createPRAutoSquash', "Create Pull Request (Auto-Squash)"),
+			label: localize('agentHost.changeset.createPRAutoSquash', "Create PR (Auto-Squash)"),
 			icon: 'git-merge',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -88,7 +88,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		},
 		{
 			id: 'create-pr-auto-rebase',
-			label: localize('agentHost.changeset.createPRAutoRebase', "Create Pull Request (Auto-Rebase)"),
+			label: localize('agentHost.changeset.createPRAutoRebase', "Create PR (Auto-Rebase)"),
 			icon: 'git-merge',
 			group: 'pull-request',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -96,7 +96,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		},
 		{
 			id: 'create-draft-pr',
-			label: localize('agentHost.changeset.createDraftPR', "Create Draft Pull Request"),
+			label: localize('agentHost.changeset.createDraftPR', "Create Draft PR"),
 			icon: 'git-pull-request-draft',
 			group: 'pull-request_draft',
 			scopes: [ChangesetOperationScope.Changeset],

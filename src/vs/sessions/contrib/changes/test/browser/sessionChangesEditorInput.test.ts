@@ -4,24 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ValueWithChangeEvent } from '../../../../../base/common/event.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
-import { ISessionChangesService } from '../../browser/sessionChangesService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { IChangesViewService } from '../../common/changesViewService.js';
 
 suite('SessionChangesEditorInput', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('releases resolved multi-diff models without disposing restorable input state', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean {
+				return true;
+			}
+		});
 		const viewModel = disposables.add(new MultiDiffEditorViewModel({
 			documents: ValueWithChangeEvent.const([]),
 		}, instantiationService));
@@ -32,9 +41,9 @@ suite('SessionChangesEditorInput', () => {
 			dispose: () => firstModelReferenceDisposed = true,
 		});
 
-		const input = disposables.add(new SessionChangesEditorInput(
+		const input = disposables.add(instantiationService.createInstance(
+			SessionChangesEditorInput,
 			URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/session"}'),
-			instantiationService,
 		));
 		await input.getViewModel();
 		input.clear();
@@ -80,11 +89,15 @@ suite('SessionChangesEditorInput', () => {
 		instantiationService.stub(IChangesViewService, {});
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
 		instantiationService.stub(ISessionChangesService, {});
+		instantiationService.stub(IWorkbenchLayoutService, {
+			onDidChangePartVisibility: Event.None,
+			isVisible: () => true,
+		});
 
 		const editor = disposables.add(instantiationService.createInstance(TestSessionChangesEditor, new TestEditorGroupView(1)));
-		const input = disposables.add(new TestSessionChangesEditorInput(
+		const input = disposables.add(instantiationService.createInstance(
+			TestSessionChangesEditorInput,
 			URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/session"}'),
-			instantiationService,
 		));
 		editor.setCurrentInput(input);
 
@@ -96,6 +109,40 @@ suite('SessionChangesEditorInput', () => {
 		}, {
 			inputReleased: true,
 			editorInput: undefined,
+		});
+	});
+
+	test('updates managed Changes editor capabilities with editor area visibility', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		let editorVisible = false;
+		const onDidChangePartVisibility = disposables.add(new Emitter<IPartVisibilityChangeEvent>());
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART && editorVisible;
+			}
+		};
+		const input = disposables.add(new SessionChangesEditorInput(URI.parse('test-changes:session'), instantiationService, layoutService));
+		let capabilitiesChanges = 0;
+		disposables.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
+
+		const hiddenCapabilities = input.capabilities;
+		editorVisible = true;
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			hiddenCapabilities,
+			visibleCapabilities: input.capabilities,
+			capabilitiesChanges
+		}, {
+			hiddenCapabilities: EditorInputCapabilities.ExcludeFromEditorLimit |
+				EditorInputCapabilities.Singleton |
+				EditorInputCapabilities.Readonly |
+				EditorInputCapabilities.CannotClose,
+			visibleCapabilities: EditorInputCapabilities.ExcludeFromEditorLimit |
+				EditorInputCapabilities.Singleton |
+				EditorInputCapabilities.Readonly,
+			capabilitiesChanges: 1
 		});
 	});
 });

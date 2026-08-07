@@ -66,10 +66,10 @@ export const FLOATING_PANEL_MARGIN = 4;
 /**
  * The trailing card margin (in pixels) when the Modern UI Update experiment is
  * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
- * it forms the 4px inter-card gap. Keep in sync with the
- * `--vscode-spacing-sizeNone` (0px) token used in `floatingPanels.css`.
+ * it forms the 6px inter-card gap. Keep in sync with the
+ * `--vscode-spacing-size20` (2px) token used in `floatingPanels.css`.
  */
-export const FLOATING_PANEL_INNER_MARGIN = 0;
+export const FLOATING_PANEL_INNER_MARGIN = 2;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',

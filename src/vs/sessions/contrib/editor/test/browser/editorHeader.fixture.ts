@@ -58,12 +58,12 @@ MenuRegistry.appendMenuItem(secondaryMenu, {
 	group: 'secondary/2_viewMode',
 });
 MenuRegistry.appendMenuItem(layoutMenu, {
-	command: hideEditorAction,
+	command: toggleDetailsAction,
 	group: 'navigation',
 	order: 10,
 });
 MenuRegistry.appendMenuItem(layoutMenu, {
-	command: toggleDetailsAction,
+	command: hideEditorAction,
 	group: 'navigation',
 	order: 20,
 });
