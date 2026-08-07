@@ -1341,8 +1341,8 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, clientId, clientContext, channel, state, 'direct', attachments);
-				const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
-				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel);
+				const { model, modelTelemetryKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel, interactionMode);
 				void this._sendTurnMessage({
 					agent,
 					sessionChannel,
@@ -1767,8 +1767,8 @@ export class AgentSideEffects extends Disposable {
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
 		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, session, queuedState, 'queued', attachments);
-		const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
-		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel);
+		const { model, modelTelemetryKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
+		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel, interactionMode);
 		// Selection travels on the queued message; it is applied before sending.
 		void this._sendTurnMessage({
 			agent,
@@ -1784,13 +1784,14 @@ export class AgentSideEffects extends Disposable {
 	}
 
 
-	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined } {
+	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined; interactionMode: SessionMode | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
+		const interactionMode = getConfiguredSessionMode(state?.config);
 		const modelContext = modelId === undefined
 			? { model: undefined, modelTelemetryKind: undefined }
 			: this._getModelTelemetryContext(agent, modelId);
-		return { ...modelContext, permissionLevel };
+		return { ...modelContext, permissionLevel, interactionMode };
 	}
 
 	private _getModelTelemetryContext(agent: IAgent, modelId: string): { model: string; modelTelemetryKind: AgentHostModelTelemetryKind } {
