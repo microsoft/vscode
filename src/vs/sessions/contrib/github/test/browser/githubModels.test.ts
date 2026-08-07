@@ -9,14 +9,18 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
+import { GitHubIssueModelReferenceCollection, MIN_REFRESH_INTERVAL_MS } from '../../browser/models/githubIssueModel.js';
 import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryModel.js';
+import { GitHubApiClient } from '../../browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
 
 //#region Mock Fetchers
 
@@ -500,6 +504,7 @@ suite('GitHubPullRequestCIModel', () => {
 	const store = new DisposableStore();
 	let mockFetcher: MockCIFetcher;
 	let collection: TestCIReferenceCollection;
+	let storageService: TestStorageService;
 	const logService = new NullLogService();
 
 	function acquireModel(owner: string = 'owner', repo: string = 'repo', prNumber: number = 1, headSha: string = 'abc'): GitHubPullRequestCIModel {
@@ -510,7 +515,8 @@ suite('GitHubPullRequestCIModel', () => {
 
 	setup(() => {
 		mockFetcher = new MockCIFetcher();
-		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService);
+		storageService = store.add(new TestStorageService());
+		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService);
 	});
 
 	teardown(() => store.clear());
@@ -527,6 +533,24 @@ suite('GitHubPullRequestCIModel', () => {
 		const first = acquireModel();
 		const second = acquireModel();
 		assert.strictEqual(first, second);
+	});
+
+	test('fixRequested is remembered per PR head commit', () => {
+		const model = acquireModel('owner', 'repo', 1, 'sha-1');
+		assert.strictEqual(model.fixRequested.get(), false);
+
+		model.markFixRequested();
+		assert.strictEqual(model.fixRequested.get(), true);
+
+		// A brand-new model instance for the same PR head commit reloads the
+		// remembered fix from storage (construct directly to bypass the
+		// reference collection's instance cache).
+		const reloadedSameCommit = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'sha-1', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService));
+		assert.strictEqual(reloadedSameCommit.fixRequested.get(), true);
+
+		// A new commit on the same PR: the fix should no longer be remembered.
+		const newCommit = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'sha-2', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService));
+		assert.strictEqual(newCommit.fixRequested.get(), false);
 	});
 
 	test('refresh populates checks and computes overall status', async () => {
@@ -631,6 +655,107 @@ suite('GitHubPullRequestCIModel', () => {
 	}));
 });
 
+suite('GitHubIssueModel', () => {
+
+	const store = new DisposableStore();
+	const logService = new NullLogService();
+
+	/**
+	 * Stands in for the low-level API client so the tests can observe the exact
+	 * `If-None-Match` value each request carries and replay `304` responses.
+	 */
+	class MockGitHubApiClient {
+		readonly sentETags: (string | undefined)[] = [];
+		readonly responses: { data?: unknown; statusCode: number; etag?: string }[] = [];
+
+		async request(_method: string, _path: string, _callSite: string, options?: { etag?: string }) {
+			this.sentETags.push(options?.etag);
+			return this.responses.shift() ?? { data: undefined, statusCode: 304 };
+		}
+	}
+
+	function issueResponse(state: 'open' | 'closed', title: string) {
+		return {
+			number: 7,
+			title,
+			body: 'body',
+			state,
+			state_reason: state === 'closed' ? 'completed' : null,
+			user: { login: 'octocat', avatar_url: '' },
+			created_at: '2026-01-01T00:00:00Z',
+			updated_at: '2026-01-02T00:00:00Z',
+			closed_at: null,
+		};
+	}
+
+	function createCollection(client: MockGitHubApiClient) {
+		return new GitHubIssueModelReferenceCollection(client as unknown as GitHubApiClient, logService);
+	}
+
+	teardown(() => store.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('revalidates with the stored ETag and keeps the last payload on 304', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const client = new MockGitHubApiClient();
+		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
+		client.responses.push({ data: undefined, statusCode: 304, etag: 'W/"v1"' });
+		const collection = createCollection(client);
+		const reference = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
+
+		await reference.object.refresh();
+		await timeout(MIN_REFRESH_INTERVAL_MS);
+		await reference.object.refresh();
+
+		assert.deepStrictEqual({
+			sentETags: client.sentETags,
+			title: reference.object.issue.get()?.title,
+		}, {
+			sentETags: [undefined, 'W/"v1"'],
+			title: 'Original',
+		});
+	}));
+
+	test('on-demand refreshes inside the debounce window collapse into one request', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const client = new MockGitHubApiClient();
+		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
+		const collection = createCollection(client);
+		const reference = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
+
+		await reference.object.refresh();
+		await timeout(MIN_REFRESH_INTERVAL_MS - 1);
+		await reference.object.refresh();
+
+		assert.strictEqual(client.sentETags.length, 1);
+	}));
+
+	test('a re-created model starts from the previous one\'s payload and ETag', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const client = new MockGitHubApiClient();
+		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
+		client.responses.push({ data: issueResponse('closed', 'Original'), statusCode: 200, etag: 'W/"v2"' });
+		const collection = createCollection(client);
+
+		const first = collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7);
+		await first.object.refresh();
+		first.dispose();
+
+		const second = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
+		const restoredState = second.object.issue.get()?.state;
+		await timeout(MIN_REFRESH_INTERVAL_MS);
+		await second.object.refresh();
+
+		assert.deepStrictEqual({
+			restoredState,
+			sentETags: client.sentETags,
+			state: second.object.issue.get()?.state,
+		}, {
+			restoredState: GitHubIssueState.Open,
+			sentETags: [undefined, 'W/"v1"'],
+			state: GitHubIssueState.Closed,
+		});
+	}));
+});
+
 suite('parseWorkflowRunId', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -665,15 +790,16 @@ class TestCIReferenceCollection extends GitHubPullRequestCIModelReferenceCollect
 	constructor(
 		private readonly _testFetcher: GitHubPRCIFetcher,
 		logService: ILogService,
+		private readonly _testStorageService: IStorageService,
 	) {
 		// The base constructor instantiates a fetcher from the apiClient; pass a
 		// dummy because we override createReferencedObject below to inject the
 		// test fetcher instead.
-		super(undefined as never, logService);
+		super(undefined as never, logService, _testStorageService);
 	}
 
 	protected override createReferencedObject(_key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
-		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._testFetcher, new NullLogService());
+		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._testFetcher, new NullLogService(), this._testStorageService);
 	}
 }
 

@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+html, body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	width: 100%;
+	background: var(--vscode-editor-background);
+}
+
+body {
+	overflow: hidden;
+}
+
+#editor {
+	height: 100%;
+	width: 100%;
+	overflow: scroll;
+}

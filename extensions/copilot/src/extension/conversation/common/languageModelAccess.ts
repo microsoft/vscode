@@ -14,7 +14,7 @@ import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } f
  * `undefined`, otherwise the UI shows an "undefined" state.
  *
  * Selection order:
- *  - claude families  → 'high' if available
+ *  - claude / Kimi K3 families → 'high' if available
  *  - other families   → 'medium' if available
  *  - fallback         → the first advertised level
  */
@@ -23,11 +23,47 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 		return undefined;
 	}
 	const lowerFamily = family.toLowerCase();
-	const preferred = lowerFamily.startsWith('claude') ? 'high' : 'medium';
+	const preferred = lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3') ? 'high' : 'medium';
 	if (effortLevels.includes(preferred)) {
 		return preferred;
 	}
 	return effortLevels[0];
+}
+
+/**
+ * Returns the localized description shown in the picker hover for a given
+ * reasoning-effort `level`. Centralised here so every provider surfaces the
+ * same wording. Falls back to the raw level for unknown values.
+ */
+export function getReasoningEffortDescription(level: string): string {
+	switch (level) {
+		case 'none': return l10n.t('No reasoning applied');
+		case 'minimal': return l10n.t('Minimal reasoning for fastest responses');
+		case 'low': return l10n.t('Faster responses with less reasoning');
+		case 'medium': return l10n.t('Balanced reasoning and speed');
+		case 'high': return l10n.t('Greater reasoning depth but slower');
+		case 'xhigh': return l10n.t('Highest reasoning depth but slowest');
+		case 'max': return l10n.t('Absolute maximum capability with no constraints');
+		default: return level;
+	}
+}
+
+/**
+ * Returns the localized, title-cased picker label for a given
+ * reasoning-effort `level`. Centralised here so every provider surfaces the
+ * same wording. Falls back to capitalizing an unknown value.
+ */
+export function getReasoningEffortLabel(level: string): string {
+	switch (level) {
+		case 'none': return l10n.t('None');
+		case 'minimal': return l10n.t('Minimal');
+		case 'low': return l10n.t('Low');
+		case 'medium': return l10n.t('Medium');
+		case 'high': return l10n.t('High');
+		case 'xhigh': return l10n.t('Extra High');
+		case 'max': return l10n.t('Max');
+		default: return level.charAt(0).toUpperCase() + level.slice(1);
+	}
 }
 
 /**
@@ -41,20 +77,54 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
 		type: 'string',
 		title: l10n.t('Thinking Effort'),
 		enum: effortLevels,
-		enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-		enumDescriptions: effortLevels.map(level => {
-			switch (level) {
-				case 'none': return l10n.t('No reasoning applied');
-				case 'minimal': return l10n.t('Minimal reasoning for fastest responses');
-				case 'low': return l10n.t('Faster responses with less reasoning');
-				case 'medium': return l10n.t('Balanced reasoning and speed');
-				case 'high': return l10n.t('Greater reasoning depth but slower');
-				case 'xhigh': return l10n.t('Highest reasoning depth but slowest');
-				case 'max': return l10n.t('Absolute maximum capability with no constraints');
-				default: return level;
-			}
-		}),
+		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
+		enumDescriptions: effortLevels.map(getReasoningEffortDescription),
 		default: pickDefaultReasoningEffort(effortLevels, family),
+		group: 'navigation',
+	};
+}
+
+/**
+ * Returns the localized, title-cased picker label for an Auto routing tier.
+ * Falls back to capitalizing an unknown value.
+ */
+export function getAutoModeTierLabel(tier: string): string {
+	switch (tier) {
+		case 'eco': return l10n.t('Eco');
+		case 'balanced': return l10n.t('Balanced');
+		case 'max': return l10n.t('Max');
+		case 'fast': return l10n.t('Fast');
+		default: return tier.charAt(0).toUpperCase() + tier.slice(1);
+	}
+}
+
+/**
+ * Returns the localized description shown in the picker hover for an Auto
+ * routing tier. Falls back to the raw tier for unknown values.
+ */
+export function getAutoModeTierDescription(tier: string): string {
+	switch (tier) {
+		case 'eco': return l10n.t('Cheaper models for everyday tasks');
+		case 'balanced': return l10n.t('Balances capability and cost');
+		case 'max': return l10n.t('Most capable models, higher cost');
+		case 'fast': return l10n.t('Lowest latency models');
+		default: return tier;
+	}
+}
+
+/**
+ * Builds the `tier` property descriptor for the Auto model's
+ * {@link LanguageModelConfigurationSchema}. Rendered by the model picker the
+ * same way thinking effort is, but labelled "Tier".
+ */
+export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaultTier: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+	return {
+		type: 'string',
+		title: l10n.t('Tier'),
+		enum: [...tiers],
+		enumItemLabels: tiers.map(getAutoModeTierLabel),
+		enumDescriptions: tiers.map(getAutoModeTierDescription),
+		default: defaultTier,
 		group: 'navigation',
 	};
 }
@@ -119,7 +189,68 @@ export function getModelCapabilitiesDescription(endpoint: IChatEndpoint | Langua
 	return undefined;
 }
 
+/**
+ * Documentation link surfaced in the Auto model description.
+ * NOTE: Also defined in src/vs/workbench/contrib/chat/common/languageModels.ts (ILanguageModelChatMetadata.autoModelSelectionDocsUrl) — keep in sync.
+ */
+const AUTO_MODEL_DOCS_URL = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
+
+/**
+ * Classifies an Auto discount range (given as fractions, e.g. `0.1` for 10%)
+ * into whole-number percentages. Returns `undefined` when there is no discount
+ * to show, `{ low }` for a single value, or `{ low, high }` for a range.
+ */
+function classifyDiscountRange(discountRange?: { low: number; high: number }): { low: number; high?: number } | undefined {
+	if (!discountRange) {
+		return undefined;
+	}
+	const low = Math.round(discountRange.low * 100);
+	const high = Math.round(discountRange.high * 100);
+	if (low === high) {
+		return low !== 0 ? { low } : undefined;
+	}
+	return { low, high };
+}
+
+/**
+ * Formats the Auto discount as a short label (e.g. "10% discount" or
+ * "10% to 20% discount"). Returns `undefined` when there is no discount.
+ *
+ * @param discountRange Discount as fractions (e.g. `0.1` for 10%).
+ */
+export function getAutoModelDiscountLabel(discountRange?: { low: number; high: number }): string | undefined {
+	const discount = classifyDiscountRange(discountRange);
+	if (!discount) {
+		return undefined;
+	}
+	return discount.high === undefined
+		? l10n.t('{0}% discount', discount.low)
+		: l10n.t('{0}% to {1}% discount', discount.low, discount.high);
+}
+
+/**
+ * Builds the shared description shown for the Auto model. The discount sentence
+ * is only included when a non-zero discount is provided.
+ *
+ * @param discountRange Discount as fractions (e.g. `0.1` for 10%). When omitted
+ * or zero, the discount sentence is left out entirely.
+ */
+export function getAutoModelDescription(discountRange?: { low: number; high: number }): string {
+	const base = l10n.t('Auto routes based on your task and real-time system health and model performance.');
+	const learnMore = l10n.t('[Learn More]({0})', AUTO_MODEL_DOCS_URL);
+	const discount = classifyDiscountRange(discountRange);
+	const discountSentence = !discount
+		? undefined
+		: discount.high === undefined
+			? l10n.t('Models routed via auto receive a {0}% discount.', discount.low)
+			: l10n.t('Models routed via auto receive a {0}% to {1}% discount.', discount.low, discount.high);
+	return discountSentence ? `${base} ${discountSentence} ${learnMore}` : `${base} ${learnMore}`;
+}
+
 function formatAicPrice(price: number): string {
+	if (price === 0) {
+		return '0';
+	}
 	if (price < 0.01) {
 		return price.toExponential(2);
 	}
@@ -161,21 +292,23 @@ const NANO_AIU_DIVISOR = 1_000_000_000;
 /**
  * Raw token prices from the CAPI billing response. Supports both the tiered
  * format (API 2026-06-01+, prices in AIUs) and the legacy flat format
- * (pre-2026-06-01, prices in nano-AIUs).
+ * (pre-2026-06-01, prices in nano-AIUs) which is still used by some endpoints
+ * such as the cloud agents (`/agents/swe/models`) model picker.
  */
 export interface IRawTokenPrices {
 	batch_size?: number;
 	input_price?: number;
 	cache_price?: number;
 	output_price?: number;
-	default?: { input_price?: number; cache_price?: number; output_price?: number; context_max?: number };
-	long_context?: { input_price?: number; cache_price?: number; output_price?: number; context_max?: number };
+	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
+	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
 }
 
 export interface INormalizedPriceTier {
 	readonly inputPrice: number;
 	readonly outputPrice: number;
 	readonly cachePrice: number | undefined;
+	readonly cacheWritePrice: number | undefined;
 	readonly contextMax?: number;
 }
 
@@ -205,6 +338,7 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			inputPrice: defaultTier.input_price * scale,
 			outputPrice: defaultTier.output_price * scale,
 			cachePrice: defaultTier.cache_price !== undefined ? defaultTier.cache_price * scale : undefined,
+			cacheWritePrice: defaultTier.cache_write_price !== undefined ? defaultTier.cache_write_price * scale : undefined,
 			contextMax: defaultTier.context_max,
 		};
 		let longContext: INormalizedPriceTier | undefined;
@@ -214,12 +348,14 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 				inputPrice: lc.input_price * scale,
 				outputPrice: lc.output_price * scale,
 				cachePrice: lc.cache_price !== undefined ? lc.cache_price * scale : undefined,
+				cacheWritePrice: lc.cache_write_price !== undefined ? lc.cache_write_price * scale : undefined,
 				contextMax: lc.context_max,
 			};
 			// Only include long-context tier when prices differ from default
 			if (lcNormalized.inputPrice !== normalized.inputPrice
 				|| lcNormalized.outputPrice !== normalized.outputPrice
-				|| lcNormalized.cachePrice !== normalized.cachePrice) {
+				|| lcNormalized.cachePrice !== normalized.cachePrice
+				|| lcNormalized.cacheWritePrice !== normalized.cacheWritePrice) {
 				longContext = lcNormalized;
 			}
 		}
@@ -235,6 +371,7 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			inputPrice: (tokenPrices.input_price / NANO_AIU_DIVISOR) * scale,
 			outputPrice: (tokenPrices.output_price / NANO_AIU_DIVISOR) * scale,
 			cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / NANO_AIU_DIVISOR) * scale : undefined,
+			cacheWritePrice: undefined,
 		},
 	};
 }

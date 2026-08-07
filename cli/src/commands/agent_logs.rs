@@ -6,20 +6,34 @@
 use ahp::SubscriptionEvent;
 use ahp_types::actions::StateAction;
 use ahp_types::commands::{SubscribeParams, SubscribeResult};
-use ahp_types::state::{SnapshotState, TurnState};
+use ahp_types::state::{SessionStatus, SnapshotState};
 use console::Style;
 
 use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::util::errors::AnyError;
 
 use super::agent;
+use super::agent_discovery;
 use super::args::AgentLogsArgs;
 use super::output::Styles;
 use super::CommandContext;
 
 /// Subscribes to a session and streams actions/notifications in real time.
 pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32, AnyError> {
-	let client = agent::connect(&ctx, args.address.as_deref(), args.tunnel.as_deref()).await?;
+	let client = match (
+		args.discovery.address.as_deref(),
+		args.discovery.tunnel.as_deref(),
+	) {
+		(None, None) => {
+			agent_discovery::connect_to_session_host(
+				&ctx,
+				&args.session,
+				args.discovery.user_data_dir.as_deref(),
+			)
+			.await?
+		}
+		(address, tunnel) => agent::connect_explicit(&ctx, address, tunnel).await?,
+	};
 
 	let (result, mut sub): (SubscribeResult, _) = {
 		let r: SubscribeResult = agent::request_with_auth(
@@ -100,23 +114,24 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 				println!("  {} {}", label.apply_to("activity:"), activity);
 			}
 		}
-		println!("  {} {}", label.apply_to("turns:"), session.turns.len());
+		println!("  {} {}", label.apply_to("chats:"), session.chats.len());
 
-		// Print a brief summary of past turns.
-		for turn in &session.turns {
-			let state_str = match turn.state {
-				TurnState::Complete => Styles::success().apply_to("✓"),
-				TurnState::Cancelled => Styles::warning().apply_to("⊘"),
-				TurnState::Error => Styles::error().apply_to("✗"),
+		// Print a brief summary of the chats in this session.
+		for chat in &session.chats {
+			let status = SessionStatus::from_bits(chat.status);
+			let marker = if status.contains(SessionStatus::InProgress) {
+				Style::new().green().bold().apply_to("►")
+			} else if status.contains(SessionStatus::Error) {
+				Styles::error().apply_to("✗")
+			} else {
+				Styles::muted().apply_to("○")
 			};
-			let msg = truncate(&turn.user_message.text, 80);
-			println!("    {} {}", state_str, Styles::muted().apply_to(msg));
-		}
-
-		// Print active turn if any.
-		if let Some(ref active) = session.active_turn {
-			let msg = truncate(&active.user_message.text, 80);
-			println!("    {} {}", Style::new().green().bold().apply_to("►"), msg);
+			let title = if chat.title.is_empty() {
+				"(untitled)".to_string()
+			} else {
+				truncate(&chat.title, 80)
+			};
+			println!("    {} {}", marker, Styles::muted().apply_to(title));
 		}
 	}
 

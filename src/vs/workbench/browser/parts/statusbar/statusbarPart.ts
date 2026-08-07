@@ -19,7 +19,8 @@ import { contrastBorder, activeContrastBorder } from '../../../../platform/theme
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -120,12 +121,23 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	static readonly HEIGHT = 22;
 
+	/**
+	 * Vertical padding reserved around the main status bar under the floating panels
+	 * experiment so its items remain centered. The part grows by this amount and
+	 * the matching padding is applied in `floatingPanels.css`.
+	 */
+	static readonly FLOATING_BOTTOM_PADDING = 10;
+
 	//#region IView
+
+	private get floatingBottomPadding(): number {
+		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() ? StatusbarPart.FLOATING_BOTTOM_PADDING : 0;
+	}
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = StatusbarPart.HEIGHT;
-	readonly maximumHeight: number = StatusbarPart.HEIGHT;
+	get minimumHeight(): number { return StatusbarPart.HEIGHT + this.floatingBottomPadding; }
+	get maximumHeight(): number { return StatusbarPart.HEIGHT + this.floatingBottomPadding; }
 
 	//#endregion
 
@@ -160,6 +172,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -205,6 +218,15 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+
+		// Floating panels changes the reserved bottom padding (and therefore the
+		// part height) for the main status bar only: signal the grid that the size
+		// constraint changed.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {
@@ -307,7 +329,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const accessor: IStatusbarEntryAccessor = {
 			update: entry => {
 				lastEntry = entry;
+				const hadBackgroundColor = itemContainer.classList.contains('has-background-color');
 				item.update(this.withEntryOverride(entry, id));
+				if (hadBackgroundColor !== itemContainer.classList.contains('has-background-color')) {
+					this.updateVisibleBackgroundColorNeighbors();
+				}
 			},
 			dispose: () => {
 				const { needsFullRefresh } = this.doAddOrRemoveModelEntry(viewModelEntry, false);
@@ -569,6 +595,38 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				}
 			}
 		}
+
+		this.updateVisibleBackgroundColorNeighbors();
+	}
+
+	private updateVisibleBackgroundColorNeighbors(): void {
+		this.doUpdateVisibleBackgroundColorNeighbors(this.viewModel.getEntries(StatusbarAlignment.LEFT), StatusbarAlignment.LEFT);
+		this.doUpdateVisibleBackgroundColorNeighbors(this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse(), StatusbarAlignment.RIGHT);
+	}
+
+	private doUpdateVisibleBackgroundColorNeighbors(entries: IStatusbarViewModelEntry[], alignment: StatusbarAlignment): void {
+		let previousVisibleEntry: IStatusbarViewModelEntry | undefined;
+
+		for (const entry of entries) {
+			entry.container.classList.remove('visible-background-color-neighbor');
+
+			if (this.viewModel.isHidden(entry.id)) {
+				continue;
+			}
+
+			const isCompactNeighbor = alignment === StatusbarAlignment.LEFT
+				? previousVisibleEntry?.container.classList.contains('compact-right') && entry.container.classList.contains('compact-left')
+				: previousVisibleEntry?.container.classList.contains('compact-left') && entry.container.classList.contains('compact-right');
+			if (
+				previousVisibleEntry?.container.classList.contains('has-background-color') &&
+				entry.container.classList.contains('has-background-color') &&
+				!isCompactNeighbor
+			) {
+				entry.container.classList.add('visible-background-color-neighbor');
+			}
+
+			previousVisibleEntry = entry;
+		}
 	}
 
 	private showContextMenu(e: MouseEvent | GestureEvent): void {
@@ -648,6 +706,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		// Update compact entries to refresh hover colors based on current theme
 		this.updateCompactEntries();
 
+		// Mark the bar when a style override is active (currently only the debugging
+		// color) so Modern UI can restore the recolor, which floating mode otherwise
+		// paints transparent.
+		container.classList.toggle('has-style-override', !!styleOverride?.background);
+
 		// Border color
 		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);
 		if (borderColor) {
@@ -724,8 +787,9 @@ export class MainStatusbarPart extends StatusbarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
 	}
 }
 
@@ -749,9 +813,10 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
 	}
 }
 

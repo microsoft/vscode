@@ -11,6 +11,7 @@ import { IChannel, IChannelClient } from '../../../base/parts/ipc/common/ipc.js'
 import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agentHost/common/agent.js';
 import { AgentHostIpcChannels } from '../../../platform/agentHost/common/agentService.js';
 import { NullLogService, NullLoggerService } from '../../../platform/log/common/log.js';
+import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { ServerAgentHostManager } from '../../node/serverAgentHostManager.js';
 import { IServerLifetimeService } from '../../node/serverLifetimeService.js';
 
@@ -51,6 +52,7 @@ class MockChannel implements IChannel {
 
 class MockAgentHostStarter implements IAgentHostStarter {
 	private readonly _onDidProcessExit = new Emitter<{ code: number; signal: string }>();
+	private _startError: Error | undefined;
 
 	readonly agentHostChannel = new MockChannel();
 	readonly loggerChannel: MockChannel;
@@ -62,6 +64,12 @@ class MockAgentHostStarter implements IAgentHostStarter {
 	}
 
 	async start(): Promise<IAgentHostConnection> {
+		if (this._startError) {
+			const error = this._startError;
+			this._startError = undefined;
+			throw error;
+		}
+
 		const store = new DisposableStore();
 		const client: IChannelClient = {
 			getChannel: <T extends IChannel>(name: string): T => {
@@ -86,6 +94,10 @@ class MockAgentHostStarter implements IAgentHostStarter {
 
 	fireProcessExit(code: number): void {
 		this._onDidProcessExit.fire({ code, signal: '' });
+	}
+
+	failNextStart(error: Error): void {
+		this._startError = error;
 	}
 
 	dispose(): void {
@@ -113,15 +125,27 @@ class MockServerLifetimeService implements IServerLifetimeService {
 	delay(): void { }
 }
 
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly errorEvents: { eventName: string; data: unknown }[] = [];
+
+	override publicLogError2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.errorEvents.push({ eventName, data });
+		}
+	}
+}
+
 suite('ServerAgentHostManager', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let starter: MockAgentHostStarter;
 	let lifetimeService: MockServerLifetimeService;
+	let telemetryService: TestTelemetryService;
 
 	setup(() => {
 		starter = new MockAgentHostStarter();
 		lifetimeService = new MockServerLifetimeService();
+		telemetryService = new TestTelemetryService();
 	});
 
 	function createManager(): ServerAgentHostManager {
@@ -130,6 +154,7 @@ suite('ServerAgentHostManager', () => {
 			new NullLogService(),
 			ds.add(new NullLoggerService()),
 			lifetimeService,
+			telemetryService,
 		));
 	}
 
@@ -164,39 +189,24 @@ suite('ServerAgentHostManager', () => {
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
-	test('acquires token when clients connect (no active sessions)', async () => {
+	test('acquires token when standalone WebSocket clients connect', async () => {
 		createManager();
 		await waitForStart();
 		fireConnectionCount(2);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
-	test('releases token only when both sessions and connections are zero', async () => {
+	test('releases token only when both sessions and standalone WebSocket connections are zero', async () => {
 		createManager();
 		await waitForStart();
 
-		// Sessions active, no connections
 		fireActiveSessions(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
-		// Connections appear too
 		fireConnectionCount(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
-		// Sessions go idle, but connections remain
 		fireActiveSessions(0);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
-
-		// Connections drop to zero -- now both are idle
-		fireConnectionCount(0);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
-	});
-
-	test('releases token only when connections drop after sessions already idle', async () => {
-		createManager();
-		await waitForStart();
-
-		fireConnectionCount(3);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
 		fireConnectionCount(0);
@@ -206,12 +216,52 @@ suite('ServerAgentHostManager', () => {
 	test('process exit resets both signals and clears token', async () => {
 		createManager();
 		await waitForStart();
-
 		fireActiveSessions(2);
 		fireConnectionCount(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
 		starter.fireProcessExit(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
+	});
+
+	test('reports unexpected process exit', async () => {
+		createManager();
+		await waitForStart();
+
+		starter.fireProcessExit(17);
+
+		assert.deepStrictEqual(telemetryService.errorEvents, [{
+			eventName: 'agentHost.processError',
+			data: {
+				hostLaunchKind: 'vscode_cli',
+				kind: 'unexpectedExit',
+				code: 17,
+				restartCount: 0,
+				willRestart: true,
+				isError: true,
+			},
+		}]);
+	});
+
+	test('reports process start failure', async () => {
+		const error = new Error('test start failure');
+		error.stack = 'test start failure stack';
+		starter.failNextStart(error);
+		createManager();
+		await waitForStart();
+		await waitForStart();
+
+		assert.deepStrictEqual(telemetryService.errorEvents, [{
+			eventName: 'agentHost.processError',
+			data: {
+				hostLaunchKind: 'vscode_cli',
+				kind: 'startFailed',
+				restartCount: 0,
+				willRestart: true,
+				isError: true,
+				callstack: 'test start failure stack',
+				msg: 'test start failure',
+			},
+		}]);
 	});
 });

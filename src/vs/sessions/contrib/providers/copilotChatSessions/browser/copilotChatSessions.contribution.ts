@@ -27,6 +27,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			experiment: { mode: 'startup' },
 			description: localize('sessions.chat.claudeAgent.enabled', "Enable Claude Agent sessions in the Agents window. Start and resume agentic coding sessions powered by Anthropic's Claude Agent SDK directly. Uses your existing Copilot subscription."),
+			// References the `Claude3PIntegration` policy (owned by `github.copilot.chat.claudeAgent.enabled`) so the Agents window is gated like the editor.
+			policyReference: {
+				name: 'Claude3PIntegration',
+			},
 		},
 	},
 });
@@ -34,8 +38,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 /**
  * Registers the {@link CopilotChatSessionsProvider} as a sessions provider.
  *
- * Coexists with the local agent host provider when `chat.agentHost.enabled`
- * is true. The two providers list disjoint sets of sessions:
+ * Coexists with the local agent host provider when that runtime is available. The two providers list disjoint sets of sessions:
  * - The local agent host filters via the per-session Agent Host SQLite DB
  *   (database-existence ownership gate in `CopilotAgent.listSessions`).
  * - This provider's underlying extension service filters via the per-session

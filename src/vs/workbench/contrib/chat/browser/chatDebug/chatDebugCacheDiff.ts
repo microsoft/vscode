@@ -143,14 +143,30 @@ export function parseInputMessages(inputMessagesJson: string | undefined): reado
 		return [];
 	}
 
+	// First pass: map tool-call ids to tool names. Tool *result* parts only
+	// carry `{id, response}` on the wire — the name lives on the assistant
+	// turn's matching `tool_call` part — so results are named by correlation.
+	const toolNameByCallId = new Map<string, string>();
+	for (const m of raw as readonly IRawMessage[]) {
+		if (!m || typeof m !== 'object' || !Array.isArray(m.parts)) {
+			continue;
+		}
+		for (const p of m.parts) {
+			if (p && typeof p === 'object' && p.type === 'tool_call' && typeof p.id === 'string' && typeof p.name === 'string' && p.name) {
+				toolNameByCallId.set(p.id, p.name);
+			}
+		}
+	}
+
 	const out: INormalizedMessage[] = [];
 	for (const m of raw as readonly IRawMessage[]) {
 		if (!m || typeof m !== 'object') {
 			continue;
 		}
 		let role = typeof m.role === 'string' ? m.role : 'unknown';
-		const name = typeof m.name === 'string' ? m.name : undefined;
+		let name = typeof m.name === 'string' && m.name ? m.name : undefined;
 		let text = '';
+		let toolResponseName: string | undefined;
 		let hasToolResponse = false;
 		let hasToolCall = false;
 		let hasToolSearchOutput = false;
@@ -180,6 +196,9 @@ export function parseInputMessages(inputMessagesJson: string | undefined): reado
 						} else if (p.content !== undefined) {
 							text += stableStringify(p.content);
 						}
+						if (toolResponseName === undefined && typeof p.id === 'string') {
+							toolResponseName = toolNameByCallId.get(p.id);
+						}
 						hasToolResponse = true;
 						break;
 					case 'tool_call':
@@ -208,6 +227,10 @@ export function parseInputMessages(inputMessagesJson: string | undefined): reado
 			role = 'tool_search';
 		} else if (hasToolResponse && !hasText) {
 			role = 'tool';
+			// Name the tool result after the tool that produced it (resolved
+			// via the matching tool_call id) so labels read `tool-read_file`
+			// instead of an anonymous `tool`.
+			name = name ?? toolResponseName;
 		} else if (hasToolCall && !hasText && role === 'assistant') {
 			role = 'assistant';
 		}

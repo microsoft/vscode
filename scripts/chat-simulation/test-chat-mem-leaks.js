@@ -25,7 +25,7 @@
  * Usage:
  *   npm run perf:chat-leak                                # defaults from config
  *   npm run perf:chat-leak -- --iterations 5               # more iterations
- *   npm run perf:chat-leak -- --threshold 5                # 5MB total threshold
+ *   npm run perf:chat-leak -- --threshold 5                # 5MB steady-state threshold
  *   npm run perf:chat-leak -- --build 1.115.0              # test a specific build
  */
 
@@ -41,7 +41,7 @@ const {
 } = require('./common/perf-scenarios');
 const {
 	getUserTurns, getModelTurnCount,
-} = require('./common/mock-llm-server');
+} = require('./common/mock-llm-server.ts');
 
 // -- Config (edit config.jsonc to change defaults) ---------------------------
 
@@ -349,11 +349,24 @@ async function runLeakCheck(electronPath, mockServer, opts) {
 		const totalResidualMB = Math.round((final.heapMB - baseline.heapMB) * 100) / 100;
 		const totalResidualNodes = final.domNodes - baseline.domNodes;
 
+		// Steady-state residual EXCLUDES the first iteration. The first
+		// iteration's growth is dominated by one-time warm-up (V8 JIT, module
+		// and string caches, lazy singletons) rather than a leak — a real leak
+		// keeps growing every iteration, whereas warm-up plateaus. Basing the
+		// verdict on post-warm-up growth (heap relative to the end of iteration
+		// 1) avoids false positives from caching. Falls back to total residual
+		// when there are too few iterations to drop the warm-up one.
+		const warmupBaselineMB = iterationResults.length > 1
+			? iterationResults[0].afterHeapMB
+			: baseline.heapMB;
+		const steadyResidualMB = Math.round((final.heapMB - warmupBaselineMB) * 100) / 100;
+
 		return {
 			baseline,
 			final: { heapMB: final.heapMB, domNodes: final.domNodes },
 			totalResidualMB,
 			totalResidualNodes,
+			steadyResidualMB,
 			iterations: iterationResults,
 		};
 	} finally {
@@ -372,12 +385,12 @@ async function main() {
 		process.exit(1);
 	}
 
-	const { startServer } = require('./common/mock-llm-server');
+	const { startServer } = require('./common/mock-llm-server.ts');
 	const { registerPerfScenarios } = require('./common/perf-scenarios');
 	registerPerfScenarios();
 	const mockServer = await startServer(0);
 
-	console.log(`[chat-simulation] Leak check: ${opts.iterations} iterations × ${getScenarioIds().length} scenarios, threshold ${opts.leakThresholdMB}MB total`);
+	console.log(`[chat-simulation] Leak check: ${opts.iterations} iterations × ${getScenarioIds().length} scenarios, threshold ${opts.leakThresholdMB}MB steady-state (excl. warm-up)`);
 	console.log(`[chat-simulation] Build: ${electronPath}`);
 	console.log('');
 
@@ -393,8 +406,9 @@ async function main() {
 		console.log(`  Iteration ${i + 1}: ${it.beforeHeapMB}MB → ${it.afterHeapMB}MB (residual: ${it.deltaHeapMB > 0 ? '+' : ''}${it.deltaHeapMB}MB, DOM: ${it.deltaDomNodes > 0 ? '+' : ''}${it.deltaDomNodes} nodes)`);
 	}
 	console.log('');
-	console.log(`  Total residual heap growth: ${result.totalResidualMB > 0 ? '+' : ''}${result.totalResidualMB}MB`);
-	console.log(`  Total residual DOM growth:  ${result.totalResidualNodes > 0 ? '+' : ''}${result.totalResidualNodes} nodes`);
+	console.log(`  Total residual heap growth:        ${result.totalResidualMB > 0 ? '+' : ''}${result.totalResidualMB}MB (includes one-time warm-up)`);
+	console.log(`  Steady-state residual (excl. warm-up): ${result.steadyResidualMB > 0 ? '+' : ''}${result.steadyResidualMB}MB`);
+	console.log(`  Total residual DOM growth:         ${result.totalResidualNodes > 0 ? '+' : ''}${result.totalResidualNodes} nodes`);
 	console.log('');
 
 	// Write JSON
@@ -408,12 +422,12 @@ async function main() {
 	}, null, 2));
 	console.log(`[chat-simulation] Results written to ${jsonPath}`);
 
-	const leaked = result.totalResidualMB > opts.leakThresholdMB;
+	const leaked = result.steadyResidualMB > opts.leakThresholdMB;
 	console.log('');
 	if (leaked) {
-		console.log(`[chat-simulation] LEAK DETECTED — ${result.totalResidualMB}MB residual exceeds ${opts.leakThresholdMB}MB threshold`);
+		console.log(`[chat-simulation] LEAK DETECTED — ${result.steadyResidualMB}MB steady-state residual exceeds ${opts.leakThresholdMB}MB threshold`);
 	} else {
-		console.log(`[chat-simulation] No leak detected (${result.totalResidualMB}MB residual < ${opts.leakThresholdMB}MB threshold)`);
+		console.log(`[chat-simulation] No leak detected (${result.steadyResidualMB}MB steady-state residual < ${opts.leakThresholdMB}MB threshold)`);
 	}
 
 	if (opts.ci) {
@@ -429,11 +443,11 @@ async function main() {
 
 /**
  * Generate a Markdown summary for CI, matching the perf script pattern.
- * @param {{ baseline: { heapMB: number, domNodes: number }, final: { heapMB: number, domNodes: number }, totalResidualMB: number, totalResidualNodes: number, iterations: { beforeHeapMB: number, afterHeapMB: number, deltaHeapMB: number, beforeDomNodes: number, afterDomNodes: number, deltaDomNodes: number }[] }} result
+ * @param {{ baseline: { heapMB: number, domNodes: number }, final: { heapMB: number, domNodes: number }, totalResidualMB: number, totalResidualNodes: number, steadyResidualMB: number, iterations: { beforeHeapMB: number, afterHeapMB: number, deltaHeapMB: number, beforeDomNodes: number, afterDomNodes: number, deltaDomNodes: number }[] }} result
  * @param {{ leakThresholdMB: number, iterations: number }} opts
  */
 function generateLeakCISummary(result, opts) {
-	const leaked = result.totalResidualMB > opts.leakThresholdMB;
+	const leaked = result.steadyResidualMB > opts.leakThresholdMB;
 	const verdict = leaked ? '\u274C **LEAK DETECTED**' : '\u2705 **No leak detected**';
 	const lines = [];
 	lines.push('## Memory Leak Check');
@@ -441,7 +455,7 @@ function generateLeakCISummary(result, opts) {
 	lines.push('| | |');
 	lines.push('|---|---|');
 	lines.push(`| **Verdict** | ${verdict} |`);
-	lines.push(`| **Threshold** | ${opts.leakThresholdMB} MB |`);
+	lines.push(`| **Threshold** | ${opts.leakThresholdMB} MB (steady-state, excl. warm-up) |`);
 	lines.push(`| **Iterations** | ${opts.iterations} |`);
 	lines.push(`| **Scenarios per iteration** | ${getScenarioIds().length} |`);
 	lines.push('');
@@ -452,13 +466,17 @@ function generateLeakCISummary(result, opts) {
 		const it = result.iterations[i];
 		const sign = it.deltaHeapMB > 0 ? '+' : '';
 		const domSign = it.deltaDomNodes > 0 ? '+' : '';
-		lines.push(`| Iteration ${i + 1} | ${it.afterHeapMB} (${sign}${it.deltaHeapMB}) | ${it.afterDomNodes} (${domSign}${it.deltaDomNodes}) |`);
+		const note = i === 0 ? ' _(warm-up)_' : '';
+		lines.push(`| Iteration ${i + 1}${note} | ${it.afterHeapMB} (${sign}${it.deltaHeapMB}) | ${it.afterDomNodes} (${domSign}${it.deltaDomNodes}) |`);
 	}
 	lines.push(`| **Final** | **${result.final.heapMB}** | **${result.final.domNodes}** |`);
 	lines.push('');
+	const steadySign = result.steadyResidualMB > 0 ? '+' : '';
 	const sign = result.totalResidualMB > 0 ? '+' : '';
 	const domSign = result.totalResidualNodes > 0 ? '+' : '';
-	lines.push(`**Total residual growth:** ${sign}${result.totalResidualMB} MB heap, ${domSign}${result.totalResidualNodes} DOM nodes`);
+	lines.push(`**Steady-state residual (excl. warm-up):** ${steadySign}${result.steadyResidualMB} MB heap`);
+	lines.push('');
+	lines.push(`**Total residual growth:** ${sign}${result.totalResidualMB} MB heap, ${domSign}${result.totalResidualNodes} DOM nodes _(includes one-time warm-up)_`);
 	lines.push('');
 	return lines.join('\n');
 }

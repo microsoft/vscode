@@ -13,18 +13,11 @@ import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightS
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
 import { PlaywrightTab, DialogInterruptedError } from './playwrightTab.js';
-import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
+import { CDPRequest, CDPResponse } from '../common/cdp/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import type { Browser, BrowserContext, Page } from 'playwright-core';
-
-interface PlaywrightTransport {
-	send(s: CDPRequest): void;
-	close(): void;  // Note: calling close is expected to issue onclose at some point.
-	onmessage?: (message: CDPResponse | CDPEvent) => void;
-	onclose?: (reason?: string) => void;
-}
+import type { Browser, BrowserContext, ConnectOverCDPTransport, Page } from 'playwright-core';
 
 /**
  * Tracks whether a caller-initiated Playwright action is currently in flight.
@@ -33,14 +26,26 @@ export interface IPlaywrightActionScope {
 	activeCalls: number;
 }
 
-declare module 'playwright-core' {
-	interface BrowserType {
-		_connectOverCDPTransport(transport: PlaywrightTransport): Promise<Browser>;
-	}
-}
-
 const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
 const SESSION_INACTIVITY_MS = 30 * 60_000; // 30 minutes
+const OPEN_PAGE_NAVIGATION_TIMEOUT_MS = 30_000;
+
+/**
+ * Narrow a raw Playwright transport payload to a {@link CDPRequest}.
+ *
+ * Playwright types the `send` payload as `object` but passes structured CDP
+ * messages (not JSON strings) for a caller-supplied transport, so this guard
+ * is expected to always hold. It exists to fail loudly (the caller throws)
+ * should a future Playwright version change the wire format, rather than
+ * silently forwarding malformed messages.
+ */
+function isCDPRequest(message: object): message is CDPRequest {
+	const candidate = message as Partial<CDPRequest>;
+	return typeof candidate.id === 'number'
+		&& typeof candidate.method === 'string'
+		&& (candidate.sessionId === undefined || typeof candidate.sessionId === 'string');
+}
+
 
 
 /**
@@ -122,12 +127,18 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		try {
 			const playwright = await import('playwright-core');
 			const sub = group.onCDPMessage(msg => transport.onmessage?.(msg));
-			const transport: PlaywrightTransport = {
+			const transport: ConnectOverCDPTransport = {
 				close() {
 					sub.dispose();
 					this.onclose?.();
 				},
-				send(message) {
+				send: (rawMessage) => {
+					if (!isCDPRequest(rawMessage)) {
+						// Fail loudly: returning silently would leave Playwright
+						// waiting for a response and surface later as an opaque hang.
+						throw new Error(`[PlaywrightService] Unexpected CDP transport payload for session ${sessionId} (type: ${typeof rawMessage})`);
+					}
+					const message = rawMessage;
 					// Block Playwright's automatic / default emulation traffic. We
 					// only forward `Emulation.*` to the view while a caller-initiated
 					// action is running (see IPlaywrightActionScope) so the workbench
@@ -135,16 +146,16 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 					// setup Playwright issues on its own when connecting or creating
 					// pages — is acknowledged with a synthetic success response and
 					// never hits the view.
-					if (actionScope.activeCalls === 0 && typeof message.method === 'string' && message.method.startsWith('Emulation.')) {
+					if (actionScope.activeCalls === 0 && message.method.startsWith('Emulation.')) {
 						setTimeout(() => {
-							transport.onmessage?.({ id: message.id, result: {}, sessionId: message.sessionId });
+							transport.onmessage?.({ id: message.id, result: {}, sessionId: message.sessionId } satisfies CDPResponse);
 						}, 1);
 						return;
 					}
 					void group.sendCDPMessage(message);
 				}
 			};
-			browser = await playwright.chromium._connectOverCDPTransport(transport);
+			browser = await playwright.chromium.connectOverCDP(transport);
 		} catch (e) {
 			group.dispose();
 			throw e;
@@ -167,6 +178,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			this.logService,
 			this.agentNetworkFilterService,
 			this.telemetryService,
+			viewId => this.startTrackingPage(viewId),
 		);
 
 		// Keep the global tracked set in sync with group events. When a
@@ -255,12 +267,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	async openPage(sessionId: string, url: string): Promise<{ pageId: string; summary: string }> {
 		const session = await this._getOrCreateSession(sessionId);
-		const result = await session.openPage(url);
-		// The creating session's group already has the view. Use
-		// startTrackingPage to add it to the canonical set and
-		// replicate into other sessions.
-		await this.startTrackingPage(result.pageId);
-		return result;
+		return session.openPage(url);
 	}
 
 	async getSummary(sessionId: string, pageId: string): Promise<string> {
@@ -370,6 +377,7 @@ class PlaywrightSession extends Disposable {
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		private readonly telemetryService: ITelemetryService,
+		private readonly onDidCreatePage: (viewId: string) => Promise<void>,
 	) {
 		super();
 
@@ -395,9 +403,18 @@ class PlaywrightSession extends Disposable {
 
 		const page = await this._openContext.newPage();
 		const viewId = await this._onPageAdded(page);
+		await this.onDidCreatePage(viewId);
 
 		if (url && url !== 'about:blank' && page.url() !== url) {
-			await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+			try {
+				await page.goto(url, { waitUntil: 'domcontentloaded', timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
+			} catch (error) {
+				if (!isNavigationTimeoutError(error)) {
+					throw error;
+				}
+
+				throw new Error(`Navigation to ${url} timed out after ${OPEN_PAGE_NAVIGATION_TIMEOUT_MS} ms. The page (ID: ${viewId}) is open and can be reused.`);
+			}
 		}
 
 		const summary = await this._getSummary(viewId);
@@ -748,6 +765,16 @@ class PlaywrightSession extends Disposable {
 		this._pageQueue = [];
 		super.dispose();
 	}
+}
+
+function isNavigationTimeoutError(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	return error.name === 'TimeoutError'
+		|| /Timeout \d+ms exceeded/.test(error.message)
+		|| /navigation timeout/i.test(error.message);
 }
 
 /**

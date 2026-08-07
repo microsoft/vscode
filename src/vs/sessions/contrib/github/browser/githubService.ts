@@ -5,17 +5,26 @@
 
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubChangedFile } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsModelReferenceCollection } from './models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';
+import { GitHubIssueModel, GitHubIssueModelReferenceCollection } from './models/githubIssueModel.js';
 import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+
+/**
+ * Shared trace prefix for the pull-request polling/fetching pipeline that feeds
+ * the session PR status icons. Filter the logs on this token to follow the
+ * whole flow end-to-end (lookup -> fetch -> poll -> icon).
+ */
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
@@ -43,6 +52,11 @@ export interface IGitHubService {
 	 * Get a reference to a reactive model for CI checks on a pull request head SHA.
 	 */
 	createPullRequestCIModelReference(owner: string, repo: string, prNumber: number, headSha: string): IReference<GitHubPullRequestCIModel>;
+
+	/**
+	 * Get a reference to a reactive model for a GitHub issue.
+	 */
+	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel>;
 
 	/**
 	 * List files changed between two refs using the GitHub compare API.
@@ -76,6 +90,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
 	private readonly _pullRequestCIReferences: GitHubPullRequestCIModelReferenceCollection;
+	private readonly _issueReferences: GitHubIssueModelReferenceCollection;
 	private readonly _apiClient: GitHubApiClient;
 
 	/**
@@ -89,7 +104,8 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -102,10 +118,11 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
 		this._pullRequestReviewThreadsReferences = instantiationService.createInstance(GitHubPullRequestReviewThreadsModelReferenceCollection, apiClient);
 		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient);
+		this._issueReferences = instantiationService.createInstance(GitHubIssueModelReferenceCollection, apiClient);
 
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
-				const gitHubInfo = sessionManagementService.activeSession.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+				const gitHubInfo = sessionsService.activeSession.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 
 				if (!gitHubInfo?.pullRequest) {
 					return undefined;
@@ -188,6 +205,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 		return this._pullRequestCIReferences.acquire(`${getPullRequestKey(owner, repo, prNumber)}/${headSha}`, owner, repo, prNumber, headSha);
 	}
 
+	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel> {
+		return this._issueReferences.acquire(`${owner}/${repo}/issues/${issueNumber}`, owner, repo, issueNumber);
+	}
+
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
 		return this._changesFetcher.getChangedFiles(owner, repo, base, head);
 	}
@@ -196,6 +217,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const key = `${owner}/${repo}#${branch}`;
 		let promise = this._findPRByBranchCache.get(key);
 		if (!promise) {
+			this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch cache MISS for ${key}; starting lookup`);
 			promise = this._fetchPullRequestNumberByHeadBranch(owner, repo, branch);
 			this._findPRByBranchCache.set(key, promise);
 			// Only cache successful, numeric results indefinitely; the PR number
@@ -205,13 +227,19 @@ export class GitHubService extends Disposable implements IGitHubService {
 			promise.then(
 				value => {
 					if (typeof value !== 'number') {
+						this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} resolved with NO pr number; dropping cache entry so a later call retries`);
 						this._findPRByBranchCache.delete(key);
+					} else {
+						this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} resolved PR #${value}; caching indefinitely`);
 					}
 				},
-				() => {
+				err => {
+					this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} FAILED; dropping cache entry.`, err);
 					this._findPRByBranchCache.delete(key);
 				},
 			);
+		} else {
+			this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch cache HIT for ${key}`);
 		}
 		return promise.catch(() => undefined);
 	}
@@ -222,12 +250,14 @@ export class GitHubService extends Disposable implements IGitHubService {
 		// surfaces the PR after the agent run finishes and the PR is merged.
 		// `per_page=1` + `sort=updated` gives us the most recent match.
 		const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+		this._logService.trace(`${TRACE_PREFIX} [GitHubService] Fetching PR number for head ${owner}:${branch} via GET ${path}`);
 		const response = await this._apiClient.request<readonly { readonly number: number }[]>(
 			'GET',
 			path,
 			'githubApi.findPullRequestByHeadBranch',
 		);
 		const first = response.data?.[0];
+		this._logService.trace(`${TRACE_PREFIX} [GitHubService] PR number lookup for ${owner}:${branch} -> ${first ? `#${first.number}` : 'no match'} (status ${response.statusCode}, ${response.data?.length ?? 0} result(s))`);
 		return first ? first.number : undefined;
 	}
 }

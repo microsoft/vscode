@@ -386,10 +386,9 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		item.timing = session.timing;
 		item.status = session.status ?? vscode.ChatSessionStatus.Completed;
 
-		// `buildChanges` runs `git diff` and is the slow leg of populating an item. Skip it on the
-		// eager pass and let `resolveChatSessionItem` fill it in lazily for visible items.
-		// But if computing changes is easy (cached or the like), then include them right away to avoid a second update pass.
-		if (options?.includeChanges || ((await this.hasCachedChanges(session.id, worktreeProperties)))) {
+		// Building changes is expensive, so defer it to explicit resolve and refresh paths
+		// when lazy loading is enabled. Preserve eager loading when it is disabled.
+		if (options?.includeChanges || !this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
 			const changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory, token);
 			if (token.isCancellationRequested) {
 				return item;
@@ -441,17 +440,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		const badge = new vscode.MarkdownString(`${icon} ${basename(badgeUri)}`);
 		badge.supportThemeIcons = true;
 		return badge;
-	}
-
-	private async hasCachedChanges(sessionId: string, worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>): Promise<boolean> {
-		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
-			return true;
-		}
-		const [hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
-			this.copilotCLIWorktreeManagerService.hasCachedChanges(sessionId),
-			this._workspaceFolderService.hasCachedChanges(sessionId)
-		]);
-		return hasCachedWorktreeChanges || hasCachedWorkspaceChanges;
 	}
 
 	private async buildChanges(
@@ -757,7 +745,11 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unique chat request ID." },
 			"hasChatSessionItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Invoked with a chat session item." },
 			"isUntitled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the chat session is untitled." },
-			"hasDelegatePrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the prompt is a /delegate command." }
+			"hasDelegatePrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the prompt is a /delegate command." },
+			"isolation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The isolation mode of the session, if applicable." },
+			"isWorktree": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Convenience boolean for isolationMode == 'worktree'." },
+			"worktreeTurnIndex": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "1-based count of CLI turns issued against this worktree, including this one.", "isMeasurement": true },
+			"worktreeAgeBucketMs": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bucketed age since worktree creation (e.g. '<5min', '<1h', '<1d', '<7d', '>=7d'). Measure short-lived vs long-lived worktrees." }
 		}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('copilotcli.chat.invoke', {
@@ -898,7 +890,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
 			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled, creditsUsed);
-			await persistCopilotCLIResponseModelId(sdkSessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService, creditsUsed);
+			await persistCopilotCLIResponseModelId(sdkSessionId, request.id, responseModelId, model?.model === 'auto', this.chatSessionMetadataStore, this.logService, creditsUsed);
 
 			return result;
 		} catch (ex) {
@@ -1063,7 +1055,7 @@ export function registerCLIChatCommands(
 ): IDisposable {
 	const disposableStore = new DisposableStore();
 
-	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean }): Promise<void> {
+	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean; sessionLabel?: string }): Promise<void> {
 		const worktree = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
 		const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 
@@ -1078,7 +1070,7 @@ export function registerCLIChatCommands(
 					if (!repository) {
 						throw new Error(l10n.t('No active repository found to delete worktree.'));
 					}
-					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath);
+					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath, { label: options?.sessionLabel });
 				} catch (error) {
 					vscode.window.showErrorMessage(l10n.t('Failed to delete worktree: {0}', error instanceof Error ? error.message : String(error)));
 				}
@@ -1125,7 +1117,7 @@ export function registerCLIChatCommands(
 			);
 
 			if (result === deleteLabel) {
-				await deleteSessionById(id, { keepWorktree });
+				await deleteSessionById(id, { keepWorktree, sessionLabel: sessionItem.label });
 			}
 		}
 	}));
@@ -1154,7 +1146,7 @@ export function registerCLIChatCommands(
 				const id = SessionIdForCLI.parse(sessionItem.resource);
 				const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(id);
 				const keepWorktree = !!worktreePath && await shouldKeepWorktreeForOtherSessions(id, worktreePath);
-				await deleteSessionById(id, { keepWorktree });
+				await deleteSessionById(id, { keepWorktree, sessionLabel: sessionItem.label });
 			}
 		}
 	}));

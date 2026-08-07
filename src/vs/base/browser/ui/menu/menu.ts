@@ -26,6 +26,7 @@ import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
+import { CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -190,7 +191,7 @@ export class Menu extends ActionBar {
 			}
 		}));
 
-		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_MOVE, e => {
 			let target = e.target as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
 				return;
@@ -202,6 +203,11 @@ export class Menu extends ActionBar {
 
 			if (target.classList.contains('action-item')) {
 				const lastFocusedItem = this.focusedItem;
+				// Moving within the focused item is the common case; skip the item lookup for it
+				if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
+					return;
+				}
+
 				this.setFocusedItem(target);
 
 				if (lastFocusedItem !== this.focusedItem) {
@@ -320,10 +326,8 @@ export class Menu extends ActionBar {
 
 		const fgColor = style.foregroundColor ?? '';
 		const bgColor = style.backgroundColor ?? '';
-		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
 		const borderRadius = 'var(--vscode-cornerRadius-large)';
 
-		scrollElement.style.outline = border;
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
 		scrollElement.style.backgroundColor = bgColor;
@@ -791,7 +795,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			}
 		}));
 
-		this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, e => {
+		this._register(addDisposableListener(this.element, EventType.MOUSE_MOVE, e => {
 			if (!this.mouseOver) {
 				this.mouseOver = true;
 
@@ -1018,11 +1022,12 @@ export function formatRule(c: ThemeIcon) {
 
 export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 	const borderColor = style.borderColor ?? 'var(--vscode-menu-border)';
+	const menuShadow = `var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''})`;
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
 	border-radius: var(--vscode-cornerRadius-large);
-	border: 1px solid ${borderColor};
+	border: var(--vscode-strokeThickness) solid ${borderColor};
 	min-width: 160px;
 }
 
@@ -1237,11 +1242,12 @@ ${formatRule(Codicon.menuSubmenu)}
 /* Context Menu */
 
 .context-view.monaco-menu-container {
+	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: ${menuShadow};
 	outline: 0;
 	border: none;
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
-	box-shadow: var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''});
+	box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
 	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
@@ -1256,6 +1262,7 @@ ${formatRule(Codicon.menuSubmenu)}
 .hc-light .context-view.monaco-menu-container,
 :host-context(.hc-black) .context-view.monaco-menu-container,
 :host-context(.hc-light) .context-view.monaco-menu-container {
+	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: none;
 	box-shadow: none;
 }
 
@@ -1273,10 +1280,15 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 /* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
-.hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-.hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-:host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-:host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item {
+.hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+.hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: -1px !important;
+}
+
+/* Keep :host-context separate because WebKit otherwise rejects the valid selectors above. */
+:host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
 	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
 	outline-offset: -1px !important;
 }

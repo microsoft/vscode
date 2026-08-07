@@ -7,11 +7,23 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService, ILoggerService } from '../../log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../log/common/logIpc.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostStarter } from '../common/agent.js';
+import { reportAgentHostProcessError } from '../common/agentHostProcessTelemetry.js';
+import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostIpcChannels } from '../common/agentService.js';
 
 enum Constants {
 	MaxRestarts = 5,
+}
+
+const WINDOWS_EXPECTED_SHUTDOWN_EXIT_CODES = new Set([
+	0xC000026B, // STATUS_DLL_INIT_FAILED_LOGOFF
+	0x40010004, // DBG_TERMINATE_PROCESS
+]);
+
+function isExpectedWindowsShutdownExit(platform: NodeJS.Platform, code: number): boolean {
+	return platform === 'win32' && WINDOWS_EXPECTED_SHUTDOWN_EXIT_CODES.has(code >>> 0);
 }
 
 /**
@@ -28,8 +40,10 @@ export class AgentHostProcessManager extends Disposable {
 
 	constructor(
 		private readonly _starter: IAgentHostStarter,
+		private readonly _platform: NodeJS.Platform = process.platform,
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -64,20 +78,35 @@ export class AgentHostProcessManager extends Disposable {
 			this._logService.info('AgentHostProcessManager: agent host started');
 
 			// Connect logger channel so agent host logs appear in the output channel
-			this._register(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
+			connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
 
 			// Handle unexpected exit
-			this._register(connection.onDidProcessExit(e => {
-				if (!this._wasQuitRequested && !this._store.isDisposed) {
-					if (this._restartCount <= Constants.MaxRestarts) {
-						this._logService.error(`AgentHostProcessManager: agent host terminated unexpectedly with code ${e.code}`);
-						this._restartCount++;
-						this._started = false;
-						connection.store.dispose();
-						this._start();
-					} else {
-						this._logService.error(`AgentHostProcessManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
-					}
+			connection.store.add(connection.onDidProcessExit(e => {
+				if (this._wasQuitRequested || this._store.isDisposed) {
+					return;
+				}
+				if (isExpectedWindowsShutdownExit(this._platform, e.code)) {
+					this._logService.info(`AgentHostProcessManager: agent host terminated during Windows shutdown with code ${e.code}`);
+					connection.store.dispose();
+					return;
+				}
+
+				const willRestart = this._restartCount < Constants.MaxRestarts;
+				reportAgentHostProcessError(this._telemetryService, {
+					hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+					kind: 'unexpectedExit',
+					code: e.code,
+					restartCount: this._restartCount,
+					willRestart,
+				});
+				connection.store.dispose();
+				if (willRestart) {
+					this._logService.error(`AgentHostProcessManager: agent host terminated unexpectedly with code ${e.code}`);
+					this._restartCount++;
+					this._started = false;
+					this._start();
+				} else {
+					this._logService.error(`AgentHostProcessManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
 				}
 			}));
 
@@ -85,6 +114,12 @@ export class AgentHostProcessManager extends Disposable {
 		} catch (error) {
 			this._started = false;
 			this._logService.error('AgentHostProcessManager: failed to start agent host', error);
+			reportAgentHostProcessError(this._telemetryService, {
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				kind: 'startFailed',
+				restartCount: this._restartCount,
+				willRestart: false,
+			}, error);
 		}
 	}
 }

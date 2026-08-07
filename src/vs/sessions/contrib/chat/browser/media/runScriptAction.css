@@ -17,8 +17,8 @@
 }
 
 .run-script-action-label {
-	font-size: 12px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
 .run-script-action-input .monaco-inputbox {
@@ -45,7 +45,7 @@
 	gap: 2px;
 	padding: 2px;
 	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.06));
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-input-background);
 }
 
@@ -53,12 +53,12 @@
 	width: fit-content;
 	min-width: 76px;
 	padding: 4px 8px;
-	border: 1px solid transparent;
-	border-radius: 4px;
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 	color: var(--vscode-foreground);
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 14px;
 	opacity: 0.9;
 	transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
@@ -66,13 +66,13 @@
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:first-child,
 .run-script-action-section .monaco-custom-radio > .monaco-button:last-child {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:not(.active):not(:last-child),
 .run-script-action-section .monaco-custom-radio > .monaco-button.previous-active {
-	border-right: 1px solid transparent;
-	border-left: 1px solid transparent;
+	border-right: var(--vscode-strokeThickness) solid transparent;
+	border-left: var(--vscode-strokeThickness) solid transparent;
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:hover:not(.active):not(.disabled) {
@@ -121,7 +121,7 @@
 }
 
 .run-script-action-hint {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -135,16 +135,16 @@
 .run-script-action-buttons .monaco-text-button {
 	width: fit-content;
 	min-height: 28px;
-	padding: 5px 12px;
-	border-radius: 6px;
+	padding: 6px 12px;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-titlebar {
 	gap: 8px;
 	height: 32px;
 	padding: 0 6px 0 0;
-	border-top-left-radius: 8px;
-	border-top-right-radius: 8px;
+	border-top-left-radius: var(--vscode-cornerRadius-large);
+	border-top-right-radius: var(--vscode-cornerRadius-large);
 	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
 	box-sizing: border-box;
 	background-color: var(--vscode-titleBar-activeBackground);
@@ -157,19 +157,19 @@
 .agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-title {
 	padding: 0;
 	text-align: left;
-	font-size: 12px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-titleBar-activeForeground);
 }
 
 .agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget {
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: var(--vscode-shadow-xl);
 }
 
 .agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-html-widget {
-	border-bottom-left-radius: 8px;
-	border-bottom-right-radius: 8px;
+	border-bottom-left-radius: var(--vscode-cornerRadius-large);
+	border-bottom-right-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 

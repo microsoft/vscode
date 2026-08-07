@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationItem, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -84,6 +84,7 @@ export interface IAICustomizationItemSource extends IDisposable {
 	readonly onDidAICustomizationItemsChange: Event<void>;
 	fetchProviderItems(): Promise<readonly ICustomizationItem[]>;
 	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
+	fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]>;
 }
 
 // #endregion
@@ -282,6 +283,11 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		}));
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this.cachedPromise = undefined;
+	}
+
 	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
 		if (!this.cachedPromise) {
 			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
@@ -322,6 +328,14 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		return normalized;
 	}
 
+	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
+		if (!this.itemProvider.provideSourceFolders) {
+			return [];
+		}
+
+		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
+
 	/**
 	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
 	 * into the provider's items. The provider may re-discover the bundled
@@ -330,16 +344,11 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	 * `groupKey: BUILTIN_STORAGE` so the UI renders them in the "Built-in"
 	 * group. User-authored overrides (different URI, same name) are preserved.
 	 *
-	 * A workbench that uses the base `PromptsService` will throw on
-	 * `BUILTIN_STORAGE` — we catch and return the items unchanged in that case.
+	 * A workbench that uses the base `PromptsService` contributes no built-in
+	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
 	 */
 	private async mergeBuiltinSkills(items: readonly IAICustomizationListItem[], promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		let builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = [];
-		try {
-			builtinPaths = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage, CancellationToken.None);
-		} catch {
-			return [...items];
-		}
+		const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
 		if (builtinPaths.length === 0) {
 			return [...items];
 		}
@@ -415,6 +424,29 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	}
 }
 
+export class EmptyItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
+
+	readonly onDidAICustomizationItemsChange = Event.None;
+
+	constructor(
+		readonly sessionResource: URI,
+	) {
+		super();
+	}
+
+	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		return Promise.resolve([]);
+	}
+
+	fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		return Promise.resolve([]);
+	}
+
+	fetchSourceFolders(_promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
+		return Promise.resolve([]);
+	}
+}
+
 export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
 
 	readonly onDidAICustomizationItemsChange: Event<void>;
@@ -461,6 +493,14 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const allItems = await this.fetchProviderItems();
 		return this.itemNormalizer.normalizeItems(allItems, promptType);
+	}
+
+	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
+		if (!this.itemProvider.provideSourceFolders) {
+			return [];
+		}
+
+		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
 	}
 
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../../../base/browser/dom.js';
+import { $, append, isHTMLElement } from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -15,11 +15,11 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import { IChatRendererContent, IChatWorkingProgress, IChatWorkingProgressState, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { getToolApprovalMessage } from './toolInvocationParts/chatToolPartUtilities.js';
+import { getToolApprovalMessage, isAskQuestionsToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
@@ -75,6 +75,9 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
+		if (useShimmer) {
+			syncShimmerPhase(this.applyShimmer(result.element));
+		}
 
 		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
 		const progressPart = this._register(instantiationService.createInstance(ChatProgressSubPart, result.element, codicon, tooltip));
@@ -83,6 +86,70 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			this.domNode.classList.add('shimmer-progress');
 		}
 		this.renderedMessage.value = result;
+	}
+
+	/**
+	 * Applies the shimmer treatment and returns the elements that actually animate, so their
+	 * animation phase can be synced. A partial shimmer wraps only the leading verb in spans;
+	 * otherwise the whole message paragraph shimmers.
+	 */
+	private applyShimmer(element: HTMLElement): readonly HTMLElement[] {
+		const firstChild = element.firstElementChild;
+		const messageElement = isHTMLElement(firstChild) && firstChild.tagName === 'P' ? firstChild : element;
+		const boundary = this.toolInvocation ? this.computeShimmerBoundary(messageElement) : -1;
+		if (boundary <= 0) {
+			return [messageElement];
+		}
+
+		element.classList.add('chat-progress-partial-shimmer');
+		return this.wrapLeadingText(messageElement, boundary);
+	}
+
+	/**
+	 * How many leading characters of the progress message should shimmer. Ask-question rows
+	 * shimmer everything before the ` (` summary; streaming rows shimmer only the stable leading
+	 * verb so moving parts (line counts, file names) stay still. Non-positive skips partial shimmer.
+	 */
+	private computeShimmerBoundary(messageElement: HTMLElement): number {
+		if (isAskQuestionsToolInvocation(this.toolInvocation!)) {
+			return messageElement.textContent?.indexOf(' (') ?? -1;
+		}
+		if (IChatToolInvocation.isStreaming(this.toolInvocation!)) {
+			return leadingStableTextLength(messageElement);
+		}
+		return -1;
+	}
+
+	private wrapLeadingText(element: HTMLElement, length: number): HTMLElement[] {
+		const spans: HTMLElement[] = [];
+		let remaining = length;
+		const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+		while (remaining > 0) {
+			const node = walker.nextNode();
+			if (!node) {
+				return spans;
+			}
+
+			const text = node.nodeValue ?? '';
+			if (!text) {
+				continue;
+			}
+
+			const shimmerText = text.slice(0, remaining);
+			const suffixText = text.slice(remaining);
+			const span = element.ownerDocument.createElement('span');
+			span.classList.add('chat-progress-shimmer-text');
+			span.textContent = shimmerText;
+			node.parentNode?.insertBefore(span, node);
+			if (suffixText) {
+				node.nodeValue = suffixText;
+			} else {
+				node.parentNode?.removeChild(node);
+			}
+			spans.push(span);
+			remaining -= shimmerText.length;
+		}
+		return spans;
 	}
 
 	updateMessage(content: IMarkdownString): void {
@@ -133,6 +200,47 @@ function shouldShowSpinner(followingContent: IChatRendererContent[], element: Ch
 	return isResponseVM(element) && !element.isComplete && followingContent.length === 0;
 }
 
+/**
+ * Length of the leading, non-moving portion of a streaming progress message — the verb before
+ * the first digit, `(`, or inline element (e.g. a file anchor). Trailing whitespace is excluded
+ * so the shimmer ends on the word rather than the gap before the static suffix.
+ */
+function leadingStableTextLength(messageElement: HTMLElement): number {
+	const fullText = messageElement.textContent ?? '';
+	let length = 0;
+	for (const node of messageElement.childNodes) {
+		if (node.nodeType === Node.TEXT_NODE) {
+			const nodeText = node.nodeValue ?? '';
+			const movingPart = /[(\d]/.exec(nodeText);
+			if (movingPart) {
+				length += movingPart.index;
+				break;
+			}
+			length += nodeText.length;
+		} else {
+			break;
+		}
+	}
+	while (length > 0 && /\s/.test(fullText[length - 1])) {
+		length--;
+	}
+	return length;
+}
+
+const SHIMMER_ANIMATION_DURATION_MS = 2000;
+const shimmerEpochMs = Date.now();
+
+/**
+ * Aligns freshly-rendered shimmer elements to a shared timeline via a negative `animation-delay`.
+ * Streaming progress recreates its DOM on every update, which would otherwise restart the CSS
+ * animation from 0% and make the sweep appear frozen; a phase offset keeps it continuous.
+ */
+function syncShimmerPhase(animatedElements: readonly HTMLElement[]): void {
+	const animationDelay = `-${(Date.now() - shimmerEpochMs) % SHIMMER_ANIMATION_DURATION_MS}ms`;
+	for (const element of animatedElements) {
+		element.style.animationDelay = animationDelay;
+	}
+}
 
 export class ChatProgressSubPart extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -200,14 +308,8 @@ function pickWorkingLabel(elementId: string, configurationService: IConfiguratio
 	return label;
 }
 
-export class ChatWorkingProgressContentPart extends Disposable implements IChatContentPart {
-	public readonly domNode: HTMLElement;
-	private readonly labelElement: HTMLElement;
-	private readonly statsElement: HTMLElement;
+export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
 	private explicitContent: IMarkdownString | undefined;
-	private readonly label: string;
-	private readonly hasState: boolean;
-	private readonly isCompleteState: boolean;
 
 	constructor(
 		workingProgress: IChatWorkingProgress,
@@ -218,93 +320,27 @@ export class ChatWorkingProgressContentPart extends Disposable implements IChatC
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 	) {
-		super();
-		this.explicitContent = workingProgress.content;
-		this.label = pickWorkingLabel(context.element.id, configurationService);
-
-		// Build the DOM
-		this.domNode = $('.progress-container');
-		const iconElement = $('div');
-		const state = workingProgress.state;
-		this.hasState = !!state;
-		const isComplete = state?.isComplete ?? false;
-		this.isCompleteState = isComplete;
-
-		if (isComplete) {
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
-		} else {
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
-		}
-		append(this.domNode, iconElement);
-
-		// Structure: .progress-container > .rendered-markdown.progress-step.chat-working-progress-step > p (shimmered label) + span (stats, no shimmer)
-		const messageContainer = $('div.rendered-markdown.progress-step.chat-working-progress-step');
-		this.labelElement = $('p');
-		this.statsElement = $('span');
-		append(messageContainer, this.labelElement);
-		append(messageContainer, this.statsElement);
-		append(this.domNode, messageContainer);
-
-		if (!isComplete) {
-			this.domNode.classList.add('shimmer-progress');
-		}
-
-		if (state) {
-			this.initializeWithState(state);
-		} else {
-			// No state provided - show explicit content or label
-			this.labelElement.textContent = this.explicitContent
-				? renderAsPlaintext(this.explicitContent)
-				: this.label;
-		}
+		const explicitContent = workingProgress.content;
+		const progressMessage: IChatProgressMessage = {
+			kind: 'progressMessage',
+			content: explicitContent ?? new MarkdownString().appendText(pickWorkingLabel(context.element.id, configurationService))
+		};
+		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, true, instantiationService, chatMarkdownAnchorService, configurationService);
+		this.explicitContent = explicitContent;
 
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
 			if (isEqual(context.element.sessionResource, e.sessionResource)) {
-				this.updateWorkingContent(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));
+				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));
 			}
 		}));
 	}
 
-	private initializeWithState(state: IChatWorkingProgressState): void {
-		if (state.isComplete) {
-			// Past tense: show final elapsed time and tokens
-			this.renderCompletedProgress(state);
-		} else {
-			// Active: start timer and observe tokens
-			this.startLiveProgress(state);
-		}
-	}
-
-	private renderCompletedProgress(state: IChatWorkingProgressState): void {
-		// Stats are intentionally hidden in the minimal shipping version.
-	}
-
-	private startLiveProgress(state: IChatWorkingProgressState): void {
-		// If explicit content was set (e.g., tool unresponsive), show that; otherwise
-		// just show the shimmered working label. Stats are intentionally hidden in
-		// the minimal shipping version.
-		if (!this.explicitContent) {
-			this.labelElement.textContent = this.label;
-		}
-	}
-
 	updateWorkingContent(content: IMarkdownString): void {
 		this.explicitContent = content;
-		this.labelElement.textContent = renderAsPlaintext(content);
-		this.statsElement.textContent = '';
+		this.updateMessage(content);
 	}
 
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		if (other.kind !== 'working') {
-			return false;
-		}
-		if (!!other.state !== this.hasState) {
-			return false;
-		}
-		// Re-render when completion state changes (in-progress to complete)
-		if ((other.state?.isComplete ?? false) !== this.isCompleteState) {
-			return false;
-		}
-		return other.content?.value === this.explicitContent?.value;
+	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		return other.kind === 'working' && other.content?.value === this.explicitContent?.value;
 	}
 }

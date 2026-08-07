@@ -1,0 +1,285 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { equals as objectEquals } from '../../../base/common/objects.js';
+import { URI } from '../../../base/common/uri.js';
+import { Emitter } from '../../../base/common/event.js';
+import { ILogService } from '../../log/common/log.js';
+import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
+import { ISessionGitHubState, readSessionGitHubState, readSessionGitState, SessionLifecycle, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
+import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { IAgentService } from '../common/agentService.js';
+import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+
+export class AgentHostGitStateService extends Disposable implements IAgentHostGitStateService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidRefreshSessionGitState = this._register(new Emitter<string>());
+	readonly onDidRefreshSessionGitState = this._onDidRefreshSessionGitState.event;
+
+	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
+	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
+
+	/**
+	 * Serializes pull request lookups per session so overlapping triggers (turn
+	 * completion, session restore, a refresh observing a branch change) issue at
+	 * most one GitHub request at a time and observe each other's writes.
+	 */
+	private readonly _pullRequestSequencer = new SequencerByKey<string>();
+	private readonly _pullRequestAbortController = new AbortController();
+
+	constructor(
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
+		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@ILogService private readonly _logService: ILogService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+	) {
+		super();
+
+		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
+		this._register(toDisposable(() => this._pullRequestAbortController.abort()));
+	}
+
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+		await this.refreshSessionGitState(sessionKey, workingDirectory);
+		await this._queuePullRequestLookup(sessionKey);
+	}
+
+	/**
+	 * Queues a pull request lookup on the session's sequencer so overlapping
+	 * triggers (turn completion, session restore, a refresh observing a branch
+	 * change) issue at most one GitHub request at a time.
+	 */
+	private _queuePullRequestLookup(sessionKey: string): Promise<void> {
+		return this._pullRequestSequencer.queue(sessionKey, () => this._attachSessionGitHubPullRequest(sessionKey));
+	}
+
+	private async _attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (!state) {
+			return;
+		}
+
+		// New session
+		if (state.lifecycle !== SessionLifecycle.Ready) {
+			return;
+		}
+
+		// GitHub state
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		if (!gitHubState?.owner || !gitHubState?.repo) {
+			return;
+		}
+
+		// Git state
+		const gitState = readSessionGitState(state._meta);
+		const branchName = gitState?.branchName;
+		if (!branchName || (branchName === gitState?.baseBranchName)) {
+			return;
+		}
+
+		// A pull request is always tied to a branch: only stop looking once we
+		// know a pull request for the branch that is currently checked out.
+		// State persisted before pull requests were tracked per branch records
+		// no branch, so its pull request is verified against the current branch
+		// rather than assumed to belong to it.
+		if (gitHubState.pullRequestBranchName === branchName) {
+			return;
+		}
+
+		try {
+			const repoResource = this._gitHubEndpointService.getRepoResource();
+			const authToken = this._agentService.getAuthToken({
+				resource: repoResource.resource,
+				scopes: repoResource.scopes_supported,
+			});
+			if (!authToken) {
+				return;
+			}
+
+			const pr = await this._octoKitService.findPullRequestByHeadBranch(
+				gitHubState.owner, gitHubState.repo, branchName, authToken, this._pullRequestAbortController.signal, gitState?.githubHeadOwner);
+			if (!pr?.url) {
+				// No pull request for this branch (yet). The previously known
+				// pull request, if any, keeps being reported and the lookup is
+				// retried on the next refresh.
+				return;
+			}
+
+			// The working copy may have moved to another branch while the
+			// request was in flight; discard the now stale result so it cannot
+			// overwrite the pull request of the branch that is checked out now.
+			const currentBranchName = readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta)?.branchName;
+			if (currentBranchName !== branchName) {
+				return;
+			}
+
+			const currentGitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+			await this.setSessionGitHubState(sessionKey, withMostRecentSessionPullRequest(currentGitHubState, pr.url, branchName));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
+		}
+	}
+
+	/**
+	 * Scans a user message for GitHub issue references and merges them into the
+	 * session's GitHub state. References already recorded are preserved and keep
+	 * their position, so the list reflects the order in which the session first
+	 * mentioned each issue.
+	 */
+	async attachSessionGitHubIssues(sessionKey: string, text: string): Promise<void> {
+		const references = parseGitHubIssueReferences(text);
+		if (references.length === 0) {
+			return;
+		}
+
+		const currentUrls = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta)?.issueUrls ?? [];
+		const nextUrls = [...currentUrls];
+		for (const reference of references) {
+			const url = toGitHubIssueUrl(reference);
+			if (!nextUrls.includes(url)) {
+				nextUrls.push(url);
+			}
+		}
+
+		if (nextUrls.length === currentUrls.length) {
+			return;
+		}
+
+		await this.setSessionGitHubState(sessionKey, {
+			issueUrls: nextUrls.slice(0, MAX_SESSION_ISSUE_REFERENCES)
+		} satisfies ISessionGitHubState);
+	}
+
+	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+		const sessionState = this._stateManager.getSessionState(sessionKey);
+		if (sessionState?.lifecycle === SessionLifecycle.CreationFailed) {
+			return;
+		}
+
+		if (!workingDirectory) {
+			const workingDirectoryStr = sessionState?.workingDirectories?.[0];
+			if (workingDirectoryStr) {
+				workingDirectory = URI.parse(workingDirectoryStr);
+			}
+		}
+
+		if (!workingDirectory) {
+			return;
+		}
+
+		await this._gitStateRefreshThrottler.queue(sessionKey, async () => {
+			try {
+				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
+
+				const gitState = await this._gitService.getSessionGitState(workingDirectory);
+				if (gitState) {
+					const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+					const previousGitState = readSessionGitState(currentMeta);
+					if (!objectEquals(previousGitState, gitState)) {
+						// Update the session's git state
+						await this._setSessionGitState(sessionKey, gitState);
+
+						// Update the session's GitHub state
+						if (gitState.githubOwner && gitState.githubRepo) {
+							await this.setSessionGitHubState(sessionKey, {
+								owner: gitState.githubOwner,
+								repo: gitState.githubRepo
+							} satisfies ISessionGitHubState);
+
+							// The working copy switched to a different branch:
+							// look for a pull request that belongs to the new
+							// branch. The previously known pull request keeps
+							// being reported until a new one is found. Awaited
+							// so the refresh event below carries the pull
+							// request of the new branch rather than stale
+							// GitHub state.
+							if (previousGitState?.branchName !== gitState.branchName) {
+								await this._queuePullRequestLookup(sessionKey);
+							}
+						}
+					}
+				}
+
+				this._onDidRefreshSessionGitState.fire(sessionKey);
+
+				// We want to ensure that we refresh the git state at
+				// most every 5 seconds in order to avoid excessive git
+				// operations and excessive traffic between the server
+				// and the client(s).
+				await timeout(5_000, this._gitStateRefreshCancellationTokenSource.token);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					return;
+				}
+
+				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}:`, error);
+			}
+		});
+	}
+
+	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+
+		const currentState = readSessionGitHubState(currentMeta);
+		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
+
+		if (objectEquals(currentState, nextState)) {
+			return;
+		}
+
+		// Update session state manager
+		const nextMeta = withSessionGitHubState(currentMeta, nextState);
+		this._stateManager.setSessionMeta(sessionKey, nextMeta);
+
+		// Update session database
+		await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
+	}
+
+	private async _setSessionGitState(sessionKey: string, gitState: ISessionGitState): Promise<void> {
+		// Update session state manager
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const nextMeta = withSessionGitState(currentMeta, gitState);
+		this._stateManager.setSessionMeta(sessionKey, nextMeta);
+
+		// Update session database
+		await this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
+	}
+
+	private async _saveSessionState(sessionKey: string, key: string, value: string): Promise<void> {
+		// Skip saving session state if the session is not materialized
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (state?.lifecycle === SessionLifecycle.Creating) {
+			return;
+		}
+
+		let databaseRef;
+		try {
+			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to open session database for ${sessionKey}`, error);
+			return;
+		}
+
+		try {
+			await databaseRef.object.setMetadata(key, value);
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to persist ${key}`, error);
+		} finally {
+			databaseRef.dispose();
+		}
+	}
+}

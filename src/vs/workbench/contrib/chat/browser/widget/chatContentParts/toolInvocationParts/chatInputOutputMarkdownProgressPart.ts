@@ -12,9 +12,7 @@ import { autorun } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
 import { ChatResponseResource } from '../../../../common/model/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
@@ -48,7 +46,6 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(toolInvocation);
 
@@ -112,11 +109,8 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 				}),
 			} : undefined,
 			isError,
-			// Expand by default when there's an error (if setting enabled),
-			// otherwise use the stored expanded state (defaulting to false)
-			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
-			(ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
-			shouldShimmerForTool(toolInvocation),
+			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
+			shouldShimmerForTool(toolInvocation, message),
 		));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 

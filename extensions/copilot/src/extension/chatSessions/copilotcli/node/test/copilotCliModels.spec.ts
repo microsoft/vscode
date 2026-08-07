@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticationSession } from 'vscode';
+import type { AuthenticationSession, LanguageModelChatInformation } from 'vscode';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { ConfigKey } from '../../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../../platform/configuration/common/defaultsOnlyConfigurationService';
@@ -38,6 +38,26 @@ const FAKE_MODELS: CopilotCLIModelInfo[] = [
 	{ id: 'gpt-4o', name: 'GPT-4o', maxContextWindowTokens: 128000, supportsVision: true },
 	{ id: 'gpt-3.5', name: 'GPT-3.5', maxContextWindowTokens: 16000, supportsVision: false },
 ];
+
+
+function buildAutoModel(defaultModel?: CopilotCLIModelInfo): LanguageModelChatInformation {
+	return {
+		id: 'auto',
+		name: 'Auto',
+		tooltip: 'Auto routes based on your task and real-time system health and model performance. [Learn More](https://docs.github.com/en/copilot/concepts/models/auto-model-selection)',
+		family: defaultModel?.id ?? '',
+		version: '',
+		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
+		maxOutputTokens: defaultModel?.maxOutputTokens ?? 0,
+		isUserSelectable: true,
+		capabilities: {
+			imageInput: defaultModel?.supportsVision,
+			toolCalling: true,
+		},
+		targetChatSessionType: 'copilotcli',
+		isDefault: true,
+	};
+}
 
 function createMockSDK(models: CopilotCLIModelInfo[] = FAKE_MODELS): ICopilotCLISDK {
 	return {
@@ -398,7 +418,7 @@ describe('CopilotCLIModels', () => {
 			await new Promise(r => setTimeout(r, 0));
 
 			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
-			expect(result).toEqual([]);
+			expect(result).toEqual([buildAutoModel()]);
 		});
 
 		it('returns only auto while models are still being fetched', async () => {
@@ -421,7 +441,7 @@ describe('CopilotCLIModels', () => {
 
 			// Models are still pending — provider has no resolved infos yet
 			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
-			expect(result).toEqual([]);
+			expect(result).toEqual([buildAutoModel()]);
 
 			// Flush microtasks so getPackage()/getAuthInfo() resolve and getAvailableModels is called,
 			// which captures resolveModels.

@@ -60,8 +60,8 @@ import { SettingsEditor2Input } from '../../../services/preferences/common/prefe
 import { nullRange, Settings2EditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
-import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { ADVANCED_SETTING_TAG, AGENTS_WINDOW_SETTING_TAG, CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EMBEDDINGS_SEARCH_PROVIDER_NAME, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, FILTER_MODEL_SEARCH_PROVIDER_NAME, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, LLM_RANKED_SEARCH_PROVIDER_NAME, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
+import { SuggestEnabledInputWithHistory } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
+import { ADVANCED_SETTING_TAG, AGENTS_WINDOW_SETTING_TAG, CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EMBEDDINGS_SEARCH_PROVIDER_NAME, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, FILTER_MODEL_SEARCH_PROVIDER_NAME, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, LLM_RANKED_SEARCH_PROVIDER_NAME, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import './media/settingsEditor2.css';
@@ -95,6 +95,10 @@ export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<I
 const $ = DOM.$;
 
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
+const searchBoxPlaceholderWithHistory = localize({
+	key: 'SearchSettings.PlaceholderWithHistory',
+	comment: ['Placeholder for the settings search input hinting that the up and down arrow keys navigate the search history. The character inserted for {0} is \u21C5 to represent the up and down arrow keys.']
+}, "Search settings ({0} for history)", '\u21C5');
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
 const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
@@ -171,7 +175,7 @@ export class SettingsEditor2 extends EditorPane {
 	private headerContainer!: HTMLElement;
 	private searchContainer: HTMLElement | null = null;
 	private bodyContainer!: HTMLElement;
-	private searchWidget!: SuggestEnabledInput;
+	private searchWidget!: SuggestEnabledInputWithHistory;
 	private countElement!: HTMLElement;
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
@@ -193,6 +197,13 @@ export class SettingsEditor2 extends EditorPane {
 	private searchInProgress: CancellationTokenSource | null = null;
 	private aiSearchPromise: CancelablePromise<void> | null = null;
 
+	/**
+	 * The trimmed query value that the currently rendered results reflect. Used to determine
+	 * whether the displayed results are up to date with the current search input value before
+	 * moving focus into the results.
+	 */
+	private renderedSearchQuery: string | undefined = '';
+
 	private showAiResultsAction: Action | null = null;
 
 	private searchInputDelayer: Delayer<void>;
@@ -210,6 +221,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private tocRowFocused: IContextKey<boolean>;
 	private settingRowFocused: IContextKey<boolean>;
+	private settingFirstRowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 	private aiResultsAvailable: IContextKey<boolean>;
@@ -234,6 +246,8 @@ export class SettingsEditor2 extends EditorPane {
 
 	private readonly DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY = 'settingsEditor2.dismissedExtensionSettings';
 	private readonly DISMISSED_EXTENSION_SETTINGS_DELIMITER = '\t';
+
+	private readonly SEARCH_HISTORY_STORAGE_KEY = 'settingsEditor2.searchHistory';
 
 	private readonly inputChangeListener: MutableDisposable<IDisposable>;
 
@@ -280,6 +294,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 		this.tocRowFocused = CONTEXT_TOC_ROW_FOCUS.bindTo(contextKeyService);
 		this.settingRowFocused = CONTEXT_SETTINGS_ROW_FOCUS.bindTo(contextKeyService);
+		this.settingFirstRowFocused = CONTEXT_SETTINGS_FIRST_ROW_FOCUS.bindTo(contextKeyService);
 		this.aiResultsAvailable = CONTEXT_AI_SETTING_RESULTS_AVAILABLE.bindTo(contextKeyService);
 
 		this.scheduledRefreshes = new Map<string, DisposableStore>();
@@ -663,6 +678,53 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTree.domFocus();
 	}
 
+	/**
+	 * Invoked when the user presses the down arrow while the search input is focused.
+	 * Navigates forward through the search history first; only once there are no more
+	 * recent history entries does focus move down into the settings results.
+	 */
+	navigateSearchHistoryNextOrFocusSettings(): void {
+		if (this.searchWidget.isNavigatingHistory()) {
+			this.searchWidget.showNextValue();
+		} else {
+			this.focusFirstSettingFromSearch();
+		}
+	}
+
+	/**
+	 * Invoked when the user presses the up arrow while the search input is focused.
+	 * Navigates backward through the search history.
+	 */
+	navigateSearchHistoryPrevious(): void {
+		this.searchWidget.showPreviousValue();
+	}
+
+	/**
+	 * Whether the currently rendered results reflect the current search input value.
+	 * Returns false while a search is still pending (debounced) or in progress, so that
+	 * focus is not moved into stale results.
+	 */
+	private isSearchUpToDate(): boolean {
+		return !this.searchInputDelayer.isTriggered && this.renderedSearchQuery === this.searchWidget.getValue().trim();
+	}
+
+	/**
+	 * Moves focus from the search input into the first settings result, but only when the
+	 * displayed results are up to date with the current search input. If the results are
+	 * stale (a search is still pending or in progress), this does nothing so that focus does
+	 * not land on results from a previous query.
+	 */
+	focusFirstSettingFromSearch(): void {
+		if (!this.isSearchUpToDate()) {
+			return;
+		}
+		this.focusSettings();
+	}
+
+	private updateSettingFirstRowFocusedContext(element: SettingsTreeElement | null): void {
+		this.settingFirstRowFocused.set(!!element && element === this.settingsTree.navigate().first());
+	}
+
 	showContextMenu(): void {
 		const focused = this.settingsTree.getFocus()[0];
 		const rowElement = this.focusedSettingDOMElement;
@@ -694,6 +756,16 @@ export class SettingsEditor2 extends EditorPane {
 		});
 
 		this.searchWidget.setValue(splitQuery.join(' '));
+	}
+
+	/**
+	 * Updates the search input placeholder so that it hints at history navigation
+	 * (up/down arrows) once the user has search history, similar to the keyboard
+	 * shortcuts editor.
+	 */
+	private updateSearchPlaceholder(): void {
+		const hasHistory = this.searchWidget.getHistory().length > 0;
+		this.searchWidget.setPlaceHolder(hasHistory ? searchBoxPlaceholderWithHistory : searchBoxLabel);
 	}
 
 	private updateInputAriaLabel() {
@@ -733,38 +805,47 @@ export class SettingsEditor2 extends EditorPane {
 			localize('filterInput', "Filter Settings"), ThemeIcon.asClassName(preferencesFilterIcon)
 		));
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, this.searchContainer, {
-			triggerCharacters: ['@', ':'],
-			provideResults: (query: string) => {
-				// Based on testing, the trigger character is always at the end of the query.
-				// for the ':' trigger, only return suggestions if there was a '@' before it in the same word.
-				const queryParts = query.split(/\s/g);
-				if (queryParts[queryParts.length - 1].startsWith(`@${LANGUAGE_SETTING_TAG}`)) {
-					const sortedLanguages = this.languageService.getRegisteredLanguageIds().map(languageId => {
-						return `@${LANGUAGE_SETTING_TAG}${languageId} `;
-					}).sort();
-					return sortedLanguages.filter(langFilter => !query.includes(langFilter));
-				} else if (queryParts[queryParts.length - 1].startsWith(`@${EXTENSION_SETTING_TAG}`)) {
-					const installedExtensionsTags = this.installedExtensionIds.map(extensionId => {
-						return `@${EXTENSION_SETTING_TAG}${extensionId} `;
-					}).sort();
-					return installedExtensionsTags.filter(extFilter => !query.includes(extFilter));
-				} else if (query === '' || queryParts[queryParts.length - 1].startsWith('@')) {
-					return SettingsEditor2.SUGGESTIONS.filter(tag => !query.includes(tag)).map(tag => tag.endsWith(':') ? tag : tag + ' ');
+		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInputWithHistory, {
+			id: `${SettingsEditor2.ID}.searchbox`,
+			parent: this.searchContainer,
+			ariaLabel: searchBoxLabel,
+			resourceHandle: 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++,
+			suggestionProvider: {
+				triggerCharacters: ['@', ':'],
+				provideResults: (query: string) => {
+					// Based on testing, the trigger character is always at the end of the query.
+					// for the ':' trigger, only return suggestions if there was a '@' before it in the same word.
+					const queryParts = query.split(/\s/g);
+					if (queryParts[queryParts.length - 1].startsWith(`@${LANGUAGE_SETTING_TAG}`)) {
+						const sortedLanguages = this.languageService.getRegisteredLanguageIds().map(languageId => {
+							return `@${LANGUAGE_SETTING_TAG}${languageId} `;
+						}).sort();
+						return sortedLanguages.filter(langFilter => !query.includes(langFilter));
+					} else if (queryParts[queryParts.length - 1].startsWith(`@${EXTENSION_SETTING_TAG}`)) {
+						const installedExtensionsTags = this.installedExtensionIds.map(extensionId => {
+							return `@${EXTENSION_SETTING_TAG}${extensionId} `;
+						}).sort();
+						return installedExtensionsTags.filter(extFilter => !query.includes(extFilter));
+					} else if (query === '' || queryParts[queryParts.length - 1].startsWith('@')) {
+						return SettingsEditor2.SUGGESTIONS.filter(tag => !query.includes(tag)).map(tag => tag.endsWith(':') ? tag : tag + ' ');
+					}
+					return [];
 				}
-				return [];
-			}
-		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
-			placeholderText: searchBoxLabel,
-			focusContextKey: this.searchFocusContextKey,
-			styleOverrides: {
-				inputBorder: settingsTextInputBorder
-			}
-			// TODO: Aria-live
+			},
+			suggestOptions: {
+				placeholderText: searchBoxLabel,
+				focusContextKey: this.searchFocusContextKey,
+				styleOverrides: {
+					inputBorder: settingsTextInputBorder
+				}
+				// TODO: Aria-live
+			},
+			history: this.loadSearchHistory()
 		}));
 		this._register(this.searchWidget.onDidFocus(() => {
 			this._currentFocusContext = SettingsFocusContext.Search;
 		}));
+		this.updateSearchPlaceholder();
 		this._register(this.searchWidget.onInputDidChange(() => {
 			const searchVal = this.searchWidget.getValue();
 			clearInputAction.enabled = !!searchVal;
@@ -1156,11 +1237,13 @@ export class SettingsEditor2 extends EditorPane {
 				if (this.treeFocusedElement) {
 					this.treeFocusedElement.tabbable = true;
 				}
+				this.updateSettingFirstRowFocusedContext(this.treeFocusedElement);
 			}
 		}));
 
 		this._register(this.settingsTree.onDidBlur(() => {
 			this.settingRowFocused.set(false);
+			this.settingFirstRowFocused.set(false);
 			// Clear out the focused element, otherwise it could be
 			// out of date during the next onDidFocus event.
 			this.treeFocusedElement = null;
@@ -1169,6 +1252,7 @@ export class SettingsEditor2 extends EditorPane {
 		// There is no different select state in the settings tree
 		this._register(this.settingsTree.onDidChangeFocus(e => {
 			const element = e.elements[0];
+			this.updateSettingFirstRowFocusedContext(element ?? null);
 			if (this.treeFocusedElement === element) {
 				return;
 			}
@@ -1729,7 +1813,37 @@ export class SettingsEditor2 extends EditorPane {
 
 		const query = this.searchWidget.getValue().trim();
 		this.viewState.query = query;
+		if (query) {
+			this.searchWidget.addToHistory();
+			this.updateSearchPlaceholder();
+			this.saveSearchHistory();
+		}
 		await this.triggerSearch(query.replace(/\u203A/g, ' '), expandResults);
+	}
+
+	private loadSearchHistory(): string[] {
+		const raw = this.storageService.get(this.SEARCH_HISTORY_STORAGE_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return [];
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [];
+		} catch {
+			return [];
+		}
+	}
+
+	private saveSearchHistory(): void {
+		if (!this.searchWidget) {
+			return;
+		}
+		const history = this.searchWidget.getHistory();
+		if (history.length) {
+			this.storageService.store(this.SEARCH_HISTORY_STORAGE_KEY, JSON.stringify(history), StorageScope.PROFILE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(this.SEARCH_HISTORY_STORAGE_KEY, StorageScope.PROFILE);
+		}
 	}
 
 	private parseSettingFromJSON(query: string): string | null {
@@ -1800,6 +1914,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.viewState.categoryFilter = undefined;
 			}
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
+			this.renderedSearchQuery = this.viewState.query;
 
 			if (this.searchResultModel) {
 				// Added a filter model
@@ -1917,6 +2032,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private onDidFinishSearch(expandResults: boolean, progressRunner: IProgressRunner | undefined): void {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
+		this.renderedSearchQuery = this.viewState.query;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
 			this.viewState.categoryFilter = undefined;
@@ -2128,6 +2244,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	protected override saveState(): void {
+		this.saveSearchHistory();
 		if (this.isVisible()) {
 			const searchQuery = this.searchWidget.getValue().trim();
 			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;

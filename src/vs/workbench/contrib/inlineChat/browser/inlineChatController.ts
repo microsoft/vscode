@@ -578,7 +578,7 @@ export class InlineChatController implements IEditorContribution {
 					if (!model) {
 						throw new Error(`Language model not loaded: ${id}.`);
 					}
-					this.#zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+					this.#zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id }, true);
 				}
 				if (arg.message) {
 					this.#zone.value.widget.chatWidget.setInput(arg.message);

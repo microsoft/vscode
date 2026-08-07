@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { SequencerByKey } from '../../../base/common/async.js';
+import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
+import { URI } from '../../../base/common/uri.js';
+import type { Message } from '../common/state/sessionState.js';
 
 /**
  * A single numbered migration. Migrations are applied in order of
@@ -84,6 +86,54 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 	{
 		version: 5,
 		sql: `ALTER TABLE turns ADD COLUMN checkpoint_ref TEXT`,
+	},
+	{
+		version: 6,
+		sql: `CREATE TABLE IF NOT EXISTS chat_drafts (
+			chat_uri TEXT PRIMARY KEY NOT NULL,
+			draft    TEXT NOT NULL
+		)`,
+	},
+	{
+		version: 7,
+		sql: `CREATE TABLE IF NOT EXISTS reviewed_files (
+			uri   TEXT NOT NULL,
+			nonce TEXT NOT NULL,
+			PRIMARY KEY (uri, nonce)
+		)`,
+	},
+	{
+		version: 8,
+		sql: `CREATE TABLE IF NOT EXISTS local_turns (
+			turn_id        TEXT PRIMARY KEY NOT NULL,
+			chat_uri       TEXT NOT NULL,
+			anchor_turn_id TEXT,
+			seq            INTEGER NOT NULL,
+			payload        TEXT NOT NULL
+		)`,
+	},
+	{
+		version: 9,
+		// `turn_usage` is a child of `turns` so every prune path (`deleteTurn`,
+		// `truncateFromTurn`, `deleteTurnsAfter`, `deleteAllTurns`, and the fork
+		// remap) reaches it by cascade and the table cannot grow unbounded.
+		//
+		// The foreign key forces `setTurnUsage` to `INSERT OR IGNORE` a parent row,
+		// and rows created that way carry `event_id IS NULL`. That is safe here:
+		// `getFirstTurnEventId` / `getNextTurnEventId` scan by rowid and are read
+		// only by the Copilot agent (Claude resolves fork/truncate boundaries from
+		// its own persisted mapping), and in a Copilot database `setTurnEventId`
+		// runs on `user.message` — before any usage is reported — so the parent row
+		// already exists and the insert is a no-op. Were usage ever to land first,
+		// `setTurnEventId` fills the existing row in (`UPDATE … WHERE event_id IS
+		// NULL`) and the position is still correct, since a turn's usage precedes
+		// the next turn. Each peer chat gets its own database (see
+		// `SessionDataService`), so a peer turn cannot interleave with another
+		// chat's turns either.
+		sql: `CREATE TABLE IF NOT EXISTS turn_usage (
+			turn_id TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			usage   TEXT NOT NULL
+		)`,
 	},
 ];
 
@@ -213,6 +263,24 @@ export class SessionDatabase implements ISessionDatabase {
 	private readonly _metadataSequencer = new SequencerByKey<string>();
 
 	/**
+	 * Serializes every `turn_usage` access — writes, prunes, the fork remap, and the restore read
+	 * alike. `@vscode/sqlite3` runs in parallelized mode (see {@link _metadataSequencer}), so a
+	 * fire-and-forget `setTurnUsage` submitted before a truncation can otherwise complete *after*
+	 * it and resurrect a row the truncation was meant to remove, and a read can otherwise overtake
+	 * a write it was submitted after. Mutations must go through {@link _mutateTurnUsage} rather
+	 * than queueing on this directly, so they are tracked for {@link whenIdle}.
+	 */
+	private readonly _turnUsageSequencer = new Sequencer();
+
+	/**
+	 * Runs a mutation that touches `turn_usage`, tracked for {@link whenIdle}
+	 * and serialized against every other such mutation.
+	 */
+	private _mutateTurnUsage(operation: (db: Database) => Promise<void>): Promise<void> {
+		return this._track(() => this._turnUsageSequencer.queue(async () => operation(await this._ensureDb())));
+	}
+
+	/**
 	 * In-flight write operations. Tracked so {@link whenIdle} can await them
 	 * before the process exits — without this, a `SIGTERM` arriving between
 	 * a fire-and-forget mutating call (e.g. `setMetadata`) being invoked and
@@ -262,7 +330,10 @@ export class SessionDatabase implements ISessionDatabase {
 					throw new Error('SessionDatabase has been disposed');
 				}
 				return db;
-			})();
+			})().catch(err => {
+				this._dbPromise = undefined;
+				throw err;
+			});
 		}
 		return this._dbPromise;
 	}
@@ -287,8 +358,8 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	deleteTurn(turnId: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutateTurnUsage(async db => {
+			// File edits and turn usage cascade-delete via their foreign keys.
 			await dbRun(db, 'DELETE FROM turns WHERE id = ?', [turnId]);
 		});
 	}
@@ -336,6 +407,45 @@ export class SessionDatabase implements ISessionDatabase {
 		return row?.event_id as string | undefined ?? undefined;
 	}
 
+	setTurnUsage(turnId: string, usage: string): Promise<void> {
+		return this._mutateTurnUsage(async db => {
+			// Ensure the turn exists — lazily insert since the turn record may not
+			// have been created by an explicit createTurn() call. This is what makes
+			// the row reachable by the cascade on every prune path; see migration 9
+			// for why creating it cannot perturb turn ordering.
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO turn_usage (turn_id, usage) VALUES (?, ?)', [turnId, usage]);
+		});
+	}
+
+	async getTurnUsages(): Promise<Map<string, string>> {
+		// Queued on the same sequencer as the writes, not run directly: `setTurnUsage` is
+		// fire-and-forget and `@vscode/sqlite3` is parallelized, so a restore that reads straight
+		// through can miss a write submitted before it and permanently rebuild that turn without
+		// its cost. Read-after-write ordering is what makes the overlay deterministic.
+		return this._turnUsageSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			// Left-join `turns` so a usage row recorded against a live request id is
+			// also reachable by the SDK event id a restored turn is keyed by.
+			const rows = await dbAll(
+				db,
+				`SELECT u.turn_id AS turn_id, t.event_id AS event_id, u.usage AS usage
+				FROM turn_usage u LEFT JOIN turns t ON t.id = u.turn_id`,
+				[],
+			);
+			const result = new Map<string, string>();
+			for (const row of rows) {
+				const usage = row.usage as string;
+				result.set(row.turn_id as string, usage);
+				const eventId = row.event_id as string | null;
+				if (eventId) {
+					result.set(eventId, usage);
+				}
+			}
+			return result;
+		});
+	}
+
 	setTurnCheckpointRef(turnId: string, ref: string): Promise<void> {
 		return this._track(async () => {
 			const db = await this._ensureDb();
@@ -370,10 +480,9 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	truncateFromTurn(turnId: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutateTurnUsage(async db => {
 			// Delete the target turn and all turns inserted after it (by rowid order).
-			// File edits cascade-delete via the foreign key constraint.
+			// File edits and turn usage cascade-delete via their foreign keys.
 			await dbRun(db,
 				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
@@ -382,11 +491,10 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	deleteTurnsAfter(turnId: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutateTurnUsage(async db => {
 			// Delete all turns inserted after the given turn (by rowid order),
-			// keeping the given turn itself.
-			// File edits cascade-delete via the foreign key constraint.
+			// keeping the given turn itself. File edits and turn usage
+			// cascade-delete via their foreign keys.
 			await dbRun(db,
 				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
@@ -395,9 +503,44 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	deleteAllTurns(): Promise<void> {
+		return this._mutateTurnUsage(async db => {
+			// File edits and turn usage cascade-delete via their foreign keys.
+			await dbExec(db, 'DELETE FROM turns');
+		});
+	}
+
+	// ---- Local (host-injected) turns ------------------------------------
+
+	insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
 		return this._track(async () => {
 			const db = await this._ensureDb();
-			await dbExec(db, 'DELETE FROM turns');
+			await dbRun(db,
+				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload) VALUES (?, ?, ?, ?, ?)',
+				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload],
+			);
+		});
+	}
+
+	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload FROM local_turns ORDER BY seq', []);
+		return rows.map(r => ({
+			turnId: r.turn_id as string,
+			chatUri: r.chat_uri as string,
+			anchorTurnId: (r.anchor_turn_id as string | null) ?? undefined,
+			seq: r.seq as number,
+			payload: r.payload as string,
+		}));
+	}
+
+	deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
+		return this._track(async () => {
+			if (turnIds.length === 0) {
+				return;
+			}
+			const db = await this._ensureDb();
+			const placeholders = turnIds.map(() => '?').join(',');
+			await dbRun(db, `DELETE FROM local_turns WHERE turn_id IN (${placeholders})`, [...turnIds]);
 		});
 	}
 
@@ -549,9 +692,70 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
-	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
+	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
+		const chatUri = chat.toString();
 		return this._track(async () => {
 			const db = await this._ensureDb();
+			if (!draft) {
+				await dbRun(db, 'DELETE FROM chat_drafts WHERE chat_uri = ?', [chatUri]);
+				return;
+			}
+			await dbRun(db, 'INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chatUri, JSON.stringify(draft)]);
+		});
+	}
+
+	async getChatDraft(chat: URI): Promise<Message | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT draft FROM chat_drafts WHERE chat_uri = ?', [chat.toString()]);
+		if (typeof row?.draft !== 'string') {
+			return undefined;
+		}
+		try {
+			return JSON.parse(row.draft) as Message;
+		} catch {
+			return undefined;
+		}
+	}
+
+	// ---- Reviewed files -------------------------------------------------
+
+	markFileReviewed(uri: URI, nonce: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO reviewed_files (uri, nonce) VALUES (?, ?)', [uri.toString(), nonce]);
+		});
+	}
+
+	unmarkFileReviewed(uri: URI, nonce: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'DELETE FROM reviewed_files WHERE uri = ? AND nonce = ?', [uri.toString(), nonce]);
+		});
+	}
+
+	async getReviewedFiles(): Promise<IReviewedFileRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT uri, nonce FROM reviewed_files ORDER BY rowid', []);
+		return rows.map(toReviewedFileRecord);
+	}
+
+	async getReviewedFilesForUri(uri: URI): Promise<IReviewedFileRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT uri, nonce FROM reviewed_files WHERE uri = ? ORDER BY rowid', [uri.toString()]);
+		return rows.map(toReviewedFileRecord);
+	}
+
+	async isFileReviewed(uri: URI, nonce: string): Promise<boolean> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT 1 FROM reviewed_files WHERE uri = ? AND nonce = ? LIMIT 1', [uri.toString(), nonce]);
+		return !!row;
+	}
+
+	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
+		// Mutates `turn_usage`, so it must serialize with every other such
+		// mutation — a usage write racing the fork transaction would otherwise
+		// land against either the old or the new turn id unpredictably.
+		return this._mutateTurnUsage(async db => {
 			// Defer FK checks to commit time so we can update turns.id and
 			// file_edits.turn_id in any order without mid-statement violations.
 			// This pragma auto-resets after the transaction ends.
@@ -573,6 +777,26 @@ export class SessionDatabase implements ISessionDatabase {
 				for (const [oldId, newId] of mapping) {
 					await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
 					await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				}
+
+				if (oldIds.length > 0) {
+					const placeholders = oldIds.map(() => '?').join(',');
+					await dbRun(db,
+						`DELETE FROM local_turns WHERE turn_id NOT IN (${placeholders})`,
+						oldIds,
+					);
+				}
+				for (const [oldId, newId] of mapping) {
+					await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+					await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
+				}
+
+				// Rows past the fork point were already removed by the `turns`
+				// delete above, via the same cascade as file edits. The surviving
+				// ids still need remapping (the FK cascades deletes, not updates),
+				// or the forked session would restore with no gauge and zero cost.
+				for (const [oldId, newId] of mapping) {
+					await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				}
 				await dbExec(db, 'COMMIT');
 			} catch (err) {
@@ -622,6 +846,13 @@ export class SessionDatabase implements ISessionDatabase {
 	dispose(): void {
 		this.close();
 	}
+}
+
+function toReviewedFileRecord(row: Record<string, unknown>): IReviewedFileRecord {
+	return {
+		uri: URI.parse(row.uri as string),
+		nonce: row.nonce as string,
+	};
 }
 
 function toUint8Array(value: unknown): Uint8Array {
