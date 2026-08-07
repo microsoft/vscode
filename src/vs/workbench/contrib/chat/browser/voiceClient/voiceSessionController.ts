@@ -4148,13 +4148,58 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * chat view pane this way.
 	 */
 	private _trackWidgetSession(widget: IChatWidget): void {
-		this._register(widget.onDidChangeViewModel(e => this._onSessionShown(e.currentSessionResource)));
+		this._register(widget.onDidChangeViewModel(e => {
+			this._rebindMaterializedSession(e.previousSessionResource, e.currentSessionResource);
+			this._onSessionShown(e.currentSessionResource);
+		}));
 		// Seed from the widget's current view-model. When a session opens in a
 		// freshly-created widget, its view-model is often already set by the time
 		// we subscribe above, so the initial `onDidChangeViewModel` never fires
 		// and the shown session would otherwise be missed (leaving a buffered
 		// response stuck until the stale focus path happens to catch up).
 		this._onSessionShown(widget.viewModel?.sessionResource);
+	}
+
+	private _rebindMaterializedSession(previous: URI | undefined, current: URI | undefined): void {
+		if (
+			!previous
+			|| !current
+			|| previous.scheme !== current.scheme
+			|| !previous.scheme.startsWith('agent-host-')
+			|| !previous.path.replace(/^\//, '').startsWith('untitled-')
+			|| current.path.replace(/^\//, '').startsWith('untitled-')
+		) {
+			return;
+		}
+
+		const from = previous.toString();
+		const to = current.toString();
+		const canonicalFrom = this._sessionKey(from);
+		const target = this._targetSession.get();
+		if (target && isEqual(target, previous)) {
+			this._targetSession.set(current, undefined);
+		}
+		if (this._activeSessionShown === from) {
+			this._activeSessionShown = to;
+		}
+		if (this._lastShownSessionId === from) {
+			this._lastShownSessionId = to;
+		}
+		if (this._currentPlaybackSessionId === from) {
+			this._currentPlaybackSessionId = to;
+		}
+		if (this._lastSpokenResponseSessionId === from) {
+			this._lastSpokenResponseSessionId = to;
+		}
+
+		this._rekeySession(canonicalFrom, to);
+		this._uiResourceByBackendId.set(from, to);
+		const previousBackend = toAgentHostBackendSessionUri(previous);
+		if (previousBackend) {
+			this._uiResourceByBackendId.set(previousBackend.toString(), to);
+		}
+		this._recordSessionAlias(current);
+		this.logService.trace(`[voice] rebound materialized session ${from.slice(-32)} -> ${to.slice(-32)}`);
 	}
 
 	/** A session became visible (opened/revealed): treat like a focus change — make it active, flush any buffered response, clear its pending indicator, and narrate its pending item. */

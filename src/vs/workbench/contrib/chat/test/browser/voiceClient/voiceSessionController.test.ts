@@ -31,7 +31,7 @@ import { TestChatEntitlementService } from '../../../../../test/common/workbench
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
-import { IChatWidgetService } from '../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
@@ -483,13 +483,38 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeWidgetVisibility = Event.None;
 	override readonly onDidAddWidget = Event.None;
 	override lastFocusedWidget: IChatWidgetService['lastFocusedWidget'];
-	override getAllWidgets() { return []; }
+	constructor(private readonly widgets: IChatWidget[] = []) {
+		super();
+	}
+
+	override getAllWidgets() { return this.widgets; }
 	override getWidgetBySessionResource(): undefined { return undefined; }
 
 	focus(resource: URI): void {
 		this.lastFocusedWidget = {
 			viewModel: { sessionResource: resource },
 		} as IChatWidgetService['lastFocusedWidget'];
+	}
+}
+
+class MaterializingChatWidget extends mock<IChatWidget>() {
+	private readonly _onDidChangeViewModel = new Emitter<{ previousSessionResource: URI | undefined; currentSessionResource: URI | undefined }>();
+	override readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
+	override viewModel: IChatWidget['viewModel'];
+
+	constructor(resource: URI) {
+		super();
+		this.viewModel = { sessionResource: resource } as IChatWidget['viewModel'];
+	}
+
+	materialize(resource: URI): void {
+		const previousSessionResource = this.viewModel?.sessionResource;
+		this.viewModel = { sessionResource: resource } as IChatWidget['viewModel'];
+		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: resource });
+	}
+
+	dispose(): void {
+		this._onDidChangeViewModel.dispose();
 	}
 }
 
@@ -4801,6 +4826,27 @@ suite('VoiceSessionController', () => {
 
 		assert.deepStrictEqual(voiceClientService.requests.map(request => request.text), ['Focused response.', 'Background response.']);
 		assert.strictEqual(controller.targetSession.get()?.toString(), backgroundSession.toString());
+	});
+
+	test('materializing an untitled chat preserves Voice Mode ownership', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const untitledSession = URI.parse('agent-host-copilotcli:/untitled-voice-session');
+		const materializedSession = URI.parse('agent-host-copilotcli:/materialized-voice-session');
+		const widget = store.add(new MaterializingChatWidget(untitledSession));
+		const chatWidgetService = new TestChatWidgetService([widget]);
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, chatWidgetService,
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(untitledSession);
+
+		widget.materialize(materializedSession);
+
+		assert.strictEqual(controller.isConnected.get(), true);
+		assert.strictEqual(controller.targetSession.get()?.toString(), materializedSession.toString());
 	});
 
 	test('plays responses for an omni-routed target without a pending indicator', async () => {
