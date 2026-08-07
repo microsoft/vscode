@@ -721,6 +721,9 @@ export interface IAgentHostNetworkFetchResult {
 export interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
 
+	/** Resolves after the WebSocket listener configured at process startup is bound. */
+	waitForConfiguredWebSocketServer(): Promise<void>;
+
 	/**
 	 * Request the agent host to start a WebSocket server on a local
 	 * pipe/socket. Returns the socket path.

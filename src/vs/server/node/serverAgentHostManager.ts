@@ -19,7 +19,7 @@ import { IServerLifetimeService } from './serverLifetimeService.js';
 export const IServerAgentHostManager = createDecorator<IServerAgentHostManager>('serverAgentHostManager');
 
 /**
- * Server-specific agent host manager. Eagerly starts the agent host process,
+ * Server-specific agent host manager. Starts the agent host process,
  * handles crash recovery, and tracks active agent sessions plus incoming
  * WebSocket clients to the spawned standalone agent host via
  * {@link IServerLifetimeService}.
@@ -29,6 +29,13 @@ export const IServerAgentHostManager = createDecorator<IServerAgentHostManager>(
  */
 export interface IServerAgentHostManager {
 	readonly _serviceBrand: undefined;
+
+	/** Starts the agent host if necessary and resolves after its IPC connection is established. */
+	ensureStarted(): Promise<void>;
+}
+
+export interface IServerAgentHostManagerOptions {
+	readonly startMode?: 'eager' | 'lazy';
 }
 
 /**
@@ -38,6 +45,7 @@ export interface IServerAgentHostManager {
  */
 interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
+	waitForConfiguredWebSocketServer(): Promise<void>;
 }
 
 enum Constants {
@@ -48,6 +56,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 	declare readonly _serviceBrand: undefined;
 
 	private _restartCount = 0;
+	private _startPromise: Promise<void> | undefined;
 
 	/** Lifetime token held while sessions are active or standalone WebSocket clients are connected. */
 	private readonly _lifetimeToken = this._register(new MutableDisposable());
@@ -57,6 +66,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	constructor(
 		private readonly _starter: IAgentHostStarter,
+		options: IServerAgentHostManagerOptions = {},
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
 		@IServerLifetimeService private readonly _serverLifetimeService: IServerLifetimeService,
@@ -64,7 +74,23 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 	) {
 		super();
 		this._register(this._starter);
-		this._start();
+		if (options.startMode !== 'lazy') {
+			void this.ensureStarted().catch(() => undefined);
+		}
+	}
+
+	ensureStarted(): Promise<void> {
+		if (!this._startPromise) {
+			const startPromise = this._start();
+			this._startPromise = startPromise;
+			void startPromise.catch(() => {
+				if (this._startPromise === startPromise) {
+					this._startPromise = undefined;
+				}
+			});
+		}
+
+		return this._startPromise;
 	}
 
 	private async _start(): Promise<void> {
@@ -75,14 +101,6 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 				connection.store.dispose();
 				return;
 			}
-
-			this._logService.info('ServerAgentHostManager: agent host started');
-
-			// Connect logger channel so agent host logs appear in the output channel
-			connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
-
-			this._trackActiveSessions(connection);
-			this._trackClientConnections(connection);
 
 			// Handle unexpected exit
 			connection.store.add(connection.onDidProcessExit(e => {
@@ -103,12 +121,33 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 						this._logService.error(`ServerAgentHostManager: agent host terminated unexpectedly with code ${e.code}`);
 						this._restartCount++;
 						connection.store.dispose();
-						this._start();
+						this._startPromise = undefined;
+						void this.ensureStarted().catch(() => undefined);
 					} else {
 						this._logService.error(`ServerAgentHostManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
+						// A future explicit request gets a fresh crash-retry budget.
+						this._restartCount = 0;
+						this._startPromise = undefined;
 					}
 				}
 			}));
+
+			this._trackActiveSessions(connection);
+			try {
+				await this._trackClientConnections(connection);
+			} catch (error) {
+				connection.store.dispose();
+				throw error;
+			}
+			if (this._store.isDisposed || connection.store.isDisposed) {
+				connection.store.dispose();
+				return;
+			}
+
+			this._logService.info('ServerAgentHostManager: agent host started');
+
+			// Connect logger channel so agent host logs appear in the output channel
+			connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
 
 			this._register(toDisposable(() => connection.store.dispose()));
 		} catch (error) {
@@ -126,10 +165,15 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			if (willRestart) {
 				this._logService.error('ServerAgentHostManager: agent host failed to start', error);
 				this._restartCount++;
-				this._start();
+				this._startPromise = undefined;
+				void this.ensureStarted().catch(() => undefined);
 			} else {
 				this._logService.error(`ServerAgentHostManager: agent host failed to start, giving up after ${Constants.MaxRestarts} restarts`, error);
+				// A future explicit request gets a fresh crash-retry budget.
+				this._restartCount = 0;
+				this._startPromise = undefined;
 			}
+			throw error;
 		}
 	}
 
@@ -143,12 +187,13 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		}));
 	}
 
-	private _trackClientConnections(connection: IAgentHostConnection): void {
+	private async _trackClientConnections(connection: IAgentHostConnection): Promise<void> {
 		const connectionTracker = ProxyChannel.toService<IConnectionTrackerService>(connection.client.getChannel(AgentHostIpcChannels.ConnectionTracker));
 		connection.store.add(connectionTracker.onDidChangeConnectionCount(count => {
 			this._connectionCount = count;
 			this._updateLifetimeToken();
 		}));
+		await connectionTracker.waitForConfiguredWebSocketServer();
 	}
 
 	private _updateLifetimeToken(): void {
