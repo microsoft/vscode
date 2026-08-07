@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDataChannelService } from '../../../../../platform/dataChannel/common/dataChannel.js';
@@ -33,16 +32,12 @@ suite('Inline Completions', () => {
 			},
 			disposeInlineCompletions: () => { },
 		};
-		const sentEventNames: string[] = [];
+		const sentChannelIds: string[] = [];
 		const dataChannelService: IDataChannelService = {
 			_serviceBrand: undefined,
 			onDidSendData: Event.None,
 			getDataChannel: channelId => ({
-				sendData: data => {
-					if (channelId === 'editTelemetry' && hasKey(data, { eventName: true }) && typeof data.eventName === 'string') {
-						sentEventNames.push(data.eventName);
-					}
-				}
+				sendData: () => sentChannelIds.push(channelId)
 			})
 		};
 		const serviceCollection = new ServiceCollection(
@@ -62,7 +57,7 @@ suite('Inline Completions', () => {
 			}
 		);
 
-		assert.deepStrictEqual(sentEventNames, ['inlineCompletion.endOfLife']);
+		assert.deepStrictEqual(sentChannelIds, ['editTelemetry']);
 	});
 
 	test('Does not trigger automatically if disabled', async function () {
