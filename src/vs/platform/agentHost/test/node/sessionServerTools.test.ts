@@ -77,11 +77,11 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetCurrentSession), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetSessionContext), false);
-		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 6).map(def => ({ name: def.name, required: def.inputSchema.required })), [
+		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 6).map(def => ({ name: def.name, required: def.inputSchema?.required })), [
 			{ name: SessionServerToolName.RenameSession, required: ['title'] },
 			{ name: SessionServerToolName.RenameChat, required: ['title'] },
 		]);
-		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 6).map(def => def.inputSchema.properties?.title), [
+		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 6).map(def => def.inputSchema?.properties?.title), [
 			{ type: 'string', description: 'Short, descriptive session title, ideally 1-4 words.', maxLength: 40 },
 			{ type: 'string', description: 'Short, descriptive chat title, ideally 1-4 words.', maxLength: 40 },
 		]);

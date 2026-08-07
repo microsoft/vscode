@@ -36,7 +36,6 @@ import {
 	getToolFileEdits,
 	getInlineToolInput,
 	isAhpChatChannel,
-	isDefaultChatUri,
 	isSubagentChatUri,
 	isChatReadOnly,
 	AH_META_IS_ARCHIVED_DB_KEY,
@@ -75,8 +74,6 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
-import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
-import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
@@ -93,16 +90,6 @@ export interface IAgentSideEffectsOptions {
 	readonly sessionDataService: ISessionDataService;
 	/** Registry that persists host-injected `/rename` and `!command` turns. */
 	readonly localTurns: AgentHostLocalTurns;
-	/** Get the GitHub token used for Copilot utility title generation. */
-	readonly getGitHubCopilotToken?: () => string | undefined;
-	/** Get the GitHub repository token used to fetch issue and pull request context. */
-	readonly getGitHubToken?: () => string | undefined;
-	/** Get the configured GitHub host used to validate issue and pull request URLs. */
-	readonly getGitHubHost?: () => string | undefined;
-	/** GitHub REST client used to fetch issue and pull request context. */
-	readonly octoKitService?: IAgentHostOctoKitService;
-	/** CAPI service used for Copilot utility title generation. */
-	readonly copilotApiService?: ICopilotApiService;
 	/**
 	 * Host-owned working-directory resolution hook, awaited before the agent's
 	 * first send so the session's working directory (an isolated worktree created
@@ -245,11 +232,6 @@ export class AgentSideEffects extends Disposable {
 		));
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
-			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
-			getGitHubToken: this._options.getGitHubToken,
-			getGitHubHost: this._options.getGitHubHost,
-			octoKitService: this._options.octoKitService,
-			copilotApiService: this._options.copilotApiService,
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
@@ -930,14 +912,6 @@ export class AgentSideEffects extends Disposable {
 		this._tryConsumeNextQueuedMessage(sessionKey);
 		this._options.onTurnComplete(sessionUri);
 
-		// After the first turn completes, refine the auto-generated title using
-		// the full first-turn context (request + response). No-op for later
-		// turns or when the title has since been changed. `sessionKey` may be an
-		// additional chat channel; route it as `chatChannel` so the refinement
-		// targets that chat's title, mirroring `seedTitleFromFirstMessage`.
-		const titleChatChannel = isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey) ? sessionKey : undefined;
-		this._titleController.refineTitleFromFirstTurn(sessionUri, titleChatChannel);
-
 		// A completed turn produces new output the user may not have seen. Route
 		// subagent turns to their owning session too (a background subagent can
 		// complete after the parent turn). Each client keeps its active session
@@ -1410,10 +1384,12 @@ export class AgentSideEffects extends Disposable {
 					this._stateManager.updateChatTitle(sessionChannel, chatChannel, action.title);
 					this._persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatChannel), action.title);
 					this._persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatChannel), AGENT_HOST_TITLE_SOURCE_USER);
+					this._titleController.markTitleRenamed(sessionChannel, chatChannel);
 					break;
 				}
 				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, action.title);
 				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+				this._titleController.markTitleRenamed(channel);
 				break;
 			}
 			case ActionType.ChatPendingMessageSet: {
@@ -1568,21 +1544,16 @@ export class AgentSideEffects extends Disposable {
 		this._worktree = worktree;
 	}
 
-	cancelSessionTitleGeneration(session: ProtocolURI): void {
-		this._titleController.cancelTitleGeneration(session);
-	}
-
 	clearQueuedMessageSenders(chat: ProtocolURI): void {
 		this._queuedMessageSenders.deleteAll(chat);
 	}
 
-	/**
-	 * Generates a content-derived title for a freshly forked session
-	 * (`chatChannel` undefined) or peer chat from its inherited chat
-	 * turns, replacing the placeholder `Forked: …` title once ready.
-	 */
-	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
-		this._titleController.generateForkedTitle(channel, chatChannel, turns, fallbackTitle, sourceTitle);
+	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void {
+		this._titleController.markTitleAuto(channel, chatChannel, title);
+	}
+
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
+		this._titleController.markTitleRenamed(channel, chatChannel);
 	}
 
 	/**
@@ -1867,7 +1838,8 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType);
+			const agentPrompt = await this._titleController.preparePromptForAgent(sessionChannel, chat, message.text);
+			await agent.chats.sendMessage(chatUri, agentPrompt, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;

@@ -526,21 +526,6 @@ export class AgentService extends Disposable implements IAgentService {
 			sessionDataService: this._sessionDataService,
 			localTurns: this._localTurns,
 			agents: this._agents,
-			copilotApiService: effectiveCopilotApiService,
-			getGitHubCopilotToken: () => {
-				return this.getAuthToken({
-					resource: this._gitHubEndpointService.getCopilotResource().resource,
-					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
-				});
-			},
-			getGitHubToken: () => {
-				return this.getAuthToken({
-					resource: this._gitHubEndpointService.getRepoResource().resource,
-					scopes: this._gitHubEndpointService.getRepoResource().scopes_supported,
-				});
-			},
-			getGitHubHost: () => this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
-			octoKitService: agentHostOctoKitService,
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			onTurnComplete: session => {
@@ -901,6 +886,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), SESSION_CUSTOM_TITLE_KEY, title);
 		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AGENT);
+		this._sideEffects.markTitleRenamed(session.toString());
 		return { outcome: 'renamed', title };
 	}
 
@@ -930,6 +916,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), customChatTitleMetadataKey(chat.toString()), title);
 		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), customChatTitleSourceMetadataKey(chat.toString()), AGENT_HOST_TITLE_SOURCE_AGENT);
+		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		return { outcome: 'renamed', title };
 	}
 
@@ -1446,13 +1433,7 @@ export class AgentService extends Disposable implements IAgentService {
 				state.customizations = [...initialCustomizations];
 			}
 
-			// Refine the forked session's placeholder `Forked: …` title into one
-			// derived from the inherited chat. Forks seed pre-existing
-			// turns, so the normal first-message/first-turn title generation
-			// never fires for them — this is the fork-time equivalent.
-			if (sourceTurns.length > 0) {
-				this._sideEffects.generateForkedTitle(summary.resource, undefined, sourceTurns, forkedTitle, sourceTitle);
-			}
+			this._sideEffects.markTitleAuto(summary.resource, undefined, forkedTitle);
 		} else if (config?.importConversation) {
 			// An imported conversation arrives with pre-existing turns (assigned
 			// fresh UUID ids above). Seed them into the new session's protocol
@@ -1470,15 +1451,7 @@ export class AgentService extends Disposable implements IAgentService {
 				state.customizations = [...initialCustomizations];
 			}
 
-			// Refine the placeholder title into one generated from the imported
-			// conversation, mirroring forks. Imports seed pre-existing turns, so
-			// the normal first-message title generation never fires; without this
-			// the session would keep showing the raw first-message clip while
-			// sibling sessions show clean generated titles — making imports look
-			// like a different kind of session.
-			if (importedTurns.length > 0) {
-				this._sideEffects.generateForkedTitle(summary.resource, undefined, importedTurns, importedTitle);
-			}
+			this._sideEffects.markTitleAuto(summary.resource, undefined, importedTitle);
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
 			// the `SessionReady` lifecycle transition until the agent fires
@@ -1544,7 +1517,6 @@ export class AgentService extends Disposable implements IAgentService {
 		// the new chat surface the forked history immediately.
 		let forkedTurns: Turn[] | undefined;
 		let forkedTitle: string | undefined;
-		let forkedSourceTitle: string | undefined;
 		let createOptions = options;
 		// Side chats validate and persist their provenance without seeding host-visible turns.
 		let sideChatOrigin: ChatOrigin | undefined;
@@ -1585,9 +1557,9 @@ export class AgentService extends Disposable implements IAgentService {
 				this._persistForkedLocalTurns(sessionKey, sourceChatKey, chat.toString(), slice, forkedTurns, turnIdMapping);
 
 				const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
-				forkedSourceTitle = sourceState?.title || this._stateManager.getSessionState(sourceSessionKey)?.title;
-				forkedTitle = forkedSourceTitle
-					? (forkedSourceTitle.startsWith(forkedTitlePrefix) ? forkedSourceTitle : `${forkedTitlePrefix}${forkedSourceTitle}`)
+				const sourceTitle = sourceState?.title || this._stateManager.getSessionState(sourceSessionKey)?.title;
+				forkedTitle = sourceTitle
+					? (sourceTitle.startsWith(forkedTitlePrefix) ? sourceTitle : `${forkedTitlePrefix}${sourceTitle}`)
 					: localize('agentHost.forkedChatFallback', "Forked Chat");
 				// The SDK fork boundary must be a concrete (SDK-backed) turn. When
 				// the client forked at a host-injected local turn, redirect the
@@ -1624,12 +1596,8 @@ export class AgentService extends Disposable implements IAgentService {
 			this._markPeerChatBacking(createResult.backingSession, chat);
 		}
 
-		// Refine the forked chat's placeholder `Forked: …` title into one
-		// derived from the inherited chat. Forks seed pre-existing
-		// turns, so the normal first-message/first-turn title generation never
-		// fires for them — this is the fork-time equivalent.
-		if (forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
-			this._sideEffects.generateForkedTitle(sessionKey, chat.toString(), forkedTurns, forkedTitle, forkedSourceTitle);
+		if (forkedTitle !== undefined) {
+			this._sideEffects.markTitleAuto(sessionKey, chat.toString(), forkedTitle);
 		}
 	}
 
@@ -2277,7 +2245,6 @@ export class AgentService extends Disposable implements IAgentService {
 		// agents stay unaware).
 		await this._worktree?.removeCreatedWorktree(AgentSession.id(session));
 		this._changesetCoordinator.onSessionDisposed(session.toString());
-		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			this._sideEffects.clearQueuedMessageSenders(chat.resource);
 		}

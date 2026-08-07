@@ -313,6 +313,12 @@ graph TD
 
 The orchestrator resolves the owning **session** from the session URI for session-scoped work, but passes a concrete **chat channel URI** to `IAgentChats` operations. For the default chat, that is `buildDefaultChatUri(sessionUri)`, not the bare session URI. Agents encapsulate the SDK fact that the default chat's backing SDK session id is the session id.
 
+### 5f. Session and Chat Naming
+
+The first real prompt gives an untitled session or peer chat an immediate deterministic fallback title. The host persists both that title and its `auto` provenance; fork and import fallbacks use the same provenance. Naming never invokes a separate utility model.
+
+Before `AgentSideEffects` calls `agent.chats.sendMessage`, it checks the persisted title source. An `auto` session title appends a model-only `<system-reminder>` asking the active agent to call `rename_session`; an `auto` peer-chat title asks for `rename_chat`. The protocol action and stored turn retain the original user text. A successful user or agent rename persists `user` or `agent` provenance and suppresses later reminders.
+
 ---
 
 ## 6. Per-Agent Notes

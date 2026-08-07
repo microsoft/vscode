@@ -1017,9 +1017,8 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
-		test('generates and persists an AI title after first-turn fallback title', async () => {
+		test('persists first-turn fallback as auto without calling the utility model', async () => {
 			const copilotApiService = new TestCopilotApiService();
-			copilotApiService.response = '"Fix TypeScript compile errors."';
 			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
 			const titleActions: string[] = [];
 			disposables.add(svc.onDidAction(e => {
@@ -1034,114 +1033,30 @@ suite('AgentService (node dispatcher)', () => {
 				'test-client', 1,
 			);
 
-			await waitForCondition(() => svc.stateManager.getSessionState(session.toString())?.title === 'Fix TypeScript compile errors', 'generated title should be applied');
-			await waitForCondition(async () => await db.getMetadata('customTitle') !== undefined, 'generated title should be persisted');
+			await waitForCondition(async () => await db.getMetadata('customTitle') !== undefined, 'fallback title should be persisted');
 
 			assert.deepStrictEqual({
 				titles: titleActions,
-				token: copilotApiService.utilityCalls[0]?.token,
-				promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Please help me fix the TypeScript compile errors')),
+				utilityCalls: copilotApiService.utilityCalls.length,
 				persistedTitle: await db.getMetadata('customTitle'),
+				persistedSource: await db.getMetadata('customTitleSource'),
 			}, {
-				titles: ['Please help me fix the TypeScript compile errors', 'Fix TypeScript compile errors'],
-				token: 'gh-token',
-				promptIncludesUserText: true,
-				persistedTitle: 'Fix TypeScript compile errors',
+				titles: ['Please help me fix the TypeScript compil'],
+				utilityCalls: 0,
+				persistedTitle: 'Please help me fix the TypeScript compil',
+				persistedSource: 'auto',
 			});
 		});
 
-		test('leaves fallback title when AI title generation fails', async () => {
+		test('keeps fork fallback auto without calling the utility model', async () => {
 			const copilotApiService = new TestCopilotApiService();
-			copilotApiService.error = new Error('title failed');
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
-
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-
-			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be attempted');
-			await Promise.resolve();
-
-			assert.deepStrictEqual({
-				title: svc.stateManager.getSessionState(session.toString())?.title,
-				persistedTitle: await db.getMetadata('customTitle'),
-			}, {
-				title: 'Explain workspace search indexing',
-				persistedTitle: undefined,
-			});
-		});
-
-		test('does not overwrite a manual rename with delayed AI title', async () => {
-			const copilotApiService = new TestCopilotApiService();
-			let resolveTitle!: (title: string) => void;
-			copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
-
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
-
-			svc.dispatchAction(
-				session.toString(),
-				{ type: ActionType.SessionTitleChanged, title: 'Manual title' },
-				'test-client', 2,
-			);
-			resolveTitle('Terminal persistence tests');
-			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Manual title', 'manual title should be persisted');
-
-			assert.deepStrictEqual({
-				title: svc.stateManager.getSessionState(session.toString())?.title,
-				persistedTitle: await db.getMetadata('customTitle'),
-			}, {
-				title: 'Manual title',
-				persistedTitle: 'Manual title',
-			});
-		});
-
-		test('aborts pending AI title generation when session is disposed', async () => {
-			const copilotApiService = new TestCopilotApiService();
-			let resolveTitle!: (title: string) => void;
-			copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
-
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
-
-			await svc.disposeSession(session);
-			resolveTitle('Flaky terminal tests');
-			await Promise.resolve();
-
-			assert.deepStrictEqual({
-				aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
-				state: svc.stateManager.getSessionState(session.toString()),
-				persistedTitle: await db.getMetadata('customTitle'),
-			}, {
-				aborted: true,
-				state: undefined,
-				persistedTitle: undefined,
-			});
-		});
-
-		test('generates an AI title for forked sessions from the forked chat', async () => {
-			const copilotApiService = new TestCopilotApiService();
-			copilotApiService.response = 'Source generated title';
-			const { svc, session: sourceSession } = await setupTitleGeneration(copilotApiService);
+			const { svc, session: sourceSession, db } = await setupTitleGeneration(copilotApiService);
 
 			svc.dispatchAction(
 				buildDefaultChatUri(sourceSession.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
-			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.title === 'Source generated title', 'source generated title should be applied');
 			svc.dispatchAction(
 				buildDefaultChatUri(sourceSession.toString()),
 				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1000 },
@@ -1149,9 +1064,6 @@ suite('AgentService (node dispatcher)', () => {
 			);
 			await waitForCondition(() => (svc.stateManager.getSessionState(sourceSession.toString())?.turns.length ?? 0) === 1, 'source turn should be complete before forking');
 
-			// The fork inherits a `Forked: …` placeholder, then regenerates a
-			// content-derived title from the copied chat.
-			copilotApiService.response = 'Forked branch title';
 			const forkedSession = await svc.createSession({
 				provider: 'copilot',
 				fork: {
@@ -1160,18 +1072,17 @@ suite('AgentService (node dispatcher)', () => {
 					turnId: 'source-turn',
 				},
 			});
-			await waitForCondition(() => svc.stateManager.getSessionState(forkedSession.toString())?.title === 'Forked branch title', 'forked session should get a content-generated title');
-
-			const forkedCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
-			const userMessage = forkedCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+			await waitForCondition(async () => await db.getMetadata('customTitleSource') === 'auto', 'fork fallback source should be persisted');
 			assert.deepStrictEqual({
 				title: svc.stateManager.getSessionState(forkedSession.toString())?.title,
 				utilityCalls: copilotApiService.utilityCalls.length,
-				includesForkedChat: userMessage.includes('Seed fork title'),
+				persistedTitle: await db.getMetadata('customTitle'),
+				persistedSource: await db.getMetadata('customTitleSource'),
 			}, {
-				title: 'Forked branch title',
-				utilityCalls: 2,
-				includesForkedChat: true,
+				title: 'Forked: Seed fork title',
+				utilityCalls: 0,
+				persistedTitle: 'Forked: Seed fork title',
+				persistedSource: 'auto',
 			});
 		});
 	});
