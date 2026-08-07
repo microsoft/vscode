@@ -248,6 +248,7 @@
  */
 .style-override.monaco-workbench .part.auxiliarybar > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more::before {
 	position: relative;
+	left: 0;
 }
 
 /*
