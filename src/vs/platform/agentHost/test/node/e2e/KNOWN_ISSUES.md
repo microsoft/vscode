@@ -373,7 +373,7 @@ When Codex runs a shell command that produces output, the model receives that ou
 - Gate: replay skips the affected Codex/macOS variants while recording and other platforms remain enabled:
   - `reads a file from a nested directory`
   - `reads a value from JSON`
-- Reproduce:
+- Reproduce after temporarily disabling `codexShellCompletionOutputAvailable` in `fileOperationsSuite.ts`:
 
   ```bash
   ./scripts/test-integration.sh --run \
