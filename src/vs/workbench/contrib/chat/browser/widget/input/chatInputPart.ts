@@ -33,6 +33,7 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableO
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
@@ -3379,7 +3380,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
 		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		// The lone dictation / Voice Mode control drops its circular border and
+		// only regains it when both share the row (see the matching rules in
+		// chat.css). Count the voice-input actions from the toolbar's action
+		// model — matching the same icon set the CSS keys off — rather than
+		// querying the DOM.
+		const voiceInputActionIconClasses = new Set([
+			Codicon.mic, Codicon.micFilled, Codicon.micDownloadCompact,
+			Codicon.voiceModeCompact, Codicon.loadingCompact, Codicon.debugDisconnectCompact,
+		].map(icon => ThemeIcon.asClassName(icon)));
+		const updateVoiceInputActionBorder = () => {
+			let voiceInputActionCount = 0;
+			for (let i = 0; ; i++) {
+				const action = this.executeToolbar.getItemAction(i);
+				if (!action) {
+					break;
+				}
+				if (action.class && voiceInputActionIconClasses.has(action.class)) {
+					voiceInputActionCount++;
+				}
+			}
+			this.executeToolbar.getElement().classList.toggle('chat-voice-input-actions-multiple', voiceInputActionCount > 1);
+		};
+		updateVoiceInputActionBorder();
 		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
+			updateVoiceInputActionBorder();
 			if (this.cachedWidth && typeof this.cachedExecuteToolbarWidth === 'number' && this.cachedExecuteToolbarWidth !== this.executeToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
 			}
