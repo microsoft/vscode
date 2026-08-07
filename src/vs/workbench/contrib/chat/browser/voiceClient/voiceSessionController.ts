@@ -26,7 +26,7 @@ import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, 
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
-import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
+import { IVoiceAttachmentResult, IVoiceModelSelectionResult, IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -36,6 +36,7 @@ import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../com
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../common/model/chatModel.js';
+import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -814,9 +815,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const resourceStr = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
 				return resourceStr ? URI.parse(resourceStr) : undefined;
 			},
-			switchToSession: (resource: URI): void => {
-				this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString());
-			},
+			switchToSession: async (resource: URI): Promise<boolean> =>
+				await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString()).catch(() => false) === true,
+			setTargetSession: (resource: URI): void => this.setTargetSession(resource),
+			getTargetSessionResource: (): URI | undefined => this._targetSession.get(),
+			selectModel: async (requestedModel: string): Promise<IVoiceModelSelectionResult> =>
+				(await this.commandService.executeCommand<IVoiceModelSelectionResult>('_chat.voice.selectModel', requestedModel)
+					.catch(() => undefined)) ?? { ok: false, reason: 'no_input' },
+			attachFiles: async (resources: readonly URI[]): Promise<IVoiceAttachmentResult> =>
+				(await this.commandService.executeCommand<IVoiceAttachmentResult>('_chat.voice.attachFiles', resources.map(resource => resource.toString()))
+					.catch(() => undefined)) ?? { ok: false, reason: 'no_input' },
 			getAutoApprovedSessions: (): Set<string> => {
 				return this._autoApprovedSessions;
 			},
@@ -5868,7 +5876,28 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return { state: realState, hideConfirmationDetail: false };
 	}
 
-
+	private _getInputContext(model: IChatModel): Pick<IVoiceSessionContext['sessions'][number], 'selected_model' | 'attachment_names' | 'attachment_count'> {
+		const state = model.inputModel?.state?.get();
+		const selectedModel = state?.selectedModel
+			?? this.chatWidgetService.getWidgetBySessionResource(model.sessionResource)?.inputPart.selectedLanguageModel.get();
+		const attachmentNames = state?.attachments
+			.filter(isExplicitFileOrImageVariableEntry)
+			.map(attachment => attachment.name)
+			.filter(name => name.length > 0) ?? [];
+		return {
+			...(selectedModel ? {
+				selected_model: {
+					identifier: selectedModel.identifier,
+					name: selectedModel.metadata.name,
+					vendor: selectedModel.metadata.vendor,
+				},
+			} : {}),
+			...(attachmentNames.length > 0 ? {
+				attachment_names: attachmentNames.slice(0, 10),
+				attachment_count: attachmentNames.length,
+			} : {}),
+		};
+	}
 
 	private _buildSessionContext(): IVoiceSessionContext {
 		const oneHourAgo = Date.now() - 60 * 60 * 1000;
@@ -5889,7 +5918,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// which one to use.
 		const targetSessionId = this._getActiveSessionId();
 
-		const sessionList = sessions.map(s => {
+		const sessionList: IVoiceSessionContext['sessions'] = sessions.map(s => {
 			const model = this.chatService.getSession(s.resource);
 			const isActive = s.resource.toString() === targetSessionId;
 			if (!model) {
@@ -5922,6 +5951,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return {
 					id: sessionIdStr,
 					...(s.label ? { label: s.label } : {}),
+					session_type: 'agent' as const,
 					is_active: isActive,
 					agent_state: scoped.state,
 					...(cachedSummary ? { last_response_summary: cachedSummary } : {}),
@@ -5948,12 +5978,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return {
 				id: s.resource.toString(),
 				...(s.label ? { label: s.label } : {}),
+				session_type: 'agent' as const,
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(!scoped.hideConfirmationDetail && stateInfo.confirmation_type ? { confirmation_type: stateInfo.confirmation_type } : {}),
 				...(shipSummary ? { last_response_summary: shipSummary } : {}),
 				...(pending ? { pending } : {}),
+				...this._getInputContext(model),
 			};
 		});
 
@@ -5976,12 +6008,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			sessionList.push({
 				id: key,
 				...(chatModel.title ? { label: chatModel.title } : {}),
+				session_type: 'chat',
 				is_active: isActive,
 				agent_state: scoped.state,
 				...(!scoped.hideConfirmationDetail && stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(!scoped.hideConfirmationDetail && stateInfo.confirmation_type ? { confirmation_type: stateInfo.confirmation_type } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
 				...(pending ? { pending } : {}),
+				...this._getInputContext(chatModel),
 			});
 		}
 

@@ -27,6 +27,7 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { AgentsVoiceSettingId } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 
@@ -56,6 +57,12 @@ export interface INewChatVoiceComposer {
 	prefillInput(text: string): void;
 	/** Focus the composer input. */
 	focus(): void;
+	/** Models currently offered by the composer. */
+	getVoiceModels(): readonly ILanguageModelChatMetadataAndIdentifier[];
+	/** Select a model by its exact frontend identifier. */
+	selectVoiceModel(identifier: string): boolean;
+	/** Attach files to this draft composer. */
+	attach(uris: URI[]): void;
 }
 
 export const INewChatVoiceTargetService = createDecorator<INewChatVoiceTargetService>('newChatVoiceTargetService');
