@@ -68,7 +68,7 @@ export function getSessionTypeAvailability(
 		return SessionTypeAvailability.Available;
 	}
 	const hasTargetedModels = hasModelsTargetingSessionType(languageModelsService, type);
-	const hasVisibleByokModels = hasVisibleByokModelsTargetingSessionType(languageModelsService, type);
+	const hasVisibleByokModels = chatEntitlementService.clientByokEnabled && hasVisibleByokModelsTargetingSessionType(languageModelsService, type);
 	// A visible Agent Host BYOK model can run without a Copilot account.
 	if (entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous && chatSessionsService.requiresCopilotSignInForSessionType(type) && !hasVisibleByokModels) {
 		return SessionTypeAvailability.SignInRequired;
