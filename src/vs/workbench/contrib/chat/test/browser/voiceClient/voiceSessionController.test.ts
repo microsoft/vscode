@@ -4562,6 +4562,89 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['The later response is complete.']);
 	});
 
+	test('open omni plays a solicited narration whose audio arrives just after the user stops speaking', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const sessionId = URI.parse('vscode-chat://solicited-after-release').toString();
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+		await connectWithOmniOpen(controller, voiceClientService);
+
+		// The confirmation is narrated (requested) for a background session,
+		// creating an in-flight solicited narration.
+		handleStateChange.call(controller, sessionId, 'waiting_for_confirmation', 'Allow running the build?', undefined, sessionId, 'tool');
+		const [request] = voiceClientService.requests;
+
+		// Its audio arrives AFTER the user has finished speaking. Nothing else
+		// will trigger a drain, so the audio must play live now rather than being
+		// stranded in the deferred buffer (the reproduced bug: the narration's own
+		// pending entry made it defer itself, then no drain ever ran).
+		voiceClientService.fireAudioResponse({
+			audio: 'Allow running the build?',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: request.narrationId,
+			transcript: 'Allow running the build?',
+		});
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['Allow running the build?']);
+	});
+
+	test('open omni plays a solicited narration whose audio was deferred while the user was speaking', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const sessionId = URI.parse('vscode-chat://deferred-solicited-narration').toString();
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+			confirmationType?: VoiceConfirmationType,
+		) => void;
+		const drainOmniInbox = Reflect.get(controller, '_drainOmniInbox') as () => void;
+		await connectWithOmniOpen(controller, voiceClientService);
+
+		// The confirmation is narrated (requested) while the user is not speaking,
+		// creating an in-flight solicited narration for this session.
+		handleStateChange.call(controller, sessionId, 'waiting_for_confirmation', 'Allow running the tests?', undefined, sessionId, 'tool');
+		const [request] = voiceClientService.requests;
+
+		// The user starts speaking; the narration's own audio then arrives. It must
+		// be held (queued) rather than played over the user's speech.
+		Reflect.set(controller, '_pttHeld', true);
+		Reflect.set(controller, '_pttCurrentTurnPassive', false);
+		Reflect.set(controller, '_speechDetectedInTurn', true);
+		voiceClientService.fireAudioResponse({
+			audio: 'Allow running the tests?',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: request.narrationId,
+			transcript: 'Allow running the tests?',
+		});
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, []);
+
+		// When the user stops speaking, the drain must play the buffered narration
+		// instead of deadlocking on it (the pending narration waits for the drain
+		// that would otherwise be blocked by that same pending narration).
+		Reflect.set(controller, '_pttHeld', false);
+		Reflect.set(controller, '_speechDetectedInTurn', false);
+		drainOmniInbox.call(controller);
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['Allow running the tests?']);
+	});
+
 	test('closing omni abandons its queued and in-flight voice items without transferring indicators', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const chatService = new ControllableChatService();

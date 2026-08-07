@@ -1976,7 +1976,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				&& (this._isUserActivelySpeaking()
 					|| this._omniNarrationQueue.length > 0
 					|| this._omniDeferredSessionKeys.size > 0
-					|| [...this._pendingSolicitedNarrations.values()].some(pending => pending.kind !== 'checkpoint')
+					// Only narrations still awaiting their first audio chunk force a
+					// defer. A narration whose audio has already arrived (including
+					// THIS response's own solicited narration) is not in-flight work:
+					// treating it as such would defer its own audio, and since the
+					// user may have already stopped speaking nothing would trigger a
+					// drain - stranding the confirmation/response until the session is
+					// focused. The audio queue still serializes playback order.
+					|| [...this._pendingSolicitedNarrations.values()].some(pending => pending.kind !== 'checkpoint' && !pending.hasReceivedAudio)
 					|| this._deferredNarrations.size > 0);
 			if (deferForOmniInbox && e.responseId) {
 				this._responseRoutes.set(e.responseId, 'deferred');
@@ -4426,7 +4433,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this.ttsPlaybackService.isPlaying
 			|| this._currentPlaybackSessionId !== null
 			|| this._audioQueue.length > 0
-			|| [...this._pendingSolicitedNarrations.values()].some(pending => pending.kind !== 'checkpoint')
+			// A solicited narration only blocks the drain while it is still waiting
+			// for its first audio chunk. Once its audio has arrived it is either
+			// actively playing (caught by the playback/queue guards above) or was
+			// deferred/buffered because the user was speaking - and THAT buffered
+			// audio is exactly what the drain must flush. Blocking on it here would
+			// deadlock: the narration can only clear once the drain plays it, but
+			// the drain would never run while it stays pending.
+			|| [...this._pendingSolicitedNarrations.values()].some(pending => pending.kind !== 'checkpoint' && !pending.hasReceivedAudio)
 			|| this._deferredNarrations.size > 0) {
 			return;
 		}
