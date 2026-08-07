@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, taskCheckboxRange, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode } from '@vscode/markdown-editor';
+import { AsyncClipboardStrategy, CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, taskCheckboxRange, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode } from '@vscode/markdown-editor';
 import { Disposable, autorun, observableValue } from '@vscode/markdown-editor/observables';
 import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import mermaid from 'mermaid';
@@ -249,6 +249,7 @@ class Editor extends Disposable {
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
+			clipboardStrategy: new AsyncClipboardStrategy(),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
