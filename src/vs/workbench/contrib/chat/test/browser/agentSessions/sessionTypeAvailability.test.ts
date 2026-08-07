@@ -75,13 +75,20 @@ function createLanguageModelsService(targets: readonly (string | undefined)[]): 
 	}();
 }
 
-function createByokLanguageModelsService(type: string, hidden: readonly string[] = []): ILanguageModelsService {
+function createByokLanguageModelsService(type: string, hidden: readonly string[] = [], sourceRegistered = true): ILanguageModelsService {
+	const sourceIdentifier = 'gemini/gemini-2.5-flash';
 	return new class extends mock<ILanguageModelsService>() {
 		override getLanguageModelIds(): string[] {
-			return ['agent-host-byok'];
+			return sourceRegistered ? ['agent-host-byok', sourceIdentifier] : ['agent-host-byok'];
 		}
-		override lookupLanguageModel(): ILanguageModelChatMetadata {
-			return { targetChatSessionType: type, byokModelIdentifier: 'gemini/gemini-2.5-flash' } as ILanguageModelChatMetadata;
+		override lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined {
+			if (identifier === 'agent-host-byok') {
+				return { targetChatSessionType: type, byokModelIdentifier: sourceIdentifier } as ILanguageModelChatMetadata;
+			}
+			if (identifier === sourceIdentifier && sourceRegistered) {
+				return { isBYOK: true } as ILanguageModelChatMetadata;
+			}
+			return undefined;
 		}
 		override isModelHidden(identifier: string): boolean {
 			return hidden.includes(identifier);
@@ -203,6 +210,16 @@ suite('getSessionTypeAvailability', () => {
 			copyHidden: SessionTypeAvailability.SignInRequired,
 			sourceHidden: SessionTypeAvailability.SignInRequired,
 		});
+	});
+
+	test('a stale Agent Host BYOK copy does not override sign-in after its source is removed', () => {
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
+		assert.strictEqual(getSessionTypeAvailability(
+			createChatSessionsService(config),
+			createEntitlementService(ChatEntitlement.Unknown),
+			createByokLanguageModelsService(TYPE, [], false),
+			TYPE,
+		), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('a targeting model keeps the type available on a paid plan', () => {

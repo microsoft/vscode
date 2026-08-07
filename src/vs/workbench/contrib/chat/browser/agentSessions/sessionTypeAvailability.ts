@@ -107,8 +107,10 @@ export function hasVisibleByokModelsTargetingSessionType(languageModelsService: 
 	return languageModelsService.getLanguageModelIds().some(id => {
 		const metadata = languageModelsService.lookupLanguageModel(id);
 		const byokIdentifier = metadata?.byokModelIdentifier;
+		const byokSource = byokIdentifier ? languageModelsService.lookupLanguageModel(byokIdentifier) : undefined;
 		return metadata?.targetChatSessionType === type
 			&& byokIdentifier !== undefined
+			&& byokSource?.isBYOK === true
 			&& !languageModelsService.isModelHidden(id)
 			&& !languageModelsService.isModelHidden(byokIdentifier);
 	});
