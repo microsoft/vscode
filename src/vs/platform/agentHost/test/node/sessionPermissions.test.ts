@@ -130,6 +130,24 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual(results, files.map(() => undefined));
 	});
 
+	test('requires confirmation for package manager configuration files', async () => {
+		const files = [
+			'.npmrc',
+			'.yarnrc',
+			'.yarnrc.yml',
+			'.pnpmfile.js',
+			'.pnpmfile.cjs',
+			'.pnpmfile.mjs',
+			'pnpm-workspace.yaml',
+			join('packages', 'nested', '.npmrc'),
+		];
+		const results: (ToolCallConfirmationReason | undefined)[] = [];
+		for (const file of files) {
+			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
+		}
+		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
 	test('requires confirmation for paths containing null bytes', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'a\u0000b.txt')), sessionUri);
 		assert.strictEqual(result, undefined);
@@ -239,6 +257,17 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
+	test('requires confirmation for sed in-place edits', async () => {
+		const event = shellEvent('sed -i "s/foo/bar/" file.txt', 'bash');
+		assert.deepStrictEqual({
+			approval: await permissions.getAutoApproval(event, sessionUri),
+			ruleResolvable: permissions.isAutoApproveRuleResolvable(event, sessionUri),
+		}, {
+			approval: undefined,
+			ruleResolvable: false,
+		});
+	});
+
 	test('uses forwarded terminal auto-approve rules as the source of truth over fallback defaults', async () => {
 		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: {} });
 
@@ -302,6 +331,23 @@ suite('SessionPermissionManager', () => {
 		], [ToolCallConfirmationReason.NotNeeded, undefined, false, true]);
 	});
 
+	test('PowerShell script-block payloads with nested denials require confirmation', async () => {
+		configService.updateRootConfig({
+			[AgentHostTerminalAutoApproveRulesConfigKey]: {
+				'Measure-Command': true,
+				'Set-Content': false,
+				'Invoke-Expression': false,
+			},
+		});
+		assert.deepStrictEqual([
+			await permissions.getAutoApproval(powershellEvent('Measure-Command { Set-Content -Path out.txt -Value pwned }'), sessionUri),
+			await permissions.getAutoApproval(powershellEvent('Measure-Command { Invoke-Expression "Write-Output hi" }'), sessionUri),
+			await permissions.getAutoApproval(shellEvent('Write-Host hi; Set-Content -Path out.txt -Value pwned', 'powershell'), sessionUri),
+			// Missing dialect remains fail-closed even for an otherwise allowlisted outer command.
+			await permissions.getAutoApproval(shellEvent('Measure-Command { Get-ChildItem }', undefined), sessionUri),
+		], [undefined, undefined, undefined, undefined]);
+	});
+
 	test('PowerShell redirects require a literal approved destination', async () => {
 		const dynamicResults = [];
 		for (const dest of ['$HOME/outside.txt', '$env:TEMP/x.txt', '$(Get-Location)/x.txt', '`pwd`/x.txt', '${HOME}/x.txt', '%APPDATA%/x.txt']) {
@@ -315,6 +361,20 @@ suite('SessionPermissionManager', () => {
 			dynamicResults: [undefined, undefined, undefined, undefined, undefined, undefined],
 			literalWorkspaceDestination: ToolCallConfirmationReason.NotNeeded,
 			nullSink: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
+	test('CMD delayed-expansion redirect destinations require confirmation', async () => {
+		const delayedExpansion = shellEvent('echo hi >!APPDATA!\\outside.txt', 'bash');
+		const literalExclamation = shellEvent('echo hi >important!.txt', 'bash');
+		assert.deepStrictEqual({
+			delayedApproval: await permissions.getAutoApproval(delayedExpansion, sessionUri),
+			delayedRuleResolvable: permissions.isAutoApproveRuleResolvable(delayedExpansion, sessionUri),
+			literalApproval: await permissions.getAutoApproval(literalExclamation, sessionUri),
+		}, {
+			delayedApproval: undefined,
+			delayedRuleResolvable: false,
+			literalApproval: ToolCallConfirmationReason.NotNeeded,
 		});
 	});
 

@@ -5,16 +5,18 @@
 
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
+import { COMMAND_CENTER_BACKGROUND } from '../../../../common/theme.js';
 
-// This color intentionally matches commandCenter.background but is separate so that it
-// doesn't get overridden when debugging (the debug toolbar overrides commandCenter.background).
-// This allows themes to customize it while maintaining independence from debug mode changes.
+// This color inherits its default value from commandCenter.background but is registered
+// separately so that it doesn't get overridden when debugging (the debug toolbar overrides
+// commandCenter.background). This allows themes to customize it while maintaining
+// independence from debug mode changes.
 export const agentStatusIndicatorBackground = registerColor(
 	'agentStatusIndicator.background',
-	{ dark: Color.white.transparent(0.05), light: Color.black.transparent(0.05), hcDark: null, hcLight: null },
+	COMMAND_CENTER_BACKGROUND,
 	localize('agentStatusIndicator.background', 'Background color of the agent status indicator in the titlebar.')
 );
 
@@ -105,10 +107,30 @@ export const chatInputWorkingBorderColor3 = registerColor(
 	{ dark: lighten(buttonBackground, 0.5), light: lighten(buttonBackground, 0.3), hcDark: '#000000', hcLight: '#000000' },
 	localize('chat.inputWorkingBorderColor3', 'Tertiary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
 
-// Matches Voice Mode's listening glow (see `voiceGlow.ts`). Deliberately not
-// `charts.blue`, which resolves to `editorInfoForeground` — an indigo that reads
-// as purple once softened into a wash.
+// --- Voice Mode ambient glow -------------------------------------------------
+// The listening / processing / speaking glows are derived from a single base
+// accent by hue-shifting (see `resolveVoiceGlowColors` in `voiceGlow.ts`), so the
+// glow harmonizes with whatever accent the active theme uses. Themes can pin any
+// individual state by setting its own token.
+
+export const chatVoiceGlowBaseColor = registerColor(
+	'chat.voiceGlowBaseColor',
+	focusBorder,
+	localize('chat.voiceGlowBaseColor', 'Base accent the Voice Mode ambient glow is derived from. The listening and speaking glows are hue-shifted from this color.'), true);
+
+export const chatVoiceListeningGlow = registerColor(
+	'chat.voiceListeningGlow',
+	{ dark: null, light: null, hcDark: null, hcLight: null },
+	localize('chat.voiceListeningGlow', 'Accent color of the Voice Mode glow while listening. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
+
+export const chatVoiceSpeakingGlow = registerColor(
+	'chat.voiceSpeakingGlow',
+	{ dark: null, light: null, hcDark: null, hcLight: null },
+	localize('chat.voiceSpeakingGlow', 'Accent color of the Voice Mode glow while the agent is speaking. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
+
+// Dictation shares Voice Mode's listening accent, so an open microphone reads the
+// same whichever feature opened it.
 export const chatDictationActiveMicGlow = registerColor(
 	'chat.dictationActiveMicGlow',
-	{ dark: '#58A6FF', light: '#2E8BE6', hcDark: '#8CC6FF', hcLight: '#00539C' },
+	chatVoiceGlowBaseColor,
 	localize('chat.dictationActiveMicGlow', 'Accent color of the glow shown on the microphone while dictation is listening.'));

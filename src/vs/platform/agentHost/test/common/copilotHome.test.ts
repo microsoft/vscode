@@ -16,9 +16,11 @@ suite('copilotHome', () => {
 		assert.deepStrictEqual([
 			getCopilotHomePath('user-home', {}),
 			getCopilotHomePath('user-home', { COPILOT_HOME: 'custom-copilot' }),
+			getCopilotHomePath('user-home', { XDG_STATE_HOME: 'legacy-state-home' }),
 		], [
 			join('user-home', '.copilot'),
 			'custom-copilot',
+			join('user-home', '.copilot'),
 		]);
 	});
 

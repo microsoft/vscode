@@ -5,12 +5,18 @@
 
 import './media/dictationMicGlow.css';
 import { getWindow } from '../../../../../base/browser/dom.js';
+import { Color } from '../../../../../base/common/color.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { inputBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
+import { chatDictationActiveMicGlow } from '../../common/widget/chatColors.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { createVoiceRimLight, IVoiceRimLight } from '../voiceClient/voiceGlowController.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from './chatSpeechToTextService.js';
 
 export type DictationMicGlowPhase = 'off' | 'live' | 'settling';
 
@@ -42,26 +48,47 @@ const RESTING_LEVEL = 0.12;
 const REDUCED_MOTION_LEVEL = 0.45;
 
 /**
+ * The color the mic glow paints with, tuned exactly as Voice Mode tunes its
+ * listening rim — so an open microphone reads the same whichever feature opened
+ * it. Themes that pin `chat.dictationActiveMicGlow` are tuned the same way, so
+ * the treatment stays consistent even when the accent doesn't.
+ */
+export function resolveDictationMicAccent(theme: IColorTheme): Color | undefined {
+	return theme.getColor(chatDictationActiveMicGlow);
+}
+
+/**
  * Adds audio-reactive feedback to a dictation microphone while recording, so an
  * open mic is obvious at a glance rather than being conveyed only by the filled
- * mic glyph. The glow is drawn as a pseudo-element on `target`, so hosts that
- * rebuild their button contents keep it.
+ * mic glyph.
+ *
+ * When a theme service is available the microphone wears the same rim light
+ * Voice Mode paints on the chat input, scaled down to the button — so an open
+ * microphone reads the same whichever feature opened it. Without one it falls
+ * back to a flat inner glow drawn as a pseudo-element on `target`.
  */
 export function setupDictationMicGlow(
 	target: HTMLElement,
 	service: IChatSpeechToTextService,
 	accessibilityService: IAccessibilityService,
 	isActive?: IObservable<boolean>,
+	themeService?: IThemeService,
 ): IDisposable {
 	const store = new DisposableStore();
 	const window = getWindow(target);
 	const dataArray = { value: undefined as Uint8Array | undefined };
+	const rim = store.add(new MutableDisposable<IVoiceRimLight>());
 	let animationFrame: number | undefined;
 	let level = 0;
 
-	const setLevel = (value: number) => {
+	const setLevel = (value: number, animate: boolean) => {
 		level = value;
 		target.style.setProperty('--dictation-mic-level', value.toFixed(3));
+		if (animate) {
+			rim.value?.drive(value);
+		} else {
+			rim.value?.driveStatic(value);
+		}
 	};
 
 	const stopAnimation = () => {
@@ -77,18 +104,48 @@ export function setupDictationMicGlow(
 		const measured = service.state === ChatSpeechToTextState.Recording && service.analyserNode
 			? readVoiceGlowIntensity(service.analyserNode, dataArray)
 			: RESTING_LEVEL;
-		setLevel(easeDictationMicLevel(level, shapeDictationMicLevel(measured)));
+		setLevel(easeDictationMicLevel(level, shapeDictationMicLevel(measured)), true);
+	};
+
+	/**
+	 * The rim is mounted only while the mic is open. It owns DOM, so leaving it
+	 * mounted would keep a light layer (and its custom properties) on every idle
+	 * microphone in the workbench.
+	 */
+	const syncRim = (lit: boolean) => {
+		if (!themeService) {
+			return;
+		}
+		if (!lit) {
+			rim.clear();
+			return;
+		}
+		const theme = themeService.getColorTheme();
+		const accent = resolveDictationMicAccent(theme);
+		if (!accent) {
+			rim.clear();
+			return;
+		}
+		const kind = isDark(theme.type) ? 'dark' : 'light';
+		const background = theme.getColor(inputBackground);
+		if (rim.value) {
+			rim.value.refresh(accent, kind, background);
+		} else {
+			rim.value = createVoiceRimLight(target, accent, kind, 'cool', background);
+		}
 	};
 
 	const update = (active = isActive?.get() !== false) => {
+		active = active && isDictationActiveOnSurface(service, 'chat');
 		const phase = active ? getDictationMicGlowPhase(service.state, service.isPreparingModel) : 'off';
 		target.classList.toggle('dictation-mic-active', phase !== 'off');
 		target.classList.toggle('dictation-mic-settling', phase === 'settling');
+		syncRim(phase !== 'off');
 
 		// With reduced motion the glow still shows, just held at a steady level.
 		if (phase === 'off' || accessibilityService.isMotionReduced()) {
 			stopAnimation();
-			setLevel(phase === 'off' ? 0 : REDUCED_MOTION_LEVEL);
+			setLevel(phase === 'off' ? 0 : REDUCED_MOTION_LEVEL, false);
 			return;
 		}
 		if (animationFrame === undefined) {
@@ -98,6 +155,9 @@ export function setupDictationMicGlow(
 
 	store.add(Event.any<unknown>(service.onDidChangeState, service.onDidChangePreparingModel)(() => update()));
 	store.add(accessibilityService.onDidChangeReducedMotion(() => update()));
+	if (themeService) {
+		store.add(themeService.onDidColorThemeChange(() => update()));
+	}
 	if (isActive) {
 		store.add(autorun(reader => {
 			update(isActive.read(reader));

@@ -242,11 +242,12 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			}
 		}
 
-		for (const scenario of onboardingScenarioRegistry.getScenarios()) {
-			if (!this._isAutoEligible(scenario)) {
-				continue;
-			}
+		const eligibleScenarios = onboardingScenarioRegistry.getScenarios()
+			.map((scenario, registrationIndex) => ({ scenario, registrationIndex }))
+			.filter(({ scenario }) => this._isAutoEligible(scenario))
+			.sort((a, b) => (b.scenario.priority ?? 0) - (a.scenario.priority ?? 0) || a.registrationIndex - b.registrationIndex);
 
+		for (const { scenario } of eligibleScenarios) {
 			const seenKey = this._seenKey(scenario);
 			if (!scenario.repeatable && claimedSeenKeys.has(seenKey)) {
 				// A sibling sharing this seen key is already scheduled this pass;

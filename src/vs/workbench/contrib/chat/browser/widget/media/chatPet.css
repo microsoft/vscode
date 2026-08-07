@@ -7,11 +7,16 @@
 	position: relative;
 }
 
+.chat-pet-overlay {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
 .chat-pet-button {
 	position: absolute;
 	right: var(--vscode-spacing-size320);
 	bottom: 100%;
-	z-index: 100;
 	width: 48px;
 	height: 48px;
 	padding: 0;
@@ -19,7 +24,10 @@
 	outline: none;
 	background: transparent;
 	cursor: grab;
+	overflow: visible;
+	pointer-events: auto;
 	touch-action: none;
+	transition: transform 200ms ease-out;
 }
 
 .chat-pet-button.hidden {
@@ -28,6 +36,23 @@
 
 .chat-pet-button.dragging {
 	cursor: grabbing;
+}
+
+.chat-pet-button.dragging,
+.chat-pet-button.falling,
+.chat-pet-revive-sign,
+.chat-pet-respawn-effect {
+	z-index: 1;
+}
+
+.chat-pet-button.falling {
+	cursor: default;
+	pointer-events: none;
+	transition: top 180ms cubic-bezier(0.42, 0, 1, 1);
+}
+
+.chat-pet-button.dragging.soft-resisting {
+	animation: chat-pet-drag-soft-resist 240ms steps(2, end) infinite;
 }
 
 .chat-pet-button.dragging.resisting {
@@ -76,13 +101,24 @@
 	}
 }
 
-.monaco-workbench .chat-pet-host > .chat-pet-button:focus {
+.monaco-workbench .chat-pet-overlay > .chat-pet-button:focus {
 	outline: none;
+}
+
+.chat-pet-visual {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	width: 48px;
+	height: 48px;
+	transform-origin: bottom left;
+	pointer-events: none;
 }
 
 .chat-pet-sprite {
 	position: absolute;
-	inset: 0;
+	top: 0;
+	left: 0;
 	display: block;
 	width: 48px;
 	height: 48px;
@@ -95,7 +131,35 @@
 	display: none;
 }
 
+.chat-pet-button.wide-sprite-left .chat-pet-sprite {
+	right: 0;
+	left: auto;
+	transform: scaleX(-1);
+}
+
 .chat-pet-canvas {
+	display: block;
+	height: 48px;
+	image-rendering: pixelated;
+	pointer-events: none;
+}
+
+.chat-pet-spritesheet {
+	display: none;
+}
+
+.chat-pet-revive-sign {
+	position: absolute;
+	width: 48px;
+	height: 48px;
+	pointer-events: none;
+}
+
+.chat-pet-revive-sign.hidden {
+	display: none;
+}
+
+.chat-pet-revive-image {
 	display: block;
 	width: 48px;
 	height: 48px;
@@ -103,7 +167,15 @@
 	pointer-events: none;
 }
 
-.chat-pet-spritesheet {
+.chat-pet-respawn-effect {
+	position: absolute;
+	width: 48px;
+	height: 48px;
+	image-rendering: pixelated;
+	pointer-events: none;
+}
+
+.chat-pet-respawn-effect.hidden {
 	display: none;
 }
 
@@ -128,19 +200,24 @@
 	display: none;
 }
 
+.chat-pet-button[data-state='rendering'].speech-bubble-left .chat-pet-speech-bubble {
+	left: calc(-1 * var(--vscode-spacing-size280));
+	transform: scaleX(-1);
+}
+
 .chat-pet-button.dragging .chat-pet-speech-bubble {
 	display: none;
 }
 
 .chat-pet-button[data-state='complete'] .chat-pet-sprite {
 	transform-origin: 50% 60%;
-	animation: chat-pet-complete-motion 2140ms steps(1, end);
+	animation: chat-pet-complete-motion 960ms steps(1, end);
 }
 
 .chat-pet-button[data-state='jump'] .chat-pet-sprite,
 .chat-pet-button[data-state='jump'] .chat-pet-eyes {
 	transform-origin: 50% 60%;
-	animation: chat-pet-complete-motion 1560ms steps(1, end);
+	animation: chat-pet-complete-motion 960ms steps(1, end);
 }
 
 .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
@@ -154,10 +231,16 @@
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
 }
 
-.chat-pet-button[data-state='yapping'] .chat-pet-speech-bubble,
-.chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-speech-bubble {
-	left: calc(-1 * var(--vscode-spacing-size160));
-	top: calc(-1 * var(--vscode-spacing-size360));
+.chat-pet-button.on-the-run {
+	transform: translateY(var(--vscode-spacing-size400));
+}
+
+.chat-pet-button[data-state='searching']:not(.exiting) {
+	animation: chat-pet-search-up 160ms steps(4, end) forwards;
+}
+
+.chat-pet-button[data-state='searchingDown']:not(.exiting) {
+	animation: chat-pet-search-down 160ms steps(4, end) forwards;
 }
 
 .chat-pet-button.dragging .chat-pet-sprite,
@@ -244,36 +327,46 @@
 	}
 }
 
+@keyframes chat-pet-drag-soft-resist {
+	0%,
+	100% {
+		transform: translateX(-1px) rotate(-1deg);
+	}
+
+	50% {
+		transform: translateX(1px) rotate(1deg);
+	}
+}
+
 @keyframes chat-pet-complete-motion {
 	0% {
 		transform: translateY(0) rotate(0);
 	}
 
-	12.5% {
-		transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(45deg);
+	14.2857% {
+		transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(51deg);
 	}
 
-	25% {
-		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(90deg);
+	28.5714% {
+		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(103deg);
 	}
 
-	37.5% {
-		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(135deg);
+	42.8571% {
+		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(154deg);
 	}
 
-	50% {
-		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(225deg);
+	57.1429% {
+		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(206deg);
 	}
 
-	62.5% {
-		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(270deg);
+	71.4286% {
+		transform: translateY(calc(-1 * var(--vscode-spacing-size80))) rotate(257deg);
 	}
 
-	75% {
-		transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(315deg);
+	85.7143% {
+		transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(309deg);
 	}
 
-	87.5%,
 	100% {
 		transform: translateY(0) rotate(360deg);
 	}
@@ -286,6 +379,34 @@
 
 	100% {
 		transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
+	}
+}
+
+@keyframes chat-pet-search-up {
+	0% {
+		transform: translateY(var(--vscode-spacing-size400));
+	}
+
+	50% {
+		transform: translateY(var(--vscode-spacing-size240));
+	}
+
+	100% {
+		transform: translateY(var(--vscode-spacing-size60));
+	}
+}
+
+@keyframes chat-pet-search-down {
+	0% {
+		transform: translateY(var(--vscode-spacing-size60));
+	}
+
+	50% {
+		transform: translateY(var(--vscode-spacing-size240));
+	}
+
+	100% {
+		transform: translateY(var(--vscode-spacing-size400));
 	}
 }
 
@@ -315,13 +436,20 @@
 	}
 }
 
+.monaco-workbench.monaco-reduce-motion .chat-pet-button {
+	transition: none;
+}
+
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.entering,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.exiting,
+.monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.soft-resisting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.resisting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='complete'] .chat-pet-sprite,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='jump'] .chat-pet-sprite,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='jump'] .chat-pet-eyes,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searching'],
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searchingDown'],
 .monaco-workbench.monaco-reduce-motion .chat-pet-eyes,
 .monaco-workbench.monaco-reduce-motion .chat-pet-pupil {
 	animation: none;
@@ -330,4 +458,12 @@
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-eyes {
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
+}
+
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searching'] {
+	transform: translateY(var(--vscode-spacing-size400));
+}
+
+.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searchingDown'] {
+	transform: translateY(var(--vscode-spacing-size400));
 }

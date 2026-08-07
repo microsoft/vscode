@@ -31,7 +31,7 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
-import { findCopilotLogsForSession, getRemoteConnectionForSession, readRemoteAgentHostLog, sanitizeFilePart } from '../chatDebug/agentHostLogSources.js';
+import { findRelevantCopilotLogs, getRemoteConnectionForSession, readRemoteAgentHostLog, sanitizeFilePart } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
@@ -40,6 +40,7 @@ const AGENT_HOST_LOGGER_CHANNEL_ID = AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 /** Output channel ID for the shared process compound log. */
 const SHARED_PROCESS_LOG_CHANNEL_ID = 'shared';
+const MAX_REMOTE_COPILOT_LOG_EXPORT_SIZE = 10 * 1024 * 1024;
 
 /**
  * Description of the agent-host session whose logs should be exported. If
@@ -207,21 +208,22 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
-	// 5. Copilot SDK process logs under ~/.copilot/logs do not include the
-	// session id in the filename, but relevant entries include it in the content.
+	// 5. Copilot SDK process logs under <COPILOT_HOME>/logs.
 	const rawSessionId = getCopilotCliSessionRawId(activeSession?.resource);
-	if (rawSessionId) {
-		const copilotLogsDir = activeSession?.isLocal
-			? buildLocalCopilotLogsUri(userHome)
-			: remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined;
-		if (copilotLogsDir) {
-			const copilotLogFiles = await findCopilotLogsForSession(copilotLogsDir, rawSessionId, fileService, logService);
-			for (const file of copilotLogFiles) {
-				try {
-					files.push(await createDebugLogFile(file.path, file.resource, fileService, file.size));
-				} catch (error) {
-					logService.warn(`[ExportAgentHostDebugLogs] Failed to read Copilot log '${file.path}': ${error instanceof Error ? error.message : String(error)}`);
-				}
+	const copilotLogsDir = activeSession
+		? rawSessionId
+			? activeSession.isLocal
+				? buildLocalCopilotLogsUri(userHome)
+				: remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined
+			: undefined
+		: buildLocalCopilotLogsUri(userHome);
+	if (copilotLogsDir) {
+		const copilotLogFiles = await findRelevantCopilotLogs(copilotLogsDir, rawSessionId, fileService, logService);
+		for (const file of copilotLogFiles) {
+			try {
+				files.push(await createDebugLogFile(file.path, file.resource, fileService, file.size, MAX_REMOTE_COPILOT_LOG_EXPORT_SIZE));
+			} catch (error) {
+				logService.warn(`[ExportAgentHostDebugLogs] Failed to read Copilot log '${file.path}': ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}
 	}
@@ -378,7 +380,7 @@ async function exportFilesToLocalFolder(
 	return true;
 }
 
-async function createDebugLogFile(path: string, resource: URI, fileService: IFileService, size?: number): Promise<IAgentHostDebugLogFile> {
+async function createDebugLogFile(path: string, resource: URI, fileService: IFileService, size?: number, maxInlineSize?: number): Promise<IAgentHostDebugLogFile> {
 	if (resource.scheme === Schemas.file) {
 		const observedSize = size ?? (await fileService.resolve(resource, { resolveMetadata: true })).size;
 		return { path, resource, size: observedSize };
@@ -386,7 +388,8 @@ async function createDebugLogFile(path: string, resource: URI, fileService: IFil
 	// Non-local resources (e.g. remote agent-host logs) can't be streamed from
 	// disk, so read them inline, bounded to the captured size when known.
 	if (size !== undefined) {
-		const stream = await fileService.readFileStream(resource, { length: size });
+		const readSize = maxInlineSize === undefined ? size : Math.min(size, maxInlineSize);
+		const stream = await fileService.readFileStream(resource, { position: size - readSize, length: readSize });
 		const content = await streamToBuffer(stream.value);
 		return { path, contents: content.toString() };
 	}

@@ -94,13 +94,9 @@
 		}
 	}
 
-	.monaco-list-row:has(.session-item.session-archive-animation) .session-title-toolbar {
-		display: block;
-	}
-
 	/* Pinned but not hovered/focused: show only the unpin action */
 	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
-		.session-item:not(.session-archive-animation) .session-title-toolbar {
+		.session-title-toolbar {
 			display: block;
 
 			.action-item:not(:last-child) {
@@ -112,18 +108,6 @@
 			margin-right: 8px;
 		}
 	}
-}
-
-.session-archive-catch-pulse {
-	position: fixed;
-	z-index: 1000;
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
-	box-sizing: border-box;
-	pointer-events: none;
-	border: var(--vscode-strokeThickness) solid var(--vscode-textLink-foreground);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Session Item */
@@ -514,6 +498,17 @@
 		font-size: var(--vscode-codiconFontSize, 16px);
 	}
 
+	.session-section-status-indicator {
+		flex-shrink: 0;
+		margin-left: 4px;
+		position: relative;
+		width: 16px;
+		height: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
 	.session-section-count {
 		flex-shrink: 0;
 		opacity: 0.7;
@@ -548,6 +543,24 @@
 	display: block;
 }
 
+/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
+.monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
+	visibility: hidden;
+}
+.session-section.session-section-shortcut .session-section-toolbar {
+	display: block;
+	visibility: hidden;
+}
+.monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
+	visibility: visible;
+}
+
+/* Active background for shortcut sections when their editor is open */
+.session-section.session-section-shortcut.active {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
 .monaco-list-row.focused .session-section .session-section-chevron.collapsible {
 	display: flex;
@@ -575,6 +588,12 @@
 	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
+	}
+
+	/* Shortcut sections only change label and icon color on hover, unless active. */
+	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-label,
+	.monaco-list-row.focused:not(:hover) .session-section.session-section-shortcut:not(.active) .session-section-icon {
+		color: var(--vscode-descriptionForeground);
 	}
 
 	&.session-section-focus-from-pointer {
@@ -658,7 +677,7 @@
 			background-clip: text;
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 3s steps(180, jump-none) infinite;
+			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
 		}
 
 		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
@@ -684,6 +703,7 @@
 		background-position: 120% 0;
 	}
 
+	50%,
 	100% {
 		background-position: -120% 0;
 	}

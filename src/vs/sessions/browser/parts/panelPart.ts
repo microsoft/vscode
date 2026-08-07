@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
 import { agentsBadgeBackground, agentsBadgeForeground, agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../common/sizes.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';

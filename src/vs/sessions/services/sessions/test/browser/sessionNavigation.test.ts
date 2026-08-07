@@ -106,6 +106,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidToggleSessionStickiness = Event.None;
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
+	readonly automationSession: IObservable<ISession | undefined> = constObservable(undefined);
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
@@ -170,6 +171,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getAllSessionTypes(): ISessionType[] { return []; }
+	getAllProviderSessionTypes(): IProviderSessionType[] { return []; }
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
 	getQuickChatSessionTypes(): IProviderSessionType[] { return []; }
 	isNewSessionTargetAvailable(_folderUri: URI, _options?: ICreateNewSessionOptions): boolean { return false; }
@@ -205,11 +207,14 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	createAutomationSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	createAutomationQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
 	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	createSideChatInSession(_session: ISession, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 	discardNewSession(): void { throw new Error('not implemented'); }
+	discardAutomationSession(): void { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	createAndSendNewChatRequest(_folderUri: URI, _options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }

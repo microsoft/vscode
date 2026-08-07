@@ -23,7 +23,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../workben
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
 
 // ---- Mocks ------------------------------------------------------------------
@@ -73,7 +73,7 @@ function createFakeQuickChatSession(providerId: string, sessionTypeId: string): 
 }
 
 function sessionType(providerId: string, id: string, label: string, chatSessionType?: string): IProviderSessionType {
-	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType } };
+	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType, authRequirement: SessionTypeAuthRequirement.GitHub } };
 }
 
 function createFakeSession(providerId: string, sessionTypeId: string, folderUri: URI, status = SessionStatus.Untitled): ISession {
@@ -217,9 +217,8 @@ suite('SessionTypePicker', () => {
 	});
 
 	test('a draft never displays a harness the picker no longer offers', () => {
-		// `chat.agents.copilotCli.hideExtensionHost`: the extension-host Copilot
-		// CLI ('copilot' provider) stops being advertised, leaving only the agent
-		// host's entry — which shares the 'copilotcli' session type id.
+		// The extension-host Copilot CLI stops being advertised, leaving only the
+		// agent host's entry, which shares the 'copilotcli' session type id.
 		management.setSessionTypes([sessionType('local-agent-host', 'copilotcli', 'Copilot')]);
 		const picker = createPicker(disposables, session, management, storage);
 

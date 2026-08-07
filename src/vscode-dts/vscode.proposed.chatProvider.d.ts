@@ -24,6 +24,11 @@ declare module 'vscode' {
 		readonly modelConfiguration?: {
 			readonly [key: string]: any;
 		};
+
+		/**
+		 * Whether encrypted thinking state should be included in the response.
+		 */
+		readonly includeEncryptedThinking?: boolean;
 	}
 
 	/**
@@ -100,8 +105,8 @@ declare module 'vscode' {
 			readonly id: string;
 			/** The discount percentage (e.g. 20 for 20% off). */
 			readonly discountPercent: number;
-			/** ISO 8601 date string indicating when the promotion ends. */
-			readonly endsAt: string;
+			/** ISO 8601 date string indicating when the promotion ends. Omit for open-ended promotions. */
+			readonly endsAt?: string;
 			/** A human-readable message about the promotion. */
 			readonly message: string;
 		};
