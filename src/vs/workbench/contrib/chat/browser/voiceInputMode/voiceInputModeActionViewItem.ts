@@ -500,7 +500,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		// animate this control.
 		const dictationActive = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangeState,
-			() => isDictationActiveOnSurface(this.chatSpeechToTextService, 'chat'));
+			() => isDictationActiveOnSurface(this.chatSpeechToTextService, 'chat') && this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
 
 		// Model preparation: on first use the on-device model downloads/loads. Swap the
 		// mic for a download affordance while preparing, mirroring the standalone button.
