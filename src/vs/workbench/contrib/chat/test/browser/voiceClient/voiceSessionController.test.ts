@@ -4760,6 +4760,38 @@ suite('VoiceSessionController', () => {
 		assert.ok(voicePlaybackService.pendingSessions.has(confirmationResource.toString()), 'the confirmation returns to normal panel ownership');
 	});
 
+	test('without omni, focused responses narrate and background responses wait for focus', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const voicePlaybackService = new RecordingVoicePlaybackService();
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, voicePlaybackService,
+		);
+		const focusedSession = URI.parse('vscode-chat://focused-panel-session');
+		const backgroundSession = URI.parse('vscode-chat://background-panel-session');
+		const handleStateChange = Reflect.get(controller, '_handleNarratableStateChange') as (
+			sessionId: string,
+			state: string,
+			detail: string | undefined,
+			summary: string | undefined,
+			shown: string | undefined,
+		) => void;
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		controller.setTargetSession(focusedSession);
+
+		handleStateChange.call(controller, focusedSession.toString(), 'idle', undefined, 'Focused response.', focusedSession.toString());
+		handleStateChange.call(controller, backgroundSession.toString(), 'idle', undefined, 'Background response.', focusedSession.toString());
+
+		assert.deepStrictEqual(voiceClientService.requests.map(request => request.text), ['Focused response.']);
+		assert.ok(voicePlaybackService.pendingSessions.has(backgroundSession.toString()));
+
+		controller.activateSession(backgroundSession);
+
+		assert.deepStrictEqual(voiceClientService.requests.map(request => request.text), ['Focused response.', 'Background response.']);
+	});
+
 	test('plays responses for an omni-routed target without a pending indicator', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
