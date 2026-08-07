@@ -7,6 +7,7 @@ import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -21,6 +22,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ClaudeFileEditObserver } from '../../node/claude/claudeFileEditObserver.js';
 import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
@@ -49,6 +51,22 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
 		[IEditArcReporterService, new NullEditArcReporterService()],
+		[IAgentConfigurationService, {
+			_serviceBrand: undefined,
+			onDidRootConfigChange: Event.None,
+			onDidSessionConfigChange: Event.None,
+			getEffectiveValue: () => undefined,
+			getEffectiveWorkingDirectory: () => undefined,
+			getEffectiveWorkingDirectories: () => undefined,
+			isWorkingDirectoryPending: () => false,
+			resolveWorkingDirectoryForResume: async (_session: string, workingDirectory: URI) => workingDirectory,
+			updateSessionConfig: () => { },
+			getSessionConfigValues: () => undefined,
+			getRootValue: () => undefined,
+			updateRootConfig: () => { },
+			persistRootConfig: () => { },
+			whenIdle: async () => { },
+		}],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const observer = disposables.add(instantiationService.createInstance(

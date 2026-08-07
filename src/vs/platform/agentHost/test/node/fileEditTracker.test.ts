@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -19,8 +20,9 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest, getFileEditAttributionMarker, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
-import { ToolResultContentType } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ToolResultContentType } from '../../common/state/sessionState.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { FileEditTracker } from '../../node/shared/fileEditTracker.js';
@@ -33,6 +35,22 @@ suite('FileEditTracker', () => {
 	let db: SessionDatabase;
 	let tracker: FileEditTracker;
 	let diffComputeService: TestDiffComputeService;
+	const configurationService: IAgentConfigurationService = {
+		_serviceBrand: undefined,
+		onDidRootConfigChange: Event.None,
+		onDidSessionConfigChange: Event.None,
+		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => key === 'mode' ? 'plan' : undefined) as IAgentConfigurationService['getEffectiveValue'],
+		getEffectiveWorkingDirectory: () => undefined,
+		getEffectiveWorkingDirectories: () => undefined,
+		isWorkingDirectoryPending: () => false,
+		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
+		updateSessionConfig: () => { },
+		getSessionConfigValues: () => undefined,
+		getRootValue: () => undefined,
+		updateRootConfig: () => { },
+		persistRootConfig: () => { },
+		whenIdle: async () => { },
+	};
 
 	setup(async () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
@@ -50,6 +68,7 @@ suite('FileEditTracker', () => {
 		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		services.set(IEditArcReporterService, new NullEditArcReporterService());
+		services.set(IAgentConfigurationService, configurationService);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		tracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 	});
@@ -137,6 +156,7 @@ suite('FileEditTracker', () => {
 			cancelFlush: async () => ({ outcome: 'missing', agentModifiedCount: 0 }),
 		});
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IAgentConfigurationService, configurationService);
 		services.set(IEditArcReporterService, {
 			_serviceBrand: undefined,
 			reportEdit: async () => { arcReportCount++; },
@@ -178,6 +198,7 @@ suite('FileEditTracker', () => {
 		});
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		services.set(IEditArcReporterService, new NullEditArcReporterService());
+		services.set(IAgentConfigurationService, configurationService);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 		await fileService.writeFile(URI.file('/workspace/fallback.txt'), VSBuffer.fromString('before'));
@@ -206,6 +227,7 @@ suite('FileEditTracker', () => {
 		services.set(IDiffComputeService, localDiffComputeService);
 		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IAgentConfigurationService, configurationService);
 		services.set(IEditArcReporterService, {
 			_serviceBrand: undefined,
 			reportEdit: async params => {
@@ -214,7 +236,7 @@ suite('FileEditTracker', () => {
 			},
 		});
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
+		const localTracker = instantiationService.createInstance(FileEditTracker, buildDefaultChatUri('copilot:/test-session'), db);
 		await fileService.writeFile(URI.file('/workspace/non-blocking.txt'), VSBuffer.fromString('before'));
 
 		await localTracker.trackEditStart('/workspace/non-blocking.txt');
@@ -241,6 +263,7 @@ suite('FileEditTracker', () => {
 			diffCallCount: localDiffComputeService.callCount,
 			detailedDiffCallCount: localDiffComputeService.detailedCallCount,
 			initialEdit: report.initialEdit,
+			mode: report.mode,
 		}, {
 			completion: 'complete',
 			resultType: ToolResultContentType.FileEdit,
@@ -249,6 +272,7 @@ suite('FileEditTracker', () => {
 			initialEdit: {
 				replacements: [{ start: 0, endExclusive: 6, text: 'after' }]
 			},
+			mode: 'plan',
 		});
 	});
 
@@ -265,6 +289,7 @@ suite('FileEditTracker', () => {
 		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		services.set(IEditArcReporterService, new NullEditArcReporterService());
+		services.set(IAgentConfigurationService, configurationService);
 		const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 		const localTracker = inst.createInstance(FileEditTracker, 'copilot:/test-session', db);
 
