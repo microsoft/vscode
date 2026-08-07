@@ -26,7 +26,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotAssignmentFilterProvider, GitHubCoreAssignmentsFilterProvider } from './assignmentFilters.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AssignmentContextFilter } from './assignmentContextFilter.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 
@@ -194,6 +194,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 					this.tasClient = this.setupTASClient();
 				}
 			}));
+
+			// Ensure the final client's auto-polling is stopped when the service is disposed.
+			this._register(toDisposable(() => WorkbenchAssignmentService.disposeTasClient(this.tasClient)));
 		}
 
 		this.contextFilter = this._register(new AssignmentContextFilter(storageService));
@@ -309,6 +312,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		// initialFetch cannot flip networkInitialized for a newer client.
 		const generation = ++this.setupGeneration;
 		this.networkInitialized = false;
+
+		// Dispose the previously created client so it stops auto-polling the (legacy) endpoint.
+		WorkbenchAssignmentService.disposeTasClient(this.tasClient);
 
 		const targetPopulation = this.productService.quality === 'stable' ?
 			TargetPopulation.Public : (this.productService.quality === 'exploration' ?
@@ -439,6 +445,11 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void {
 		this.contextFilter.addFilter(filter);
+	}
+
+	/** Stops a TAS client's auto-polling once it resolves. Safe to call with `undefined`. */
+	private static disposeTasClient(client: Promise<TASClient> | undefined): void {
+		client?.then(c => (c as unknown as { dispose?(): void }).dispose?.()).catch(() => undefined);
 	}
 }
 
