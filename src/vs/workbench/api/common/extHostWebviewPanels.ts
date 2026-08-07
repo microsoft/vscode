@@ -320,6 +320,15 @@ export class ExtHostWebviewPanels extends Disposable implements extHostProtocol.
 	public getWebviewPanel(handle: extHostProtocol.WebviewHandle): ExtHostWebviewPanel | undefined {
 		return this._webviewPanels.get(handle);
 	}
+
+	public getHandleForWebviewPanel(panel: vscode.WebviewPanel): extHostProtocol.WebviewHandle | undefined {
+		for (const [handle, candidate] of this._webviewPanels) {
+			if (candidate === panel) {
+				return handle;
+			}
+		}
+		return undefined;
+	}
 }
 
 function serializeWebviewPanelOptions(options: vscode.WebviewPanelOptions): extHostProtocol.IWebviewPanelOptions {

@@ -11,7 +11,7 @@ import { IEditorPane } from '../../../common/editor.js';
 import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget } from './outline.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 
-class OutlineService implements IOutlineService {
+export class OutlineService implements IOutlineService {
 
 	declare _serviceBrand: undefined;
 
@@ -40,8 +40,10 @@ class OutlineService implements IOutlineService {
 
 	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable {
 		const rm = this._factories.push(creator);
+		const changeListener = creator.onDidChange?.(() => this._onDidChange.fire());
 		this._onDidChange.fire();
 		return toDisposable(() => {
+			changeListener?.dispose();
 			rm();
 			this._onDidChange.fire();
 		});
