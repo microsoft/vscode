@@ -225,7 +225,7 @@ suite('WorktreeIsolation', () => {
 			announcementHasBranch: announcement?.includes(branchName) ?? false,
 			secondTakeAnnouncement: isolation.takePendingAnnouncement(sessionId),
 			idempotentReturn: second!.toString(),
-			createdSessions: isolation.trackedWorktreeSessionIds,
+			resolvedWorktree: isolation.getResolvedWorktree(sessionId)?.toString(),
 		}, {
 			returnedWorktree: expectedWorktree.toString(),
 			addWorktreeCallCount: 1,
@@ -236,7 +236,7 @@ suite('WorktreeIsolation', () => {
 			announcementHasBranch: true,
 			secondTakeAnnouncement: undefined,
 			idempotentReturn: expectedWorktree.toString(),
-			createdSessions: [sessionId],
+			resolvedWorktree: expectedWorktree.toString(),
 		});
 	});
 
@@ -465,12 +465,12 @@ suite('WorktreeIsolation', () => {
 			folder: folder?.toString(),
 			noBranch: noBranch?.toString(),
 			addWorktreeCallCount: addWorktreeCalls.length,
-			createdSessions: isolation.trackedWorktreeSessionIds,
+			resolvedWorktree: isolation.getResolvedWorktree(sessionId),
 		}, {
 			folder: repoRoot.toString(),
 			noBranch: repoRoot.toString(),
 			addWorktreeCallCount: 0,
-			createdSessions: [],
+			resolvedWorktree: undefined,
 		});
 	});
 
@@ -497,7 +497,7 @@ suite('WorktreeIsolation', () => {
 				worktree: call.worktree.toString(),
 				globs: call.globs,
 			})),
-			createdSessions: isolation.trackedWorktreeSessionIds,
+			resolvedWorktree: isolation.getResolvedWorktree(sessionId)?.toString(),
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 			copyIncludeCalls: [{
@@ -505,7 +505,7 @@ suite('WorktreeIsolation', () => {
 				worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 				globs: includeFiles,
 			}],
-			createdSessions: [sessionId],
+			resolvedWorktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 		});
 	});
 
@@ -778,14 +778,14 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
-		await isolation.removeSessionWorktree(sessionId);
+		await isolation.removeSessionWorktree(sessionId, await isolation.prepareSessionDeletion(sessionUri, sessionId));
 
 		assert.deepStrictEqual({
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
-			createdSessions: isolation.trackedWorktreeSessionIds,
+			resolvedWorktree: isolation.getResolvedWorktree(sessionId),
 		}, {
 			removeCalls: [{ worktree: worktree!.toString(), force: true }],
-			createdSessions: [],
+			resolvedWorktree: undefined,
 		});
 	});
 
@@ -799,26 +799,27 @@ suite('WorktreeIsolation', () => {
 		]);
 		const isolation = createIsolation(disposables);
 
-		await isolation.prepareSessionDeletion(sessionUri, sessionId);
-		await isolation.removeSessionWorktree(sessionId);
+		const worktreeToRemove = await isolation.prepareSessionDeletion(sessionUri, sessionId);
+		await isolation.removeSessionWorktree(sessionId, worktreeToRemove);
 
 		assert.deepStrictEqual({
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
-			trackedSessions: isolation.trackedWorktreeSessionIds,
+			resolvedWorktree: isolation.getResolvedWorktree(sessionId),
 		}, {
 			removeCalls: [{ worktree: worktree.toString(), force: true }],
-			trackedSessions: [],
+			resolvedWorktree: undefined,
 		});
 	});
 
-	test('failed worktree removal remains tracked for a later retry', async () => {
+	test('failed worktree removal preserves the materialized worktree cache', async () => {
 		const gitService = createGitService();
 		gitService.removeWorktree = async () => { throw new Error('remove failed'); };
 		const isolation = createIsolation(disposables, { gitService });
 		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
-		await isolation.removeSessionWorktree(sessionId);
+		const worktree = await isolation.prepareSessionDeletion(sessionUri, sessionId);
+		await isolation.removeSessionWorktree(sessionId, worktree);
 
-		assert.deepStrictEqual(isolation.trackedWorktreeSessionIds, [sessionId]);
+		assert.strictEqual(isolation.getResolvedWorktree(sessionId)?.toString(), worktree?.worktree.toString());
 	});
 });

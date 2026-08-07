@@ -2196,9 +2196,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// the repository can no longer be resolved and the refs would leak
 		// into the main repository (`refs/agents/*` is shared, not per-worktree).
 		const sessionId = AgentSession.id(session);
-		await this._worktree?.prepareSessionDeletion(session, sessionId);
+		const worktree = await this._worktree?.prepareSessionDeletion(session, sessionId);
 		await this._sessionDataService.deleteSessionData(session, workingDirectories);
-		await this._worktree?.removeSessionWorktree(sessionId);
+		await this._worktree?.removeSessionWorktree(sessionId, worktree);
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {

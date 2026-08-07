@@ -1563,13 +1563,18 @@ suite('AgentService (node dispatcher)', () => {
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			svc.setWorktreeIsolation({
-				prepareSessionDeletion: async () => { order.push('prepareSessionDeletion'); },
-				removeSessionWorktree: async () => { order.push('removeSessionWorktree'); },
+				prepareSessionDeletion: async () => {
+					order.push('prepareSessionDeletion');
+					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree') };
+				},
+				removeSessionWorktree: async (_sessionId: string, worktree: { readonly worktree: URI } | undefined) => {
+					order.push(`removeSessionWorktree:${worktree?.worktree.fsPath}`);
+				},
 			} as unknown as WorktreeIsolation);
 
 			await svc.disposeSession(session);
 
-			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree']);
+			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree:/worktree']);
 		});
 	});
 
@@ -2860,10 +2865,10 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				removeWorktreeCalls,
-				createdSessions: isolation.trackedWorktreeSessionIds,
+				resolvedWorktree: isolation.getResolvedWorktree('session')?.toString(),
 			}, {
 				removeWorktreeCalls: 0,
-				createdSessions: ['session'],
+				resolvedWorktree: URI.joinPath(getWorktreesRoot(workingDirectory), 'test').toString(),
 			});
 		});
 	});

@@ -319,16 +319,13 @@ export interface IResolveWorkingDirectoryRequest {
  * A single host-owned instance serves every agent: the orchestrator
  * ({@link AgentService}) creates it and drives the lifecycle so individual
  * agents stay unaware of the folder-vs-worktree distinction. Session state
- * (`_sessionWorktrees`, pending markers, pending announcements) is keyed by the
+ * (`_materializedWorktrees`, pending markers, pending announcements) is keyed by the
  * globally-unique sessionId, so sharing one instance across agents is safe.
  */
 export class WorktreeIsolation extends Disposable {
 
-	/**
-	 * Materialized worktrees keyed by sessionId, including persisted worktrees
-	 * loaded for deletion after a process restart.
-	 */
-	private readonly _sessionWorktrees = new Map<string, ISessionWorktree>();
+	/** Worktrees materialized during this host process, keyed by sessionId. */
+	private readonly _materializedWorktrees = new Map<string, ISessionWorktree>();
 
 	/**
 	 * Per-session announcement (markdown) emitted as a synthetic streaming
@@ -377,11 +374,6 @@ export class WorktreeIsolation extends Disposable {
 		this._branchNameGenerator = branchNameGenerator ?? new AgentBranchNameGenerator(copilotApiService, this._logService);
 	}
 
-	/** SessionIds with a materialized worktree currently tracked by the host. */
-	get trackedWorktreeSessionIds(): readonly string[] {
-		return [...this._sessionWorktrees.keys()];
-	}
-
 	/**
 	 * Marks a fresh worktree-isolation session as pending — its worktree is
 	 * deferred to the first send. Called by the host while a creating session's
@@ -407,7 +399,7 @@ export class WorktreeIsolation extends Disposable {
 
 	/** The worktree created for a session in this process, if any. */
 	getResolvedWorktree(sessionId: string): URI | undefined {
-		return this._sessionWorktrees.get(sessionId)?.worktree;
+		return this._materializedWorktrees.get(sessionId)?.worktree;
 	}
 
 	/**
@@ -564,7 +556,7 @@ export class WorktreeIsolation extends Disposable {
 		// process (e.g. the caller re-enters materialization after a thread
 		// restart or a post-creation failure) reuse it rather than creating a
 		// second branch + worktree.
-		const already = this._sessionWorktrees.get(sessionId);
+		const already = this._materializedWorktrees.get(sessionId);
 		if (already) {
 			return already.worktree;
 		}
@@ -627,7 +619,7 @@ export class WorktreeIsolation extends Disposable {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to copy worktree include files: ${errorMessage(error)}`);
 			}
 		}
-		this._sessionWorktrees.set(sessionId, { repositoryRoot, worktree });
+		this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree });
 		// Queue the worktree announcement so the first turn (live) and any
 		// subsequent restore (history) both surface the message in the chat.
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
@@ -730,11 +722,12 @@ export class WorktreeIsolation extends Disposable {
 		return prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(notice.branchName));
 	}
 
-	/** Loads persisted worktree ownership before the session database is deleted. */
-	async prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<void> {
+	/** Resolves the worktree to remove before the session database is deleted. */
+	async prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<ISessionWorktree | undefined> {
 		return this._sequencer.queue(sessionId, async () => {
-			if (this._sessionWorktrees.has(sessionId)) {
-				return;
+			const materializedWorktree = this._materializedWorktrees.get(sessionId);
+			if (materializedWorktree) {
+				return materializedWorktree;
 			}
 			let meta: IWorktreeMetadata | undefined;
 			try {
@@ -744,25 +737,25 @@ export class WorktreeIsolation extends Disposable {
 				return;
 			}
 			if (meta?.worktreePath && meta.repositoryRoot) {
-				this._sessionWorktrees.set(sessionId, { repositoryRoot: meta.repositoryRoot, worktree: meta.worktreePath });
+				return { repositoryRoot: meta.repositoryRoot, worktree: meta.worktreePath };
 			}
+			return undefined;
 		});
 	}
 
-	/** Force-removes a tracked worktree after the user confirms session deletion. */
-	async removeSessionWorktree(sessionId: string): Promise<void> {
-		return this._sequencer.queue(sessionId, () => this._removeSessionWorktree(sessionId));
+	/** Force-removes the resolved worktree after the user confirms session deletion. */
+	async removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
+		return this._sequencer.queue(sessionId, () => this._removeSessionWorktree(sessionId, worktree));
 	}
 
-	private async _removeSessionWorktree(sessionId: string): Promise<void> {
+	private async _removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
 		this.clearPending(sessionId);
-		const worktree = this._sessionWorktrees.get(sessionId);
 		if (!worktree) {
 			return;
 		}
 		try {
 			await this._gitService.removeWorktree(worktree.repositoryRoot, worktree.worktree, { force: true });
-			this._sessionWorktrees.delete(sessionId);
+			this._materializedWorktrees.delete(sessionId);
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktree.worktree.fsPath}': ${errorMessage(error)}`);
 		}
@@ -789,7 +782,7 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await fs.access(worktreePath.fsPath);
 		} catch {
-			this._sessionWorktrees.delete(sessionId);
+			this._materializedWorktrees.delete(sessionId);
 			return;
 		}
 
@@ -815,7 +808,7 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await this._gitService.removeWorktree(repositoryRoot, worktreePath);
 			this._logService.info(`[${this._logLabel}:${sessionId}] Removed worktree '${worktreePath.fsPath}' on archive`);
-			this._sessionWorktrees.delete(sessionId);
+			this._materializedWorktrees.delete(sessionId);
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' on archive: ${errorMessage(error)}`);
 		}
@@ -858,7 +851,7 @@ export class WorktreeIsolation extends Disposable {
 		try {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
 			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
-			this._sessionWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+			this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
 			this._logService.info(`[${this._logLabel}:${sessionId}] Recreated worktree '${worktreePath.fsPath}'`);
 			return { ok: true };
 		} catch (error) {
@@ -908,7 +901,7 @@ export class WorktreeIsolation extends Disposable {
 	 * materializes.
 	 */
 	sessionWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined {
-		const worktree = this._sessionWorktrees.get(sessionId);
+		const worktree = this._materializedWorktrees.get(sessionId);
 		return worktree ? projectFromRepositoryRoot(worktree.repositoryRoot) : undefined;
 	}
 
