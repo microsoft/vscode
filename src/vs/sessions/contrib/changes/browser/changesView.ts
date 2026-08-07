@@ -1151,7 +1151,7 @@ export class ChangesViewPane extends ViewPane {
 			const isCurrentlyVisible = this.splitView.isViewVisible(paneIndex);
 			if (visible !== isCurrentlyVisible) {
 				this.splitView.setViewVisible(paneIndex, visible);
-				if (visible && !widget.collapsed) {
+				if (visible && !widget.collapsed && !this.sectionPanesUserResized) {
 					savedPaneHeight = getPreferredHeight();
 					this.splitView.resizeView(paneIndex, savedPaneHeight);
 				}
