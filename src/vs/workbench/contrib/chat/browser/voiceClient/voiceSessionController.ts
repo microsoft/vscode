@@ -680,7 +680,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _lastResponseSummaryById = new Map<string, string>();
 	/** Request-aware narration state for omni routes, retained across queue/run/prompt transitions. */
-	private readonly _routedRequests = new Map<string, { requestId: string | undefined; phase: 'queued' | 'running' | 'waiting' }>();
+	private readonly _routedRequests = new Map<string, { requestId: string | undefined; previousRequestId?: string; phase: 'queued' | 'running' | 'waiting' }>();
 
 	/**
 	 * The exact text last narrated per session, used to de-duplicate narration
@@ -2869,8 +2869,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	markRoutedRequestPending(resource: URI, requestId?: string): void {
 		const sessionKey = this._sessionKey(resource.toString());
-		const wasAlreadyMarked = this._routedRequests.has(sessionKey);
-		const routedRequest = { requestId, phase: 'queued' as const };
+		const existing = this._routedRequests.get(sessionKey);
+		const wasAlreadyMarked = existing !== undefined;
+		// Some providers acknowledge a queued send before the request has been
+		// added to the model, so the router cannot return its id yet. Remember the
+		// current tail as a baseline and adopt the first different request below.
+		// Preserve that baseline across the onWillDispatch/onDidResolve pair.
+		const previousRequestId = requestId
+			? undefined
+			: existing?.previousRequestId ?? this.chatService.getSession(resource)?.getRequests().at(-1)?.id;
+		const routedRequest = {
+			requestId,
+			...(previousRequestId ? { previousRequestId } : {}),
+			phase: 'queued' as const,
+		};
 		this._routedRequests.set(sessionKey, routedRequest);
 		if (!wasAlreadyMarked) {
 			this._discardResponsesSupersededByPending(sessionKey);
@@ -4758,9 +4770,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _isOmniRoutedSession(sessionId: string | undefined): boolean {
-		return !!sessionId
-			&& !!this._targetOmniRoute
-			&& this._isSameSession(this._targetSession.get()?.toString(), sessionId);
+		if (!sessionId) {
+			return false;
+		}
+		// The floating input releases its focus ownership while an approval is
+		// being answered. The routed task still owns voice playback until it
+		// completes, even if `_targetOmniRoute` was cleared by that blur. Otherwise
+		// a second confirmation is buffered as background audio under the Agent Host
+		// URI while the scratch input URI remains focused, and can never flush.
+		return this._routedRequests.has(this._sessionKey(sessionId))
+			|| (!!this._targetOmniRoute && this._isSameSession(this._targetSession.get()?.toString(), sessionId));
 	}
 
 	/** Whether a response for `sessionId` should defer: true unless it is the
@@ -5798,11 +5817,24 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this.chatService.getSession(resource);
 	}
 
-	private _isCurrentRoutedRequest(sessionId: string, routedRequest: { requestId: string | undefined }): boolean {
-		if (!routedRequest.requestId) {
+	private _isCurrentRoutedRequest(sessionId: string, routedRequest: { requestId: string | undefined; previousRequestId?: string }): boolean {
+		const currentRequestId = this._modelForSession(sessionId)?.getRequests().at(-1)?.id;
+		if (!currentRequestId) {
 			return false;
 		}
-		return this._modelForSession(sessionId)?.getRequests().at(-1)?.id === routedRequest.requestId;
+		if (routedRequest.requestId) {
+			return currentRequestId === routedRequest.requestId;
+		}
+		if (currentRequestId === routedRequest.previousRequestId) {
+			return false;
+		}
+		// The queued request has now appeared in the model. Adopt its stable id so
+		// later confirmations and the final response stay owned by this voice turn.
+		// Mutate the registered object so callers that immediately advance its phase
+		// do not overwrite the adopted id with their pre-adoption snapshot.
+		routedRequest.requestId = currentRequestId;
+		delete routedRequest.previousRequestId;
+		return true;
 	}
 
 	/**

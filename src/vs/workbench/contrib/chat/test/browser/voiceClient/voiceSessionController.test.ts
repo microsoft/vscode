@@ -4486,6 +4486,42 @@ suite('VoiceSessionController', () => {
 		);
 	});
 
+	test('adopts the request id when a queued omni route appears in the model', () => {
+		const chatService = new ControllableChatService();
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('vscode-chat://omni-target');
+		let lastRequestId = 'previous-request';
+		chatService.setModels([{
+			sessionResource: resource,
+			title: 'Omni target',
+			getRequests: () => [{ id: lastRequestId }],
+			lastRequestObs: observableValue('lastRequest', undefined),
+		} as unknown as IChatModel]);
+
+		controller.markRoutedRequestPending(resource);
+		lastRequestId = 'new-request';
+		const cacheResponseSummary = Reflect.get(controller, '_cacheResponseSummary') as (sessionId: string, state: string, summary: string | undefined) => void;
+		cacheResponseSummary.call(controller, resource.toString(), 'thinking', undefined);
+
+		assert.deepStrictEqual(
+			Reflect.get(controller, '_routedRequests'),
+			new Map([[resource.toString(), { requestId: 'new-request', phase: 'running' }]]),
+		);
+	});
+
+	test('keeps an in-flight omni route live after the floating input releases focus', () => {
+		const controller = createController(new TestVoiceClientService());
+		const resource = URI.parse('agent-host-copilotcli:/omni-target');
+		const shouldDefer = Reflect.get(controller, '_shouldDeferForSession') as (sessionId: string) => boolean;
+
+		controller.setTargetSession(resource, 'new_session');
+		controller.markRoutedRequestPending(resource, 'new-request');
+		controller.setOmniInputActive(true);
+		controller.setOmniInputActive(false);
+
+		assert.strictEqual(shouldDefer.call(controller, resource.toString()), false);
+	});
+
 	test('an omni response is never requested again after it has been heard', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
