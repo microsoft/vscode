@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { computeSessionDiffs, computeUnionedDiffs } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs } from '../../node/sessionDiffAggregator.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 
 const TEST_SESSION_URI = 'session://test-session';
@@ -585,5 +585,84 @@ suite('computeUnionedDiffs', () => {
 			filePath: '/shared.txt',
 			part: 'after',
 		});
+	});
+});
+
+suite('diff aggregators — includeUnder filter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function addEdit(db: TestSessionDatabase, turnId: string, filePath: string, extra?: { kind?: FileEditKind; originalPath?: string }): void {
+		db.addEdit({
+			turnId, toolCallId: `tc-${filePath}`, filePath,
+			kind: extra?.kind ?? FileEditKind.Edit,
+			originalPath: extra?.originalPath,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('before'), afterContent: encodeString('before\nafter'),
+		});
+	}
+
+	test('computeTurnDiffs keeps only edits under includeUnder roots', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', '/repoA/x.ts');
+		addEdit(db, 't1', '/repoB/y.ts');
+		addEdit(db, 't1', '/repoC/z.ts');
+
+		const result = await computeTurnDiffs(TEST_SESSION_URI, db, createTestDiffService(), 't1', {
+			includeUnder: [URI.file('/repoB')],
+		});
+
+		assert.deepStrictEqual(result.map(getDiffUri), [URI.file('/repoB/y.ts').toString()]);
+	});
+
+	test('computeTurnDiffs without includeUnder returns all edits (unchanged)', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', '/repoA/x.ts');
+		addEdit(db, 't1', '/repoB/y.ts');
+
+		const result = await computeTurnDiffs(TEST_SESSION_URI, db, createTestDiffService(), 't1');
+
+		assert.deepStrictEqual(result.map(getDiffUri).sort(), [
+			URI.file('/repoA/x.ts').toString(),
+			URI.file('/repoB/y.ts').toString(),
+		].sort());
+	});
+
+	test('computeTurnDiffs keeps a rename when either its current or original path is under a root', async () => {
+		const db = new TestSessionDatabase();
+		// Renamed from /repoB/old.ts (under root) to /repoA/new.ts (not under root).
+		addEdit(db, 't1', '/repoA/new.ts', { kind: FileEditKind.Rename, originalPath: '/repoB/old.ts' });
+		addEdit(db, 't1', '/repoA/other.ts');
+
+		const result = await computeTurnDiffs(TEST_SESSION_URI, db, createTestDiffService(), 't1', {
+			includeUnder: [URI.file('/repoB')],
+		});
+
+		// The rename survives (original path under /repoB); the pure-/repoA edit is dropped.
+		assert.deepStrictEqual(result.map(getDiffUri), [URI.file('/repoA/new.ts').toString()]);
+	});
+
+	test('computeSessionDiffs (full mode) applies includeUnder', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', '/repoA/x.ts');
+		addEdit(db, 't1', '/repoB/y.ts');
+
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, createTestDiffService(), undefined, {
+			includeUnder: [URI.file('/repoA')],
+		});
+
+		assert.deepStrictEqual(result.map(getDiffUri), [URI.file('/repoA/x.ts').toString()]);
+	});
+
+	test('computeUnionedDiffs applies includeUnder across sources', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', '/repoA/x.ts');
+		addEdit(db, 't1', '/repoB/y.ts');
+
+		const result = await computeUnionedDiffs([{ sessionUri: TEST_SESSION_URI, db }], createTestDiffService(), {
+			includeUnder: [URI.file('/repoB')],
+		});
+
+		assert.deepStrictEqual(result.map(getDiffUri), [URI.file('/repoB/y.ts').toString()]);
 	});
 });

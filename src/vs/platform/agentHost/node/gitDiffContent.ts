@@ -43,6 +43,13 @@ export interface IGitBlobUriFields {
 	readonly sessionUri: string;
 	readonly sha: string;
 	readonly repoRelativePath: string;
+	/**
+	 * The absolute working-tree path carried in the URI `path` (the file's
+	 * on-disk location, joined from the repository root at build time). Used to
+	 * resolve which of a multi-root session's repositories owns this blob so the
+	 * content can be read from the correct working directory.
+	 */
+	readonly absolutePath: string;
 }
 
 /**
@@ -66,6 +73,7 @@ export function parseGitBlobUri(raw: string): IGitBlobUriFields | undefined {
 				sessionUri: query.sessionUri,
 				sha: query.sha,
 				repoRelativePath: query.repoRelativePath,
+				absolutePath: parsed.path,
 			};
 		}
 	} catch {

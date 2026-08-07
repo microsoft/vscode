@@ -4,10 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import type { IDiffComputeService } from '../common/diffComputeService.js';
 import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionState.js';
 import { buildSessionDbUri } from '../common/sessionDbUri.js';
+
+/**
+ * Options controlling which file edits an aggregator considers.
+ */
+export interface IDiffFilterOptions {
+	/**
+	 * When present, keep only edits whose file path (or, for renames, either the
+	 * current or original path) is equal to or under one of these roots. Used to
+	 * partition the global, path-based `file_edits` table by working directory so
+	 * a multi-root session's git repositories and non-git folders don't
+	 * double-count (git folders use the git diff; non-git folders use this DB
+	 * fallback restricted to their paths). Omitted ⇒ no filtering (unchanged).
+	 */
+	readonly includeUnder?: readonly URI[];
+}
+
+/**
+ * Keeps only edits under one of {@link includeUnder} (case-insensitive,
+ * path-biased). A rename survives when EITHER its current `filePath` or its
+ * `originalPath` is under a root, so its identity stays reconstructable. When
+ * `includeUnder` is absent or empty the input is returned unchanged.
+ */
+function filterEditsByRoots(edits: readonly IFileEditRecord[], includeUnder: readonly URI[] | undefined): readonly IFileEditRecord[] {
+	if (!includeUnder || includeUnder.length === 0) {
+		return edits;
+	}
+	const isUnderARoot = (path: string): boolean => {
+		const uri = URI.file(path);
+		return includeUnder.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(uri, root));
+	};
+	return edits.filter(edit => {
+		if (edit.kind === FileEditKind.Rename && edit.originalPath) {
+			return isUnderARoot(edit.filePath) || isUnderARoot(edit.originalPath);
+		}
+		return isUnderARoot(edit.filePath);
+	});
+}
 
 function getFileEditUri(diff: ISessionFileDiff): string | undefined {
 	return diff.after?.uri ?? diff.before?.uri;
@@ -106,12 +144,13 @@ export async function computeSessionDiffs(
 	db: ISessionDatabase,
 	diffService: IDiffComputeService,
 	incremental?: IIncrementalDiffOptions,
+	options?: IDiffFilterOptions,
 ): Promise<ISessionFileDiff[]> {
 	// Full mode (no incremental) is the single-source case of the unioned
 	// computation — delegate so the identity-graph + diff logic lives in one
 	// place and multi-chat sessions reuse the exact same code path.
 	if (!incremental) {
-		return computeUnionedDiffs([{ sessionUri, db }], diffService);
+		return computeUnionedDiffs([{ sessionUri, db }], diffService, options);
 	}
 
 	// Incremental mode (single source): try to fetch only the current turn's
@@ -287,11 +326,13 @@ export async function computeSessionDiffs(
 export async function computeUnionedDiffs(
 	sources: readonly ISessionDiffSource[],
 	diffService: IDiffComputeService,
+	options?: IDiffFilterOptions,
 ): Promise<ISessionFileDiff[]> {
 	// Load every source's edits in parallel, then concatenate in source order so
 	// the identity graph sees a deterministic session-first ordering while each
 	// source keeps its own insertion order.
-	const perSourceEdits = await Promise.all(sources.map(source => source.db.getAllFileEdits()));
+	const perSourceEdits = (await Promise.all(sources.map(source => source.db.getAllFileEdits())))
+		.map(edits => filterEditsByRoots(edits, options?.includeUnder));
 
 	const pathToIdentityKey = new Map<string, string>();
 	const identities = new Map<string, IFileIdentity>();
@@ -389,8 +430,9 @@ export async function computeTurnDiffs(
 	db: ISessionDatabase,
 	diffService: IDiffComputeService,
 	turnId: string,
+	options?: IDiffFilterOptions,
 ): Promise<ISessionFileDiff[]> {
-	const edits = await db.getFileEditsByTurn(turnId);
+	const edits = filterEditsByRoots(await db.getFileEditsByTurn(turnId), options?.includeUnder);
 	if (edits.length === 0) {
 		return [];
 	}

@@ -10,7 +10,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
-import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildCompareTurnsChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
@@ -58,6 +58,15 @@ class TestContribution implements IChangesetOperationContribution {
 		return undefined;
 	}
 
+	dispose(): void { }
+}
+
+/** Contribution that advertises one changeset-scoped operation for every changeset. */
+class AlwaysOpContribution implements IChangesetOperationContribution {
+	registerHandlers(): IDisposable { return { dispose() { } }; }
+	getOperations(_context: IChangesetOperationContext): readonly ChangesetOperation[] {
+		return [{ id: 'op', label: 'Op', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }];
+	}
 	dispose(): void { }
 }
 
@@ -221,5 +230,59 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.match(error.message, /Boom/);
 		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Error);
 		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].error?.message, 'Boom');
+	});
+
+	test('suppresses operations for turn and compare-turns changesets in multi-root Copilot sessions', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'copilotcli:/multi';
+		stateManager.createSession({
+			resource: sessionKey, provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repoA', 'file:///repoB'],
+		});
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new AlwaysOpContribution()));
+
+		const gitState = { branchName: 'feature', baseBranchName: 'main', uncommittedChanges: 1 };
+		const ids = (changeset: string) => service.getOperations(sessionKey, changeset, gitState).map(o => o.id);
+
+		assert.deepStrictEqual({
+			turn: ids(buildTurnChangesetUri(sessionKey, 'turn-1')),
+			compare: ids(buildCompareTurnsChangesetUri(sessionKey, 'turn-1', 'turn-2')),
+			uncommitted: ids(buildUncommittedChangesetUri(sessionKey)),
+		}, {
+			turn: [],        // multi-root aggregate → no operations
+			compare: [],     // multi-root aggregate → no operations
+			uncommitted: ['op'], // static changeset unaffected
+		});
+	});
+
+	test('keeps turn-changeset operations for single-folder Copilot sessions and non-Copilot sessions', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const gitState = { branchName: 'feature', baseBranchName: 'main', uncommittedChanges: 1 };
+
+		const singleKey = 'copilotcli:/single';
+		stateManager.createSession({
+			resource: singleKey, provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repoA'],
+		});
+		// Non-Copilot session with multiple folders must NOT be treated as multi-root here.
+		const otherKey = 'claude:/multi';
+		stateManager.createSession({
+			resource: otherKey, provider: 'claude', title: 'Test', status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///repoA', 'file:///repoB'],
+		});
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new AlwaysOpContribution()));
+
+		assert.deepStrictEqual({
+			singleFolderCopilot: service.getOperations(singleKey, buildTurnChangesetUri(singleKey, 'turn-1'), gitState).map(o => o.id),
+			multiFolderNonCopilot: service.getOperations(otherKey, buildTurnChangesetUri(otherKey, 'turn-1'), gitState).map(o => o.id),
+		}, {
+			singleFolderCopilot: ['op'],
+			multiFolderNonCopilot: ['op'],
+		});
 	});
 });

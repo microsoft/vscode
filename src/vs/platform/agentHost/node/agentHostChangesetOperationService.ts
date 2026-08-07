@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { parseChangesetUri, ChangesetKind } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
@@ -15,6 +15,7 @@ import type { IChangesetOperationContribution, IAgentHostChangesetOperationServi
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { AgentSession } from '../common/agentService.js';
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -67,6 +68,17 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			return [];
 		}
 
+		// Turn and compare-turns changesets in multi-root Copilot sessions advertise
+		// NO operations: both aggregate files across repositories, so primary-repo-
+		// scoped git operations (commit / create-pr / sync) would be misleading.
+		// Enforced here — the single source of advertised operations — so BOTH
+		// `_publishChangesetDiffs` (publish time) and `updateOperations` (re-dispatched
+		// on git-state / active-turn changes) honour the rule and cannot repopulate
+		// these changesets' operations.
+		if ((parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Compare) && this._isMultiFolderCopilot(sessionKey)) {
+			return [];
+		}
+
 		return this._getOperations({
 			sessionKey,
 			changesetUri: changeset,
@@ -74,6 +86,19 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			gitState,
 			gitHubState
 		});
+	}
+
+	/**
+	 * Whether `sessionKey` is a multi-root Copilot session — the gate for
+	 * suppressing turn-changeset operations. Mirrors the changeset service's
+	 * multi-folder gate (Copilot provider + more than one working directory).
+	 */
+	private _isMultiFolderCopilot(sessionKey: string): boolean {
+		if (AgentSession.provider(sessionKey) !== 'copilotcli') {
+			return false;
+		}
+		const dirs = this._stateManager.getSessionState(sessionKey)?.workingDirectories;
+		return !!dirs && dirs.length > 1;
 	}
 
 	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
