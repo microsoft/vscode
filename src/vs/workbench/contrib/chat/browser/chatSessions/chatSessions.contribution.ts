@@ -32,7 +32,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -925,6 +925,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, { contribution, extension: undefined });
+		if (contribution.alternativeIds) {
+			for (const alternativeId of contribution.alternativeIds) {
+				this._alternativeIdMap.set(alternativeId, contribution.type);
+			}
+		}
 		// Programmatically-registered contributions are always considered
 		// available; mark them as such so the autorun in the constructor
 		// registers the in-place "New {0} Session" action for them. Without
@@ -944,6 +949,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		return toDisposable(() => {
 			this._contributions.delete(contribution.type);
+			if (contribution.alternativeIds) {
+				for (const alternativeId of contribution.alternativeIds) {
+					if (this._alternativeIdMap.get(alternativeId) === contribution.type) {
+						this._alternativeIdMap.delete(alternativeId);
+					}
+				}
+			}
 			this._contributionDisposables.deleteAndDispose(contribution.type);
 			this._updateHasCanDelegateProvidersContextKey();
 			this._onDidChangeAvailability.fire();
@@ -1296,6 +1308,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		return session;
+	}
+
+	public async getChatSessionHistory(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionHistoryItem[]> {
+		const existing = this._sessions.get(this._resolveResource(sessionResource));
+		if (existing) {
+			return [...existing.session.history];
+		}
+
+		if (isUntitledChatSession(sessionResource)) {
+			return [];
+		}
+
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
+		if (!(await raceCancellationError(this.canResolveChatSession(resolvedType), token))) {
+			throw Error(`Cannot find provider '${resolvedType}'`);
+		}
+		const provider = this._contentProviders.get(resolvedType);
+		if (!provider) {
+			throw Error(`Cannot find provider '${resolvedType}'`);
+		}
+
+		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		try {
+			return [...session.history];
+		} finally {
+			session.dispose();
+		}
 	}
 
 	public hasAnySessionOptions(sessionResource: URI): boolean {

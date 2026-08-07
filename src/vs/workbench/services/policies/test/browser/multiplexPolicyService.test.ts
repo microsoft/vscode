@@ -18,6 +18,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
+import { PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
@@ -251,6 +252,7 @@ suite('MultiplexPolicyService', () => {
 			const D = policyService.getPolicyValue('PolicySettingD');
 
 			assert.strictEqual(A, 'policyValueA');
+			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingA'), PolicyValueSource.Device);
 			assert.strictEqual(B, undefined);
 			assert.strictEqual(C, undefined);
 			assert.strictEqual(D, undefined);
@@ -321,7 +323,7 @@ suite('MultiplexPolicyService', () => {
 
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(
-				JSON.stringify({ 'PolicySettingA': 'policyValueA' })
+				JSON.stringify({ 'PolicySettingA': 'policyValueA', 'PolicySettingD': false })
 			)
 		);
 
@@ -338,6 +340,8 @@ suite('MultiplexPolicyService', () => {
 			assert.strictEqual(B, 'policyValueB');
 			assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
 			assert.strictEqual(D, false);
+			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingA'), PolicyValueSource.Device);
+			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingD'), PolicyValueSource.Account);
 		}
 
 		{

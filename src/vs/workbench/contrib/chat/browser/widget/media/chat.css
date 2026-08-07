@@ -4713,13 +4713,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	dictation idle / recording / preparing / connecting, and Voice Mode idle /
 	connecting / listening / speaking / disconnect.
 
-	On their own they lose the segmented pill's enclosure, so each one carries a
-	circular outline of its own and reads as a single-cell version of it rather
-	than a bare glyph. The ring uses the pill's exact border declaration so the
-	two enclosures are indistinguishable when the UI swaps between them —
-	`input.border` is `null` outside high contrast and resolves to a soft
-	20%-alpha `editorWidget.border`, and in high contrast it resolves to
-	`contrastBorder` so the ring stays fully opaque there. */
+	When both modes are available, their outlines identify them as a paired
+	control. A lone action is left borderless to match the send button. */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
@@ -4730,9 +4725,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 22px;
 	height: 22px;
 	justify-content: center;
-	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-loading-compact,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
 
 @keyframes chat-voice-icon-glow {
