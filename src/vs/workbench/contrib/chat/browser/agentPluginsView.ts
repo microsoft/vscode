@@ -32,6 +32,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
@@ -52,7 +53,7 @@ import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from 
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { getInstalledPluginContextMenuActions, InstallPluginAction, OpenPluginReadmeAction } from './agentPluginActions.js';
-import { ForceUpdateAgentPluginsCommandId, HasInstalledAgentPluginsContext, InstalledAgentPluginsViewId, UpdateAgentPluginsCommandId, UpdatingAgentPluginsContext } from './chat.js';
+import { ForceUpdateAgentPluginsCommandId, HasInstalledAgentPluginsContext, InstalledAgentPluginsViewId, RefreshAgentPluginMarketplacesCommandId, UpdateAgentPluginsCommandId, UpdatingAgentPluginsContext } from './chat.js';
 
 //#region Item model
 
@@ -566,15 +567,21 @@ function updatePlugins(accessor: ServicesAccessor, force: boolean): Promise<void
 		return updatePluginsPromise;
 	}
 
+	// Services must be resolved synchronously — the accessor is invalidated as
+	// soon as the command handler returns, so a lookup after the `await` below
+	// would throw instead of showing the notification.
+	const pluginInstallService = accessor.get(IPluginInstallService);
+	const notificationService = accessor.get(INotificationService);
+
 	updatingPluginsContextKey?.set(true);
 	updatePluginsPromise = (async () => {
 		try {
-			const result = await accessor.get(IPluginInstallService).updateAllPlugins({ force }, CancellationToken.None);
+			const result = await pluginInstallService.updateAllPlugins({ force }, CancellationToken.None);
 			if (result.updatedNames.length === 0 && result.failedNames.length === 0) {
-				accessor.get(INotificationService).info(localize('agentPlugins.upToDate', "Plugins are up to date."));
+				notificationService.info(localize('agentPlugins.upToDate', "Plugins are up to date."));
 			}
 		} catch (error) {
-			accessor.get(INotificationService).error(localize('agentPlugins.updateFailed', "Failed to update plugins: {0}", getErrorMessage(error)));
+			notificationService.error(localize('agentPlugins.updateFailed', "Failed to update plugins: {0}", getErrorMessage(error)));
 			throw error;
 		} finally {
 			updatePluginsPromise = undefined;
@@ -660,6 +667,48 @@ class ForceUpdatePluginsCommand extends Action2 {
 	}
 }
 
+class RefreshPluginMarketplacesCommand extends Action2 {
+	constructor() {
+		super({
+			id: RefreshAgentPluginMarketplacesCommandId,
+			title: localize2('agentPlugins.refreshMarketplaces', "Refresh Plugin Marketplaces"),
+			category: localize2('chat.category', "Chat"),
+			icon: Codicon.refresh,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		// Services must be resolved synchronously — the accessor is invalidated
+		// as soon as this method returns its promise.
+		const marketplaceService = accessor.get(IPluginMarketplaceService);
+		const notificationService = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
+
+		const cts = new CancellationTokenSource();
+		try {
+			await progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title: localize('agentPlugins.refreshingMarketplaces', "Refreshing plugin marketplaces..."),
+					cancellable: true,
+				},
+				() => marketplaceService.fetchMarketplacePlugins(cts.token, undefined, { refresh: true }),
+				() => cts.dispose(true),
+			);
+			if (!cts.token.isCancellationRequested) {
+				notificationService.info(localize('agentPlugins.marketplacesRefreshed', "Plugin marketplaces refreshed."));
+			}
+		} catch (error) {
+			notificationService.error(localize('agentPlugins.refreshMarketplacesFailed', "Failed to refresh plugin marketplaces: {0}", getErrorMessage(error)));
+			throw error;
+		} finally {
+			cts.dispose();
+		}
+	}
+}
+
 //#endregion
 //#region Views contribution
 
@@ -682,6 +731,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 		registerAction2(AgentPluginsBrowseCommand);
 		registerAction2(CheckForPluginUpdatesCommand);
 		registerAction2(ForceUpdatePluginsCommand);
+		registerAction2(RefreshPluginMarketplacesCommand);
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 			{

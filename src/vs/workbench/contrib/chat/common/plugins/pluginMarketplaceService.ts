@@ -142,6 +142,14 @@ export interface IMarketplaceInstalledPlugin {
 	readonly plugin: IMarketplacePlugin;
 }
 
+/**
+ * Options for fetching marketplace plugins.
+ */
+export interface IFetchMarketplacePluginsOptions {
+	/** Bypass the marketplace caches (HTTP TTL cache and cloned-repository TTL) and re-read from the remote. */
+	readonly refresh?: boolean;
+}
+
 export const IPluginMarketplaceService = createDecorator<IPluginMarketplaceService>('pluginMarketplaceService');
 
 export interface IPluginMarketplaceService {
@@ -165,7 +173,7 @@ export interface IPluginMarketplaceService {
 	readonly recommendedPlugins: IObservable<ReadonlySet<string>>;
 	/** Clears all reported marketplaces, or only the provided canonical IDs. */
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void;
-	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>): Promise<IMarketplacePlugin[]>;
+	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
@@ -431,7 +439,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		this._marketplacesWithUpdates.set(remaining, undefined);
 	}
 
-	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>): Promise<IMarketplacePlugin[]> {
+	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
 		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 			return [];
 		}
@@ -470,9 +478,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const results = await Promise.all(
 			refsToFetch.map(ref => {
 				if (ref.kind === MarketplaceReferenceKind.GitHubShorthand && ref.githubRepo) {
-					return this._fetchFromGitHubRepo(ref, ref.githubRepo, token);
+					return this._fetchFromGitHubRepo(ref, ref.githubRepo, token, options);
 				}
-				return this._fetchFromClonedRepo(ref, token);
+				return this._fetchFromClonedRepo(ref, token, options);
 			})
 		);
 		const plugins = results.flat();
@@ -483,10 +491,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		return plugins;
 	}
 
-	private async _fetchFromGitHubRepo(reference: IMarketplaceReference, repo: string, token: CancellationToken): Promise<IMarketplacePlugin[]> {
+	private async _fetchFromGitHubRepo(reference: IMarketplaceReference, repo: string, token: CancellationToken, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
 		const cache = this._gitHubMarketplaceCache.value;
 
-		const cached = this._getCachedGitHubMarketplacePlugins(cache, reference.canonicalId);
+		const cached = options?.refresh ? undefined : this._getCachedGitHubMarketplacePlugins(cache, reference.canonicalId);
 		if (cached) {
 			return cached.map(c => ({
 				...c,
@@ -530,7 +538,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		if (repoMayBePrivate) {
 			this._logService.debug(`[PluginMarketplaceService] ${repo} may be private, attempting clone-based marketplace discovery`);
-			return this._fetchFromClonedRepo(reference, token);
+			return this._fetchFromClonedRepo(reference, token, options);
 		}
 
 		this._logService.debug(`[PluginMarketplaceService] No marketplace.json found in ${repo}`);
@@ -865,10 +873,13 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 	}
 
-	private async _fetchFromClonedRepo(reference: IMarketplaceReference, token: CancellationToken): Promise<IMarketplacePlugin[]> {
+	private async _fetchFromClonedRepo(reference: IMarketplaceReference, token: CancellationToken, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
 		let repoDir: URI;
 		try {
-			repoDir = await this._pluginRepositoryService.ensureRepository(reference);
+			repoDir = await this._pluginRepositoryService.ensureRepository(reference, {
+				refreshIfOlderThanMs: options?.refresh ? 0 : GITHUB_MARKETPLACE_CACHE_TTL_MS,
+				token,
+			});
 		} catch (err) {
 			this._logService.debug(`[PluginMarketplaceService] Failed to prepare marketplace repository ${reference.rawValue}:`, err);
 			return [];

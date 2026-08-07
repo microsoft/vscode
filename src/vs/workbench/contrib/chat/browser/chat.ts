@@ -538,4 +538,5 @@ export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasIn
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
 export const UpdateAgentPluginsCommandId = 'workbench.agentPlugins.checkForUpdates';
 export const ForceUpdateAgentPluginsCommandId = 'workbench.agentPlugins.forceUpdate';
+export const RefreshAgentPluginMarketplacesCommandId = 'workbench.agentPlugins.refreshMarketplaces';
 export const UpdatingAgentPluginsContext = new RawContextKey<boolean>('agentPluginsUpdating', false);
