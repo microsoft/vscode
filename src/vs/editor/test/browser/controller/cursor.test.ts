@@ -4912,6 +4912,59 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #256037: correct indentation when typing } before ] (correctly-indented)', () => {
+
+		usingCursor({
+			text: [
+				'const x = {',
+				'    arr: [{',
+				'        foo: 1',
+				'    ]',
+				'}'
+			],
+			languageId: electricCharLanguageId
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 4, 5);
+			viewModel.type('}', 'keyboard');
+			assert.deepStrictEqual(model.getLineContent(4), '    }]');
+		});
+	});
+
+	test('issue #256037: correct indentation when typing ] before ) (over-indented)', () => {
+
+		usingCursor({
+			text: [
+				'def example():',
+				'    data = ([',
+				'        "Ana"',
+				'                )'
+			],
+			languageId: electricCharLanguageId
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 4, 17);
+			viewModel.type(']', 'keyboard');
+			assert.deepStrictEqual(model.getLineContent(4), '    ])');
+		});
+	});
+
+	test('issue #256037: correct indentation when typing } before ) (under-indented)', () => {
+
+		usingCursor({
+			text: [
+				'function example() {',
+				'    const data = ({',
+				'        name: "Ana",',
+				');',
+				'}'
+			],
+			languageId: electricCharLanguageId
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 4, 1);
+			viewModel.type('}', 'keyboard');
+			assert.deepStrictEqual(model.getLineContent(4), '    });');
+		});
+	});
+
 	test('ElectricCharacter - appends text', () => {
 		usingCursor({
 			text: [
