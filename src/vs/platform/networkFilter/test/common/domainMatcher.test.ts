@@ -149,6 +149,38 @@ suite('domainMatcher', () => {
 		test('returns undefined for empty authority', () => {
 			assert.strictEqual(extractDomainFromUri(URI.from({ scheme: 'file', path: '/tmp/test' })), undefined);
 		});
+
+		test('extracts and canonicalizes IPv6 literals', () => {
+			assert.deepStrictEqual([
+				extractDomainFromUri(URI.parse('http://[::1]:3000/path')),
+				extractDomainFromUri(URI.parse('http://[0:0:0:0:0:0:0:1]/path')),
+				extractDomainFromUri(URI.parse('http://[::ffff:127.0.0.1]/path')),
+				extractDomainFromUri(URI.parse('http://[::ffff:7f00:1]/path')),
+				extractDomainFromUri(URI.parse('https://[2001:0db8:0:0:0:0:0:1]/path')),
+				extractDomainFromUri(URI.parse('https://[fe80:0:0:0:0:0:0:1]/path')),
+			], [
+				'[::1]',
+				'[::1]',
+				'[::ffff:7f00:1]',
+				'[::ffff:7f00:1]',
+				'[2001:db8::1]',
+				'[fe80::1]',
+			]);
+		});
+
+		test('returns undefined for malformed IPv6 authorities', () => {
+			assert.deepStrictEqual([
+				extractDomainFromUri(URI.from({ scheme: 'http', authority: '[::1', path: '/' })),
+				extractDomainFromUri(URI.from({ scheme: 'http', authority: '::1]', path: '/' })),
+				extractDomainFromUri(URI.from({ scheme: 'http', authority: '[::1]extra', path: '/' })),
+				extractDomainFromUri(URI.from({ scheme: 'http', authority: '[fe80::1%25eth0]', path: '/' })),
+			], [
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			]);
+		});
 	});
 
 	suite('isDomainAllowed', () => {
@@ -183,6 +215,20 @@ suite('domainMatcher', () => {
 		test('subdomain matching in allow/deny', () => {
 			assert.strictEqual(isDomainAllowed('api.example.com', ['*.example.com'], []), true);
 			assert.strictEqual(isDomainAllowed('api.example.com', [], ['*.example.com']), false);
+		});
+
+		test('matches canonical IPv6 literals against equivalent patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('[::1]', '[0:0:0:0:0:0:0:1]'),
+				matchesDomainPattern('[::ffff:7f00:1]', 'http://[::ffff:127.0.0.1]:3000/path'),
+				matchesDomainPattern('[2001:db8::1]', '[2001:0db8:0:0:0:0:0:1]'),
+				matchesDomainPattern('[2001:db8::1]', '[2001:db8::2]'),
+			], [
+				true,
+				true,
+				true,
+				false,
+			]);
 		});
 	});
 });

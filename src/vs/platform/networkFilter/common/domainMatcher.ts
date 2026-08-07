@@ -91,6 +91,25 @@ export function normalizeDomain(value: string | undefined, fromUrl: boolean = fa
 	return hasWildcardPrefix ? `*.${host}` : host;
 }
 
+function normalizeUriAuthority(authority: string | undefined): string | undefined {
+	if (!authority || /[/?#\\]/.test(authority)) {
+		return undefined;
+	}
+
+	let hostname: string;
+	try {
+		hostname = new URL(`http://${authority}`).hostname.toLowerCase();
+	} catch {
+		return undefined;
+	}
+
+	if (hostname.startsWith('[')) {
+		return hostname.endsWith(']') ? hostname : undefined;
+	}
+
+	return normalizeDomain(hostname, true);
+}
+
 /**
  * Extracts the domain portion from a pattern string.
  * If the pattern contains `://`, it is parsed as a URI and the authority is returned.
@@ -120,7 +139,8 @@ export function extractDomainPattern(pattern: string): string {
  * @returns `true` if the domain matches the pattern.
  */
 export function matchesDomainPattern(domain: string, pattern: string): boolean {
-	const normalizedPattern = normalizeDomain(extractDomainPattern(pattern), pattern.includes('://'));
+	const extractedPattern = extractDomainPattern(pattern);
+	const normalizedPattern = normalizeDomain(extractedPattern, pattern.includes('://')) ?? normalizeUriAuthority(extractedPattern);
 	if (!normalizedPattern) {
 		return false;
 	}
@@ -136,13 +156,13 @@ export function matchesDomainPattern(domain: string, pattern: string): boolean {
 
 /**
  * Extracts and normalizes a domain from a URI.
- * Strips port numbers and trailing dots.
+ * Separates user information and ports, and canonicalizes IPv6 literals.
  *
  * @param uri The URI to extract the domain from.
  * @returns The normalized domain, or `undefined` if no valid domain could be extracted.
  */
 export function extractDomainFromUri(uri: URI): string | undefined {
-	return normalizeDomain(uri.authority, true);
+	return normalizeUriAuthority(uri.authority);
 }
 
 /**
