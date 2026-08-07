@@ -17,6 +17,7 @@ import { defineSessionPersistenceTests } from './sessionPersistenceSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
+import { defineMcpPluginTests } from './mcpPluginSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
@@ -50,6 +51,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			createdSessions,
 			tempDirs,
 			portableShellToolReplayEnabled,
+			isLinux,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
@@ -141,7 +143,6 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineClientFilesystemTests(context);
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
-			defineChangesetTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.
@@ -157,6 +158,8 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		// peer turns and capability advertisement are provider-dependent
 		// (parity). The registrars self-select on `context.tier`.
 		defineMultiChatTests(context);
+		defineChangesetTests(context);
+		defineMcpPluginTests(context);
 		defineServerToolsTests(context);
 		defineCustomizationDiscoveryTests(context);
 		defineSessionPersistenceTests(context);

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { derivePendingId, isPendingIdResolved, markPendingIdResolved, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
 
 suite('derivePendingId', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -120,6 +120,69 @@ suite('derivePendingId', () => {
 		}, undefined);
 	});
 
+	test('user-edited terminal commands replace the pending occurrence', () => {
+		const terminalData = {
+			kind: 'terminal' as const,
+			commandLine: {
+				original: 'npm install',
+				userEdited: undefined as string | undefined,
+			},
+		};
+		const state = observableValue<IChatToolInvocation.State>('toolState', {
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command: 'npm install' },
+			confirm: () => { },
+		});
+		const tool = {
+			kind: 'toolInvocation',
+			toolCallId: 'tool-call',
+			toolSpecificData: terminalData,
+			state,
+		} as unknown as IChatToolInvocation;
+		const originalId = derivePendingId('req-edit', tool);
+
+		terminalData.commandLine.userEdited = 'npm install --ignore-scripts';
+		const editedId = derivePendingId('req-edit', tool);
+
+		assert.deepStrictEqual({
+			command: getVoiceToolApprovalCommand(tool),
+			editedIdDiffers: editedId !== originalId,
+		}, {
+			command: 'npm install --ignore-scripts',
+			editedIdDiffers: true,
+		});
+
+		state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+	});
+
+	test('preserves significant command whitespace in occurrence keys', () => {
+		const state = observableValue<IChatToolInvocation.State>('toolState', {
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command: `printf 'a  b'` },
+			confirm: () => { },
+		});
+		const tool = { kind: 'toolInvocation', toolCallId: 'tool-call', state } as unknown as IChatToolInvocation;
+		const first = derivePendingId('req-whitespace', tool);
+
+		state.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command: `printf 'a b'` },
+			confirm: () => { },
+		}, undefined);
+		const second = derivePendingId('req-whitespace', tool);
+
+		assert.notStrictEqual(second, first);
+		state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+	});
+
 	test('rehydrated copies share one active tool occurrence', () => {
 		const tool = () => {
 			const state = observableValue<IChatToolInvocation.State>('toolState', {
@@ -144,14 +207,54 @@ suite('derivePendingId', () => {
 		}
 	});
 
-	test('retiring one copy makes late rehydrated copies stale', () => {
-		const tool = (toolCallId = 'tool-call') => {
+	test('a command change retires stale rehydrated copies', () => {
+		const tool = () => {
 			const state = observableValue<IChatToolInvocation.State>('toolState', {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 				parameters: { command: 'npm install' },
 				confirm: () => { },
 			});
-			return { part: { kind: 'toolInvocation', toolCallId, state } as unknown as IChatToolInvocation, state };
+			return { part: { kind: 'toolInvocation', toolCallId: 'tool-call', state } as unknown as IChatToolInvocation, state };
+		};
+		const authoritative = tool();
+		const stale = tool();
+		const originalId = derivePendingId('req-command-change', authoritative.part);
+		assert.strictEqual(derivePendingId('req-command-change', stale.part), originalId);
+
+		authoritative.state.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: { command: 'npm install --ignore-scripts' },
+			confirm: () => { },
+		}, undefined);
+		const refreshedId = derivePendingId('req-command-change', authoritative.part);
+
+		assert.deepStrictEqual({
+			refreshedIdDiffers: refreshedId !== originalId,
+			originalIdResolved: isPendingIdResolved(originalId),
+			staleCopyIsNotActionable: peekPendingId('req-command-change', stale.part),
+		}, {
+			refreshedIdDiffers: true,
+			originalIdResolved: true,
+			staleCopyIsNotActionable: undefined,
+		});
+
+		for (const copy of [authoritative, stale]) {
+			copy.state.set({
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: ToolConfirmKind.Skipped,
+				parameters: {},
+			}, undefined);
+		}
+	});
+
+	test('retiring one copy makes every rehydrated copy stale', () => {
+		const tool = () => {
+			const state = observableValue<IChatToolInvocation.State>('toolState', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'npm install' },
+				confirm: () => { },
+			});
+			return { part: { kind: 'toolInvocation', toolCallId: 'tool-call', state } as unknown as IChatToolInvocation, state };
 		};
 		const first = tool();
 		const rehydrated = tool();
@@ -164,29 +267,14 @@ suite('derivePendingId', () => {
 		assert.strictEqual(peekPendingId('req-retire', rehydrated.part), undefined);
 		assert.strictEqual(derivePendingId('req-retire', rehydrated.part), pendingId);
 
-		for (const copy of [first, rehydrated]) {
-			copy.state.set({
-				type: IChatToolInvocation.StateKind.Cancelled,
-				reason: ToolConfirmKind.Skipped,
-				parameters: {},
-			}, undefined);
-		}
+		// A new invocation published after the interaction is a new occurrence,
+		// even when the provider reuses the tool-call id and command.
+		const rearmed = tool();
+		const rearmedId = derivePendingId('req-retire', rearmed.part);
+		assert.notStrictEqual(rearmedId, pendingId);
+		assert.strictEqual(peekPendingId('req-retire', rearmed.part), rearmedId);
 
-		// Model refreshes can produce another object after every previously-known
-		// copy has left the response. The tool-call id still identifies this as the
-		// completed occurrence, so the late card must remain retired.
-		const lateRehydrated = tool();
-		assert.strictEqual(derivePendingId('req-retire', lateRehydrated.part), pendingId);
-		assert.strictEqual(peekPendingId('req-retire', lateRehydrated.part), undefined);
-		assert.strictEqual(isPendingIdResolved(pendingId), true);
-
-		// A genuinely new tool call has a new protocol id and remains actionable.
-		const nextToolCall = tool('next-tool-call');
-		const nextId = derivePendingId('req-retire', nextToolCall.part);
-		assert.notStrictEqual(nextId, pendingId);
-		assert.strictEqual(peekPendingId('req-retire', nextToolCall.part), nextId);
-
-		for (const copy of [lateRehydrated, nextToolCall]) {
+		for (const copy of [first, rehydrated, rearmed]) {
 			copy.state.set({
 				type: IChatToolInvocation.StateKind.Cancelled,
 				reason: ToolConfirmKind.Skipped,
@@ -242,6 +330,8 @@ suite('derivePendingId', () => {
 		tool.setAuthenticationRequired({ ...server, reason: 'Updated scope' }, refreshedCancel);
 		const refreshed = derivePendingId('req-1', tool);
 		const refreshedState = tool.state.get();
+		tool.setAuthenticationRequired({ ...server, resource: 'https://mcp.example.com/new-resource' }, refreshedCancel);
+		const changedResource = derivePendingId('req-1', tool);
 
 		tool.setAuthenticationResolved();
 		tool.setAuthenticationRequired(server, nextCancel);
@@ -251,11 +341,13 @@ suite('derivePendingId', () => {
 		assert.deepStrictEqual({
 			refreshedMatches: refreshed === first,
 			refreshedUsesOriginalCancel: refreshedState.type === IChatToolInvocation.StateKind.WaitingForAuthentication && refreshedState.cancel === firstCancel,
-			nextDiffers: next !== first,
+			changedResourceDiffers: changedResource !== first,
+			nextDiffers: next !== changedResource,
 			nextUsesNewCancel: nextState.type === IChatToolInvocation.StateKind.WaitingForAuthentication && nextState.cancel === nextCancel,
 		}, {
 			refreshedMatches: true,
 			refreshedUsesOriginalCancel: true,
+			changedResourceDiffers: true,
 			nextDiffers: true,
 			nextUsesNewCancel: true,
 		});

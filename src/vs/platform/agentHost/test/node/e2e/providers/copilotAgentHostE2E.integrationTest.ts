@@ -29,7 +29,7 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, ToolCallContributorKind, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
@@ -185,6 +185,118 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			return envelope.channel === chatUri && envelope.serverSeq > failedCompletionSeq && action.turnId === turnId && action.toolCallId === toolCallId;
 		});
 		assert.deepStrictEqual(staleReady, []);
+	});
+
+	test('client tool result confirmation is required before the provider continues', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-result-confirmation-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-client-tool-result-confirmation';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId,
+					displayName: 'Result Confirmation Client',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns the secret magic word. Call this when asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-client-tool-result-confirmation';
+		dispatchTurn(client, sessionUri, turnId, 'Call get_magic_word exactly once, then reply with only its result.', 2);
+		const started = await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/toolCallStart')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'get_magic_word',
+			90_000,
+		);
+		const toolCallId = (getActionEnvelope(started).action as ChatToolCallStartAction).toolCallId;
+		const initialReady = await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/toolCallReady')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === toolCallId,
+			30_000,
+		);
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 3,
+			action: {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId,
+				toolCallId,
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+			},
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/toolCallConfirmed')
+			&& getActionEnvelope(n).channel === chatUri
+			&& getActionEnvelope(n).serverSeq > getActionEnvelope(initialReady).serverSeq
+			&& (getActionEnvelope(n).action as { readonly toolCallId: string }).toolCallId === toolCallId,
+			30_000,
+		);
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 4,
+			action: {
+				type: ActionType.ChatToolCallComplete,
+				turnId,
+				toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Got the magic word',
+					content: [{ type: ToolResultContentType.Text, text: 'XYLOPHONE' }],
+				},
+				requiresResultConfirmation: true,
+			},
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/toolCallComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === toolCallId,
+			30_000,
+		);
+		const paused = await fetchSessionWithChat(client, sessionUri);
+		const pendingToolCall = paused.activeTurn?.responseParts.find(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId,
+		);
+		assert.deepStrictEqual({
+			status: pendingToolCall?.kind === ResponsePartKind.ToolCall ? pendingToolCall.toolCall.status : undefined,
+			modelRequestCount: lease!.observedModelRequestBodies.length,
+		}, {
+			status: ToolCallStatus.PendingResultConfirmation,
+			modelRequestCount: 1,
+		});
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 5,
+			action: {
+				type: ActionType.ChatToolCallResultConfirmed,
+				turnId,
+				toolCallId,
+				approved: true,
+			},
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& getActionEnvelope(n).channel === chatUri
+			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
+			90_000,
+		);
+
+		const resultConfirmed = client.receivedNotifications(n =>
+			isActionNotification(n, 'chat/toolCallResultConfirmed')
+			&& getActionEnvelope(n).channel === chatUri,
+		);
+		assert.strictEqual(resultConfirmed.length, 1);
 	});
 
 	(RECORD_ONLY ? test : test.skip)('accepted steering followed by abort does not block the replacement turn', async function () {

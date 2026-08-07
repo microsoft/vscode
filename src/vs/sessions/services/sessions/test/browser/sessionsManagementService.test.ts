@@ -1112,9 +1112,7 @@ suite('SessionsManagementService', () => {
 	test('inheritableSessionTarget drops a harness the folder no longer offers', () => {
 		const folderUri = URI.parse('test:///folder');
 		// The provider still resolves the folder (its existing sessions stay
-		// usable) but no longer advertises the type they were created with —
-		// e.g. the extension-host Copilot CLI once
-		// `chat.agents.copilotCli.hideExtensionHost` is on.
+		// usable) but no longer advertises the type they were created with.
 		const hiddenHarnessSession = stubSession({ sessionId: 's1', providerId: 'test', sessionType: 'copilotcli' });
 		const provider = new class extends TestSessionsProvider {
 			override resolveWorkspace(_folderUri: URI): ISessionWorkspace {
@@ -1161,7 +1159,7 @@ suite('SessionsManagementService', () => {
 			override getSessions(): ISession[] { return [extHostSession]; }
 		}(extHostSession);
 
-		// The agent host sorts first (`chat.agentHost.defaultSessionsProvider`).
+		// The agent host sorts first.
 		const agentHostSession = stubSession({ sessionId: 'ah-draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilotcli' });
 		const agentHost = new class extends TestSessionsProvider {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;

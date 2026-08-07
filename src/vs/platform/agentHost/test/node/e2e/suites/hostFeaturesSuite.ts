@@ -289,4 +289,5 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			}],
 		});
 	});
+
 }

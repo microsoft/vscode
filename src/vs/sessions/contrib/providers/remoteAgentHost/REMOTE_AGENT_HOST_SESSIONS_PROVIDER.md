@@ -81,6 +81,7 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 - SSH config host connections use resolved `IdentityFile` and `IdentityAgent` values from `ssh -G`; encrypted private keys are prompted for a passphrase through the same quick-input bridge as keyboard-interactive auth.
 - Startup SSH auto-reconnect treats keyboard-interactive cancellation as an intentional pause and does not schedule another reconnect attempt.
 - A manual SSH reconnect from the host picker bypasses that paused auto-reconnect state and starts a fresh reconnect attempt for stored SSH hosts; host-picker disconnect/cancel for SSH uses the SSH service instead of removing the stored host.
+- VS Code remote transports declare their route in AHP initialize metadata (`dev_tunnel`, `ssh`, `wsl`, `remote_extension_host`, `direct_websocket`, or `web_pub_sub`). Agent Host product telemetry combines that declaration with the host-observed physical transport and launcher kind; message telemetry retains the initiating client id and route.
 
 ## Stubbed Operations
 

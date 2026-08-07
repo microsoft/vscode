@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read the embedded attachment and reply with only its exact contents.
+    response:
+      content:
+        - type: text
+          text: I'll read the attachment.
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read the embedded attachment and reply with only its exact contents.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll read the attachment.
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tATTACHMENT_EMBEDDED_VALUE"
+    response:
+      content: ATTACHMENT_EMBEDDED_VALUE
+      stopReason: end_turn

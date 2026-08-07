@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -76,17 +76,13 @@ interface IActivePendingToolOccurrence {
 	readonly semanticKey: string;
 	readonly token: string;
 	readonly participants: Map<IChatToolInvocation, IDisposable>;
-	readonly participantsSeen: WeakSet<IChatToolInvocation>;
 	resolved: boolean;
 }
 
 const activePendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
-const resolvedPendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
-const resolvedPendingToolOccurrenceIds = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceByPart = new WeakMap<IChatToolInvocation, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceById = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolResolutionVersion = observableValue('pendingToolResolutionVersion', 0);
-const maxResolvedPendingToolOccurrences = 256;
 
 function isPendingToolState(state: IChatToolInvocation.State): boolean {
 	return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
@@ -100,15 +96,16 @@ export function getVoiceToolApprovalCommand(invocation: IChatToolInvocation, inc
 	let command: string | undefined;
 	if (terminalData?.kind === 'terminal') {
 		command = hasKey(terminalData, { commandLine: true })
-			? terminalData.presentationOverrides?.commandLine
-				?? terminalData.confirmation?.commandLine
-				?? terminalData.commandLine.toolEdited
-				?? terminalData.commandLine.original
+			? terminalData.commandLine.userEdited
+			?? terminalData.presentationOverrides?.commandLine
+			?? terminalData.confirmation?.commandLine
+			?? terminalData.commandLine.toolEdited
+			?? terminalData.commandLine.original
 			: terminalData.command;
 	}
 	if (!command && includeParameters) {
 		const state = invocation.state.get();
-		const parameters = 'parameters' in state ? state.parameters as Record<string, unknown> | undefined : undefined;
+		const parameters = state.type === IChatToolInvocation.StateKind.Streaming ? undefined : state.parameters as Record<string, unknown> | undefined;
 		const parameterCommand = parameters?.['command'] ?? parameters?.['input'];
 		command = typeof parameterCommand === 'string' ? parameterCommand : undefined;
 	}
@@ -125,8 +122,8 @@ function pendingToolSemanticKey(requestId: string, invocation: IChatToolInvocati
 		: state.type === IChatToolInvocation.StateKind.WaitingForAuthentication
 			? 'authentication'
 			: 'pre';
-	const command = getVoiceToolApprovalCommand(invocation)?.replace(/\s+/g, ' ') ?? '';
-	const authenticationResource = state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? state.server.id : '';
+	const command = getVoiceToolApprovalCommand(invocation) ?? '';
+	const authenticationResource = state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? state.server.resource : '';
 	return JSON.stringify([requestId, invocation.toolCallId, phase, command, authenticationResource]);
 }
 
@@ -138,27 +135,6 @@ function pendingToolOccurrenceId(occurrence: IActivePendingToolOccurrence): stri
 	return `${occurrence.requestId}#${occurrence.token}`;
 }
 
-function trimResolvedPendingToolOccurrences(): void {
-	if (resolvedPendingToolOccurrenceIds.size <= maxResolvedPendingToolOccurrences) {
-		return;
-	}
-	for (const [pendingId, occurrence] of resolvedPendingToolOccurrenceIds) {
-		if (occurrence.participants.size !== 0) {
-			continue;
-		}
-		resolvedPendingToolOccurrenceIds.delete(pendingId);
-		if (resolvedPendingToolOccurrences.get(occurrence.semanticKey) === occurrence) {
-			resolvedPendingToolOccurrences.delete(occurrence.semanticKey);
-		}
-		if (pendingToolOccurrenceById.get(pendingId) === occurrence) {
-			pendingToolOccurrenceById.delete(pendingId);
-		}
-		if (resolvedPendingToolOccurrenceIds.size <= maxResolvedPendingToolOccurrences) {
-			break;
-		}
-	}
-}
-
 function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence): void {
 	if (occurrence.resolved) {
 		return;
@@ -167,13 +143,10 @@ function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence):
 	if (activePendingToolOccurrences.get(occurrence.semanticKey) === occurrence) {
 		activePendingToolOccurrences.delete(occurrence.semanticKey);
 	}
-	resolvedPendingToolOccurrences.set(occurrence.semanticKey, occurrence);
-	resolvedPendingToolOccurrenceIds.set(pendingToolOccurrenceId(occurrence), occurrence);
-	trimResolvedPendingToolOccurrences();
 	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
 }
 
-function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, track?: (disposable: IDisposable) => void): IActivePendingToolOccurrence | undefined {
+function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore): IActivePendingToolOccurrence | undefined {
 	const semanticKey = pendingToolSemanticKey(requestId, invocation);
 	const current = pendingToolOccurrenceByPart.get(invocation);
 	if (!semanticKey) {
@@ -188,21 +161,11 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 	if (current) {
 		// The actionable command changed without a pending-state transition.
 		// Retire the old occurrence before publishing the refreshed card.
+		resolvePendingToolOccurrence(current);
 		releasePendingToolParticipant(invocation, current);
 	}
 
 	let occurrence = activePendingToolOccurrences.get(semanticKey);
-	if (!occurrence) {
-		const resolvedOccurrence = resolvedPendingToolOccurrences.get(semanticKey);
-		if (resolvedOccurrence?.participantsSeen.has(invocation)) {
-			// The same invocation object left pending and then entered it again. That
-			// is the one unambiguous signal that the provider deliberately re-armed
-			// the tool call rather than rehydrating a late copy of completed work.
-			resolvedPendingToolOccurrences.delete(semanticKey);
-		} else if (resolvedOccurrence) {
-			occurrence = resolvedOccurrence;
-		}
-	}
 	if (!occurrence) {
 		if (!mint) {
 			return undefined;
@@ -212,7 +175,6 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 			semanticKey,
 			token: `t${Date.now().toString(36)}-${++pendingOccurrenceCounter}`,
 			participants: new Map(),
-			participantsSeen: new WeakSet(),
 			resolved: false,
 		};
 		activePendingToolOccurrences.set(semanticKey, occurrence);
@@ -221,24 +183,24 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 
 	pendingToolOccurrenceByPart.set(invocation, occurrence);
 	const trackedOccurrence = occurrence;
-	let observer: IDisposable | undefined;
+	const observer = new MutableDisposable();
 	const tracking = toDisposable(() => {
 		if (pendingToolOccurrenceByPart.get(invocation) === trackedOccurrence) {
 			pendingToolOccurrenceByPart.delete(invocation);
 		}
+		store?.deleteAndLeak(tracking);
 		if (trackedOccurrence.participants.get(invocation) === tracking) {
 			trackedOccurrence.participants.delete(invocation);
 		}
 		if (trackedOccurrence.participants.size === 0 && activePendingToolOccurrences.get(trackedOccurrence.semanticKey) === trackedOccurrence) {
 			activePendingToolOccurrences.delete(trackedOccurrence.semanticKey);
 		}
-		if (!trackedOccurrence.resolved && trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
+		if (trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
 			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(trackedOccurrence));
 		}
-		trimResolvedPendingToolOccurrences();
-		observer?.dispose();
+		observer.dispose();
 	});
-	observer = autorun(reader => {
+	observer.value = autorun(reader => {
 		if (!isPendingToolState(invocation.state.read(reader))) {
 			// One authoritative copy leaving pending means the user or host handled
 			// this occurrence. Retire every rehydrated copy immediately instead of
@@ -247,9 +209,8 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 			tracking.dispose();
 		}
 	});
-	occurrence.participantsSeen.add(invocation);
 	occurrence.participants.set(invocation, tracking);
-	track?.(tracking);
+	store?.add(tracking);
 	return occurrence;
 }
 
@@ -279,10 +240,10 @@ function fallbackPendingOccurrenceIdentity(part: object): object {
  */
 
 
-export function derivePendingId(requestId: string, part: object, track?: (disposable: IDisposable) => void): string {
+export function derivePendingId(requestId: string, part: object, store?: DisposableStore): string {
 	const invocation = part as Partial<IChatToolInvocation>;
 	if (invocation.kind === 'toolInvocation' && invocation.state) {
-		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, true, track);
+		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, true, store);
 		if (occurrence) {
 			return `${requestId}#${occurrence.token}`;
 		}

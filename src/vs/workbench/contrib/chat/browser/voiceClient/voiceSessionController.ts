@@ -4821,7 +4821,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// their per-part occurrence id is what keeps debounce from collapsing that
 		// waiting -> thinking -> waiting burst into a false no-op.
 		const selected = this._selectPendingPart(this._modelForSession(sessionId));
-		return selected ? derivePendingId(selected.requestId, selected.part, disposable => this._register(disposable)) : '';
+		return selected ? derivePendingId(selected.requestId, selected.part, this._store) : '';
 	}
 
 	/**
@@ -7265,7 +7265,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// copy must retire the copies later in the array as well.
 		for (const part of parts) {
 			if (part.kind === 'toolInvocation' && this._isOpenPendingPart(part)) {
-				derivePendingId(lastRequest.id, part, disposable => this._register(disposable));
+				derivePendingId(lastRequest.id, part, this._store);
 			}
 		}
 
@@ -7274,7 +7274,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const type = getVoiceConfirmationType([part]);
 			if (type && this._isOpenPendingPart(part)) {
 				if (part.kind === 'toolInvocation') {
-					const pendingId = derivePendingId(lastRequest.id, part, disposable => this._register(disposable));
+					const pendingId = derivePendingId(lastRequest.id, part, this._store);
 					if (isPendingIdResolved(pendingId)) {
 						continue;
 					}
@@ -7404,7 +7404,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (part.kind !== 'toolInvocation' || !this._isOpenPendingPart(part)) {
 				continue;
 			}
-			const pendingId = derivePendingId(request!.id, part, disposable => this._register(disposable));
+			const pendingId = derivePendingId(request!.id, part, this._store);
 			if (isPendingIdResolved(pendingId)) {
 				return true;
 			}
@@ -7429,7 +7429,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return undefined;
 		}
 		const { requestId, type, part } = selected;
-		const routing = () => ({ pending_id: derivePendingId(requestId, part, disposable => this._register(disposable)), request_id: requestId });
+		const routing = () => ({ pending_id: derivePendingId(requestId, part, this._store), request_id: requestId });
 		if (type === 'questionnaire' && part.kind === 'questionCarousel') {
 			const carousel = part as IChatQuestionCarousel;
 			if (carousel.answeredExternally || carousel.questions.length === 0) {
