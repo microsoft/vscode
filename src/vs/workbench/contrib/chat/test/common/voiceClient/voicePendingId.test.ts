@@ -184,6 +184,7 @@ suite('derivePendingId', () => {
 	});
 
 	test('rehydrated copies share one active tool occurrence', () => {
+		const requestId = 'req-rehydrated-active';
 		const tool = () => {
 			const state = observableValue<IChatToolInvocation.State>('toolState', {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
@@ -194,9 +195,9 @@ suite('derivePendingId', () => {
 		};
 		const first = tool();
 		const rehydrated = tool();
-		const pendingId = derivePendingId('req-1', first.part);
+		const pendingId = derivePendingId(requestId, first.part);
 
-		assert.strictEqual(peekPendingId('req-1', rehydrated.part), pendingId);
+		assert.strictEqual(peekPendingId(requestId, rehydrated.part), pendingId);
 
 		for (const copy of [first, rehydrated]) {
 			copy.state.set({
