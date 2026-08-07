@@ -483,6 +483,38 @@ export class CloseEditorTabAction extends Action {
 	}
 }
 
+// The alt-hold alternative to CloseEditorTabAction (see MultiEditorTabsControl), not the multi-select-aware closeOtherEditors command.
+export class CloseOtherEditorTabsInGroupAction extends Action {
+
+	static readonly ID = 'workbench.action.closeOtherEditorTabInGroup';
+	static readonly LABEL = localize('closeOthers', "Close Others");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, ThemeIcon.asClassName(Codicon.closeAll));
+	}
+
+	override async run(context?: IEditorCommandsContext): Promise<void> {
+		const group = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
+		if (!group) {
+			// group mentioned in context does not exist
+			return;
+		}
+
+		const targetEditor = context?.editorIndex !== undefined ? group.getEditorByIndex(context.editorIndex) : group.activeEditor;
+		if (!targetEditor) {
+			// No editor open or editor at index does not exist
+			return;
+		}
+
+		const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => editor !== targetEditor);
+		await group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
+	}
+}
+
 export class RevertAndCloseEditorAction extends Action2 {
 
 	constructor() {
