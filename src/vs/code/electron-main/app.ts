@@ -111,6 +111,8 @@ import { INativeManagedSettingsService, IFileManagedSettingsService } from '../.
 import { NativeManagedSettingsChannel } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
 import { FileManagedSettingsChannel } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
+import { IRequestService } from '../../platform/request/common/request.js';
+import { RequestChannel } from '../../platform/request/common/requestIpc.js';
 import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { IExtensionsScannerService } from '../../platform/extensionManagement/common/extensionsScannerService.js';
@@ -1323,6 +1325,8 @@ export class CodeApplication extends Disposable {
 
 		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), disposables, { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
+
+		mainProcessElectronServer.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));
 
 		// Policies (main & shared process)
 		const policyChannel = disposables.add(new PolicyChannel(accessor.get(IPolicyService)));

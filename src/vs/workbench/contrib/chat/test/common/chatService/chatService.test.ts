@@ -19,6 +19,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -141,6 +142,27 @@ function getAgentData(id: string): IChatAgentData {
 	};
 }
 
+class TestDefaultAccountService extends mock<IDefaultAccountService>() {
+	private _managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null = null;
+	override get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this._managedSettingsCompatibilityError; }
+
+	private readonly _onDidChangeManagedSettingsCompatibilityError = new Emitter<IManagedSettingsCompatibilityError | null>();
+	override readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
+
+	override async getDefaultAccount() {
+		return null;
+	}
+
+	setManagedSettingsCompatibilityError(error: IManagedSettingsCompatibilityError | null): void {
+		this._managedSettingsCompatibilityError = error;
+		this._onDidChangeManagedSettingsCompatibilityError.fire(error);
+	}
+
+	dispose(): void {
+		this._onDidChangeManagedSettingsCompatibilityError.dispose();
+	}
+}
+
 suite('ChatService', () => {
 	const testDisposables = new DisposableStore();
 
@@ -149,6 +171,7 @@ suite('ChatService', () => {
 	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
 
 	let chatAgentService: IChatAgentService;
+	let defaultAccountService: TestDefaultAccountService;
 	const testServices: ChatService[] = [];
 
 	/**
@@ -183,6 +206,8 @@ suite('ChatService', () => {
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+		defaultAccountService = testDisposables.add(new TestDefaultAccountService());
+		instantiationService.stub(IDefaultAccountService, defaultAccountService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -457,6 +482,27 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(await testService.sendRequest(model.sessionResource, ''), { kind: 'rejected', reason: 'Empty message' });
 		assert.deepStrictEqual(await testService.sendRequest(model.sessionResource, '', { attachedContext: [workspaceEntry] }), { kind: 'rejected', reason: 'Empty message' });
 		assert.strictEqual(model.getRequests().length, 0);
+	});
+
+	test('sendRequest rejects update-required state and resumes after compatibility succeeds', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		defaultAccountService.setManagedSettingsCompatibilityError({ errorCode: 'copilot_runtime_update_required' });
+
+		const rejected = await testService.sendRequest(model.sessionResource, 'blocked request');
+		defaultAccountService.setManagedSettingsCompatibilityError(null);
+		const sent = await testService.sendRequest(model.sessionResource, 'allowed request');
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+
+		assert.deepStrictEqual({
+			rejected,
+			requests: model.getRequests().map(request => request.message.text),
+		}, {
+			rejected: { kind: 'rejected', reason: 'Managed settings require a Copilot runtime update' },
+			requests: ['allowed request'],
+		});
 	});
 
 	test('sendRequest fails', async () => {
@@ -1205,6 +1251,59 @@ suite('ChatService', () => {
 			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
 			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'updated remote message' },
 		]]);
+	});
+
+	test('managed settings update leaves the active request running and rejects queued requests', async () => {
+		const firstStarted = new DeferredPromise<void>();
+		const finishFirst = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+		let activeRequestCancelled = false;
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					const cancellationListener = token.onCancellationRequested(() => activeRequestCancelled = true);
+					firstStarted.complete();
+					await finishFirst.p;
+					cancellationListener.dispose();
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('managedSettingsSlowAgent', { ...getAgentData('managedSettingsSlowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('managedSettingsSlowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const active = await testService.sendRequest(model.sessionResource, 'active request', { agentId: 'managedSettingsSlowAgent' });
+		ChatSendResult.assertSent(active);
+		await firstStarted.p;
+		const queued = await testService.sendRequest(model.sessionResource, 'queued request', {
+			agentId: 'managedSettingsSlowAgent',
+			queue: ChatRequestQueueKind.Queued,
+		});
+		assert.ok(ChatSendResult.isQueued(queued));
+
+		defaultAccountService.setManagedSettingsCompatibilityError({ errorCode: 'copilot_runtime_update_required' });
+		const queuedResult = await queued.deferred;
+
+		assert.deepStrictEqual({
+			activeRequestCancelled,
+			invokedMessages,
+			pendingRequestCount: model.getPendingRequests().length,
+			queuedResult,
+		}, {
+			activeRequestCancelled: false,
+			invokedMessages: ['active request'],
+			pendingRequestCount: 0,
+			queuedResult: { kind: 'rejected', reason: 'Managed settings require a Copilot runtime update' },
+		});
+
+		finishFirst.complete();
+		await active.data.responseCompletePromise;
 	});
 
 	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {

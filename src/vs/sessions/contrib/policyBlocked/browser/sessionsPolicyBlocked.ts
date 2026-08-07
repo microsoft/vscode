@@ -21,6 +21,7 @@ export const enum SessionsBlockedReason {
 	Loading = 'loading',
 	/** Signed in but not in an approved org — must switch accounts. */
 	AccountPolicyGate = 'accountPolicyGate',
+	ManagedSettingsUpdateRequired = 'managedSettingsUpdateRequired',
 }
 
 export interface ISessionsBlockedOverlayOptions {
@@ -85,6 +86,9 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 				break;
 			case SessionsBlockedReason.AccountPolicyGate:
 				this._renderAccountPolicyGate(card, options);
+				break;
+			case SessionsBlockedReason.ManagedSettingsUpdateRequired:
+				this._renderManagedSettingsUpdateRequired(card);
 				break;
 		}
 	}
@@ -162,6 +166,32 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this._register(signInButton.onDidClick(() => {
 			this.commandService.executeCommand('workbench.action.agenticSignIn');
 		}));
+	}
+
+	private _renderManagedSettingsUpdateRequired(card: HTMLElement): void {
+		this.overlay.setAttribute('aria-label', localize('managedSettingsUpdate.aria', "Update required to enforce managed settings"));
+		append(card, $('h2', undefined, localize('managedSettingsUpdate.title', "Update Required")));
+
+		append(card, $('p', undefined, localize(
+			'managedSettingsUpdate.description',
+			"Your version of {0} cannot enforce your organization's managed settings. Update {0} to continue using Agents.",
+			this.productService.nameShort
+		)));
+
+		const footer = append(card, $('p.sessions-policy-blocked-footer'));
+		append(footer, document.createTextNode(localize('managedSettingsUpdate.contactAdmin', "Contact your administrator if an update is not available.")));
+		append(footer, document.createTextNode(' '));
+		const learnMore = append(footer, $('a.sessions-policy-blocked-link')) as HTMLAnchorElement;
+		learnMore.textContent = localize('managedSettingsUpdate.learnMore', "Learn more");
+		learnMore.href = 'https://code.visualstudio.com/docs/enterprise/overview';
+		this._register(addDisposableListener(learnMore, EventType.CLICK, e => {
+			e.preventDefault();
+			this.openerService.open(URI.parse('https://code.visualstudio.com/docs/enterprise/overview'));
+		}));
+
+		const updateButton = this._register(new Button(card, { ...defaultButtonStyles }));
+		updateButton.label = localize('managedSettingsUpdate.checkForUpdates', "Check for Updates");
+		this._register(updateButton.onDidClick(() => this.commandService.executeCommand('update.checkForUpdate')));
 	}
 
 	private _openVSCode(): void {

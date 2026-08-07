@@ -23,8 +23,9 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		productKey: string;
 		description: string;
 		url?: string;
+		status?: number;
 		body?: unknown;
-		presets: { id: string; label: string; description: string; body: unknown }[];
+		presets: { id: string; label: string; description: string; status?: number; body: unknown }[];
 	}
 
 	interface ServerState {
@@ -56,6 +57,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	const $ = (id: string): HTMLElement => document.getElementById(id)!;
 	const tabs = $('tabs');
 	const editor = $('editor') as HTMLTextAreaElement;
+	const responseStatusInput = $('response-status') as HTMLInputElement;
 	const presetSelect = $('preset') as HTMLSelectElement;
 	const endpointMeta = $('endpoint-meta');
 	const endpointUrlEl = $('endpoint-url');
@@ -94,8 +96,21 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		editorStatus.dataset.kind = kind || '';
 	}
 
+	function parseResponseStatus(): number | undefined {
+		const status = Number(responseStatusInput.value);
+		if (!Number.isInteger(status) || status < 200 || status > 599) {
+			setStatus('Response status must be an integer from 200 to 599.', 'error');
+			return undefined;
+		}
+		return status;
+	}
+
 	/** Validate the editor content as JSON. Returns parsed value or undefined. */
 	function parseEditor(): unknown | undefined {
+		const responseStatus = parseResponseStatus();
+		if (responseStatus === undefined) {
+			return undefined;
+		}
 		const raw = editor.value.trim();
 		if (raw === '') {
 			setStatus('Empty body — will be served as {}.', '');
@@ -108,14 +123,14 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			setStatus(`Invalid JSON: ${e instanceof Error ? e.message : String(e)}`, 'error');
 			return undefined;
 		}
-		const warning = validateAgainstSchema(parsed);
+		const warning = validateAgainstSchema(parsed, responseStatus);
 		if (warning) {
 			setStatus(`Valid JSON. ${warning}`, 'warn');
 		} else {
 			setStatus('Valid JSON.', 'ok');
 		}
 		// Update the validation table live if schema is loaded and we're on managed settings.
-		if (activeId === 'managedSettings' && schema && typeof parsed === 'object' && parsed && !Array.isArray(parsed)) {
+		if (activeId === 'managedSettings' && responseStatus >= 200 && responseStatus < 300 && schema && typeof parsed === 'object' && parsed && !Array.isArray(parsed)) {
 			renderValidationResults(parsed as Record<string, unknown>);
 		} else {
 			$('validation-results').hidden = true;
@@ -129,8 +144,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	 * way `projectManagedSettings` drops undeclared keys. Returns a warning string
 	 * or '' when nothing to report.
 	 */
-	function validateAgainstSchema(parsed: unknown): string {
-		if (activeId !== 'managedSettings' || !schema || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+	function validateAgainstSchema(parsed: unknown, responseStatus: number): string {
+		if (activeId !== 'managedSettings' || responseStatus < 200 || responseStatus >= 300 || !schema || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 			return '';
 		}
 		const properties = schema.properties;
@@ -232,6 +247,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 
 		endpointMeta.replaceChildren(routeSpan, descSpan);
 		endpointUrlEl.textContent = endpoint.url ?? '';
+		responseStatusInput.value = String(endpoint.status ?? 200);
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
 		renderPresets();
@@ -256,6 +272,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		const endpoint = activeEndpoint();
 		const preset = endpoint?.presets?.[Number(presetSelect.value)];
 		if (preset) {
+			responseStatusInput.value = String(preset.status ?? 200);
 			editor.value = JSON.stringify(preset.body, null, '\t');
 			drafts[activeId] = editor.value;
 			saveDrafts();
@@ -284,11 +301,15 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		if (parsed === undefined) {
 			return;
 		}
+		const status = parseResponseStatus();
+		if (status === undefined) {
+			return;
+		}
 		try {
 			const state = await api<ServerState>('/api/state', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ endpoint: activeId, body: parsed })
+				body: JSON.stringify({ endpoint: activeId, status, body: parsed })
 			});
 			endpoints = state.endpoints;
 			renderWired(state);
@@ -414,6 +435,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		loadDrafts();
 
 		editor.addEventListener('input', () => { drafts[activeId] = editor.value; saveDrafts(); parseEditor(); debouncedSave(); });
+		responseStatusInput.addEventListener('input', () => { parseEditor(); debouncedSave(); });
 		$('apply-preset').addEventListener('click', applyPreset);
 		$('format').addEventListener('click', formatJson);
 		$('wire').addEventListener('click', () => wire(true));

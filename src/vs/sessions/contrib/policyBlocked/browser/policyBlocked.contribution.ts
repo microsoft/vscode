@@ -66,6 +66,8 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved) {
 				this.showOverlay({ reason: SessionsBlockedReason.Loading });
+			} else if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsUpdateRequired) {
+				this.showOverlay({ reason: SessionsBlockedReason.ManagedSettingsUpdateRequired });
 			} else {
 				const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 				this.showOverlay({
@@ -83,7 +85,9 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 	private showOverlay(options: ISessionsBlockedOverlayOptions): void {
 		// AccountPolicyGate may need re-render when the account name changes.
-		if (this.currentReason === options.reason && options.reason !== SessionsBlockedReason.AccountPolicyGate) {
+		if (this.currentReason === options.reason
+			&& options.reason !== SessionsBlockedReason.AccountPolicyGate
+			&& options.reason !== SessionsBlockedReason.ManagedSettingsUpdateRequired) {
 			return;
 		}
 		this.overlayRef.clear();

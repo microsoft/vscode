@@ -10,7 +10,7 @@ import { ManagedSettingsData, PolicyCategory } from '../../../../../base/common/
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, INativeManagedSettingsService, IFileManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
@@ -39,6 +39,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
 	readonly managedSettingsRawResponse: unknown = null;
+	get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return null; }
+	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -62,6 +64,28 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	}
 
 	async signOut(): Promise<void> { }
+}
+
+class CompatibilityDefaultAccountProvider extends DefaultAccountProvider {
+	private _managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
+	override get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this._managedSettingsCompatibilityError; }
+
+	private readonly _onDidChangeManagedSettingsCompatibilityError = new Emitter<IManagedSettingsCompatibilityError | null>();
+	override readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
+
+	constructor(defaultAccount: IDefaultAccount, policyData: IPolicyData | null, compatibilityError: IManagedSettingsCompatibilityError | null) {
+		super(defaultAccount, policyData);
+		this._managedSettingsCompatibilityError = compatibilityError;
+	}
+
+	setManagedSettingsCompatibilityError(error: IManagedSettingsCompatibilityError | null): void {
+		this._managedSettingsCompatibilityError = error;
+		this._onDidChangeManagedSettingsCompatibilityError.fire(error);
+	}
+
+	dispose(): void {
+		this._onDidChangeManagedSettingsCompatibilityError.dispose();
+	}
 }
 
 suite('AccountPolicyService', () => {
@@ -615,7 +639,8 @@ suite('AccountPolicyService', () => {
 		approvedOrgs?: string[] | string;
 		account?: IDefaultAccount | null;
 		policyData?: IPolicyData | null;
-	}): Promise<{ policyService: AccountPolicyService; managed: FakeManagedPolicyService }> {
+		compatibilityError?: IManagedSettingsCompatibilityError | null;
+	}): Promise<{ policyService: AccountPolicyService; managed: FakeManagedPolicyService; provider?: CompatibilityDefaultAccountProvider }> {
 		const managed = disposables.add(new FakeManagedPolicyService());
 		if (opts.approvedOrgs !== undefined) {
 			// Mirror how the platform delivers array-typed policy values to AbstractPolicyService:
@@ -625,9 +650,11 @@ suite('AccountPolicyService', () => {
 		}
 
 		const accountService = disposables.add(new DefaultAccountService(TestProductService));
+		let provider: CompatibilityDefaultAccountProvider | undefined;
 		if (opts.account !== null && opts.account !== undefined) {
 			const policyData = opts.policyData === undefined ? {} : opts.policyData;
-			accountService.setDefaultAccountProvider(new DefaultAccountProvider(opts.account, policyData));
+			provider = disposables.add(new CompatibilityDefaultAccountProvider(opts.account, policyData, opts.compatibilityError ?? null));
+			accountService.setDefaultAccountProvider(provider);
 			await accountService.refresh();
 		}
 
@@ -636,13 +663,63 @@ suite('AccountPolicyService', () => {
 		await defaultConfiguration.initialize();
 		const config = disposables.add(new PolicyConfiguration(defaultConfiguration, service, new NullLogService()));
 		await config.initialize();
-		return { policyService: service, managed };
+		return { policyService: service, managed, provider };
 	}
 
 	test('gate inactive (no approved orgs set): behaves identically to today', async () => {
 		const { policyService } = await setupGate({ account: APPROVED_ORG_ACCOUNT, policyData: { chat_preview_features_enabled: false } });
 		assert.strictEqual(policyService.gateInfo.state, AccountPolicyGateState.Inactive);
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingD'), false); // account policy still flows
+	});
+
+	test('managed settings update requirement restricts account policies without an approved-org gate', async () => {
+		const compatibilityError: IManagedSettingsCompatibilityError = {
+			errorCode: 'copilot_runtime_update_required',
+			clientVersion: '1.0.80',
+			minimumClientVersion: '1.0.81',
+		};
+		const { policyService } = await setupGate({
+			account: APPROVED_ORG_ACCOUNT,
+			policyData: { chat_preview_features_enabled: false },
+			compatibilityError,
+		});
+
+		assert.deepStrictEqual({
+			gateInfo: policyService.gateInfo,
+			value: policyService.getPolicyValue('PolicySettingD'),
+			source: policyService.getPolicyValueSource('PolicySettingD'),
+		}, {
+			gateInfo: {
+				state: AccountPolicyGateState.Restricted,
+				reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsUpdateRequired,
+				managedSettingsCompatibilityError: compatibilityError,
+			},
+			value: false,
+			source: PolicyValueSource.AccountGate,
+		});
+	});
+
+	test('fresh compatible state clears the managed settings restriction', async () => {
+		const { policyService, provider } = await setupGate({
+			account: APPROVED_ORG_ACCOUNT,
+			policyData: { chat_preview_features_enabled: false },
+			compatibilityError: { errorCode: 'copilot_runtime_update_required' },
+		});
+		assert.ok(provider);
+		const changed = Event.toPromise(policyService.onDidChangeGateInfo);
+
+		provider.setManagedSettingsCompatibilityError(null);
+		await changed;
+
+		assert.deepStrictEqual({
+			gateInfo: policyService.gateInfo,
+			value: policyService.getPolicyValue('PolicySettingD'),
+			source: policyService.getPolicyValueSource('PolicySettingD'),
+		}, {
+			gateInfo: { state: AccountPolicyGateState.Inactive },
+			value: false,
+			source: PolicyValueSource.Account,
+		});
 	});
 
 	test('gate active, no account signed in: restricted', async () => {

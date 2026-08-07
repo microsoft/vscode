@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { isString } from '../../../../base/common/types.js';
+import { IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
@@ -56,6 +58,30 @@ export interface IManagedSettingsResponse {
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
+}
+
+interface IManagedSettingsCompatibilityErrorResponse {
+	readonly error_code?: unknown;
+	readonly client_version?: unknown;
+	readonly minimum_client_version?: unknown;
+}
+
+function isManagedSettingsCompatibilityErrorResponse(response: unknown): response is IManagedSettingsCompatibilityErrorResponse {
+	return typeof response === 'object' && response !== null;
+}
+
+export function parseManagedSettingsCompatibilityError(response: unknown): IManagedSettingsCompatibilityError | undefined {
+	if (!isManagedSettingsCompatibilityErrorResponse(response) || response.error_code !== MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE) {
+		return undefined;
+	}
+
+	const clientVersion = isString(response.client_version) ? response.client_version : undefined;
+	const minimumClientVersion = isString(response.minimum_client_version) ? response.minimum_client_version : undefined;
+	return {
+		errorCode: MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE,
+		...(clientVersion ? { clientVersion } : {}),
+		...(minimumClientVersion ? { minimumClientVersion } : {}),
+	};
 }
 
 /**
