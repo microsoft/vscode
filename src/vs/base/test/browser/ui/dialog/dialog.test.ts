@@ -129,9 +129,8 @@ suite('Dialog', () => {
 		const dialog = disposables.add(new Dialog(container, 'Message', [], {
 			disableDefaultAction: true,
 			renderFooter: footer => {
-				action = disposables.add(new Button(footer, {}));
+				action = disposables.add(new Button(footer, { buttonForeground: 'rgb(1, 2, 3)' }));
 				action.label = 'Cancel';
-				action.element.style.color = 'rgb(1, 2, 3)';
 				link = append(footer, $('a'));
 				link.textContent = 'Terms';
 			},
