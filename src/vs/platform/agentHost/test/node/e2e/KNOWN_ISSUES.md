@@ -363,6 +363,24 @@ Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.p
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
+### Codex shell completion output on macOS
+
+When Codex runs a shell command that produces output, the model receives that output and can use it in its response, but the successful AHP `chat/toolCallComplete` action can omit the tool result. An AHP client then sees an empty completed shell tool call even though the command produced output, so this is a product limitation rather than an acceptable test variation.
+
+- Scope: Codex on macOS in deterministic replay.
+- Expected: the completed shell tool call contains the command output that Codex passed back to the model.
+- Observed: the completion is successful but has no result content. The recorded follow-up model request and final assistant response both contain the expected output.
+- Gate: replay skips the affected Codex/macOS variants while recording and other platforms remain enabled:
+  - `reads a file from a nested directory`
+  - `reads a value from JSON`
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "reads a file from a nested directory|reads a value from JSON"
+  ```
+
 ### Codex shell-tool replay on Linux
 
 - Scope: Codex on Linux in deterministic replay.

@@ -17,6 +17,8 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
+
 function stringOrMarkdownText(value: StringOrMarkdown | undefined): string | undefined {
 	return typeof value === 'string' ? value : value?.markdown;
 }
@@ -47,14 +49,16 @@ function fileOperationPrompt(
 	return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
 }
 
-function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc): void {
-	const enabled = context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled;
-	(enabled ? test : test.skip)(title, run);
+function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, enabled = true): void {
+	const testEnabled = enabled && (context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
+	(testEnabled ? test : test.skip)(title, run);
 }
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, portableShellToolReplayEnabled, isWindows } = context;
 	const shellOutputOracleAvailable = !(isWindows && config.provider === 'copilotcli');
+	// The Codex app-server can omit produced shell output on macOS; see KNOWN_ISSUES.md.
+	const codexShellCompletionOutputAvailable = RECORD || process.platform !== 'darwin' || config.provider !== 'codex';
 	const BEHAVIOR_SNAPSHOT = {
 		profile: 'behavior',
 		// Codex occasionally omits command completion; direct filesystem and response assertions are the success oracle.
@@ -114,7 +118,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, codexShellCompletionOutputAvailable);
 
 	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('lists workspace entries', async function () {
 		this.timeout(180_000);
@@ -217,7 +221,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, codexShellCompletionOutputAvailable);
 
 	fileOperationTest(context, 'counts lines in a file', async function () {
 		this.timeout(180_000);
