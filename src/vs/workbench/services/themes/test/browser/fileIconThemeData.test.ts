@@ -44,9 +44,11 @@ suite('FileIconThemeData', () => {
 		assert.deepStrictEqual([
 			content?.includes('background-color: currentColor'),
 			content?.includes('mask: url('),
+			content?.includes('mask-size: 15.5px'),
 			content?.includes('-webkit-mask: url('),
+			content?.includes('-webkit-mask-size: 15.5px'),
 			content?.includes('background-image: none')
-		], [true, true, true, true]);
+		], [true, true, true, true, true, true]);
 	});
 
 	test('renders image icons as background images by default', async () => {

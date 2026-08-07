@@ -1,5 +1,14 @@
 {
 	"iconDefinitions": {
+		"_file": {
+			"iconPath": "./images/file-dark.svg"
+		},
+		"_folder": {
+			"iconPath": "./images/folder-dark.svg"
+		},
+		"_folderOpen": {
+			"iconPath": "./images/folder-open-dark.svg"
+		},
 		"_frame": {
 			"iconPath": "./images/frame.svg"
 		},
@@ -349,6 +358,9 @@
 			"iconPath": "./images/yarn.svg"
 		}
 	},
+	"file": "_file",
+	"folder": "_folder",
+	"folderExpanded": "_folderOpen",
 	"fileExtensions": {
 		"mdo": "_mdo",
 		"cls": "_salesforce",

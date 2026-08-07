@@ -422,7 +422,7 @@ export class FileIconThemeLoader {
 				if (definition.iconPath) {
 					const iconPath = css.asCSSUrl(resolvePath(definition.iconPath));
 					if (iconThemeDocument.usesCurrentColor) {
-						cssRules.push(css.inline`${selectors.join(', ')} { content: ${emQuad}; background-color: currentColor; background-image: none; mask: ${iconPath} no-repeat 50% 50%; mask-size: 16px; -webkit-mask: ${iconPath} no-repeat 50% 50%; -webkit-mask-size: 16px; }`);
+						cssRules.push(css.inline`${selectors.join(', ')} { content: ${emQuad}; background-color: currentColor; background-image: none; mask: ${iconPath} no-repeat 50% 50%; mask-size: 15.5px; -webkit-mask: ${iconPath} no-repeat 50% 50%; -webkit-mask-size: 15.5px; }`);
 					} else {
 						cssRules.push(css.inline`${selectors.join(', ')} { content: ${emQuad}; background-image: ${iconPath}; }`);
 					}
