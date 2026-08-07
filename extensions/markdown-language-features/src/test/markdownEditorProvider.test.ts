@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
-import { decodeWebviewInitialState, encodeWebviewInitialState } from '../preview/webviewInitialState';
+import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
 suite('Markdown editor diff', () => {
 	test('maps modified-side line changes to quick diff gutter markers', async () => {
@@ -37,7 +37,7 @@ suite('Markdown editor initial state', () => {
 
 		assert.deepStrictEqual({
 			containsHtmlAttributeSyntax: /["<>&]/.test(encoded),
-			roundTrip: decodeWebviewInitialState(encoded),
+			roundTrip: JSON.parse(decodeURIComponent(encoded)),
 		}, {
 			containsHtmlAttributeSyntax: false,
 			roundTrip: state,

@@ -15,7 +15,3 @@ export interface MarkdownEditorInitialState {
 export function encodeWebviewInitialState(state: MarkdownEditorInitialState): string {
 	return encodeURIComponent(JSON.stringify(state));
 }
-
-export function decodeWebviewInitialState(value: string): unknown {
-	return JSON.parse(decodeURIComponent(value));
-}

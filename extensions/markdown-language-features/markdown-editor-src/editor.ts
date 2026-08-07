@@ -12,7 +12,6 @@ import '@vscode/markdown-editor/themes/vscode-default.css';
 import '@vscode/markdown-editor/commentInput.css';
 import '@vscode/markdown-editor/vscodeCommentWidgetV2.css';
 import './markdownEditor.css';
-import { decodeWebviewInitialState } from '../src/preview/webviewInitialState';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 
 interface VsCodeApi {
@@ -464,7 +463,7 @@ function readInitialState(): InitialState {
 		throw new Error('Markdown editor initial state was not found.');
 	}
 	element.remove();
-	const value = decodeWebviewInitialState(element.content);
+	const value: unknown = JSON.parse(decodeURIComponent(element.content));
 	if (!isInitialState(value)) {
 		throw new Error('Markdown editor initial state is invalid.');
 	}
