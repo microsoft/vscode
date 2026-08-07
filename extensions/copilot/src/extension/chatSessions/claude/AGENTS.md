@@ -152,7 +152,7 @@ Adapts raw SDK session data into the internal `IClaudeCodeSession` / `ISubagentS
 - Deduplicates results using `ResourceSet`
 - Plugin roots are passed to the SDK as `SdkPluginConfig[]` with `{ type: 'local', path }` in `ClaudeCodeSession._doStartSession()`
 
-**Shared utility:** `../../common/skillConfigLocations.ts` — `resolveSkillConfigLocations()` handles `~/` expansion, absolute paths, and relative paths joined to workspace folders. Used by both `ClaudePluginService` and `CopilotCLISkills`.
+**Shared utility:** `../common/skillConfigLocations.ts` — `resolveSkillConfigLocations()` handles `~/` expansion, absolute paths, and relative paths joined to workspace folders. Used by both `ClaudePluginService` and `CopilotCLISkills`.
 
 ### `common/claudeTools.ts`
 
@@ -383,7 +383,7 @@ The `ClaudeChatSessionItemController` registers four git-related commands that a
 | `github.copilot.claude.sessions.sync` | Has git repo + no uncommitted changes + upstream | Sends `/sync` prompt |
 | `github.copilot.claude.sessions.initializeRepository` | No git repo | Calls `IGitService.initRepository()` on the session's workspace folder |
 
-The commit, commitAndSync, and sync commands use a shared `_registerPromptCommand()` helper that extracts the session resource and dispatches via `workbench.action.chat.openSessionWithPrompt.claude-code`. The slash command strings come from the shared `builtinSlashCommands` module (`../../common/builtinSlashCommands.ts`).
+The commit, commitAndSync, and sync commands use a shared `_registerPromptCommand()` helper that extracts the session resource and dispatches via `workbench.action.chat.openSessionWithPrompt.claude-code`. The slash command strings come from the shared `builtinSlashCommands` module (`../common/builtinSlashCommands.ts`).
 
 ## Testing
 

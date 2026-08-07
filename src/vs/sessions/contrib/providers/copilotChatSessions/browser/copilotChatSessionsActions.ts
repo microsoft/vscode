@@ -20,19 +20,16 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { BranchPicker } from './branchPicker.js';
 import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
 import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
-import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);
-const IsActiveSessionLocal = ContextKeyExpr.equals(SessionTypeContext.key, LocalSessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionClaudeCode = ContextKeyExpr.equals(SessionTypeContext.key, ClaudeCodeSessionType.id);
 const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionCopilotChatLocal = ContextKeyExpr.and(IsActiveSessionLocal, IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
@@ -63,7 +60,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal, IsActiveSessionLocal),
+				when: IsActiveSessionCopilotChatCLI,
 			}],
 		});
 	}
@@ -80,7 +77,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal, IsActiveSessionLocal),
+				when: IsActiveSessionCopilotChatCLI,
 			}],
 		});
 	}
@@ -170,16 +167,17 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
 			(_action, _options, scopedInstantiationService) => {
-				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel, session);
 				const disposableStore = new DisposableStore();
 				disposableStore.add(picker.onDidSelect(mode => {
-					const session = sessionsService.activeSession.get();
-					if (!session) {
+					const scopedSession = session.get();
+					if (!scopedSession) {
 						return;
 					}
-					const provider = sessionsProvidersService.getProvider(session.providerId);
+					const provider = sessionsProvidersService.getProvider(scopedSession.providerId);
 					if (provider instanceof CopilotChatSessionsProvider) {
-						provider.getSession(session.sessionId)?.setMode(mode);
+						provider.getSession(scopedSession.sessionId)?.setMode(mode);
 					}
 				}));
 				return new PickerActionViewItem(picker, disposableStore);

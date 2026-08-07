@@ -35,6 +35,16 @@ interface GitHubPullRequestResponseItem {
 	readonly node_id?: unknown;
 }
 
+interface GitHubIssueOrPullRequestResponseItem {
+	readonly title?: unknown;
+	readonly body?: unknown;
+}
+
+export interface GitHubIssueOrPullRequest {
+	readonly title: string;
+	readonly body: string;
+}
+
 export interface IGitHubApiResponse<T> {
 	readonly data: T | undefined;
 	readonly statusCode: number;
@@ -80,6 +90,9 @@ export interface IAgentHostOctoKitService {
 
 	/** Finds the most recently updated pull request for `headOwner:branch`, if any. */
 	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner?: string): Promise<CreatedPullRequest | undefined>;
+
+	/** Fetches the title and body of an issue or pull request. */
+	getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest>;
 
 	/**
 	 * Enables auto-merge on a pull request so GitHub merges it automatically
@@ -184,6 +197,21 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 					: undefined
 			}
 			: undefined;
+	}
+
+	async getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest> {
+		const response = await this._makeGHAPIRequest<GitHubIssueOrPullRequestResponseItem>(
+			`repos/${owner}/${repo}/issues/${number}`,
+			'GET',
+			token,
+			signal,
+		);
+		const title = response.data?.title;
+		const body = response.data?.body;
+		if (typeof title !== 'string' || (typeof body !== 'string' && body !== null)) {
+			throw new Error(`Failed to fetch issue or pull request ${owner}/${repo}#${number}`);
+		}
+		return { title, body: body ?? '' };
 	}
 
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal): Promise<void> {

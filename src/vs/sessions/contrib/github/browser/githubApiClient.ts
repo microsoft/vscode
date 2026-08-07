@@ -17,6 +17,8 @@ const GITHUB_GRAPHQL_ENDPOINT = `${GITHUB_API_BASE}/graphql`;
 export interface IGitHubApiRequestOptions {
 	readonly data?: unknown;
 	readonly etag?: string;
+	readonly token?: CancellationToken;
+	readonly createAuthenticationSession?: boolean;
 }
 
 export interface IGitHubApiResponse<T> {
@@ -45,6 +47,13 @@ export class GitHubApiError extends Error {
 	}
 }
 
+export class GitHubAuthenticationError extends Error {
+	constructor() {
+		super('No GitHub authentication sessions available');
+		this.name = 'GitHubAuthenticationError';
+	}
+}
+
 /**
  * Low-level GitHub REST API client. Handles authentication,
  * request construction, and error classification.
@@ -66,14 +75,14 @@ export class GitHubApiClient extends Disposable {
 		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, options);
 	}
 
-	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>): Promise<T> {
+	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>, options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'>): Promise<T> {
 		const response = await this._request<IGitHubGraphQLResponse<T>>(
 			'POST',
 			GITHUB_GRAPHQL_ENDPOINT,
 			'/graphql',
 			'application/vnd.github+json',
 			callSite,
-			{ data: { query, variables } }
+			{ ...options, data: { query, variables } }
 		);
 
 		if (response.data?.errors?.length) {
@@ -92,7 +101,7 @@ export class GitHubApiClient extends Disposable {
 	}
 
 	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
-		const token = await this._getAuthToken();
+		const token = await this._getAuthToken(options?.createAuthenticationSession !== false);
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
 		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] -> ${method} ${pathForLogging} (callSite ${callSite}${options?.etag !== undefined ? `, ifNoneMatch ${options.etag}` : ''})`);
@@ -111,7 +120,7 @@ export class GitHubApiClient extends Disposable {
 			// Bypass the renderer HTTP cache so conditional polling reaches GitHub (see PR_ICON_POLLING.md).
 			disableCache: true,
 			callSite
-		}, CancellationToken.None);
+		}, options?.token ?? CancellationToken.None);
 
 		const rateLimitRemaining = parseRateLimitHeader(response.res.headers?.['x-ratelimit-remaining']);
 		if (rateLimitRemaining !== undefined && rateLimitRemaining < 100) {
@@ -151,13 +160,13 @@ export class GitHubApiClient extends Disposable {
 		return { data, statusCode, etag: responseETag };
 	}
 
-	private async _getAuthToken(): Promise<string> {
+	private async _getAuthToken(createIfNone: boolean): Promise<string> {
 		let sessions = await this._authenticationService.getSessions('github', [], { silent: true });
-		if (!sessions || sessions.length === 0) {
+		if ((!sessions || sessions.length === 0) && createIfNone) {
 			sessions = await this._authenticationService.getSessions('github', [], { createIfNone: true });
 		}
 		if (!sessions || sessions.length === 0) {
-			throw new Error('No GitHub authentication sessions available');
+			throw new GitHubAuthenticationError();
 		}
 
 		// Prefer a session with 'repo' scope, but fall back to the first available session

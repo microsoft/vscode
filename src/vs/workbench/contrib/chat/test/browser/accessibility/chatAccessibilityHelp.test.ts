@@ -34,11 +34,15 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
 			navigation: helpText.includes('use the up and down arrow keys to choose'),
-			actions: helpText.includes('Go on the Run') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
+			petMovement: helpText.includes('Drag it around the chat') && helpText.includes('use the arrow keys to move it'),
+			petRevival: helpText.includes('automatically returns to the input'),
 		}, {
 			keybinding: true,
 			navigation: true,
 			actions: true,
+			petMovement: true,
+			petRevival: true,
 		});
 	});
 
@@ -71,6 +75,22 @@ suite('Chat Accessibility Help', () => {
 			shown: true,
 			notShown: false,
 			byDefault: false,
+		});
+	});
+
+	test('only describes the floating input window when enabled in panel chat', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const describesInputWindow = (enabled: boolean) =>
+			getAccessibilityHelpText('panelChat', keybindingService, true, false, false, enabled).includes('floating chat input window');
+
+		assert.deepStrictEqual({
+			enabled: describesInputWindow(true),
+			disabled: describesInputWindow(false),
+		}, {
+			enabled: true,
+			disabled: false,
 		});
 	});
 

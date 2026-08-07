@@ -219,6 +219,11 @@ const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
 // value from instead of having to branch on whether the value happened to be chunked.
 const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON']);
 
+// Overrides for the base name of the compressed chunk family. By default the chunk family is named
+// `<key>Chunk`, but some backend mappings expect a different casing. For `messagesJson` the backend
+// expects `messagesJSONChunk` (uppercased JSON), while the original `<key>` column keeps its casing.
+const COMPRESSED_CHUNK_KEY_OVERRIDES: { readonly [key: string]: string } = { messagesJson: 'messagesJSON' };
+
 // Compressor used by multiplexProperties to gzip + base64 encode oversized property values. It is
 // registered once by the Node layer (via setTelemetryPropertyCompressor) because Node's `zlib` is
 // unavailable in the common layer; until then multiplexProperties falls back to plain chunking. It
@@ -273,8 +278,9 @@ export async function multiplexProperties(
 			// padding). No redundant plain continuation family is produced.
 			newProperties[key] = value!.slice(0, MAX_PROPERTY_LENGTH);
 			const compressed = await compress(value!);
+			const chunkKey = COMPRESSED_CHUNK_KEY_OVERRIDES[key] ?? key;
 			for (let offset = 0, index = 1; offset < compressed.length && index <= MAX_CONCATENATED_PROPERTIES; offset += MAX_PROPERTY_LENGTH, index++) {
-				const columnName = index === 1 ? `${key}${COMPRESSED_CHUNK_SUFFIX}` : `${key}${COMPRESSED_CHUNK_SUFFIX}_${index}`;
+				const columnName = index === 1 ? `${chunkKey}${COMPRESSED_CHUNK_SUFFIX}` : `${chunkKey}${COMPRESSED_CHUNK_SUFFIX}_${index}`;
 				newProperties[columnName] = compressed.slice(offset, offset + MAX_PROPERTY_LENGTH);
 			}
 			continue;

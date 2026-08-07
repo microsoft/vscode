@@ -4,8 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { dirname } from '../../../../base/common/path.js';
-import type { IMcpServerDefinition, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { basename, extUri, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { parseFrontMatter } from '../../../../base/common/yaml.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { parseRuleFile, type IMcpServerDefinition, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
+import type { AgentSelection } from '../../common/state/protocol/state.js';
 import { type ChildCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 
@@ -32,6 +38,18 @@ import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcp
 export interface ICodexClientPlugin {
 	readonly synced: ISyncedCustomization;
 	readonly parsed: IParsedPlugin | undefined;
+}
+
+export interface ICodexAgentRoleSource {
+	readonly name: string;
+	readonly description: string;
+	readonly instructions: string;
+	readonly model?: string;
+}
+
+export interface ICodexCustomizationConfig {
+	readonly agentRoles: readonly ICodexAgentRoleSource[];
+	readonly developerInstructions?: string;
 }
 
 /**
@@ -176,4 +194,123 @@ export function codexSkillRootsFromPlugins(plugins: readonly ICodexClientPlugin[
 		}
 	}
 	return [...roots].sort();
+}
+
+export async function codexCustomizationConfigFromPlugins(
+	plugins: readonly ICodexClientPlugin[],
+	selectedAgent: AgentSelection | undefined,
+	fileService: IFileService,
+): Promise<ICodexCustomizationConfig> {
+	const agentRoles = new Map<string, ICodexAgentRoleSource>();
+	const pluginInstructions: string[] = [];
+	let selectedAgentInstructions: string | undefined;
+	let selectedAgentMatch = SelectedAgentMatch.None;
+	const selectedAgentUri = selectedAgent?.uri;
+
+	for (const plugin of plugins) {
+		for (const agent of plugin.parsed?.agents ?? []) {
+			try {
+				const content = (await fileService.readFile(agent.uri)).value.toString();
+				const frontmatter = parseFrontMatter(content);
+				const name = frontmatter?.getStringValue('name')?.trim() || agent.name;
+				const description = frontmatter?.getStringValue('description')?.trim() || agent.description || name;
+				const instructions = frontmatter?.body ?? content;
+				const model = frontmatter?.getStringValue('model')?.trim() || undefined;
+				if (!agentRoles.has(name)) {
+					agentRoles.set(name, { name, description, instructions, ...(model ? { model } : {}) });
+				}
+				const match = selectedAgentUri ? matchSelectedAgent(plugin, agent.uri, selectedAgentUri) : SelectedAgentMatch.None;
+				if (match > selectedAgentMatch) {
+					selectedAgentInstructions = instructions;
+					selectedAgentMatch = match;
+				}
+			} catch { }
+		}
+
+		for (const instruction of plugin.parsed?.instructions ?? []) {
+			try {
+				const rule = await parseRuleFile(instruction.uri, fileService);
+				if (!isAlwaysOnRule(rule.globs, rule.alwaysApply)) {
+					continue;
+				}
+				const content = (await fileService.readFile(instruction.uri)).value.toString();
+				const frontmatter = parseFrontMatter(content);
+				const body = frontmatter?.body ?? content;
+				if (body.trim()) {
+					pluginInstructions.push(body.trim());
+				}
+			} catch { }
+		}
+	}
+
+	const developerInstructions = [
+		...pluginInstructions,
+		...(selectedAgentInstructions ? [selectedAgentInstructions.trim()] : []),
+	].filter(Boolean).join('\n\n');
+
+	return {
+		agentRoles: [...agentRoles.values()],
+		...(developerInstructions ? { developerInstructions } : {}),
+	};
+}
+
+function isAlwaysOnRule(globs: readonly string[] | undefined, alwaysApply: boolean | undefined): boolean {
+	if (!globs?.length) {
+		return alwaysApply !== false;
+	}
+	return globs.some(glob => glob.trim() === '**' || glob.trim() === '**/*');
+}
+
+const enum SelectedAgentMatch {
+	None,
+	SyntheticBundleSource,
+	Exact,
+}
+
+function matchSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedAgentUri: string): SelectedAgentMatch {
+	const selectedUri = URI.parse(selectedAgentUri);
+	if (extUri.isEqual(agentUri, selectedUri)) {
+		return SelectedAgentMatch.Exact;
+	}
+	const pluginDir = plugin.synced.pluginDir;
+	if (!pluginDir) {
+		return SelectedAgentMatch.None;
+	}
+	const relativeAgentPath = relativePath(pluginDir, agentUri);
+	if (relativeAgentPath === undefined) {
+		return SelectedAgentMatch.None;
+	}
+	const sourcePluginUri = URI.parse(plugin.synced.customization.uri);
+	const sourceAgentUri = relativeAgentPath ? joinPath(sourcePluginUri, relativeAgentPath) : sourcePluginUri;
+	if (extUri.isEqual(sourceAgentUri, selectedUri)) {
+		return SelectedAgentMatch.Exact;
+	}
+
+	// The workbench's synthetic bundle flattens loose custom agents into its
+	// `agents/` directory, while the Agents window intentionally exposes each
+	// agent's original workspace/user URI. The host cannot reconstruct that
+	// original parent path, but the filename remains stable and is unique in
+	// the flattened bundle. Keep this as a lower-priority fallback so an exact
+	// match from another plugin always wins.
+	if (sourcePluginUri.scheme === SYNCED_CUSTOMIZATION_SCHEME
+		&& relativeAgentPath.startsWith('agents/')
+		&& basename(agentUri) === basename(selectedUri)) {
+		return SelectedAgentMatch.SyntheticBundleSource;
+	}
+
+	return SelectedAgentMatch.None;
+}
+
+export function codexAgentRoleToml(role: ICodexAgentRoleSource): string {
+	return [
+		`name = ${JSON.stringify(role.name)}`,
+		`description = ${JSON.stringify(role.description)}`,
+		`developer_instructions = ${JSON.stringify(role.instructions)}`,
+		...(role.model ? [`model = ${JSON.stringify(role.model)}`] : []),
+		'',
+	].join('\n');
+}
+
+export function codexSkillCapabilityRoots(plugins: readonly ICodexClientPlugin[]): URI[] {
+	return codexSkillRootsFromPlugins(plugins).map(path => URI.file(path));
 }
