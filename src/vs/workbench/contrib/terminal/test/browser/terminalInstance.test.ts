@@ -136,7 +136,8 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 				this._resolveProcessCreated();
 				return this._register(new TestTerminalChildProcess(shouldPersist));
 			},
-			getLatency: () => Promise.resolve([])
+			getLatency: () => Promise.resolve([]),
+			getShellEnvironment: () => Promise.resolve({})
 		} as unknown as ITerminalBackend;
 	}
 }
@@ -264,15 +265,16 @@ suite('Workbench - TerminalInstance', () => {
 			const instance = await createTerminalInstance(terminalInstanceService, new Workspace('empty'));
 			await terminalInstanceService.processCreatedPromise;
 			await new Promise(resolve => setTimeout(resolve, 0));
-			const testInstance = instance as unknown as { _cwd: string; _userHome: string; _createProcess(): Promise<void> };
+			const testInstance = instance as unknown as { _cwd: string; _userHome: string };
+			const createProcess = () => (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
 			testInstance._cwd = '/unexpected';
 			testInstance._userHome = '/home';
 			const exitPromise = Event.toPromise(instance.onExit);
 
-			await testInstance._createProcess();
+			await createProcess();
 			const exitResult = await exitPromise;
 
-			ok(exitResult && typeof exitResult === 'object' && 'message' in exitResult);
+			ok(exitResult && typeof exitResult === 'object' && typeof exitResult.message === 'string');
 			strictEqual(terminalInstanceService.createProcessCount, 1);
 		});
 
