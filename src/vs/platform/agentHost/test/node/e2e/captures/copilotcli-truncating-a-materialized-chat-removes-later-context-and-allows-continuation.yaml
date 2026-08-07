@@ -1,0 +1,38 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember ALPHA. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember ALPHA. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Now remember BETA too. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember ALPHA. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Reply with exactly "ALPHA only".
+    response:
+      content: ALPHA only
+      stopReason: end_turn

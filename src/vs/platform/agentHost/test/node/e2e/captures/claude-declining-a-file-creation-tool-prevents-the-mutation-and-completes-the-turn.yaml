@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create denied.txt containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".
+    response:
+      content:
+        - type: text
+          text: I'll create the file.
+        - type: tool_use
+          id: toolcall_0
+          name: Write
+          input:
+            file_path: ${workdir}/denied.txt
+            content: DENIED_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create denied.txt containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll create the file.
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/denied.txt
+                content: DENIED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: User declined
+    response:
+      content: denied
+      stopReason: end_turn

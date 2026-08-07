@@ -7,7 +7,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -58,8 +58,6 @@ interface IManagedTabsTarget {
 interface IReconcileTrigger {
 	/** Open the default docked tabs *if the group is empty* — a session switch, a side-pane reveal, or a settled layout restore. */
 	readonly openDefaultsIfEmpty?: boolean;
-	/** Ensure **all** docked inputs (Changes + Files) even in a non-empty group — a details-only side-pane reveal, where the docked details panel shows them. */
-	readonly ensureAllInputs?: boolean;
 	/** Ensure the Changes tab, inactive, when a new-session view becomes eligible or finishes restoring. */
 	readonly ensureChanges?: boolean;
 	/** Ensure the Changes tab, opened **active**, even in a non-empty group — new-session submit (so the detail panel maps to Changes rather than the still-present Files placeholder). */
@@ -70,7 +68,6 @@ interface IReconcileTrigger {
 function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTrigger {
 	return {
 		openDefaultsIfEmpty: a.openDefaultsIfEmpty || b.openDefaultsIfEmpty,
-		ensureAllInputs: a.ensureAllInputs || b.ensureAllInputs,
 		ensureChanges: a.ensureChanges || b.ensureChanges,
 		ensureChangesActive: a.ensureChangesActive || b.ensureChangesActive,
 	};
@@ -156,12 +153,9 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			this._queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges, ensureChangesActive });
 		}));
 
-		// [Trigger B] The user opened the side pane. A details-only reveal (aux
-		// shown, editor hidden) ensures all docked inputs; otherwise the defaults
-		// are opened only if the group is empty.
+		// [Trigger B] The user opened the side pane.
 		this._register(this._layoutService.onDidRevealSidePane(() => {
-			const detailsOnly = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
-			this._queueReconcile(this._readTarget(undefined), { openDefaultsIfEmpty: true, ensureAllInputs: detailsOnly });
+			this._queueReconcile(this._readTarget(undefined), { openDefaultsIfEmpty: true });
 		}));
 
 		// [Trigger C] Editor list / side-pane visibility change. This tidies the
@@ -171,11 +165,10 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		// layout-driven add (a working-set apply during a switch, which empties the
 		// group) is handled by [Trigger D] on the *settled* restore, not here — the
 		// editor change fires *during* the async apply, racing the empty state.
-		const sidePaneVisibleSignal = observableFromEvent(this, this._layoutService.onDidChangePartVisibility,
-			() => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const partVisibilityChangedSignal = observableSignalFromEvent(this, this._layoutService.onDidChangePartVisibility);
 		const editorsChangedSignal = observableSignalFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange));
 		this._register(autorun(reader => {
-			sidePaneVisibleSignal.read(reader);
+			partVisibilityChangedSignal.read(reader);
 			editorsChangedSignal.read(reader);
 			this._queueReconcile(this._readTarget(undefined), {});
 		}));
@@ -285,9 +278,11 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
 			const activeChangesResource = this._editorService.activeEditor && this._coordinator.getChangesEditorResource(this._editorService.activeEditor);
 			const activateChanges = !!trigger.ensureChangesActive && !!changesResource && (!activeChangesResource || !isEqual(activeChangesResource, changesResource));
+			const ensureAllInputs = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
+				&& !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 
-			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || trigger.ensureAllInputs || trigger.ensureChanges)));
-			const openFiles = target.wantsFilesTab && !filesPresent && (openIntoEmpty || trigger.ensureAllInputs);
+			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || ensureAllInputs || trigger.ensureChanges)));
+			const openFiles = target.wantsFilesTab && !filesPresent && (openIntoEmpty || ensureAllInputs);
 			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
 			const openFilesFirst = openChanges && openFiles && !isCreated && group.editors.length === 0;
 

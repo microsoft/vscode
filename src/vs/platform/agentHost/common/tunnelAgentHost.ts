@@ -263,6 +263,34 @@ export function parseTunnelGatewaySelectionResponse(json: string): { ok: true; s
 }
 
 /**
+ * `Error.name` carried by the failure {@link ITunnelAgentHostMainService.completeSelection}
+ * throws when the gateway itself answered `{"ok":false}` — i.e. the tunnel
+ * relay is up and reachable, and only the endpoint we picked turned out to
+ * be gone (its registry entry vanished, or its socket/port could not be
+ * dialed). Callers must distinguish this from a transport failure: a
+ * transport failure means the tunnel is down and the same destination
+ * should simply be retried, whereas a rejection means retrying the same
+ * endpoint can never succeed and a different one has to be selected.
+ *
+ * Modelled as a name rather than an `Error` subclass because this crosses
+ * the shared-process IPC boundary, which preserves `name`/`message`/`stack`
+ * but not the prototype chain.
+ */
+export const TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME = 'TunnelGatewaySelectionRejectedError';
+
+/** Creates the error described by {@link TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME}. */
+export function createTunnelGatewaySelectionRejectedError(message: string): Error {
+	const error = new Error(message);
+	error.name = TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME;
+	return error;
+}
+
+/** Whether `error` is a gateway rejection, including one received over IPC. See {@link TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME}. */
+export function isTunnelGatewaySelectionRejectedError(error: unknown): boolean {
+	return error instanceof Error && error.name === TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME;
+}
+
+/**
  * Serializable result from a successful tunnel connect operation.
  * Returned over IPC from the shared process.
  */
@@ -362,6 +390,12 @@ export interface ITunnelAgentHostMainService {
 	 * sends the selection message over the pending gateway WebSocket, awaits
 	 * its ready acknowledgement, and registers the resulting relay
 	 * connection the same way {@link connect} does.
+	 *
+	 * Rejects with an error named {@link TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME}
+	 * when the gateway answered but refused the selection, and with any
+	 * other error when the tunnel transport itself failed. Either way the
+	 * pending session is consumed and disposed, so retrying requires a fresh
+	 * {@link prepareSelection}.
 	 */
 	completeSelection(selectionId: string, selection: ITunnelGatewaySelection): Promise<ITunnelConnectResult>;
 

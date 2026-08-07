@@ -16,6 +16,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { IChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
@@ -48,6 +49,7 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	constructor(
 		private readonly _channel: IChannel,
 		private readonly _ahpLogger?: AhpJsonlLogger,
+		readonly clientConnectionKind = AgentHostClientConnectionKind.Unknown,
 	) {
 		super();
 	}

@@ -759,10 +759,6 @@
 
 .interactive-item-container .value > .chat-tool-invocation-part,
 .interactive-item-container .value > .completed-response-disclosure > .chat-tool-invocation-part {
-	.rendered-markdown p {
-		margin: 0 0 6px 0;
-	}
-
 	.disclaimer {
 		margin-top: 6px;
 		margin-bottom: -6px;
@@ -3459,6 +3455,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			color: var(--vscode-descriptionForeground);
 			font-size: var(--vscode-chat-font-size-body-s);
 			margin: 0;
+			/* Fixed-width digits so a streaming count (e.g. "84 lines") doesn't jitter as it changes. */
+			font-variant-numeric: tabular-nums;
+			font-feature-settings: "tnum";
 
 			code {
 				font-size: var(--vscode-chat-font-size-body-xs);
@@ -3491,6 +3490,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		animation: chat-thinking-shimmer 2s linear infinite;
 		will-change: background-position;
 	}
+}
+
+/* Reduced motion: render the shimmer text as static, solid progress text. */
+.monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
+.monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
+	animation: none;
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	color: var(--vscode-descriptionForeground);
 }
 
 .show-checkmarks .progress-container > .codicon.codicon-check,
@@ -4705,13 +4713,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	dictation idle / recording / preparing / connecting, and Voice Mode idle /
 	connecting / listening / speaking / disconnect.
 
-	On their own they lose the segmented pill's enclosure, so each one carries a
-	circular outline of its own and reads as a single-cell version of it rather
-	than a bare glyph. The ring uses the pill's exact border declaration so the
-	two enclosures are indistinguishable when the UI swaps between them —
-	`input.border` is `null` outside high contrast and resolves to a soft
-	20%-alpha `editorWidget.border`, and in high contrast it resolves to
-	`contrastBorder` so the ring stays fully opaque there. */
+	When both modes are available, their outlines identify them as a paired
+	control. A lone action is left borderless to match the send button. */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
@@ -4722,9 +4725,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 22px;
 	height: 22px;
 	justify-content: center;
-	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-loading-compact,
+.chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
 
 @keyframes chat-voice-icon-glow {

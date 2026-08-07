@@ -8,6 +8,7 @@ import { Disposable, MutableDisposable, toDisposable } from '../../base/common/l
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
 import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
+import { AgentHostLaunchKind } from '../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostIpcChannels, IAgentService } from '../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService, ILoggerService } from '../../platform/log/common/log.js';
@@ -92,6 +93,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 					const willRestart = this._restartCount <= Constants.MaxRestarts;
 					reportAgentHostProcessError(this._telemetryService, {
+						hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 						kind: 'unexpectedExit',
 						code: e.code,
 						restartCount: this._restartCount,
@@ -116,6 +118,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 			const willRestart = this._restartCount <= Constants.MaxRestarts;
 			reportAgentHostProcessError(this._telemetryService, {
+				hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 				kind: 'startFailed',
 				restartCount: this._restartCount,
 				willRestart,

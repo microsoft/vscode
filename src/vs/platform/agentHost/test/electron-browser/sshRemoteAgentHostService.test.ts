@@ -14,8 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { IDialogService } from '../../../dialogs/common/dialogs.js';
-import { INotificationService, type INotificationHandle } from '../../../notification/common/notification.js';
+import { IConfirmation, IDialogService } from '../../../dialogs/common/dialogs.js';
+import { INotificationService, Severity, type INotification, type INotificationHandle } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../product/common/productService.js';
 
@@ -25,12 +25,17 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHo
 import type { IAgentConnection } from '../../common/agentService.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { IRemoteAgentHostLocationPreferenceService, type RemoteAgentHostLocationPreference } from '../../common/remoteAgentHostLocationPreference.js';
+import { ISSHHostKeyTrustService } from '../../common/sshHostKeyTrust.js';
+import { SSHHostKeyTrustService } from '../../browser/sshHostKeyTrustService.js';
+import { InMemoryStorageService } from '../../../storage/common/storage.js';
 import type {
 	ISSHAgentHostConfig,
 	ISSHConnectResult,
 	ISSHEndpointCandidate,
 	ISSHEndpointSelection,
 	ISSHEndpointSelectionRequest,
+	ISSHHostKeyVerificationRequest,
+	ISSHHostKeysAnnouncement,
 	ISSHKeyboardInteractiveRequest,
 	ISSHResolvedConfig,
 	ISSHRemoteAgentHostMainService,
@@ -78,6 +83,45 @@ class MockSSHMainService {
 
 	private readonly _onDidCancelEndpointSelection = new Emitter<string>();
 	readonly onDidCancelEndpointSelection = this._onDidCancelEndpointSelection.event;
+
+	private readonly _onDidRequestHostKeyVerification = new Emitter<ISSHHostKeyVerificationRequest>();
+	readonly onDidRequestHostKeyVerification = this._onDidRequestHostKeyVerification.event;
+
+	private readonly _onDidCancelHostKeyVerification = new Emitter<string>();
+	readonly onDidCancelHostKeyVerification = this._onDidCancelHostKeyVerification.event;
+
+	private readonly _onDidAnnounceHostKeys = new Emitter<ISSHHostKeysAnnouncement>();
+	readonly onDidAnnounceHostKeys = this._onDidAnnounceHostKeys.event;
+
+	readonly hostKeyResponses: Array<{ requestId: string; trusted: boolean }> = [];
+	private readonly _hostKeyResponseWaiters: DeferredPromise<void>[] = [];
+
+	async respondHostKeyVerification(requestId: string, trusted: boolean): Promise<void> {
+		this.hostKeyResponses.push({ requestId, trusted });
+		this._hostKeyResponseWaiters.splice(0).forEach(waiter => waiter.complete());
+	}
+
+	/** Test helper: fire a host key verification request as the shared process would. */
+	fireHostKeyVerificationRequest(request: ISSHHostKeyVerificationRequest): void {
+		this._onDidRequestHostKeyVerification.fire(request);
+	}
+
+	/** Test helper: cancel a host key verification as the shared process would. */
+	fireHostKeyVerificationCancel(requestId: string): void {
+		this._onDidCancelHostKeyVerification.fire(requestId);
+	}
+
+	/** Test helper: fire a host key announcement as the shared process would. */
+	fireHostKeysAnnouncement(announcement: ISSHHostKeysAnnouncement): void {
+		this._onDidAnnounceHostKeys.fire(announcement);
+	}
+
+	/** Test helper: resolves once {@link respondHostKeyVerification} is next called. */
+	waitForHostKeyResponse(): Promise<void> {
+		const deferred = new DeferredPromise<void>();
+		this._hostKeyResponseWaiters.push(deferred);
+		return deferred.p;
+	}
 
 	readonly endpointSelectionResponses: Array<{ requestId: string; selection: ISSHEndpointSelection | undefined }> = [];
 	private readonly _endpointSelectionResponseWaiters: DeferredPromise<void>[] = [];
@@ -148,7 +192,7 @@ class MockSSHMainService {
 	async ensureUserSSHConfig(): Promise<URI> { return URI.file('/tmp/ssh-config'); }
 	async listSSHConfigFiles(): Promise<URI[]> { return [URI.file('/tmp/ssh-config')]; }
 	async resolveSSHConfig(_host: string): Promise<ISSHResolvedConfig> {
-		return { hostname: '', user: undefined, port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false };
+		return { hostname: '', user: undefined, port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
 	}
 
 	dispose(): void {
@@ -161,6 +205,9 @@ class MockSSHMainService {
 		this._onDidCancelKeyboardInteractive.dispose();
 		this._onDidRequestEndpointSelection.dispose();
 		this._onDidCancelEndpointSelection.dispose();
+		this._onDidRequestHostKeyVerification.dispose();
+		this._onDidCancelHostKeyVerification.dispose();
+		this._onDidAnnounceHostKeys.dispose();
 	}
 }
 
@@ -270,9 +317,16 @@ class TestConfigurationService {
 /** Captures every message passed to `info()` so tests can assert on the SSH failover notification. */
 class CapturingNotificationService extends TestNotificationService {
 	readonly infoMessages: string[] = [];
+	readonly notifications: INotification[] = [];
+
 	override info(message: string): INotificationHandle {
 		this.infoMessages.push(message);
 		return super.info(message);
+	}
+
+	override notify(notification: INotification): INotificationHandle {
+		this.notifications.push(notification);
+		return super.notify(notification);
 	}
 }
 
@@ -311,6 +365,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	let service: SSHRemoteAgentHostService;
 	let quickInputServiceStub: Partial<IQuickInputService>;
 	let locationPreferenceService: TestRemoteAgentHostLocationPreferenceService;
+	let hostKeyTrustService: SSHHostKeyTrustService;
 
 	setup(() => {
 		mainService = new MockSSHMainService();
@@ -338,6 +393,8 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			prompt: (() => { throw new Error('unexpected dialogService.prompt call'); }) as unknown as IDialogService['prompt'],
 		} as Partial<IDialogService>);
 		instantiationService.stub(IProductService, { _serviceBrand: undefined, nameShort: 'Test Product' } as IProductService);
+		hostKeyTrustService = disposables.add(new SSHHostKeyTrustService(disposables.add(new InMemoryStorageService())));
+		instantiationService.stub(ISSHHostKeyTrustService, hostKeyTrustService as Partial<ISSHHostKeyTrustService>);
 
 		const clientWaiters: DeferredPromise<MockProtocolClient>[] = [];
 		waitForClient = (index: number): Promise<MockProtocolClient> => {
@@ -754,6 +811,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 
 		locationPreferenceService = disposables.add(new TestRemoteAgentHostLocationPreferenceService());
 		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, locationPreferenceService as Partial<IRemoteAgentHostLocationPreferenceService>);
+		instantiationService.stub(ISSHHostKeyTrustService, disposables.add(new SSHHostKeyTrustService(disposables.add(new InMemoryStorageService()))) as Partial<ISSHHostKeyTrustService>);
 
 		// Default to throwing so any test that doesn't expect the modal to
 		// appear fails loudly if the implementation shows it unexpectedly.
@@ -988,5 +1046,379 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		]);
 		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), 'editor');
 		assert.strictEqual(locationPreferenceService.getPreference('ssh:other.example'), 'dedicated');
+	});
+});
+
+suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
+
+	const disposables = new DisposableStore();
+	let mainService: MockSSHMainService;
+	let hostKeyTrustService: SSHHostKeyTrustService;
+	let notificationService: CapturingNotificationService;
+	let confirmResult: boolean;
+	let confirmCalls: number;
+	/** When set, the confirm dialog blocks on this until the test releases it. */
+	let confirmGate: (() => Promise<void>) | undefined;
+	let inFlightVerifications: Promise<void>[];
+	/** The options the last confirm dialog was opened with. */
+	let lastConfirmOptions: IConfirmation | undefined;
+
+	setup(() => {
+		mainService = disposables.add(new MockSSHMainService());
+		const sharedProcessService: Partial<ISharedProcessService> = {
+			getChannel: () => asChannel(mainService),
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
+		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
+		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);
+		notificationService = new CapturingNotificationService();
+		instantiationService.stub(INotificationService, notificationService as Partial<INotificationService>);
+		instantiationService.stub(ISSHRelayClientFactory, {
+			createClient: () => disposables.add(new MockProtocolClient()) as unknown as RemoteAgentHostProtocolClient,
+		});
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, disposables.add(new TestRemoteAgentHostLocationPreferenceService()) as Partial<IRemoteAgentHostLocationPreferenceService>);
+		instantiationService.stub(IProductService, { _serviceBrand: undefined, nameShort: 'Test Product' } as IProductService);
+
+		confirmResult = false;
+		confirmCalls = 0;
+		confirmGate = undefined;
+		lastConfirmOptions = undefined;
+		inFlightVerifications = [];
+		instantiationService.stub(IDialogService, {
+			confirm: (async (confirmation: IConfirmation) => {
+				confirmCalls++;
+				lastConfirmOptions = confirmation;
+				if (confirmGate) {
+					await confirmGate();
+				}
+				return { confirmed: confirmResult };
+			}) as unknown as IDialogService['confirm'],
+		} as Partial<IDialogService>);
+
+		hostKeyTrustService = disposables.add(new SSHHostKeyTrustService(disposables.add(new InMemoryStorageService())));
+		instantiationService.stub(ISSHHostKeyTrustService, hostKeyTrustService as Partial<ISSHHostKeyTrustService>);
+
+		// Subclassed so tests can await the real handler settling rather than
+		// sleeping for a fixed interval, which is load-dependent and flaky.
+		class TestableService extends SSHRemoteAgentHostService {
+			protected override _trackHostKeyVerification(handled: Promise<void>): void {
+				inFlightVerifications.push(handled);
+			}
+		}
+		disposables.add(instantiationService.createInstance(TestableService));
+	});
+
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Settles once every verification the test has triggered has finished. */
+	async function settleVerifications(): Promise<void> {
+		while (inFlightVerifications.length) {
+			await Promise.all(inFlightVerifications.splice(0));
+		}
+	}
+
+	const FINGERPRINT = 'SHA256:testfingerprintaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+	function makeHostKeyRequest(overrides: Partial<ISSHHostKeyVerificationRequest> = {}): ISSHHostKeyVerificationRequest {
+		return {
+			requestId: 'hostkey-1',
+			connectionKey: 'ssh:remote.example',
+			displayHost: 'remote.example',
+			host: 'remote.example',
+			port: 22,
+			keyType: 'ssh-ed25519',
+			fingerprint: FINGERPRINT,
+			knownHostsMatch: 'unknown',
+			userInitiated: true,
+			...overrides,
+		};
+	}
+
+	async function fireAndWait(request: ISSHHostKeyVerificationRequest): Promise<void> {
+		const responded = mainService.waitForHostKeyResponse();
+		mainService.fireHostKeyVerificationRequest(request);
+		await responded;
+	}
+
+	test('prompts for an unknown host and persists on accept', async () => {
+		confirmResult = true;
+		await fireAndWait(makeHostKeyRequest());
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => `${k.keyType} ${k.fingerprint}`),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: true }],
+				confirmCalls: 1,
+				stored: ['ssh-ed25519 SHA256:testfingerprintaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+			});
+	});
+
+	test('declining the prompt refuses the key and stores nothing', async () => {
+		confirmResult = false;
+		await fireAndWait(makeHostKeyRequest());
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{ responses: [{ requestId: 'hostkey-1', trusted: false }], stored: 0 });
+	});
+
+	test('an already-trusted key connects silently', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest());
+
+		assert.deepStrictEqual(
+			{ responses: mainService.hostKeyResponses, confirmCalls },
+			{ responses: [{ requestId: 'hostkey-1', trusted: true }], confirmCalls: 0 });
+	});
+
+	test('a changed key is refused with no way to click through', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:theoldkey', addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest());
+
+		const notified = notificationService.notifications.at(-1);
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				// No dialog at all: recovering requires explicitly forgetting
+				// the host, so a possible impersonation can't be waved away.
+				confirmCalls,
+				severity: notified?.severity,
+				hasForgetAction: !!notified?.actions?.primary?.length,
+				// The old key must remain stored until the user forgets it.
+				stillStored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				severity: Severity.Error,
+				hasForgetAction: true,
+				stillStored: ['SHA256:theoldkey'],
+			});
+	});
+
+	test('a known_hosts mismatch or revocation offers no forget action', async () => {
+		// "Forget Saved Host Key" only clears *our* store. When the conflict
+		// lives in the user's own known_hosts file, forgetting would change
+		// nothing and the very same error would reappear on the next connect,
+		// so the message points at the file that actually decides instead.
+		await fireAndWait(makeHostKeyRequest({ knownHostsMatch: 'mismatch' }));
+		const fromKnownHosts = notificationService.notifications.at(-1);
+
+		await fireAndWait(makeHostKeyRequest({ requestId: 'hostkey-2', knownHostsMatch: 'revoked' }));
+		const fromRevoked = notificationService.notifications.at(-1);
+
+		assert.deepStrictEqual(
+			{
+				knownHostsHasForget: !!fromKnownHosts?.actions?.primary?.length,
+				knownHostsMentionsFile: !!fromKnownHosts?.message.toString().includes('known_hosts'),
+				revokedHasForget: !!fromRevoked?.actions?.primary?.length,
+				revokedMentionsFile: !!fromRevoked?.message.toString().includes('known_hosts'),
+				responses: mainService.hostKeyResponses,
+			},
+			{
+				knownHostsHasForget: false,
+				knownHostsMentionsFile: true,
+				revokedHasForget: false,
+				revokedMentionsFile: true,
+				responses: [
+					{ requestId: 'hostkey-1', trusted: false },
+					{ requestId: 'hostkey-2', trusted: false },
+				],
+			});
+	});
+
+	test('the forget action clears the stored key so the next connect can re-verify', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:theoldkey', addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest());
+
+		await notificationService.notifications.at(-1)?.actions?.primary?.[0].run();
+		assert.strictEqual(hostKeyTrustService.getTrustedKeys('remote.example', 22).length, 0);
+	});
+
+	test('a known_hosts match is trusted silently and copied into the store', async () => {
+		await fireAndWait(makeHostKeyRequest({ knownHostsMatch: 'match' }));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: true }],
+				confirmCalls: 0,
+				stored: [FINGERPRINT],
+			});
+	});
+
+	test('a revoked key is refused', async () => {
+		await fireAndWait(makeHostKeyRequest({ knownHostsMatch: 'revoked' }));
+		assert.deepStrictEqual(
+			{ responses: mainService.hostKeyResponses, confirmCalls },
+			{ responses: [{ requestId: 'hostkey-1', trusted: false }], confirmCalls: 0 });
+	});
+
+	test('a background reconnect never opens a dialog', async () => {
+		await fireAndWait(makeHostKeyRequest({ userInitiated: false }));
+		assert.deepStrictEqual(
+			{ responses: mainService.hostKeyResponses, confirmCalls },
+			{ responses: [{ requestId: 'hostkey-1', trusted: false }], confirmCalls: 0 });
+	});
+
+	test('StrictHostKeyChecking accept-new trusts unknown hosts without prompting', async () => {
+		await fireAndWait(makeHostKeyRequest({ strictHostKeyChecking: 'accept-new' }));
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{ responses: [{ requestId: 'hostkey-1', trusted: true }], confirmCalls: 0, stored: 1 });
+	});
+
+	test('a prompt for a connection that dies is dismissed, and a late answer grants nothing', async () => {
+		// The dialog is opened with a cancellation token so it tears itself
+		// down when the connection drops, rather than stranding the user with
+		// a question about a connection that no longer exists. Answering it
+		// late must also be inert.
+		let releaseDialog = () => { };
+		const dialogShown = new Promise<void>(resolveShown => {
+			confirmGate = () => {
+				resolveShown();
+				return new Promise<void>(resolve => { releaseDialog = resolve; });
+			};
+		});
+		confirmResult = true;
+
+		mainService.fireHostKeyVerificationRequest(makeHostKeyRequest());
+		await dialogShown;
+		const dialogToken = lastConfirmOptions?.token;
+		const dismissedBeforeCancel = dialogToken?.isCancellationRequested;
+		// The connection drops while the user is still looking at the dialog.
+		mainService.fireHostKeyVerificationCancel('hostkey-1');
+		const dismissedAfterCancel = dialogToken?.isCancellationRequested;
+		releaseDialog();
+		await settleVerifications();
+
+		assert.deepStrictEqual(
+			{
+				// The dialog is handed a live token that is cancelled when the
+				// connection dies, which is what dismisses it.
+				dismissedBeforeCancel,
+				dismissedAfterCancel,
+				// And a late "Connect" still grants nothing.
+				responses: mainService.hostKeyResponses,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{ dismissedBeforeCancel: false, dismissedAfterCancel: true, responses: [], stored: 0 });
+	});
+
+	test('learns a rotated key announced over an authenticated connection', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		// Establish a session whose host key is itself trusted — that is what
+		// entitles the server to tell us about its other keys.
+		await fireAndWait(makeHostKeyRequest());
+
+		mainService.fireHostKeysAnnouncement({
+			connectionKey: 'ssh:remote.example',
+			host: 'remote.example',
+			port: 22,
+			keys: [
+				{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:rotated' },
+				{ keyType: 'ssh-rsa', fingerprint: 'SHA256:rsakey' },
+			],
+		});
+
+		assert.deepStrictEqual(
+			hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => `${k.keyType} ${k.fingerprint}`).sort(),
+			['ssh-ed25519 SHA256:rotated', 'ssh-rsa SHA256:rsakey']);
+	});
+
+	test('a changed key is refused even when StrictHostKeyChecking is disabled', async () => {
+		// The opt-out means "I accept unknown keys", not "I accept a key that
+		// contradicts one I already trust". OpenSSH 9.9 keeps protecting this
+		// case too: it warns and disables password auth, keyboard-interactive
+		// auth and agent forwarding. We refuse outright, so no credential and
+		// no agent access ever reaches a possible impostor — and the
+		// announcement path is moot because the session never authenticates.
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({ fingerprint: 'SHA256:impostorkey', strictHostKeyChecking: 'no' }));
+
+		mainService.fireHostKeysAnnouncement({
+			connectionKey: 'ssh:remote.example',
+			host: 'remote.example',
+			port: 22,
+			keys: [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:attackerkey' }],
+		});
+
+		assert.deepStrictEqual(
+			{
+				// Refused outright, before authentication.
+				connected: mainService.hostKeyResponses,
+				// And the genuine stored key is untouched.
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				connected: [{ requestId: 'hostkey-1', trusted: false }],
+				stored: [FINGERPRINT],
+			});
+	});
+
+	test('an unverified session cannot poison stored trust via announcements', async () => {
+		// A session accepted under StrictHostKeyChecking=no is unverified: the
+		// key was simply not checked. ssh2 still proves announced keys belong
+		// to whoever we are talking to — but that could be an impostor, so the
+		// announcement must not overwrite the real stored key. Mirrors
+		// OpenSSH, which only accepts additional host keys when the key that
+		// authenticated the host was already trusted.
+		//
+		// Uses an *unknown* key (a different algorithm), since a key that
+		// contradicts the stored one is now refused outright by the test above.
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({ keyType: 'ssh-rsa', fingerprint: 'SHA256:impostorkey', strictHostKeyChecking: 'no' }));
+
+		mainService.fireHostKeysAnnouncement({
+			connectionKey: 'ssh:remote.example',
+			host: 'remote.example',
+			port: 22,
+			keys: [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:attackerkey' }],
+		});
+
+		assert.deepStrictEqual(
+			{
+				// The unverified session was allowed to connect...
+				connected: mainService.hostKeyResponses,
+				// ...but the genuine stored key is untouched.
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				connected: [{ requestId: 'hostkey-1', trusted: true }],
+				stored: [FINGERPRINT],
+			});
+	});
+
+	test('ignores announcements for hosts that were never trusted', async () => {
+		// Otherwise an announcement would become a way to establish trust
+		// without any verification at all.
+		mainService.fireHostKeysAnnouncement({
+			connectionKey: 'ssh:remote.example',
+			host: 'remote.example',
+			port: 22,
+			keys: [{ keyType: 'ssh-ed25519', fingerprint: 'SHA256:rotated' }],
+		});
+
+		assert.strictEqual(hostKeyTrustService.getTrustedKeys('remote.example', 22).length, 0);
 	});
 });

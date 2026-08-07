@@ -17,9 +17,9 @@ import path from 'path';
 //
 // `findMissingNativeOptionalDep` is the reusable primitive that detects this.
 // It is used from two places:
-//   - The CLI entry point below runs after restoring or installing the root
-//     node_modules in CI and fails the job so a poisoned cache is neither used
-//     nor saved.
+//   - The CLI entry point below runs after `npm ci` in the node_modules
+//     cache-build jobs (.github/workflows/pr-node-modules.yml) and fails the
+//     job so a poisoned cache is never saved.
 //   - The agent-SDK producer (build/agent-sdk/package.ts) runs it after its
 //     scratch `npm ci` so a binary-less tarball is never built and uploaded to
 //     the CDN.
@@ -54,11 +54,11 @@ export function findMissingNativeOptionalDep(nodeModulesDir: string, basePackage
 
 // #region CLI entry point
 //
-// Runs after the root node_modules is restored or installed in CI. Verifies
-// the repo-root node_modules has the per-platform package for the target so a
-// poisoned cache (base package present, native package silently skipped) is
-// neither used nor persisted. The optional CLI arguments override the current
-// platform and architecture for cross-architecture builds.
+// Runs after the root `npm ci` in the node_modules cache-build jobs (see
+// .github/workflows/pr-node-modules.yml), before the cache is saved. Verifies
+// the repo-root node_modules has the per-platform package for the current host
+// so a poisoned cache (base package present, native package silently skipped)
+// is never persisted.
 
 // Base packages whose per-platform package (`<base>-<platform>-<arch>`) is
 // required whenever the base package itself is installed.
@@ -79,8 +79,7 @@ function isCliInvocation(): boolean {
 }
 
 function main(): void {
-	const platform = process.argv[2] ?? process.platform;
-	const arch = process.argv[3] ?? process.arch;
+	const { platform, arch } = process;
 	if (!SUPPORTED_PLATFORMS.has(platform) || !SUPPORTED_ARCHS.has(arch)) {
 		console.log(`Skipping native optional-dependency check on unsupported ${platform}-${arch}.`);
 		return;
@@ -97,11 +96,11 @@ function main(): void {
 	}
 
 	if (errors.length > 0) {
-		console.error('\x1b[1;31m*** Missing native optional-dependency packages in node_modules ***\x1b[0m');
+		console.error('\x1b[1;31m*** Missing native optional-dependency packages — refusing to save a poisoned node_modules cache ***\x1b[0m');
 		for (const err of errors) {
 			console.error(`  - ${err}`);
 		}
-		console.error('\nnpm does not fail when an optional dependency cannot be installed, so a fresh install or restored cache can be incomplete. Re-run a fresh `npm ci` (e.g. after bumping build/.cachesalt) to restore the missing package.');
+		console.error('\nnpm does not fail when an optional dependency cannot be installed, so this tree would poison the shared node_modules cache. Re-run a fresh `npm ci` (e.g. after bumping build/.cachesalt) to restore the package before the cache is saved.');
 		process.exit(1);
 	}
 

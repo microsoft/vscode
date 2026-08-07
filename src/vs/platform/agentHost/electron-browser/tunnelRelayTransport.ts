@@ -6,6 +6,7 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
 import type { ITunnelAgentHostMainService, ITunnelRelayMessage } from '../common/tunnelAgentHost.js';
@@ -19,6 +20,7 @@ import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from
  * and forwards messages bidirectionally through this IPC channel.
  */
 export class TunnelRelayTransport extends Disposable implements IProtocolTransport {
+	readonly clientConnectionKind = AgentHostClientConnectionKind.DevTunnel;
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
