@@ -881,7 +881,7 @@ function createTestContext(
 		[IAgentHostGitHubEndpointService, overrides?.gitHubEndpointService ?? createTestGitHubEndpointService()],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-	// Phase 19: seed root config (e.g. `claudeUseCopilotProxy`) BEFORE the agent
+	// Seed root config (e.g. `allowSignedOutWhenUsable`) BEFORE the agent
 	// resolves its transport mode in the constructor.
 	if (overrides?.rootConfig) {
 		configService.updateRootConfig(overrides.rootConfig);
@@ -893,6 +893,23 @@ function createTestContext(
 /** Drains the microtask queue so awaited refresh writes settle. */
 function tick(): Promise<void> {
 	return new Promise(resolve => setImmediate(resolve));
+}
+
+/**
+ * Run `body` against a temp `$HOME/.claude/settings.json` carrying an Anthropic
+ * key so {@link detectExistingClaudeSetup} reports a usable native setup, then
+ * always clean the directory up. Pair with `allowSignedOutWhenUsable` to make a
+ * signed-out agent resolve its model-less default to native.
+ */
+async function withNativeSetup(body: (userHome: URI) => Promise<void>): Promise<void> {
+	const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-native-setup-`));
+	await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+	await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+	try {
+		await body(userHome);
+	} finally {
+		await fs.rm(userHome.fsPath, { recursive: true, force: true });
+	}
 }
 
 /**
@@ -1048,33 +1065,16 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('native transport: getProtectedResources keeps the Copilot resource but marks it not required', () => {
-		// Native keeps advertising the Copilot resource with `required: false`
-		// (rather than dropping it) so the host can silently probe for a GitHub
-		// token when the user is already signed in, while the window gate still
-		// treats the type as usable without GitHub. See `getProtectedResources`.
-		const { agent } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		assert.deepStrictEqual(
-			agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
-			[
-				{ resource: 'https://api.github.com', required: false },
-				{ resource: 'https://api.github.com/repos', required: false },
-			],
-		);
-	});
-
 	test('signed-in probe flips inferred-native to proxy (allowSignedOutWhenUsable)', async () => {
 		// The fix for the startup catch-22: with the exp flag on and a local Claude
 		// setup present, a signed-OUT user resolves to native — which still
 		// advertises the Copilot resource as not-required so the host can probe. If
 		// the host then silently forwards a GitHub token (the user was signed in all
-		// along), `authenticate` re-resolves (rule 3: signed in ⇒ proxy) and flips
-		// the transport to proxy, starting the proxy. Real detection is used against
-		// a real `~/.claude/settings.json` credential under a temp home.
-		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-probe-home-`));
-		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
-		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
-		try {
+		// along), the acquired proxy handle re-resolves the default (rule 2: signed
+		// in ⇒ proxy) and flips the transport to proxy, starting the proxy. Real
+		// detection is used against a real `~/.claude/settings.json` credential under
+		// a temp home.
+		await withNativeSetup(async userHome => {
 			const { agent, proxy } = createTestContext(disposables, {
 				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 				userHome,
@@ -1111,9 +1111,7 @@ suite('ClaudeAgent', () => {
 					proxyStarts: 1,
 				},
 			});
-		} finally {
-			await fs.rm(userHome.fsPath, { recursive: true, force: true });
-		}
+		});
 	});
 
 	test('coalesces concurrent refreshModels calls onto one CAPI models request', async () => {
@@ -1171,14 +1169,12 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(agent.models.get(), []);
 	});
 
-	test('native transport: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
+	test('signed out with a local setup: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
 		// Native enumeration only runs when a credential is actually present, so
-		// give this a real `~/.claude/settings.json` under a temp home.
-		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-native-models-`));
-		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
-		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
-		try {
-			const { agent, proxy, api, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false }, userHome });
+		// give this a real `~/.claude/settings.json` under a temp home. Signed out,
+		// so the proxy half of the merged catalog contributes nothing.
+		await withNativeSetup(async userHome => {
+			const { agent, proxy, api, sdk } = createTestContext(disposables, { userHome });
 			let capiModelsCalls = 0;
 			api.models = async () => { capiModelsCalls++; return []; };
 			sdk.supportedModelsResult = [
@@ -1201,17 +1197,16 @@ suite('ClaudeAgent', () => {
 				supportedModelsCalls: 1,
 				capiModelsCalls: 0,
 			});
-		} finally {
-			await fs.rm(userHome.fsPath, { recursive: true, force: true });
-		}
+		});
 	});
 
-	test('native without a credential publishes an empty catalog instead of the SDK static list', async () => {
+	test('signed out without a credential publishes an empty catalog instead of the SDK static list', async () => {
 		// `supportedModels()` answers even with no credentials (it is a static
 		// catalog), so publishing it would advertise models that fail on first
 		// use — and would make the type look usable-without-GitHub to the window
-		// gate. `/mock-home` has no `.claude` credential.
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		// gate. `/mock-home` has no `.claude` credential, so the native half is
+		// never attempted; signed out, neither is the proxy half.
+		const { agent, sdk } = createTestContext(disposables);
 		sdk.supportedModelsResult = [
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 		];
@@ -1228,11 +1223,8 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('native model enumeration closes the throwaway query (no leaked subprocess)', async () => {
-		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-native-close-`));
-		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
-		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
-		try {
-			const { sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false }, userHome });
+		await withNativeSetup(async userHome => {
+			const { sdk } = createTestContext(disposables, { userHome });
 			sdk.supportedModelsResult = [
 				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 			];
@@ -1248,78 +1240,46 @@ suite('ClaudeAgent', () => {
 				queries: 1,
 				closed: 1,
 			});
-		} finally {
-			await fs.rm(userHome.fsPath, { recursive: true, force: true });
-		}
+		});
 	});
 
 	test('native-default authenticate still starts the proxy so Copilot-routed models can run', async () => {
 		// With the merged catalog always on, a native default no longer short-
 		// circuits sign-in: `authenticate` falls through to acquire a proxy handle
 		// so a session that later picks a Copilot-routed model has a started proxy
-		// to run against — even though the explicit `claudeUseCopilotProxy: false`
-		// keeps the model-less default (`_defaultTransportMode`) native.
-		const { agent, proxy } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		const accepted = await agent.authenticate('https://api.github.com', 'tok');
-		await tick();
-		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 1 });
-	});
-
-	test('unusable native (explicit proxy off, no setup) does not demand GitHub sign-in', async () => {
-		// The "unusable" case: explicit `claudeUseCopilotProxy=false` is a hard
-		// override to native even with no usable credentials. It must degrade to
-		// "no models" (NoModels), NOT a GitHub sign-in prompt — so the Copilot
-		// resource is advertised `required: false` and `createSession` resolves
-		// (native needs no proxy) instead of throwing `AHP_AUTH_REQUIRED` the way
-		// proxy mode does before authentication (cf. the AHP_AUTH_REQUIRED test).
-		const { agent } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		const created = await agent.createSession({ workingDirectories: [URI.file('/workspace')] });
-		assert.deepStrictEqual({
-			copilotRequired: agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required,
-			createdWithoutAuthPrompt: created.provisional === true,
-		}, {
-			copilotRequired: false,
-			createdWithoutAuthPrompt: true,
+		// to run against — even though the model-less default
+		// (`_defaultTransportMode`) was native right up to this call.
+		await withNativeSetup(async userHome => {
+			const { agent, proxy } = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+				userHome,
+			});
+			const accepted = await agent.authenticate('https://api.github.com', 'tok');
+			await tick();
+			assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 1 });
 		});
 	});
 
-	test('a host-default transport flip no longer proactively demands auth (sign-in defers to first send)', () => {
+	test('a host-default transport flip no longer proactively demands auth (sign-in defers to first send)', async () => {
 		// A host-default flip only changes the fallback transport for model-less
 		// sessions; the merged catalog still publishes both providers and
 		// `getProtectedResources()` keeps Copilot optional, so a flip must NOT fire
 		// `auth/required`. Sign-in for a Copilot-routed model defers to the first
-		// send, where `_ensureAuthenticated` throws `AHP_AUTH_REQUIRED`.
-		const { agent, configService } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
-		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
-		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+		// send, where `_ensureAuthenticated` throws `AHP_AUTH_REQUIRED`. Signing in
+		// is the surviving runtime flip lever (native default → proxy default).
+		await withNativeSetup(async userHome => {
+			const { agent } = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+				userHome,
+			});
+			const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+			disposables.add(agent.onDidRequireAuth(e => events.push(e)));
 
-		configService.updateRootConfig({ claudeUseCopilotProxy: true });
+			await agent.authenticate('https://api.github.com', 'tok');
+			await tick();
 
-		assert.deepStrictEqual(events, []);
-	});
-
-	test('transport flip does not emit auth/required when a proxy handle already exists', async () => {
-		const { agent, proxy, configService } = createTestContext(disposables);
-		await agent.authenticate('https://api.github.com', 'tok');
-		await tick();
-		assert.strictEqual(proxy.startCalls.length, 1);
-
-		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
-		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
-		configService.updateRootConfig({ claudeUseCopilotProxy: false }); // → native
-		configService.updateRootConfig({ claudeUseCopilotProxy: true });  // → proxy; handle persists
-
-		assert.deepStrictEqual(events, []);
-	});
-
-	test('transport flip proxy→native does not emit auth/required', () => {
-		const { agent, configService } = createTestContext(disposables);
-		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
-		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
-
-		configService.updateRootConfig({ claudeUseCopilotProxy: false });
-
-		assert.deepStrictEqual(events, []);
+			assert.deepStrictEqual(events, []);
+		});
 	});
 
 	test('construction in proxy mode does not emit auth/required', async () => {
@@ -1334,12 +1294,12 @@ suite('ClaudeAgent', () => {
 
 	test('re-authenticating an unchanged token starts the proxy when a prior start left no handle', async () => {
 		// authenticate() always attempts the proxy on sign-in (so the merged
-		// catalog's Copilot models are runnable), even under an explicit native
-		// default. A proxy-start failure is soft: it leaves BOTH the token and the
-		// handle unset. Re-authenticating with the SAME token must therefore retry
-		// start() — the uncommitted token reads as new, not as an "unchanged"
-		// short-circuit (which is additionally guarded by `&& this._proxyHandle`).
-		const { agent, proxy } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		// catalog's Copilot models are runnable). A proxy-start failure is soft: it
+		// leaves BOTH the token and the handle unset. Re-authenticating with the
+		// SAME token must therefore retry start() — the uncommitted token reads as
+		// new, not as an "unchanged" short-circuit (which is additionally guarded by
+		// `&& this._proxyHandle`).
+		const { agent, proxy } = createTestContext(disposables);
 		let failNext = true;
 		proxy.start = async (token: string) => {
 			proxy.startCalls.push({ token });
@@ -1350,8 +1310,8 @@ suite('ClaudeAgent', () => {
 			return { baseUrl: 'http://127.0.0.1:0', nonce: `nonce-for-${token}`, dispose: () => { proxy.disposeCount++; } };
 		};
 
-		// First authenticate: the native default still attempts the proxy; start
-		// fails softly, leaving token 'T' uncommitted and no handle.
+		// First authenticate: start fails softly, leaving token 'T' uncommitted and
+		// no handle.
 		await agent.authenticate('https://api.github.com', 'T');
 		// Re-auth with the SAME token: uncommitted token ⇒ must retry start() (now succeeds).
 		await agent.authenticate('https://api.github.com', 'T');
@@ -5483,22 +5443,6 @@ suite('ClaudeAgent — per-session provider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
-	 * Run `body` against a temp `$HOME/.claude/settings.json` carrying an Anthropic
-	 * key so {@link detectExistingClaudeSetup} reports a usable native setup, then
-	 * always clean the directory up. Mirrors the native-transport tests.
-	 */
-	async function withNativeSetup(body: (userHome: URI) => Promise<void>): Promise<void> {
-		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-per-session-`));
-		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
-		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
-		try {
-			await body(userHome);
-		} finally {
-			await fs.rm(userHome.fsPath, { recursive: true, force: true });
-		}
-	}
-
-	/**
 	 * The per-session proxy bearer (`ANTHROPIC_AUTH_TOKEN`) is injected into
 	 * `Options.settings.env` only for the Copilot proxy transport; the native
 	 * transport omits it (see `buildOptions`). Its presence is the cast-free
@@ -5705,8 +5649,8 @@ suite('ClaudeAgent — per-session provider', () => {
 			);
 			ctx.sdk.queryAdvance = undefined;
 
-			// Sign into Copilot: absent an explicit `claudeUseCopilotProxy`, this
-			// flips the host default native→proxy and acquires a proxy handle.
+			// Sign into Copilot: this flips the host default native→proxy and
+			// acquires a proxy handle.
 			await ctx.agent.authenticate('https://api.github.com', 'tok');
 			await tick();
 
@@ -5887,11 +5831,9 @@ suite('ClaudeAgent — per-session provider', () => {
 		// the merged catalog's Copilot models can run, but a `start()` failure is
 		// always soft — GitHub sign-in itself succeeded and a Copilot-routed model
 		// simply re-drives sign-in on its first send. So a transient failure must
-		// resolve sign-in as success, not reject. (Shown here under an explicit
-		// native default, where nothing downstream even needs the handle.)
-		const { agent, proxy } = createTestContext(disposables, {
-			rootConfig: { claudeUseCopilotProxy: false },
-		});
+		// resolve sign-in as success, not reject. (Shown here on a first sign-in,
+		// where there is no prior handle to tear down.)
+		const { agent, proxy } = createTestContext(disposables);
 		proxy.startError = new Error('proxy boom');
 
 		const ok = await agent.authenticate('https://api.github.com', 'tok');

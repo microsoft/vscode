@@ -30,7 +30,7 @@ import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
-import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -198,6 +198,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 		getSessionTraceContext: () => undefined,
 		releaseSessionTraceContext: () => { },
 	});
+	instantiationService.stub(IAgentHostStateManager, stateManager);
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(IFileService, fileService);

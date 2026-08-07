@@ -156,6 +156,7 @@ exchanges:
   | `${redacted}` | minted session tokens (`token` / `session_token` fields) |
   | `${system}` | the echoed system prompt (Responses API echoes `instructions`) |
   | `${uuid_N}` | the Nth runtime UUID captured across requests and responses |
+  | `${plugin_copy}` | the path-derived directory name of a client plugin copied into the isolated Agent Host home |
 
   Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …).
 
@@ -198,7 +199,7 @@ npm run test-agent-host-e2e -- --jobs 2
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
 
-The complete-suite runner starts one test process per entrypoint and runs up to four concurrently. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
+The complete-suite runner starts one test process per entrypoint and runs up to four concurrently. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
 Provider availability:
 

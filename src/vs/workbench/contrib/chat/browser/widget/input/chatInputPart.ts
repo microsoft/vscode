@@ -21,9 +21,11 @@ import { isDefined } from '../../../../../../base/common/types.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
@@ -254,6 +256,9 @@ export interface IChatInputPartOptions {
 	 */
 	inputPartHorizontalPadding?: number;
 	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
+	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
+	inputPickerPosition?: AnchorPosition;
+	inputPickerContainer?: HTMLElement;
 	onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 }
 
@@ -533,6 +538,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
 	private inputEditorHasSendableContent: IContextKey<boolean>;
+	private inputSubmitPending: IContextKey<boolean>;
+	private inputRouting: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
 	private currentlyEditingInputKey!: IContextKey<boolean>;
@@ -876,6 +883,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
+		this.inputSubmitPending = ChatContextKeys.inputSubmitPending.bindTo(contextKeyService);
+		this.inputRouting = ChatContextKeys.inputRouting.bindTo(contextKeyService);
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this._hasQuestionCarouselContextKey = ChatContextKeys.Editing.hasQuestionCarousel.bindTo(contextKeyService);
@@ -1213,6 +1222,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
+			onDidChangeVisibility: this.options.onDidChangeModelPickerVisibility,
+			anchorPosition: this.options.inputPickerPosition,
+			actionWidgetContainer: this.options.inputPickerContainer,
 		};
 	}
 
@@ -2299,6 +2311,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 	}
 
+	/**
+	 * Toggle the "submit pending" state. While pending, the input reflects that a
+	 * submitted request is still being routed/dispatched (e.g. omni-chat routing,
+	 * where submission is intercepted and handled off-model) so the send button is
+	 * disabled until the submission resolves or the draft changes. Any input content
+	 * change clears this automatically.
+	 */
+	setSubmitPending(pending: boolean, routing = pending): void {
+		this.inputSubmitPending.set(pending);
+		this.inputRouting.set(routing);
+	}
+
 	private _updateInputContentContextKeys(): void {
 		const inputHasText = !!this._inputEditor?.getModel()?.getValue().trim();
 		this.inputEditorHasText.set(inputHasText);
@@ -3163,6 +3187,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			this._updateInputContentContextKeys();
 
+			// A submitted request was pending (e.g. omni-chat routing) but the draft
+			// changed: the user is editing again, so re-enable sending.
+			this.inputSubmitPending.set(false);
+			this.inputRouting.set(false);
+
 			// Update monospace state as the command prefix is typed/removed.
 			this.updateInputEditorFontFamily();
 
@@ -3199,7 +3228,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
+		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
 		const isVoiceSessionActive = derived(this, reader => {
+			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
+			if (omniInputActive) {
+				return isOmniInput;
+			}
 			if (!isVoiceInputActive.read(reader)) {
 				return false;
 			}
@@ -3213,6 +3247,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
 			compact: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
+			listOptions: this.options.inputPickerPosition === undefined ? undefined : { anchorPosition: this.options.inputPickerPosition },
 		};
 		const primarySessionPickerOptions: IChatInputPickerOptions = {
 			...pickerOptions,
@@ -3352,6 +3387,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, {
 						isActive: isVoiceInputActive,
 						isVoiceActive: isVoiceSessionActive,
+						activateVoiceMode: isOmniInput ? () => {
+							this.voiceSessionController.takeOmniInputOwnership(dom.getWindow(toolbarsContainer));
+						} : undefined,
 					});
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
@@ -3586,17 +3624,37 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.statusToolbar.context = { widget } satisfies IChatExecuteActionContext;
 
 		let inputModel = this.modelService.getModel(this.inputUri);
+		let createdInputModel: ITextModel | undefined;
 		if (!inputModel) {
-			inputModel = this._register(this.modelService.createModel('', null, this.inputUri, false));
+			inputModel = createdInputModel = this.modelService.createModel('', null, this.inputUri, false);
 		}
 
-		this.textModelResolverService.createModelReference(this.inputUri).then(ref => {
+		const inputModelReference = this.textModelResolverService.createModelReference(this.inputUri);
+		if (createdInputModel) {
+			const model = createdInputModel;
+			this._register(toDisposable(() => {
+				// Keep the model alive until reference acquisition settles. Otherwise
+				// immediate widget disposal can remove it while TextResourceEditorModel
+				// is still resolving the existing model handle.
+				void inputModelReference.then(
+					() => model.dispose(),
+					() => model.dispose()
+				);
+			}));
+		}
+		inputModelReference.then(ref => {
 			// make sure to hold a reference so that the model doesn't get disposed by the text model service
 			if (this._store.isDisposed) {
 				ref.dispose();
 				return;
 			}
 			this._register(ref);
+		}, error => {
+			// Disposal can race the asynchronous reference acquisition when a chat
+			// widget closes immediately after rendering.
+			if (!this._store.isDisposed) {
+				onUnexpectedError(error);
+			}
 		});
 
 		this.inputModel = inputModel;
