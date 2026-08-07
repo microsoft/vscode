@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -39,7 +39,7 @@ import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToo
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID } from '../../../common/chatInputWindow.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -430,7 +430,7 @@ function pendingResponsePartModel(resource: URI, part: IChatProgressResponseCont
 	} as unknown as IChatModel;
 }
 
-function waitingTerminalTool(toolCallId: string, command = 'npm run build'): IChatToolInvocation {
+function waitingTerminalTool(toolCallId: string, command = 'npm run build'): IChatToolInvocation & { readonly state: ISettableObservable<IChatToolInvocation.State> } {
 	return new class extends mock<IChatToolInvocation>() {
 		override readonly kind = 'toolInvocation' as const;
 		override readonly toolCallId = toolCallId;
@@ -4202,6 +4202,48 @@ suite('VoiceSessionController', () => {
 		assert.ok(info.detail?.includes('Which region?'));
 		assert.ok(!info.detail?.includes('Which tier?'));
 		assert.deepStrictEqual(buildPendingPayload.call(controller, model)?.questions?.map(question => question.title), ['Which region?']);
+	});
+
+	test('a late retired approval does not mask the final response', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; last_response_summary?: string };
+		const requestId = 'request-late-retired-tool';
+		const original = waitingTerminalTool('tool-call-late-retired', 'echo high');
+		const pendingId = derivePendingId(requestId, original);
+
+		assert.strictEqual(markPendingIdResolved(pendingId), true);
+		original.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+
+		// The authoritative response is complete, but a provider/model refresh has
+		// rehydrated the already-handled confirmation as a different object.
+		const lateCopy = waitingTerminalTool('tool-call-late-retired', 'echo high');
+		const response = {
+			isPendingConfirmation: observableValue<{ detail?: string } | undefined>('pending', { detail: 'Needs approval' }),
+			isIncomplete: observableValue('incomplete', false),
+			response: { value: [lateCopy], getMarkdown: () => 'Done — output was high.' },
+		};
+		const lastRequest = { id: requestId, response };
+		const model = { getRequests: () => [lastRequest] } as unknown as IChatModel;
+
+		const info = getAgentStateInfo.call(controller, model);
+		const latePendingId = derivePendingId(requestId, lateCopy);
+
+		assert.deepStrictEqual(info, {
+			state: 'idle',
+			last_response_summary: 'Done — output was high.',
+		});
+		assert.strictEqual(latePendingId, pendingId);
+		assert.strictEqual(isPendingIdResolved(latePendingId), true);
+
+		lateCopy.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
 	});
 
 	test('sends each agent session label so two waiting sessions can be told apart', () => {

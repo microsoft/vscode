@@ -144,14 +144,14 @@ suite('derivePendingId', () => {
 		}
 	});
 
-	test('retiring one copy makes every rehydrated copy stale', () => {
-		const tool = () => {
+	test('retiring one copy makes late rehydrated copies stale', () => {
+		const tool = (toolCallId = 'tool-call') => {
 			const state = observableValue<IChatToolInvocation.State>('toolState', {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 				parameters: { command: 'npm install' },
 				confirm: () => { },
 			});
-			return { part: { kind: 'toolInvocation', toolCallId: 'tool-call', state } as unknown as IChatToolInvocation, state };
+			return { part: { kind: 'toolInvocation', toolCallId, state } as unknown as IChatToolInvocation, state };
 		};
 		const first = tool();
 		const rehydrated = tool();
@@ -164,14 +164,29 @@ suite('derivePendingId', () => {
 		assert.strictEqual(peekPendingId('req-retire', rehydrated.part), undefined);
 		assert.strictEqual(derivePendingId('req-retire', rehydrated.part), pendingId);
 
-		// A new invocation published after the interaction is a new occurrence,
-		// even when the provider reuses the tool-call id and command.
-		const rearmed = tool();
-		const rearmedId = derivePendingId('req-retire', rearmed.part);
-		assert.notStrictEqual(rearmedId, pendingId);
-		assert.strictEqual(peekPendingId('req-retire', rearmed.part), rearmedId);
+		for (const copy of [first, rehydrated]) {
+			copy.state.set({
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: ToolConfirmKind.Skipped,
+				parameters: {},
+			}, undefined);
+		}
 
-		for (const copy of [first, rehydrated, rearmed]) {
+		// Model refreshes can produce another object after every previously-known
+		// copy has left the response. The tool-call id still identifies this as the
+		// completed occurrence, so the late card must remain retired.
+		const lateRehydrated = tool();
+		assert.strictEqual(derivePendingId('req-retire', lateRehydrated.part), pendingId);
+		assert.strictEqual(peekPendingId('req-retire', lateRehydrated.part), undefined);
+		assert.strictEqual(isPendingIdResolved(pendingId), true);
+
+		// A genuinely new tool call has a new protocol id and remains actionable.
+		const nextToolCall = tool('next-tool-call');
+		const nextId = derivePendingId('req-retire', nextToolCall.part);
+		assert.notStrictEqual(nextId, pendingId);
+		assert.strictEqual(peekPendingId('req-retire', nextToolCall.part), nextId);
+
+		for (const copy of [lateRehydrated, nextToolCall]) {
 			copy.state.set({
 				type: IChatToolInvocation.StateKind.Cancelled,
 				reason: ToolConfirmKind.Skipped,

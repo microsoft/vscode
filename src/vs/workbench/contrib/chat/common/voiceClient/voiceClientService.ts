@@ -76,13 +76,17 @@ interface IActivePendingToolOccurrence {
 	readonly semanticKey: string;
 	readonly token: string;
 	readonly participants: Map<IChatToolInvocation, IDisposable>;
+	readonly participantsSeen: WeakSet<IChatToolInvocation>;
 	resolved: boolean;
 }
 
 const activePendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
+const resolvedPendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
+const resolvedPendingToolOccurrenceIds = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceByPart = new WeakMap<IChatToolInvocation, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceById = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolResolutionVersion = observableValue('pendingToolResolutionVersion', 0);
+const maxResolvedPendingToolOccurrences = 256;
 
 function isPendingToolState(state: IChatToolInvocation.State): boolean {
 	return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
@@ -134,6 +138,27 @@ function pendingToolOccurrenceId(occurrence: IActivePendingToolOccurrence): stri
 	return `${occurrence.requestId}#${occurrence.token}`;
 }
 
+function trimResolvedPendingToolOccurrences(): void {
+	if (resolvedPendingToolOccurrenceIds.size <= maxResolvedPendingToolOccurrences) {
+		return;
+	}
+	for (const [pendingId, occurrence] of resolvedPendingToolOccurrenceIds) {
+		if (occurrence.participants.size !== 0) {
+			continue;
+		}
+		resolvedPendingToolOccurrenceIds.delete(pendingId);
+		if (resolvedPendingToolOccurrences.get(occurrence.semanticKey) === occurrence) {
+			resolvedPendingToolOccurrences.delete(occurrence.semanticKey);
+		}
+		if (pendingToolOccurrenceById.get(pendingId) === occurrence) {
+			pendingToolOccurrenceById.delete(pendingId);
+		}
+		if (resolvedPendingToolOccurrenceIds.size <= maxResolvedPendingToolOccurrences) {
+			break;
+		}
+	}
+}
+
 function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence): void {
 	if (occurrence.resolved) {
 		return;
@@ -142,6 +167,9 @@ function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence):
 	if (activePendingToolOccurrences.get(occurrence.semanticKey) === occurrence) {
 		activePendingToolOccurrences.delete(occurrence.semanticKey);
 	}
+	resolvedPendingToolOccurrences.set(occurrence.semanticKey, occurrence);
+	resolvedPendingToolOccurrenceIds.set(pendingToolOccurrenceId(occurrence), occurrence);
+	trimResolvedPendingToolOccurrences();
 	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
 }
 
@@ -165,6 +193,17 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 
 	let occurrence = activePendingToolOccurrences.get(semanticKey);
 	if (!occurrence) {
+		const resolvedOccurrence = resolvedPendingToolOccurrences.get(semanticKey);
+		if (resolvedOccurrence?.participantsSeen.has(invocation)) {
+			// The same invocation object left pending and then entered it again. That
+			// is the one unambiguous signal that the provider deliberately re-armed
+			// the tool call rather than rehydrating a late copy of completed work.
+			resolvedPendingToolOccurrences.delete(semanticKey);
+		} else if (resolvedOccurrence) {
+			occurrence = resolvedOccurrence;
+		}
+	}
+	if (!occurrence) {
 		if (!mint) {
 			return undefined;
 		}
@@ -173,6 +212,7 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 			semanticKey,
 			token: `t${Date.now().toString(36)}-${++pendingOccurrenceCounter}`,
 			participants: new Map(),
+			participantsSeen: new WeakSet(),
 			resolved: false,
 		};
 		activePendingToolOccurrences.set(semanticKey, occurrence);
@@ -192,9 +232,10 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		if (trackedOccurrence.participants.size === 0 && activePendingToolOccurrences.get(trackedOccurrence.semanticKey) === trackedOccurrence) {
 			activePendingToolOccurrences.delete(trackedOccurrence.semanticKey);
 		}
-		if (trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
+		if (!trackedOccurrence.resolved && trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
 			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(trackedOccurrence));
 		}
+		trimResolvedPendingToolOccurrences();
 		observer?.dispose();
 	});
 	observer = autorun(reader => {
@@ -206,6 +247,7 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 			tracking.dispose();
 		}
 	});
+	occurrence.participantsSeen.add(invocation);
 	occurrence.participants.set(invocation, tracking);
 	track?.(tracking);
 	return occurrence;
