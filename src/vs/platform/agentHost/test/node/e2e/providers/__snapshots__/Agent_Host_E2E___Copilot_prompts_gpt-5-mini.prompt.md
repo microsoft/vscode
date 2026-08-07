@@ -1208,7 +1208,7 @@ Create a session in a workspace and start it with an initial prompt. The UI show
     },
     "model": {
       "type": "string",
-      "description": "Optional model ID or display name."
+      "description": "Optional model ID or display name. Defaults to the current chat's model."
     }
   },
   "required": [
@@ -1219,7 +1219,7 @@ Create a session in a workspace and start it with an initial prompt. The UI show
 ```
 
 #### create_chat
-Add a new chat to an existing session and start it with an initial prompt. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the session's model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.
+Add a new chat to an existing session and start it with an initial prompt. Omit `session` to add the chat to the current session; otherwise pass a session URI from `list_sessions`. Optionally pass a `model` to use for the chat (defaults to the current chat's model). The UI shows a "Chat Created" confirmation with a button to open the session, so reply with a single short sentence and do NOT print the session URL or tell the user to click a button.
 ```json
 {
   "type": "object",
@@ -1238,7 +1238,7 @@ Add a new chat to an existing session and start it with an initial prompt. Omit 
     },
     "model": {
       "type": "string",
-      "description": "Optional model ID or display name. Defaults to the session's model."
+      "description": "Optional model ID or display name. Defaults to the current chat's model."
     }
   },
   "required": [
