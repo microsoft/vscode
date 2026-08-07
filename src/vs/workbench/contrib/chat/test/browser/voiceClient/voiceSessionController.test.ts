@@ -4714,7 +4714,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['Allow running the tests?']);
 	});
 
-	test('closing omni abandons its queued and in-flight voice items without transferring indicators', async () => {
+	test('closing omni transfers unheard items to panel ownership for narration on refocus', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const chatService = new ControllableChatService();
 		const voicePlaybackService = new RecordingVoicePlaybackService();
@@ -4752,19 +4752,12 @@ suite('VoiceSessionController', () => {
 		handleStateChange.call(controller, confirmationResource.toString(), stateInfo.state, stateInfo.detail, undefined, undefined, stateInfo.confirmation_type);
 		reconcileIndicators.call(controller, new Set([confirmationResource.toString()]));
 		handleStateChange.call(controller, responseSession, 'idle', undefined, 'This response was queued behind the confirmation.', undefined);
-		controller.setActiveSessionShown(confirmationResource);
+		controller.activateSession(URI.parse(responseSession));
 
-		assert.deepStrictEqual({
-			requestCount: voiceClientService.requests.length,
-			queued: (Reflect.get(controller, '_omniNarrationQueue') as unknown[]).length,
-			inFlight: (Reflect.get(controller, '_pendingSolicitedNarrations') as Map<string, unknown>).size,
-			pendingSessions: [...voicePlaybackService.pendingSessions],
-		}, {
-			requestCount: 1,
-			queued: 0,
-			inFlight: 0,
-			pendingSessions: [],
-		});
+		assert.strictEqual(voiceClientService.requests.at(-1)?.text, 'This response was queued behind the confirmation.');
+		assert.strictEqual((Reflect.get(controller, '_omniNarrationQueue') as unknown[]).length, 0);
+		assert.ok(voicePlaybackService.pendingSessions.has(responseSession), 'the response stays pending until its refocus narration is heard');
+		assert.ok(voicePlaybackService.pendingSessions.has(confirmationResource.toString()), 'the confirmation returns to normal panel ownership');
 	});
 
 	test('plays responses for an omni-routed target without a pending indicator', async () => {

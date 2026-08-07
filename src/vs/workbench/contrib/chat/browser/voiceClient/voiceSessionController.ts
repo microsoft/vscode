@@ -3145,9 +3145,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			this._drainOmniInbox();
 		} else {
-			// Closing omni explicitly abandons voice delivery. Do not transfer its
-			// unheard items into session-list voice indicators.
-			this._abandonOmniInbox();
+			// Return unheard work to normal panel ownership. The active Omni
+			// playback is stopped, but refocusing a session can narrate it.
+			this._releaseOmniInboxToPanel();
 		}
 	}
 
@@ -5606,28 +5606,44 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		]);
 	}
 
-	private _abandonOmniInbox(): void {
-		const abandonedSessionKeys = new Set<string>([
+	private _releaseOmniInboxToPanel(): void {
+		const releasedSessionKeys = new Set<string>([
 			...this._omniNarrationQueue.map(item => this._sessionKey(item.sessionId)),
 			...this._omniDeferredSessionKeys,
 			...this._omniClaimedPendingIds.keys(),
 			...this._omniClaimedResponseSummaries.keys(),
 		]);
 		for (const sessionKey of this._routedRequests.keys()) {
-			this._abandonedRoutedRequests.add(sessionKey);
-			abandonedSessionKeys.add(sessionKey);
+			releasedSessionKeys.add(sessionKey);
+			this._routedRequests.delete(sessionKey);
+			this._abandonedRoutedRequests.delete(sessionKey);
 		}
-		for (const [sessionKey, identity] of this._omniClaimedPendingIds) {
-			// Treat the abandoned occurrence as already handled for later focus
-			// activation, without claiming that its audio was actually heard.
-			this._narratedPending.set(sessionKey, identity);
+		for (const item of this._omniNarrationQueue) {
+			const sessionKey = this._sessionKey(item.sessionId);
+			if (item.kind === 'response') {
+				this._pendingResponseSummaries.set(sessionKey, item.text);
+			} else {
+				this._confirmationPendingSessions.add(sessionKey);
+			}
+		}
+		for (const sessionKey of this._omniClaimedPendingIds.keys()) {
+			this._confirmationPendingSessions.add(sessionKey);
+		}
+		for (const [sessionKey, summary] of this._omniClaimedResponseSummaries) {
+			this._pendingResponseSummaries.set(sessionKey, summary);
 		}
 
-		const abandonedResponseIds = new Set(this._omniNarrationIds);
-		for (const responseId of abandonedResponseIds) {
+		const releasedResponseIds = new Set(this._omniNarrationIds);
+		for (const responseId of releasedResponseIds) {
 			const pending = this._pendingSolicitedNarrations.get(responseId);
 			if (pending) {
-				abandonedSessionKeys.add(this._sessionKey(pending.sessionId));
+				const sessionKey = this._sessionKey(pending.sessionId);
+				releasedSessionKeys.add(sessionKey);
+				if (pending.kind === 'response') {
+					this._pendingResponseSummaries.set(sessionKey, pending.text);
+				} else {
+					this._confirmationPendingSessions.add(sessionKey);
+				}
 				this._clearPendingSolicitedNarration(responseId, pending);
 			}
 			this._solicitedNarrationIds.delete(responseId);
@@ -5637,42 +5653,43 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		for (const key of this._omniDeferredSessionKeys) {
 			for (const response of this._deferredResponses.get(key) ?? []) {
 				if (response.responseId) {
-					abandonedResponseIds.add(response.responseId);
+					releasedResponseIds.add(response.responseId);
 					this._rememberInterruptedAudioId(response.responseId);
 				}
 			}
-			this._deferredResponses.delete(key);
 		}
 		for (let index = this._audioQueue.length - 1; index >= 0; index--) {
 			const queued = this._audioQueue[index];
-			const ownedSession = queued.sessionId && abandonedSessionKeys.has(this._sessionKey(queued.sessionId));
-			if ((queued.responseId && abandonedResponseIds.has(queued.responseId)) || ownedSession) {
+			const ownedSession = queued.sessionId && releasedSessionKeys.has(this._sessionKey(queued.sessionId));
+			if ((queued.responseId && releasedResponseIds.has(queued.responseId)) || ownedSession) {
 				this._audioQueue.splice(index, 1);
 			}
 		}
-		const activeOwned = (this._currentPlaybackResponseId && abandonedResponseIds.has(this._currentPlaybackResponseId))
-			|| (this._currentPlaybackSessionId && abandonedSessionKeys.has(this._sessionKey(this._currentPlaybackSessionId)));
+		const activeOwned = (this._currentPlaybackResponseId && releasedResponseIds.has(this._currentPlaybackResponseId))
+			|| (this._currentPlaybackSessionId && releasedSessionKeys.has(this._sessionKey(this._currentPlaybackSessionId)));
 		if (activeOwned) {
 			this._rememberInterruptedAudioId(this._currentPlaybackResponseId);
 			this._stopCurrentPlaybackAsInterrupted();
 		}
 
-		for (const sessionKey of abandonedSessionKeys) {
-			this._pendingResponseSummaries.delete(sessionKey);
+		for (const sessionKey of releasedSessionKeys) {
 			this._deferredNarrations.delete(sessionKey);
-			this._confirmationPendingSessions.delete(sessionKey);
-			this._markPendingResponse(sessionKey, false);
+			if (this._pendingOwned(sessionKey)) {
+				this._markPendingResponse(sessionKey, true);
+			}
 		}
 		for (const sessionId of [...this._pendingNarrationRetries.keys()]) {
-			if (abandonedSessionKeys.has(this._sessionKey(sessionId))) {
+			if (releasedSessionKeys.has(this._sessionKey(sessionId))) {
 				this._pendingNarrationRetries.delete(sessionId);
 			}
 		}
 		this._omniNarrationQueue.length = 0;
 		this._omniDeferredSessionKeys.clear();
 		this._omniDeferredSessionOrdinals.clear();
+		this._omniClaimedPendingIds.clear();
+		this._omniClaimedResponseSummaries.clear();
 		this._omniNarrationIds.clear();
-		this.logService.trace(`[voice] abandoned omni inbox sessions=${abandonedSessionKeys.size} responses=${abandonedResponseIds.size}`);
+		this.logService.trace(`[voice] released omni inbox to panel sessions=${releasedSessionKeys.size} responses=${releasedResponseIds.size}`);
 	}
 
 	private _clearDeferredResponses(): void {
