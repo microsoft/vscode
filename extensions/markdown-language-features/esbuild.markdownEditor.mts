@@ -30,6 +30,8 @@ run({
 	],
 	beforeBuild: updateMarkdownEditorPackageJsonFile,
 	additionalOptions: {
+		splitting: true,
+		chunkNames: '[name]-[hash]',
 		// `@vscode/diff` has a Node-only code path that dynamically imports
 		// `node:fs/promises` (guarded by a `process.versions.node` check). It is
 		// dead code in the webview, so mark it external to avoid a resolve error.

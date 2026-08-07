@@ -6,13 +6,13 @@
 import { CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, taskCheckboxRange, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode } from '@vscode/markdown-editor';
 import { Disposable, autorun, observableValue } from '@vscode/markdown-editor/observables';
 import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
-import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
 import '@vscode/markdown-editor/themes/vscode-default.css';
 import '@vscode/markdown-editor/commentInput.css';
 import '@vscode/markdown-editor/vscodeCommentWidgetV2.css';
 import './markdownEditor.css';
+import { decodeWebviewInitialState } from '../src/preview/webviewInitialState';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 
 interface VsCodeApi {
@@ -39,12 +39,17 @@ interface CodeBlockEditorProviderDefinition {
 	readonly source: { readonly kind: 'static'; readonly descriptor: ResolvedIframeEmbeddedEditor } | { readonly kind: 'exportApi' };
 }
 
+interface InitialState {
+	readonly content: string;
+	readonly documentVersion: number;
+	readonly readonly: boolean;
+}
+
 class Editor extends Disposable {
 	readonly model = new EditorModel();
 	isUpdatingFromExtension = false;
 	#isUpdatingComments = false;
 	#mermaidCounter = 0;
-	#initialized = false;
 	#codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] = [];
 	#nextCodeBlockEditorRequestId = 1;
 	readonly #codeBlockEditorRequests = new Map<number, (descriptor: ResolvedIframeEmbeddedEditor | undefined) => void>();
@@ -61,7 +66,7 @@ class Editor extends Disposable {
 	readonly #vscode = acquireVsCodeApi();
 	readonly #syntaxHighlighter = new WebviewSyntaxHighlighter((message) => this.#vscode.postMessage(message));
 
-	constructor(host: HTMLElement) {
+	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
 
 		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
@@ -70,7 +75,8 @@ class Editor extends Disposable {
 		}
 		this.#messageSecret = messageSecret;
 
-		mermaid.initialize({ startOnLoad: false, theme: 'default' });
+		this.model.sourceText.set(new StringValue(initialState.content), undefined);
+		this.model.readonlyMode.set(initialState.readonly, undefined);
 
 		window.addEventListener('message', (event) => {
 			const message = event.data;
@@ -81,14 +87,6 @@ class Editor extends Disposable {
 				return;
 			}
 			switch (message.type) {
-				case 'init': {
-					if (!this.#initialized) {
-						this.#initialized = true;
-						this.#codeBlockEditorProviders = readCodeBlockEditorProviderDefinitions(message.codeBlockEditorProviders);
-						this.#createView(host, !!message.readonly, message.content);
-					}
-					break;
-				}
 				case 'update': {
 					// `replaceSourceText` (not `sourceText.set`) applies authoritative host
 					// text: it maps the selection through the change and clears stale
@@ -150,7 +148,8 @@ class Editor extends Disposable {
 			}
 		});
 
-		this.#vscode.postMessage({ type: 'ready' });
+		this.#createView(host, initialState.content);
+		this.#vscode.postMessage({ type: 'ready', documentVersion: initialState.documentVersion });
 		this._register({
 			dispose: () => {
 				for (const resolve of this.#codeBlockEditorRequests.values()) {
@@ -161,7 +160,7 @@ class Editor extends Disposable {
 		});
 	}
 
-	#createView(host: HTMLElement, readonly: boolean, content: string): void {
+	#createView(host: HTMLElement, content: string): void {
 		const model = this.model;
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
 		const embeddedCodeEditorFactory = this._register(new VirtualizedIframeEmbeddedEditorFactory({
@@ -179,10 +178,6 @@ class Editor extends Disposable {
 		// before any listener below can overwrite it, so it survives the editor being
 		// re-created (e.g. after a session switch).
 		const savedViewState = this.#getViewState();
-
-		// Start in the last globally chosen edit/read-only mode. The lock toggle in
-		// the editor drives `readonlyMode` from here on; changes are persisted below.
-		model.readonlyMode.set(readonly, undefined);
 
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
@@ -230,14 +225,22 @@ class Editor extends Disposable {
 				}
 				const div = document.createElement('div');
 				div.className = 'md-mermaid';
+				div.textContent = content;
+				div.setAttribute('aria-busy', 'true');
 				const id = `mermaid-${this.#mermaidCounter++}`;
-				mermaid
-					.render(id, content)
+				loadMermaid()
+					.then(mermaid => mermaid.render(id, content))
 					.then(({ svg }) => {
 						div.innerHTML = svg;
+						div.setAttribute('aria-busy', 'false');
 					})
-					.catch(() => {
+					.catch(error => {
 						div.textContent = content;
+						div.setAttribute('aria-busy', 'false');
+						this.#vscode.postMessage({
+							type: 'codeBlockEditorDiagnostic',
+							message: `Failed to render Mermaid diagram: ${error instanceof Error ? error.message : String(error)}`,
+						});
 					});
 				return div;
 			},
@@ -328,9 +331,6 @@ class Editor extends Disposable {
 			knownCommentIds = currentIds;
 		}));
 
-		// Load the document content, then restore the persisted cursor so it lands on
-		// the same text. Offsets are clamped defensively in case the document shifted.
-		model.sourceText.set(new StringValue(content), undefined);
 		if (savedViewState.selection) {
 			const max = content.length;
 			const anchor = Math.min(savedViewState.selection.anchor, max);
@@ -446,6 +446,41 @@ class Editor extends Disposable {
 	}
 }
 
+let mermaidPromise: Promise<(typeof import('mermaid'))['default']> | undefined;
+
+function loadMermaid(): Promise<(typeof import('mermaid'))['default']> {
+	if (!mermaidPromise) {
+		mermaidPromise = import('mermaid').then(module => {
+			module.default.initialize({ startOnLoad: false, theme: 'default' });
+			return module.default;
+		});
+	}
+	return mermaidPromise;
+}
+
+function readInitialState(): InitialState {
+	const element = document.getElementById('vscode-markdown-editor-initial-state');
+	if (!(element instanceof HTMLMetaElement)) {
+		throw new Error('Markdown editor initial state was not found.');
+	}
+	element.remove();
+	const value = decodeWebviewInitialState(element.content);
+	if (!isInitialState(value)) {
+		throw new Error('Markdown editor initial state is invalid.');
+	}
+	return value;
+}
+
+function isInitialState(value: unknown): value is InitialState {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const candidate = value as Record<string, unknown>;
+	return typeof candidate.content === 'string'
+		&& typeof candidate.documentVersion === 'number'
+		&& typeof candidate.readonly === 'boolean';
+}
+
 function readCodeBlockEditorProviderDefinitions(value: unknown): readonly CodeBlockEditorProviderDefinition[] {
 	if (!Array.isArray(value)) {
 		return [];
@@ -531,4 +566,4 @@ function computeTextEdit(previousText: string, text: string): { start: number; e
 	};
 }
 
-new Editor(document.getElementById('editor')!);
+new Editor(document.getElementById('editor')!, readInitialState());
