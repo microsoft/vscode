@@ -303,16 +303,29 @@ export interface IVoiceSessionContext {
 		id: string;
 		/** Human-readable name, so the backend can tell two sessions apart. */
 		label?: string;
+		/** Which frontend session surface owns this conversation. */
+		session_type?: 'agent' | 'chat';
 		is_active: boolean;
 		/** Omni routing decision for backend narration of the selected target. */
 		omni_route?: 'existing_session' | 'new_session';
 		agent_state: string;
 		agent_state_detail?: string;
 		confirmation_type?: VoiceConfirmationType;
+		/** The model currently selected for this session's next request. */
+		selected_model?: IVoiceModelReference;
+		/** Names only: file contents remain in the frontend until a request is sent. */
+		attachment_names?: string[];
+		attachment_count?: number;
 		last_response_summary?: string;
 		pending?: IVoiceSessionPending;
 	}[];
 	display_locale: string;
+}
+
+export interface IVoiceModelReference {
+	readonly identifier: string;
+	readonly name: string;
+	readonly vendor: string;
 }
 
 export type VoiceConfirmationType = 'questionnaire' | 'elicitation' | 'plan' | 'tool' | 'generic';

@@ -24,15 +24,17 @@ import { INotification, INotificationHandle, INotificationService, NoOpNotificat
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService } from '../../../../../test/common/workbenchTestServices.js';
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
-import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
+import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID } from '../../../common/chatInputWindow.js';
 import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -222,6 +224,28 @@ class VoiceTestNotificationService extends TestNotificationService {
 		this.notifications.push(notification);
 		return new NoOpNotification();
 	}
+}
+
+class MutableTestChatEntitlementService extends TestChatEntitlementService {
+	override readonly isInternal: boolean = false;
+	private readonly _onDidChangeEntitlement = new Emitter<void>();
+	override readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
+
+	setEntitlement(entitlement: ChatEntitlement): void {
+		this.entitlement = entitlement;
+		this._onDidChangeEntitlement.fire();
+	}
+
+	transitionEntitlement(intermediate: ChatEntitlement, final: ChatEntitlement): void {
+		this.entitlement = intermediate;
+		this._onDidChangeEntitlement.fire();
+		this.entitlement = final;
+		this._onDidChangeEntitlement.fire();
+	}
+}
+
+class InternalTestChatEntitlementService extends MutableTestChatEntitlementService {
+	override readonly isInternal = true;
 }
 
 class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
@@ -442,8 +466,10 @@ function completedResponseModel(markdown: string, errorMessage?: string, isCance
 
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
+	override readonly onDidChangeWidgetVisibility = Event.None;
 	override readonly onDidAddWidget = Event.None;
 	override getAllWidgets() { return []; }
+	override getWidgetBySessionResource(): undefined { return undefined; }
 }
 
 class TestCommandService extends mock<ICommandService>() {
@@ -506,7 +532,8 @@ suite('VoiceSessionController', () => {
 		}(),
 		agentSessionsService: IAgentSessionsService = new TestAgentSessionsService(),
 		notificationService: INotificationService = new VoiceTestNotificationService(),
-	): IVoiceSessionController {
+		chatEntitlementService: IChatEntitlementService = Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Pro }),
+	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
 		return store.add(new VoiceSessionController(
@@ -541,6 +568,7 @@ suite('VoiceSessionController', () => {
 			new TestChatWidgetService(),
 			notificationService,
 			promptsService,
+			chatEntitlementService,
 		));
 	}
 
@@ -557,6 +585,132 @@ suite('VoiceSessionController', () => {
 		};
 		return { changeEmitter, parts, response: state as unknown as IChatResponseModel, state };
 	}
+
+	test('does not connect without a paid Copilot entitlement', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const notificationService = new VoiceTestNotificationService();
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Free;
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+			chatEntitlementService,
+		);
+
+		await controller.connect(mainWindow);
+
+		assert.strictEqual(controller.isConnecting.get(), false);
+		assert.strictEqual(controller.isConnected.get(), false);
+		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Voice Mode requires a paid GitHub Copilot plan.']);
+	});
+
+	test('disconnects when the paid Copilot entitlement is lost', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			chatEntitlementService,
+		);
+		controller['_isConnected'].set(true, undefined);
+
+		chatEntitlementService.setEntitlement(ChatEntitlement.Free);
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		assert.strictEqual(controller.isConnected.get(), false);
+	});
+
+	test('stays connected across a paid-to-paid entitlement transition', async () => {
+		const chatEntitlementService = new MutableTestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		const controller = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			chatEntitlementService,
+		);
+		controller['_isConnected'].set(true, undefined);
+
+		chatEntitlementService.transitionEntitlement(ChatEntitlement.Unresolved, ChatEntitlement.Business);
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		assert.strictEqual(controller.isConnected.get(), true);
+	});
+
+	test('restricts Voice Mode for external Enterprise users but allows internal staff', async () => {
+		const externalNotifications = new VoiceTestNotificationService();
+		const externalEntitlement = new MutableTestChatEntitlementService();
+		externalEntitlement.entitlement = ChatEntitlement.Enterprise;
+		const externalController = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			externalNotifications,
+			externalEntitlement,
+		);
+
+		const internalNotifications = new VoiceTestNotificationService();
+		const internalEntitlement = new InternalTestChatEntitlementService();
+		internalEntitlement.entitlement = ChatEntitlement.Enterprise;
+		const internalController = createController(
+			new TestVoiceClientService(),
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			internalNotifications,
+			internalEntitlement,
+		);
+
+		await externalController.connect(mainWindow);
+		await internalController.connect(mainWindow);
+
+		assert.deepStrictEqual({
+			externalConnecting: externalController.isConnecting.get(),
+			externalNotifications: externalNotifications.notifications.map(notification => notification.message),
+			internalConnecting: internalController.isConnecting.get(),
+			internalNotifications: internalNotifications.notifications.map(notification => notification.message),
+		}, {
+			externalConnecting: false,
+			externalNotifications: ['Voice Mode is not available for GitHub Copilot Enterprise accounts.'],
+			internalConnecting: true,
+			internalNotifications: [],
+		});
+	});
 
 	test('includes response errors in the summary sent to the voice backend', () => {
 		const controller = createController(new TestVoiceClientService());
@@ -1376,6 +1530,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual({
 			pendingContext: pendingContext ? {
 				id: pendingContext['id'],
+				session_type: pendingContext['session_type'],
 				is_active: pendingContext['is_active'],
 				agent_state: pendingContext['agent_state'],
 				agent_state_detail: pendingContext['agent_state_detail'],
@@ -1392,6 +1547,7 @@ suite('VoiceSessionController', () => {
 		}, {
 			pendingContext: {
 				id: sessionResource.toString(),
+				session_type: 'chat',
 				is_active: true,
 				agent_state: 'waiting_for_confirmation',
 				agent_state_detail: [
@@ -1418,6 +1574,7 @@ suite('VoiceSessionController', () => {
 			resolvedContext: {
 				id: sessionResource.toString(),
 				label: 'Chat',
+				session_type: 'chat',
 				is_active: true,
 				agent_state: 'idle',
 			},
@@ -4648,6 +4805,55 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('grounds the active session with its selected model and attachment names', () => {
+		const chatService = new ControllableChatService();
+		const resource = URI.parse('vscode-chat://regular/session-aware');
+		const lastRequest = {
+			id: 'request-1',
+			response: {
+				isPendingConfirmation: observableValue('pending', undefined),
+				isIncomplete: observableValue('incomplete', false),
+				response: { value: [], getMarkdown: () => '' },
+			},
+		};
+		const model = {
+			sessionResource: resource,
+			title: 'Session awareness',
+			lastMessageDate: Date.now(),
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+			inputModel: {
+				state: observableValue('inputState', {
+					selectedModel: {
+						identifier: 'copilot/gpt-5',
+						metadata: { name: 'GPT-5', vendor: 'copilot' },
+					},
+					attachments: [{ kind: 'file', name: 'voiceSessionController.ts' }, { kind: 'file', name: 'README.md' }],
+				}),
+			},
+		} as unknown as IChatModel;
+		chatService.setModels([model]);
+		const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, chatService);
+		controller.setActiveSessionShown(resource);
+		const buildSessionContext = Reflect.get(controller, '_buildSessionContext') as () => IVoiceSessionContext;
+
+		const [session] = buildSessionContext.call(controller).sessions;
+
+		assert.deepStrictEqual({
+			session_type: session.session_type,
+			is_active: session.is_active,
+			selected_model: session.selected_model,
+			attachment_names: session.attachment_names,
+			attachment_count: session.attachment_count,
+		}, {
+			session_type: 'chat',
+			is_active: true,
+			selected_model: { identifier: 'copilot/gpt-5', name: 'GPT-5', vendor: 'copilot' },
+			attachment_names: ['voiceSessionController.ts', 'README.md'],
+			attachment_count: 2,
+		});
+	});
+
 	test('an older tool confirmation holds the turn ahead of a newer form', () => {
 		// Queue semantics applied uniformly: approve the command you were asked
 		// about, then answer the questions.
@@ -5678,8 +5884,13 @@ suite('VoiceSessionController live transcription', () => {
 			lastFocusedWidget: undefined,
 			onDidAddWidget: Event.None,
 			onDidChangeFocusedSession: Event.None,
+			onDidChangeWidgetVisibility: Event.None,
 			getAllWidgets: () => [],
 		});
+		const chatEntitlementService = new TestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Pro;
+		instantiationService.stub(IChatEntitlementService, chatEntitlementService);
+
 		const controller = store.add(instantiationService.createInstance(VoiceSessionController));
 		controller['_isConnected'].set(true, undefined);
 		controller['_userLogin'] = 'test-user';

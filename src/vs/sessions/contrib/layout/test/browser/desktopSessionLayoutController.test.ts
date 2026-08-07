@@ -386,6 +386,41 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(hasDockedDetails(), false, 'search target should clear the editor chevron context');
 	});
 
+	test('[single-pane] Hide Editor while a Browser tab is active shows the Changes/Files fallback instead of hiding it again', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		const browserEditor = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
+		Object.defineProperty(browserEditor, 'resource', { value: URI.parse('browser://test') });
+		harness.activeEditorInput = browserEditor;
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+		assert.strictEqual(harness.partVisibility.get(Parts.AUXILIARYBAR_PART), false, 'browser tab should hide the detail panel while the editor area is visible');
+
+		// Mirror HideMainEditorPartAction.run(): reveal the auxiliary bar, then hide the editor part.
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		harness.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+		await timeout(0);
+
+		assert.strictEqual(harness.partVisibility.get(Parts.AUXILIARYBAR_PART), true, 'the detail panel must stay revealed once the editor area is hidden, not be forced shut again');
+		assert.strictEqual(hasDockedDetails(), true, 'the Changes/Files fallback should enable the editor chevron context');
+		assert.ok(harness.openedViewContainers.includes(CHANGES_VIEW_CONTAINER_ID), 'a created session should fall back to the Changes container');
+
+		// Show Editor while still on Browser must restore the "Browser hides the detail" invariant.
+		harness.setPartHiddenCalls = [];
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		await timeout(0);
+		assert.strictEqual(harness.partVisibility.get(Parts.AUXILIARYBAR_PART), false, 'the detail panel should hide again once Browser is active with the editor area visible');
+	});
+
 	test('[single-pane] hides the detail panel when the main editor part is empty and keeps it closed on tab open', async () => {
 		createSinglePaneController({ activateAux: true });
 		await timeout(0);
@@ -2804,7 +2839,7 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(publishedWorkspaces, ['c']);
 	});
 
-	test('[managed tabs / details-only] a details-only reveal restores the docked inputs even when one was closed', async () => {
+	test('[managed tabs / details-only] always restores both docked inputs while only details are visible', async () => {
 		createSinglePaneController({
 			activateAux: true,
 			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
@@ -2825,18 +2860,40 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidCloseEditor.fire({ editor: fileTab });
 		harness.onDidEditorsChange.fire();
 		await settle();
-		assert.strictEqual(hasFilesTab(), false);
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
-		// Close the side pane, then reopen it details-only (aux only, editor hidden).
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-		harness.onDidRevealSidePane.fire();
+		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(changesTab), 1);
+		harness.onDidCloseEditor.fire({ editor: changesTab });
+		harness.onDidEditorsChange.fire();
 		await settle();
 
-		// The details-only reveal always shows the docked inputs, so Files returns.
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+	});
+
+	test('[managed tabs / details-only] restores Files when the editor area hides without an editor change', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await settle();
+
+		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
+		harness.onDidCloseEditor.fire({ editor: fileTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+		assert.strictEqual(hasFilesTab(), false);
+
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), true);
 	});
 
 	test('[managed tabs / details-only] an editor reveal does NOT force back a closed managed tab', async () => {

@@ -42,6 +42,7 @@ import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToT
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
+import { AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
 const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
@@ -136,12 +137,12 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 			// mouse click produces no key-up (leaving the turn pending) and a keyboard
 			// invocation creates an immediate empty turn. Keep it keybinding-only.
 			f1: false,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
 				),
 			},

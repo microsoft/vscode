@@ -21,7 +21,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
+import { showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -29,9 +29,7 @@ import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AgentSessionsPicker } from './agentSessionsPicker.js';
-import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -120,42 +118,6 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 
 		await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
-	}
-}
-
-export class PickAgentSessionAction extends Action2 {
-
-	constructor() {
-		super({
-			id: `workbench.action.chat.history`,
-			title: localize2('agentSessions.open', "Open Agent Session..."),
-			menu: [
-				{
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', ChatViewId),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, false)
-					),
-					group: 'navigation',
-					order: 2
-				},
-				{
-					id: MenuId.EditorTitle,
-					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-				}
-			],
-			category: AGENT_SESSIONS_CATEGORY,
-			icon: Codicon.history,
-			f1: true,
-			precondition: ChatContextKeys.enabled
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-
-		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, undefined, undefined);
-		await agentSessionsPicker.pickAgentSession();
 	}
 }
 

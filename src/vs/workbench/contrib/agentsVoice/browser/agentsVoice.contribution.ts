@@ -7,7 +7,7 @@
 import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
-import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
+import { IVoiceSessionController, isVoiceEntitled } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import { IChatInputWindowService } from '../../chat/common/chatInputWindow.js';
 import { VOICE_AGENT_PROGRESS_SETTING } from '../../chat/common/voiceClient/voiceClientService.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
@@ -36,8 +36,9 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import {
@@ -62,6 +63,29 @@ const AGENTS_VOICE_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedH
 const VOICE_ACTIVE_ON_SURFACE = ContextKeyExpr.or(IsSessionsWindowContext.negate(), AGENTS_VOICE_INITIATED_HERE)!;
 
 // --- Context Key Binding ---
+
+// Reflects Copilot entitlement into a single `agentsVoiceEntitled` context key.
+// Kept as one imperatively-set key (rather than an OR-of-plans expression) so
+// that negating `AGENTS_VOICE_ENABLED` (e.g. for the standalone voice controls)
+// does not distribute the plan disjunction into thousands of terms.
+class AgentsVoiceEntitlementKeyContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentsVoiceEntitlementKey';
+
+	constructor(
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		const entitledKey = AGENTS_VOICE_ENTITLED.bindTo(contextKeyService);
+		const update = () => entitledKey.set(isVoiceEntitled(chatEntitlementService));
+		update();
+		this._register(chatEntitlementService.onDidChangeEntitlement(update));
+	}
+}
+
+registerWorkbenchContribution2(AgentsVoiceEntitlementKeyContribution.ID, AgentsVoiceEntitlementKeyContribution, WorkbenchPhase.AfterRestored);
 
 // Separate contribution for voice connected state — runs later to avoid
 // forcing IVoiceSessionController instantiation too early.
@@ -162,14 +186,14 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentsVoice.connecting', "Connecting..."),
 			icon: Codicon.loadingCompact,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_ENABLED,
 				AGENTS_VOICE_CONNECTING.isEqualTo(true),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
@@ -191,12 +215,12 @@ registerAction2(class extends Action2 {
 			id: 'agentsVoice.startVoiceInChat',
 			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
 			icon: Codicon.voiceModeCompact,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -215,7 +239,7 @@ registerAction2(class extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
 				),
 			},
@@ -304,14 +328,14 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
 			icon: Codicon.voiceModeCompact,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_ENABLED,
 				AGENTS_VOICE_LISTENING.isEqualTo(true),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					SegmentedVoiceInputModePillInactive,
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -347,13 +371,13 @@ registerAction2(class extends Action2 {
 			icon: Codicon.debugDisconnectCompact,
 			f1: true,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.agents.voice.enabled', true),
+				AGENTS_VOICE_ENABLED,
 				AGENTS_VOICE_CONNECTED.isEqualTo(true),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -373,7 +397,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib - 5,
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
 					VOICE_ACTIVE_ON_SURFACE,
@@ -414,7 +438,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib - 5,
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
 					// Mirror the disconnect binding's editor negations so Escape
@@ -440,7 +464,7 @@ registerAction2(class extends Action2 {
 			id: 'agentsVoice.openSettings',
 			title: nls.localize2('agentsVoice.openSettings', "Voice Mode Settings"),
 			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -455,7 +479,7 @@ registerAction2(class extends Action2 {
 			id: SHOW_VOICE_MODE_ONBOARDING_COMMAND,
 			title: nls.localize2('agentsVoice.showOnboarding', "Voice Mode: Show Introduction"),
 			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 		});
 	}
 
@@ -507,7 +531,7 @@ registerAction2(class extends Action2 {
 			id: 'agentsVoice.pushToTalk',
 			title: nls.localize2('agentsVoicePushToTalk', "Voice Mode: Push to Talk"),
 			f1: true,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,

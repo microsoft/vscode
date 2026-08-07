@@ -428,6 +428,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	protected _editorPartAutoVisibilitySuppressionCount = 0;
 	protected _hasAppliedInitialEditorSplit = false;
 	private _sidePaneStateBeforeHide: ISidePaneState | undefined;
+	private _restoreSidePaneEditorMaximizedOnShow = false;
 	protected readonly _defaultSidePaneState: ISidePaneState = { editor: true, auxiliaryBar: true };
 
 	private readonly restoredPromise = new DeferredPromise<void>();
@@ -2190,15 +2191,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	toggleSidePane(): boolean {
 		const sidePaneHadFocus = this.hasFocus(Parts.EDITOR_PART) || this.hasFocus(Parts.AUXILIARYBAR_PART);
 		const stateBeforeToggle = this._getSidePaneState();
+		const editorWasMaximized = this.isEditorMaximized();
 		this._onWillToggleSidePane.fire();
 		try {
 			// Exit maximize before toggling so any restored parts are included in the
 			// visibility transition rather than reappearing after the side pane hides.
-			if (this.isEditorMaximized()) {
+			if (editorWasMaximized) {
 				this.setEditorMaximized(false);
 			}
 
 			const visible = !this.isSidePaneVisible();
+			if (!visible) {
+				this._restoreSidePaneEditorMaximizedOnShow = editorWasMaximized;
+			}
 			const suppressEditorPartAutoVisibility = this.suppressEditorPartAutoVisibility();
 			try {
 				// Hide in the reverse order of show so grid sizing restores correctly.
@@ -2218,6 +2223,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				// Reveal calls above explicitly skip notification; notify once after the
 				// complete editor/aux composition has settled.
 				this._onSidePaneRevealed();
+			}
+			if (visible) {
+				const restoreEditorMaximized = this._restoreSidePaneEditorMaximizedOnShow;
+				this._restoreSidePaneEditorMaximizedOnShow = false;
+				if (restoreEditorMaximized) {
+					this.setEditorMaximized(true);
+				}
 			}
 		} finally {
 			this._onDidToggleSidePane.fire({ before: stateBeforeToggle, after: this._getSidePaneState() });
