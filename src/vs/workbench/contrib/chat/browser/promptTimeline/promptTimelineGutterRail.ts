@@ -31,7 +31,7 @@ interface IRowEntry {
 }
 
 /** Unique-per-instance suffix so the flyout's id (referenced by the handle's `aria-controls`) never collides. */
-let dockIdSeq = 0;
+let gutterIdSeq = 0;
 
 /**
  * A minimal, left-edge prompt timeline. At rest it is only a small handle in the transcript's left
@@ -50,7 +50,7 @@ let dockIdSeq = 0;
  * are interchangeable behind the `sessions.chatTimeline.display` setting; the scroll-driven and
  * fisheye affordances the ruler needs (hard-wheel bloom, proportional scroll layout) are no-ops here.
  */
-export class PromptTimelineDockRail extends Disposable implements IPromptTimelineRail {
+export class PromptTimelineGutterRail extends Disposable implements IPromptTimelineRail {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _rest: HTMLButtonElement;
@@ -72,7 +72,7 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 	private readonly _onDidSelect = this._register(new Emitter<string>());
 	readonly onDidSelect: Event<string> = this._onDidSelect.event;
 
-	// The dock lists prompts and jumps to them; it never opens the review drill-down the ruler's hover
+	// The gutter rail lists prompts and jumps to them; it never opens the review drill-down the ruler's hover
 	// card offers, so these stay unused. They are kept to satisfy the shared rail contract.
 	private readonly _onDidReview = this._register(new Emitter<PromptTick>());
 	readonly onDidReview: Event<PromptTick> = this._onDidReview.event;
@@ -83,31 +83,31 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 
 	constructor() {
 		super();
-		this._domNode = $('nav.prompt-timeline-rail.prompt-timeline-rail-dock');
-		this._domNode.setAttribute('aria-label', localize('promptTimeline.dock.railLabel', "Prompt timeline"));
+		this._domNode = $('nav.prompt-timeline-rail.prompt-timeline-rail-gutter');
+		this._domNode.setAttribute('aria-label', localize('promptTimeline.gutter.railLabel', "Prompt timeline"));
 		this._domNode.setAttribute('role', 'toolbar');
 		this._domNode.setAttribute('aria-orientation', 'vertical');
 
-		const panelId = `prompt-timeline-dock-panel-${dockIdSeq++}`;
+		const panelId = `prompt-timeline-gutter-panel-${gutterIdSeq++}`;
 
 		// The resting affordance is a disclosure button that expands the flyout. It carries one dot per
 		// prompt (built in `setTicks`); the dots are decorative — pointer targets only, never focusable —
 		// so the button owns the accessible name and the flyout rows carry the per-prompt semantics.
-		this._rest = append(this._domNode, $<HTMLButtonElement>('button.prompt-timeline-dock-rest'));
+		this._rest = append(this._domNode, $<HTMLButtonElement>('button.prompt-timeline-gutter-rest'));
 		this._rest.setAttribute('aria-haspopup', 'true');
 		this._rest.setAttribute('aria-expanded', 'false');
 		this._rest.setAttribute('aria-controls', panelId);
-		this._rest.setAttribute('aria-label', localize('promptTimeline.dock.toggleLabel', "Show prompts"));
+		this._rest.setAttribute('aria-label', localize('promptTimeline.gutter.toggleLabel', "Show prompts"));
 		this._rest.tabIndex = 0;
 
-		this._list = append(this._domNode, $('.prompt-timeline-dock-panel'));
+		this._list = append(this._domNode, $('.prompt-timeline-gutter-panel'));
 		this._list.id = panelId;
 
 		// Mouse: reveal while the pointer is over the rail subtree. The rail element is
 		// pointer-transparent (its children opt back in), so `mouseenter` never fires on it — bubble
 		// `mouseover`/`mouseout` from the handle and flyout instead, and only collapse once the pointer
 		// truly leaves the rail subtree. The handle and the flyout are laid out flush (the flyout starts
-		// exactly at the handle's right edge — see the shared `--prompt-timeline-dock-handle-*` vars), so
+		// exactly at the handle's right edge — see the shared `--prompt-timeline-gutter-handle-*` vars), so
 		// they form one contiguous hover region: travelling between them keeps `relatedTarget` inside the
 		// rail and never collapses, which means a leave here is always a real leave.
 		this._register(addDisposableListener(this._domNode, EventType.MOUSE_OVER, () => {
@@ -122,7 +122,7 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 			}
 		}));
 
-		// Keep row and dot feedback paired whichever side of the dock the pointer enters from.
+		// Keep row and dot feedback paired whichever side of the gutter rail the pointer enters from.
 		this._register(addDisposableListener(this._list, EventType.MOUSE_OVER, e => {
 			const target = e.target as Node | null;
 			const rowIndex = target === null ? -1 : this._rows.findIndex(row => row.button.contains(target));
@@ -186,7 +186,7 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 	}
 
 	setFilesProvider(_provider: (tick: PromptTick) => readonly PromptFileDiff[]): void {
-		// The dock does not surface per-file changes; the ruler rail's hover card does.
+		// The gutter rail does not surface per-file changes; the ruler rail's hover card does.
 	}
 
 	/**
@@ -200,7 +200,7 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		this._dotTicks.length = 0;
 		const dots = Math.min(count, MAX_REST_DOTS);
 		for (let i = 0; i < dots; i++) {
-			const dot = append(this._rest, $('.prompt-timeline-dock-dot'));
+			const dot = append(this._rest, $('.prompt-timeline-gutter-dot'));
 			const tickIndex = dots === count ? i : Math.round(i * (count - 1) / (dots - 1));
 			this._dots.push(dot);
 			this._dotTicks.push(tickIndex);
@@ -210,7 +210,7 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		}
 		// The dots are sampled rather than one-per-prompt: a small trailing marker signals the elision.
 		if (count > MAX_REST_DOTS) {
-			append(this._rest, $('.prompt-timeline-dock-dot-more'));
+			append(this._rest, $('.prompt-timeline-gutter-dot-more'));
 		}
 	}
 
@@ -288,10 +288,10 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		this._renderDots(ticks.length);
 
 		for (const tick of ticks) {
-			const button = append(this._list, $<HTMLButtonElement>('button.prompt-timeline-dock-row'));
+			const button = append(this._list, $<HTMLButtonElement>('button.prompt-timeline-gutter-row'));
 			button.tabIndex = -1;
-			const label = append(button, $('span.prompt-timeline-dock-row-label'));
-			const stat = append(button, $('span.prompt-timeline-dock-row-stat'));
+			const label = append(button, $('span.prompt-timeline-gutter-row-label'));
+			const stat = append(button, $('span.prompt-timeline-gutter-row-stat'));
 			const entry: IRowEntry = { tick, button, label, stat };
 			this._renderRow(entry, tick);
 			const requestId = tick.requestId;
@@ -416,7 +416,7 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		}
 	}
 
-	// The ruler blooms its fan on a hard scroll and scatters marks by scroll position; the dock is a
+	// The ruler blooms its fan on a hard scroll and scatters marks by scroll position; the gutter rail is a
 	// static, evenly-spaced list, so both are intentionally no-ops.
 	notifyHardWheel(): void { }
 	setScrollLayout(_layout: IPromptScrollLayout | undefined): void { }
