@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Edits } from '../../../src/platform/inlineEdits/common/dataTypes/edit';
-import { LogEntry } from '../../../src/platform/workspaceRecorder/common/workspaceLog';
-import { StringEdit, StringReplacement } from '../../../src/util/vs/editor/common/core/edits/stringEdit';
-import { OffsetRange } from '../../../src/util/vs/editor/common/core/ranges/offsetRange';
-import { ISerializedEdit } from '../logRecordingTypes';
+import { deserializeStringEdit } from '../../../src/platform/inlineEdits/common/dataTypes/editUtils';
+import { type ISerializedEdit, LogEntry } from '../../../src/platform/workspaceRecorder/common/workspaceLog';
+import { StringText } from '../../../src/util/vs/editor/common/core/text/abstractText';
+import { DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT } from '../../base/simulationOptions';
+import { composeAndLimitSerializedEdits, doesSerializedEditContinueOracle, ORACLE_CURSOR_CONTINUATION_LINE_GAP, ORACLE_CURSOR_SUPPRESSION_MS, ORACLE_EDIT_IDLE_MS } from '../oracleEdits';
 import { IStringReplacement, NextUserEdit, Recording, Scoring, SuggestedEdit } from './types';
 import { binarySearch, log } from './util';
 
@@ -97,6 +97,7 @@ export namespace Processor {
 		requestTime: number,
 		proposedEdits: IStringReplacement[],
 		isAccepted: boolean,
+		maxOracleEdits = DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
 	): Scoring.t | undefined {
 
 		const processedRecording = splitRecordingAtRequestTime(entries, requestTime);
@@ -111,15 +112,23 @@ export namespace Processor {
 			return undefined;
 		}
 
-		return createScoringFromSplit(split, proposedEdits, isAccepted);
+		return createScoringFromSplit(split, proposedEdits, isAccepted, undefined, maxOracleEdits);
 	}
 
 	export function createScoringFromSplit(
 		split: ISplitRecording,
 		proposedEdits: IStringReplacement[],
 		isAccepted: boolean,
+		oracleEdits?: ISerializedEdit,
+		maxOracleEdits = DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
 	): Scoring.t {
-		const nextUserEdit = getNextUserEdit(split.currentFile, split.recordingPriorToRequest, split.recordingAfterRequest);
+		const nextUserEdit: NextUserEdit.t = oracleEdits === undefined
+			? getNextUserEdit(split.currentFile, split.recordingPriorToRequest, split.recordingAfterRequest, maxOracleEdits)
+			: {
+				edit: oracleEdits,
+				relativePath: split.currentFile.relativePath,
+				originalOpIdx: split.recordingPriorToRequest.length - 1,
+			};
 
 		const reconstructedRecording: Recording.t = {
 			log: split.recordingPriorToRequest,
@@ -193,29 +202,156 @@ export namespace Processor {
 		return fileId;
 	}
 
-	function getNextUserEdit(currentFile: { id: number; relativePath: string }, recordingBeforeRequest: LogEntry[], recordingAfterRequest: LogEntry[]): NextUserEdit.t {
-
-		const N_EDITS_LIMIT = 10;
-
+	function getNextUserEdit(
+		currentFile: { id: number; relativePath: string },
+		recordingBeforeRequest: LogEntry[],
+		recordingAfterRequest: LogEntry[],
+		maxOracleEdits: number,
+	): NextUserEdit.t {
+		const initialState = getDocumentStateAtRequest(recordingBeforeRequest, currentFile.id);
+		let content = initialState.content;
+		let lastSelectionLine = initialState.selectionLine;
+		let lastEditTime: number | undefined;
+		let lastEditLineRange: ILineRange | undefined;
+		let hasPendingCursorBoundary = false;
 		const serializedEdits: ISerializedEdit[] = [];
+
 		for (const entry of recordingAfterRequest) {
-			if (entry.kind === 'changed' && 'id' in entry && entry.id === currentFile.id) {
-				serializedEdits.push(entry.edit);
+			if (entry.kind === 'selectionChanged' && entry.id === currentFile.id && entry.selection.length > 0 && content !== undefined) {
+				const selectionLine = getOffsetLine(content, entry.selection[0][0]);
+				const followsEdit = lastEditTime !== undefined
+					&& entry.time - lastEditTime >= 0
+					&& entry.time - lastEditTime <= ORACLE_CURSOR_SUPPRESSION_MS;
+				if (lastSelectionLine !== undefined && selectionLine !== lastSelectionLine && !followsEdit) {
+					hasPendingCursorBoundary = true;
+				}
+				lastSelectionLine = selectionLine;
+				continue;
 			}
-			if (serializedEdits.length > N_EDITS_LIMIT) {
-				break;
+
+			if (entry.kind === 'setContent' || entry.kind === 'restoreContent') {
+				if (entry.id === currentFile.id || serializedEdits.length > 0) {
+					break;
+				}
+				continue;
 			}
+			if (entry.kind !== 'changed') {
+				continue;
+			}
+			if (entry.id !== currentFile.id) {
+				if (serializedEdits.length > 0) {
+					break;
+				}
+				continue;
+			}
+
+			const edit = deserializeStringEdit(entry.edit);
+			const nextContent = content === undefined ? undefined : edit.apply(content);
+			if (content !== undefined && nextContent === content) {
+				continue;
+			}
+			const editLineRange = content === undefined ? undefined : getEditLineRange(content, edit);
+			if (serializedEdits.length > 0 && lastEditTime !== undefined) {
+				const delta = entry.time - lastEditTime;
+				const crossesIdleBoundary = delta <= 0 || delta >= ORACLE_EDIT_IDLE_MS;
+				const crossesCursorBoundary = hasPendingCursorBoundary
+					&& (
+						delta <= 0
+						|| delta >= ORACLE_EDIT_IDLE_MS
+						|| lastEditLineRange === undefined
+						|| editLineRange === undefined
+						|| !areLineRangesWithinGap(lastEditLineRange, editLineRange, ORACLE_CURSOR_CONTINUATION_LINE_GAP)
+					);
+				if (crossesIdleBoundary || crossesCursorBoundary) {
+					if (doesSerializedEditContinueOracle(serializedEdits, entry.edit)) {
+						return createNextUserEdit(currentFile, recordingBeforeRequest, []);
+					}
+					break;
+				}
+			}
+
+			serializedEdits.push(entry.edit);
+			content = nextContent;
+			lastEditTime = entry.time;
+			lastEditLineRange = editLineRange;
+			hasPendingCursorBoundary = false;
 		}
 
-		const edits = new Edits(
-			StringEdit,
-			serializedEdits.map(se => new StringEdit(se.map(r => new StringReplacement(new OffsetRange(r[0], r[1]), r[2]))))
+		return createNextUserEdit(
+			currentFile,
+			recordingBeforeRequest,
+			composeAndLimitSerializedEdits(serializedEdits, maxOracleEdits),
 		);
+	}
 
+	function createNextUserEdit(
+		currentFile: { id: number; relativePath: string },
+		recordingBeforeRequest: LogEntry[],
+		edit: ISerializedEdit,
+	): NextUserEdit.t {
 		return {
-			edit: edits.compose().replacements.map(r => [r.replaceRange.start, r.replaceRange.endExclusive, r.newText] as const),
+			edit,
 			relativePath: currentFile.relativePath,
 			originalOpIdx: recordingBeforeRequest.length - 1
 		};
+	}
+
+	interface ILineRange {
+		readonly startLine: number;
+		readonly endLine: number;
+	}
+
+	function getDocumentStateAtRequest(
+		recording: readonly LogEntry[],
+		documentId: number,
+	): { content: string | undefined; selectionLine: number | undefined } {
+		let content: string | undefined;
+		let selectionLine: number | undefined;
+		const storedContent = new Map<string, string>();
+		for (const entry of recording) {
+			if (!('id' in entry) || entry.id !== documentId) {
+				continue;
+			}
+			if (entry.kind === 'setContent') {
+				content = entry.content;
+			} else if (entry.kind === 'storeContent' && content !== undefined) {
+				storedContent.set(entry.contentId, content);
+			} else if (entry.kind === 'restoreContent') {
+				content = storedContent.get(entry.contentId);
+			} else if (entry.kind === 'changed' && content !== undefined) {
+				content = deserializeStringEdit(entry.edit).apply(content);
+			} else if (entry.kind === 'selectionChanged' && entry.selection.length > 0 && content !== undefined) {
+				selectionLine = getOffsetLine(content, entry.selection[0][0]);
+			}
+		}
+		return { content, selectionLine };
+	}
+
+	function getEditLineRange(content: string, edit: ReturnType<typeof deserializeStringEdit>): ILineRange | undefined {
+		if (edit.replacements.length === 0) {
+			return undefined;
+		}
+		const transformer = new StringText(content).getTransformer();
+		let startLine = Number.POSITIVE_INFINITY;
+		let endLine = Number.NEGATIVE_INFINITY;
+		for (const replacement of edit.replacements) {
+			startLine = Math.min(startLine, transformer.getPosition(replacement.replaceRange.start).lineNumber - 1);
+			endLine = Math.max(endLine, transformer.getPosition(replacement.replaceRange.endExclusive).lineNumber - 1);
+		}
+		return { startLine, endLine };
+	}
+
+	function getOffsetLine(content: string, offset: number): number {
+		return new StringText(content).getTransformer().getPosition(Math.min(offset, content.length)).lineNumber - 1;
+	}
+
+	function areLineRangesWithinGap(first: ILineRange, second: ILineRange, maxLineGap: number): boolean {
+		if (first.endLine < second.startLine) {
+			return second.startLine - first.endLine - 1 <= maxLineGap;
+		}
+		if (second.endLine < first.startLine) {
+			return first.startLine - second.endLine - 1 <= maxLineGap;
+		}
+		return true;
 	}
 }

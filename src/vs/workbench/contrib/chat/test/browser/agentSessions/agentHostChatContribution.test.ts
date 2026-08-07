@@ -3215,6 +3215,72 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('multi-root session is shown in an empty window', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.EMPTY,
+				getWorkspace: () => ({ id: 'empty', folders: [] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'multi-root'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Multi-root session',
+				workingDirectories: [URI.file('/workspace/a'), URI.file('/workspace/b')],
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/demo.code-workspace').toString() }),
+			});
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'metadata-less'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Metadata-less session',
+				workingDirectories: [URI.file('/elsewhere')],
+			});
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['Multi-root session', 'Metadata-less session']);
+		});
+
+		test('multi-root session is shown in a single-folder window that is one of its roots', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const folder = URI.file('/workspace/a');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'a', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'contains-folder'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Contains folder',
+				workingDirectories: [URI.file('/workspace/a'), URI.file('/workspace/b')],
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/demo.code-workspace').toString() }),
+			});
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'other-roots'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Other roots',
+				workingDirectories: [URI.file('/workspace/c'), URI.file('/workspace/d')],
+				_meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/other.code-workspace').toString() }),
+			});
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['Contains folder']);
+		});
+
 		test('sessionAdded notification filters out sessions outside the workspace', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
@@ -10393,10 +10459,10 @@ suite('AgentHostChatContribution', () => {
 			]);
 		});
 
-		test('refreshes customizations when the current active client hydrates after open', async () => {
+		test('refreshes customizations once when the current active client hydrates after open', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true, version: undefined },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = AgentSession.uri('copilot', 'late-active-client');
@@ -10442,11 +10508,27 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 
+			agentHostService.fireAction({
+				channel: sessionResource.toString(),
+				action: {
+					type: ActionType.SessionActiveClientSet,
+					activeClient: {
+						clientId: agentHostService.clientId,
+						tools: [],
+						customizations: [
+							{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+						],
+					},
+				},
+				serverSeq: 2,
+				origin: undefined,
+			});
+
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionActiveClientSet);
 			assert.strictEqual(activeClientActions.length, 1);
 			const activeClientAction = activeClientActions[0].action as { activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true, version: undefined },
 			]);
 		});
 	});

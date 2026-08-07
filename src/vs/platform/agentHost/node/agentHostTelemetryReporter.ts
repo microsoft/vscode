@@ -228,6 +228,7 @@ export interface IAgentHostToolInvokedReport {
 	turnId: string;
 	toolId: string;
 	toolSourceKind: string;
+	toolCallId: string;
 	result: ToolInvokedResult;
 	invocationTimeMs?: number;
 	resultSizeInCharacters: number;
@@ -922,6 +923,7 @@ export class AgentHostTelemetryReporter {
 			toolId: report.toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
+			toolCallId: report.toolCallId,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
 			resultSizeInCharacters: report.resultSizeInCharacters,

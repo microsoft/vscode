@@ -63,6 +63,7 @@ import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvid
 import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
+import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
@@ -507,6 +508,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// AgentSideEffects (redirected to a SessionTitleChanged action).
 		this._register(this._completions.registerProvider(
 			new AgentHostRenameCompletionProvider(
+				session => (this._stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
+			),
+		));
+		this._register(this._completions.registerProvider(
+			new CodexCompactCompletionProvider(
 				session => (this._stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
 			),
 		));

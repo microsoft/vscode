@@ -794,7 +794,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * already be cleared by then.
 	 */
 	private readonly _inputNeededWatcherBackends = new ResourceMap<URI>();
-	/** Per-session subscription reconciling client data after session state hydration. */
+	/** One-shot per-session subscription reconciling client data after session state hydration. */
 	private readonly _activeClientRefreshSubscriptions = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
@@ -1362,7 +1362,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (sessionSubscription) {
 			this._ensureActiveClientRefreshSubscription(sessionResource, resolvedSession, sessionSubscription);
 		}
-		this._refreshActiveClientIfPresent(resolvedSession);
 
 		if (!isNewSession) {
 			// Only wire up pending-message/draft sync once the chat URI has been
@@ -1892,33 +1891,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
-	/**
-	 * Refresh this client's tools and customizations when it is already active.
-	 * Unlike {@link _ensureActiveClient}, this never claims a session owned by a
-	 * different client, so opening a session cannot interrupt another window's
-	 * in-progress turn. This closes the initialization race where customization
-	 * discovery finishes before the session is added to `_activeSessions`.
-	 */
-	private _refreshActiveClientIfPresent(backendSession: URI): void {
-		const state = this._getSessionState(backendSession.toString());
-		const activeClient = this._getCurrentActiveClient();
-		const existing = state?.activeClients.find(c => c.clientId === activeClient.clientId);
-		if (!existing || equals(existing, activeClient)) {
-			return;
-		}
-		this._dispatchAction(backendSession, {
-			type: ActionType.SessionActiveClientSet,
-			activeClient,
-		});
-	}
-
+	/** Refreshes this client's data once it appears in hydrated state without claiming another client's session. */
 	private _ensureActiveClientRefreshSubscription(sessionResource: URI, backendSession: URI, sessionSubscription: IAgentSubscription<SessionState>): void {
 		if (this._activeClientRefreshSubscriptions.has(sessionResource)) {
 			return;
 		}
-		this._activeClientRefreshSubscriptions.set(sessionResource, sessionSubscription.onDidChange(() => {
-			this._refreshActiveClientIfPresent(backendSession);
-		}));
+		const refresh = () => {
+			const state = this._getSessionState(backendSession.toString());
+			const activeClient = this._getCurrentActiveClient();
+			const existing = state?.activeClients.find(c => c.clientId === activeClient.clientId);
+			if (!existing) {
+				return;
+			}
+
+			this._activeClientRefreshSubscriptions.deleteAndDispose(sessionResource);
+			if (!equals(existing, activeClient)) {
+				this._dispatchAction(backendSession, {
+					type: ActionType.SessionActiveClientSet,
+					activeClient,
+				});
+			}
+		};
+		this._activeClientRefreshSubscriptions.set(sessionResource, sessionSubscription.onDidChange(refresh));
+		refresh();
 	}
 
 	/**
@@ -3729,13 +3724,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			if (state.type === IChatToolInvocation.StateKind.Executing) {
 				confirmationDispatched = true;
-				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, {
-					type: ActionType.ChatToolCallConfirmed,
-					turnId: opts.turnId,
-					toolCallId,
-					approved: true,
-					confirmed: confirmedReasonToProtocol(state.confirmed),
-				});
+				const selectedOptionId = state.confirmed.type === ToolConfirmKind.UserAction ? state.confirmed.selectedButton : undefined;
+				const approved = state.confirmed.type !== ToolConfirmKind.UserAction
+					|| state.confirmed.selectedButtonKind !== ConfirmationOptionKind.Deny;
+				this._resolveToolCall(opts.chatURI, opts.turnId, toolCallId, approved
+					? {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: opts.turnId,
+						toolCallId,
+						approved: true,
+						confirmed: confirmedReasonToProtocol(state.confirmed),
+						...(selectedOptionId ? { selectedOptionId } : {}),
+					}
+					: {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: opts.turnId,
+						toolCallId,
+						approved: false,
+						reason: ToolCallCancellationReason.Denied,
+						...(selectedOptionId ? { selectedOptionId } : {}),
+					});
 			} else if (state.type === IChatToolInvocation.StateKind.Cancelled) {
 				// Pre-execution cancellation (a denied confirmation). If the
 				// protocol call already reached a terminal state the server

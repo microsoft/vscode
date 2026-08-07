@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
-import { ResponsePartKind, TurnState } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallStatus, TurnState } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
 
@@ -201,6 +201,68 @@ suite('codexReplayMapper', () => {
 			success: true,
 			output: 'total 0',
 		});
+	});
+
+	test('contextCompaction is restored as a completed /compact turn', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_compact',
+				items: [{ type: 'contextCompaction', id: 'compact_1' }],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		const part = turns[0].responseParts[0];
+
+		assert.deepStrictEqual({
+			message: turns[0].message,
+			kind: part.kind,
+			toolCall: part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+				status: part.toolCall.status,
+				toolName: part.toolCall.toolName,
+				displayName: part.toolCall.displayName,
+				invocationMessage: part.toolCall.invocationMessage,
+				pastTenseMessage: part.toolCall.pastTenseMessage,
+				success: part.toolCall.success,
+			} : undefined,
+		}, {
+			message: { text: '/compact', origin: { kind: MessageKind.User } },
+			kind: ResponsePartKind.ToolCall,
+			toolCall: {
+				status: ToolCallStatus.Completed,
+				toolName: 'compact',
+				displayName: 'Compact conversation',
+				invocationMessage: 'Compacting conversation',
+				pastTenseMessage: 'Compacted conversation',
+				success: true,
+			},
+		});
+	});
+
+	test('automatic contextCompaction remains progress within its existing turn', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_auto_compact',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'continue', text_elements: [] }] },
+					{ type: 'contextCompaction', id: 'compact_1' },
+					{ type: 'agentMessage', id: 'a1', text: 'continued', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].message.text, 'continue');
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind), [
+			ResponsePartKind.ToolCall,
+			ResponsePartKind.Markdown,
+		]);
 	});
 
 	test('commandExecution coalesces a sandbox pre-flight with its re-run into one box', () => {

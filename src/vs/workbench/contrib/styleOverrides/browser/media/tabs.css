@@ -373,12 +373,12 @@
 	position: absolute;
 	z-index: 8;
 	top: 0;
-	left: 0;
-	width: 100% !important;
-	height: 2px !important;
+	left: var(--vscode-spacing-size20);
+	width: calc(100% - var(--vscode-spacing-size40));
+	height: 2px;
 	border: none;
 	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 0;
-	background-color: var(--tab-dirty-border-top-color) !important;
+	background-color: var(--tab-dirty-border-top-color);
 	pointer-events: none;
 }
 
