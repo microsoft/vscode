@@ -10,7 +10,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IGuardedAutomationTransferRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSnapshot, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
 import {
 	AutomationRunTrigger,
 	AutomationTarget,
@@ -270,13 +270,14 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		publishAutomationDeleted(this.telemetryService, existing);
 	}
 
-	async importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean> {
+	async importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult> {
+		const { automation, runs } = snapshot;
 		return this.mutateLedger(ledger => {
 			const hasAutomation = ledger.automations.some(candidate => candidate.id === automation.id);
 			const existingRunIds = new Set(ledger.runs.map(run => run.id));
 			const missingRuns = runs.filter(run => !existingRunIds.has(run.id));
 			if (hasAutomation && missingRuns.length === 0) {
-				return { kind: 'noChange', result: false };
+				return { kind: 'noChange', result: { kind: 'alreadyPresent' } as const };
 			}
 			return {
 				kind: 'commit',
@@ -284,12 +285,13 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 					automations: hasAutomation ? ledger.automations : [automation, ...ledger.automations],
 					runs: [...missingRuns, ...ledger.runs],
 				},
-				result: !hasAutomation,
+				result: { kind: hasAutomation ? 'alreadyPresent' : 'inserted' } as const,
 			};
 		});
 	}
 
-	async storeAutomationForTransfer(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<void> {
+	async upsertAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<void> {
+		const { automation, runs } = snapshot;
 		await this.mutateLedger(ledger => {
 			const existing = ledger.automations.find(candidate => candidate.id === automation.id);
 			const existingRunIds = new Set(ledger.runs.map(run => run.id));
@@ -310,30 +312,31 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		});
 	}
 
-	async tryRemoveAutomationSnapshot(expected: IAutomation, expectedRuns: readonly IAutomationRun[]): Promise<IGuardedAutomationTransferRemovalResult> {
-		const result = await this.mutateLedger<IGuardedAutomationTransferRemovalResult>(ledger => {
-			const current = ledger.automations.find(candidate => candidate.id === expected.id);
+	async removeAutomationSnapshotIfUnchanged(expected: IAutomationSnapshot): Promise<IGuardedAutomationSnapshotRemovalResult> {
+		const result = await this.mutateLedger<IGuardedAutomationSnapshotRemovalResult>(ledger => {
+			const current = ledger.automations.find(candidate => candidate.id === expected.automation.id);
 			if (!current) {
 				return { kind: 'noChange', result: { kind: 'missing' } };
 			}
-			const currentRuns = ledger.runs.filter(run => run.automationId === expected.id);
-			if (!areAutomationTransferSnapshotsEqual(current, currentRuns, expected, expectedRuns)) {
+			const currentRuns = ledger.runs.filter(run => run.automationId === expected.automation.id);
+			const currentSnapshot: IAutomationSnapshot = { automation: current, runs: currentRuns };
+			if (!areAutomationSnapshotsEqual(currentSnapshot, expected)) {
 				return {
 					kind: 'noChange',
-					result: { kind: 'changed', automation: current, runs: currentRuns },
+					result: { kind: 'conflict', current: currentSnapshot },
 				};
 			}
 			return {
 				kind: 'commit',
 				ledger: {
-					automations: ledger.automations.filter(candidate => candidate.id !== expected.id),
-					runs: ledger.runs.filter(run => run.automationId !== expected.id),
+					automations: ledger.automations.filter(candidate => candidate.id !== expected.automation.id),
+					runs: ledger.runs.filter(run => run.automationId !== expected.automation.id),
 				},
 				result: { kind: 'removed' },
 			};
 		});
 		if (result.kind === 'removed') {
-			this._runsForCache.delete(expected.id);
+			this._runsForCache.delete(expected.automation.id);
 		}
 		return result;
 	}
@@ -601,14 +604,9 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 	};
 }
 
-function areAutomationTransferSnapshotsEqual(
-	firstAutomation: IAutomation,
-	firstRuns: readonly IAutomationRun[],
-	secondAutomation: IAutomation,
-	secondRuns: readonly IAutomationRun[],
-): boolean {
-	return JSON.stringify(serializeAutomation(firstAutomation)) === JSON.stringify(serializeAutomation(secondAutomation))
-		&& JSON.stringify(firstRuns) === JSON.stringify(secondRuns);
+function areAutomationSnapshotsEqual(first: IAutomationSnapshot, second: IAutomationSnapshot): boolean {
+	return JSON.stringify(serializeAutomation(first.automation)) === JSON.stringify(serializeAutomation(second.automation))
+		&& JSON.stringify(first.runs) === JSON.stringify(second.runs);
 }
 
 function deserializeAutomation(s: ISerializedAutomation): IAutomation | undefined {

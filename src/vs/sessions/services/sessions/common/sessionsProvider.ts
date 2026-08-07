@@ -67,15 +67,27 @@ export interface ISessionModelsSnapshot {
 	readonly modelTarget: string | undefined;
 }
 
-export type IGuardedAutomationTransferRemovalResult =
+export interface IAutomationSnapshot {
+	readonly automation: IAutomation;
+	readonly runs: readonly IAutomationRun[];
+}
+
+export type IAutomationSnapshotImportResult =
+	| { readonly kind: 'inserted' }
+	| { readonly kind: 'alreadyPresent' };
+
+export type IGuardedAutomationSnapshotRemovalResult =
 	| { readonly kind: 'removed' }
-	| { readonly kind: 'changed'; readonly automation: IAutomation; readonly runs: readonly IAutomationRun[] }
+	| { readonly kind: 'conflict'; readonly current: IAutomationSnapshot }
 	| { readonly kind: 'missing' };
 
 export interface ISessionsProviderAutomations extends IAutomationStore {
-	importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean>;
-	storeAutomationForTransfer(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<void>;
-	tryRemoveAutomationSnapshot(expected: IAutomation, expectedRuns: readonly IAutomationRun[]): Promise<IGuardedAutomationTransferRemovalResult>;
+	/** Imports a snapshot without replacing an Automation already stored under the same ID. */
+	importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult>;
+	/** Inserts or replaces an Automation snapshot without publishing create or update telemetry. */
+	upsertAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<void>;
+	/** Removes a snapshot only when the currently stored Automation and runs still match it. */
+	removeAutomationSnapshotIfUnchanged(expected: IAutomationSnapshot): Promise<IGuardedAutomationSnapshotRemovalResult>;
 }
 
 /**

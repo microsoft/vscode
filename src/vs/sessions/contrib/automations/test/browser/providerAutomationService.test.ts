@@ -14,9 +14,8 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IAutomation, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSnapshot, IAutomationSnapshotImportResult, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationStore } from '../../browser/automationService.js';
 import { ProviderAutomationService } from '../../browser/providerAutomationService.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService, providerAutomationStorageKey } from '../../common/automationStorageService.js';
@@ -33,16 +32,16 @@ class FailingStaleRunRecoveryAutomationStore extends AutomationStore {
 }
 
 class PartiallyFailingMigrationAutomationStore extends AutomationStore {
-	override async importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean> {
-		if (automation.id === 'automation-1') {
+	override async importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult> {
+		if (snapshot.automation.id === 'automation-1') {
 			throw new Error('Import failed.');
 		}
-		return super.importAutomation(automation, runs);
+		return super.importAutomationSnapshot(snapshot);
 	}
 }
 
 class FailingTransferAutomationStore extends AutomationStore {
-	override async storeAutomationForTransfer(): Promise<void> {
+	override async upsertAutomationSnapshot(): Promise<void> {
 		throw new Error('Transfer failed.');
 	}
 }
@@ -53,21 +52,21 @@ class ConcurrentlyMutatingMigrationAutomationStore extends AutomationStore {
 	private didMutate = false;
 	private updateCount = 0;
 
-	override async importAutomation(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean> {
-		const inserted = await super.importAutomation(automation, runs);
+	override async importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult> {
+		const result = await super.importAutomationSnapshot(snapshot);
 		if (this.mutation === 'continuousUpdate') {
-			await this.legacyWriter.updateAutomation(automation.id, { name: `Concurrent update ${++this.updateCount}` });
+			await this.legacyWriter.updateAutomation(snapshot.automation.id, { name: `Concurrent update ${++this.updateCount}` });
 		} else if (!this.didMutate) {
 			this.didMutate = true;
 			if (this.mutation === 'update') {
-				await this.legacyWriter.updateAutomation(automation.id, { name: 'Concurrent update' });
+				await this.legacyWriter.updateAutomation(snapshot.automation.id, { name: 'Concurrent update' });
 			} else if (this.mutation === 'delete') {
-				await this.legacyWriter.deleteAutomation(automation.id);
+				await this.legacyWriter.deleteAutomation(snapshot.automation.id);
 			} else {
-				await this.legacyWriter.recordRunStart(automation.id, 'manual', 1);
+				await this.legacyWriter.recordRunStart(snapshot.automation.id, 'manual', 1);
 			}
 		}
-		return inserted;
+		return result;
 	}
 }
 
@@ -75,11 +74,11 @@ class ConcurrentlyMutatingTransferAutomationStore extends AutomationStore {
 	legacyWriter!: AutomationStore;
 	private didMutate = false;
 
-	override async storeAutomationForTransfer(automation: IAutomation, runs: readonly IAutomationRun[]): Promise<void> {
-		await super.storeAutomationForTransfer(automation, runs);
+	override async upsertAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<void> {
+		await super.upsertAutomationSnapshot(snapshot);
 		if (!this.didMutate) {
 			this.didMutate = true;
-			await this.legacyWriter.recordRunStart(automation.id, 'manual', 1);
+			await this.legacyWriter.recordRunStart(snapshot.automation.id, 'manual', 1);
 		}
 	}
 }

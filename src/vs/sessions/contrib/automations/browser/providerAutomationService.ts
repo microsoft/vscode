@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IAutomation, IAutomationRun, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSnapshot, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 import { AutomationService } from './automationService.js';
 
 interface IAutomationStoreEntry {
@@ -82,7 +82,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
 		const source = this.requireAutomationStore(id);
 		const updated = await source.updateAutomation(id, patch);
-		await this.transferAutomationIfNeeded(source, updated);
+		await this.retargetAutomationStorageIfNeeded(source, updated);
 		return updated;
 	}
 
@@ -90,7 +90,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		const source = this.requireAutomationStore(id);
 		const result = await source.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 		if (result.kind === 'updated') {
-			await this.transferAutomationIfNeeded(source, result.automation);
+			await this.retargetAutomationStorageIfNeeded(source, result.automation);
 		}
 		return result;
 	}
@@ -157,33 +157,34 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return this.legacyStore;
 	}
 
-	private async transferAutomationIfNeeded(source: ISessionsProviderAutomations, initialAutomation: IAutomation): Promise<void> {
-		let automation = initialAutomation;
-		let runs = source.runsFor(automation.id).get();
+	private async retargetAutomationStorageIfNeeded(sourceStore: ISessionsProviderAutomations, initialAutomation: IAutomation): Promise<void> {
+		let snapshot: IAutomationSnapshot = {
+			automation: initialAutomation,
+			runs: sourceStore.runsFor(initialAutomation.id).get(),
+		};
 		for (let attempt = 0; attempt < MAX_AUTOMATION_TRANSFER_ATTEMPTS; attempt++) {
-			const destination = this.getTargetStore(automation.target.providerId);
-			if (source === destination) {
+			const destinationStore = this.getTargetStore(snapshot.automation.target.providerId);
+			if (sourceStore === destinationStore) {
 				return;
 			}
 
-			await destination.storeAutomationForTransfer(automation, runs);
-			const removal = await source.tryRemoveAutomationSnapshot(automation, runs);
-			switch (removal.kind) {
+			await destinationStore.upsertAutomationSnapshot(snapshot);
+			const sourceRemoval = await sourceStore.removeAutomationSnapshotIfUnchanged(snapshot);
+			switch (sourceRemoval.kind) {
 				case 'removed':
 					return;
 				case 'missing':
-					await this.rollbackAutomationSnapshot(destination, automation, runs);
+					await this.rollbackAutomationSnapshotIfUnchanged(destinationStore, snapshot);
 					return;
-				case 'changed':
-					if (!await this.rollbackAutomationSnapshot(destination, automation, runs)) {
+				case 'conflict':
+					if (!await this.rollbackAutomationSnapshotIfUnchanged(destinationStore, snapshot)) {
 						return;
 					}
-					automation = removal.automation;
-					runs = removal.runs;
+					snapshot = sourceRemoval.current;
 					break;
 			}
 		}
-		this.logService.warn(`[ProviderAutomationService] Automation '${automation.id}' kept changing while transferring storage ownership; leaving the source copy in place.`);
+		this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' kept changing while transferring storage ownership; leaving the source copy in place.`);
 	}
 
 	private findAutomationStore(id: string): IAutomationStoreEntry | undefined {
@@ -219,10 +220,12 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	}
 
 	private async migrateLegacyAutomation(initialAutomation: IAutomation): Promise<void> {
-		let automation = initialAutomation;
-		let runs = this.legacyStore.runsFor(automation.id).get();
+		let snapshot: IAutomationSnapshot = {
+			automation: initialAutomation,
+			runs: this.legacyStore.runsFor(initialAutomation.id).get(),
+		};
 		for (let attempt = 0; attempt < MAX_AUTOMATION_TRANSFER_ATTEMPTS; attempt++) {
-			const providerId = automation.target.providerId;
+			const providerId = snapshot.automation.target.providerId;
 			if (!providerId) {
 				return;
 			}
@@ -231,32 +234,31 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 				return;
 			}
 
-			const destinationCreated = await providerStore.importAutomation(automation, runs);
-			const removal = await this.legacyStore.tryRemoveAutomationSnapshot(automation, runs);
-			switch (removal.kind) {
+			const importResult = await providerStore.importAutomationSnapshot(snapshot);
+			const sourceRemoval = await this.legacyStore.removeAutomationSnapshotIfUnchanged(snapshot);
+			switch (sourceRemoval.kind) {
 				case 'removed':
 					return;
 				case 'missing':
-					if (destinationCreated) {
-						await this.rollbackAutomationSnapshot(providerStore, automation, runs);
+					if (importResult.kind === 'inserted') {
+						await this.rollbackAutomationSnapshotIfUnchanged(providerStore, snapshot);
 					}
 					return;
-				case 'changed':
-					if (destinationCreated && !await this.rollbackAutomationSnapshot(providerStore, automation, runs)) {
+				case 'conflict':
+					if (importResult.kind === 'inserted' && !await this.rollbackAutomationSnapshotIfUnchanged(providerStore, snapshot)) {
 						return;
 					}
-					automation = removal.automation;
-					runs = removal.runs;
+					snapshot = sourceRemoval.current;
 					break;
 			}
 		}
-		this.logService.warn(`[ProviderAutomationService] Automation '${automation.id}' kept changing during legacy migration; leaving it in legacy storage.`);
+		this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' kept changing during legacy migration; leaving it in legacy storage.`);
 	}
 
-	private async rollbackAutomationSnapshot(store: ISessionsProviderAutomations, automation: IAutomation, runs: readonly IAutomationRun[]): Promise<boolean> {
-		const result = await store.tryRemoveAutomationSnapshot(automation, runs);
-		if (result.kind === 'changed') {
-			this.logService.warn(`[ProviderAutomationService] Automation '${automation.id}' changed in the destination store during rollback; leaving both copies in place.`);
+	private async rollbackAutomationSnapshotIfUnchanged(store: ISessionsProviderAutomations, snapshot: IAutomationSnapshot): Promise<boolean> {
+		const result = await store.removeAutomationSnapshotIfUnchanged(snapshot);
+		if (result.kind === 'conflict') {
+			this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' changed in the destination store during rollback; leaving both copies in place.`);
 			return false;
 		}
 		return true;
