@@ -28,6 +28,16 @@ export class MainProcessService implements IMainProcessService {
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<string>): void {
+		// Güvenlik Kontrolü: Kanal adının boş veya geçersiz karakterler içerip içermediğini denetle
+		if (!channelName || typeof channelName !== 'string' || channelName.trim() === '') {
+			throw new Error('Geçersiz veya boş kanal ismi tespit edildi.');
+		}
+
+		// Optional: A specific prefix or rule requirement can be added.
+		// if (!channelName.startsWith('vscode:')) {
+		// 	throw new Error(`Unauthorized channel registration attempt: ${channelName}`);
+		// }
+
 		this.server.registerChannel(channelName, channel);
 	}
 }
