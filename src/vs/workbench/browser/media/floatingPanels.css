@@ -152,9 +152,7 @@
 .monaco-workbench.floating-panels .part.activitybar {
 	margin: var(--vscode-spacing-size40);
 	height: calc(100% - (var(--vscode-spacing-size40) * 2));
-	border: var(--vscode-strokeThickness) solid var(--vscode-activityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))) !important;
 	border-radius: var(--vscode-cornerRadius-medium);
-	box-sizing: border-box;
 	overflow: hidden;
 }
 
@@ -182,6 +180,10 @@
 	padding-right: var(--vscode-spacing-size60);
 	padding-top: var(--vscode-spacing-size40);
 	padding-bottom: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels .part.statusbar:not(:focus).status-border-top::after {
+	display: none;
 }
 
 /* With a compact activity bar the horizontal inset is tightened to match.
