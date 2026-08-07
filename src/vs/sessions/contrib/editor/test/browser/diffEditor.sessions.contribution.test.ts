@@ -14,21 +14,25 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IEditorPane, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { SessionChangesEditor } from '../../../changes/browser/sessionChangesEditor.js';
 import { SessionsDiffEditorCommandsService } from '../../browser/diffEditor.sessions.contribution.js';
+import { TextDiffEditor } from '../../../../../workbench/browser/parts/editor/textDiffEditor.js';
+import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorType } from '../../../../../editor/common/editorCommon.js';
 
 suite('SessionsDiffEditorCommandsService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	interface IWrite { readonly key: string; readonly value: unknown; readonly target?: ConfigurationTarget }
+	interface IWrite { readonly resource?: URI; readonly key: string; readonly value: unknown; readonly target?: ConfigurationTarget }
 
-	function createService(activeEditorPane: IEditorPane | undefined, renderSideBySide: boolean): { service: SessionsDiffEditorCommandsService; workspaceWrites: IWrite[]; resourceWrites: IWrite[] } {
+	function createService(activeEditorPane: IEditorPane | undefined, renderSideBySide: boolean, visibleEditorPanes: readonly IVisibleEditorPane[] = []): { service: SessionsDiffEditorCommandsService; workspaceWrites: IWrite[]; resourceWrites: IWrite[] } {
 		const workspaceWrites: IWrite[] = [];
 		const resourceWrites: IWrite[] = [];
 
 		const editorService = new class extends mock<IEditorService>() {
 			override get activeEditorPane() { return activeEditorPane as IVisibleEditorPane | undefined; }
 			override get activeEditor() { return undefined; }
-			override get visibleEditorPanes() { return []; }
+			override get visibleEditorPanes() { return visibleEditorPanes; }
 			override get visibleEditors() { return []; }
 		};
 		const configurationService = new class extends mock<IConfigurationService>() {
@@ -41,7 +45,7 @@ suite('SessionsDiffEditorCommandsService', () => {
 		const textResourceConfigurationService = new class extends mock<ITextResourceConfigurationService>() {
 			override getValue<T>(): T { return true as unknown as T; }
 			override updateValue(resource: URI | undefined, key: string, value: unknown): Promise<void> {
-				resourceWrites.push({ key, value });
+				resourceWrites.push({ resource, key, value });
 				return Promise.resolve();
 			}
 		};
@@ -51,6 +55,23 @@ suite('SessionsDiffEditorCommandsService', () => {
 
 		const service = new SessionsDiffEditorCommandsService(editorService, textResourceConfigurationService, contextKeyService, configurationService);
 		return { service, workspaceWrites, resourceWrites };
+	}
+
+	function createTextDiffEditor(resource: URI, renderSideBySide: boolean, controlUpdates: IDiffEditorOptions[]): TextDiffEditor {
+		const modifiedEditor = new class extends mock<ICodeEditor>() {
+			override getModel() { return { uri: resource } as ReturnType<ICodeEditor['getModel']>; }
+		};
+		const control = new class extends mock<IDiffEditor>() {
+			override getEditorType() { return EditorType.IDiffEditor; }
+			override get renderSideBySide() { return renderSideBySide; }
+			override getModifiedEditor() { return modifiedEditor; }
+			override updateOptions(options: IDiffEditorOptions): void {
+				controlUpdates.push(options);
+			}
+		};
+		const pane = Object.create(TextDiffEditor.prototype) as TextDiffEditor;
+		Object.defineProperty(pane, 'getControl', { value: () => control });
+		return pane;
 	}
 
 	test('flips the workspace renderSideBySide setting when the Changes editor is active', async () => {
@@ -73,11 +94,44 @@ suite('SessionsDiffEditorCommandsService', () => {
 		assert.deepStrictEqual(workspaceWrites, [{ key: 'diffEditor.renderSideBySide', value: true, target: ConfigurationTarget.WORKSPACE }]);
 	});
 
-	test('falls back to the base path for a normal diff editor', async () => {
-		const { service, workspaceWrites } = createService(undefined /* no Changes editor active */, true);
+	test('toggles and persists the active single-file diff editor without forwarded arguments', async () => {
+		const resource = URI.file('/workspace/file.ts');
+		const controlUpdates: IDiffEditorOptions[] = [];
+		const textDiffEditor = createTextDiffEditor(resource, false, controlUpdates);
+		const { service, workspaceWrites, resourceWrites } = createService(textDiffEditor, true);
 
 		await service.toggleRenderSideBySide([]);
 
-		assert.strictEqual(workspaceWrites.length, 0, 'the workspace setting must not be written for a non-Changes editor');
+		assert.deepStrictEqual({
+			workspaceWrites,
+			resourceWrites,
+			controlUpdates,
+		}, {
+			workspaceWrites: [],
+			resourceWrites: [{ resource, key: 'diffEditor.renderSideBySide', value: true }],
+			controlUpdates: [{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: false }],
+		});
+	});
+
+	test('toggles the visible single-file diff matching the forwarded resource', async () => {
+		const activeResource = URI.file('/workspace/active.ts');
+		const targetResource = URI.file('/workspace/target.ts');
+		const activeControlUpdates: IDiffEditorOptions[] = [];
+		const targetControlUpdates: IDiffEditorOptions[] = [];
+		const activeEditor = createTextDiffEditor(activeResource, true, activeControlUpdates);
+		const targetEditor = createTextDiffEditor(targetResource, true, targetControlUpdates);
+		const { service, resourceWrites } = createService(activeEditor, true, [targetEditor as IVisibleEditorPane]);
+
+		await service.toggleRenderSideBySide([targetResource]);
+
+		assert.deepStrictEqual({
+			resourceWrites,
+			activeControlUpdates,
+			targetControlUpdates,
+		}, {
+			resourceWrites: [{ resource: targetResource, key: 'diffEditor.renderSideBySide', value: false }],
+			activeControlUpdates: [],
+			targetControlUpdates: [{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false }],
+		});
 	});
 });
