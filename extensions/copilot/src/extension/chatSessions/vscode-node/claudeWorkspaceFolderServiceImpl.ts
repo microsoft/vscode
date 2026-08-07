@@ -21,6 +21,20 @@ import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderSe
 
 const EMPTY_TREE_OBJECT = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
+/**
+ * Upper bound on the number of changed files retained per session.
+ *
+ * The changes list is attached to every `ChatSessionItem` and the whole item
+ * collection is serialized across the extension-host RPC boundary in a single
+ * `JSON.stringify` call. A pathological diff (e.g. a large untracked directory
+ * such as `node_modules` staged into the temporary index) can produce hundreds
+ * of thousands of entries, and across all sessions this overflows V8's maximum
+ * string length, throwing `RangeError: Invalid string length` during
+ * serialization. The Sessions/Changes view cannot meaningfully display that
+ * many files anyway, so we cap the list where it is produced.
+ */
+const MAX_CHANGES_PER_SESSION = 1000;
+
 // #endregion
 
 export class ClaudeWorkspaceFolderService extends Disposable implements IClaudeWorkspaceFolderService {
@@ -85,7 +99,14 @@ export class ClaudeWorkspaceFolderService extends Disposable implements IClaudeW
 		}
 
 		const originalRef = result.mergeBaseCommit ?? 'HEAD';
-		const changes = result.changes.map(change => new vscode.ChatSessionChangedFile(
+		const totalChanges = result.changes.length;
+		if (totalChanges > MAX_CHANGES_PER_SESSION) {
+			this._logService.warn(`[ClaudeWorkspaceFolderService] Truncating workspace changes for folder "${path.basename(cwd)}" from ${totalChanges} to ${MAX_CHANGES_PER_SESSION} entries to avoid oversized session items`);
+		}
+		const boundedChanges = totalChanges > MAX_CHANGES_PER_SESSION
+			? result.changes.slice(0, MAX_CHANGES_PER_SESSION)
+			: result.changes;
+		const changes = boundedChanges.map(change => new vscode.ChatSessionChangedFile(
 			vscode.Uri.file(change.filePath),
 			change.originalFilePath
 				? toGitUri(vscode.Uri.file(change.originalFilePath), originalRef)
