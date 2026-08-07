@@ -26,6 +26,14 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Paired experiment treatments must resolve atomically**: when a prompt and its editable placeholder are separate treatment values, use them only when both are non-empty; otherwise use both defaults so copy from different variants is never mixed. The prompt may omit the placeholder token entirely, in which case it is used literally and placeholder highlighting is simply absent.
+
+- **Onboarding variations share structural steps and vary only their run step**: keep one scenario for workspace selection, then resolve the experiment/developer variation when the run step executes. Personalized GitHub prompts use existing authentication silently, stay within a bounded cancellable lookup, verify that the selected draft workspace is still current, and fall back to the default prompt without surfacing an error.
+
+- **Agent-host onboarding readiness comes from advertised session types, not provider registration**: an agent-host provider exists before its root state connects, while its `sessionTypes` stay empty. Gate tours that need a usable host on a context key derived from any `local-agent-host`/`agenthost-*` provider exposing a session type, and update it from `ISessionsManagementService.onDidChangeSessionTypes`.
+
+- **Diagnostic log text is not a unit-test contract**: add consistently prefixed, actionable logs, but do not add tests that assert log messages or levels. Validate the underlying behavior and keep diagnostics free to evolve.
+
 - **Shared visual-module gates must not activate broader layout contracts**: the Agents window may opt into shared editor-tab styles through a tab-specific root class, but must not apply the broad `style-override` class unless it also loads every matching Modern UI layout module. Keep shared tab runtime metrics aware of both gates, and preserve structural behavior such as a sticky add-tab action when removing a Sessions-owned stylesheet. Since the Agents workbench is always modern, chat-tab presentation belongs in the owning `chatCompositeBar.css`, scoped through `.session-chat-tabs-bar` and chat-specific classes while consuming shared state tokens; do not add Sessions selectors to or rewrite the shared editor stylesheet.
 
 - **Minimum-size activation across the Sessions/Editor split must be symmetric and layout-aware**: when either part is at minimum width, pointer or keyboard activation expands it by shrinking its sibling to minimum width. In single-pane layout, the Editor grid node's effective minimum includes the visible docked Auxiliary Bar width; using `editorPartView.minimumWidth` alone collapses Details.
