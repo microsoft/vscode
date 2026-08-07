@@ -1712,6 +1712,77 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
+	test('[single-pane] keeps the side pane visible when a quick chat is active among multiple sessions', async () => {
+		createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
+		const workspaceSession = makeSession(URI.parse('session:workspace'));
+		const quickChat = makeSession(URI.parse('session:quick'), { isQuickChat: true });
+
+		harness.activeSessionObs.set(workspaceSession, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		transaction(tx => {
+			harness.visibleSessionsObs.set([workspaceSession, quickChat], tx);
+			harness.activeSessionObs.set(quickChat, tx);
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			hideCalls: harness.setPartHiddenCalls.filter(call => call.hidden),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: true,
+			hideCalls: [],
+		});
+	});
+
+	test('[single-pane] restores open side-pane parts when an existing session is opened to the side', async () => {
+		createSinglePaneController({
+			singlePaneLayoutEnabled: true,
+			activateAux: true,
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: true },
+				existingSession: { editorVisible: true, auxiliaryBarVisible: true },
+			},
+		});
+		const quickChat = makeSession(URI.parse('session:quick'), { isQuickChat: true });
+		const existingSession = makeSession(URI.parse('session:existing'));
+
+		harness.activeSessionObs.set(quickChat, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		transaction(tx => {
+			harness.visibleSessionsObs.set([quickChat, existingSession], tx);
+			harness.activeSessionObs.set(existingSession, tx);
+		});
+		await timeout(0);
+		harness.activeEditorInput = makeFileEditor();
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			hasDockedDetails: harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key),
+			revealCalls: harness.setPartHiddenCalls.filter(call => !call.hidden),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: true,
+			hasDockedDetails: true,
+			revealCalls: [
+				{ part: Parts.AUXILIARYBAR_PART, hidden: false },
+				{ part: Parts.EDITOR_PART, hidden: false },
+			],
+		});
+	});
+
 	test('[single-pane] hides Editor before Details when switching to Quick Chat before the outgoing group clears', async () => {
 		createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
 		await timeout(0);
