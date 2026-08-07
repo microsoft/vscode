@@ -2145,7 +2145,17 @@ export class CopilotAgentSession extends Disposable {
 
 		await this._prepareSdkTurn(mode);
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
-		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
+		await this._otelService.withTraceContext(traceContext, () => {
+			if (!this._environmentService.isBuilt && prompt === 'error' && !sdkAttachments?.length) {
+				return this._wrapper.session.rpc.sendMessages({
+					messages: [{ prompt }],
+					requestHeaders: {
+						Authorization: 'Bearer vscode-recoverable-error-test',
+					},
+				});
+			}
+			return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+		});
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -4329,6 +4339,9 @@ export class CopilotAgentSession extends Disposable {
 				},
 				...(!parentToolCallId && this._currentTurn !== undefined ? { resumable: true } : {}),
 			}, parentToolCallId);
+			if (!parentToolCallId) {
+				this._clearActiveTurn();
+			}
 		}));
 
 		this._register(wrapper.onModelCallFailure(e => {

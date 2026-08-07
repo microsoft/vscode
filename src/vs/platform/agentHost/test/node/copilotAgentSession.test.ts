@@ -603,6 +603,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	onTurnEnded?: () => void;
 	modelId?: string;
 	resume?: boolean;
+	isBuilt?: boolean;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: TestCopilotSessionRuntime;
@@ -795,6 +796,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
 		tmpDir: URI.file('/mock-tmp'),
+		isBuilt: options?.isBuilt ?? false,
 	} as INativeEnvironmentService;
 	if (options?.environmentServiceRegistration !== 'none') {
 		services.set(INativeEnvironmentService, environmentService);
@@ -941,6 +943,31 @@ suite('CopilotAgentSession', () => {
 			sendRequests: [],
 			sendMessagesRequests: [{ messages: [] }],
 			modeSetCalls: [{ mode: 'plan' }],
+		});
+	});
+
+	test('injects the recoverable error only for the exact development test prompt', async () => {
+		const development = await createAgentSession(disposables);
+		const built = await createAgentSession(disposables, { isBuilt: true });
+
+		await development.session.send('error', undefined, 'turn-1');
+		await built.session.send('error', undefined, 'turn-2');
+
+		assert.deepStrictEqual({
+			developmentSendRequests: development.mockSession.sendRequests,
+			developmentSendMessagesRequests: development.mockSession.sendMessagesRequests,
+			builtSendRequests: built.mockSession.sendRequests,
+			builtSendMessagesRequests: built.mockSession.sendMessagesRequests,
+		}, {
+			developmentSendRequests: [],
+			developmentSendMessagesRequests: [{
+				messages: [{ prompt: 'error' }],
+				requestHeaders: {
+					Authorization: 'Bearer vscode-recoverable-error-test',
+				},
+			}],
+			builtSendRequests: [{ prompt: 'error', attachments: undefined }],
+			builtSendMessagesRequests: [],
 		});
 	});
 
@@ -5836,7 +5863,7 @@ suite('CopilotAgentSession', () => {
 			}]);
 		});
 
-		test('active turn errors are marked resumable', async () => {
+		test('active turn errors are marked resumable and remain terminal after idle', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-1');
 			mockSession.fire('session.error', {
@@ -5856,6 +5883,14 @@ suite('CopilotAgentSession', () => {
 					stack: 'Error: something went wrong',
 				},
 				resumable: true,
+			});
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				completions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete),
+			}, {
+				hasActiveTurn: false,
+				completions: [],
 			});
 		});
 
