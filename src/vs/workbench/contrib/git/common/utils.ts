@@ -7,6 +7,11 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { GitRemote, GitRepositoryState } from './gitService.js';
 
+export interface IGitHubRemoteInfo {
+	readonly owner: string;
+	readonly repo: string;
+}
+
 export function hasGitHubRemotes(repositoryState: GitRepositoryState): boolean {
 	const hosts = ['github.com', 'ghe.com'];
 	const remotes = getOrderedRemotes(repositoryState!)
@@ -27,6 +32,30 @@ export function hasGitHubRemotes(repositoryState: GitRepositoryState): boolean {
 	}
 
 	return false;
+}
+
+export function getGitHubRemoteInfo(repositoryState: GitRepositoryState): IGitHubRemoteInfo | undefined {
+	for (const remote of getOrderedRemotes(repositoryState)) {
+		if (remote.fetchUrl) {
+			const repository = getGitHubRepositoryFromRemoteUrl(remote.fetchUrl);
+			if (repository) {
+				return repository;
+			}
+		}
+	}
+
+	return undefined;
+}
+
+export function getGitHubRepositoryFromRemoteUrl(remoteUrl: string): IGitHubRemoteInfo | undefined {
+	const remote = parseRemoteUrl(remoteUrl);
+	if (!remote || (!equalsIgnoreCase(remote.host, 'github.com') && !equalsIgnoreCase(remote.host, 'www.github.com'))) {
+		return undefined;
+	}
+	const segments = remote.path.replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.git$/i, '').split('/');
+	return segments.length === 2 && segments[0] && segments[1]
+		? { owner: segments[0], repo: segments[1] }
+		: undefined;
 }
 
 function getOrderedRemotes(repositoryState: GitRepositoryState): readonly GitRemote[] {

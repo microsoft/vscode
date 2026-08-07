@@ -47,7 +47,7 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -246,6 +246,30 @@ function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined)
 		});
 	}
 	return refs.length > 0 ? refs : undefined;
+}
+
+function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
+	const state = readSessionGitHubState(meta);
+	const gitState = readSessionGitState(meta);
+	const pullRequests = toGitHubPullRequestRefs(state?.pullRequestUrls);
+	const pullRequest = pullRequests?.[0];
+	const owner = state?.owner ?? gitState?.githubOwner ?? pullRequest?.owner;
+	const repo = state?.repo ?? gitState?.githubRepo ?? pullRequest?.repo;
+
+	if (!owner || !repo) {
+		return undefined;
+	}
+
+	return {
+		owner,
+		repo,
+		pullRequests,
+		pullRequest: pullRequest ? {
+			number: pullRequest.number,
+			uri: pullRequest.uri,
+		} : undefined,
+		issues: toGitHubIssueRefs(state?.issueUrls),
+	};
 }
 
 // ============================================================================
@@ -711,31 +735,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
 			equalsFn: isGitHubInfoEqual
 		}, reader => {
-			const meta = this._metaObs.read(reader);
-			const state = readSessionGitHubState(meta);
-			if (!state) {
-				return undefined;
-			}
-
-			const pullRequests = toGitHubPullRequestRefs(state.pullRequestUrls);
-			const pullRequest = pullRequests?.[0];
-			const owner = state.owner ?? pullRequest?.owner;
-			const repo = state.repo ?? pullRequest?.repo;
-
-			if (!owner || !repo) {
-				return undefined;
-			}
-
-			return {
-				owner,
-				repo,
-				pullRequests,
-				pullRequest: pullRequest ? {
-					number: pullRequest.number,
-					uri: pullRequest.uri,
-				} : undefined,
-				issues: toGitHubIssueRefs(state.issueUrls),
-			};
+			return toGitHubInfo(this._metaObs.read(reader));
 		});
 
 		const gitHubInfoWithIcon = derived<IGitHubInfo | undefined>(this, reader => {
@@ -1520,6 +1520,7 @@ class NewSession extends Disposable {
 	private readonly _title: ISettableObservable<string>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	private readonly _workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
 	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _isActiveSessionObs: IObservable<boolean>;
@@ -1616,7 +1617,7 @@ class NewSession extends Disposable {
 		this._title = observableValue<string>(this, '');
 		const title = this._title;
 		const updatedAt = observableValue(this, new Date());
-		const workspaceObs = observableValue<ISessionWorkspace | undefined>(this, ctx.workspace);
+		this._workspace = observableValue<ISessionWorkspace | undefined>(this, ctx.workspace);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		const checkpoints = observableValue(this, undefined);
 		this._selectedModelId = undefined;
@@ -1653,7 +1654,7 @@ class NewSession extends Disposable {
 			sessionType: ctx.sessionType.id,
 			icon: ctx.icon,
 			createdAt,
-			workspace: workspaceObs,
+			workspace: this._workspace,
 			isQuickChat: constObservable(this._kind.isQuickChat),
 			worktreePending: this._worktreePending,
 			title,
@@ -1713,6 +1714,51 @@ class NewSession extends Disposable {
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
 	setLoading(loading: boolean): void { this._loading.set(loading, undefined); }
 	setTitle(title: string): void { this._title.set(title, undefined); }
+
+	applySessionMeta(meta: SessionMeta | undefined): boolean {
+		const workspace = this._workspace.get();
+		const primaryFolder = workspace?.folders[0];
+		if (!workspace || !primaryFolder) {
+			return false;
+		}
+
+		const gitState = readSessionGitState(meta);
+		const gitHubInfo = toGitHubInfo(meta);
+		if (!gitState && !gitHubInfo) {
+			return false;
+		}
+
+		const currentRepository = primaryFolder.gitRepository ?? {
+			uri: primaryFolder.root,
+			workTreeUri: undefined,
+			baseBranchName: undefined,
+			gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined),
+		};
+		const nextGitHubInfo = gitHubInfo
+			?? (gitState?.hasGitHubRemote === false ? undefined : currentRepository.gitHubInfo.get());
+		const nextWorkspace: ISessionWorkspace = {
+			...workspace,
+			folders: [{
+				...primaryFolder,
+				gitRepository: {
+					...currentRepository,
+					branchName: gitState?.branchName ?? currentRepository.branchName,
+					baseBranchName: gitState?.baseBranchName ?? currentRepository.baseBranchName,
+					hasGitHubRemote: gitState?.hasGitHubRemote ?? currentRepository.hasGitHubRemote,
+					upstreamBranchName: gitState?.upstreamBranchName ?? currentRepository.upstreamBranchName,
+					incomingChanges: gitState?.incomingChanges ?? currentRepository.incomingChanges,
+					outgoingChanges: gitState?.outgoingChanges ?? currentRepository.outgoingChanges,
+					uncommittedChanges: gitState?.uncommittedChanges ?? currentRepository.uncommittedChanges,
+					gitHubInfo: constObservable(nextGitHubInfo),
+				},
+			}, ...workspace.folders.slice(1)],
+		};
+		if (sessionWorkspaceEqual(workspace, nextWorkspace)) {
+			return false;
+		}
+		this._workspace.set(nextWorkspace, undefined);
+		return true;
+	}
 
 	// -- Config --------------------------------------------------------------
 
@@ -4345,15 +4391,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * NewSession variant of {@link _applySessionStateUpdate}: writes the
-	 * customizations subset (the only one the agent picker reads) and
-	 * fires `_onDidChangeCustomAgents` when it changes. Skips
-	 * {@link _seedRunningConfigFromState} (NewSession owns its own config
-	 * via `NewSession._config`) and {@link _applySessionMetaFromState}
-	 * (which only applies to cached running sessions).
+	 * customizations subset and applies git/GitHub metadata to the draft
+	 * workspace. Skips {@link _seedRunningConfigFromState} because NewSession
+	 * owns its own config via `NewSession._config`.
 	 */
 	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
+		this._newSessions.get(sessionId)?.applySessionMeta(state._meta);
 		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
