@@ -67,7 +67,8 @@ async fn agent_ps_single(
 		"listSessions",
 		ListSessionsParams {
 			channel: ROOT_RESOURCE_URI.to_string(),
-			filter: None,
+			limit: None,
+			cursor: None,
 		},
 	)
 	.await?;
@@ -113,7 +114,8 @@ async fn query_host_sessions(
 		"listSessions",
 		ListSessionsParams {
 			channel: ROOT_RESOURCE_URI.to_string(),
-			filter: None,
+			limit: None,
+			cursor: None,
 		},
 	)
 	.await?;
@@ -278,7 +280,7 @@ fn select_and_sort(sessions: &[SessionSummary], all: bool) -> Vec<&SessionSummar
 		sessions.iter().filter(|s| is_active(s.status)).collect()
 	};
 
-	items.sort_by_key(|b| std::cmp::Reverse(b.modified_at));
+	items.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
 	items
 }
 
@@ -333,8 +335,10 @@ fn format_sessions_list(sessions: &[&SessionSummary]) -> String {
 			}
 		}
 
-		if let Some(wd) = &s.working_directory {
-			out.push_str(&format!("    {} {}\n", label_style.apply_to("cwd:"), wd,));
+		if let Some(wds) = &s.working_directories {
+			for wd in wds {
+				out.push_str(&format!("    {} {}\n", label_style.apply_to("cwd:"), wd,));
+			}
 		}
 	}
 
@@ -360,28 +364,31 @@ fn status_styled(status: u32) -> console::StyledObject<String> {
 mod tests {
 	use super::*;
 
-	fn session(resource: &str, status: u32, modified_at: i64) -> SessionSummary {
+	fn session(resource: &str, status: u32, modified_at: &str) -> SessionSummary {
 		SessionSummary {
 			resource: resource.to_string(),
 			provider: "test".to_string(),
 			title: String::new(),
 			status,
 			activity: None,
-			created_at: 0,
-			modified_at,
+			created_at: "2026-01-01T00:00:00.000Z".to_string(),
+			modified_at: modified_at.to_string(),
 			project: None,
-			model: None,
-			agent: None,
-			working_directory: None,
+			working_directories: None,
 			changes: None,
 			annotations: None,
+			meta: None,
 		}
 	}
 
 	#[test]
 	fn select_and_sort_filters_idle_unless_all() {
-		let idle = session("a", SessionStatus::Idle.bits(), 1);
-		let active = session("b", SessionStatus::InProgress.bits(), 2);
+		let idle = session("a", SessionStatus::Idle.bits(), "2026-01-01T00:00:00.000Z");
+		let active = session(
+			"b",
+			SessionStatus::InProgress.bits(),
+			"2026-01-02T00:00:00.000Z",
+		);
 		let sessions = vec![idle.clone(), active.clone()];
 
 		let filtered = select_and_sort(&sessions, false);
@@ -394,8 +401,16 @@ mod tests {
 
 	#[test]
 	fn select_and_sort_orders_most_recently_modified_first() {
-		let older = session("a", SessionStatus::InProgress.bits(), 1);
-		let newer = session("b", SessionStatus::InProgress.bits(), 2);
+		let older = session(
+			"a",
+			SessionStatus::InProgress.bits(),
+			"2026-01-01T00:00:00.000Z",
+		);
+		let newer = session(
+			"b",
+			SessionStatus::InProgress.bits(),
+			"2026-01-02T00:00:00.000Z",
+		);
 		let sessions = vec![older, newer];
 
 		let sorted = select_and_sort(&sessions, true);
