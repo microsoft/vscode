@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../../nls.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
+import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -54,14 +54,15 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const invokingWindow = dom.getActiveWindow();
 		const invokingWindowBounds = {
-			x: mainWindow.screenX,
-			y: mainWindow.screenY,
-			width: mainWindow.outerWidth,
-			height: mainWindow.outerHeight,
+			x: invokingWindow.screenX,
+			y: invokingWindow.screenY,
+			width: invokingWindow.outerWidth,
+			height: invokingWindow.outerHeight,
 		};
 		const chatInputWindowService = accessor.get(IChatInputWindowService);
-		await chatInputWindowService.toggleWindow(invokingWindowBounds);
+		await chatInputWindowService.toggleWindow(invokingWindowBounds, invokingWindow.vscodeWindowId);
 	}
 });
 

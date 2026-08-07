@@ -119,6 +119,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _actionWidgetLayoutGeneration = 0;
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
+	/** Retained so a just-closed Omni window cannot become its own invoking window. */
+	private _lastAuxiliaryWindowId: number | undefined;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -190,7 +192,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._register(this.chatEntitlementService.onDidChangeSentiment(closeWhenDisabled));
 	}
 
-	async openWindow(invokingWindowBounds?: IRectangle): Promise<void> {
+	async openWindow(invokingWindowBounds?: IRectangle, invokingWindowId?: number): Promise<void> {
 		if (!this._isEnabled()) {
 			return;
 		}
@@ -202,9 +204,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		if (this._openOperation) {
 			return this._openOperation;
 		}
-		this._invokingWindowBounds = this._isUsableWindowBounds(invokingWindowBounds)
-			? invokingWindowBounds
-			: this._windowBounds(mainWindow);
+		if (invokingWindowId !== this._lastAuxiliaryWindowId && this._isUsableWindowBounds(invokingWindowBounds)) {
+			this._invokingWindowBounds = invokingWindowBounds;
+		}
 		this._openOperation = this._doOpenWindow();
 		try {
 			await this._openOperation;
@@ -234,6 +236,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			noBackgroundThrottling: true,
 			backgroundColor: '#00000000',
 		});
+		this._lastAuxiliaryWindowId = auxiliaryWindow.window.vscodeWindowId;
 		if (!this._desiredOpen || !this._isEnabled()) {
 			auxiliaryWindow.dispose();
 			return;
@@ -356,14 +359,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._onDidChangeOpen.fire(false);
 	}
 
-	async toggleWindow(invokingWindowBounds?: IRectangle): Promise<void> {
+	async toggleWindow(invokingWindowBounds?: IRectangle, invokingWindowId?: number): Promise<void> {
 		if (this._desiredOpen || this.isOpen) {
 			this.closeWindow();
 		} else {
 			const claim = { timestamp: Date.now(), id: this._ownershipId };
 			this._ownershipClaim = claim;
 			this._ownershipChannel.postMessage({ type: 'claim', ...claim });
-			await this.openWindow(invokingWindowBounds);
+			await this.openWindow(invokingWindowBounds, invokingWindowId);
 		}
 	}
 
@@ -1099,7 +1102,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _positionedBounds(width: number, height: number): IRectangle {
 		const invoking = this._invokingWindowBounds;
-		const stored = this.storageService.getObject<{ readonly x: number; readonly y: number }>(
+		const stored = this.storageService.getObject<{ readonly offsetX: number; readonly offsetY: number }>(
 			ChatInputWindowStorageKeys.WindowPosition,
 			StorageScope.WORKSPACE,
 		);
@@ -1107,16 +1110,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const centeredY = invoking.y + (invoking.height - height) / 2;
 		const maxX = invoking.x + Math.max(0, invoking.width - width);
 		const maxY = invoking.y + Math.max(0, invoking.height - height);
-		const storedIsInside = stored
-			&& Number.isFinite(stored.x)
-			&& Number.isFinite(stored.y)
-			&& stored.x >= invoking.x
-			&& stored.x <= maxX
-			&& stored.y >= invoking.y
-			&& stored.y <= maxY;
+		const hasStoredPosition = stored
+			&& Number.isFinite(stored.offsetX)
+			&& Number.isFinite(stored.offsetY);
+		const desiredX = hasStoredPosition ? invoking.x + stored.offsetX : centeredX;
+		const desiredY = hasStoredPosition ? invoking.y + stored.offsetY : centeredY;
 		return {
-			x: Math.round(storedIsInside ? stored.x : centeredX),
-			y: Math.round(storedIsInside ? stored.y : centeredY),
+			x: Math.round(Math.min(Math.max(desiredX, invoking.x), maxX)),
+			y: Math.round(Math.min(Math.max(desiredY, invoking.y), maxY)),
 			width,
 			height,
 		};
@@ -1130,8 +1131,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this.storageService.store(
 			ChatInputWindowStorageKeys.WindowPosition,
 			JSON.stringify({
-				x: bounds.x,
-				y: bounds.y,
+				offsetX: bounds.x - this._invokingWindowBounds.x,
+				offsetY: bounds.y - this._invokingWindowBounds.y,
 			}),
 			StorageScope.WORKSPACE,
 			StorageTarget.MACHINE,
