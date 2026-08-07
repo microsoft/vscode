@@ -2394,9 +2394,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 }
 
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
-	padding-left: 4px;
-	font-size: 11px;
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-add-compact {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .action-item.chat-attached-context-attachment.chat-add-files:hover,
@@ -2428,10 +2427,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-decoration: inherit;
 }
 
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close,
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-plus,
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close-compact,
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close-compact,
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-add-compact,
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-add-compact {
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
 }

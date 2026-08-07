@@ -23,6 +23,7 @@ suite('NewSessionViewV2Tour', () => {
 		assert.deepStrictEqual({
 			id: scenario.id,
 			seenKey: scenario.seenKey,
+			presentationKind: scenario.presentation.kind,
 			priority: scenario.priority,
 			experiment: scenario.experiment,
 			steps: steps.map(step => ({
@@ -36,6 +37,7 @@ suite('NewSessionViewV2Tour', () => {
 		}, {
 			id: NEW_SESSION_VIEW_V2_TOUR_ID,
 			seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
+			presentationKind: 'spotlight',
 			priority: 110,
 			experiment: {
 				behaviorFlag: 'onb.newSessionViewV2.show',
