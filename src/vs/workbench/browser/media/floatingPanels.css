@@ -140,7 +140,7 @@
 /* The title bar color forms the shell backdrop visible through the floating-card gutters. */
 .monaco-workbench.floating-panels,
 .monaco-workbench.floating-panels > .monaco-grid-view {
-	background-color: var(--vscode-titleBar-activeBackground);
+	background-color: var(--modern-ui-shell-background, var(--vscode-titleBar-activeBackground));
 }
 
 /* Panel title composite receives an inline border-top color; suppress it in floating mode. */
@@ -162,6 +162,7 @@
 
 .monaco-workbench.floating-panels.top-window-edge .part.activitybar {
 	margin-top: calc(var(--vscode-spacing-size40) * 2);
+	height: calc(100% - (var(--vscode-spacing-size40) * 3));
 }
 
 .monaco-workbench.floating-panels .activitybar.compact > .content > .composite-bar {
@@ -251,6 +252,10 @@
 .monaco-workbench.floating-panels.nostatusbar .part.activitybar {
 	margin-bottom: calc(var(--vscode-spacing-size40) * 2);
 	height: calc(100% - (var(--vscode-spacing-size40) * 3));
+}
+
+.monaco-workbench.floating-panels.top-window-edge.nostatusbar .part.activitybar {
+	height: calc(100% - (var(--vscode-spacing-size40) * 4));
 }
 
 /*

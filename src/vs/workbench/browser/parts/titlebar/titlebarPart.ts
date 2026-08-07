@@ -854,6 +854,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
 			}) || '';
 			this.element.style.backgroundColor = titleBackground;
+			this.layoutService.getContainer(getWindow(this.element)).style.setProperty('--modern-ui-shell-background', titleBackground);
 
 			if (this.appIconBadge) {
 				this.appIconBadge.style.backgroundColor = titleBackground;
