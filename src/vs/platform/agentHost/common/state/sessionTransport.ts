@@ -12,6 +12,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 
 /**
@@ -19,6 +20,12 @@ import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonR
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Physical transport accepted by the agent host. */
+	readonly transportKind?: AgentHostTransportKind;
+
+	/** Route used by a VS Code client to reach the agent host. */
+	readonly clientConnectionKind?: AgentHostClientConnectionKind;
+
 	/** Fires when a message is received from the remote end. */
 	readonly onMessage: Event<ProtocolMessage>;
 

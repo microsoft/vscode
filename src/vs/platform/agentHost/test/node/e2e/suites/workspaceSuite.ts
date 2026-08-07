@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdtempSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -17,6 +17,7 @@ import { buildDefaultChatUri, ROOT_STATE_URI, type SessionState, type TerminalSt
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import {
 	dispatchTurn,
+	driveTurnToCompletion,
 	resolveGitHubToken,
 	startBackgroundApprovalLoop,
 	terminalResourceFromContent,
@@ -57,6 +58,57 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		const sessionState = subscribeResult.snapshot!.state as SessionState;
 		assert.strictEqual(sessionState.workingDirectories?.[0], workingDirUri,
 			`subscribe snapshot summary should carry the requested working directory`);
+	});
+
+	(config.supportsWorktreeIncludeFilesE2E ? test : test.skip)('worktree materialization copies configured ignored files', async function () {
+		this.timeout(180_000);
+		const repository = mkdtempSync(`${tmpdir()}/ahp-wt-include-`);
+		tempDirs.push(repository, `${repository}.worktrees`);
+		initTestGitRepo(repository);
+		writeFileSync(`${repository}/tracked.txt`, 'tracked');
+		writeFileSync(`${repository}/.gitignore`, '.env\nignored-dir/\n');
+		writeFileSync(`${repository}/.env`, 'SECRET=worktree-value\n');
+		mkdirSync(`${repository}/ignored-dir`);
+		writeFileSync(`${repository}/ignored-dir/config.json`, '{"included":true}\n');
+		execSync('git add tracked.txt .gitignore', { cwd: repository });
+		execSync('git commit -m "init"', { cwd: repository });
+		const branch = execSync('git branch --show-current', { cwd: repository, encoding: 'utf8' }).trim();
+		context.client.setWorkingDirectory(repository);
+		await context.client.call('initialize', {
+			channel: ROOT_STATE_URI,
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: `worktree-include-${config.provider}`,
+		});
+		await context.client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: resolveGitHubToken(),
+		});
+		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		await context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			workingDirectories: [URI.file(repository).toString()],
+			config: {
+				isolation: 'worktree',
+				branch,
+				worktreeIncludeFiles: ['.env', 'ignored-dir/**'],
+			},
+		});
+		createdSessions.push(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-worktree-include', 'Reply exactly "materialized".', 1);
+		const state = (await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri })).snapshot!.state as SessionState;
+		const worktree = URI.parse(state.workingDirectories![0]).fsPath;
+
+		assert.deepStrictEqual({
+			env: readFileSync(`${worktree}/.env`, 'utf8'),
+			config: readFileSync(`${worktree}/ignored-dir/config.json`, 'utf8'),
+		}, {
+			env: 'SECRET=worktree-value\n',
+			config: '{"included":true}\n',
+		});
 	});
 
 	// Skipped on Windows. The command and the tool name are portable now, but the

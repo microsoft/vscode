@@ -1640,27 +1640,32 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _toToolSearchResult(clientResult: ToolResultObject, availableTools: readonly CurrentToolMetadata[] | undefined): ToolResultObject {
-		const deferred = new Set<string>();
+		const deferred = new Map<string, string>();
 		for (const tool of availableTools ?? []) {
 			if (tool.deferLoading) {
-				deferred.add(tool.name);
+				deferred.set(tool.name, tool.name);
 				if (tool.namespacedName) {
-					deferred.add(tool.namespacedName);
+					deferred.set(tool.namespacedName, tool.name);
 				}
 			}
 		}
-		const clientNames = this._parseToolSearchNames(clientResult.textResultForLlm);
-		const toolReferences = clientNames.filter(name => deferred.has(name));
+		const parsedClientNames = this._parseToolSearchNames(clientResult.textResultForLlm);
+		const clientNames = parsedClientNames ?? [];
+		const toolReferences = [...new Set(clientNames.map(name => deferred.get(name)).filter(isDefined))];
 		this._logService.info(`[Copilot:${this.sessionId}] tool_search override: availableTools=${availableTools?.length ?? 0}, deferred=${deferred.size}, clientMatched=[${clientNames.join(', ')}] -> toolReferences=[${toolReferences.join(', ')}]`);
-		return { ...clientResult, toolReferences };
+		return {
+			...clientResult,
+			...(clientResult.resultType === 'success' && parsedClientNames !== undefined ? { textResultForLlm: JSON.stringify(toolReferences) } : {}),
+			toolReferences,
+		};
 	}
 
-	private _parseToolSearchNames(text: string): string[] {
+	private _parseToolSearchNames(text: string): string[] | undefined {
 		try {
 			const parsed = JSON.parse(text);
-			return Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === 'string') : [];
+			return Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === 'string') : undefined;
 		} catch {
-			return [];
+			return undefined;
 		}
 	}
 

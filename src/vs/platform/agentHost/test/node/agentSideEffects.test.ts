@@ -34,6 +34,7 @@ import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConf
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -238,6 +239,7 @@ suite('AgentSideEffects', () => {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService: createNullSessionDataService(),
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 			onTurnComplete: () => { },
 		}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
 
@@ -321,13 +323,22 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello world', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'direct.ts', displayKind: 'document' }] },
-			}, 'client-agents', AgentHostClientType.AgentsWindow);
+			}, 'client-agents', {
+				clientType: AgentHostClientType.AgentsWindow,
+				connectionKind: AgentHostClientConnectionKind.DevTunnel,
+				transportKind: AgentHostTransportKind.WebSocket,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			});
 
 			assert.deepStrictEqual(telemetryService.events, [{
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					hostLaunchKind: 'vscode_main_process',
+					initiatorClientId: 'client-agents',
 					initiatorClientType: 'agents_window',
+					initiatorConnectionKind: 'dev_tunnel',
+					initiatorTransportKind: 'websocket',
 					agentSessionId: 'session-1',
 					source: 'direct',
 					isSubagentSession: false,
@@ -2211,7 +2222,11 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					hostLaunchKind: 'vscode_main_process',
+					initiatorClientId: undefined,
 					initiatorClientType: 'unknown',
+					initiatorConnectionKind: 'unknown',
+					initiatorTransportKind: 'unknown',
 					agentSessionId: 'session-1',
 					source: 'queued',
 					isSubagentSession: false,

@@ -277,6 +277,10 @@ editor part before opening the managed Changes editor; this keeps tab activation
 non-revealing while the pill reliably shows the multi-diff editor. The `+` Add Tab managed-tab actions
 are also explicit tab-add gestures: they pass the active group's end index so a re-added managed
 Changes/Files tab lands after the existing tabs rather than at the automatic Changes default position.
+While the editor area is hidden, the managed Changes editor and Files placeholder declare
+`EditorInputCapabilities.CannotClose`, so standard close actions cannot remove either tab from the
+visible detail panel. Revealing the editor area makes both tabs closeable again. Managed-tab
+reconciliation uses an explicit forced close when it removes stale inputs or tidies the Files placeholder.
 While the detail is visible, every diff editor selects the Changes container and every file editor
 selects the Files container, regardless of whether the file is inside the active session workspace.
 Rendered Markdown preview and Markdown custom editors also select Files.

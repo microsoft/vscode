@@ -1589,6 +1589,41 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(streaming.toolSpecificData?.kind, 'terminal');
 		});
 
+		test('a same-state pending refresh replaces the visible terminal command without replacing its gate', () => {
+			const first: AnyToolCallState = {
+				toolCallId: 'tc-term',
+				toolName: 'bash',
+				displayName: 'Bash',
+				invocationMessage: 'Running `npm config get registry`',
+				toolInput: 'npm config get registry',
+				status: ToolCallStatus.PendingConfirmation,
+				_meta: { toolKind: 'terminal' },
+				confirmationTitle: 'Run command?',
+			};
+			const invocation = toolCallStateToInvocation(first);
+			const initialState = invocation.state.get();
+			assert.strictEqual(initialState.type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			const initialGate = initialState.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? initialState.confirm : undefined;
+
+			const refreshed: AnyToolCallState = {
+				...first,
+				invocationMessage: 'Running `npm install --registry=https://registry.npmjs.org`',
+				toolInput: 'npm install --registry=https://registry.npmjs.org',
+			};
+			invocation.updatePreparedInvocation(toolCallStateToPreparedInvocation(refreshed), invocation.parameters);
+
+			const state = invocation.state.get();
+			const terminalData = invocation.toolSpecificData;
+			assert.ok(terminalData?.kind === 'terminal' && hasKey(terminalData, { commandLine: true }));
+			assert.deepStrictEqual({
+				command: terminalData.commandLine.original,
+				gatePreserved: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirm === initialGate,
+			}, {
+				command: 'npm install --registry=https://registry.npmjs.org',
+				gatePreserved: true,
+			});
+		});
+
 		test('requestConfirmation no-ops on a completed invocation', () => {
 			const streaming = toolCallStateToStreamingInvocation({ toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming }, undefined);
 			streaming.transitionFromStreaming(toolCallStateToPreparedInvocation({ toolCallId: 'tc-done', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', status: ToolCallStatus.Running, confirmed: ToolCallConfirmationReason.NotNeeded }), undefined, undefined);

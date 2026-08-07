@@ -2839,7 +2839,7 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(publishedWorkspaces, ['c']);
 	});
 
-	test('[managed tabs / details-only] a details-only reveal restores the docked inputs even when one was closed', async () => {
+	test('[managed tabs / details-only] always restores both docked inputs while only details are visible', async () => {
 		createSinglePaneController({
 			activateAux: true,
 			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
@@ -2854,7 +2854,34 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
-		// User closes the Files tab; the Changes tab remains (group non-empty).
+		// Simulate lifecycle removal of Files while Changes keeps the group non-empty.
+		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
+		harness.onDidCloseEditor.fire({ editor: fileTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+
+		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(changesTab), 1);
+		harness.onDidCloseEditor.fire({ editor: changesTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+	});
+
+	test('[managed tabs / details-only] restores Files when the editor area hides without an editor change', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await settle();
+
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
 		harness.onDidCloseEditor.fire({ editor: fileTab });
@@ -2862,16 +2889,11 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 		assert.strictEqual(hasFilesTab(), false);
 
-		// Close the side pane, then reopen it details-only (aux only, editor hidden).
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-		harness.onDidRevealSidePane.fire();
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
 		await settle();
 
-		// The details-only reveal always shows the docked inputs, so Files returns.
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+		assert.strictEqual(hasFilesTab(), true);
 	});
 
 	test('[managed tabs / details-only] an editor reveal does NOT force back a closed managed tab', async () => {
@@ -2881,7 +2903,7 @@ suite('LayoutController (desktop)', () => {
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
 
-		// User closes the Files tab; the Changes tab remains.
+		// Simulate lifecycle removal of Files while Changes remains.
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
 		harness.onDidCloseEditor.fire({ editor: fileTab });
@@ -3160,7 +3182,7 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[managed tabs / close] does not re-open a managed tab after the user closes it (group stays non-empty)', async () => {
+	test('[managed tabs / lifecycle removal] does not re-open a missing managed tab while the group stays non-empty', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -3169,7 +3191,7 @@ suite('LayoutController (desktop)', () => {
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		assert.ok(fileTab);
 
-		// User closes the Files tab.
+		// Simulate lifecycle removal of the non-closeable Files tab.
 		const index = harness.activeGroupEditors.indexOf(fileTab);
 		harness.activeGroupEditors.splice(index, 1);
 		harness.onDidCloseEditor.fire({ editor: fileTab });
@@ -3201,7 +3223,7 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(hasFilesTab(), true, 'the default tabs are opened for the new session');
 	});
 
-	test('[managed tabs / add-tab] closing the Changes tab flips SinglePaneChangesTabMissingContext', async () => {
+	test('[managed tabs / add-tab] a missing Changes tab flips SinglePaneChangesTabMissingContext', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -3210,7 +3232,7 @@ suite('LayoutController (desktop)', () => {
 		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
 		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key), false);
 
-		// User closes the Changes tab.
+		// Simulate an internal lifecycle removal of the non-closeable Changes tab.
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(changesTab), 1);
 		harness.onDidCloseEditor.fire({ editor: changesTab });
 		harness.onDidEditorsChange.fire();
@@ -3222,7 +3244,7 @@ suite('LayoutController (desktop)', () => {
 		}, { hasChangesTab: false, changesTabMissing: true });
 	});
 
-	test('[managed tabs / add-tab] closing the Files tab flips SinglePaneFilesTabMissingContext', async () => {
+	test('[managed tabs / add-tab] a missing Files tab flips SinglePaneFilesTabMissingContext', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();
 
@@ -3231,7 +3253,7 @@ suite('LayoutController (desktop)', () => {
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabMissingContext.key), false);
 
-		// User closes the Files tab.
+		// Simulate lifecycle removal of the non-closeable Files tab.
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
 		harness.onDidCloseEditor.fire({ editor: fileTab });
 		harness.onDidEditorsChange.fire();
@@ -3252,7 +3274,7 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
 
-		// User closes the Changes tab -> the missing context becomes true.
+		// Simulate an internal lifecycle removal of the non-closeable Changes tab.
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(changesTab), 1);
 		harness.onDidCloseEditor.fire({ editor: changesTab });
 		harness.onDidEditorsChange.fire();
@@ -3325,7 +3347,8 @@ suite('LayoutController (desktop)', () => {
 
 		const staleClosed = harness.closedEditors.some(e => e.resource && isEqual(e.resource, staleChangesResource));
 		const allClosesSuppressed = harness.closeSuppressionFlags.every(flag => flag);
-		assert.deepStrictEqual({ staleClosed, allClosesSuppressed }, { staleClosed: true, allClosesSuppressed: true });
+		const allClosesForced = harness.closeForceFlags.every(flag => flag);
+		assert.deepStrictEqual({ staleClosed, allClosesSuppressed, allClosesForced }, { staleClosed: true, allClosesSuppressed: true, allClosesForced: true });
 	});
 
 	test('[managed tabs / Issue 1] re-ensures the Files tab when the side pane is reopened via the aux bar alone', async () => {
@@ -3337,7 +3360,7 @@ suite('LayoutController (desktop)', () => {
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		assert.ok(fileTab);
 
-		// User closes the Files tab; the whole side pane closes (aux hidden).
+		// Simulate lifecycle removal of Files followed by the side pane hiding.
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
 		harness.onDidCloseEditor.fire({ editor: fileTab });
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
@@ -3363,7 +3386,7 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 
-		// User closes both managed tabs; the whole side pane closes (both parts hidden).
+		// Simulate lifecycle cleanup removing both managed tabs and closing the side pane.
 		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
 		const filesTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
 		for (const tab of [changesTab, filesTab]) {
@@ -3403,7 +3426,7 @@ suite('LayoutController (desktop)', () => {
 		harness.activeSessionObs.set(makeSession(session), undefined);
 		await settle();
 
-		// User closes both managed tabs; the whole side pane closes.
+		// Simulate lifecycle cleanup removing both managed tabs and closing the side pane.
 		for (const tab of [...harness.activeGroupEditors]) {
 			harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(tab), 1);
 			harness.onDidCloseEditor.fire({ editor: tab });

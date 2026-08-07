@@ -25,6 +25,7 @@ import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from 
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
+import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	AgentHostByokModelsEnabledSettingId,
@@ -125,6 +126,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			const transport = new AgentHostIpcChannelTransport(
 				getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
 				this._ahpLogger,
+				AgentHostClientConnectionKind.Local,
 			);
 			this._protocolClient = this._register(this._instantiationService.createInstance(
 				RemoteAgentHostProtocolClient,

@@ -98,9 +98,14 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			// Lifecycle
 			this.lifecycleMainService.registerAuxWindow(this);
 
-			// Hide macOS traffic light buttons for frameless windows
-			if (isMacintosh && options?.frame === false) {
-				window.setWindowButtonVisibility(false);
+			// Allow frameless windows to size down to their content
+			if (options?.frame === false) {
+				window.setMinimumSize(1, 1);
+
+				// Hide macOS traffic light buttons
+				if (isMacintosh) {
+					window.setWindowButtonVisibility(false);
+				}
 			}
 
 			// Disable resizing for non-resizable windows
