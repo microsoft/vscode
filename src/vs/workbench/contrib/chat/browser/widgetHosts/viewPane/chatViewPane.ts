@@ -15,7 +15,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -81,6 +81,7 @@ import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMod
 import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
+import { IVoiceAttachmentResult, IVoiceModelSelectionResult, resolveVoiceModel } from '../../voiceClient/voiceToolDispatchService.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
@@ -455,7 +456,38 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
 				return this._widget?.viewModel?.sessionResource?.toString();
 			}));
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
+				const widget = this._getVoiceActionWidget();
+				if (!widget) {
+					return { ok: false, reason: 'no_input' };
+				}
+				const resolved = resolveVoiceModel(widget.inputPart.availableLanguageModels, requestedModel);
+				if (!resolved.ok || !resolved.identifier) {
+					return resolved;
+				}
+				return widget.inputPart.switchModelByIdentifier(resolved.identifier, true, true)
+					? resolved
+					: { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
+			}));
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.attachFiles', async (_accessor, resourceStrings: readonly string[]): Promise<IVoiceAttachmentResult> => {
+				const widget = this._getVoiceActionWidget();
+				if (!widget) {
+					return { ok: false, reason: 'no_input' };
+				}
+				try {
+					const resources = resourceStrings.map(resource => URI.parse(resource));
+					await Promise.all(resources.map(resource => widget.attachmentModel.addFile(resource)));
+					return { ok: true, attached: resources.map(resource => basename(resource)) };
+				} catch {
+					return { ok: false, reason: 'attachment_failed' };
+				}
+			}));
 		}
+	}
+
+	private _getVoiceActionWidget() {
+		const target = this._currentVoiceInputResource();
+		return target ? this.chatWidgetService.getWidgetBySessionResource(target) : this._widget;
 	}
 
 	/**
@@ -1027,7 +1059,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,
 			}));
-		this._widget.render(chatControlsContainer);
+		this._widget.render(chatControlsContainer, parent);
 
 		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
 		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));

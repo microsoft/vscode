@@ -100,6 +100,7 @@ import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationP
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
+import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
 
@@ -138,7 +139,7 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: ContextKeyExpr.and(
 		SessionsChatInputHasDictationFocus,
-		ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		AGENTS_VOICE_ENABLED,
 	),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 });
@@ -510,7 +511,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.instantiationService.createInstance(ChatPetWidget, parent, inputArea, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
+		this._register(this.instantiationService.createInstance(ChatPetWidget, chatInputContainer, inputArea, root, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
@@ -809,6 +810,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _createInputToolbar(container: HTMLElement): void {
 		const toolbar = dom.append(container, dom.$('.sessions-chat-toolbar'));
+		let dictationActionVisible = false;
+		let voiceActionCount = 0;
+		const updateVoiceInputActionBorder = () => {
+			toolbar.classList.toggle('sessions-chat-voice-input-actions-multiple', Number(dictationActionVisible) + voiceActionCount > 1);
+		};
 
 		this._createAttachButton(toolbar);
 
@@ -834,7 +840,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// editor. Placed before the voice controls so dictation leads the
 		// mic-related group.
 		try {
-			this._createSpeechToTextButton(toolbar);
+			this._createSpeechToTextButton(toolbar, visible => {
+				dictationActionVisible = visible;
+				updateVoiceInputActionBorder();
+			});
 		} catch (error) {
 			this.logService.error('Failed to create new-session dictation control:', error);
 		}
@@ -851,6 +860,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				toolbarContainer: voiceContainer,
 				inputContainer: container,
 				composer: this,
+				onDidChangeActions: actionCount => {
+					voiceActionCount = actionCount;
+					updateVoiceInputActionBorder();
+				},
 			}));
 		} catch (error) {
 			this.logService.error('Failed to create new-session voice controls:', error);
@@ -883,6 +896,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
+		updateVoiceInputActionBorder();
 	}
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
@@ -931,7 +945,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 	}
 
-	private _createSpeechToTextButton(container: HTMLElement): void {
+	private _createSpeechToTextButton(container: HTMLElement, onDidChangeVisibility: (visible: boolean) => void): void {
 		const sttService = this.chatSpeechToTextService;
 
 		const button = dom.append(container, dom.$('.sessions-chat-stt-button'));
@@ -1014,7 +1028,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Honor the shared `dictation.showButton` visibility toggle: hiding the
 			// button still leaves Cmd/Ctrl+I working (its keybinding is independent).
 			const buttonShown = this.configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
-			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive || !buttonShown);
+			const visible = sttService.isConfigured && !voiceActive && !pillActive && buttonShown;
+			button.classList.toggle('hidden', !visible);
+			onDidChangeVisibility(visible);
 		};
 		updateVisibility();
 		this._register(autorun(reader => {
@@ -1344,6 +1360,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	attach(uris: URI[]): void {
 		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
+	}
+
+	getVoiceModels() {
+		return this._sessionModelSelectionModel.state.get().models;
+	}
+
+	selectVoiceModel(identifier: string): boolean {
+		return this._sessionModelSelectionModel.selectModel(identifier);
 	}
 }
 

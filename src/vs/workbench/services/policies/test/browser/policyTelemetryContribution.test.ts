@@ -7,15 +7,15 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { PolicyName } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AbstractPolicyService, PolicyValue } from '../../../../../platform/policy/common/policy.js';
+import { AbstractPolicyService, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { PolicyTelemetryContribution } from '../../browser/policyTelemetry.contribution.js';
 
 class TestPolicyService extends AbstractPolicyService {
 
-	setPolicy(name: PolicyName, value: PolicyValue): void {
+	setPolicy(name: PolicyName, value: PolicyValue, source?: PolicyValueSource): void {
 		const type = typeof value === 'string' ? 'string' : typeof value === 'number' ? 'number' : 'boolean';
 		this.policyDefinitions[name] = { type };
-		this.policies.set(name, value);
+		this.updatePolicyValue(name, value, source);
 	}
 
 	fireChange(): void {
@@ -26,7 +26,13 @@ class TestPolicyService extends AbstractPolicyService {
 }
 
 const EMPTY_EVENT = {
-	policyCount: 0,
+	devicePolicyCount: 0,
+	nativeMdmPolicyCount: 0,
+	serverManagedSettingsPolicyCount: 0,
+	fileManagedSettingsPolicyCount: 0,
+	mixedManagedSettingsPolicyCount: 0,
+	accountPolicyCount: 0,
+	accountGatePolicyCount: 0,
 	defaultModelSet: false,
 	toolsAutoApproveSet: false,
 	enabledPluginsSet: false,
@@ -86,7 +92,7 @@ suite('PolicyTelemetryContribution', () => {
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			policyCount: 9,
+			devicePolicyCount: 9,
 			defaultModelSet: true,
 			toolsAutoApproveSet: true,
 			enabledPluginsSet: true,
@@ -114,7 +120,7 @@ suite('PolicyTelemetryContribution', () => {
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			policyCount: 2,
+			devicePolicyCount: 2,
 			strictMarketplacesSet: true,
 			telemetryLevelSet: true,
 			telemetryLevel: 'unknown',
@@ -130,7 +136,33 @@ suite('PolicyTelemetryContribution', () => {
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
-			policyCount: 1,
+			devicePolicyCount: 1,
+		});
+	});
+
+	test('partitions every effective policy by source', () => {
+		const policyService = new TestPolicyService();
+		policyService.setPolicy('DevicePolicy', true, PolicyValueSource.Device);
+		policyService.setPolicy('NativeMdmPolicy', true, PolicyValueSource.NativeMdm);
+		policyService.setPolicy('ServerManagedSettingsPolicy', true, PolicyValueSource.ServerManagedSettings);
+		policyService.setPolicy('FileManagedSettingsPolicy', true, PolicyValueSource.FileManagedSettings);
+		policyService.setPolicy('MixedManagedSettingsPolicy', true, PolicyValueSource.MixedManagedSettings);
+		policyService.setPolicy('AccountPolicy', true, PolicyValueSource.Account);
+		policyService.setPolicy('AccountGatePolicy', false, PolicyValueSource.AccountGate);
+		policyService.setPolicy('UnknownSourcePolicy', true, undefined);
+
+		const { events, clock } = createContribution(policyService);
+		clock.tick(500);
+
+		assert.deepStrictEqual(events[0].data, {
+			...EMPTY_EVENT,
+			devicePolicyCount: 2,
+			nativeMdmPolicyCount: 1,
+			serverManagedSettingsPolicyCount: 1,
+			fileManagedSettingsPolicyCount: 1,
+			mixedManagedSettingsPolicyCount: 1,
+			accountPolicyCount: 1,
+			accountGatePolicyCount: 1,
 		});
 	});
 
@@ -153,7 +185,7 @@ suite('PolicyTelemetryContribution', () => {
 				name: 'policy.applied',
 				data: {
 					...EMPTY_EVENT,
-					policyCount: 1,
+					devicePolicyCount: 1,
 					telemetryLevelSet: true,
 					telemetryLevel: 'off',
 				},
@@ -162,7 +194,7 @@ suite('PolicyTelemetryContribution', () => {
 				name: 'policy.applied',
 				data: {
 					...EMPTY_EVENT,
-					policyCount: 1,
+					devicePolicyCount: 1,
 					telemetryLevelSet: true,
 					telemetryLevel: 'all',
 				},

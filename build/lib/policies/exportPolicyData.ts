@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync, execSync, spawn } from 'child_process';
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join, resolve } from 'path';
@@ -66,7 +66,7 @@ function readPolicyData(path: string): ExportedPolicyDataDto {
 	return result;
 }
 
-function runPolicyExport(codeScript: string, outputPath: string, userDataPath: string, extensionsPath: string, agents: boolean): void {
+function runPolicyExport(codeScript: string, outputPath: string, userDataPath: string, extensionsPath: string, agents: boolean): Promise<void> {
 	const args = [
 		`--export-policy-data=${outputPath}`,
 		`--user-data-dir=${userDataPath}`,
@@ -76,14 +76,24 @@ function runPolicyExport(codeScript: string, outputPath: string, userDataPath: s
 		args.unshift('--agents');
 	}
 
-	const command = `"${codeScript}" ${args.map(arg => `"${arg}"`).join(' ')}`;
 	const env = { ...process.env };
 	delete env['VSCODE_PORTABLE'];
 	delete env['VSCODE_APPDATA'];
-	execSync(command, {
-		cwd: rootPath,
-		stdio: 'inherit',
-		env,
+	return new Promise((resolve, reject) => {
+		const child = spawn(codeScript, args, {
+			cwd: rootPath,
+			stdio: 'inherit',
+			env,
+			shell: process.platform === 'win32',
+		});
+		child.once('error', reject);
+		child.once('exit', (code, signal) => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`Policy export process exited with ${signal ? `signal ${signal}` : `code ${code}`}.`));
+			}
+		});
 	});
 }
 
@@ -135,9 +145,17 @@ async function main(): Promise<void> {
 		const agentsPath = join(temporaryRoot, 'a.jsonc');
 
 		console.log('Exporting policy data from the Workbench...');
-		runPolicyExport(codeScript, workbenchPath, join(temporaryRoot, 'wu'), join(temporaryRoot, 'we'), false);
 		console.log('Exporting policy data from the Agents window...');
-		runPolicyExport(codeScript, agentsPath, join(temporaryRoot, 'au'), join(temporaryRoot, 'ae'), true);
+		const exportResults = await Promise.allSettled([
+			runPolicyExport(codeScript, workbenchPath, join(temporaryRoot, 'wu'), join(temporaryRoot, 'we'), false),
+			runPolicyExport(codeScript, agentsPath, join(temporaryRoot, 'au'), join(temporaryRoot, 'ae'), true),
+		]);
+		const exportErrors = exportResults
+			.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+			.map(result => result.reason);
+		if (exportErrors.length > 0) {
+			throw new AggregateError(exportErrors, 'Failed to export policy data.');
+		}
 
 		const mergedContent = serializePolicyData(mergePolicyData([
 			{ source: 'Workbench', data: readPolicyData(workbenchPath) },

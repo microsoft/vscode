@@ -147,7 +147,6 @@ interface ICreateProviderOptions {
 	readonly multiChatEnabled?: boolean;
 	readonly claudeEnabled?: boolean;
 	readonly preferAgentHost?: boolean;
-	readonly hideCopilotCli?: boolean;
 	readonly agentHostEnabled?: boolean;
 	readonly commandExecutions?: IExecutedCommand[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
@@ -246,7 +245,6 @@ function createProviderWithConfig(
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
 	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 	configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, opts?.preferAgentHost ?? false);
-	configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, opts?.hideCopilotCli ?? false);
 	const agentHostEnabled = observableValue('agentHostEnabled', opts?.agentHostEnabled ?? true);
 
 	instantiationService.stub(IConfigurationService, configService);
@@ -414,12 +412,12 @@ suite('CopilotChatSessionsProvider', () => {
 	test('has correct id and label', () => {
 		const provider = createProvider(disposables, model);
 		assert.strictEqual(provider.id, COPILOT_PROVIDER_ID);
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 	});
 
 	test('sessionTypes excludes Claude when setting is disabled', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: false });
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
@@ -429,13 +427,13 @@ suite('CopilotChatSessionsProvider', () => {
 		// Claude entry (the agent host's). Otherwise both register and the
 		// user sees Claude twice.
 		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: true });
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
 	test('sessionTypes includes Claude when claudeEnabled and preferAgentHost is false', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: false });
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
@@ -451,7 +449,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 	test('onDidChangeSessionTypes fires when claude setting changes', () => {
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 
 		let fired = false;
 		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
@@ -466,7 +464,7 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 1);
 	});
 
 	test('onDidChangeSessionTypes fires when preferAgentHost setting changes', () => {
@@ -474,7 +472,7 @@ suite('CopilotChatSessionsProvider', () => {
 		// flipping the EXP-backed preference unregisters this provider's
 		// Claude entry without requiring a window reload.
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 
 		let fired = false;
 		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
@@ -488,51 +486,22 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
-	test('sessionTypes excludes Copilot CLI when hideExtensionHost is true', () => {
-		// When the user hides the Extension Host Copilot CLI, this provider
-		// must drop the entry so the Agents window picker only surfaces the
-		// Agent Host Copilot CLI.
-		const provider = createProvider(disposables, model, { hideCopilotCli: true });
+	test('sessionTypes excludes Extension Host Copilot CLI when Agent Host is available', () => {
+		const provider = createProvider(disposables, model);
 		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('onDidChangeSessionTypes fires when hideExtensionHost setting changes', () => {
-		// Symmetric with the claude cases above. Must respond live so flipping
-		// the EXP-backed preference unregisters this provider's Copilot CLI
-		// entry without requiring a window reload.
-		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
-
-		let fired = false;
-		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
-
-		configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, true);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([ChatConfiguration.CopilotCliHideExtensionHostAgents]),
-			change: { keys: [ChatConfiguration.CopilotCliHideExtensionHostAgents], overrides: [] },
-			affectsConfiguration: (key: string) => key === ChatConfiguration.CopilotCliHideExtensionHostAgents,
-		});
-
-		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
-	});
-
-	test('hideExtensionHost is not respected when Agent Host is unavailable', () => {
-		// Hiding the Extension Host Copilot CLI only makes sense when the agent
-		// host is available to surface the Agent Host Copilot CLI in its place.
-		// Without an Agent Host runtime the hide setting must be ignored so the entry
-		// stays visible.
-		const provider = createProvider(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
+	test('sessionTypes includes Extension Host Copilot CLI when Agent Host is unavailable', () => {
+		const provider = createProvider(disposables, model, { agentHostEnabled: false });
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
 	test('Agent Host availability is observed after the provider is created', () => {
-		const { provider, agentHostEnabled } = createProviderWithConfig(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
+		const { provider, agentHostEnabled } = createProviderWithConfig(disposables, model, { agentHostEnabled: false });
 		let changeCount = 0;
 		disposables.add(provider.onDidChangeSessionTypes(() => changeCount++));
 		const visibleBeforeAvailability = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);

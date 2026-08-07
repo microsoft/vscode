@@ -445,6 +445,12 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	 * Additional context as to why an editor is closed.
 	 */
 	readonly context?: EditorCloseContext;
+
+	/**
+	 * Forces the editor to close even if it declares
+	 * `EditorInputCapabilities.CannotClose`.
+	 */
+	readonly force?: boolean;
 }
 
 export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {

@@ -190,17 +190,19 @@
 
 /* Match the send button's control tier (22×22, fully rounded) and the compact
 	glyph size used by the pickers, so the voice controls, the dictation mic and
-	Send all read as one row. On their own these lose the segmented pill's
-	enclosure, so each carries the pill's border as a ring of its own — see the
-	matching rule in chat.css for the editor composer. */
+	Send all read as one row. */
 .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label {
 	box-sizing: border-box;
 	width: 22px;
 	height: 22px;
 	justify-content: center;
-	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label,
+.sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-stt-button {
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
 
 .monaco-workbench.monaco-enable-motion .sessions-chat-voice-toolbar .action-label.codicon-loading-compact::before,
@@ -472,7 +474,7 @@
 	height: 22px;
 	flex-shrink: 0;
 	box-sizing: border-box;
-	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
+	border: none;
 	border-radius: var(--vscode-cornerRadius-circle);
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);

@@ -1,0 +1,45 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember CHAT_ATTACHMENT_ALPHA. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember CHAT_ATTACHMENT_ALPHA. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Now remember CHAT_ATTACHMENT_BETA too. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Reply exactly "alpha only" if the attachment contains CHAT_ATTACHMENT_ALPHA but not CHAT_ATTACHMENT_BETA.
+            - type: text
+              text: |-
+                The user referenced another chat, "Bounded source conversation". That chat is identified by the link agent-host-session://claude/${uuid_0}. To read its full transcript, call the get_session_context server tool with its "session" argument set to that link.
+
+                The excerpt below is that chat's full transcript up to the selected turn:
+
+                User: Remember CHAT_ATTACHMENT_ALPHA. Reply exactly "ready".
+
+                Assistant: ready
+    response:
+      content: alpha only
+      stopReason: end_turn

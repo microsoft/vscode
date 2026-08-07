@@ -36,6 +36,7 @@ import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseC
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -452,6 +453,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -1180,10 +1182,17 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// Emit the full resolved set (index 0 = process root, 1..N = additional
 		// roots). Falls back to the session's own ordered set when the host
 		// didn't hand us one (e.g. workspace-less single-root).
+		const materializedWorkingDirectories = workingDirectories ?? session.workingDirectories;
+
+		// Pass the resolved directories before the materialize event updates them in the state manager.
+		this._checkpointService.captureBaselineCheckpoint(session.sessionUri, materializedWorkingDirectories).catch(err => {
+			this._logService.warn(`[Claude:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
+		});
+
 		this._onDidMaterializeSession.fire({
 			session: session.sessionUri,
 			project: session.project,
-			workingDirectories: workingDirectories ?? session.workingDirectories,
+			workingDirectories: materializedWorkingDirectories,
 		});
 
 		return session;
