@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import type { SessionMode } from '../common/agentHostSchema.js';
 import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /** Per-turn timing state, keyed by `session:turnId`. */
@@ -17,6 +18,7 @@ interface ITurnTiming {
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
+	readonly interactionMode: SessionMode | undefined;
 	firstProgressMs: number | undefined;
 }
 
@@ -51,7 +53,7 @@ export class AgentHostTurnTracker extends Disposable {
 		super();
 	}
 
-	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined): void {
+	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined, interactionMode: SessionMode | undefined): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -61,6 +63,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelTelemetryKind,
 			modelSelectionKind: model === undefined ? 'default' : model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel,
+			interactionMode,
 			firstProgressMs: undefined,
 		});
 		this._onDidStartTurn.fire(provider);
@@ -105,6 +108,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelTelemetryKind: timing.modelTelemetryKind,
 			modelSelectionKind: timing.modelSelectionKind,
 			permissionLevel: timing.permissionLevel,
+			interactionMode: timing.interactionMode,
 			failure,
 		});
 	}
