@@ -20,7 +20,7 @@ import { IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
 import type { ILanguageModelChatMetadata } from '../languageModels.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
-import { hasKey, Mutable } from '../../../../../base/common/types.js';
+import { Mutable } from '../../../../../base/common/types.js';
 
 
 /**
@@ -103,48 +103,7 @@ export const ChatPasteAttachmentMetadata = {
 } as const;
 
 const ChatTranscriptContextMetadataKey = 'vscode.chat.transcriptContext';
-
-export interface IChatTranscriptContext {
-	readonly label: string;
-	readonly iconId?: string;
-	readonly tooltip?: string;
-	readonly uri?: string;
-}
-
-export function getChatTranscriptContext(entry: IChatRequestVariableEntry): IChatTranscriptContext | undefined {
-	const value = entry._meta?.[ChatTranscriptContextMetadataKey];
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const record = value as Record<string, unknown>;
-	if (typeof record.label !== 'string') {
-		return undefined;
-	}
-	return {
-		label: record.label,
-		...(typeof record.iconId === 'string' ? { iconId: record.iconId } : {}),
-		...(typeof record.tooltip === 'string' ? { tooltip: record.tooltip } : {}),
-		...(typeof record.uri === 'string' ? { uri: record.uri } : {}),
-	};
-}
-
-export function getChatTranscriptContextUri(entry: IChatRequestVariableEntry): URI | undefined {
-	const contextUri = getChatTranscriptContext(entry)?.uri;
-	if (contextUri) {
-		return URI.parse(contextUri);
-	}
-	return hasKey(entry, { uri: true }) && URI.isUri(entry.uri) ? entry.uri : undefined;
-}
-
-export function withChatTranscriptContext<T extends IChatRequestVariableEntry>(entry: T, context: IChatTranscriptContext) {
-	return {
-		...entry,
-		_meta: {
-			...entry._meta,
-			[ChatTranscriptContextMetadataKey]: context,
-		},
-	};
-}
+export const ChatTranscriptContextAttachmentDisplayKind = 'transcriptContext';
 
 export interface IRestorablePasteAttachment {
 	readonly label: string;
@@ -315,6 +274,13 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	 */
 	readonly commandId?: string;
 	readonly handle: number;
+}
+
+export interface IChatRequestTranscriptContextVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'transcriptContext';
+	readonly value: string;
+	readonly uri: URI;
+	readonly tooltip?: string;
 }
 
 export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
@@ -762,7 +728,8 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
-	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry | IChatRequestChatReferenceVariableEntry;
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry | IChatRequestChatReferenceVariableEntry
+	| IChatRequestTranscriptContextVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -834,6 +801,44 @@ export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is 
 
 export function isStringVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestStringVariableEntry {
 	return obj.kind === 'string';
+}
+
+export function isChatTranscriptContextVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestTranscriptContextVariableEntry {
+	return obj.kind === 'transcriptContext';
+}
+
+export function toChatTranscriptContextAttachmentMeta(entry: IChatRequestTranscriptContextVariableEntry): Record<string, unknown> {
+	return {
+		...entry._meta,
+		[ChatTranscriptContextMetadataKey]: {
+			uri: entry.uri.toString(),
+			iconId: entry.icon?.id,
+			tooltip: entry.tooltip,
+			fullName: entry.fullName,
+		},
+	};
+}
+
+export function restoreChatTranscriptContextVariableEntry(label: string, value: string, meta: Record<string, unknown> | undefined): IChatRequestTranscriptContextVariableEntry | undefined {
+	const raw = meta?.[ChatTranscriptContextMetadataKey];
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		return undefined;
+	}
+	const record = raw as Record<string, unknown>;
+	if (typeof record.uri !== 'string') {
+		return undefined;
+	}
+	return {
+		kind: 'transcriptContext',
+		id: generateUuid(),
+		name: label,
+		...(typeof record.fullName === 'string' ? { fullName: record.fullName } : {}),
+		...(typeof record.iconId === 'string' ? { icon: ThemeIcon.fromId(record.iconId) } : {}),
+		...(typeof record.tooltip === 'string' ? { tooltip: record.tooltip } : {}),
+		value,
+		uri: URI.parse(record.uri),
+		_meta: meta,
+	};
 }
 
 export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is ITerminalVariableEntry {

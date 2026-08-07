@@ -59,12 +59,14 @@ import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHos
 import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import {
 	AgentHostCompletionReferenceKind,
+	ChatTranscriptContextAttachmentDisplayKind,
 	getAgentHostCompletionReferenceKind,
-	getChatTranscriptContext,
 	isAgentFeedbackVariableEntry,
 	isBrowserViewVariableEntry,
 	isChatReferenceVariableEntry,
+	isChatTranscriptContextVariableEntry,
 	isImageVariableEntry,
+	toChatTranscriptContextAttachmentMeta,
 	type IAgentFeedbackVariableEntry,
 	type IChatRequestChatReferenceVariableEntry,
 	type IChatRequestVariableEntry,
@@ -5389,7 +5391,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (v.kind === 'workspace') {
 			return this._toSimpleAttachment(v.name, v.value, v._meta, 'workspace', referenceRange);
 		}
-		if ((v.kind === 'string' || getChatTranscriptContext(v)) && typeof v.value === 'string') {
+		if (isChatTranscriptContextVariableEntry(v)) {
+			return this._toSimpleAttachment(v.name, v.value, toChatTranscriptContextAttachmentMeta(v), ChatTranscriptContextAttachmentDisplayKind, referenceRange);
+		}
+		if (v.kind === 'string' && typeof v.value === 'string') {
 			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
 		}
 		const agentHostCompletionKind = getAgentHostCompletionReferenceKind(v);

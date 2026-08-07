@@ -142,6 +142,7 @@ import './widget/input/chatInputNotificationService.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from './attachments/chatAttachmentWidgetRegistry.js';
 import { ChatReferenceAttachmentWidgetContribution } from './attachments/chatReferenceAttachmentWidget.contribution.js';
+import { TranscriptContextAttachmentWidgetContribution } from './attachments/transcriptContextAttachmentWidget.contribution.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatContextPickService, IChatContextPickService } from './attachments/chatContextPickService.js';
 import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
@@ -2904,6 +2905,7 @@ registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribu
 registerWorkbenchContribution2(AgentPluginRecommendations.ID, AgentPluginRecommendations, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(PluginAutoUpdate.ID, PluginAutoUpdate, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatReferenceAttachmentWidgetContribution.ID, ChatReferenceAttachmentWidgetContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(TranscriptContextAttachmentWidgetContribution.ID, TranscriptContextAttachmentWidgetContribution, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();

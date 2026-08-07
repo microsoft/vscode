@@ -37,7 +37,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -1107,6 +1107,12 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 				modelDescription: modelRepresentation,
 				_meta: attachment._meta,
 			};
+		}
+	}
+	if (attachment.type === MessageAttachmentKind.Simple && modelRepresentation !== undefined) {
+		const transcriptContextEntry = restoreChatTranscriptContextVariableEntry(attachment.label, modelRepresentation, attachment._meta);
+		if (transcriptContextEntry) {
+			return transcriptContextEntry;
 		}
 	}
 	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {

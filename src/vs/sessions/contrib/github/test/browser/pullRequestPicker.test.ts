@@ -13,7 +13,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, getExistingPullRequests, getGitHubRepositoryFromRemotes, IPullRequestQuickPickItem, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
-import { getChatTranscriptContext } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
@@ -104,12 +103,15 @@ suite('Create Session from Pull Request', () => {
 			kind: attachment.kind,
 			name: attachment.name,
 			fullName: attachment.fullName,
+			icon: attachment.icon?.id,
+			uri: attachment.uri.toString(),
 			value: JSON.parse(attachment.value ?? ''),
-			transcriptContext: getChatTranscriptContext(attachment),
 		}, {
-			kind: 'string',
+			kind: 'transcriptContext',
 			name: '#42 Improve sessions',
 			fullName: '#42 Improve sessions',
+			icon: 'git-pull-request',
+			uri: 'https://github.com/owner/repo/pull/42',
 			value: {
 				usageInstructions: 'Use this snapshot as the primary source for questions about the pull request. Do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from this snapshot.',
 				owner: 'owner',
@@ -126,12 +128,6 @@ suite('Create Session from Pull Request', () => {
 				updatedAt: '2026-01-01T00:00:00Z',
 				patch: '@@ -1 +1 @@',
 				comments: [],
-			},
-			transcriptContext: {
-				label: '#42 Improve sessions',
-				iconId: 'git-pull-request',
-				tooltip: 'Pull request #42 by @author',
-				uri: 'https://github.com/owner/repo/pull/42',
 			},
 		});
 	});

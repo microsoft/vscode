@@ -64,7 +64,7 @@ import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocation
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
@@ -77,6 +77,7 @@ import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChat
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
+import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
@@ -108,15 +109,6 @@ const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
 	readonly resultEditorBackground: string;
-}
-
-export interface IChatTranscriptContextPresentation {
-	readonly label: string;
-	readonly icon?: ThemeIcon;
-	readonly tooltip?: string;
-	readonly ariaLabel?: string;
-	readonly onDidActivate?: () => void;
-	readonly attachment?: IChatRequestVariableEntry;
 }
 
 export interface IChatWidgetContrib extends IDisposable {
@@ -310,8 +302,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private transcriptProgress: { readonly container: HTMLElement; readonly label: HTMLElement } | undefined;
-	private transcriptContext: { readonly container: HTMLElement; readonly pill: HTMLButtonElement; readonly icon: HTMLElement; readonly label: HTMLElement } | undefined;
-	private transcriptContextValue: IChatTranscriptContextPresentation | undefined;
+	private transcriptContext: HTMLElement | undefined;
+	private readonly transcriptContextPart = this._register(new MutableDisposable<ChatAttachmentsContentPart>());
+	private transcriptContextValue: IChatRequestTranscriptContextVariableEntry | undefined;
 
 	get domNode() { return this.container; }
 
@@ -1209,27 +1202,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 	}
 
-	setTranscriptContext(context: IChatTranscriptContextPresentation | undefined): void {
+	setTranscriptContext(context: IChatRequestTranscriptContextVariableEntry | undefined): void {
 		this.transcriptContextValue = context;
 		if (!this.transcriptContext) {
-			const container = dom.append(this.listContainer, $('.chat-transcript-context.chat-attached-context'));
-			container.hidden = true;
-			const pill = dom.append(container, $('button.chat-attached-context-attachment')) as HTMLButtonElement;
-			pill.type = 'button';
-			const icon = dom.append(pill, $('span'));
-			icon.setAttribute('aria-hidden', 'true');
-			const label = dom.append(pill, $('span.chat-attached-context-custom-text'));
-			this._register(dom.addDisposableListener(pill, dom.EventType.CLICK, () => this.transcriptContextValue?.onDidActivate?.()));
-			this.transcriptContext = { container, pill, icon, label };
+			this.transcriptContext = dom.append(this.listContainer, $('.chat-transcript-context.chat-attached-context'));
+			this.transcriptContext.hidden = true;
 		}
-		this.transcriptContext.container.hidden = context === undefined;
-		this.transcriptContext.pill.disabled = context?.onDidActivate === undefined;
-		this.transcriptContext.pill.title = context?.ariaLabel ?? context?.tooltip ?? '';
-		this.transcriptContext.pill.setAttribute('aria-label', context?.ariaLabel ?? context?.tooltip ?? context?.label ?? '');
-		this.transcriptContext.icon.className = context?.icon
-			? ThemeIcon.asClassName(context.icon)
-			: '';
-		this.transcriptContext.label.textContent = context?.label ?? '';
+		this.transcriptContext.hidden = context === undefined;
+		if (context) {
+			this.transcriptContextPart.value = this.instantiationService.createInstance(ChatAttachmentsContentPart, {
+				variables: [context],
+				domNode: this.transcriptContext,
+			});
+		} else {
+			this.transcriptContextPart.clear();
+			dom.clearNode(this.transcriptContext);
+		}
 		this.container.classList.toggle('chat-transcript-context-active', context !== undefined);
 	}
 
@@ -3011,8 +2999,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			: currentModelRequestOptions;
 
 		const transcriptContext = this.transcriptContextValue;
-		if (transcriptContext?.attachment) {
-			requestInputs.attachedContext.insertFirst(transcriptContext.attachment);
+		if (transcriptContext) {
+			requestInputs.attachedContext.insertFirst(transcriptContext);
 			this.setTranscriptContext(undefined);
 		}
 		let result: ChatSendResult;

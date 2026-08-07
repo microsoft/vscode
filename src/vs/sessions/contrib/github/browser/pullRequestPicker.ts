@@ -5,10 +5,9 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IChatRequestStringVariableEntry, withChatTranscriptContext } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestTranscriptContextVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
 import { IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
@@ -142,10 +141,10 @@ export function createPullRequestBootstrapPrompt(pullRequest: IGitHubPullRequest
 	return `Initialize this session for pull request #${pullRequest.number}, "${pullRequest.title}". The attached JSON is a complete pull request snapshot. For future questions about this pull request, use the attached snapshot as the primary source and do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from the snapshot. Do not inspect or modify files, use tools, or take any other action until the user sends a visible follow-up request. Reply only with "Ready".`;
 }
 
-export function createPullRequestContextAttachment(context: IGitHubPullRequestContext): IChatRequestStringVariableEntry {
+export function createPullRequestContextAttachment(context: IGitHubPullRequestContext): IChatRequestTranscriptContextVariableEntry {
 	const label = `#${context.number} ${context.title}`;
-	return withChatTranscriptContext<IChatRequestStringVariableEntry>({
-		kind: 'string',
+	return {
+		kind: 'transcriptContext',
 		id: `github-pull-request:${context.owner}/${context.repo}#${context.number}`,
 		name: label,
 		fullName: label,
@@ -154,16 +153,10 @@ export function createPullRequestContextAttachment(context: IGitHubPullRequestCo
 			...context,
 		}, undefined, 2),
 		modelDescription: 'Pull request details, patch, and comments as JSON.',
-		iconPath: Codicon.gitPullRequest,
+		icon: Codicon.gitPullRequest,
 		uri: URI.parse(context.url),
-		tooltip: new MarkdownString(localize('pullRequest.context.tooltip', "Pull request #{0} by @{1}", context.number, context.author)),
-		handle: 0,
-	}, {
-		label,
-		iconId: Codicon.gitPullRequest.id,
 		tooltip: localize('pullRequest.context.tooltip', "Pull request #{0} by @{1}", context.number, context.author),
-		uri: context.url,
-	});
+	};
 }
 
 function appendGroup(items: (IPullRequestQuickPickItem | IQuickPickSeparator)[], label: string, pullRequests: readonly IGitHubPullRequestSummary[]): void {
