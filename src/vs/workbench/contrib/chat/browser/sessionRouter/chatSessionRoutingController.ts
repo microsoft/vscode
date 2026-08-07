@@ -18,7 +18,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
@@ -31,18 +31,12 @@ import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSession
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
 
 import './media/chatSessionRouting.css';
 
 /** Maximum number of high-confidence session options shown in the destination picker. */
 const ROUTE_MAX_CHOICES = 6;
-
-/**
- * How many top pre-ranked candidates get their conversation transcript fetched
- * for the final content-aware score. Bounds how many session-content resolves a
- * single submission triggers while still covering the plausible matches.
- */
-const ROUTE_ENRICH_MAX_CANDIDATES = 12;
 
 /**
  * How long the pending-send badge counts down before auto-dispatching to the
@@ -71,137 +65,6 @@ interface IDispatchResult {
 }
 
 type SubmissionPhase = 'idle' | 'routing' | 'awaitingChoice' | 'dispatching';
-
-const RELATED_SESSION_FOLDER_CONFIDENCE = 0.35;
-
-export function parseExplicitNewSessionRequest(utterance: string): string | undefined {
-	const match = /^(?:please\s+)?(?:create|start|open)\s+(?:a\s+)?new\s+(?:chat\s+)?session(?:\s+(?:to|for|and)\s+|\s*[:,-]\s*)(.+)$/i.exec(utterance.trim());
-	const task = match?.[1]?.trim();
-	return task || undefined;
-}
-
-export function resolveNewSessionWorkspaceFolder(
-	utterance: string,
-	folders: readonly IWorkspaceFolder[],
-	results: readonly ISessionRouteResult[],
-	candidates: readonly IRoutableSession[],
-	defaultFolder: URI | undefined,
-): URI | undefined {
-	return folderMentionedInUtterance(utterance, folders)
-		?? folderFromRelatedSession(results, candidates, folders)
-		?? defaultFolder
-		?? folders[0]?.uri;
-}
-
-export function selectRouterShortlist(
-	candidates: readonly IRoutableSession[],
-	preliminaryResults: readonly ISessionRouteResult[],
-	limit: number = ROUTE_ENRICH_MAX_CANDIDATES,
-): IRoutableSession[] {
-	if (candidates.length <= limit) {
-		return [...candidates];
-	}
-
-	const candidatesById = new Map(candidates.map(candidate => [candidate.sessionId, candidate]));
-	const selectedIds = new Set<string>();
-	const shortlist: IRoutableSession[] = [];
-	for (const result of preliminaryResults) {
-		const candidate = candidatesById.get(result.sessionId);
-		if (candidate && !selectedIds.has(candidate.sessionId)) {
-			selectedIds.add(candidate.sessionId);
-			shortlist.push(candidate);
-			if (shortlist.length === limit) {
-				return shortlist;
-			}
-		}
-	}
-
-	const fallback = candidates
-		.filter(candidate => !selectedIds.has(candidate.sessionId))
-		.sort((a, b) =>
-			sessionStatusPriority(b.status) - sessionStatusPriority(a.status)
-			|| (b.lastActivity ?? 0) - (a.lastActivity ?? 0)
-			|| a.label.localeCompare(b.label)
-			|| a.sessionId.localeCompare(b.sessionId));
-	shortlist.push(...fallback.slice(0, limit - shortlist.length));
-	return shortlist;
-}
-
-export function selectBestSessionRoute(results: readonly ISessionRouteResult[]): ISessionRouteResult | undefined {
-	const top = results[0];
-	return top && isHighConfidenceSessionRoute(top) ? top : undefined;
-}
-
-function sessionStatusPriority(status: string | undefined): number {
-	return status === 'working' ? 2 : status === 'idle' ? 1 : 0;
-}
-
-function folderMentionedInUtterance(utterance: string, folders: readonly IWorkspaceFolder[]): URI | undefined {
-	const normalizedUtterance = utterance.toLocaleLowerCase();
-	let best: { folder: IWorkspaceFolder; length: number } | undefined;
-	for (const folder of folders) {
-		const names = new Set([folder.name, folder.uri.path.split('/').filter(Boolean).at(-1)]);
-		for (const name of names) {
-			if (!name || name.length < 3) {
-				continue;
-			}
-			const normalizedName = name.toLocaleLowerCase();
-			const start = normalizedUtterance.indexOf(normalizedName);
-			if (start >= 0
-				&& isWordBoundary(normalizedUtterance[start - 1])
-				&& isWordBoundary(normalizedUtterance[start + normalizedName.length])
-				&& (!best || normalizedName.length > best.length)) {
-				best = { folder, length: normalizedName.length };
-			}
-		}
-	}
-	return best?.folder.uri;
-}
-
-function folderFromRelatedSession(
-	results: readonly ISessionRouteResult[],
-	candidates: readonly IRoutableSession[],
-	folders: readonly IWorkspaceFolder[],
-): URI | undefined {
-	const candidateById = new Map(candidates.map(candidate => [candidate.sessionId, candidate]));
-	for (const result of results) {
-		if (result.confidence < RELATED_SESSION_FOLDER_CONFIDENCE) {
-			continue;
-		}
-		const candidate = candidateById.get(result.sessionId);
-		const folder = candidate && folderForSessionMetadata(candidate, folders);
-		if (folder) {
-			return folder.uri;
-		}
-	}
-	return undefined;
-}
-
-function folderForSessionMetadata(candidate: IRoutableSession, folders: readonly IWorkspaceFolder[]): IWorkspaceFolder | undefined {
-	for (const path of [candidate.cwd, candidate.repo]) {
-		if (!path) {
-			continue;
-		}
-		const normalizedPath = path.replaceAll('\\', '/').replace(/\/+$/, '').toLocaleLowerCase();
-		const match = folders
-			.filter(folder => {
-				const folderPath = folder.uri.path.replace(/\/+$/, '').toLocaleLowerCase();
-				return normalizedPath === folderPath
-					|| normalizedPath.startsWith(`${folderPath}/`)
-					|| normalizedPath.endsWith(`/${folder.name.toLocaleLowerCase()}`)
-					|| normalizedPath.endsWith(`/${folder.name.toLocaleLowerCase()}.git`);
-			})
-			.sort((a, b) => b.uri.path.length - a.uri.path.length)[0];
-		if (match) {
-			return match;
-		}
-	}
-	return undefined;
-}
-
-function isWordBoundary(value: string | undefined): boolean {
-	return value === undefined || !/[\p{L}\p{N}_-]/u.test(value);
-}
 
 function statusToString(status: AgentSessionStatus): string {
 	switch (status) {
