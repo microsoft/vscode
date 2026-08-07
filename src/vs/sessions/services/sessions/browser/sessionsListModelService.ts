@@ -244,11 +244,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				if (isArchived) {
 					return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 				}
-				if (completedStateIcon) {
-					return completedStateIcon;
-				}
 				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
+				}
+				if (completedStateIcon) {
+					return completedStateIcon;
 				}
 				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
