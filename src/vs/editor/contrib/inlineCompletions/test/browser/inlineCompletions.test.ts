@@ -6,16 +6,17 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDataChannelService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import product from '../../../../../platform/product/common/product.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Range } from '../../../../common/core/range.js';
-import { InlineCompletions, InlineCompletionsProvider, ProviderId } from '../../../../common/languages.js';
+import { InlineCompletionTriggerKind, InlineCompletions, InlineCompletionsProvider, ProviderId } from '../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
+import { InlineCompletionEditorType } from '../../browser/model/provideInlineCompletions.js';
+import { InlineCompletionsSource } from '../../browser/model/inlineCompletionsSource.js';
 import { IWithAsyncTestCodeEditorAndInlineCompletionsModel, MockInlineCompletionsProvider, withAsyncTestCodeEditorAndInlineCompletionsModel } from './utils.js';
 import { ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -47,19 +48,35 @@ suite('Inline Completions', () => {
 			[IConfigurationService, new TestConfigurationService({
 				'github.copilot.enable': { '*': true },
 			})],
-			[IProductService, {
-				_serviceBrand: undefined,
-				...product,
-				defaultChatAgent: {
-					...product.defaultChatAgent,
-					completionsEnablementSetting: 'github.copilot.enable',
-				},
-			}],
 		);
 
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('', { provider, serviceCollection },
-			async ({ model, instantiationService }) => {
-				const request = model.triggerExplicitly();
+			async ({ editor, model, store, instantiationService }) => {
+				const source = store.add(instantiationService.createInstance(
+					InlineCompletionsSource,
+					model.textModel,
+					model._textModelVersionId,
+					{ get: () => 0, update: () => 0, default: () => 0 },
+					observableValue('testCursorPosition', editor.getPosition()!),
+					'github.copilot.enable',
+				));
+				const request = source.fetch([provider], undefined, {
+					triggerKind: InlineCompletionTriggerKind.Explicit,
+					selectedSuggestionInfo: undefined,
+					earliestShownDateTime: 0,
+					includeInlineCompletions: true,
+					includeInlineEdits: false,
+					requestIssuedDateTime: Date.now(),
+				}, undefined, false, observableValue('userJumpedToActiveCompletion', false), {
+					startTime: Date.now(),
+					sku: undefined,
+					editorType: InlineCompletionEditorType.TextEditor,
+					languageId: 'plaintext',
+					availableProviders: [provider.providerId!],
+					reason: '',
+					typingInterval: 0,
+					typingIntervalCharacterCount: 0,
+				});
 				await providerStarted.p;
 				instantiationService.dispose();
 				await providerResponse.complete({ items: [] });

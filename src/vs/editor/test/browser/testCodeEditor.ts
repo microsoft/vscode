@@ -53,8 +53,6 @@ import { INotificationService } from '../../../platform/notification/common/noti
 import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../platform/opener/test/common/nullOpenerService.js';
-import product from '../../../platform/product/common/product.js';
-import { IProductService } from '../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -241,7 +239,6 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	define(ITelemetryService, NullTelemetryServiceShape);
 	define(ILoggerService, NullLoggerService);
 	define(IDataChannelService, NullDataChannelService);
-	defineInstance(IProductService, { _serviceBrand: undefined, ...product });
 	define(IEnvironmentService, class extends mock<IEnvironmentService>() {
 		declare readonly _serviceBrand: undefined;
 		override isBuilt: boolean = true;

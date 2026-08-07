@@ -20,7 +20,6 @@ import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLik
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -91,13 +90,13 @@ export class InlineCompletionsSource extends Disposable {
 		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _cursorPosition: IObservable<Position>,
+		completionsEnablementSetting: string | undefined,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IProductService productService: IProductService,
 	) {
 		super();
 		this._dataChannelTelemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
@@ -114,12 +113,11 @@ export class InlineCompletionsSource extends Disposable {
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 
-		const enablementSetting = productService.defaultChatAgent?.completionsEnablementSetting;
-		if (enablementSetting) {
-			this._updateCompletionsEnablement(enablementSetting);
+		if (completionsEnablementSetting) {
+			this._updateCompletionsEnablement(completionsEnablementSetting);
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(enablementSetting)) {
-					this._updateCompletionsEnablement(enablementSetting);
+				if (e.affectsConfiguration(completionsEnablementSetting)) {
+					this._updateCompletionsEnablement(completionsEnablementSetting);
 				}
 			}));
 		}
