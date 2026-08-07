@@ -74,14 +74,33 @@
 	flex-shrink: 0;
 }
 
-.interactive-session .chat-plan-review-container .chat-plan-review-title-label {
+.interactive-session .chat-plan-review-container .chat-plan-review-title-content {
 	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	overflow: hidden;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-title-label {
 	min-width: 0;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-size: var(--vscode-chat-font-size-body-s);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-outdated {
+	flex-shrink: 0;
+	padding: 0 var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 14px;
 }
 
 .interactive-session .chat-plan-review-container .chat-plan-review-title-actions {
@@ -202,6 +221,15 @@
 	margin-bottom: 0;
 	margin-top: 0;
 	padding-inline-start: 20px;
+}
+
+.interactive-session .chat-plan-review-container .rendered-markdown a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .chat-plan-review-container .rendered-markdown a:hover,
+.interactive-session .chat-plan-review-container .rendered-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 /* ---------- Feedback section (fixed; outside scroll) ---------- */

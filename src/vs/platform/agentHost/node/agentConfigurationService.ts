@@ -147,11 +147,13 @@ export interface IAgentConfigurationService {
 
 	registerProviderConfiguration?(registration: IAgentCustomizationSettingsRegistration): void;
 	getRootConfigValues?(): Readonly<Record<string, unknown>>;
+	publishRootTransientValues?(patch: Readonly<Record<string, unknown>>): void;
 }
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
 	private _rootConfigWrite = Promise.resolve();
+	private readonly _rootTransientValueKeys = new Set<string>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
@@ -306,6 +308,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 
 		const values = { ...(this._stateManager.rootState.config?.values ?? { [AgentHostConfigKey.Customizations]: [] }) };
+		for (const key of this._rootTransientValueKeys) {
+			delete values[key];
+		}
 		for (const key of getProviderBackedRootConfigKeys(this._stateManager.rootState)) {
 			delete values[key];
 		}
@@ -352,6 +357,16 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	getRootConfigValues(): Readonly<Record<string, unknown>> {
 		return this._stateManager.rootState.config?.values ?? {};
+	}
+
+	publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {
+		for (const key of Object.keys(patch)) {
+			this._rootTransientValueKeys.add(key);
+		}
+		this._stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { ...patch },
+		});
 	}
 
 	/**

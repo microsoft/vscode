@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ISSHResolvedConfig } from './sshRemoteAgentHost.js';
+import { isSSHStrictHostKeyChecking, type ISSHResolvedConfig } from './sshRemoteAgentHost.js';
 
 /** Strip inline comments from an SSH config value. */
 export function stripSSHComment(s: string): string {
@@ -35,6 +35,24 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 }
 
 /**
+ * Split a space-separated `ssh -G` path list, honoring double quotes so paths
+ * containing spaces survive. `ssh -G` emits `userknownhostsfile` and
+ * `globalknownhostsfile` as one line holding several paths.
+ */
+function parseSSHPathList(value: string): string[] {
+	const paths: string[] = [];
+	const pattern = /"([^"]*)"|(\S+)/g;
+	let match: RegExpExecArray | null;
+	while ((match = pattern.exec(value)) !== null) {
+		const path = match[1] ?? match[2];
+		if (path) {
+			paths.push(path);
+		}
+	}
+	return paths;
+}
+
+/**
  * Parse `ssh -G` output into a resolved config object.
  */
 export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
@@ -54,6 +72,8 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		}
 	}
 
+	const strictHostKeyChecking = map.get('stricthostkeychecking')?.toLowerCase();
+
 	return {
 		hostname: map.get('hostname') ?? '',
 		user: map.get('user') || undefined,
@@ -61,5 +81,10 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		identityFile: identityFiles,
 		identityAgent: map.get('identityagent') || undefined,
 		forwardAgent: map.get('forwardagent') === 'yes',
+		userKnownHostsFiles: parseSSHPathList(map.get('userknownhostsfile') ?? ''),
+		globalKnownHostsFiles: parseSSHPathList(map.get('globalknownhostsfile') ?? ''),
+		strictHostKeyChecking: strictHostKeyChecking && isSSHStrictHostKeyChecking(strictHostKeyChecking)
+			? strictHostKeyChecking
+			: undefined,
 	};
 }

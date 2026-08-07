@@ -77,6 +77,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
         displayName: Setup NPM Authentication
 
+      - script: node build/azure-pipelines/common/validatePackageLocks.ts origin/main
+        displayName: Validate package-lock.json changes
+        condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
       - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
         displayName: Install build tools
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))

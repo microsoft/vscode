@@ -151,9 +151,9 @@ suite('CodexProxyService', () => {
 
 	test('serves an empty Codex model catalog', async () => {
 		await withProxy(async (handle, fake) => {
-			const response = await get(`${handle.baseUrl}/v1/models?client_version=0.142.0`, {
+			const response = await get(`${handle.baseUrl}/v1/models?client_version=0.146.0`, {
 				'Authorization': `Bearer ${handle.nonce}`,
-				'User-Agent': 'codex/0.142.0',
+				'User-Agent': 'codex/0.146.0',
 			});
 			assert.strictEqual(response.status, 200);
 			assert.deepStrictEqual(JSON.parse(response.body), { models: [] });

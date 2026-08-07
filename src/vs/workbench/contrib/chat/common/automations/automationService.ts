@@ -149,6 +149,8 @@ export interface IAutomationService {
 
 	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
 	updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined>;
+	/** Deletes a retained run history entry; missing IDs are ignored. */
+	deleteRun(runId: string): Promise<void>;
 
 	/** Most recent `pending`/`running` run for an automation, or `undefined`. Backs the runner's per-automation claim. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;

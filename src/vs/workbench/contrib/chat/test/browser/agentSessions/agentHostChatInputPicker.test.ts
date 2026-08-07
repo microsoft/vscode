@@ -115,7 +115,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 			title: 'Approvals',
 			description: 'Tool approval behavior for this session',
 			enum: ['default', 'autoApprove'],
-			enumLabels: ['Default approvals', 'Allow all'],
+			enumLabels: ['Default permissions', 'Allow all'],
 			enumDescriptions: ['Asks when approval settings don\'t apply', 'Runs tool calls without asking'],
 		} as SessionConfigPropertySchema;
 

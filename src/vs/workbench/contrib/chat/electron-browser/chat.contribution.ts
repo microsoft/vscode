@@ -37,6 +37,7 @@ import { AgentHostSessionListContribution } from '../browser/agentSessions/agent
 import { AgentHostOpenSessionLinkOpenerContribution } from '../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
 import { AgentHostTerminalContribution } from '../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { AgentHostCopilotCliSettingsContribution } from '../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
+import { AgentHostAllowSignedOutWhenUsableContribution } from '../browser/agentSessions/agentHost/agentHostAllowSignedOutWhenUsableContribution.js';
 import './codexCustomizationSettings.contribution.js';
 import { CopilotConfigSlashSubmitHandlerContribution } from '../browser/agentSessions/agentHost/copilotConfigSlashSubmitHandler.js';
 import '../browser/agentSessions/agentHost/agentHostSettings.contribution.js';
@@ -278,6 +279,7 @@ registerWorkbenchContribution2(AgentHostSessionListContribution.ID, AgentHostSes
 registerWorkbenchContribution2(AgentHostOpenSessionLinkOpenerContribution.ID, AgentHostOpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostCopilotCliSettingsContribution.ID, AgentHostCopilotCliSettingsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID, AgentHostAllowSignedOutWhenUsableContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsHandoffInputTipContribution.ID, AgentsHandoffInputTipContribution, WorkbenchPhase.Eventually);
 

@@ -18,6 +18,7 @@ export interface IAgentPluginManifest {
 	readonly name?: string;
 	readonly version?: string;
 	readonly description?: string;
+	readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
 export async function readAgentPluginManifest(pluginUri: URI, fileService: IFileService): Promise<IAgentPluginManifest | undefined> {
@@ -41,11 +42,13 @@ export async function readAgentPluginManifest(pluginUri: URI, fileService: IFile
 	const name = asNonEmptyString(parsed['name']);
 	const version = asString(parsed['version']);
 	const description = asString(parsed['description']);
+	const extensions = isRecord(parsed['extensions']) ? parsed['extensions'] : undefined;
 	return {
 		...manifest,
 		...(name ? { name } : {}),
 		...(version ? { version } : {}),
 		...(description ? { description } : {}),
+		...(extensions ? { extensions } : {}),
 	};
 }
 

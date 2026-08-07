@@ -4,28 +4,73 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createDictationCleanupSystemPrompt, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, createDictationCleanupSystemPrompt, isDictationEntitled, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
+import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
+
+type CleanupTestService = {
+	_languageModelsService: {
+		selectLanguageModels: () => Promise<string[]>;
+		sendChatRequest: (...args: never[]) => Promise<never>;
+	};
+	_promptsService: {
+		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
+	};
+	_logService: {
+		info: (...args: never[]) => void;
+		warn: (...args: never[]) => void;
+		trace: (...args: never[]) => void;
+	};
+	_cleanupWithLanguageModel: (text: string, token: CancellationToken) => Promise<string | undefined>;
+};
 
 suite('ChatSpeechToTextService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves the dictation language from Voice Mode configuration and browser locale', () => {
+	test('requires a paid plan and restricts MAI for external Enterprise users', () => {
+		assert.deepStrictEqual({
+			freeLocal: isDictationEntitled(ChatEntitlement.Free, false, false),
+			proLocal: isDictationEntitled(ChatEntitlement.Pro, false, false),
+			proMai: isDictationEntitled(ChatEntitlement.Pro, false, true),
+			enterpriseLocal: isDictationEntitled(ChatEntitlement.Enterprise, false, false),
+			enterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, false, true),
+			internalEnterpriseMai: isDictationEntitled(ChatEntitlement.Enterprise, true, true),
+		}, {
+			freeLocal: false,
+			proLocal: true,
+			proMai: true,
+			enterpriseLocal: true,
+			enterpriseMai: false,
+			internalEnterpriseMai: true,
+		});
+	});
+
+	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {
 		assert.deepStrictEqual({
 			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
-			automatic: resolveDictationLanguage('auto', 'uk-UA'),
-			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR'),
-			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL'),
-			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU'),
+			explicitWithDisplayLanguage: resolveDictationLanguage('fr-FR', 'de-DE', 'ja'),
+			displayLanguage: resolveDictationLanguage('auto', 'en-US', 'de'),
+			englishDisplayLanguage: resolveDictationLanguage('auto', 'de-DE', 'en'),
+			unsupportedDisplayLanguage: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
+			automatic: resolveDictationLanguage('auto', 'uk-UA', 'id-ID'),
+			regionalAutomatic: resolveDictationLanguage('auto', 'pt-BR', 'id-ID'),
+			additionalSupportedAutomatic: resolveDictationLanguage('auto', 'he-IL', 'id-ID'),
+			unsupportedRegion: resolveDictationLanguage('auto', 'en-AU', 'id-ID'),
 			explicitSpanish: resolveDictationLanguage('es', 'en-US'),
 			explicitAdaptationReady: resolveDictationLanguage('lt', 'en-US'),
-			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO'),
+			regionalPortugueseFallback: resolveDictationLanguage('auto', 'pt-AO', 'id-ID'),
 			invalidExplicit: resolveDictationLanguage('not a locale', 'de-DE'),
-			missing: resolveDictationLanguage(undefined, undefined),
+			missing: resolveDictationLanguage(undefined, undefined, 'id-ID'),
 		}, {
 			explicit: 'fr-FR',
+			explicitWithDisplayLanguage: 'fr-FR',
+			displayLanguage: 'de-DE',
+			englishDisplayLanguage: 'en-US',
+			unsupportedDisplayLanguage: 'pt-BR',
 			automatic: 'uk-UA',
 			regionalAutomatic: 'pt-BR',
 			additionalSupportedAutomatic: 'he-IL',
@@ -94,6 +139,36 @@ suite('ChatSpeechToTextService', () => {
 			allowsExplicitTerminology: true,
 			includesDictationInstructions: true,
 		});
+	});
+
+	test('bounds stalled language model cleanup and falls back to the raw transcript', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+			service._languageModelsService = {
+				selectLanguageModels: async () => ['test-model'],
+				sendChatRequest: () => new Promise<never>(() => { }),
+			};
+			service._promptsService = {
+				getDictationInstructions: async () => undefined,
+			};
+			service._logService = {
+				info: () => { },
+				warn: () => { },
+				trace: () => { },
+			};
+			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
+			let settled = false;
+			cleanupPromise.then(() => settled = true);
+			await clock.tickAsync(1499);
+			await Promise.resolve();
+			assert.strictEqual(settled, false);
+			await clock.tickAsync(1);
+
+			assert.strictEqual(await cleanupPromise, undefined);
+		} finally {
+			clock.restore();
+		}
 	});
 
 });
