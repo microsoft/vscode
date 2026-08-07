@@ -3,22 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { CustomizationHarnessServiceBase } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 /**
- * Sessions-window customization harness service.
+ * Sessions-window override of the customization harness service.
+ *
+ * Harnesses are provided by chat session providers and AHP remote servers.
  */
 export class SessionsCustomizationHarnessService extends CustomizationHarnessServiceBase {
 
 	constructor(
 		@IPromptsService promptsService: IPromptsService,
 	) {
-		super(
-			[createVSCodeHarnessDescriptor()],
-			SessionType.Local,
-			promptsService,
-		);
+		super([], '', promptsService);
 	}
 }
