@@ -16,7 +16,7 @@ export interface IInternalConfigurationInformation {
 	[id: string]: IInternalConfigurationPropertyInformation;
 }
 
-export function buildInternalConfigurationInformation(configs: Iterable<Config<any> | ExperimentBasedConfig<ExperimentBasedConfigType>>): IInternalConfigurationInformation {
+export function buildInternalConfigurationInformation(configs: Iterable<Config<unknown> | ExperimentBasedConfig<ExperimentBasedConfigType>>): IInternalConfigurationInformation {
 	const configurationInformation: IInternalConfigurationInformation = {};
 	for (const config of configs) {
 		if (!config.options?.valueIgnoredForExternals) {
