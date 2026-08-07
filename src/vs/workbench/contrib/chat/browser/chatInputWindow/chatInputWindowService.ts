@@ -769,7 +769,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			layingOut = true;
 			try {
 				for (const row of getDescendantElements(list, 'monaco-list-row')) {
-					const hasConfirmation = !!row.querySelector('.chat-confirmation-widget-container');
+					const hasConfirmation = getDescendantElements(row, 'chat-confirmation-widget-container').length > 0;
 					row.classList.toggle('chat-input-window-confirmation-row', hasConfirmation);
 					for (const value of getDescendantElements(row, 'value')) {
 						value.classList.toggle('chat-input-window-confirmation-value', hasConfirmation);
@@ -805,7 +805,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				}, 0);
 				const isQuestion = panel.classList.contains('question');
 				const questionContainer = isQuestion
-					? parent.querySelector<HTMLElement>('.chat-question-carousel-widget-container:not(:empty)')
+					? getDescendantElements(parent, 'chat-question-carousel-widget-container').find(element => element.childElementCount > 0)
 					: undefined;
 				const questionContentHeight = questionContainer
 					? questionContainer.getBoundingClientRect().bottom - parent.getBoundingClientRect().top
