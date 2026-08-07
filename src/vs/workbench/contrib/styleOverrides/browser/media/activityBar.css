@@ -161,7 +161,7 @@
 .style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) .active-item-indicator {
 	z-index: 0;
 	top: 50%;
-	left: 0;
+	left: 2px;
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -177,7 +177,7 @@
 .style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .active-item-indicator {
 	z-index: 0;
 	top: 50%;
-	left: 0;
+	left: 2px;
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -249,99 +249,7 @@
  * rounded box gives the active item its own shape, so the full-width rule under
  * the top (header) bar — and over the bottom (footer) bar — is removed for the
  * cleaner, default-position look. `.monaco-workbench` is added to outrank the
- * base part rule.
  */
-.style-override.monaco-workbench .pane-composite-part:not(.empty) > .header {
-	border-bottom: none;
-	overflow: visible;
-}
-
-.style-override.monaco-workbench .pane-composite-part:not(.empty) > .footer {
-	border-top: none;
-}
-
-/* Center the icon and its rounded box within the compact header/footer chrome. */
-.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	height: 32px;
-}
-
-.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	padding: 0 4px;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-/*
- * Text-label composites (`.action-item` without `.icon`, e.g. panel titles)
- * inherit the base ~35px-tall item via `line-height`. Match the icon items at a
- * compact 24px so both tab styles share the same height. `box-sizing` keeps the
- * inherited 2px top/bottom padding inside the 24px box so the item is exactly
- * 24px tall.
- */
-.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
-	box-sizing: border-box;
-	height: 24px;
-	line-height: 24px;
-}
-
-.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before {
-	position: relative;
-	left: 0px;
-	top: 0px;
-}
-
-/*
- * Auxiliary bar only: give its composite icon items a shorter 24px height so the
- * single Chat item reads as a compact, balanced chip. Scoped to the auxiliary
- * bar so the primary activity bar keeps its default item height.
- */
-.style-override.monaco-workbench :is(.part.auxiliarybar > .header-or-footer, .pane-composite-part.basepanel > .title) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	height: 24px;
-	padding: 0;
-	width: 24px;
-}
-
-.style-override.monaco-workbench :is(.part.auxiliarybar > .header-or-footer, .pane-composite-part.basepanel > .title) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .active-item-indicator {
-	display: none;
-}
-
-.style-override.monaco-workbench :is(.part.auxiliarybar > .header-or-footer, .pane-composite-part.basepanel > .title) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
-	font-weight: var(--vscode-fontWeight-regular);
-}
-
-/* Space the composite items apart with a small gap in the auxiliary bar and base panel. */
-.style-override.monaco-workbench :is(.part.auxiliarybar > .header-or-footer, .pane-composite-part.basepanel > .title) > .composite-bar-container > .composite-bar > .monaco-action-bar .actions-container {
-	gap: 4px;
-}
-
-.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact {
-	overflow: visible;
-}
-
-/* When badge-content is empty (icon-only via ::before, e.g. the update badge), use uniform padding so it stays circular. */
-.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content:empty {
-	padding: 2px;
-}
-
-.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content:empty {
-	padding: 0;
-	border-radius: var(--vscode-cornerRadius-circle);
-}
-
-.style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
-	top: 18px;
-	right: 2px;
-}
-
-.style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content:empty {
-	padding: 0;
-	border-radius: var(--vscode-cornerRadius-circle);
-	width: 16px;
-}
-
-.style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
-	top: 13px;
-	right: 2px;
-}
 
 .style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content:empty {
 	padding: 0;
@@ -375,5 +283,10 @@
 }
 
 .style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {
+	top: 10px;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content,
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	top: 10px;
 }

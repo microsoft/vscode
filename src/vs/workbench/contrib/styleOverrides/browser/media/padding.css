@@ -250,6 +250,7 @@
 
 .style-override.monaco-workbench .part.basepanel:is(.bottom, .top, .left, .right) .composite.title {
 	padding-right: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size20);
 	overflow: visible;
 }
 

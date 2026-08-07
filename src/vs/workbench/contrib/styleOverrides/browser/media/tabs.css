@@ -400,14 +400,65 @@
 }
 
 /*
- * Pane tabs (primary side bar, panel and auxiliary side bar) are text composite
- * actions. Keep icon-only activity items on their existing treatment.
+ * Pane tabs (primary side bar, panel and auxiliary side bar) use the full part
+ * header as a contiguous hit target. The indicator owns the inset 24px visual
+ * fill so spacing between pills does not create dead space between targets.
  */
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container,
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar,
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar,
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar > .actions-container {
+	height: 100%;
+}
+
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar > .actions-container {
+	align-items: stretch;
+	gap: 0;
+}
+
+.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	align-self: stretch;
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size320);
+	min-height: var(--vscode-spacing-size320);
+	max-height: var(--vscode-spacing-size320);
+	margin: 0 !important;
+	border-block: var(--vscode-spacing-size40) solid transparent;
+	border-radius: 0;
+	background-color: transparent !important;
+}
+
 .modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon),
 .modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
 	text-transform: none !important;
-	padding: 0 8px;
+	padding: 0 var(--vscode-spacing-size100);
+}
+
+.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
+.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
+	flex: 0 0 28px;
+	width: 28px;
+	min-width: 28px;
+	max-width: 28px;
+	padding: 0 var(--vscode-spacing-size60);
+}
+
+.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > .active-item-indicator,
+.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > .active-item-indicator,
+.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon > .active-item-indicator,
+.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon > .active-item-indicator {
+	inset: 0 var(--vscode-spacing-size20);
+	z-index: 0;
+	width: auto;
+	height: auto;
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > :is(.action-label, .badge),
+.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > :is(.action-label, .badge) {
+	position: relative;
+	z-index: 1;
 }
 
 .modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label,
@@ -417,20 +468,18 @@
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked,
-.modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .part.auxiliarybar > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active),
-.modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part.basepanel > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) {
+.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator,
+.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator,
+.modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) > .active-item-indicator {
 	background-color: var(--modern-ui-tab-active-background) !important;
 }
 
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover {
+.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover > .active-item-indicator,
+.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover > .active-item-indicator {
 	background-color: var(--modern-ui-tab-hover-background);
 }
 
-.modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .part.auxiliarybar > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover,
-.modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part.basepanel > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover {
+.modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover > .active-item-indicator {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
@@ -539,19 +588,6 @@
 	background-color: transparent !important;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	box-sizing: border-box;
-	flex: 0 0 24px;
-	width: 24px;
-	min-width: 24px;
-	max-width: 24px;
-	height: 24px;
-	min-height: 24px;
-	max-height: 24px;
-	padding: 0;
-}
-
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label,
@@ -564,20 +600,25 @@
 	display: none !important;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus),
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) {
+:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	outline: none !important;
+}
+
+:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) > .active-item-indicator {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):not(:focus):hover,
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):not(:focus):hover {
+:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):not(:focus):hover > .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked):not(:focus):hover > .active-item-indicator {
 	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus,
-:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus {
+:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus > .active-item-indicator,
+:is(.hc-black, .hc-light).modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus > .active-item-indicator {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder) !important;
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
@@ -586,8 +627,8 @@
  * Drop the checked underline in favour of the rounded background while retaining
  * the base keyboard-focus indicator.
  */
-.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked:not(:focus) .active-item-indicator:before,
-.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked:not(:focus) .active-item-indicator:before {
+.modern-ui-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.modern-ui-tabs .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before {
 	border-top-color: transparent !important;
 	border-top-width: 0 !important;
 	border-bottom-color: transparent !important;
