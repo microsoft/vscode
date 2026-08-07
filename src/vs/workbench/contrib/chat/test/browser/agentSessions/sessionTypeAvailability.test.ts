@@ -8,7 +8,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { getSessionTypeAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
-import { IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 
 interface ITypeConfig {
@@ -24,20 +24,20 @@ interface ITypeConfig {
 
 const TYPE = 'agent-host-test';
 
-function createChatSessionsService(config: ITypeConfig): IChatSessionsService {
+function createChatSessionsService(config: ITypeConfig, sessionType = TYPE): IChatSessionsService {
 	return new class extends mock<IChatSessionsService>() {
 		override supportsAutoModelForSessionType(type: string): boolean {
-			return type === TYPE ? config.supportsAutoModel : false;
+			return type === sessionType ? config.supportsAutoModel : false;
 		}
 		override requiresCustomModelsForSessionType(type: string): boolean {
-			return type === TYPE ? config.requiresCustomModels : false;
+			return type === sessionType ? config.requiresCustomModels : false;
 		}
 		override requiresCopilotSignInForSessionType(type: string): boolean {
-			return type === TYPE ? !!config.requiresCopilotSignIn : false;
+			return type === sessionType ? !!config.requiresCopilotSignIn : false;
 		}
 		override getChatSessionContribution(type: string): ResolvedChatSessionsExtensionPoint | undefined {
-			if (type === TYPE && config.registered) {
-				return { type: TYPE, name: TYPE, displayName: TYPE, description: '', icon: undefined };
+			if (type === sessionType && config.registered) {
+				return { type: sessionType, name: sessionType, displayName: sessionType, description: '', icon: undefined };
 			}
 			return undefined;
 		}
@@ -68,6 +68,23 @@ function createLanguageModelsService(targets: readonly (string | undefined)[]): 
 				return undefined;
 			}
 			return { targetChatSessionType: targets[index] } as ILanguageModelChatMetadata;
+		}
+		override isModelHidden(): boolean {
+			return false;
+		}
+	}();
+}
+
+function createByokLanguageModelsService(type: string, hidden: readonly string[] = []): ILanguageModelsService {
+	return new class extends mock<ILanguageModelsService>() {
+		override getLanguageModelIds(): string[] {
+			return ['agent-host-byok'];
+		}
+		override lookupLanguageModel(): ILanguageModelChatMetadata {
+			return { targetChatSessionType: type, byokModelIdentifier: 'gemini/gemini-2.5-flash' } as ILanguageModelChatMetadata;
+		}
+		override isModelHidden(identifier: string): boolean {
+			return hidden.includes(identifier);
 		}
 	}();
 }
@@ -104,6 +121,28 @@ suite('getSessionTypeAvailability', () => {
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
 	});
 
+	test('local Agent Host Copilot and Claude remain selectable while signed out', () => {
+		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true, requiresCopilotSignIn: true };
+		const getAvailability = (type: string, entitlement: ChatEntitlement) => getSessionTypeAvailability(
+			createChatSessionsService(config, type),
+			createEntitlementService(entitlement),
+			createLanguageModelsService([]),
+			type,
+		);
+
+		assert.deepStrictEqual({
+			signedOutCopilot: getAvailability(SessionType.AgentHostCopilot, ChatEntitlement.Unknown),
+			signedOutClaude: getAvailability(SessionType.AgentHostClaude, ChatEntitlement.Unknown),
+			freeClaude: getAvailability(SessionType.AgentHostClaude, ChatEntitlement.Free),
+			proClaude: getAvailability(SessionType.AgentHostClaude, ChatEntitlement.Pro),
+		}, {
+			signedOutCopilot: SessionTypeAvailability.Available,
+			signedOutClaude: SessionTypeAvailability.Available,
+			freeClaude: SessionTypeAvailability.UpgradeRequired,
+			proClaude: SessionTypeAvailability.NoModels,
+		});
+	});
+
 	test('signed-out user must sign in for a delegation type (e.g. Cloud)', () => {
 		// The cloud agent delegates to a remote Copilot: supportsAutoModel=false,
 		// requiresCustomModels=false. It still needs a Copilot account, so a
@@ -134,10 +173,36 @@ suite('getSessionTypeAvailability', () => {
 	});
 
 	test('a targeting model does NOT override sign-in for a Copilot-backed type', () => {
-		// BYOK is not supported in the agent host / Copilot CLI, so a stale/cached
-		// Copilot model still targeting the type must not unlock it when signed out.
+		// A native/CAPI model also targets the harness, but still needs Copilot auth.
 		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown, [TYPE]), SessionTypeAvailability.SignInRequired);
+	});
+
+	test('a visible Agent Host BYOK model overrides sign-in for a Copilot-backed type', () => {
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
+		assert.strictEqual(getSessionTypeAvailability(
+			createChatSessionsService(config),
+			createEntitlementService(ChatEntitlement.Unknown),
+			createByokLanguageModelsService(TYPE),
+			TYPE,
+		), SessionTypeAvailability.Available);
+	});
+
+	test('a hidden Agent Host BYOK copy or source model does not override sign-in', () => {
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
+		const availabilityForHidden = (hidden: readonly string[]) => getSessionTypeAvailability(
+			createChatSessionsService(config),
+			createEntitlementService(ChatEntitlement.Unknown),
+			createByokLanguageModelsService(TYPE, hidden),
+			TYPE,
+		);
+		assert.deepStrictEqual({
+			copyHidden: availabilityForHidden(['agent-host-byok']),
+			sourceHidden: availabilityForHidden(['gemini/gemini-2.5-flash']),
+		}, {
+			copyHidden: SessionTypeAvailability.SignInRequired,
+			sourceHidden: SessionTypeAvailability.SignInRequired,
+		});
 	});
 
 	test('a targeting model keeps the type available on a paid plan', () => {
