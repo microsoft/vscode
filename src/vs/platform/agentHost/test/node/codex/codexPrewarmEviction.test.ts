@@ -44,7 +44,7 @@ import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHo
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/SandboxPolicy.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
-import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
+import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -133,24 +133,6 @@ interface ICreateAgentOptions {
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
 	readonly checkpointService?: IAgentHostCheckpointService;
-}
-
-/**
- * Recording {@link IAgentHostCheckpointService} double that captures
- * {@link captureBaselineCheckpoint} invocations so tests can assert baseline
- * capture happens once on the fresh first send (and not on subsequent sends).
- * All other methods are no-ops mirroring {@link NULL_CHECKPOINT_SERVICE}.
- */
-class RecordingCheckpointService implements IAgentHostCheckpointService {
-	declare readonly _serviceBrand: undefined;
-	readonly baselineCalls: { readonly session: string; readonly workingDirectories: readonly string[] | undefined }[] = [];
-	async captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		this.baselineCalls.push({ session: sessionUri.toString(), workingDirectories: workingDirectories?.map(w => w.toString()) });
-	}
-	async captureTurnCheckpoint(): Promise<void> { }
-	async getTurnCheckpointPair(): Promise<{ parent: string; current: string } | undefined> { return undefined; }
-	async getBaselineCheckpoint(): Promise<string | undefined> { return undefined; }
-	async deleteCheckpoints(): Promise<void> { }
 }
 
 class TestCodexLogService extends NullLogService {
@@ -1112,30 +1094,7 @@ suite('CodexAgent baseline checkpoint', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/**
-	 * Drives the wire protocol until a `turn/start` request is observed,
-	 * answering any intermediate `thread/start` (with a synthetic thread id)
-	 * and `thread/unsubscribe` (with `{}`) requests along the way. Resilient to
-	 * an optional tool re-materialization that restarts the thread before the
-	 * first turn.
-	 */
-	async function drainUntilTurnStart(peer: ITestPeer): Promise<void> {
-		for (let i = 0; i < 6; i++) {
-			const req = await readNextRequest(peer.outbound);
-			if (req.method === 'turn/start') {
-				peer.push({ id: req.id, result: {} });
-				return;
-			}
-			if (req.method === 'thread/start') {
-				peer.push({ id: req.id, result: { thread: { id: `thread-drain-${i}` } } });
-			} else {
-				peer.push({ id: req.id, result: {} });
-			}
-		}
-		throw new Error('Timed out waiting for turn/start');
-	}
-
-	test('fresh first send captures the baseline checkpoint once', async () => {
+	test('captures the baseline checkpoint on the fresh first send but not on subsequent sends', async () => {
 		const checkpointService = new RecordingCheckpointService();
 		const agent = await createAgent(disposables, { checkpointService });
 		const peer = disposables.add(createTestPeer());
@@ -1147,57 +1106,32 @@ suite('CodexAgent baseline checkpoint', () => {
 		const folder = URI.file('/repo/baseline-folder');
 		const { session } = await agent.createSession({ workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
-		const prewarmStart = await readNextRequest(peer.outbound);
+		const chat = URI.parse(buildDefaultChatUri(session));
 
+		// Complete the prewarm `thread/start` so the folder thread is materialized
+		// (which sets the tool/mcp/customization signatures).
+		const prewarmStart = await readNextRequest(peer.outbound);
 		try {
 			peer.push({ id: prewarmStart.id, result: { thread: { id: 'thread-baseline' } } });
 			await entry.materializePromise;
 
-			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', undefined, undefined, 'turn-1');
-			await drainUntilTurnStart(peer);
-			await send;
-
-			// The fresh first send captures exactly one baseline for this
-			// session — identical to the Copilot harness.
-			assert.deepStrictEqual(
-				checkpointService.baselineCalls.map(c => c.session),
-				[session.toString()],
-			);
-		} finally {
-			peer.exit();
-		}
-	});
-
-	test('subsequent sends do not re-capture the baseline checkpoint', async () => {
-		const checkpointService = new RecordingCheckpointService();
-		const agent = await createAgent(disposables, { checkpointService });
-		const peer = disposables.add(createTestPeer());
-		const client = new CodexAppServerClient(peer.transport);
-		agent['_connection'] = { kind: 'ready', client, usageSource: 'github', child: { kill: () => true } } as never;
-		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
-
-		const folder = URI.file('/repo/baseline-folder-2');
-		const { session } = await agent.createSession({ workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
-		const entry = agent['_sessions'].get(AgentSession.id(session))!;
-		const prewarmStart = await readNextRequest(peer.outbound);
-
-		try {
-			peer.push({ id: prewarmStart.id, result: { thread: { id: 'thread-baseline-2' } } });
-			await entry.materializePromise;
-
-			const chat = URI.parse(buildDefaultChatUri(session));
-			const send1 = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1');
-			await drainUntilTurnStart(peer);
+			// Fresh first send: the folder is already materialized with matching
+			// signatures, so the only outbound request is `turn/start`.
+			const send1 = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1');
+			const turnStart1 = await readNextRequest(peer.outbound);
+			peer.push({ id: turnStart1.id, result: {} });
 			await send1;
-			assert.strictEqual(checkpointService.baselineCalls.length, 1, 'fresh first send captures the baseline');
 
-			// A second send has `firstTurnSent === true`, so the gate must
-			// prevent a second baseline capture.
-			const send2 = agent.chats.sendMessage(chat, 'again', undefined, undefined, 'turn-2');
-			await drainUntilTurnStart(peer);
+			// The second send has `firstTurnSent === true`, so the gate prevents
+			// a second capture.
+			const send2 = agent.chats.sendMessage(chat, 'again', [folder], undefined, 'turn-2');
+			const turnStart2 = await readNextRequest(peer.outbound);
+			peer.push({ id: turnStart2.id, result: {} });
 			await send2;
-			assert.strictEqual(checkpointService.baselineCalls.length, 1, 'subsequent sends must not re-capture the baseline');
+
+			assert.deepStrictEqual(checkpointService.baselineCalls, [
+				{ session: session.toString(), workingDirectories: [folder.toString()] },
+			]);
 		} finally {
 			peer.exit();
 		}

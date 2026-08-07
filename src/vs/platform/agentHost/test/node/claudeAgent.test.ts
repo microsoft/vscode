@@ -73,7 +73,7 @@ import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptReso
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { AgentService } from '../../node/agentService.js';
 import { injectSideChatContext } from '../../node/agentPeerChats.js';
-import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 // #region Test fakes
 
@@ -815,24 +815,6 @@ class CapturingLogService extends NullLogService {
 	override error(message: string | Error, ...args: unknown[]): void {
 		this.errors.push([String(message), ...args.map(a => String(a))].join(' '));
 	}
-}
-
-/**
- * Recording {@link IAgentHostCheckpointService} double that captures
- * {@link captureBaselineCheckpoint} invocations so tests can assert baseline
- * capture happens on the fresh materialize path (and not on resume). All other
- * methods are no-ops mirroring {@link NULL_CHECKPOINT_SERVICE}.
- */
-class RecordingCheckpointService implements IAgentHostCheckpointService {
-	declare readonly _serviceBrand: undefined;
-	readonly baselineCalls: { readonly session: string; readonly workingDirectories: readonly string[] | undefined }[] = [];
-	async captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		this.baselineCalls.push({ session: sessionUri.toString(), workingDirectories: workingDirectories?.map(w => w.toString()) });
-	}
-	async captureTurnCheckpoint(): Promise<void> { }
-	async getTurnCheckpointPair(): Promise<{ parent: string; current: string } | undefined> { return undefined; }
-	async getBaselineCheckpoint(): Promise<string | undefined> { return undefined; }
-	async deleteCheckpoints(): Promise<void> { }
 }
 
 function createTestContext(
@@ -1923,45 +1905,28 @@ suite('ClaudeAgent', () => {
 		);
 	});
 
-	test('materialize captures the baseline checkpoint on the fresh path (parity with Copilot)', async () => {
+	test('captures the baseline checkpoint on fresh materialize but not on resume (parity with Copilot)', async () => {
 		const checkpointService = new RecordingCheckpointService();
 		const { agent, sdk } = createTestContext(disposables, { checkpointService });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
-		const created = await agent.createSession({ workingDirectories: [URI.file('/work-baseline')] });
+		const workDir = URI.file('/work-baseline');
+
+		// Fresh materialize captures the baseline for the resolved directories.
+		const created = await agent.createSession({ workingDirectories: [workDir] });
 		const sessionId = AgentSession.id(created.session);
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
-		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [workDir], undefined, 'turn-1');
 
-		// Fresh materialize captures exactly one baseline for this session,
-		// identical to the Copilot harness.
-		assert.deepStrictEqual(
-			checkpointService.baselineCalls.map(c => c.session),
-			[created.session.toString()],
-		);
-	});
-
-	test('resume does not capture a baseline checkpoint (only fresh materialize does)', async () => {
-		const checkpointService = new RecordingCheckpointService();
-		const { agent, sdk } = createTestContext(disposables, { checkpointService });
-		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-
-		// Phase 1: fresh materialize captures the baseline.
-		const created = await agent.createSession({ workingDirectories: [URI.file('/work-resume-baseline')] });
-		const sessionId = AgentSession.id(created.session);
-		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
-		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
-		assert.strictEqual(checkpointService.baselineCalls.length, 1, 'fresh materialize captures the baseline');
-
-		// Phase 2: simulate cross-window resume by tearing the in-memory entry
-		// down and forcing the resume branch on the next send. Resume must NOT
-		// capture a (late) baseline against the already-edited tree.
+		// Cross-window resume (dispose + second send) must NOT capture a late baseline.
 		await agent.disposeSession(created.session);
-		sdk.sessionList = [{ sessionId, cwd: '/work-resume-baseline', summary: '', lastModified: Date.now() }];
+		sdk.sessionList = [{ sessionId, cwd: workDir.fsPath, summary: '', lastModified: Date.now() }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
-		await agent.chats.sendMessage(defaultChatUri(created.session), 'turn 2', undefined, undefined, 'turn-2');
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'turn 2', [workDir], undefined, 'turn-2');
 
-		assert.strictEqual(checkpointService.baselineCalls.length, 1, 'resume must not capture a second baseline');
+		assert.deepStrictEqual(checkpointService.baselineCalls, [
+			{ session: created.session.toString(), workingDirectories: [workDir.toString()] },
+		]);
 	});
 
 	test('createSession honors config.session when the workbench pre-mints the URI', async () => {
