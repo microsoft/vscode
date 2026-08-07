@@ -478,8 +478,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// waiting for `authenticate()`. Without this a signed-out window with a local
 		// Claude setup would show an empty picker. `queueMicrotask` runs it off the
 		// ctor stack. The per-session transport is derived on demand at materialize
-		// (see {@link _defaultTransportMode}), so a `claudeUseCopilotProxy` change
-		// needs no reactive re-resolve — the next session simply reads it live.
+		// (see {@link _defaultTransportMode}), so a sign-in state change needs no
+		// reactive re-resolve — the next session simply reads it live.
 		queueMicrotask(() => { void this._startModelRefresh(); });
 	}
 
@@ -487,18 +487,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * The fallback transport for a session whose model names no provider (model-less
 	 * or a bare/legacy id). Read on demand at materialize — never cached — from live
 	 * availability: a started {@link _proxyHandle} means Copilot is serveable now, a
-	 * local Claude setup means native is. The precedence (explicit
-	 * `claudeUseCopilotProxy` override; else sign-in state and local setup) is
-	 * delegated to the pure {@link resolveClaudeTransportMode}. A provider-qualified
-	 * model bypasses this and routes on its own provider.
+	 * local Claude setup means native is. The precedence (sign-in state, then local
+	 * setup) is delegated to the pure {@link resolveClaudeTransportMode}. A
+	 * provider-qualified model bypasses this and routes on its own provider.
 	 */
 	private _defaultTransportMode(): ClaudeTransportMode {
-		// An absent `claudeUseCopilotProxy` stays `undefined` so the pure function
-		// can tell an explicit override from "fall through to the sign-in rules".
-		const explicitProxy = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.ClaudeUseCopilotProxy);
 		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
 		const hasExistingSetup = allowSignedOutWhenUsable && detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
-		return resolveClaudeTransportMode({ explicitProxy, allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup });
+		return resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup });
 	}
 
 	// #region Descriptor + auth
@@ -680,6 +676,17 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * one source erroring; only when *every* source we attempted fails do we keep
 	 * the last known-good catalog instead of blanking, so a transient double
 	 * failure never wipes the picker.
+	 *
+	 * Gating the native half on {@link detectExistingClaudeSetup} is deliberate and
+	 * load-bearing, not just an optimization. `supportedModels()` returns a *static*
+	 * list of models the SDK understands — it is not an entitlement or credential
+	 * check, and it answers even with no `ANTHROPIC_API_KEY`, no
+	 * `CLAUDE_CODE_OAUTH_TOKEN` and an empty `HOME`. Publishing it unconditionally
+	 * would advertise models for an agent that cannot serve a single request, which
+	 * reads downstream as "usable without GitHub" and would hold the Agents window
+	 * open on an agent that fails on its first turn. An empty catalog is the honest
+	 * signal: it surfaces as "no models" (`SessionTypeAuthRequirement.Unusable`)
+	 * rather than a sign-in prompt that would not help.
 	 */
 	private async _refreshModels(): Promise<void> {
 		const tokenAtStart = this._githubToken;
