@@ -48,6 +48,7 @@ import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constant
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
+import { INewSessionComposerService } from './newSessionComposerService.js';
 
 // #region --- New Chat Widget ---
 
@@ -127,6 +128,7 @@ export class NewChatWidget extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
+		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -199,6 +201,7 @@ export class NewChatWidget extends Disposable {
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
+		this._register(newSessionComposerService.registerComposer(this._newChatInput));
 
 		// Comment 3: Bind Agent mode in the scoped context so that Agent-only tips
 		// (messageQueueing, subagents, etc.) are eligible and chatModeKind-based
@@ -527,11 +530,10 @@ export class NewChatWidget extends Disposable {
 	/**
 	 * Replaces a restored draft whose harness the folder can no longer serve.
 	 * A draft outlives navigation, so it can name a session type that has since
-	 * stopped being advertised — e.g. the extension-host Copilot CLI once
-	 * `chat.agents.copilotCli.hideExtensionHost` is on. Keeping it would leave
-	 * the composer showing, and sending to, an agent the harness picker doesn't
-	 * list. An empty type list means the folder's providers haven't reported yet
-	 * (a late-connecting agent host), so the draft is left alone.
+	 * stopped being advertised. Keeping it would leave the composer showing, and
+	 * sending to, an agent the harness picker doesn't list. An empty type list
+	 * means the folder's providers haven't reported yet (a late-connecting agent
+	 * host), so the draft is left alone.
 	 */
 	private _replaceDraftOnUnservableHarness(folderUri: URI, draft: IActiveSession): void {
 		if (draft.isCreated.get()) {

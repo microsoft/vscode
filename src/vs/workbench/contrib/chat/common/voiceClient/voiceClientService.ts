@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import type { ChatVoiceProgressStage } from '../chatService/chatService.js';
+import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
 
 /**
  * One selectable option on a pending question, positioned in *displayed* order.
@@ -57,11 +60,176 @@ export interface IVoiceSessionPending {
  * partial answers off this id, so a reused id lets a draft written for one form
  * be submitted against another.
  *
- * A token minted per part object cannot be reused, because a spliced-out part is
- * never seen again. Entries are weakly held, so they die with the model.
+ * Most parts use their own object identity. Tool invocations are different: the
+ * agent host can update or rehydrate one tool card while its approval stays
+ * pending, and callbacks are implementation details that can be recreated (or
+ * retained too long). Tool occurrences therefore use a semantic key plus a
+ * timestamped token. An occurrence is retired as soon as any live copy is
+ * resolved; the remaining copies retain the retired identity so stale cards
+ * cannot become actionable again.
  */
 const pendingOccurrenceTokens = new WeakMap<object, string>();
 let pendingOccurrenceCounter = 0;
+
+interface IActivePendingToolOccurrence {
+	readonly requestId: string;
+	readonly semanticKey: string;
+	readonly token: string;
+	readonly participants: Map<IChatToolInvocation, IDisposable>;
+	resolved: boolean;
+}
+
+const activePendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
+const pendingToolOccurrenceByPart = new WeakMap<IChatToolInvocation, IActivePendingToolOccurrence>();
+const pendingToolOccurrenceById = new Map<string, IActivePendingToolOccurrence>();
+const pendingToolResolutionVersion = observableValue('pendingToolResolutionVersion', 0);
+
+function isPendingToolState(state: IChatToolInvocation.State): boolean {
+	return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+		|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+		|| state.type === IChatToolInvocation.StateKind.WaitingForAuthentication;
+}
+
+/** The command currently presented for a tool approval, if it has one. */
+export function getVoiceToolApprovalCommand(invocation: IChatToolInvocation, includeParameters = true): string | undefined {
+	const terminalData = invocation.toolSpecificData;
+	let command: string | undefined;
+	if (terminalData?.kind === 'terminal') {
+		command = hasKey(terminalData, { commandLine: true })
+			? terminalData.commandLine.userEdited
+			?? terminalData.presentationOverrides?.commandLine
+			?? terminalData.confirmation?.commandLine
+			?? terminalData.commandLine.toolEdited
+			?? terminalData.commandLine.original
+			: terminalData.command;
+	}
+	if (!command && includeParameters) {
+		const state = invocation.state.get();
+		const parameters = state.type === IChatToolInvocation.StateKind.Streaming ? undefined : state.parameters as Record<string, unknown> | undefined;
+		const parameterCommand = parameters?.['command'] ?? parameters?.['input'];
+		command = typeof parameterCommand === 'string' ? parameterCommand : undefined;
+	}
+	return command?.trim() || undefined;
+}
+
+function pendingToolSemanticKey(requestId: string, invocation: IChatToolInvocation): string | undefined {
+	const state = invocation.state.get();
+	if (!isPendingToolState(state) || !invocation.toolCallId) {
+		return undefined;
+	}
+	const phase = state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+		? 'post'
+		: state.type === IChatToolInvocation.StateKind.WaitingForAuthentication
+			? 'authentication'
+			: 'pre';
+	const command = getVoiceToolApprovalCommand(invocation) ?? '';
+	const authenticationResource = state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? state.server.resource : '';
+	return JSON.stringify([requestId, invocation.toolCallId, phase, command, authenticationResource]);
+}
+
+function releasePendingToolParticipant(invocation: IChatToolInvocation, occurrence: IActivePendingToolOccurrence): void {
+	occurrence.participants.get(invocation)?.dispose();
+}
+
+function pendingToolOccurrenceId(occurrence: IActivePendingToolOccurrence): string {
+	return `${occurrence.requestId}#${occurrence.token}`;
+}
+
+function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence): void {
+	if (occurrence.resolved) {
+		return;
+	}
+	occurrence.resolved = true;
+	if (activePendingToolOccurrences.get(occurrence.semanticKey) === occurrence) {
+		activePendingToolOccurrences.delete(occurrence.semanticKey);
+	}
+	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
+}
+
+function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocation, mint: boolean, store?: DisposableStore): IActivePendingToolOccurrence | undefined {
+	const semanticKey = pendingToolSemanticKey(requestId, invocation);
+	const current = pendingToolOccurrenceByPart.get(invocation);
+	if (!semanticKey) {
+		if (current) {
+			releasePendingToolParticipant(invocation, current);
+		}
+		return undefined;
+	}
+	if (current?.semanticKey === semanticKey) {
+		return current;
+	}
+	if (current) {
+		// The actionable command changed without a pending-state transition.
+		// Retire the old occurrence before publishing the refreshed card.
+		resolvePendingToolOccurrence(current);
+		releasePendingToolParticipant(invocation, current);
+	}
+
+	let occurrence = activePendingToolOccurrences.get(semanticKey);
+	if (!occurrence) {
+		if (!mint) {
+			return undefined;
+		}
+		occurrence = {
+			requestId,
+			semanticKey,
+			token: `t${Date.now().toString(36)}-${++pendingOccurrenceCounter}`,
+			participants: new Map(),
+			resolved: false,
+		};
+		activePendingToolOccurrences.set(semanticKey, occurrence);
+		pendingToolOccurrenceById.set(pendingToolOccurrenceId(occurrence), occurrence);
+	}
+
+	pendingToolOccurrenceByPart.set(invocation, occurrence);
+	const trackedOccurrence = occurrence;
+	const observer = new MutableDisposable();
+	const tracking = toDisposable(() => {
+		if (pendingToolOccurrenceByPart.get(invocation) === trackedOccurrence) {
+			pendingToolOccurrenceByPart.delete(invocation);
+		}
+		store?.deleteAndLeak(tracking);
+		if (trackedOccurrence.participants.get(invocation) === tracking) {
+			trackedOccurrence.participants.delete(invocation);
+		}
+		if (trackedOccurrence.participants.size === 0 && activePendingToolOccurrences.get(trackedOccurrence.semanticKey) === trackedOccurrence) {
+			activePendingToolOccurrences.delete(trackedOccurrence.semanticKey);
+		}
+		if (trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
+			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(trackedOccurrence));
+		}
+		observer.dispose();
+	});
+	observer.value = autorun(reader => {
+		if (!isPendingToolState(invocation.state.read(reader))) {
+			// One authoritative copy leaving pending means the user or host handled
+			// this occurrence. Retire every rehydrated copy immediately instead of
+			// waiting for stale models to catch up.
+			resolvePendingToolOccurrence(trackedOccurrence);
+			tracking.dispose();
+		}
+	});
+	occurrence.participants.set(invocation, tracking);
+	store?.add(tracking);
+	return occurrence;
+}
+
+/** Compatibility identity for incomplete/test invocation shapes without a protocol tool-call id. */
+function fallbackPendingOccurrenceIdentity(part: object): object {
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind !== 'toolInvocation' || !invocation.state) {
+		return part;
+	}
+	const state = invocation.state.get();
+	if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+		|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+		return typeof state.confirm === 'function' ? state.confirm : part;
+	}
+	if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+		return typeof state.cancel === 'function' ? state.cancel : part;
+	}
+	return part;
+}
 
 /**
  * Derive the id that routes a voice response back to this exact pending part.
@@ -72,13 +240,44 @@ let pendingOccurrenceCounter = 0;
  */
 
 
-export function derivePendingId(requestId: string, part: object): string {
-	let token = pendingOccurrenceTokens.get(part);
+export function derivePendingId(requestId: string, part: object, store?: DisposableStore): string {
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind === 'toolInvocation' && invocation.state) {
+		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, true, store);
+		if (occurrence) {
+			return `${requestId}#${occurrence.token}`;
+		}
+	}
+
+	const fallbackIdentity = fallbackPendingOccurrenceIdentity(part);
+	let token = pendingOccurrenceTokens.get(fallbackIdentity);
 	if (token === undefined) {
 		token = `p${++pendingOccurrenceCounter}`;
-		pendingOccurrenceTokens.set(part, token);
+		pendingOccurrenceTokens.set(fallbackIdentity, token);
 	}
 	return `${requestId}#${token}`;
+}
+
+/**
+ * Retire a published tool approval after the user acts on it.
+ *
+ * Tool providers are allowed to leave the invocation in a pending state while
+ * they send the response to another process. Explicit retirement closes that
+ * gap and prevents another live copy from submitting the same approval again.
+ */
+export function markPendingIdResolved(pendingId: string): boolean {
+	const occurrence = pendingToolOccurrenceById.get(pendingId);
+	if (!occurrence) {
+		return false;
+	}
+	resolvePendingToolOccurrence(occurrence);
+	return true;
+}
+
+/** Whether a published tool approval has already been acted on. */
+export function isPendingIdResolved(pendingId: string, reader?: IReader): boolean {
+	pendingToolResolutionVersion.read(reader);
+	return pendingToolOccurrenceById.get(pendingId)?.resolved === true;
 }
 
 /**
@@ -88,7 +287,14 @@ export function derivePendingId(requestId: string, part: object): string {
  * echoed id can only match the part it was issued for.
  */
 export function peekPendingId(requestId: string, part: object): string | undefined {
-	const token = pendingOccurrenceTokens.get(part);
+	const invocation = part as Partial<IChatToolInvocation>;
+	if (invocation.kind === 'toolInvocation' && invocation.state) {
+		const occurrence = pendingToolOccurrence(requestId, invocation as IChatToolInvocation, false);
+		if (occurrence && !occurrence.resolved) {
+			return `${requestId}#${occurrence.token}`;
+		}
+	}
+	const token = pendingOccurrenceTokens.get(fallbackPendingOccurrenceIdentity(part));
 	return token === undefined ? undefined : `${requestId}#${token}`;
 }
 
@@ -100,14 +306,27 @@ export interface IVoiceSessionContext {
 		id: string;
 		/** Human-readable name, so the backend can tell two sessions apart. */
 		label?: string;
+		/** Which frontend session surface owns this conversation. */
+		session_type?: 'agent' | 'chat';
 		is_active: boolean;
 		agent_state: string;
 		agent_state_detail?: string;
 		confirmation_type?: VoiceConfirmationType;
+		/** The model currently selected for this session's next request. */
+		selected_model?: IVoiceModelReference;
+		/** Names only: file contents remain in the frontend until a request is sent. */
+		attachment_names?: string[];
+		attachment_count?: number;
 		last_response_summary?: string;
 		pending?: IVoiceSessionPending;
 	}[];
 	display_locale: string;
+}
+
+export interface IVoiceModelReference {
+	readonly identifier: string;
+	readonly name: string;
+	readonly vendor: string;
 }
 
 export type VoiceConfirmationType = 'questionnaire' | 'elicitation' | 'plan' | 'tool' | 'generic';

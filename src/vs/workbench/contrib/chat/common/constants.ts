@@ -107,11 +107,9 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
-	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
 	EditorPreferCopilotHarness = 'chat.editor.preferCopilotHarness',
 	DefaultToCopilotHarness = 'chat.defaultToCopilotHarness',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
-	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	TurnStatusPills = 'chat.turnStatusPills',
 
@@ -480,7 +478,7 @@ export function isVisibleEditorChatSessionType(
 		return isEditorLocalAgentEnabled(configurationService, workspace) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;
 	}
 
-	if (sessionType === SessionType.CopilotCLI && configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
+	if (sessionType === SessionType.CopilotCLI) {
 		return false;
 	}
 
