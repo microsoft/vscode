@@ -16,7 +16,6 @@ import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -57,6 +56,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { derivePendingId, getVoiceToolApprovalCommand } from '../../common/voiceClient/voiceClientService.js';
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
@@ -633,7 +633,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		skipButton.label = skipLabel;
 		const renderedApprovalTitle = this._windowDisposables.add(new MutableDisposable<IRenderedMarkdown>());
 		let displayedApproval: IChatToolInvocation | undefined;
-		let lastActivatedApproval: object | undefined;
+		let lastActivatedApproval: string | undefined;
 		const confirmDisplayedApproval = (reason: ToolConfirmKind.UserAction | ToolConfirmKind.Skipped) => {
 			IChatToolInvocation.confirmWith(displayedApproval, { type: reason });
 		};
@@ -923,8 +923,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed) ?? false;
 	}
 
-	private _getPendingToolApproval(model: IChatModel): { readonly title: string | IMarkdownString; readonly command: string; readonly invocation: IChatToolInvocation; readonly occurrence: object } | undefined {
-		for (const part of model.lastRequest?.response?.response.value ?? []) {
+	private _getPendingToolApproval(model: IChatModel): { readonly title: string | IMarkdownString; readonly command: string; readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined {
+		const request = model.lastRequest;
+		const parts = request?.response?.response.value;
+		if (!request || !parts) {
+			return undefined;
+		}
+		for (const part of parts) {
 			if (part.kind !== 'toolInvocation') {
 				continue;
 			}
@@ -933,21 +938,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				continue;
 			}
 
-			const terminalData = part.toolSpecificData;
-			let command: string | undefined;
-			if (terminalData?.kind === 'terminal') {
-				command = hasKey(terminalData, { commandLine: true })
-					? terminalData.presentationOverrides?.commandLine
-						?? terminalData.confirmation?.commandLine
-						?? terminalData.commandLine.toolEdited
-						?? terminalData.commandLine.original
-					: terminalData.command;
-			}
-			if (!command) {
-				const parameters = state.parameters as Record<string, unknown> | undefined;
-				const parameterCommand = parameters?.['command'] ?? parameters?.['input'];
-				command = typeof parameterCommand === 'string' ? parameterCommand : undefined;
-			}
+			const command = getVoiceToolApprovalCommand(part);
 			if (!command) {
 				continue;
 			}
@@ -957,10 +948,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				title: renderAsPlaintext(title).trim() ? title : localize('chatInputWindow.pending.approval', "Approval Required"),
 				command,
 				invocation: part,
-				// The agent host can re-arm this same invocation object. The current
-				// confirm callback survives presentation-only state clones but is new
-				// for each actionable occurrence.
-				occurrence: state.confirm,
+				occurrence: derivePendingId(request.id, part, disposable => this._windowDisposables.add(disposable)),
 			};
 		}
 		return undefined;
