@@ -6,20 +6,17 @@
 import './experiments/agentSessionsExperiments.contribution.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { registerSingleton, InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions.js';
 import { IAgentSessionsService, AgentSessionsService } from './agentSessionsService.js';
 import { LocalAgentsSessionsController } from './localAgentSessionsController.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, PickAgentSessionAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction, getAgentSessionArchiveActionConstructors } from './agentSessionsActions.js';
-import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
+import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction, getAgentSessionArchiveActionConstructors } from './agentSessionsActions.js';
 import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissionUiContribution.js';
 import './agentHost/agentHostChatInputPicker.contribution.js';
 import './agentHost/agentHostModeSynchronizer.js';
@@ -28,7 +25,6 @@ import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWo
 //#region Actions and Menus
 
 registerAction2(FocusAgentSessionsAction);
-registerAction2(PickAgentSessionAction);
 registerAction2(MarkAllAgentSessionsReadAction);
 registerAction2(MarkAgentSessionSectionReadAction);
 registerAction2(CollapseAllAgentSessionSectionsAction);
@@ -180,22 +176,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 		),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
-});
-
-//#endregion
-
-//#region Quick Access
-
-Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
-	ctor: AgentSessionsQuickAccessProvider,
-	prefix: AGENT_SESSIONS_QUICK_ACCESS_PREFIX,
-	contextKey: 'inAgentSessionsPicker',
-	when: ChatContextKeys.enabled,
-	placeholder: localize('agentSessionsQuickAccessPlaceholder', "Search agent sessions by name"),
-	helpEntries: [{
-		description: localize('agentSessionsQuickAccessHelp', "Show All Agent Sessions"),
-		commandId: 'workbench.action.chat.history',
-	}]
 });
 
 //#endregion

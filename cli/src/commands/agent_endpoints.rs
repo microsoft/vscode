@@ -45,9 +45,10 @@ struct EndpointsDocument {
 /// array is a valid, meaningful answer ("nothing is running right now"),
 /// distinct from failing to resolve/read the registry itself.
 pub async fn agent_endpoints(
-	ctx: CommandContext,
+	mut ctx: CommandContext,
 	args: AgentEndpointsArgs,
 ) -> Result<i32, AnyError> {
+	ctx.log = crate::log::Logger::new(crate::log::Level::Off);
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
 	let endpoints = agent_discovery::discover_live_endpoints(&ctx, args.user_data_dir.as_deref());
 

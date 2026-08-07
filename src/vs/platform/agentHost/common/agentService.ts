@@ -16,6 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -1651,6 +1652,9 @@ export interface IAgent {
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 
+	/** Select provider-owned configuration that a newly created session should inherit. */
+	getInheritedSessionConfig?(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
+
 	/** Return dynamic completions for a provider-owned session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
@@ -2131,7 +2135,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.

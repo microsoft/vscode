@@ -180,6 +180,16 @@ const openIssue: IGitHubIssue = {
 	closedAt: undefined,
 };
 
+const shortDescriptionIssue: IGitHubIssue = {
+	...openIssue,
+	body: 'The terminal stops streaming output.',
+};
+
+const longDescriptionIssue: IGitHubIssue = {
+	...openIssue,
+	body: 'Steps to reproduce: open a session on a worktree, start a long-running build, and switch to another session while output is still streaming. Return to the original session and observe that the terminal no longer updates even though the task is still running. The task also never reports completion, so it is unclear whether the build finished, failed, or remains active in the background. This description is intentionally long enough to exceed three lines and verify that the issue hover clamps the text without revealing any part of a fourth line.',
+};
+
 const completedIssue: IGitHubIssue = {
 	number: 678,
 	title: 'Session header pill should show the referenced issue',
@@ -223,7 +233,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	OpenIssue_Hover: defineComponentFixture({
-		render: (ctx) => renderIssueHover(ctx, openIssue),
+		render: (ctx) => renderIssueHover(ctx, shortDescriptionIssue),
+	}),
+
+	OpenIssue_Hover_LongDescription: defineComponentFixture({
+		render: (ctx) => renderIssueHover(ctx, longDescriptionIssue),
 	}),
 
 	OpenIssue_List: defineComponentFixture({

@@ -181,6 +181,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			turnId: timing.turnId,
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
+			toolCallId,
 			result: resultBucket,
 			invocationTimeMs: timing.invocationStopWatch?.elapsed(),
 			resultSizeInCharacters,
@@ -195,7 +196,6 @@ export class AgentHostToolCallTracker extends Disposable {
 			pending.push(report);
 			this._pendingToolReports.set(turnKey, pending);
 		}
-
 		const stalled = this._stalledToolCalls.get(key);
 		if (stalled) {
 			this._stalledToolCalls.delete(key);
