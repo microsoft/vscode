@@ -759,9 +759,6 @@
 
 .interactive-item-container .value > .chat-tool-invocation-part,
 .interactive-item-container .value > .completed-response-disclosure > .chat-tool-invocation-part {
-	.rendered-markdown p {
-		margin: 0 0 6px 0;
-	}
 	.disclaimer {
 		margin-top: 6px;
 		margin-bottom: -6px;
@@ -3458,6 +3455,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			color: var(--vscode-descriptionForeground);
 			font-size: var(--vscode-chat-font-size-body-s);
 			margin: 0;
+			/* Fixed-width digits so a streaming count (e.g. "84 lines") doesn't jitter as it changes. */
+			font-variant-numeric: tabular-nums;
+			font-feature-settings: "tnum";
 
 			code {
 				font-size: var(--vscode-chat-font-size-body-xs);
@@ -3490,6 +3490,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		animation: chat-thinking-shimmer 2s linear infinite;
 		will-change: background-position;
 	}
+}
+
+/* Reduced motion: render the shimmer text as static, solid progress text. */
+.monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
+.monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
+	animation: none;
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	color: var(--vscode-descriptionForeground);
 }
 
 .show-checkmarks .progress-container > .codicon.codicon-check,
