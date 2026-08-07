@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -291,6 +292,23 @@ suite('AgentPluginRepositoryService', () => {
 			first: '/cache/agentPlugins/github.com/microsoft/vscode',
 			second: '/cache/agentPlugins/github.com/microsoft/vscode',
 		});
+	});
+
+	test('cancels a first-time clone when the caller token is cancelled', async () => {
+		const cts = store.add(new CancellationTokenSource());
+		let cloneCancelled = false;
+		const service = createService(async () => false, undefined, {
+			cloneRepository: async (_cloneUrl, _targetDir, _ref, token) => {
+				// Simulate a long-running clone that the caller aborts.
+				cts.cancel();
+				cloneCancelled = !!token?.isCancellationRequested;
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		await service.ensureRepository(plugin.marketplaceReference, { token: cts.token });
+
+		assert.strictEqual(cloneCancelled, true);
 	});
 
 	test('does not record a cancelled refresh attempt', async () => {

@@ -687,6 +687,7 @@ class RefreshPluginMarketplacesCommand extends Action2 {
 		const progressService = accessor.get(IProgressService);
 
 		const cts = new CancellationTokenSource();
+		const failedLabels: string[] = [];
 		try {
 			await progressService.withProgress(
 				{
@@ -694,10 +695,22 @@ class RefreshPluginMarketplacesCommand extends Action2 {
 					title: localize('agentPlugins.refreshingMarketplaces', "Refreshing plugin marketplaces..."),
 					cancellable: true,
 				},
-				() => marketplaceService.fetchMarketplacePlugins(cts.token, undefined, { refresh: true }),
+				() => marketplaceService.fetchMarketplacePlugins(cts.token, undefined, {
+					refresh: true,
+					onMarketplaceError: reference => failedLabels.push(reference.displayLabel),
+				}),
 				() => cts.dispose(true),
 			);
-			if (!cts.token.isCancellationRequested) {
+
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			// Individual marketplace failures don't reject the fetch, so report
+			// them explicitly rather than claiming an unqualified success.
+			if (failedLabels.length > 0) {
+				notificationService.warn(localize('agentPlugins.marketplacesRefreshedWithErrors', "Refreshed plugin marketplaces, but {0} could not be read: {1}", failedLabels.length, failedLabels.join(', ')));
+			} else {
 				notificationService.info(localize('agentPlugins.marketplacesRefreshed', "Plugin marketplaces refreshed."));
 			}
 		} catch (error) {

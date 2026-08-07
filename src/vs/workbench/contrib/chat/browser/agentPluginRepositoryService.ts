@@ -145,7 +145,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
 			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
-			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref);
+			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref, options?.token);
 			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType, Date.now());
 			return repoDir;
 		});
@@ -352,8 +352,11 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		this._storageService.store(MARKETPLACE_INDEX_STORAGE_KEY, JSON.stringify(serialized), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string): Promise<void> {
+	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string, token?: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource();
+		// Cancelling the caller (e.g. the marketplace refresh progress) must
+		// also abort a first-time clone, not just an incremental refresh.
+		const tokenListener = token?.onCancellationRequested(() => cts.cancel());
 		try {
 			await this._progressService.withProgress(
 				{
@@ -369,17 +372,20 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			);
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to clone ${cloneUrl}:`, err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('cloneFailed', "Failed to install plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
-				actions: {
-					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-						this._commandService.executeCommand('git.showOutput');
-					})],
-				},
-			});
+			if (!isCancellationError(err)) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('cloneFailed', "Failed to install plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
+					actions: {
+						primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
+							this._commandService.executeCommand('git.showOutput');
+						})],
+					},
+				});
+			}
 			throw err;
 		} finally {
+			tokenListener?.dispose();
 			cts.dispose();
 		}
 	}

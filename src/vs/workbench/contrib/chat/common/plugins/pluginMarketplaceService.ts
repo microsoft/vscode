@@ -148,6 +148,13 @@ export interface IMarketplaceInstalledPlugin {
 export interface IFetchMarketplacePluginsOptions {
 	/** Bypass the marketplace caches (HTTP TTL cache and cloned-repository TTL) and re-read from the remote. */
 	readonly refresh?: boolean;
+	/**
+	 * Called for each marketplace that could not be read. Individual failures
+	 * are otherwise swallowed so that one bad marketplace cannot fail the
+	 * whole fetch, which leaves callers unable to tell a partial result from
+	 * a complete one.
+	 */
+	readonly onMarketplaceError?: (reference: IMarketplaceReference, error: unknown) => void;
 }
 
 export const IPluginMarketplaceService = createDecorator<IPluginMarketplaceService>('pluginMarketplaceService');
@@ -484,6 +491,13 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			})
 		);
 		const plugins = results.flat();
+
+		// A cancelled fetch yields empty/partial results — committing those
+		// would wipe the observable list and blank out the marketplace UI.
+		if (token.isCancellationRequested) {
+			return plugins;
+		}
+
 		const storedPlugins = marketplaceIds
 			? [...this.lastFetchedPlugins.get().filter(plugin => !marketplaceIds.has(plugin.marketplaceReference.canonicalId)), ...plugins]
 			: plugins;
@@ -538,6 +552,14 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		if (repoMayBePrivate) {
 			this._logService.debug(`[PluginMarketplaceService] ${repo} may be private, attempting clone-based marketplace discovery`);
+
+			// Drop any raw-fetch entry cached while the repository was still
+			// public, otherwise the next non-forced fetch would serve it in
+			// preference to the clone until its original TTL expired.
+			if (cache.delete(reference.canonicalId)) {
+				this._savePersistedGitHubMarketplaceCache(cache);
+			}
+
 			return this._fetchFromClonedRepo(reference, token, options);
 		}
 
@@ -882,6 +904,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			});
 		} catch (err) {
 			this._logService.debug(`[PluginMarketplaceService] Failed to prepare marketplace repository ${reference.rawValue}:`, err);
+			options?.onMarketplaceError?.(reference, err);
 			return [];
 		}
 
