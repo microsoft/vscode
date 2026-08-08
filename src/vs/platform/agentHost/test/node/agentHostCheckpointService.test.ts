@@ -55,7 +55,12 @@ class CheckpointTestConfigurationService extends mock<IAgentConfigurationService
 suite('AgentHostCheckpointService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTestService(captureWorkingTreeAsTree: () => Promise<string | undefined>, options?: { baseline?: boolean; previous?: boolean }) {
+	function createTestService(captureWorkingTreeAsTree: () => Promise<string | undefined>, options?: {
+		baseline?: boolean;
+		previous?: boolean;
+		failCommitTree?: (tree: string) => boolean;
+		failOpenDatabaseAt?: number;
+	}) {
 		const session = AgentSession.uri('copilot', 'session');
 		const chat = URI.parse('ahp-chat://default/session');
 		const workingDirectory = URI.file('/workspace');
@@ -81,8 +86,11 @@ suite('AgentHostCheckpointService', () => {
 			getRepositoryRoot: async () => repositoryRoot,
 			captureWorkingTreeAsTree,
 			commitTree: async (_root, tree, parent) => {
-				const commit = `commit-${commitCalls.length + 1}`;
 				commitCalls.push({ tree, parent });
+				if (options?.failCommitTree?.(tree)) {
+					return undefined;
+				}
+				const commit = `commit-${commitCalls.length}`;
 				if (parent) {
 					parents.set(commit, parent);
 				}
@@ -97,8 +105,19 @@ suite('AgentHostCheckpointService', () => {
 				return refs.get(expression);
 			},
 		};
+		const dataService = createSessionDataService(database);
+		let openDatabaseCount = 0;
 		const service = store.add(new AgentHostCheckpointService(
-			createSessionDataService(database),
+			{
+				...dataService,
+				openDatabase: session => {
+					openDatabaseCount++;
+					if (openDatabaseCount === options?.failOpenDatabaseAt) {
+						throw new Error('open failed');
+					}
+					return dataService.openDatabase(session);
+				},
+			},
 			new CheckpointTestConfigurationService(workingDirectory),
 			gitService,
 			new NullLogService(),
@@ -160,6 +179,50 @@ suite('AgentHostCheckpointService', () => {
 		await service.captureTurnCheckpoint(session, chat, 'turn-5', [workingDirectory]);
 
 		assert.deepStrictEqual(commitCalls, []);
+	});
+
+	test('missing working directories discard the pending turn start', async () => {
+		const trees = ['stale-start', 'next-start', 'next-end'];
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => trees.shift());
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-5', undefined);
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-6', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-6', [workingDirectory]);
+
+		assert.deepStrictEqual(commitCalls, [
+			{ tree: 'next-start', parent: 'previous-turn-commit' },
+			{ tree: 'next-end', parent: 'commit-1' },
+		]);
+	});
+
+	test('database open failure discards the pending turn start', async () => {
+		const trees = ['stale-start', 'next-start', 'next-end'];
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => trees.shift(), { failOpenDatabaseAt: 2 });
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-6', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-6', [workingDirectory]);
+
+		assert.deepStrictEqual(commitCalls, [
+			{ tree: 'next-start', parent: 'previous-turn-commit' },
+			{ tree: 'next-end', parent: 'commit-1' },
+		]);
+	});
+
+	test('start commit failure skips the repository end checkpoint', async () => {
+		const trees = ['tree-before-turn', 'tree-after-turn'];
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => trees.shift(), {
+			failCommitTree: tree => tree === 'tree-before-turn',
+		});
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+
+		assert.deepStrictEqual(commitCalls, [
+			{ tree: 'tree-before-turn', parent: 'previous-turn-commit' },
+		]);
 	});
 
 	test('session deletion waits for capture before clearing turn starts', async () => {

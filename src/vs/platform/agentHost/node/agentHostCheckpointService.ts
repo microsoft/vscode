@@ -189,19 +189,21 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	private async _captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		const turnKey = this._turnKey(chatUri.toString(), turnId);
 		if (!workingDirectories || workingDirectories.length === 0) {
 			this._logService.trace(`[AgentHostCheckpoint] Skipping turn checkpoint capture for ${sessionUri.toString()} as no working directories are found`);
+			this._deleteTurnStartCheckpoint(sessionUri, turnKey);
 			return;
 		}
 
-		const ref = this._sessionDataService.openDatabase(sessionUri);
-		const turnKey = this._turnKey(chatUri.toString(), turnId);
 		const startCheckpoint = this._turnStartCheckpoints.get(sessionUri.toString())?.get(turnKey);
+		let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 
 		try {
 			if (!startCheckpoint || !startCheckpoint.gitEligible) {
 				return;
 			}
+			ref = this._sessionDataService.openDatabase(sessionUri);
 			const sanitized = this._sanitizedSessionId(sessionUri);
 			const turnNumber = await this._nextTurnNumber(ref.object);
 			const refName = buildCheckpointRefName(sanitized, turnNumber);
@@ -240,13 +242,15 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 						continue;
 					}
 
-					const startTree = startCheckpoint?.trees.get(repositoryRootUri.toString());
-					if (startTree) {
-						const startCommitOid = await this._gitService.commitTree(repositoryRootUri, startTree, parentCommitOid, `Agent host session ${sanitized} - turn ${turnNumber} start`);
-						if (startCommitOid) {
-							parentCommitOid = startCommitOid;
-						}
+					const startTree = startCheckpoint.trees.get(repositoryRootUri.toString());
+					if (!startTree) {
+						continue;
 					}
+					const startCommitOid = await this._gitService.commitTree(repositoryRootUri, startTree, parentCommitOid, `Agent host session ${sanitized} - turn ${turnNumber} start`);
+					if (!startCommitOid) {
+						continue;
+					}
+					parentCommitOid = startCommitOid;
 
 					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRootUri);
 					if (!tree) {
@@ -274,7 +278,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn checkpoint for ${sessionUri.toString()}/${turnId}`, err);
 		} finally {
 			this._deleteTurnStartCheckpoint(sessionUri, turnKey);
-			ref.dispose();
+			ref?.dispose();
 		}
 	}
 
