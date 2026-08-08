@@ -58,6 +58,7 @@ export interface IAutomationHost {
 	readonly revision: number;
 	readonly connected: boolean;
 	readonly hasUnsupportedTriggers: boolean;
+	readonly migrationPending?: boolean;
 }
 
 /**
@@ -97,15 +98,12 @@ export interface IAutomationDescriptor {
 }
 
 /**
- * Lifecycle of an automation run. A run stays `running` while its agent session
- * is active or needs input, and becomes terminal when that session completes or
- * fails, or when tracking is cancelled or times out while the session may remain active.
+ * Lifecycle projected from the owning Agent Host's automation-run channel.
  */
 export type AutomationRunStatus = 'pending' | 'running' | 'blocked' | 'completed' | 'failed' | 'cancelled';
 
 /**
- * What kicked off a run. `catch_up` fires once at startup for a due-time that
- * passed while VS Code was closed.
+ * What kicked off a run. `catch_up` identifies a host-recovered missed occurrence.
  */
 export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'event' | 'manual';
 
@@ -125,6 +123,4 @@ export interface IAutomationRun {
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
 
-	/** Window that claimed this run; the leader-election guard uses it to avoid duplicate execution across windows. */
-	readonly leaderWindowId: number;
 }

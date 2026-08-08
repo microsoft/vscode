@@ -97,7 +97,7 @@ type AutomationRunClassification = {
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kicked off the run (schedule/catch_up/manual).' };
 	intervalKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cadence of the automation that ran.' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the run completed without error.' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the run kickoff (recordRunStart through completed/failed).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration from the run request through completion or failure.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Permission level applied to the run (default/autoApprove/autopilot).' };
 	isolationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode applied to the run (workspace/worktree).' };
 	owner: 'benvillalobos';

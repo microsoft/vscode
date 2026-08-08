@@ -9,7 +9,7 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomation, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -28,7 +28,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains automation cards followed by run history."),
 			localize('automationsCustomView.help.cards', "Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and Delete. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. Run now starts a session immediately. Delete asks for confirmation."),
-			localize('automationsCustomView.help.history', "Run history is grouped by date. Each run reports its Pending, Running, Completed, or Failed status. Runs with an available session can be opened with Enter or Space. Tab to a running session's Stop button to cancel its current request. Terminal runs instead provide a Delete button to permanently delete the session and history item, or to remove a run that has no session from history, after confirmation."),
+			localize('automationsCustomView.help.history', "Run history is grouped by date. Each run reports its Pending, Running, Needs input, Completed, Failed, or Cancelled status. Runs with an available session can be opened with Enter or Space. When the automation authority supports deleting run history, Tab to a run's delete button to permanently delete its session and history item, or to remove a terminal run that has no session from history, after confirmation."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
 			localize('automationsCustomView.help.accessibleView', "Use Open Accessible View to read the current automations and run history as text."),
 		].join('\n');
@@ -73,16 +73,20 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[]): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomation[], runs: readonly IAutomationRun[]): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
 	if (automations.length === 0) {
 		lines.push(localize('automationsAccessibleView.empty', "No automations."));
 	} else {
 		for (const automation of automations) {
 			lines.push('');
-			lines.push(automation.enabled
-				? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-				: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+			lines.push(automation.host?.migrationPending
+				? localize('automationsAccessibleView.automationMigrationPending', "{0}, waiting for agent, read-only", automation.name)
+				: automation.host?.connected === false
+					? localize('automationsAccessibleView.automationDisconnected', "{0}, host disconnected, read-only", automation.name)
+					: automation.enabled
+						? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+						: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
 			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation)));
 			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
 		}
@@ -110,7 +114,10 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	return lines.join('\n');
 }
 
-function formatSchedule(automation: IAutomationDescriptor): string {
+function formatSchedule(automation: IAutomation): string {
+	if (automation.host?.hasUnsupportedTriggers) {
+		return localize('automationsAccessibleView.hostDefined', "Host-defined triggers");
+	}
 	const schedule = automation.schedule;
 	switch (schedule.interval) {
 		case 'manual':

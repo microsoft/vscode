@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from './automation.js';
+import { IAutomation, IAutomationRun } from './automation.js';
 
 export const IAutomationRunner = createDecorator<IAutomationRunner>('automationRunner');
 
@@ -24,7 +23,7 @@ export type AutomationDispatchFailure =
 /** Outcome of the dispatch phase of {@link IAutomationRunner.runOnce}. */
 export type IAutomationRunDispatch =
 	/** This call claimed the automation's run slot and a session was created for it. */
-	| { readonly kind: 'started'; readonly run: IAutomationRun; readonly sessionResource: URI }
+	| { readonly kind: 'started'; readonly run: IAutomationRun; readonly sessionResource: string }
 	/** Another run already held the automation's run slot, so nothing was dispatched. */
 	| { readonly kind: 'alreadyRunning'; readonly activeRun: IAutomationRun }
 	/** Dispatch ended without a session. `run` is set when a run row was recorded first. */
@@ -39,9 +38,7 @@ export interface IAutomationRunOperation {
 }
 
 /**
- * Runs a single automation: claim the per-automation slot, record the run,
- * drive the chat session, report success/failure to {@link IAutomationService}.
- * Implemented in the sessions layer via `ISessionsManagementService`.
+ * Starts and tracks a host-owned manual automation run.
  */
 export interface IAutomationRunner {
 	readonly _serviceBrand: undefined;
@@ -51,9 +48,7 @@ export interface IAutomationRunner {
 	 * Never throws. Failures are recorded on the run row in {@link IAutomationService}.
 	 */
 	runOnce(
-		automation: IAutomationDescriptor,
-		trigger: AutomationRunTrigger,
-		leaderWindowId: number,
+		automation: IAutomation,
 		token?: CancellationToken,
 	): IAutomationRunOperation;
 }
