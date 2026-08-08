@@ -1872,11 +1872,11 @@
               "secret": true,
               "description": "API key for the models",
               "title": "API Key",
-              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property."
+              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, the Messages API, and the Gemini `generateContent` API — selectable per model via the `apiType` property."
             },
             "models": {
               "type": "array",
-              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, and the Messages API — selectable per model via the `apiType` property.",
+              "markdownDeprecationMessage": "**Deprecated.** Use the `customendpoint` provider (\"Custom Endpoint\") instead. It supports the Chat Completions API, the Responses API, the Messages API, and the Gemini `generateContent` API — selectable per model via the `apiType` property.",
               "defaultSnippets": [
                 {
                   "label": "New Model",
