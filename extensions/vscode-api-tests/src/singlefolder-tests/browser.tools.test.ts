@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as http from 'http';
+import { AddressInfo } from 'net';
 import * as path from 'path';
 import 'mocha';
 import * as vscode from 'vscode';
 import { assertNoRpc, closeAllEditors } from '../utils';
+
+const allowedPageMarker = 'ALLOWED_BROWSER_PAGE_MARKER';
+const deniedFrameMarker = 'DENIED_BROWSER_FRAME_MARKER';
+const complexPageMarker = 'COMPLEX_PAGE_READY_MARKER';
 
 /**
  * Extracts all text content from a LanguageModelToolResult.
@@ -22,8 +28,97 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('chat - browser tools', () => {
 
 	let clearNotificationsInterval: ReturnType<typeof setInterval> | undefined;
+	let allowedServer: http.Server;
+	let allowedPort: number;
+	let deniedServer: http.Server;
+	let deniedPort: number;
+	let deniedRequestCount: number;
 
-	setup(async () => {
+	setup(async function () {
+		this.timeout(15000);
+
+		deniedRequestCount = 0;
+		deniedServer = http.createServer((_request, response) => {
+			deniedRequestCount++;
+			response.setHeader('Content-Type', 'text/html');
+			response.end(`<html><body>${deniedFrameMarker}</body></html>`);
+		});
+		deniedPort = await listen(deniedServer, '127.0.0.1');
+
+		allowedServer = http.createServer((request, response) => {
+			switch (request.url) {
+				case '/hidden-iframe':
+					response.setHeader('Content-Type', 'text/html');
+					response.end(`<html><body>${allowedPageMarker}<iframe style="position:absolute;width:1px;height:1px;opacity:0" src="http://127.0.0.1:${deniedPort}/private"></iframe></body></html>`);
+					break;
+				case '/redirect-to-denied':
+					response.writeHead(302, { Location: `http://127.0.0.1:${deniedPort}/redirected-private` });
+					response.end();
+					break;
+				case '/complex':
+					response.setHeader('Content-Type', 'text/html');
+					response.end(`<!DOCTYPE html>
+						<html>
+							<head><link rel="stylesheet" href="/style.css"></head>
+							<body>
+								<div id="status">loading</div>
+								<img id="test-image" src="/image.png">
+								<iframe src="/allowed-frame"></iframe>
+								<script src="/complex.js"></script>
+							</body>
+						</html>`);
+					break;
+				case '/style.css':
+					response.setHeader('Content-Type', 'text/css');
+					response.end('body { --complex-page-style: loaded; }');
+					break;
+				case '/complex.js':
+					response.setHeader('Content-Type', 'text/javascript');
+					response.end(`
+						const worker = new Worker('/worker.js');
+						const workerResult = new Promise(resolve => worker.onmessage = event => resolve(event.data));
+						const imageResult = new Promise(resolve => {
+							const image = document.getElementById('test-image');
+							if (image.complete) {
+								resolve('image-loaded');
+							} else {
+								image.onload = () => resolve('image-loaded');
+							}
+						});
+						Promise.all([
+							fetch('/data').then(response => response.text()),
+							workerResult,
+							imageResult,
+						]).then(([fetchResult, workerMarker, imageMarker]) => {
+							const styleMarker = getComputedStyle(document.body).getPropertyValue('--complex-page-style').trim();
+							document.getElementById('status').textContent =
+								'${complexPageMarker} ' + fetchResult + ' ' + workerMarker + ' ' + imageMarker + ' style-' + styleMarker;
+						});
+					`);
+					break;
+				case '/worker.js':
+					response.setHeader('Content-Type', 'text/javascript');
+					response.end(`postMessage('worker-loaded');`);
+					break;
+				case '/data':
+					response.setHeader('Content-Type', 'text/plain');
+					response.end('fetch-loaded');
+					break;
+				case '/image.png':
+					response.setHeader('Content-Type', 'image/png');
+					response.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'));
+					break;
+				case '/allowed-frame':
+					response.setHeader('Content-Type', 'text/html');
+					response.end('<html><body>allowed-frame-loaded</body></html>');
+					break;
+				default:
+					response.writeHead(404);
+					response.end();
+			}
+		});
+		allowedPort = await listen(allowedServer, 'localhost');
+
 		// Periodically clear notifications to prevent them from interrupting the browser.
 		clearNotificationsInterval = setInterval(() => {
 			vscode.commands.executeCommand('notifications.clearAll');
@@ -54,13 +149,47 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		const chatToolsConfig = vscode.workspace.getConfiguration('chat.tools.global');
 		await chatToolsConfig.update('autoApprove', undefined, vscode.ConfigurationTarget.Global);
 		await vscode.commands.executeCommand('setContext', 'vscode.chat.tools.global.autoApprove.testMode', undefined);
+
+		await setNetworkPolicy(undefined);
+		await closeServer(allowedServer);
+		await closeServer(deniedServer);
 	});
 
-	async function invokeTool(toolName: string, input: Record<string, unknown>): Promise<string> {
-		const result = await vscode.lm.invokeTool(toolName, {
+	function listen(server: http.Server, host: string): Promise<number> {
+		return new Promise((resolve, reject) => {
+			server.listen(0, host, () => resolve((server.address() as AddressInfo).port));
+			server.on('error', reject);
+		});
+	}
+
+	function closeServer(server: http.Server): Promise<void> {
+		server.closeAllConnections();
+		return new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+	}
+
+	async function setNetworkPolicy(enabled: true | undefined): Promise<void> {
+		const configuration = vscode.workspace.getConfiguration();
+		if (enabled) {
+			await configuration.update('chat.agent.allowedNetworkDomains', ['http://localhost'], vscode.ConfigurationTarget.Global);
+			await configuration.update('chat.agent.deniedNetworkDomains', ['http://127.0.0.1'], vscode.ConfigurationTarget.Global);
+			await configuration.update('chat.agent.networkFilter', true, vscode.ConfigurationTarget.Global);
+		} else {
+			await configuration.update('chat.agent.networkFilter', undefined, vscode.ConfigurationTarget.Global);
+			await configuration.update('chat.agent.allowedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
+			await configuration.update('chat.agent.deniedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
+		}
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+
+	async function invokeToolResult(toolName: string, input: Record<string, unknown>): Promise<vscode.LanguageModelToolResult> {
+		return vscode.lm.invokeTool(toolName, {
 			input,
 			toolInvocationToken: undefined,
 		});
+	}
+
+	async function invokeTool(toolName: string, input: Record<string, unknown>): Promise<string> {
+		const result = await invokeToolResult(toolName, input);
 		return extractTextContent(result);
 	}
 
@@ -158,5 +287,120 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		// Read the page to verify the output element was populated
 		const readOutput = await invokeTool('read_page', { pageId });
 		assert.ok(readOutput.includes('test message'), `Expected page to contain worker response "test message", got: ${readOutput}`);
+	});
+
+	test('browser tools network policy blocks denied hidden iframe content from read_page', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/hidden-iframe`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const readOutput = await invokeTool('read_page', { pageId });
+
+		assert.deepStrictEqual({
+			deniedRequestCount,
+			openContainsAllowedMarker: openOutput.includes(allowedPageMarker),
+			readContainsAllowedMarker: readOutput.includes(allowedPageMarker),
+			openContainsDeniedMarker: openOutput.includes(deniedFrameMarker),
+			readContainsDeniedMarker: readOutput.includes(deniedFrameMarker),
+			readContainsDeniedUrl: readOutput.includes('127.0.0.1'),
+		}, {
+			deniedRequestCount: 0,
+			openContainsAllowedMarker: true,
+			readContainsAllowedMarker: true,
+			openContainsDeniedMarker: false,
+			readContainsDeniedMarker: false,
+			readContainsDeniedUrl: false,
+		});
+	});
+
+	test('browser tools network policy blocks screenshot_page after redirect to denied host', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/redirect-to-denied`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const readOutput = await invokeTool('read_page', { pageId });
+		const screenshotResult = await invokeToolResult('screenshot_page', { pageId });
+		const screenshotText = extractTextContent(screenshotResult);
+		const dataPartCount = screenshotResult.content.filter(part => part instanceof vscode.LanguageModelDataPart).length;
+
+		assert.deepStrictEqual({
+			readWasBlocked: readOutput.includes('blocked by network domain policy'),
+			screenshotWasBlocked: screenshotText.includes('blocked by network domain policy'),
+			dataPartCount,
+		}, {
+			readWasBlocked: true,
+			screenshotWasBlocked: true,
+			dataPartCount: 0,
+		});
+	});
+
+	test('browser tools network policy blocks screenshot_page when a denied frame is present', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/hidden-iframe`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const screenshotResult = await invokeToolResult('screenshot_page', { pageId });
+		const screenshotText = extractTextContent(screenshotResult);
+		const dataPartCount = screenshotResult.content.filter(part => part instanceof vscode.LanguageModelDataPart).length;
+
+		assert.deepStrictEqual({
+			screenshotWasBlocked: screenshotText.includes('blocked by network domain policy'),
+			dataPartCount,
+		}, {
+			screenshotWasBlocked: true,
+			dataPartCount: 0,
+		});
+	});
+
+	test('browser tools network policy preserves complex allowed page loading', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/complex`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		await invokeTool('run_playwright_code', {
+			pageId,
+			code: `await page.waitForSelector('#status:text-is("${complexPageMarker} fetch-loaded worker-loaded image-loaded style-loaded")'); return "ready";`,
+		});
+		const readOutput = await invokeTool('read_page', { pageId });
+
+		assert.deepStrictEqual({
+			complexPageReady: readOutput.includes(complexPageMarker),
+			fetchLoaded: readOutput.includes('fetch-loaded'),
+			workerLoaded: readOutput.includes('worker-loaded'),
+			imageLoaded: readOutput.includes('image-loaded'),
+			styleLoaded: readOutput.includes('style-loaded'),
+			allowedFrameLoaded: readOutput.includes('allowed-frame-loaded'),
+		}, {
+			complexPageReady: true,
+			fetchLoaded: true,
+			workerLoaded: true,
+			imageLoaded: true,
+			styleLoaded: true,
+			allowedFrameLoaded: true,
+		});
 	});
 });

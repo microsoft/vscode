@@ -18,6 +18,8 @@ import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRem
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { BrowserSessionNetworkFilter } from './browserSessionNetworkFilter.js';
 
 /**
  * Holds an Electron session along with its storage scope and unique browser
@@ -64,7 +66,7 @@ export class BrowserSession {
 	 * they point to is garbage-collected.
 	 */
 	private static readonly _finalizer = new FinalizationRegistry<string>((id) => {
-		BrowserSession._byId.delete(id);
+		this._byId.delete(id);
 	});
 
 	/**
@@ -207,6 +209,7 @@ export class BrowserSession {
 	private readonly _history: BrowserSessionHistory;
 	private readonly _remote: BrowserSessionRemote;
 	private readonly _permissions: BrowserSessionPermissions;
+	private readonly _agentNetworkFilter: BrowserSessionNetworkFilter;
 
 	/**
 	 * @deprecated Don't use this directly. Create sessions via the static factory methods.
@@ -222,7 +225,9 @@ export class BrowserSession {
 		readonly electronSession: Electron.Session,
 		/** Resolved storage scope. */
 		readonly storageScope: BrowserViewStorageScope,
+		@IAgentNetworkFilterService agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
+		this._agentNetworkFilter = new BrowserSessionNetworkFilter(agentNetworkFilterService);
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
 		this._remote = new BrowserSessionRemote(this);
@@ -254,6 +259,14 @@ export class BrowserSession {
 		return this._permissions;
 	}
 
+	setAgentNetworkFiltering(webContentsId: number, enabled: boolean): void {
+		this._agentNetworkFilter.setFiltering(webContentsId, enabled);
+	}
+
+	getAgentNetworkPolicyError(webContentsId: number): string | undefined {
+		return this._agentNetworkFilter.getPolicyError(webContentsId);
+	}
+
 	/**
 	 * Connect application storage to this session so that preferences
 	 * (trusted certificates, history, etc.) are persisted across restarts.
@@ -271,6 +284,7 @@ export class BrowserSession {
 	 */
 	private configure(): void {
 		this._permissions.configure(this.electronSession);
+		this.electronSession.webRequest.onBeforeRequest((details, callback) => this._agentNetworkFilter.onBeforeRequest(details, callback));
 		this.electronSession.registerPreloadScript({
 			type: 'frame',
 			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath

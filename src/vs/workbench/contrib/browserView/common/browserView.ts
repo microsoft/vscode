@@ -412,6 +412,7 @@ export interface IBrowserViewModel extends IDisposable {
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
 	getSelectedText(): Promise<string>;
+	getNetworkPolicyError(): Promise<string | undefined>;
 	clearStorage(): Promise<void>;
 	setSharedWithAgent(shared: boolean): Promise<boolean>;
 	trustCertificate(host: string, fingerprint: string): Promise<void>;
@@ -655,6 +656,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get elementSelectionState(): IBrowserElementSelectionState { return this._elementSelectionState; }
 	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
 	get device(): IBrowserDeviceProfile | undefined { return this._device; }
+
+	getNetworkPolicyError(): Promise<string | undefined> {
+		return this.browserViewService.getNetworkPolicyError(this.id);
+	}
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);

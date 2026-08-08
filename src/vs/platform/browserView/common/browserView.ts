@@ -589,6 +589,8 @@ export interface IBrowserViewService {
 	 */
 	getSelectedText(id: string): Promise<string>;
 
+	getNetworkPolicyError(id: string): Promise<string | undefined>;
+
 	/**
 	 * Clear all storage data for the global browser session
 	 */
