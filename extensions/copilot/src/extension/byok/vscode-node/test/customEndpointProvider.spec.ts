@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { IBYOKStorageService } from '../byokStorageService';
 import { CustomEndpointBYOKModelProvider, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl, resolveGeminiBaseUrl } from '../customEndpointProvider';
+import { GeminiNativeBYOKLMProvider } from '../geminiNativeProvider';
 
 // Same shape as geminiNativeProvider.spec.ts's mock: this file delegates to the real
 // GeminiNativeBYOKLMProvider, so it needs its own copy (vi.mock is file-scoped).
@@ -196,7 +197,9 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
 			});
 
-			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, createStorageService());
+			const storageService = createStorageService();
+			const geminiDelegate = instaService.createInstance(GeminiNativeBYOKLMProvider, undefined, storageService);
+			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, storageService, geminiDelegate);
 			const model = {
 				id: 'gemini-3.6-flash',
 				name: 'Gemini via gateway',
@@ -250,7 +253,9 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
 			});
 
-			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, createStorageService());
+			const storageService = createStorageService();
+			const geminiDelegate = instaService.createInstance(GeminiNativeBYOKLMProvider, undefined, storageService);
+			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, storageService, geminiDelegate);
 			const model = {
 				id: 'gemini-3.6-flash',
 				name: 'Gemini via gateway',

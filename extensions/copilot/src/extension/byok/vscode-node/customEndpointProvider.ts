@@ -179,16 +179,14 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 	public static readonly providerName = 'CustomEndpoint';
 	public static readonly providerId = this.providerName.toLowerCase();
 
-	// Handles every `apiType: 'gemini'` request. Declared as a constructor-injected
-	// dependency rather than resolved lazily via the service locator, per this repo's
-	// convention that service dependencies must be declared in constructors. Its
-	// constructor's legacy API-key migration re-running here is a harmless no-op: the
-	// registered Gemini provider singleton already completes it first, at extension
-	// startup, well before this provider handles its first request.
+	// Handles every `apiType: 'gemini'` request. Reused from the registered Gemini
+	// provider singleton (passed in from byokContribution.ts) rather than constructed
+	// here, so its legacy API-key migration only ever runs once at extension startup.
 	private readonly _geminiDelegate: GeminiNativeBYOKLMProvider;
 
 	constructor(
 		_byokStorageService: IBYOKStorageService,
+		geminiDelegate: GeminiNativeBYOKLMProvider,
 		@ILogService logService: ILogService,
 		@IFetcherService fetcherService: IFetcherService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -196,7 +194,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		@IExperimentationService expService: IExperimentationService,
 	) {
 		super(CustomEndpointBYOKModelProvider.providerId, CustomEndpointBYOKModelProvider.providerName, undefined, _byokStorageService, fetcherService, logService, instantiationService, configurationService, expService);
-		this._geminiDelegate = instantiationService.createInstance(GeminiNativeBYOKLMProvider, undefined, _byokStorageService);
+		this._geminiDelegate = geminiDelegate;
 	}
 
 	protected override async configureDefaultGroupWithApiKeyOnly(): Promise<string | undefined> {
