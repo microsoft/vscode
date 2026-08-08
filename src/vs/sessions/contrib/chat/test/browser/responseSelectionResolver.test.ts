@@ -222,6 +222,71 @@ suite('resolveResponseSelection', () => {
 		assert.strictEqual(resolveResponseSelection(widget), undefined);
 	});
 
+	test('resolves through a display:contents wrapper', () => {
+		// `display: contents` elements have no box of their own, so a visibility
+		// check reports them as invisible even though their descendants render
+		// and are selectable. Both endpoints live inside such wrappers here, so
+		// pruning them drops every contributing node and rejects the selection.
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const paragraph = doc.createElement('p');
+		const makeWrapped = (text: string) => {
+			const wrapper = doc.createElement('span');
+			wrapper.style.display = 'contents';
+			const node = doc.createTextNode(text);
+			wrapper.appendChild(node);
+			paragraph.appendChild(wrapper);
+			return node;
+		};
+		const firstText = makeWrapped('hello ');
+		const lastText = makeWrapped('world');
+		markdown.appendChild(paragraph);
+		widgetDomNode.appendChild(markdown);
+
+		const response = makeResponse('turn-1');
+		stubSelection(store, firstText, lastText, 'hello world');
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		assert.strictEqual(resolveResponseSelection(widget)?.text, 'hello world');
+	});
+
+	test('ignores unrendered text when finding the selection endpoints', () => {
+		// The transcript contains `<style>` elements and display:none metadata
+		// that a triple-click's range spans but the user cannot see or select.
+		// Treating them as endpoints puts the endpoint outside the response's
+		// markdown and rejects an otherwise valid selection.
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const paragraph = doc.createElement('p');
+		const textNode = doc.createTextNode('hello world');
+		paragraph.appendChild(textNode);
+		markdown.appendChild(paragraph);
+		const style = doc.createElement('style');
+		style.appendChild(doc.createTextNode('.monaco-list { color: red; }'));
+		const hiddenMeta = doc.createElement('div');
+		hiddenMeta.style.display = 'none';
+		hiddenMeta.appendChild(doc.createTextNode('+55 -0'));
+		const footer = doc.createElement('div');
+		widgetDomNode.appendChild(markdown);
+		widgetDomNode.appendChild(style);
+		widgetDomNode.appendChild(hiddenMeta);
+		widgetDomNode.appendChild(footer);
+
+		const response = makeResponse('turn-1');
+		stubSelection(store, textNode, footer, 'hello world\n', 0);
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		assert.strictEqual(resolveResponseSelection(widget)?.text, 'hello world');
+	});
+
 	test('rejects a selection outside the markdown scope', () => {
 		const { store, doc, widgetDomNode } = setup();
 		const other = doc.createElement('div');

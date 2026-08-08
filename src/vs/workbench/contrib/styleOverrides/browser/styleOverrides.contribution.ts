@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
+import { DEFAULT_PANE_HEADER_SIZE, setGlobalPaneHeaderSize } from '../../../../base/browser/ui/splitview/paneview.js';
 
 /** Reduced scrollbar size (px) applied when the style-override experiment is on. */
 const SCROLLBAR_OVERRIDE_SIZE = 8;
 
 /** Reduced collapsed notification row height (px) applied when the style-override experiment is on. */
 const NOTIFICATION_ROW_OVERRIDE_HEIGHT = 34;
+
+/** Increased pane header size (px) applied when the style-override experiment is on. */
+const PANE_HEADER_OVERRIDE_SIZE = 28;
 
 // Bundle the CSS for every style-override module. Every file gates all of its
 // rules behind the single `.style-override` ancestor class, so the styles are
@@ -39,9 +41,8 @@ import './media/titlebar.css';
 interface IStyleOverrideModule {
 	readonly id: string;
 	/**
-	 * Whether this module changes layout-affecting CSS variables (e.g. the pane
-	 * header size). Toggling such a module requires a workbench relayout so the
-	 * new values are read; modules without this flag only affect appearance.
+	 * Whether this module changes layout metrics. Toggling such a module requires
+	 * a workbench relayout; modules without this flag only affect appearance.
 	 */
 	readonly layoutAffecting?: boolean;
 }
@@ -53,6 +54,7 @@ interface IStyleOverrideModule {
  * as a group.
  */
 const STYLE_OVERRIDE_CLASS = 'style-override';
+const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
 
 /**
  * The fixed catalog of built-in style-override modules. The CSS for each module
@@ -108,15 +110,8 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this.update();
-				// Some modules drive layout-affecting CSS variables (e.g. the
-				// `paneHeaders` header size) that the JS layout reads back, so a
-				// relayout is required once the classes are toggled. The base layout
-				// (`Layout`) also relayouts for this same setting, but its listener
-				// runs earlier (startup) than this contribution's (Restored phase),
-				// so that pass happens *before* these classes are applied and reads
-				// stale values. This relayout therefore runs last and is the
-				// authoritative one — do not remove it as "redundant". Guarded so it
-				// only fires when the enabled state actually flips.
+				// Some modules change layout metrics, so a relayout is required once
+				// their classes and corresponding layout values are updated.
 				const layoutAffectingActive = this.hasActiveLayoutAffectingModule();
 				if (layoutAffectingActive !== this.layoutAffectingActive) {
 					this.layoutAffectingActive = layoutAffectingActive;
@@ -144,6 +139,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	private update(): void {
 		const enabled = this.isEnabled();
+		this.applyPaneHeaderSize(enabled);
 		for (const container of this.layoutService.containers) {
 			this.applyTo(container, enabled);
 		}
@@ -153,6 +149,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	private applyTo(container: HTMLElement, enabled: boolean): void {
 		container.classList.toggle(STYLE_OVERRIDE_CLASS, enabled);
+		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
 	}
 
 	private applyScrollbarSize(enabled: boolean): void {
@@ -163,16 +160,21 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		setNotificationRowHeight(enabled ? NOTIFICATION_ROW_OVERRIDE_HEIGHT : DEFAULT_NOTIFICATION_ROW_HEIGHT);
 	}
 
+	private applyPaneHeaderSize(enabled: boolean): void {
+		setGlobalPaneHeaderSize(enabled ? PANE_HEADER_OVERRIDE_SIZE : DEFAULT_PANE_HEADER_SIZE);
+	}
+
 	override dispose(): void {
 		// Remove the class this contribution added so it leaves no DOM state behind.
 		for (const container of this.layoutService.containers) {
 			container.classList.remove(STYLE_OVERRIDE_CLASS);
+			container.classList.remove(MODERN_UI_TABS_CLASS);
 		}
 		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
 		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		setGlobalPaneHeaderSize(DEFAULT_PANE_HEADER_SIZE);
 		super.dispose();
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StyleOverridesContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(StyleOverridesContribution.ID, StyleOverridesContribution, WorkbenchPhase.BlockRestore);

@@ -11,7 +11,7 @@ export type ToolJsonSchema = {
 	properties?: Record<string, ToolJsonSchema>;
 	items?: ToolJsonSchema;
 	required?: string[];
-	enum?: string[];
+	enum?: unknown[];
 
 	// Add support for JSON Schema composition keywords
 	anyOf?: ToolJsonSchema[];
@@ -104,8 +104,11 @@ function transformConcrete(schema: ToolJsonSchema): Schema {
 		transformed.description = schema.description;
 	}
 
-	if (schema.enum) {
-		transformed.enum = schema.enum;
+	if (type === 'string' && schema.enum) {
+		const values = schema.enum.filter((value): value is string => typeof value === 'string');
+		if (values.length > 0) {
+			transformed.enum = values;
+		}
 	}
 
 	if (type === 'object' && schema.properties) {
