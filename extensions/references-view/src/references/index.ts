@@ -21,7 +21,7 @@ export function register(tree: SymbolsTree, context: vscode.ExtensionContext): v
 		vscode.commands.registerCommand('references-view.findImplementations', () => findLocations('Implementations', 'vscode.executeImplementationProvider')),
 		// --- legacy name
 		vscode.commands.registerCommand('references-view.find', (...args: any[]) => vscode.commands.executeCommand('references-view.findReferences', ...args)),
-		vscode.commands.registerCommand('references-view.removeReferenceItem', removeReferenceItem),
+		vscode.commands.registerCommand('references-view.removeReferenceItem', (arg) => removeReferenceItem(tree, arg)),
 		vscode.commands.registerCommand('references-view.copy', copyCommand),
 		vscode.commands.registerCommand('references-view.copyAll', copyAllCommand),
 		vscode.commands.registerCommand('references-view.copyPath', copyPathCommand),
@@ -61,11 +61,18 @@ const copyAllCommand = async (item: ReferenceItem | FileItem | unknown) => {
 	}
 };
 
-function removeReferenceItem(item: FileItem | ReferenceItem | unknown) {
+function removeReferenceItem(tree: SymbolsTree, item: FileItem | ReferenceItem | unknown) {
 	if (item instanceof FileItem) {
 		item.remove();
 	} else if (item instanceof ReferenceItem) {
 		item.remove();
+	} else if (item === undefined) {
+		// if item undefined, assume called from hotkey with no context, so call remove on selected items
+		for (const ni of tree.getSelection()) {
+			if (ni instanceof FileItem || ni instanceof ReferenceItem) {
+				ni.remove();
+			}
+		}
 	}
 }
 
