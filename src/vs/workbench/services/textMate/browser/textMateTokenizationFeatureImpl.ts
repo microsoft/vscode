@@ -378,14 +378,23 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
 		if (!this._vscodeOniguruma) {
 			this._vscodeOniguruma = (async () => {
-				const [vscodeOniguruma, wasm] = await Promise.all([importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js'), this._loadVSCodeOnigurumaWASM()]);
-				await vscodeOniguruma.loadWASM({
-					data: wasm,
-					print: (str: string) => {
-						this._debugModePrintFunc(str);
-					}
-				});
-				return vscodeOniguruma;
+				try {
+					const [vscodeOniguruma, wasm] = await Promise.all([importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js'), this._loadVSCodeOnigurumaWASM()]);
+					await vscodeOniguruma.loadWASM({
+						data: wasm,
+						print: (str: string) => {
+							this._debugModePrintFunc(str);
+						}
+					});
+					return vscodeOniguruma;
+				} catch (err) {
+					// Do not cache a rejected promise: loading the WASM can fail with a transient
+					// error (e.g. "Failed to fetch" while the window is being torn down). Caching
+					// the rejection would permanently break tokenization for the rest of the
+					// session and cause the same error to be re-reported for every language.
+					this._vscodeOniguruma = null;
+					throw err;
+				}
 			})();
 		}
 		return this._vscodeOniguruma;
