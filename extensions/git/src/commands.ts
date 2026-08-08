@@ -5593,6 +5593,9 @@ export class CommandCenter {
 					case GitErrorCodes.PushRejected:
 						message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
 						break;
+					case GitErrorCodes.FileSizeLimitExceeded:
+						message = l10n.t('Can\'t push refs to remote because a file exceeds the remote\'s file size limit. Consider using Git LFS to track large files.');
+						break;
 					case GitErrorCodes.ForcePushWithLeaseRejected:
 					case GitErrorCodes.ForcePushWithLeaseIfIncludesRejected:
 						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
