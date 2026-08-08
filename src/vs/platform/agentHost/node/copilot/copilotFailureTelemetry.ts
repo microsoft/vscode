@@ -8,6 +8,7 @@ import { getErrorCode } from '../../../../base/common/errors.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../../telemetry/common/errorTelemetry.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession } from '../../common/agentService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 
@@ -214,7 +215,7 @@ type CopilotModelCallFailureEvent = CopilotSessionFailureCorrelation & {
 	failureKind: string | undefined;
 	source: string;
 	transport: string | undefined;
-	apiEndpoint: string | undefined;
+	apiEndpoint: TelemetryTrustedValue<string> | undefined;
 	statusCode: number | undefined;
 	durationMs: number | undefined;
 	model: string | undefined;
@@ -277,7 +278,7 @@ export function reportCopilotModelCallFailure(telemetryService: ITelemetryServic
 		failureKind: event.data.failureKind,
 		source: event.data.source,
 		transport: event.data.transport,
-		apiEndpoint: event.data.apiEndpoint,
+		apiEndpoint: event.data.apiEndpoint ? new TelemetryTrustedValue(event.data.apiEndpoint) : undefined,
 		statusCode: event.data.statusCode,
 		durationMs: event.data.durationMs,
 		model: event.data.isByok ? 'byokModel' : event.data.model,
