@@ -83,6 +83,7 @@ function apiTypeToSupportedEndpoints(apiType: CustomEndpointApiType): ModelSuppo
 export interface CustomEndpointModelProviderConfig extends LanguageModelChatConfiguration {
 	url?: string;
 	apiType?: CustomEndpointApiType;
+	global?: Partial<CustomEndpointModelConfig>;
 	models?: CustomEndpointModelConfig[];
 }
 
@@ -137,11 +138,13 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			return super.getAllModels(silent, apiKey, configuration);
 		}
 		const models: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[] = [];
+		const globalConfig = configuration?.global || {};
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
+				const mergedConfig = { ...globalConfig, ...modelConfig } as CustomEndpointModelConfig;
 				models.push({
-					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, modelConfig),
-					url: modelConfig.url
+					...byokKnownModelToAPIInfoWithEffort(this._name, mergedConfig.id, mergedConfig),
+					url: mergedConfig.url
 				});
 			}
 		}
@@ -149,25 +152,28 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 	}
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<OpenAIEndpoint> {
-		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
-		const apiTypeOverride = modelConfiguration?.apiType ?? model.configuration?.apiType;
-		const url = resolveCustomEndpointUrl(model.id, model.url, apiTypeOverride);
+		const explicitConfig = model.configuration?.models?.find(m => m.id === model.id);
+		const globalConfig = model.configuration?.global || {};
+		const modelConfiguration = { ...globalConfig, ...explicitConfig } as Partial<CustomEndpointModelConfig>;
+
+		const apiTypeOverride = modelConfiguration.apiType ?? model.configuration?.apiType;
+		const url = resolveCustomEndpointUrl(model.id, modelConfiguration.url || model.url, apiTypeOverride);
 		const apiType: CustomEndpointApiType = apiTypeOverride ?? inferApiTypeFromUrl(url);
 		const modelCapabilities = {
-			maxInputTokens: model.maxInputTokens,
-			maxOutputTokens: model.maxOutputTokens,
-			contextWindow: modelConfiguration?.contextWindow,
-			toolCalling: !!model.capabilities?.toolCalling || false,
-			vision: !!model.capabilities?.imageInput || false,
-			name: model.name,
+			maxInputTokens: modelConfiguration.maxInputTokens ?? model.maxInputTokens,
+			maxOutputTokens: modelConfiguration.maxOutputTokens ?? model.maxOutputTokens,
+			contextWindow: modelConfiguration.contextWindow ?? modelConfiguration.contextWindow,
+			toolCalling: modelConfiguration.toolCalling ?? !!model.capabilities?.toolCalling,
+			vision: modelConfiguration.vision ?? !!model.capabilities?.imageInput,
+			name: modelConfiguration.name ?? model.name,
 			url,
-			thinking: modelConfiguration?.thinking ?? false,
-			streaming: modelConfiguration?.streaming,
-			requestHeaders: modelConfiguration?.requestHeaders,
-			modelOptions: modelConfiguration?.modelOptions,
-			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
-			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
-			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
+			thinking: modelConfiguration.thinking ?? false,
+			streaming: modelConfiguration.streaming,
+			requestHeaders: modelConfiguration.requestHeaders,
+			modelOptions: modelConfiguration.modelOptions,
+			zeroDataRetentionEnabled: modelConfiguration.zeroDataRetentionEnabled,
+			supportsReasoningEffort: modelConfiguration.supportsReasoningEffort,
+			reasoningEffortFormat: modelConfiguration.reasoningEffortFormat
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
 		const supportedEndpoints = apiTypeToSupportedEndpoints(apiType);
