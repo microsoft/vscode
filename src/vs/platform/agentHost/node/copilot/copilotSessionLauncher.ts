@@ -11,7 +11,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeToolSearchDeferThreshold } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
-import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostManagedPermissionsConfigKey, AgentHostSessionSyncEnabledConfigKey, normalizeManagedPermissions, platformRootSchema, type AgentHostMcpServers, type IManagedPermissions } from '../../common/agentHostSchema.js';
 import { AgentSession } from '../../common/agentService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
@@ -82,6 +82,7 @@ type McpAuthContext = Parameters<McpAuthHandler>[1];
 type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+
 /**
  * Immutable snapshot of the active client's structural contributions at
  * session creation time. Used to detect when the session needs to be
@@ -95,6 +96,8 @@ export interface IActiveClientSnapshot {
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly ICopilotPluginInfo[];
 	readonly mcpServers: AgentHostMcpServers;
+	/** Startup-only managed permissions included in structural restart detection. */
+	readonly managedPermissions?: IManagedPermissions;
 }
 
 /**
@@ -579,6 +582,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
+		const managedPermissions = normalizeManagedPermissions(
+			this._configurationService.getRootValue(platformRootSchema, AgentHostManagedPermissionsConfigKey),
+		);
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
@@ -677,6 +683,17 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// events. Without this, sessions default to "off".
 			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
 			enableManagedSettings: true,
+			// Forward enterprise-policy-derived managed permissions (synthesized
+			// by VS Code from managed policy values) as the runtime's
+			// `managedSettings.permissions`. Omitted when no policy applies.
+			...(managedPermissions ? {
+				managedSettings: {
+					permissions: {
+						...(managedPermissions.disableBypassPermissionsMode ? { disableBypassPermissionsMode: managedPermissions.disableBypassPermissionsMode } : {}),
+						...(managedPermissions.ask ? { ask: [...managedPermissions.ask] } : {}),
+					},
+				},
+			} : {}),
 		};
 	}
 }

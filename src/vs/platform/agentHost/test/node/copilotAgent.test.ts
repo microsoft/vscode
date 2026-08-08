@@ -33,7 +33,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
@@ -4453,6 +4453,7 @@ suite('CopilotAgent', () => {
 			_getOrCreateSessionLifetime: (sessionId: string) => { queueSession<T>(task: () => Promise<T>): Promise<T> } | undefined;
 			_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 			_resolveAgentName: (snapshot: IActiveClientSnapshot, agent: AgentSelection) => string | undefined;
+			_ensureChatSession: (session: URI, chat: URI) => Promise<CopilotAgentSession | undefined>;
 		};
 
 		interface IFakeChatRecorder {
@@ -4496,6 +4497,7 @@ suite('CopilotAgent', () => {
 				handleClientToolCallComplete(): void { },
 				async getNextTurnEventId(): Promise<string | undefined> { return undefined; },
 				getMessages: getMessages ?? (async () => []),
+				async destroySession(): Promise<void> { rec.disposed = true; },
 				dispose(): void { rec.disposed = true; owned?.dispose(); },
 			} as unknown as CopilotAgentSession;
 			return { rec, fake };
@@ -5259,6 +5261,60 @@ suite('CopilotAgent', () => {
 					aResets: [{ turnId: 'turn-a', senderClientId: 'client-1' }],
 					bSends: [],
 					bResets: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('sendMessage serializes concurrent peer chat refreshes when managed permissions change', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'route-managed-refresh');
+				const chat = URI.parse(buildChatUri(session, 'peer-a'));
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [];
+				const old = makeFakeChatSession(session, 'sdk-old');
+				const fresh = makeFakeChatSession(session, 'sdk-fresh');
+				Object.assign(fresh.fake, {
+					appliedSnapshot: {
+						tools: [],
+						plugins: [],
+						mcpServers: {},
+						managedPermissions: { disableBypassPermissionsMode: 'disable' },
+					} satisfies IActiveClientSnapshot,
+				});
+				setPeerChatStub(agent, chat, old.fake);
+				let oldDestroyCalls = 0;
+				Object.assign(old.fake, {
+					async destroySession(): Promise<void> {
+						oldDestroyCalls++;
+					}
+				});
+				(agent as unknown as ChatInternals)._ensureChatSession = async () => {
+					const existing = getPeerChatStub(agent, chat);
+					if (existing) {
+						return existing;
+					}
+					setPeerChatStub(agent, chat, fresh.fake);
+					return fresh.fake;
+				};
+
+				configurationService.updateRootConfig({
+					[AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' },
+				});
+				await Promise.all([
+					agent.chats.sendMessage(chat, 'first-after-policy-change', undefined),
+					agent.chats.sendMessage(chat, 'second-after-policy-change', undefined),
+				]);
+
+				assert.deepStrictEqual({
+					oldDestroyCalls,
+					freshDisposed: fresh.rec.disposed,
+					freshPrompts: fresh.rec.sends.map(send => send.prompt),
+				}, {
+					oldDestroyCalls: 1,
+					freshDisposed: false,
+					freshPrompts: ['first-after-policy-change', 'second-after-policy-change'],
 				});
 			} finally {
 				await disposeAgent(agent);

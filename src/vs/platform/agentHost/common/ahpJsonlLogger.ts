@@ -10,6 +10,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { AgentHostManagedPermissionsConfigKey, AgentHostManagedPermissionsLogRedaction } from './agentHostSchema.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
@@ -240,7 +241,10 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
  * {@link URI.revive}. This avoids the expensive deep-clone tree walk that
  * would otherwise be required to find every URI in a message payload.
  */
-function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
+function _ahpReplacer(this: unknown, key: string, value: unknown): unknown {
+	if (key === AgentHostManagedPermissionsConfigKey) {
+		return AgentHostManagedPermissionsLogRedaction;
+	}
 	if (
 		value
 		&& typeof value === 'object'

@@ -29,7 +29,7 @@ import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKi
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, MANAGED_PERMISSION_TERMINAL_ASK_RULE, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 
@@ -176,6 +176,35 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 	}
 }
 
+/**
+ * Supplies `policyValue` (the managed/enterprise value) for the managed
+ * permission source settings so that the managed-permissions forwarding, which
+ * derives EXCLUSIVELY from `inspect(...).policyValue`, can be exercised
+ * independently of ordinary user/workspace values.
+ */
+class ManagedPermissionPolicyConfigurationService extends TestConfigurationService {
+
+	constructor(private readonly _policyValues: Record<string, unknown>) {
+		super();
+	}
+
+	override inspect<T>(key: string): IConfigurationValue<T> {
+		const base = super.inspect<T>(key);
+		if (Object.prototype.hasOwnProperty.call(this._policyValues, key)) {
+			return { ...base, policyValue: this._policyValues[key] as T };
+		}
+		return base;
+	}
+
+	setPolicyValue(key: string, value: unknown): void {
+		if (value === undefined) {
+			delete this._policyValues[key];
+		} else {
+			this._policyValues[key] = value;
+		}
+	}
+}
+
 suite('RemoteAgentHostProtocolClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -193,6 +222,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		onGrantImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
 		/** Test hook that observes disposal of the implicit-read grant. */
 		onRevokeImplicitRead?: (identity: AgentHostResourceIdentity, uri: URI) => void;
+		onConnectionClosed?: (identity: AgentHostResourceIdentity) => void;
 		readBytes?: VSBuffer;
 	}
 
@@ -239,7 +269,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				opts.onGrantImplicitRead?.(address, uri);
 				return opts.onRevokeImplicitRead ? toDisposable(() => opts.onRevokeImplicitRead?.(address, uri)) : Disposable.None;
 			},
-			connectionClosed: () => { },
+			connectionClosed: identity => opts.onConnectionClosed?.(identity),
 		};
 	}
 
@@ -261,7 +291,24 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: sent.id,
-			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			result: {
+				protocolVersion: PROTOCOL_VERSION,
+				serverSeq: 0,
+				snapshots: [{
+					resource: ROOT_STATE_URI,
+					fromSeq: 0,
+					state: {
+						agents: [],
+						config: {
+							schema: {
+								type: 'object',
+								properties: { [AgentHostManagedPermissionsConfigKey]: { type: 'object' } },
+							},
+							values: {},
+						},
+					},
+				}],
+			},
 		});
 		await connectPromise;
 	}
@@ -913,6 +960,126 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	test('derives managed permissions only from policy values and forwards them on connect', async () => {
+		const configurationService = new ManagedPermissionPolicyConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
+		});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+
+		const managed = findRootConfigNotification(transport.sentMessages, AgentHostManagedPermissionsConfigKey);
+		assert.deepStrictEqual(getRootConfig(managed)[AgentHostManagedPermissionsConfigKey], {
+			disableBypassPermissionsMode: 'disable',
+			ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE],
+		});
+
+		transport.sentMessages.length = 0;
+		configurationService.setPolicyValue(GLOBAL_AUTO_APPROVE_SETTING_ID, undefined);
+		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
+		assert.deepStrictEqual(
+			findRootConfigValue(transport.sentMessages, AgentHostManagedPermissionsConfigKey),
+			{ ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE] },
+		);
+
+		transport.sentMessages.length = 0;
+		configurationService.setPolicyValue(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, undefined);
+		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+		assert.deepStrictEqual(
+			findRootConfigValue(transport.sentMessages, AgentHostManagedPermissionsConfigKey),
+			{},
+		);
+	});
+
+	test('requires explicit host support when restrictive policy is present', async () => {
+		const configurationService = new ManagedPermissionPolicyConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
+		});
+		const closedIdentities: AgentHostResourceIdentity[] = [];
+		const permissionService = createResourceServiceStub({
+			onConnectionClosed: identity => closedIdentities.push(identity),
+		});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), permissionService, undefined, new NullLogService(), configurationService);
+		let closeCount = 0;
+		disposables.add(client.onDidClose(() => closeCount++));
+		const connect = client.connect();
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+
+		assert.deepStrictEqual((initialize.params as { protocolVersions: string[] }).protocolVersions, SUPPORTED_PROTOCOL_VERSIONS);
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+
+		await assertRemoteProtocolError(connect, {
+			code: AhpErrorCodes.UnsupportedProtocolVersion,
+			message: 'The connected Agent Host does not advertise managed-permissions enforcement support.',
+		});
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+		assert.strictEqual(transport.sentMessages.length, 1);
+		assert.deepStrictEqual(closedIdentities, ['test.example:1234']);
+
+		transport.fireClose();
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+		assert.strictEqual(closeCount, 0);
+	});
+
+	test('fails closed when restrictive policy appears on an unsupported connected host', async () => {
+		const configurationService = new ManagedPermissionPolicyConfigurationService({});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		const connect = client.connect();
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		await connect;
+		assert.strictEqual(
+			transport.sentMessages.some(message =>
+				hasKey(message, { method: true })
+				&& message.method === 'dispatchAction'
+				&& Object.hasOwn(getRootConfig(message as JsonRpcNotification), AgentHostManagedPermissionsConfigKey)),
+			false,
+		);
+
+		configurationService.setPolicyValue(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
+		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
+
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+		const sentBeforeReverseRequest = transport.sentMessages.length;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 42,
+			method: 'resourceRead',
+			params: { channel: ROOT_STATE_URI, uri: URI.file('/workspace/blocked.txt').toString() },
+		});
+		await flushMicrotasks();
+		assert.strictEqual(transport.sentMessages.length, sentBeforeReverseRequest);
+		assert.strictEqual(
+			transport.sentMessages.some(message =>
+				hasKey(message, { method: true })
+				&& message.method === 'dispatchAction'
+				&& Object.hasOwn(getRootConfig(message as JsonRpcNotification), AgentHostManagedPermissionsConfigKey)),
+			false,
+		);
+	});
+
+	test('forwards the empty clear sentinel when only non-policy values are set', async () => {
+		// User/workspace values are restrictive, but no enterprise policy is set —
+		// only `policyValue` maps, so nothing must be forwarded.
+		const configurationService = new TestConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
+		});
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+		await connectClient(client, transport);
+
+		const managed = findRootConfigNotification(transport.sentMessages, AgentHostManagedPermissionsConfigKey);
+		assert.deepStrictEqual(getRootConfig(managed)[AgentHostManagedPermissionsConfigKey], {});
+	});
+
 	test('forwards the repo-info telemetry debug switch on connect and change', async () => {
 		const configurationService = new TestConfigurationService({ [DISABLE_REPO_INFO_TELEMETRY_SETTING_ID]: true });
 		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
@@ -1032,8 +1199,15 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { ok: true, upgradeStarted: true } });
 		assert.deepStrictEqual(await upgrade, { ok: true, upgradeStarted: true });
+
+		const interruptedUpgrade = client.triggerVscodeUpgrade('_vscodeUpgrade');
+		const interruptedError = assertRemoteProtocolError(interruptedUpgrade, {
+			code: -32000,
+			message: 'Connection closed: test.example:1234',
+		});
 		transport.fireClose();
-		assert.strictEqual(client.connectionState, AgentHostClientState.Closed);
+		await interruptedError;
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
 	});
 
 	test('sends shutdown as a JSON-RPC request shape', async () => {
@@ -1617,7 +1791,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, configurationService: TestConfigurationService = new TestConfigurationService()): { client: RemoteAgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -1625,7 +1799,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new RemoteAgentHostProtocolClient(
-				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, new TestConfigurationService(),
+				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, configurationService,
 			));
 			return { client, transports };
 		}
@@ -1704,6 +1878,38 @@ suite('RemoteAgentHostProtocolClient', () => {
 			} finally {
 				client.dispose();
 			}
+		});
+
+		test('treats missing managed-permission support during reconnect fallback as terminal', async function () {
+			this.timeout(10_000);
+			const configurationService = new ManagedPermissionPolicyConfigurationService({});
+			const { client, transports } = createFactoryClient(createPermissionService(), undefined, configurationService);
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			configurationService.setPolicyValue(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			assert.deepStrictEqual((initialize.params as { protocolVersions: string[] }).protocolVersions, SUPPORTED_PROTOCOL_VERSIONS);
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			await flushMicrotasks();
+
+			assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+			assert.strictEqual(transports.length, 2);
 		});
 
 		test('replays pending optimistic actions after reconnect', async function () {

@@ -38,7 +38,7 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, deriveManagedPermissions, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { toClientConnectionTelemetryMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
@@ -50,7 +50,6 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
-
 /** Initial delay before the first transport-level reconnect attempt. */
 const RECONNECT_INITIAL_DELAY_MS = 1_000;
 
@@ -276,6 +275,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	private readonly _grantedImplicitReadUris = new ResourceSet();
 	private readonly _implicitReadGrants = this._register(new DisposableStore());
+	private _didCloseConnectionResources = false;
 
 	get clientId(): string {
 		return this._clientId;
@@ -291,6 +291,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	get connectionState(): AgentHostClientState {
 		return this._state.kind;
+	}
+
+	get connectionError(): ProtocolError | undefined {
+		return this._state.kind === AgentHostClientState.Incompatible || this._state.kind === AgentHostClientState.Closed
+			? this._state.error
+			: undefined;
 	}
 
 	/**
@@ -360,6 +366,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
 				this._updateTelemetryLevel();
+			}
+			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
+				this._updateManagedPermissions();
 			}
 			if (e.affectsConfiguration(PREFER_LONG_CONTEXT_SETTING_ID)) {
 				this._updatePreferLongContextEnabled();
@@ -469,12 +478,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
 			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion) {
-				this._cancelLivenessTimers();
-				if (this._state.kind === AgentHostClientState.Connecting) {
-					this._state.outbox.length = 0;
-				}
-				this._rejectPendingRequests(protocolError);
-				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
+				this._markIncompatible(protocolError);
 				throw error;
 			}
 			this._handleClose(protocolError);
@@ -516,7 +520,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._handleClose(connectionClosedError(this._address));
 				return;
 			case AgentHostClientState.Incompatible:
-				this._handleClose(connectionClosedError(this._address));
+				this._rejectPendingRequests(connectionClosedError(this._address));
 				return;
 			case AgentHostClientState.Connected: {
 				if (!this._transportFactory) {
@@ -620,6 +624,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
 		} catch (err) {
 			this._logService.warn(`[RemoteAgentHostProtocol] Reconnect attempt failed for ${this._address}: ${err instanceof Error ? err.message : String(err)}`);
+			if (err instanceof ProtocolError && err.code === AhpErrorCodes.UnsupportedProtocolVersion) {
+				this._markIncompatible(err);
+				return;
+			}
 			transport?.dispose();
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
 				return;
@@ -667,6 +675,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _applyInitializeResult(result: CommandMap['initialize']['result']): void {
+		this._assertManagedPermissionsSupported(result);
 		this._initializeResult.set(result, undefined);
 		this._serverSeq = result.serverSeq;
 		if (result.defaultDirectory) {
@@ -692,6 +701,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _forwardClientConfig(): void {
 		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY));
 		this._updateTelemetryLevel();
+		this._updateManagedPermissions();
 		this._updatePreferLongContextEnabled();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
@@ -1202,11 +1212,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _handleMessage(msg: ProtocolMessage): void {
-		if (this._state.kind === AgentHostClientState.Closed) {
+		if (this._state.kind === AgentHostClientState.Closed
+			|| (this._state.kind === AgentHostClientState.Incompatible && !isJsonRpcResponse(msg))) {
 			// After close, the transport may still emit late messages (e.g.
 			// because the same shared event source is also feeding a newer
-			// transport for the same connectionId). Drop them so they can't
-			// trigger any side effects.
+			// transport for the same connectionId). An incompatible connection
+			// only accepts responses for the explicit upgrade request.
 			return;
 		}
 
@@ -1303,11 +1314,19 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._state.outbox.length = 0;
 		}
 		this._rejectPendingRequests(error);
+		this._closeConnectionResources();
+		this._transitionTo({ kind: AgentHostClientState.Closed, error });
+		this._onDidClose.fire();
+	}
+
+	private _closeConnectionResources(): void {
+		if (this._didCloseConnectionResources) {
+			return;
+		}
+		this._didCloseConnectionResources = true;
 		this._grantedImplicitReadUris.clear();
 		this._implicitReadGrants.clear();
 		this._resourceService.connectionClosed(this._resourceIdentity);
-		this._transitionTo({ kind: AgentHostClientState.Closed, error });
-		this._onDidClose.fire();
 	}
 
 	private async _raceClose<T>(promise: Promise<T>): Promise<T> {
@@ -1490,6 +1509,82 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _updateDisableRepoInfoTelemetry(): void {
 		const disabled = this._configurationService.getValue<boolean>(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID) === true;
 		this._dispatchRootConfig({ [AgentHostDisableRepoInfoTelemetryConfigKey]: disabled });
+	}
+
+	/**
+	 * Forward the enterprise-policy-derived managed permissions to the agent
+	 * host. Derived EXCLUSIVELY from the managed (policy) values of the source
+	 * settings via `inspect(...).policyValue` — user/workspace values are
+	 * ignored so only enterprise policy affects the runtime's
+	 * `managedSettings.permissions`. When no policy applies, the derived value
+	 * is `undefined` and an empty-object clear sentinel is forwarded so the
+	 * merge-based root config drops any previously forwarded permissions.
+	 */
+	private _updateManagedPermissions(): void {
+		const permissions = this._deriveManagedPermissions();
+		const initializeResult = this._initializeResult.get();
+		if (initializeResult && !this._supportsManagedPermissions(initializeResult)) {
+			if (!permissions) {
+				return;
+			}
+			const error = this._managedPermissionsUnsupportedError();
+			const wasConnected = this._state.kind === AgentHostClientState.Connected;
+			this._markIncompatible(error);
+			if (!wasConnected) {
+				throw error;
+			}
+			return;
+		}
+		// Root config patches merge over existing values. An empty object is
+		// the wire-safe clear sentinel because JSON drops `undefined`.
+		this._dispatchRootConfig({ [AgentHostManagedPermissionsConfigKey]: permissions ?? {} });
+	}
+
+	private _deriveManagedPermissions() {
+		return deriveManagedPermissions(
+			this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue,
+			this._configurationService.inspect<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID).policyValue,
+		);
+	}
+
+	private _supportsManagedPermissions(result: CommandMap['initialize']['result']): boolean {
+		// Host builds expose this schema key only when shipped with a compatible runtime.
+		return result.snapshots?.some(snapshot =>
+			isAhpRootChannel(snapshot.resource)
+			&& Object.hasOwn((snapshot.state as RootState).config?.schema.properties ?? {}, AgentHostManagedPermissionsConfigKey)
+		) === true;
+	}
+
+	private _assertManagedPermissionsSupported(result: CommandMap['initialize']['result']): void {
+		if (this._deriveManagedPermissions() && !this._supportsManagedPermissions(result)) {
+			throw this._managedPermissionsUnsupportedError();
+		}
+	}
+
+	private _managedPermissionsUnsupportedError(): ProtocolError {
+		return new ProtocolError(
+			AhpErrorCodes.UnsupportedProtocolVersion,
+			'The connected Agent Host does not advertise managed-permissions enforcement support.',
+		);
+	}
+
+	private _markIncompatible(error: ProtocolError): void {
+		this._cancelLivenessTimers();
+		if (this._state.kind === AgentHostClientState.Connecting) {
+			this._state.outbox.length = 0;
+		} else if (this._state.kind === AgentHostClientState.Reconnecting) {
+			const reconnect = this._state.reconnect;
+			if (reconnect.timeoutHandle !== undefined) {
+				clearTimeout(reconnect.timeoutHandle);
+			}
+			if (!reconnect.gate.isSettled) {
+				reconnect.gate.error(error);
+			}
+			reconnect.outbox.length = 0;
+		}
+		this._rejectPendingRequests(error);
+		this._closeConnectionResources();
+		this._transitionTo({ kind: AgentHostClientState.Incompatible, error });
 	}
 
 	private _updatePreferLongContextEnabled(): void {

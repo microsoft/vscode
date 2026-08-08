@@ -77,7 +77,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostEditTelemetryEnabledConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostManagedPermissionsLogRedaction, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, MANAGED_PERMISSION_TERMINAL_ASK_RULE, normalizeManagedPermissions, platformRootSchema, type IManagedPermissions } from '../common/agentHostSchema.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -319,6 +319,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Server-side host for the agent host's server tools. */
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _configurationService: AgentConfigurationService;
+	/** Enterprise-managed permission restrictions contributed by each connected client. */
+	private readonly _managedPermissionsByClient = new Map<string, IManagedPermissions>();
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/**
@@ -2622,12 +2624,18 @@ export class AgentService extends Disposable implements IAgentService {
 	 * todo@connor4312: we can drop this when sending a message become a command
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
+	/** Invalidates queued actions when a client's reconnect grace expires. */
+	private readonly _clientDispatchGenerations = new Map<string, number>();
 
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
+		const clientDispatchGeneration = this._clientDispatchGenerations.get(clientId) ?? 0;
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
-		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
+		const logAction = action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AgentHostManagedPermissionsConfigKey)
+			? { ...action, config: { ...action.config, [AgentHostManagedPermissionsConfigKey]: AgentHostManagedPermissionsLogRedaction } }
+			: action;
+		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, logAction);
 
 		// Clients dispatch chat (chat) actions against a chat channel
 		// URI. Keep that chat channel for the optimistic state apply and for
@@ -2641,10 +2649,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const pending = this._clientDispatchQueues.get(clientId);
 		if (!pending && !requiresPeerResolution && !requiresAttachmentRewrite) {
-			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
+			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext, clientDispatchGeneration);
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
+			if (!this._isClientDispatchGenerationCurrent(clientId, clientDispatchGeneration)) {
+				return;
+			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
 			}
@@ -2659,16 +2670,20 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				this._changesets.refreshBranchChangeset(changeset.sessionUri);
 			}
-			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
+			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext, clientDispatchGeneration);
 		}).catch(err => {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 		});
 
-		this._clientDispatchQueues.set(clientId, next.finally(() => {
-			if (this._clientDispatchQueues.get(clientId) === next) {
+		const queue = next.finally(() => {
+			if (this._clientDispatchQueues.get(clientId) === queue) {
 				this._clientDispatchQueues.delete(clientId);
+				if (!this._managedPermissionsByClient.has(clientId)) {
+					this._clientDispatchGenerations.delete(clientId);
+				}
 			}
-		}));
+		});
+		this._clientDispatchQueues.set(clientId, queue);
 	}
 
 	/**
@@ -2701,7 +2716,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return resolveSessionWorkingDirectoryAction(action, state.workingDirectories, capability.immutablePrimary === true);
 	}
 
-	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
+	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext, clientDispatchGeneration: number): void {
+		if (!this._isClientDispatchGenerationCurrent(clientId, clientDispatchGeneration)) {
+			return;
+		}
 		const origin = { clientId, clientSeq };
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
@@ -2719,8 +2737,27 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 		}
+		let managedPermissionsChanged = false;
+		let effectiveManagedPermissions: IManagedPermissions | undefined;
+		if (action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, AgentHostManagedPermissionsConfigKey)) {
+			const managedPermissions = action.config[AgentHostManagedPermissionsConfigKey];
+			if (!platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, managedPermissions)) {
+				this._stateManager.rejectClientAction(channel, action, origin, `Invalid ${AgentHostManagedPermissionsConfigKey} root config value.`);
+				return;
+			}
+			effectiveManagedPermissions = this._setClientManagedPermissions(clientId, normalizeManagedPermissions(managedPermissions));
+			const config = { ...action.config };
+			delete config[AgentHostManagedPermissionsConfigKey];
+			action = { ...action, config };
+			managedPermissionsChanged = true;
+		}
 		this._stateManager.dispatchClientAction(channel, action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
+			if (managedPermissionsChanged) {
+				this._configurationService.publishRootTransientValues({
+					[AgentHostManagedPermissionsConfigKey]: effectiveManagedPermissions ?? {},
+				});
+			}
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
 			if (typeof editTelemetryEnabled === 'boolean') {
@@ -2728,6 +2765,41 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext);
+	}
+
+	removeClientManagedPermissions(clientId: string): void {
+		this._clientDispatchGenerations.set(clientId, (this._clientDispatchGenerations.get(clientId) ?? 0) + 1);
+		if (this._managedPermissionsByClient.delete(clientId)) {
+			this._configurationService.publishRootTransientValues({
+				[AgentHostManagedPermissionsConfigKey]: this._getEffectiveManagedPermissions() ?? {},
+			});
+		}
+		if (!this._clientDispatchQueues.has(clientId)) {
+			this._clientDispatchGenerations.delete(clientId);
+		}
+	}
+
+	private _isClientDispatchGenerationCurrent(clientId: string, generation: number): boolean {
+		return (this._clientDispatchGenerations.get(clientId) ?? 0) === generation;
+	}
+
+	private _setClientManagedPermissions(clientId: string, permissions: IManagedPermissions | undefined): IManagedPermissions | undefined {
+		if (permissions) {
+			this._managedPermissionsByClient.set(clientId, permissions);
+		} else {
+			this._managedPermissionsByClient.delete(clientId);
+		}
+		return this._getEffectiveManagedPermissions();
+	}
+
+	private _getEffectiveManagedPermissions(): IManagedPermissions | undefined {
+		const permissions = [...this._managedPermissionsByClient.values()];
+		const disableBypassPermissionsMode = permissions.some(value => value.disableBypassPermissionsMode === 'disable');
+		const askForShell = permissions.some(value => value.ask !== undefined);
+		return disableBypassPermissionsMode || askForShell ? {
+			...(disableBypassPermissionsMode ? { disableBypassPermissionsMode: 'disable' as const } : {}),
+			...(askForShell ? { ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE] as const } : {}),
+		} : undefined;
 	}
 
 	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {

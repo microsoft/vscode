@@ -37,7 +37,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostManagedPermissionsConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, normalizeManagedPermissions, platformRootSchema, platformSessionSchema, type AgentHostMcpServers, type IManagedPermissions } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, prepareSideChatPrompt, stripSideChatContext, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
@@ -2657,17 +2657,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Additional (non-default) chats are backed by their own SDK
 		// chat hosted on the owning session entry, keyed by the chat URI.
 		if (context.isPeerChat) {
-			const entry = await this._ensureChatSession(context.session, chat);
-			if (!entry) {
-				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
-			}
-			if (turnId) {
-				entry.resetTurnState(turnId, senderClientId, clientType);
-			}
-			const sideChat = this._chatBackings.get(chat.toString())?.sideChat;
-			const existingTurns = sideChat ? await entry.getMessages() : [];
-			const sdkPrompt = prepareSideChatPrompt(prompt, existingTurns, sideChat);
-			await entry.send(sdkPrompt, attachments, turnId, this._resolveSdkMode(context.session), senderClientId, clientType);
+			const chatKey = chat.toString();
+			await this._queueChat(context.sessionId, chatKey, async () => {
+				let entry = await this._ensureChatSession(context.session, chat);
+				if (!entry) {
+					throw new Error(`[Copilot] sendMessage for unknown chat: ${chatKey}`);
+				}
+				const activeClient = this._activeClients.get(context.session);
+				if (activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
+					this._logService.info(`[Copilot:${context.sessionId}] Peer chat config changed (requiresRestart=true), refreshing ${chatKey}`);
+					this._sdkSessionsById.delete(entry.sessionId);
+					await entry.destroySession();
+					this._sessions.get(context.sessionId)?.disposePeerChat(chatKey);
+					entry = await this._ensureChatSession(context.session, chat);
+					if (!entry) {
+						throw new Error(`[Copilot] failed to refresh chat: ${chatKey}`);
+					}
+				}
+				if (turnId) {
+					entry.resetTurnState(turnId, senderClientId, clientType);
+				}
+				const sideChat = this._chatBackings.get(chatKey)?.sideChat;
+				const existingTurns = sideChat ? await entry.getMessages() : [];
+				const sdkPrompt = prepareSideChatPrompt(prompt, existingTurns, sideChat);
+				await entry.send(sdkPrompt, attachments, turnId, this._resolveSdkMode(context.session), senderClientId, clientType);
+			});
 			return;
 		}
 		await this._queueSession(context.sessionId, async () => {
@@ -5212,6 +5226,7 @@ class ActiveClient extends Disposable {
 			tools: this.toolSet.merged(),
 			plugins: await this.pluginController.getAppliedPlugins(),
 			mcpServers: this._getMcpServers(),
+			managedPermissions: this._getManagedPermissions(),
 		};
 	}
 
@@ -5219,6 +5234,12 @@ class ActiveClient extends Disposable {
 		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
 
 		return structuredClone(servers);
+	}
+
+	private _getManagedPermissions(): IManagedPermissions | undefined {
+		return normalizeManagedPermissions(
+			this._configurationService.getRootValue(platformRootSchema, AgentHostManagedPermissionsConfigKey),
+		);
 	}
 
 	/**
@@ -5234,6 +5255,9 @@ class ActiveClient extends Disposable {
 			return true;
 		}
 		if (!equals(snap.mcpServers, this._getMcpServers())) {
+			return true;
+		}
+		if (!equals(snap.managedPermissions, this._getManagedPermissions())) {
 			return true;
 		}
 		return !this.toolSet.structuralEquals(snap.tools);

@@ -12,6 +12,7 @@ import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, getAhpLogByteLength, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { AgentHostManagedPermissionsConfigKey, AgentHostManagedPermissionsLogRedaction } from '../../common/agentHostSchema.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -111,6 +112,42 @@ suite('AhpJsonlLogger', () => {
 			assert.strictEqual(entry.jsonrpc, '2.0');
 			assert.ok(entry.method !== undefined || (entry.id !== undefined && (Object.hasOwn(entry, 'result') || Object.hasOwn(entry, 'error'))));
 		}
+	});
+
+	test('redacts managed permissions without mutating the protocol message', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), connectionId: 'conn-redaction', transport: 'websocket' },
+			fileService,
+			new NullLogService(),
+		));
+		const managedPermissions = { ask: ['Domain(private.example)'] };
+		const message = {
+			jsonrpc: '2.0',
+			method: 'dispatchAction',
+			params: {
+				action: {
+					type: 'root/configChanged',
+					config: { [AgentHostManagedPermissionsConfigKey]: managedPermissions },
+				},
+			},
+		};
+
+		logger.log(message, 'c2s');
+		await logger.flush();
+
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const logged = JSON.parse(content);
+		assert.deepStrictEqual({
+			loggedPermissions: logged.params.action.config[AgentHostManagedPermissionsConfigKey],
+			containsRule: content.includes('private.example'),
+			originalPermissions: message.params.action.config[AgentHostManagedPermissionsConfigKey],
+		}, {
+			loggedPermissions: AgentHostManagedPermissionsLogRedaction,
+			containsRule: false,
+			originalPermissions: managedPermissions,
+		});
 	});
 
 	test('rotates JSONL files and keeps bounded history', async () => {

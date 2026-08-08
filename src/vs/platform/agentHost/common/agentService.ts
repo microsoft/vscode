@@ -629,8 +629,9 @@ export interface IAgentHostNetworkDiagnosticsInfo {
 
 export interface IAgentHostManagedSettingsSnapshot {
 	readonly account?: string;
-	readonly source: 'server' | 'device' | 'none';
+	readonly source: 'server' | 'device' | 'client' | 'mixed' | 'none';
 	readonly serverManaged: boolean;
+	readonly clientManaged?: boolean;
 	readonly deviceManaged: boolean;
 	readonly failClosed: boolean;
 	readonly bypassPermissionsDisabled: boolean;
@@ -2116,6 +2117,9 @@ export interface IAgentService {
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
+
+	/** Remove the enterprise-managed permission contribution owned by a disconnected client. */
+	removeClientManagedPermissions(clientId: string): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.

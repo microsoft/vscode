@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, deriveManagedPermissions, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, normalizeManagedPermissions, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostManagedPermissionsConfigKey, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -411,6 +411,34 @@ suite('agentHostSchema', () => {
 
 			assert.deepStrictEqual(result, {
 				ls: true,
+			});
+		});
+	});
+
+	suite('deriveManagedPermissions', () => {
+
+		test('maps only restrictive auto-approve policy', () => {
+			const permissions = deriveManagedPermissions(false, false);
+			assert.deepStrictEqual({
+				unset: deriveManagedPermissions(undefined, undefined),
+				permissive: deriveManagedPermissions(true, true),
+				global: deriveManagedPermissions(false, true),
+				terminal: deriveManagedPermissions(true, false),
+				restrictive: permissions,
+				schema: platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, permissions),
+				unsupportedRule: platformRootSchema.validate(AgentHostManagedPermissionsConfigKey, { ask: ['Shell(*)'] }),
+				clearSentinel: normalizeManagedPermissions({}),
+				normalized: normalizeManagedPermissions(permissions),
+			}, {
+				unset: undefined,
+				permissive: undefined,
+				global: { disableBypassPermissionsMode: 'disable' },
+				terminal: { ask: ['Shell'] },
+				restrictive: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+				schema: true,
+				unsupportedRule: false,
+				clearSentinel: undefined,
+				normalized: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 			});
 		});
 	});
