@@ -15,6 +15,7 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
@@ -95,6 +96,35 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 				}
 			}
 		);
+
+		for (const extension of ['html', 'htm']) {
+			editorResolverService.registerEditor(
+				`${Schemas.file}:/**/*.${extension}`,
+				{
+					id: BrowserEditorInput.EDITOR_ID,
+					label: localize('browser.htmlEditorLabel', "Integrated Browser"),
+					priority: RegisteredEditorPriority.option
+				},
+				{
+					canSupportResource: resource => resource.scheme === Schemas.file,
+					singlePerResource: true
+				},
+				{
+					createEditorInput: ({ resource, options }) => {
+						const browserInput = browserViewWorkbenchService.getOrCreateLazy(generateUuid(), { url: resource.toString() }, resource);
+						void browserInput.resolve();
+
+						return {
+							editor: browserInput,
+							options: {
+								pinned: true,
+								...options
+							}
+						};
+					}
+				}
+			);
+		}
 	}
 }
 
