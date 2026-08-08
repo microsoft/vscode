@@ -57,9 +57,12 @@ export interface IAgentHostCheckpointService {
 	/**
 	 * Captures the working trees immediately before a turn is sent to the agent.
 	 * The corresponding end checkpoint uses these trees as its parents so
-	 * changes made between turns are not attributed to the new turn.
+	 * changes made between turns are not attributed to the new turn. Overlapping
+	 * turns in one session are excluded from Git attribution because their
+	 * shared working-tree edits cannot be separated; those turns use tracked
+	 * file edits instead.
 	 */
-	captureTurnStartCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
+	captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
 
 	/**
 	 * Captures an end-of-turn checkpoint in each of `workingDirectories`,
@@ -80,10 +83,13 @@ export interface IAgentHostCheckpointService {
 	 * so that every checkpoint operation is explicit about the repositories
 	 * it acts on rather than depending on live session state.
 	 */
-	captureTurnCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
+	captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
 
 	/** Discards a pending turn-start checkpoint when a turn does not complete. */
-	discardTurnStartCheckpoint(sessionUri: URI, turnId: string): Promise<void>;
+	discardTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string): Promise<void>;
+
+	/** Discards all pending turn-start checkpoints for a chat after truncation. */
+	discardChatTurnStartCheckpoints(sessionUri: URI, chatUri: URI): Promise<void>;
 
 	/**
 	 * Returns the `{ parent, current }` checkpoint refs for a turn, or
@@ -140,6 +146,7 @@ export const NULL_CHECKPOINT_SERVICE: IAgentHostCheckpointService = {
 	captureTurnStartCheckpoint: async () => { },
 	captureTurnCheckpoint: async () => { },
 	discardTurnStartCheckpoint: async () => { },
+	discardChatTurnStartCheckpoints: async () => { },
 	getTurnCheckpointPair: async () => undefined,
 	getBaselineCheckpoint: async () => undefined,
 	deleteCheckpoints: async () => { },

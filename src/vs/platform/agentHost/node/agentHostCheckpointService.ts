@@ -13,6 +13,12 @@ import { ISessionDatabase, ISessionDataService } from '../common/sessionDataServ
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 
+interface ITurnStartCheckpoint {
+	readonly chatKey: string;
+	readonly trees: Map<string, string>;
+	gitEligible: boolean;
+}
+
 export class AgentHostCheckpointService extends Disposable implements IAgentHostCheckpointService {
 	declare readonly _serviceBrand: undefined;
 
@@ -23,7 +29,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	 * Keyed by session URI string.
 	 */
 	private readonly _sequencer = new SequencerByKey<string>();
-	private readonly _turnStartTrees = new Map<string, Map<string, string>>();
+	private readonly _turnStartCheckpoints = new Map<string, Map<string, ITurnStartCheckpoint>>();
 
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -40,13 +46,10 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		// directories come from the event because the session has already
 		// been removed from the state manager by this point.
 		this._register(this._sessionDataService.onWillDeleteSessionData(e => {
-			const sessionPrefix = `${e.session.toString()}\0`;
-			for (const key of this._turnStartTrees.keys()) {
-				if (key.startsWith(sessionPrefix)) {
-					this._turnStartTrees.delete(key);
-				}
-			}
-			e.waitUntil(this.deleteCheckpoints(e.session, e.workingDirectories));
+			e.waitUntil(this._sequencer.queue(e.session.toString(), async () => {
+				this._turnStartCheckpoints.delete(e.session.toString());
+				await this._deleteCheckpoints(e.session, e.workingDirectories);
+			}));
 		}));
 	}
 
@@ -92,17 +95,24 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		}
 	}
 
-	captureTurnStartCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnStartCheckpoint(sessionUri, turnId, workingDirectories));
+	captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
 	}
 
-	private async _captureTurnStartCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
+	private async _captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
 		if (!workingDirectories || workingDirectories.length === 0) {
 			return;
 		}
 
-		const turnKey = this._turnKey(sessionUri, turnId);
-		if (this._turnStartTrees.has(turnKey)) {
+		const sessionKey = sessionUri.toString();
+		const chatKey = chatUri.toString();
+		const turnKey = this._turnKey(chatKey, turnId);
+		let sessionCheckpoints = this._turnStartCheckpoints.get(sessionKey);
+		if (!sessionCheckpoints) {
+			sessionCheckpoints = new Map();
+			this._turnStartCheckpoints.set(sessionKey, sessionCheckpoints);
+		}
+		if (sessionCheckpoints.has(turnKey)) {
 			return;
 		}
 
@@ -117,12 +127,13 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			for (const workingDirectoryUri of workingDirectories) {
 				try {
 					const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
-					if (!repositoryRootUri || !await this.getBaselineCheckpoint(sessionUri, repositoryRootUri)) {
+					if (!repositoryRootUri) {
 						continue;
 					}
 
 					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRootUri);
 					if (tree) {
+						await this._ensureBaselineCheckpoint(sessionUri, repositoryRootUri, tree);
 						trees.set(repositoryRootUri.toString(), tree);
 					}
 				} catch (err) {
@@ -131,35 +142,66 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			}
 
 			if (trees.size > 0) {
-				this._turnStartTrees.set(turnKey, trees);
+				const hasConcurrentTurn = sessionCheckpoints.size > 0;
+				if (hasConcurrentTurn) {
+					for (const checkpoint of sessionCheckpoints.values()) {
+						checkpoint.gitEligible = false;
+					}
+				}
+				sessionCheckpoints.set(turnKey, { chatKey, trees, gitEligible: !hasConcurrentTurn });
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn start for ${sessionUri.toString()}/${turnId}`, err);
 		} finally {
+			if (sessionCheckpoints.size === 0) {
+				this._turnStartCheckpoints.delete(sessionKey);
+			}
 			ref.dispose();
 		}
 	}
 
-	discardTurnStartCheckpoint(sessionUri: URI, turnId: string): Promise<void> {
+	discardTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string): Promise<void> {
 		return this._sequencer.queue(sessionUri.toString(), async () => {
-			this._turnStartTrees.delete(this._turnKey(sessionUri, turnId));
+			this._deleteTurnStartCheckpoint(sessionUri, this._turnKey(chatUri.toString(), turnId));
 		});
 	}
 
-	captureTurnCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnCheckpoint(sessionUri, turnId, workingDirectories));
+	discardChatTurnStartCheckpoints(sessionUri: URI, chatUri: URI): Promise<void> {
+		return this._sequencer.queue(sessionUri.toString(), async () => {
+			const sessionCheckpoints = this._turnStartCheckpoints.get(sessionUri.toString());
+			if (!sessionCheckpoints) {
+				return;
+			}
+			const chatKey = chatUri.toString();
+			for (const [turnKey, checkpoint] of sessionCheckpoints) {
+				if (checkpoint.chatKey === chatKey) {
+					sessionCheckpoints.delete(turnKey);
+				}
+			}
+			if (sessionCheckpoints.size === 0) {
+				this._turnStartCheckpoints.delete(sessionUri.toString());
+			}
+		});
 	}
 
-	private async _captureTurnCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
+	captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+	}
+
+	private async _captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
 		if (!workingDirectories || workingDirectories.length === 0) {
 			this._logService.trace(`[AgentHostCheckpoint] Skipping turn checkpoint capture for ${sessionUri.toString()} as no working directories are found`);
 			return;
 		}
 
 		const ref = this._sessionDataService.openDatabase(sessionUri);
-		const turnKey = this._turnKey(sessionUri, turnId);
+		const turnKey = this._turnKey(chatUri.toString(), turnId);
+		const startCheckpoint = this._turnStartCheckpoints.get(sessionUri.toString())?.get(turnKey);
 
 		try {
+			if (!startCheckpoint || !startCheckpoint.gitEligible) {
+				return;
+			}
 			const sanitized = this._sanitizedSessionId(sessionUri);
 			const turnNumber = await this._nextTurnNumber(ref.object);
 			const refName = buildCheckpointRefName(sanitized, turnNumber);
@@ -198,7 +240,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 						continue;
 					}
 
-					const startTree = this._turnStartTrees.get(turnKey)?.get(repositoryRootUri.toString());
+					const startTree = startCheckpoint?.trees.get(repositoryRootUri.toString());
 					if (startTree) {
 						const startCommitOid = await this._gitService.commitTree(repositoryRootUri, startTree, parentCommitOid, `Agent host session ${sanitized} - turn ${turnNumber} start`);
 						if (startCommitOid) {
@@ -231,7 +273,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn checkpoint for ${sessionUri.toString()}/${turnId}`, err);
 		} finally {
-			this._turnStartTrees.delete(turnKey);
+			this._deleteTurnStartCheckpoint(sessionUri, turnKey);
 			ref.dispose();
 		}
 	}
@@ -363,10 +405,6 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 		try {
 			const turnRefs = await refHandle.object.getAllCheckpointRefs();
-			if (turnRefs.length === 0) {
-				return;
-			}
-
 			for (const workingDirectory of workingDirectories) {
 				try {
 					const workingDirectoryUri = URI.parse(workingDirectory);
@@ -416,6 +454,19 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		return commitOid;
 	}
 
+	private async _ensureBaselineCheckpoint(sessionUri: URI, repositoryRootUri: URI, tree: string): Promise<void> {
+		if (await this.getBaselineCheckpoint(sessionUri, repositoryRootUri)) {
+			return;
+		}
+
+		const sanitized = this._sanitizedSessionId(sessionUri);
+		const baselineRefName = buildCheckpointRefName(sanitized, 0);
+		const commit = await this._gitService.commitTree(repositoryRootUri, tree, undefined, `Agent host session ${sanitized} - baseline checkpoint`);
+		if (commit) {
+			await this._gitService.updateRef(repositoryRootUri, baselineRefName, commit);
+		}
+	}
+
 	/**
 	 * Parses the highest turn number from the existing refs and returns
 	 * the next one. Falls back to 1 (baseline is always 0).
@@ -438,7 +489,16 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		return AgentSession.id(sessionUri).replace(/[^a-zA-Z0-9_.-]/g, '-');
 	}
 
-	private _turnKey(sessionUri: URI, turnId: string): string {
-		return `${sessionUri.toString()}\0${turnId}`;
+	private _deleteTurnStartCheckpoint(sessionUri: URI, turnKey: string): void {
+		const sessionKey = sessionUri.toString();
+		const sessionCheckpoints = this._turnStartCheckpoints.get(sessionKey);
+		sessionCheckpoints?.delete(turnKey);
+		if (sessionCheckpoints?.size === 0) {
+			this._turnStartCheckpoints.delete(sessionKey);
+		}
+	}
+
+	private _turnKey(chatKey: string, turnId: string): string {
+		return `${chatKey}\0${turnId}`;
 	}
 }

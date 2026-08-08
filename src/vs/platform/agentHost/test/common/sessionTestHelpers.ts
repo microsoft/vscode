@@ -362,6 +362,7 @@ export class RecordingCheckpointService implements IAgentHostCheckpointService {
 	async captureTurnStartCheckpoint(): Promise<void> { }
 	async captureTurnCheckpoint(): Promise<void> { }
 	async discardTurnStartCheckpoint(): Promise<void> { }
+	async discardChatTurnStartCheckpoints(): Promise<void> { }
 	async getTurnCheckpointPair(): Promise<{ parent: string; current: string } | undefined> { return undefined; }
 	async getBaselineCheckpoint(): Promise<string | undefined> { return undefined; }
 	async deleteCheckpoints(): Promise<void> { }

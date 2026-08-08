@@ -605,7 +605,44 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return [];
 		}
 		// Fallback: SDK-tracked file_edits aggregator.
-		return computeTurnDiffs(session, db, this._diffComputeService, turnId);
+		return this._computeTrackedTurnDiffs(session, db, turnId);
+	}
+
+	private async _computeTrackedTurnDiffs(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
+		const sessionState = this._stateManager.getSessionState(session);
+		if (!sessionState) {
+			return computeTurnDiffs(session, defaultDatabase, this._diffComputeService, turnId);
+		}
+
+		const owningResources: ProtocolURI[] = [];
+		if (sessionState.activeTurn?.id === turnId || (sessionState.turns ?? []).some(turn => turn.id === turnId)) {
+			owningResources.push(session);
+		}
+		for (const chat of sessionState.chats ?? []) {
+			if (isDefaultChatUri(chat.resource)) {
+				continue;
+			}
+			const chatState = this._stateManager.getChatState(chat.resource);
+			if (chatState?.activeTurn?.id === turnId || chatState?.turns.some(turn => turn.id === turnId)) {
+				owningResources.push(chat.resource);
+			}
+		}
+
+		if (owningResources.length > 1) {
+			this._logService.warn(`[AgentHostChangesetService] Turn id ${turnId} is shared by multiple chats in ${session}; skipping ambiguous tracked-file fallback`);
+			return [];
+		}
+		if (owningResources.length === 0 || owningResources[0] === session) {
+			return computeTurnDiffs(session, defaultDatabase, this._diffComputeService, turnId);
+		}
+
+		const chat = owningResources[0];
+		const chatDatabase = this._sessionDataService.openDatabase(URI.parse(chat));
+		try {
+			return await computeTurnDiffs(chat, chatDatabase.object, this._diffComputeService, turnId);
+		} finally {
+			chatDatabase.dispose();
+		}
 	}
 
 	private async _resolveWorkingDirectory(session: ProtocolURI): Promise<URI | undefined> {

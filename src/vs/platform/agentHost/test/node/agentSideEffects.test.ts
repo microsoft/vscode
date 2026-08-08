@@ -857,7 +857,7 @@ suite('AgentSideEffects', () => {
 			const captures: Array<{ session: string; turnId: string; workingDirectories: readonly string[] | undefined }> = [];
 			const checkpoints: IAgentHostCheckpointService = {
 				...NULL_CHECKPOINT_SERVICE,
-				captureTurnStartCheckpoint: async (session, turnId, workingDirectories) => {
+				captureTurnStartCheckpoint: async (session, _chat, turnId, workingDirectories) => {
 					captures.push({ session: session.toString(), turnId, workingDirectories: workingDirectories?.map(uri => uri.toString()) });
 					captureStarted.complete();
 					await releaseCapture.p;
@@ -891,6 +891,35 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 				workingDirectories: [workingDirectory.toString()],
 			}]);
+		});
+
+		test('client cancellation discards the pending turn start', async () => {
+			setupProvisionalSession();
+			const discarded = new DeferredPromise<void>();
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				discardTurnStartCheckpoint: async (session, chat, turnId) => {
+					assert.deepStrictEqual({ session: session.toString(), chat: chat.toString(), turnId }, {
+						session: sessionUri.toString(),
+						chat: defaultChatUri,
+						turnId: 'turn-1',
+					});
+					discarded.complete();
+				},
+			};
+			createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
+
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatTurnCancelled,
+				turnId: 'turn-1',
+				duration: 0,
+			}, { clientId: 'test', clientSeq: 1 });
+			await discarded.p;
 		});
 
 		test('AgentSideEffects owns exactly one ChatError when an already-ready session send rejects', async () => {
@@ -1660,6 +1689,47 @@ suite('AgentSideEffects', () => {
 			await new Promise(r => setTimeout(r, 10));
 
 			assert.deepStrictEqual(agent.abortSessionCalls, [URI.parse(sessionUri.toString())]);
+		});
+	});
+
+	// ---- handleAction: chat/turnStarted validation -------------------------
+
+	suite('handleAction — chat/turnStarted validation', () => {
+		test('rejects a turn id already used by another chat in the session', () => {
+			setupSession();
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			stateManager.addChat(sessionUri.toString(), peerChat);
+			stateManager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'duplicate-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'peer', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'duplicate-turn',
+				duration: 1,
+			});
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'duplicate-turn',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'default', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			sideEffects.handleAction(defaultChatUri, action);
+
+			const errorAction = envelopes.find(envelope => envelope.action.type === ActionType.ChatError)?.action;
+			assert.deepStrictEqual({
+				errorType: errorAction?.type === ActionType.ChatError ? errorAction.error.errorType : undefined,
+				sendMessageCalls: agent.sendMessageCalls,
+			}, {
+				errorType: 'duplicateTurnId',
+				sendMessageCalls: [],
+			});
 		});
 	});
 
@@ -5913,7 +5983,7 @@ suite('AgentSideEffects', () => {
 			const captures: { turnId: string; workingDirectories: readonly string[] | undefined }[] = [];
 			const checkpoints: IAgentHostCheckpointService = {
 				...NULL_CHECKPOINT_SERVICE,
-				captureTurnCheckpoint: async (_session, turnId, workingDirectories) => {
+				captureTurnCheckpoint: async (_session, _chat, turnId, workingDirectories) => {
 					captures.push({ turnId, workingDirectories: workingDirectories?.map(w => w.toString()) });
 				},
 			};
@@ -5932,6 +6002,64 @@ suite('AgentSideEffects', () => {
 			await Promise.resolve();
 
 			assert.deepStrictEqual(captures, [{ turnId: 'turn-1', workingDirectories: [workingDirectory] }]);
+		});
+
+		test('provider error keeps the turn start until completion capture', async () => {
+			setupSession();
+			startTurn('turn-1');
+			const captured = new DeferredPromise<void>();
+			let discardCount = 0;
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnCheckpoint: async () => { captured.complete(); },
+				discardTurnStartCheckpoint: async () => { discardCount++; },
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 100, error: { errorType: 'test', message: 'failed' } },
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 100 },
+			});
+			await captured.p;
+
+			assert.strictEqual(discardCount, 0);
+		});
+
+		test('chat truncation discards pending turn starts for that chat', async () => {
+			setupSession();
+			const discarded = new DeferredPromise<void>();
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				discardChatTurnStartCheckpoints: async (session, chat) => {
+					assert.deepStrictEqual({ session: session.toString(), chat: chat.toString() }, {
+						session: sessionUri.toString(),
+						chat: defaultChatUri,
+					});
+					discarded.complete();
+				},
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
+
+			localSideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTruncated,
+				turnId: undefined,
+			});
+			await discarded.p;
 		});
 
 		test('ChatTruncated fires onSessionTruncated once', () => {
