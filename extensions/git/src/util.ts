@@ -870,3 +870,54 @@ export function getStashDescription(stash: Stash): string | undefined {
 export function isCopilotWorktreeFolder(path: string): boolean {
 	return basename(path).startsWith('copilot-') || basename(path).startsWith('agents-');
 }
+
+/**
+ * SSH first-connect noise often lands on stderr alongside a later fatal error.
+ * Drop those lines so the UI does not surface them as the primary git failure.
+ * See https://github.com/microsoft/vscode/issues/280834
+ */
+const NON_ACTIONABLE_GIT_STDERR_LINE = /^(warning:\s*)?permanently added .+ to the list of known hosts\.?$/i;
+
+export function isNonActionableGitStderrLine(line: string): boolean {
+	return NON_ACTIONABLE_GIT_STDERR_LINE.test(line.trim());
+}
+
+export interface GitErrorHintSelection {
+	readonly hintLines: string[];
+	/**
+	 * Preferred notification severity for the selected lines.
+	 * `warning` when only warning-level text remains after noise filtering.
+	 */
+	readonly severity: 'error' | 'warning';
+}
+
+/**
+ * Choose which stderr/stdout lines to show for a failed git command.
+ * Prefers non-warning lines; falls back to warnings (with warning severity).
+ */
+export function getGitErrorHintSelection(
+	stderr: string | undefined,
+	stdout: string | undefined,
+	message: string | undefined
+): GitErrorHintSelection {
+	const raw = stderr || stdout || message || '';
+	const allLines = raw
+		.replace(/^error: /mi, '')
+		.replace(/^> husky.*$/mi, '')
+		.split(/[\r\n]/)
+		.map(line => line.trim())
+		.filter(line => !!line);
+
+	const actionable = allLines.filter(line => !isNonActionableGitStderrLine(line));
+	const nonWarningLines = actionable.filter(line => !/^warning:\s/i.test(line));
+	if (nonWarningLines.length > 0) {
+		return { hintLines: nonWarningLines, severity: 'error' };
+	}
+	if (actionable.length > 0) {
+		return { hintLines: actionable, severity: 'warning' };
+	}
+	if (allLines.length > 0) {
+		return { hintLines: allLines, severity: 'warning' };
+	}
+	return { hintLines: [], severity: 'error' };
+}
