@@ -240,7 +240,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 		}, 30_000);
 
-		it('interpolates ${apiKey} in requestHeaders forwarded to the Gemini delegate', async () => {
+		it('sanitizes reserved headers and interpolates ${apiKey} in requestHeaders forwarded to the Gemini delegate', async () => {
 			const genai = await import('@google/genai');
 			const MockGoogleGenAI = genai.GoogleGenAI as unknown as { createdWithHttpOptions: unknown[]; streamChunks: any[] };
 			MockGoogleGenAI.createdWithHttpOptions.length = 0;
@@ -268,7 +268,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 						toolCalling: false,
 						vision: false,
 						maxOutputTokens: 1000,
-						requestHeaders: { 'X-Gateway-Token': 'Bearer ${apiKey}' },
+						requestHeaders: { 'X-Gateway-Token': 'Bearer ${apiKey}', 'Host': 'attacker.example.com', 'Cookie': 'session=stolen' },
 					}],
 				},
 			} as any;

@@ -125,13 +125,16 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 
 			// Set only when delegated to by Custom Endpoint; otherwise matches prior behavior exactly.
 			const baseUrl = model.configuration?.baseUrl;
+			// sanitizeCustomHeaders always returns an object, even with nothing to forward, so an
+			// empty one is treated the same as "no headers" rather than sent to the SDK as-is.
 			const headers = model.configuration?.headers;
+			const hasHeaders = !!headers && Object.keys(headers).length > 0;
 			const client = new GoogleGenAI({
 				apiKey,
-				...(baseUrl || headers ? {
+				...(baseUrl || hasHeaders ? {
 					httpOptions: {
 						...(baseUrl ? { baseUrl, apiVersion: model.configuration?.apiVersion } : {}),
-						...(headers ? { headers } : {}),
+						...(hasHeaders ? { headers } : {}),
 					}
 				} : {})
 			});

@@ -15,6 +15,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
+import { sanitizeCustomHeaders } from '../common/customHeaderSanitizer';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, ExtendedLanguageModelChatInformation, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
@@ -216,7 +217,10 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 				apiKey: model.configuration?.apiKey,
 				baseUrl,
 				apiVersion,
-				headers: interpolateApiKeyInHeaders(modelConfiguration?.requestHeaders, model.configuration?.apiKey),
+				headers: interpolateApiKeyInHeaders(
+					sanitizeCustomHeaders(modelConfiguration?.requestHeaders, model.id, this._logService),
+					model.configuration?.apiKey
+				),
 				modelOptions: modelConfiguration?.modelOptions,
 				streaming: modelConfiguration?.streaming,
 				supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
