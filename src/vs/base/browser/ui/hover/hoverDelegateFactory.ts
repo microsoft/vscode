@@ -32,7 +32,7 @@ export function getDefaultHoverDelegate(placement: 'mouse' | 'element'): IHoverD
 // TODO: Create equivalent in IHoverService
 export function createInstantHoverDelegate(): IScopedHoverDelegate {
 	// Creates a hover delegate with instant hover enabled.
-	// This hover belongs to the consumer and requires the them to dispose it.
+	// This hover belongs to the consumer and requires them to dispose it.
 	// Instant hover only makes sense for 'element' placement.
 	return hoverDelegateFactory('element', true);
 }
