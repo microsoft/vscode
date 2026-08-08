@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { parseNextChatResponseChunk } from '../../../electron-browser/actions/voiceChatActions.js';
+import { SpeechToTextStatus } from '../../../../speech/common/speechService.js';
+import { applyDictationInputState, parseNextChatResponseChunk } from '../../../electron-browser/actions/voiceChatActions.js';
 
 suite('VoiceChatActions', function () {
 
@@ -38,6 +39,44 @@ suite('VoiceChatActions', function () {
 		// Sparted by newlines
 		offset = assertChunk('Hello World.\nHow is your', 'Hello World.', 0).offset;
 		assertChunk('Hello World.\nHow is your day?\n', 'How is your day?', offset);
+	});
+
+	test(`${applyDictationInputState.name} avoids stale preview duplication after user edit`, function () {
+		let state = {
+			committedInput: 'hello',
+			previewInput: 'hello'
+		};
+
+		state = applyDictationInputState(state, state.previewInput, 'world', SpeechToTextStatus.Recognizing);
+		assert.deepStrictEqual(state, {
+			committedInput: 'hello',
+			previewInput: 'hello world'
+		});
+
+		const nextState = applyDictationInputState(state, state.previewInput, 'planet', SpeechToTextStatus.Recognized);
+		assert.deepStrictEqual(nextState, {
+			committedInput: 'hello planet',
+			previewInput: 'hello planet'
+		});
+	});
+
+	test(`${applyDictationInputState.name} replaces recognizing preview instead of accumulating`, function () {
+		let state = {
+			committedInput: 'base',
+			previewInput: 'base'
+		};
+
+		state = applyDictationInputState(state, state.previewInput, 'one', SpeechToTextStatus.Recognizing);
+		assert.deepStrictEqual(state, {
+			committedInput: 'base',
+			previewInput: 'base one'
+		});
+
+		state = applyDictationInputState(state, state.previewInput, 'two', SpeechToTextStatus.Recognizing);
+		assert.deepStrictEqual(state, {
+			committedInput: 'base',
+			previewInput: 'base two'
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
