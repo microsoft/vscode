@@ -206,6 +206,7 @@ export class MenuBar extends Disposable {
 		menus.forEach((menuBarMenu) => {
 			const menuIndex = this.menus.length;
 			const cleanMenuLabel = cleanMnemonic(menuBarMenu.label);
+			const actions = [...menuBarMenu.actions];
 
 			const mnemonicMatches = MENU_MNEMONIC_REGEX.exec(menuBarMenu.label);
 
@@ -217,7 +218,7 @@ export class MenuBar extends Disposable {
 			}
 
 			if (this.isCompact) {
-				this.menus.push(menuBarMenu);
+				this.menus.push({ label: menuBarMenu.label, actions });
 			} else {
 				const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
 				const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
@@ -306,7 +307,7 @@ export class MenuBar extends Disposable {
 
 				this.menus.push({
 					label: menuBarMenu.label,
-					actions: menuBarMenu.actions,
+					actions,
 					buttonElement: buttonElement,
 					titleElement: titleElement
 				});
@@ -422,9 +423,9 @@ export class MenuBar extends Disposable {
 	}
 
 	updateMenu(menu: MenuBarMenu): void {
-		const menuToUpdate = this.menus.filter(menuBarMenu => menuBarMenu.label === menu.label);
-		if (menuToUpdate && menuToUpdate.length) {
-			menuToUpdate[0].actions = menu.actions;
+		const menuToUpdate = this.menus.find(menuBarMenu => menuBarMenu.label === menu.label);
+		if (menuToUpdate) {
+			menuToUpdate.actions = [...menu.actions];
 		}
 	}
 
@@ -521,17 +522,7 @@ export class MenuBar extends Disposable {
 
 		// Overflow
 		if (this.isCompact) {
-			this.overflowMenu.actions = [];
-			for (let idx = this.numMenusShown; idx < this.menus.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${this.menus[idx].label}`, this.menus[idx].label, this.menus[idx].actions || []));
-			}
-
-			const compactMenuActions = this.options.getCompactMenuActions?.();
-			if (compactMenuActions && compactMenuActions.length) {
-				this.overflowMenu.actions.push(new Separator());
-				this.overflowMenu.actions.push(...compactMenuActions);
-			}
-
+			this.updateOverflowMenuActions();
 			this.overflowMenu.buttonElement.style.visibility = 'visible';
 		} else if (full) {
 			// Can't fit the more button, need to remove more menus
@@ -542,10 +533,7 @@ export class MenuBar extends Disposable {
 				currentSize -= size;
 			}
 
-			this.overflowMenu.actions = [];
-			for (let idx = this.numMenusShown; idx < showableMenus.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${showableMenus[idx].label}`, showableMenus[idx].label, showableMenus[idx].actions || []));
-			}
+			this.updateOverflowMenuActions();
 
 			if (this.overflowMenu.buttonElement.nextElementSibling !== showableMenus[this.numMenusShown].buttonElement) {
 				this.overflowMenu.buttonElement.remove();
@@ -561,6 +549,24 @@ export class MenuBar extends Disposable {
 
 		// If we are only showing the overflow, add this class to avoid taking up space
 		this.container.classList.toggle(overflowMenuOnlyClass, this.numMenusShown === 0);
+	}
+
+	private updateOverflowMenuActions(): void {
+		const actions: IAction[] = [];
+		const firstMenuIndex = this.isCompact ? 0 : this.numMenusShown;
+		for (let index = firstMenuIndex; index < this.menus.length; index++) {
+			const menu = this.menus[index];
+			actions.push(new SubmenuAction(`menubar.submenu.${menu.label}`, menu.label, menu.actions));
+		}
+
+		if (this.isCompact) {
+			const compactMenuActions = this.options.getCompactMenuActions?.();
+			if (compactMenuActions?.length) {
+				actions.push(new Separator(), ...compactMenuActions);
+			}
+		}
+
+		this.overflowMenu.actions = actions;
 	}
 
 	private updateLabels(titleElement: HTMLElement, buttonElement: HTMLElement, label: string): void {
@@ -1000,6 +1006,9 @@ export class MenuBar extends Disposable {
 
 	private showCustomMenu(menuIndex: number, selectFirst = true): void {
 		const actualMenuIndex = menuIndex >= this.numMenusShown ? MenuBar.OVERFLOW_INDEX : menuIndex;
+		if (actualMenuIndex === MenuBar.OVERFLOW_INDEX) {
+			this.updateOverflowMenuActions();
+		}
 		const customMenu = actualMenuIndex === MenuBar.OVERFLOW_INDEX ? this.overflowMenu : this.menus[actualMenuIndex];
 
 		if (!customMenu.actions || !customMenu.buttonElement || !customMenu.titleElement) {
