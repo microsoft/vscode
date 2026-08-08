@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem,
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
-import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
+import { Git, GitError, Repository as GitRepository, Stash, Worktree, classifyGitStderrLines } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -5644,15 +5644,30 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hintLines = (err.stderr || err.stdout || err.message || String(err))
-							.replace(/^error: /mi, '')
-							.replace(/^> husky.*$/mi, '')
-							.split(/[\r\n]/)
-							.filter((line: string) => !!line);
+						const raw = err.stderr || err.stdout || err.message || String(err);
+						const { warnings, errors } = classifyGitStderrLines(raw);
 
-						message = hintLines.length > 0
-							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
-							: l10n.t('Git error');
+						// Filter out husky lines and strip "error:" prefix
+						const errorLines = errors
+							.map(line => line.replace(/^error:\s*/i, ''))
+							.filter(line => !/^> husky.*$/i.test(line))
+							.filter(line => !!line);
+
+						if (errorLines.length > 0) {
+							// Actual errors present — show the most relevant error line
+							message = l10n.t('Git: {0}', err.stdout
+								? errorLines[errorLines.length - 1]
+								: errorLines[0]);
+						} else if (warnings.length > 0) {
+							// Only warnings in stderr — display with warning severity
+							// instead of error. This covers SSH messages like
+							// "Warning: Permanently added 'host' to known hosts."
+							type = 'warning';
+							options.modal = false;
+							message = l10n.t('Git: {0}', warnings[0]);
+						} else {
+							message = l10n.t('Git error');
+						}
 
 						break;
 					}
