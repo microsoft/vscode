@@ -14,7 +14,7 @@ const SIDE_CHAT_GUIDANCE = 'This is a side conversation. Prefer explanation over
 export const MAX_SIDE_CHAT_CONTEXT_CHARS = 20_000;
 
 export interface IPersistedSideChat {
-	readonly source: string;
+	readonly source?: string;
 	readonly turnId: string;
 	readonly selection?: { readonly text: string; readonly responsePartId?: string };
 	readonly providerAnchorTurnId?: string;
@@ -151,8 +151,8 @@ export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersiste
 }
 
 /**
- * In-memory backing for an additional (non-default) peer chat. Records the SDK
- * chat id that backs the chat so it can be re-resumed after a process restart,
+ * Provider-owned backing for an exact chat. Records the SDK chat id so it can
+ * be resumed after a process restart,
  * along with any model override chosen at creation time. This is also the shape
  * serialized into the opaque, agent-owned `providerData` blob the orchestrator
  * persists in its chat catalog and hands back on restore.
@@ -209,14 +209,14 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 			}
 			: undefined;
 		const validSideChat = sideChat
-			&& typeof sideChat.source === 'string'
+			&& (sideChat.source === undefined || typeof sideChat.source === 'string')
 			&& typeof sideChat.turnId === 'string'
 			&& (sideChat.providerAnchorTurnId === undefined || typeof sideChat.providerAnchorTurnId === 'string')
 			&& typeof sideChat.inheritedTurnCount === 'number'
 			&& (sideChat.partialResponse === undefined || typeof sideChat.partialResponse === 'string')
 			&& (sideChat.context === undefined || typeof sideChat.context === 'string')
 			? {
-				source: sideChat.source,
+				...(sideChat.source ? { source: sideChat.source } : {}),
 				turnId: sideChat.turnId,
 				...(validSelection ? { selection: validSelection } : {}),
 				...(sideChat.providerAnchorTurnId ? { providerAnchorTurnId: sideChat.providerAnchorTurnId } : {}),

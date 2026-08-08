@@ -4607,7 +4607,7 @@ suite('CopilotAgentSession', () => {
 		test('completed non-pty shell calls retire their distinct live output resources', async () => {
 			const { session, mockSession, signals, terminalManager } = await createAgentSession(disposables);
 			const terminalUris = ['tc-retire-1', 'tc-retire-2', 'tc-retire-3']
-				.map(toolCallId => buildNonPtyShellTerminalUri(session.sessionUri, toolCallId));
+				.map(toolCallId => buildNonPtyShellTerminalUri(session.resourceUri, toolCallId));
 
 			for (let i = 0; i < terminalUris.length; i++) {
 				const toolCallId = `tc-retire-${i + 1}`;

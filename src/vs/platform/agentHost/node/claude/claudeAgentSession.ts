@@ -38,7 +38,6 @@ import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaud
 import { applyMcpServerEnablement, findMcpChildId, findMcpServerName, getEffectiveMcpServerCustomizations } from '../shared/mcpCustomizationController.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
@@ -75,6 +74,7 @@ export interface IMaterializeContext {
 	 * operation. Used transiently; the session never derives it from URI shape.
 	 */
 	readonly resource: URI;
+	readonly customizations?: readonly Customization[];
 	/**
 	 * Working directory the host resolved for this session's first send (e.g. an
 	 * isolated worktree). When present it becomes the session's
@@ -112,9 +112,8 @@ function resolveCurrentPermissionMode(
 }
 
 /**
- * Per-session coordinator. Owns:
- *   • Per-session identity (sessionId / sessionUri / workspace /
- *     workingDirectory).
+ * Per-SDK-conversation coordinator. Owns:
+ *   • SDK identity, exact chat channel, workspace, and working directories.
  *   • The {@link ClaudeSdkPipeline} that drives the SDK Query lifecycle
  *     and emits every {@link AgentSignal} for this session (router-
  *     mapped per-message signals plus `ChatTurnComplete` and
@@ -138,9 +137,7 @@ export class ClaudeAgentSession extends Disposable {
 		this._chatChannelUri = chatChannelUri;
 	}
 
-	private get _sessionCustomizations(): readonly Customization[] {
-		return this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
-	}
+	private _hostCustomizations: readonly Customization[] = [];
 
 	/** Pre-materialize model selection. Mutable; flows into `Options.model` on first installPipeline. */
 	private _provisionalModel: ModelSelection | undefined;
@@ -201,7 +198,6 @@ export class ClaudeAgentSession extends Disposable {
 
 	static createProvisional(
 		sessionId: string,
-		sessionUri: URI,
 		chatChannelUri: URI,
 		workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
@@ -216,7 +212,6 @@ export class ClaudeAgentSession extends Disposable {
 		return instantiationService.createInstance(
 			ClaudeAgentSession,
 			sessionId,
-			sessionUri,
 			chatChannelUri,
 			workspace,
 			project,
@@ -401,7 +396,6 @@ export class ClaudeAgentSession extends Disposable {
 
 	constructor(
 		readonly sessionId: string,
-		readonly sessionUri: URI,
 		chatChannelUri: URI,
 		readonly workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
@@ -415,7 +409,6 @@ export class ClaudeAgentSession extends Disposable {
 		additionalDirectories: readonly URI[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -432,10 +425,15 @@ export class ClaudeAgentSession extends Disposable {
 		this.abortController = abortController;
 		this._desiredAdditionalDirectories = additionalDirectories;
 		this._appliedAdditionalDirectories = additionalDirectories;
+		this._hostCustomizations = [];
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
 
 		this._watchCustomizations(this.workingDirectories);
+	}
+
+	setHostCustomizations(customizations: readonly Customization[]): void {
+		this._hostCustomizations = customizations;
 	}
 
 	private _watchCustomizations(directories: readonly URI[] | undefined): void {
@@ -514,6 +512,7 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._pipeline) {
 			throw new Error('ClaudeAgentSession is already materialized');
 		}
+		this._hostCustomizations = ctx.customizations ?? [];
 		// Adopt the host-resolved working directory (e.g. an isolated worktree)
 		// before it's read below; falls back to the session's `workspace` when the
 		// host didn't resolve a dedicated directory. The plural
@@ -546,7 +545,7 @@ export class ClaudeAgentSession extends Disposable {
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
-		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
 
 		const options = await buildOptions(
 			{
@@ -586,8 +585,8 @@ export class ClaudeAgentSession extends Disposable {
 			pipeline = this._register(this._instantiationService.createInstance(
 				ClaudeSdkPipeline,
 				this.sessionId,
-				this.sessionUri,
 				this._chatChannelUri,
+				ctx.resource,
 				warm,
 				this.abortController,
 				dbRef,
@@ -1246,7 +1245,7 @@ export class ClaudeAgentSession extends Disposable {
 
 		// Final projection: the client-pushed tier first, then the discovered
 		// tier, with session MCP enablement applied to both.
-		const state = this._sessionCustomizations;
+		const state = this._hostCustomizations;
 		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
 		const result: Customization[] = synced.map(item => ({
 			...item.customization,
@@ -1262,7 +1261,7 @@ export class ClaudeAgentSession extends Disposable {
 
 	private async _reconcileMcpServerEnablement(): Promise<void> {
 		const pipeline = this._requirePipeline();
-		const state = this._sessionCustomizations;
+		const state = this._hostCustomizations;
 		const desired = new Map(getEffectiveMcpServerCustomizations(state).map(server => [server.name, server.enabled]));
 		if (desired.size === 0) {
 			return;
@@ -1274,7 +1273,7 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	private _desiredClientPluginPaths(): readonly URI[] {
-		const state = this._sessionCustomizations;
+		const state = this._hostCustomizations;
 		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
 		const paths: URI[] = [];
 		for (const synced of this.clientCustomizationsDiff.model.state.get().synced) {

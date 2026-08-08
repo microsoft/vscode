@@ -7,8 +7,6 @@ import type { CancellationToken } from '../../../../base/common/cancellation.js'
 import { URI } from '../../../../base/common/uri.js';
 import { vObjAny, vString as vStringValidator } from '../../../../base/common/validation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { AgentSession } from '../../common/agentService.js';
-import { parseSubagentSessionUri } from '../../common/state/sessionState.js';
 import {
 	ResponsePartKind,
 	ToolCallStatus,
@@ -321,19 +319,16 @@ function buildDefaultStrategies(sdk: IClaudeAgentSdkService, logService: ILogSer
  */
 export async function getSubagentTranscript(
 	subagentUri: URI,
+	parentUri: URI,
+	parentSessionId: string,
+	toolCallId: string,
 	parentRegistry: SubagentRegistry,
 	sdk: IClaudeAgentSdkService,
 	logService: ILogService,
 	token: CancellationToken,
 ): Promise<readonly Turn[]> {
-	const parsed = parseSubagentSessionUri(subagentUri);
-	if (!parsed) {
-		throw new Error(`getSubagentTranscript: not a subagent URI: ${subagentUri.toString()}`);
-	}
-	const { parentSession, toolCallId } = parsed;
-	const parentSessionId = AgentSession.id(parentSession);
 	const agentId = await resolveAgentIdViaChain(toolCallId, {
-		parentUri: parentSession,
+		parentUri,
 		parentSessionId,
 		token,
 	}, {

@@ -232,8 +232,8 @@ suite('claudeSubagentResolver — getSubagentTranscript', () => {
 
 		const subagentUriA = URI.parse(buildSubagentSessionUri(parentUri, 'toolu_a'));
 		const subagentUriB = URI.parse(buildSubagentSessionUri(parentUri, 'toolu_b'));
-		await getSubagentTranscript(subagentUriA, registry, sdk, log, CancellationToken.None);
-		await getSubagentTranscript(subagentUriB, registry, sdk, log, CancellationToken.None);
+		await getSubagentTranscript(subagentUriA, parentUri, 'parent-sid', 'toolu_a', registry, sdk, log, CancellationToken.None);
+		await getSubagentTranscript(subagentUriB, parentUri, 'parent-sid', 'toolu_b', registry, sdk, log, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			fetchedAgentIds: sdk.getSubagentMessagesCalls.map(c => c.agentId),
@@ -255,7 +255,7 @@ suite('claudeSubagentResolver — getSubagentTranscript', () => {
 		// No prime, no spawn record — strategies all return undefined for an unknown id.
 		const noResolve = await getSubagentTranscript(
 			URI.parse(buildSubagentSessionUri(parentUri, 'toolu_unknown')),
-			registry, sdk, log, CancellationToken.None,
+			parentUri, 'parent-sid', 'toolu_unknown', registry, sdk, log, CancellationToken.None,
 		);
 
 		// Cached spawn but SDK rejects — returns [].
@@ -263,7 +263,7 @@ suite('claudeSubagentResolver — getSubagentTranscript', () => {
 		sdk.getSubagentMessagesRejection = new Error('boom');
 		const onError = await getSubagentTranscript(
 			URI.parse(buildSubagentSessionUri(parentUri, 'toolu_known')),
-			registry, sdk, log, CancellationToken.None,
+			parentUri, 'parent-sid', 'toolu_known', registry, sdk, log, CancellationToken.None,
 		);
 
 		assert.deepStrictEqual({

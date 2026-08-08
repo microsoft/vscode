@@ -158,14 +158,17 @@ const SESSION_RELEASE_GRACE_MS = (() => {
  */
 const PEER_CHATS_METADATA_KEY = 'peerChats';
 
+/** Opaque provider data for the session's initial chat. */
+const DEFAULT_CHAT_PROVIDER_DATA_METADATA_KEY = 'defaultChatProviderData';
+
 /**
- * Session-database metadata key written on a peer chat's *backing* SDK session
+ * Session-database metadata key written on a chat's backing SDK session
  * (see {@link IAgentCreateChatResult.backingSession}). Its presence marks that
- * session as an internal peer-chat backing that must never surface as a
- * top-level session; the value is the owning peer chat's channel URI string.
+ * session as an internal chat backing that must never surface as a
+ * top-level session; the value is the owning chat's channel URI string.
  * Persisted, so it survives a host restart without re-stamping.
  */
-const PEER_CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
+const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
 
 /**
  * A single entry in the orchestrator's persisted peer-chat catalog. `uri` is
@@ -922,16 +925,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Enumerate a provider's persisted sessions. */
 	private async _enumerateProviderSessions(provider: IAgent): Promise<IAgentSessionMetadata[]> {
-		return [...await provider.listSessions()];
+		return [...await (provider.listLegacySessions?.() ?? provider.listSessions())];
 	}
 
 	/**
-	 * Base per-session metadata for a session held by the orchestrator-owned
-	 * registry. Metadata still comes from the agent's direct
-	 * {@link IAgent.getSessionMetadata} lookup (I3 keeps the default chat's SDK
-	 * session id equal to the session id, so the lookup resolves). Returns
-	 * `undefined` for a session the agent can't yet describe (e.g. a provisional
-	 * session with no SDK session); the state-manager overlay in
+	 * Base metadata for a session held by the orchestrator-owned registry.
+	 * The exact initial-chat provider data is supplied to the agent's direct
+	 * {@link IAgent.getSessionMetadata} lookup. Returns `undefined` for a session
+	 * the agent can't yet describe (e.g. a provisional session with no SDK
+	 * conversation); the state-manager overlay in
 	 * {@link listSessions} re-surfaces those when they have turn activity.
 	 */
 	private async _registeredSessionMetadata(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
@@ -940,7 +942,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// enumeration, matching the restore path.
 			return this._getSessionMetadataFromCatalog(agent, session);
 		}
-		return agent.getSessionMetadata(session);
+		return agent.getSessionMetadata(session, await this._readDefaultChatProviderData(session));
 	}
 
 	/** Runs {@link _backfillRegistryFromProviders} at most once per host. */
@@ -987,7 +989,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return { sessions: [], error: err };
 			}
 			const identities = await Promise.all(sessions.map(async (s): Promise<IRegisteredSession | undefined> => {
-				if (isSubagentSession(s.session.toString()) || await this._isPeerChatBacking(s.session)) {
+				if (isSubagentSession(s.session.toString()) || await this._isChatBacking(s.session)) {
 					return undefined;
 				}
 				return { session: s.session, provider: provider.id, startTime: s.startTime };
@@ -1014,14 +1016,14 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Whether a session is an internal peer-chat backing (per the persisted marker). */
-	private async _isPeerChatBacking(session: URI): Promise<boolean> {
+	private async _isChatBacking(session: URI): Promise<boolean> {
 		try {
 			const ref = await this._sessionDataService.tryOpenDatabase(session);
 			if (!ref) {
 				return false;
 			}
 			try {
-				return !!(await ref.object.getMetadata(PEER_CHAT_BACKING_METADATA_KEY));
+				return !!(await ref.object.getMetadata(CHAT_BACKING_METADATA_KEY));
 			} finally {
 				ref.dispose();
 			}
@@ -1115,15 +1117,15 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
 					// Claude peer chat's SDK session, enumerated by the agent's
 					// own `listSessions`). Drop it so it never leaks as a
 					// standalone top-level session — mirrors the subagent filter
 					// on the state-manager overlay path below.
-					if (m[PEER_CHAT_BACKING_METADATA_KEY]) {
+					if (m[CHAT_BACKING_METADATA_KEY]) {
 						return undefined;
 					}
 					let updated = sanitized;
@@ -1714,7 +1716,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// SDK session (e.g. Claude), mark that session so it is filtered out of
 		// the top-level session list instead of leaking as a standalone session.
 		if (createResult?.backingSession) {
-			this._markPeerChatBacking(createResult.backingSession, chat);
+			await this._markChatBacking(createResult.backingSession, chat);
 		}
 
 		// Refine the forked chat's placeholder `Forked: …` title into one
@@ -1869,7 +1871,17 @@ export class AgentService extends Disposable implements IAgentService {
 			if (deferWorktreeCreation && created.provisional) {
 				this._worktree?.notePending(AgentSession.id(created.session));
 			}
+			await this._persistDefaultChatBacking(created);
 			return created;
+		} catch (err) {
+			if (created) {
+				try {
+					await provider.disposeSession(created.session);
+				} catch (disposeError) {
+					this._logService.error(disposeError, `[AgentService] Failed to roll back provider session ${created.session.toString()}`);
+				}
+			}
+			throw err;
 		} finally {
 			const returnedPendingSessionId = created?.provisional ? AgentSession.id(created.session) : undefined;
 			if (requestedSessionId && requestedSessionId !== returnedPendingSessionId) {
@@ -1896,10 +1908,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _disposeSession(provider: IAgent, session: URI): Promise<void> {
+		const workspaceless = readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta);
 		const defaultChat = buildDefaultChatUri(session);
 		let firstError: unknown;
 		for (const chat of this._getSessionChatsInTeardownOrder(session)) {
-			if (chat.toString() === defaultChat) {
+			if (!provider.finalizeSession && chat.toString() === defaultChat) {
 				continue;
 			}
 			try {
@@ -1909,7 +1922,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		try {
-			await provider.disposeSession(session);
+			await (provider.finalizeSession?.(session, { workspaceless }) ?? provider.disposeSession(session));
 		} catch (err) {
 			firstError ??= err;
 		}
@@ -1925,7 +1938,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let firstError: unknown;
 		for (const chat of chats) {
 			try {
-				await provider.chats.releaseChat(chat);
+				await provider.chats.releaseChat(chat, this._chatContext(session, chat));
 			} catch (err) {
 				firstError ??= err;
 			}
@@ -1939,8 +1952,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Reconstruct the turns for a chat. `chat` is the concrete chat channel URI,
 	 * except for legacy restore paths that still address subagent sessions.
 	 */
-	private async _getChatMessages(provider: IAgent, chat: URI, session?: URI): Promise<readonly Turn[]> {
-		const turns = await this._applyPersistedTurnUsage(chat, await provider.chats.getMessages(chat, session ? this._chatContext(session, chat) : undefined));
+	private async _getChatMessages(provider: IAgent, chat: URI, session?: URI, origin?: ChatOrigin): Promise<readonly Turn[]> {
+		const context = session ? { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) } : undefined;
+		const turns = await this._applyPersistedTurnUsage(chat, await provider.chats.getMessages(chat, context));
 		// Host-owned worktree restore announcement: re-inject the "Created isolated
 		// worktree" message at the top of the default chat's first turn from
 		// persisted metadata. No-op for folder sessions and non-default chats (peer
@@ -2124,14 +2138,20 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _buildInheritedChatContext(session: URI): IAgentInheritedChatContext | undefined {
 		const state = this._stateManager.getSessionState(session.toString());
-		const rawWorkingDirectory = state?.workingDirectories?.[0];
-		const workingDirectory = this._worktree?.getResolvedWorktree(AgentSession.id(session))
-			?? (typeof rawWorkingDirectory === 'string' ? URI.parse(rawWorkingDirectory) : rawWorkingDirectory);
-		if (!workingDirectory) {
+		const workingDirectories = state?.workingDirectories?.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory) ?? [];
+		const resolvedPrimary = this._worktree?.getResolvedWorktree(AgentSession.id(session));
+		if (resolvedPrimary) {
+			workingDirectories[0] = resolvedPrimary;
+		}
+		if (workingDirectories.length === 0) {
 			return undefined;
 		}
 		const config = this._configurationService.getSessionConfigValues(session.toString());
-		return { workingDirectory, ...(config && Object.keys(config).length > 0 ? { config } : {}) };
+		return {
+			workingDirectories,
+			...(state?.project ? { project: { uri: URI.parse(state.project.uri), displayName: state.project.displayName } } : {}),
+			...(config && Object.keys(config).length > 0 ? { config } : {}),
+		};
 	}
 
 	private async _disposeChat(provider: IAgent, chat: URI): Promise<void> {
@@ -3221,11 +3241,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
-		// Bind the session-backed chat before loading its history or restoring peers, so
-		// the agent resolves the session-backed chat by its chat URI (SDK id +
-		// storage scope) rather than inferring it. Symmetric with the peer
-		// restore below (which calls `materializeChat`).
-		await agent.chats.bindSessionChat?.(defaultChatUri, this._chatContext(session, defaultChatUri));
+		const defaultChatProviderData = await this._readDefaultChatProviderData(session);
+		if (defaultChatProviderData !== undefined) {
+			await agent.materializeChat?.(defaultChatUri, this._chatContext(session, defaultChatUri), defaultChatProviderData);
+		} else {
+			await agent.chats.bindSessionChat?.(defaultChatUri, this._chatContext(session, defaultChatUri));
+		}
 		let turns: readonly Turn[];
 		try {
 			turns = await this._getChatMessages(agent, defaultChatUri, session);
@@ -3691,6 +3712,33 @@ export class AgentService extends Disposable implements IAgentService {
 		this._resolvePendingSubagentChat(e.chat.toString());
 	}
 
+	private async _persistDefaultChatBacking(created: IAgentCreateSessionResult): Promise<void> {
+		const providerData = created.chat?.providerData;
+		if (providerData !== undefined) {
+			const ref = this._sessionDataService.openDatabase(created.session);
+			try {
+				await ref.object.setMetadata(DEFAULT_CHAT_PROVIDER_DATA_METADATA_KEY, providerData);
+			} finally {
+				ref.dispose();
+			}
+		}
+		if (created.chat?.backingSession) {
+			await this._markChatBacking(created.chat.backingSession, URI.parse(buildDefaultChatUri(created.session)));
+		}
+	}
+
+	private async _readDefaultChatProviderData(session: URI): Promise<string | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			return await ref.object.getMetadata(DEFAULT_CHAT_PROVIDER_DATA_METADATA_KEY);
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	/**
 	 * Reads the orchestrator's persisted peer-chat catalog for a session.
 	 * Returns `undefined` when the session has no catalog yet (a legacy session
@@ -3731,24 +3779,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Marks a peer chat's backing SDK session (in that session's own DB) so
-	 * {@link listSessions} filters it out of the top-level session list. The
-	 * marker is persisted, so it survives a host restart. Best-effort: a failure
-	 * only means the backing session may transiently reappear in the list.
+	 * Marks a chat's backing SDK session so legacy discovery cannot register it.
 	 */
-	private _markPeerChatBacking(backingSession: URI, chat: URI): void {
-		let ref;
+	private async _markChatBacking(backingSession: URI, chat: URI): Promise<void> {
+		const ref = this._sessionDataService.openDatabase(backingSession);
 		try {
-			ref = this._sessionDataService.openDatabase(backingSession);
-		} catch (err) {
-			this._logService.warn(`[AgentService] Failed to open backing session database to mark peer-chat backing for ${backingSession.toString()}: ${toErrorMessage(err)}`);
-			return;
-		}
-		ref.object.setMetadata(PEER_CHAT_BACKING_METADATA_KEY, chat.toString()).catch(err => {
-			this._logService.warn(`[AgentService] Failed to mark peer-chat backing for ${backingSession.toString()}: ${toErrorMessage(err)}`);
-		}).finally(() => {
+			await ref.object.setMetadata(CHAT_BACKING_METADATA_KEY, chat.toString());
+		} finally {
 			ref.dispose();
-		});
+		}
 	}
 
 	/**
@@ -3867,7 +3906,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionStr = session.toString();
 		if (agent.getSessionMetadata) {
 			try {
-				const meta = await agent.getSessionMetadata(session);
+				const meta = await agent.getSessionMetadata(session, await this._readDefaultChatProviderData(session));
 				return await this._withWorktreeProject(session, meta);
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -4608,7 +4647,14 @@ export class AgentService extends Disposable implements IAgentService {
 		const agent = this._findProviderForSession(parentSession);
 		if (agent) {
 			try {
-				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri));
+				const parsedSubagent = parseSubagentSessionUri(URI.parse(subagentUri));
+				const origin = parentState.chats.find(chat => chat.resource === subagentUri)?.origin
+					?? (parsedSubagent ? {
+						kind: ChatOriginKind.Tool,
+						chat: parentState.defaultChat ?? buildDefaultChatUri(parentSession),
+						toolCallId: parsedSubagent.toolCallId,
+					} : undefined);
+				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri), parentSession, origin);
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load subagent turns for ${subagentUri}`, err);
 			}

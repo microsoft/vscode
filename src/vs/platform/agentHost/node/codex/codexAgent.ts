@@ -33,7 +33,7 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { type ClientPluginCustomization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, isDefaultChatUri, type ClientPluginCustomization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
@@ -769,21 +769,28 @@ function decodeCodexChat(data: string | undefined): ICodexPersistedChat | undefi
  * inputs (so the getter echoes them) and kicks off the agent's async sync.
  */
 class CodexActiveClientHandle implements IActiveClient {
+	private _tools: readonly ToolDefinition[] = [];
 	private _customizations: readonly ClientPluginCustomization[] = [];
+	private _sessions: readonly ICodexSession[];
 
 	constructor(
-		private readonly _getSession: () => ICodexSession | undefined,
+		sessions: readonly ICodexSession[],
 		readonly clientId: string,
 		readonly displayName: string | undefined,
 		private readonly _onToolsSet: (tools: readonly ToolDefinition[]) => void,
-		private readonly _syncCustomizations: (customizations: readonly ClientPluginCustomization[]) => void,
-	) { }
+		private readonly _syncCustomizations: (sessions: readonly ICodexSession[], customizations: readonly ClientPluginCustomization[]) => void,
+	) {
+		this._sessions = sessions;
+	}
 
 	get tools(): readonly ToolDefinition[] {
-		return this._getSession()?.clientToolSet.get(this.clientId) ?? [];
+		return this._tools;
 	}
 	set tools(tools: readonly ToolDefinition[]) {
-		this._getSession()?.clientToolSet.set(this.clientId, tools);
+		this._tools = tools;
+		for (const session of this._sessions) {
+			session.clientToolSet.set(this.clientId, tools);
+		}
 		this._onToolsSet(tools);
 	}
 
@@ -792,7 +799,22 @@ class CodexActiveClientHandle implements IActiveClient {
 	}
 	set customizations(customizations: readonly ClientPluginCustomization[]) {
 		this._customizations = customizations;
-		this._syncCustomizations(customizations);
+		this._syncCustomizations(this._sessions, customizations);
+	}
+
+	remove(): void {
+		for (const session of this._sessions) {
+			session.clientToolSet.delete(this.clientId);
+			session.clientCustomizations.removeClient(this.clientId);
+		}
+	}
+
+	addSession(session: ICodexSession): void {
+		if (!this._sessions.includes(session)) {
+			this._sessions = [...this._sessions, session];
+			session.clientToolSet.set(this.clientId, this._tools);
+			this._syncCustomizations([session], this._customizations);
+		}
 	}
 }
 
@@ -840,6 +862,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Keyed by caller-facing sessionId (the URI host). */
 	private readonly _sessions = new Map<string, ICodexSession>();
+	private readonly _activeClientHandles = new Map<string, CodexActiveClientHandle>();
 	/** Host-supplied chat URI to Codex session id routing. */
 	private readonly _sessionIdByChatUri = new Map<string, string>();
 	/** Inverse map: codex threadId → caller-facing sessionId, for routing codex notifications back to sessions. */
@@ -1216,18 +1239,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private _getReasoningEffort(session: ICodexSession): ReasoningEffort | undefined {
+	private _getReasoningEffort(session: ICodexSession, configResource: URI): ReasoningEffort | undefined {
 		const modelConfigEffort = narrowReasoningEffort(session.model?.config?.[CODEX_THINKING_LEVEL_KEY]);
 		if (modelConfigEffort) {
 			return modelConfigEffort;
 		}
-		const config = this._configurationService.getSessionConfigValues(session.sessionUri.toString());
+		const config = this._configurationService.getSessionConfigValues(configResource.toString());
 		return narrowReasoningEffort(config?.[CodexSessionConfigKey.ModelReasoningEffort]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ModelReasoningEffort];
 	}
 
-	private _readSessionConfig(session: ICodexSession): ReturnType<typeof codexSessionConfigSchema.validateOrDefault> {
+	private _readSessionConfig(configResource: URI): ReturnType<typeof codexSessionConfigSchema.validateOrDefault> {
 		return codexSessionConfigSchema.validateOrDefault(
-			this._configurationService.getSessionConfigValues(session.sessionUri.toString()),
+			this._configurationService.getSessionConfigValues(configResource.toString()),
 			codexSessionConfigDefaults,
 		);
 	}
@@ -1248,8 +1271,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 *   `default` preset's `on-request` policy so it actually prompts, instead of
 	 *   running commands unprompted while the chip claims it would ask.
 	 */
-	private _resolveSessionPermissions(session: ICodexSession): ICodexResolvedPermissions {
-		const rawValues = this._configurationService.getSessionConfigValues(session.sessionUri.toString());
+	private _resolveSessionPermissions(configResource: URI): ICodexResolvedPermissions {
+		const rawValues = this._configurationService.getSessionConfigValues(configResource.toString());
 		const defaults = {
 			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
@@ -1284,14 +1307,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
-		const config = this._readSessionConfig(session);
-		const { approvalPolicy, sandboxMode, approvalsReviewer } = this._resolveSessionPermissions(session);
+	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string, configResource: URI = session.sessionUri): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
+		const config = this._readSessionConfig(configResource);
+		const { approvalPolicy, sandboxMode, approvalsReviewer } = this._resolveSessionPermissions(configResource);
 		const sandboxPolicy = this._sandboxPolicy(session, config, sandboxMode);
 		const runtimeWorkspaceRoots = this._isMultiRootActive(session)
 			? this._runtimeWorkspaceRoots(session)
 			: (sandboxPolicy.type === 'workspaceWrite' ? sandboxPolicy.writableRoots : undefined);
-		const effort = this._getReasoningEffort(session);
+		const effort = this._getReasoningEffort(session, configResource);
 		const personality = narrowPersonality(config[CodexSessionConfigKey.Personality]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.Personality];
 		const summary = narrowReasoningSummary(config[CodexSessionConfigKey.ReasoningSummary]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ReasoningSummary];
 		// Map the platform-generic Agent Mode to codex's native collaboration
@@ -2897,18 +2920,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		bindSessionChat: async (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			this._bindSessionChat(chat, resolveAgentChatContext(context, chat).session);
 		},
-		disposeChat: async (chat: URI): Promise<void> => {
-			const session = this._resolveConversationSession(chat);
-			if (!session) { return; }
-			await this.disposeSession(session);
-			this._sessionIdByChatUri.delete(chat.toString());
-		},
-		releaseChat: async (chat: URI): Promise<void> => {
-			const session = this._resolveConversationSession(chat);
-			if (session) {
-				await this.releaseSession(session);
-			}
-		},
+		disposeChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
+		releaseChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
@@ -3097,10 +3110,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error('Codex has no available models.');
 		}
 		this._ensureModelProviderAuthenticated(model);
-		const managedWorkingDirectory = inherited?.workingDirectory
+		const inheritedWorkingDirectory = inherited?.workingDirectories[0];
+		const managedWorkingDirectory = inheritedWorkingDirectory
 			? undefined
 			: await this._createManagedWorkingDirectory(`chat-${generateUuid()}`);
-		const workingDirectory = inherited?.workingDirectory ?? managedWorkingDirectory;
+		const workingDirectory = inheritedWorkingDirectory ?? managedWorkingDirectory;
 		if (!workingDirectory) {
 			throw new Error(`[Codex] createChat: failed to resolve a working directory for session ${parentSession.toString()}`);
 		}
@@ -3159,6 +3173,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._sessions.set(newThreadId, session);
 			this._sessionIdByThreadId.set(newThreadId, newThreadId);
 			this._sessionIdByChatUri.set(chat.toString(), newThreadId);
+			const activeClientPrefix = `${parentSessionId}\u0000`;
+			for (const [key, handle] of this._activeClientHandles) {
+				if (key.startsWith(activeClientPrefix)) {
+					handle.addSession(session);
+				}
+			}
 			if (!session.serverToolsAdvertised && this._serverToolHost) {
 				session.serverToolsAdvertised = true;
 				this._serverToolHost.advertise(newSessionUri.toString());
@@ -3251,7 +3271,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = decoded.sessionId;
 		const existing = this._sessions.get(sessionId);
 		if (existing) {
-			this._bindSessionChat(chat, existing.sessionUri);
+			existing.chatChannel = chat;
+			this._sessionIdByChatUri.set(chat.toString(), existing.sessionId);
 			return;
 		}
 		const sessionUri = AgentSession.uri(this.id, sessionId);
@@ -3556,7 +3577,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * if `threadId` is already populated, just returns. Called from
 	 * `sendMessage` before the first `turn/start`.
 	 */
-	private async _materializeIfNeeded(session: ICodexSession, fireMaterializedEvent = true): Promise<void> {
+	private async _materializeIfNeeded(session: ICodexSession, configResourceOrFire: URI | boolean = session.sessionUri, fireMaterializedEvent = true): Promise<void> {
+		const configResource = URI.isUri(configResourceOrFire) ? configResourceOrFire : session.sessionUri;
+		if (typeof configResourceOrFire === 'boolean') {
+			fireMaterializedEvent = configResourceOrFire;
+		}
 		if (session.disposed) {
 			return;
 		}
@@ -3573,7 +3598,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			return;
 		}
-		session.materializePromise = this._materialize(session).finally(() => {
+		session.materializePromise = this._materialize(session, configResource).finally(() => {
 			session.materializePromise = undefined;
 		});
 		await session.materializePromise;
@@ -3600,7 +3625,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _materialize(session: ICodexSession): Promise<void> {
+	private async _materialize(session: ICodexSession, configResource: URI): Promise<void> {
 		if (session.disposed) {
 			return;
 		}
@@ -3613,9 +3638,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed temp folder ${session.workingDirectory.fsPath}`);
 		}
 		const conn = await this._ensureConnection();
-		const config = this._readSessionConfig(session);
+		const config = this._readSessionConfig(configResource);
 		const model = await this._resolveModel(session);
-		const { approvalPolicy, sandboxMode, approvalsReviewer } = this._resolveSessionPermissions(session);
+		const { approvalPolicy, sandboxMode, approvalsReviewer } = this._resolveSessionPermissions(configResource);
 		// Attach the session's MCP servers per-thread (verified: codex starts
 		// them for this thread only): the workbench's root `mcpServers` config
 		// merged with this session's enabled client-plugin servers. Passing them
@@ -3691,7 +3716,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * session's current client tools are registered as `dynamicTools`.
 	 * Only safe before any turn has committed history on the thread.
 	 */
-	private async _restartThreadWithCurrentTools(session: ICodexSession): Promise<void> {
+	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.sessionUri): Promise<void> {
 		const conn = this._connection;
 		const oldThreadId = session.threadId;
 		this._logService.info(`[Codex:${session.sessionId}] restarting thread ${oldThreadId} to apply client tools [${session.clientToolSet.merged().map(t => t.name).join(', ') || '(none)'}]`);
@@ -3705,7 +3730,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		session.threadId = undefined;
 		session.materializePromise = undefined;
-		await this._materializeIfNeeded(session);
+		await this._materializeIfNeeded(session, configResource);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
@@ -3877,6 +3902,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, workingDirectories?: readonly URI[], context?: URI | IAgentChatContext): Promise<void> {
+		const operationContext = context ? resolveAgentChatContext(context, chat) : undefined;
 		const sessionUri = this._resolveConversationSession(chat, context);
 		if (!sessionUri) {
 			throw new Error(`Codex conversation is not bound: ${chat.toString()}`);
@@ -3887,6 +3913,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			throw new Error(`Codex session not found: ${sessionUri.toString()}`);
 		}
+		const configResource = operationContext?.session ?? sessionUri;
 		this._ensureModelProviderAuthenticated(session.model);
 		// The host hands us the complete resolved snapshot (index 0 = the process
 		// root) on every send. Adopt index 0 before first materialization locks the
@@ -3914,7 +3941,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// `_materializeIfNeeded` is idempotent.
 		try {
 			this._claimPrewarm(session);
-			await this._materializeIfNeeded(session);
+			await this._materializeIfNeeded(session, configResource, isDefaultChatUri(chat));
 			this._persistMaterializedSession(session);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -3933,7 +3960,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Check needsResume before the resume block clears it so restored sessions never receive a late baseline.
 		if (!session.firstTurnSent && !session.needsResume) {
 			const baselineWorkingDirectories = session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined);
-			this._checkpointService.captureBaselineCheckpoint(sessionUri, baselineWorkingDirectories).catch(err => {
+			this._checkpointService.captureBaselineCheckpoint(configResource, baselineWorkingDirectories).catch(err => {
 				this._logService.warn(`[Codex:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
 			});
 		}
@@ -3949,7 +3976,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const customizationsChanged = customizationLaunch.signature !== session.materializedCustomizationsSig;
 		if (!session.firstTurnSent && !session.needsResume && (toolsChanged || mcpChanged || customizationsChanged)) {
 			try {
-				await this._restartThreadWithCurrentTools(session);
+				await this._restartThreadWithCurrentTools(session, configResource);
 				this._persistMaterializedSession(session);
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
@@ -4026,7 +4053,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			cleanupPaths = resolvedInput.cleanupPaths;
 			const model = await this._resolveModel(session);
 			const resolvedModel = parseCodexModelSelection(model);
-			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, customizationLaunch.developerInstructions);
+			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, customizationLaunch.developerInstructions, configResource);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId,
 				input: resolvedInput.input.slice(),
@@ -4158,12 +4185,25 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async disposeSession(sessionUri: URI): Promise<void> {
-		this._logService.info(`[Codex DEBUG] disposeSession session=${sessionUri.toString()}`);
-		const sessionId = AgentSession.id(sessionUri);
-		const session = this._sessions.get(sessionId);
-		if (session) {
-			await this._teardownSessionInMemory(session, sessionId, true);
+		const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+		if (this._sessionIdByChatUri.has(defaultChat.toString())) {
+			await this._disposeChat(defaultChat, { session: sessionUri, resource: sessionUri });
 		} else {
+			await this._disposeRuntimeSession(sessionUri, true);
+		}
+		await this.finalizeSession(sessionUri);
+	}
+
+	async finalizeSession(sessionUri: URI): Promise<void> {
+		const sessionId = AgentSession.id(sessionUri);
+		const activeClientPrefix = `${sessionId}\u0000`;
+		for (const [key, handle] of this._activeClientHandles) {
+			if (key.startsWith(activeClientPrefix)) {
+				handle.remove();
+				this._activeClientHandles.delete(key);
+			}
+		}
+		if (!this._sessions.has(sessionId)) {
 			const overlay = await this._metadataStore.read(sessionUri);
 			const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId)
 				?? (overlay.ownsManagedWorkingDirectory ? overlay.cwd : undefined);
@@ -4171,9 +4211,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				await this._removeManagedWorkingDirectory(managedWorkingDirectory);
 			}
 			this._releasedManagedWorkingDirectories.delete(sessionId);
-		}
-		for (const [chat, owner] of this._sessionIdByChatUri) {
-			if (owner === sessionId) { this._sessionIdByChatUri.delete(chat); }
 		}
 	}
 
@@ -4189,9 +4226,44 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * turn in flight — `thread/unsubscribe` mid-turn would drop live progress.
 	 */
 	async releaseSession(sessionUri: URI): Promise<void> {
+		const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+		if (this._sessionIdByChatUri.has(defaultChat.toString())) {
+			await this._releaseChat(defaultChat, { session: sessionUri, resource: sessionUri });
+			return;
+		}
+		await this._disposeRuntimeSession(sessionUri, false);
+	}
+
+	private async _disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
+		const runtimeSession = this._resolveConversationSession(chat, context);
+		if (!runtimeSession) {
+			return;
+		}
+		await this._disposeRuntimeSession(runtimeSession, true);
+		this._sessionIdByChatUri.delete(chat.toString());
+	}
+
+	private async _releaseChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
+		const runtimeSession = this._resolveConversationSession(chat, context);
+		if (!runtimeSession) {
+			return;
+		}
+		await this._disposeRuntimeSession(runtimeSession, false);
+	}
+
+	private async _disposeRuntimeSession(sessionUri: URI, deleteManagedWorkingDirectory: boolean): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
+			if (deleteManagedWorkingDirectory) {
+				const overlay = await this._metadataStore.read(sessionUri);
+				const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId)
+					?? (overlay.ownsManagedWorkingDirectory ? overlay.cwd : undefined);
+				if (managedWorkingDirectory) {
+					await this._removeManagedWorkingDirectory(managedWorkingDirectory);
+				}
+				this._releasedManagedWorkingDirectories.delete(sessionId);
+			}
 			return;
 		}
 		// Provisional sessions have no codex thread on disk to resume from;
@@ -4202,14 +4274,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Defensive active-turn guard: the orchestrator already skips eviction
 		// while a turn is active, but one could have started between that check
 		// and this call.
-		if (session.currentTurnId !== undefined) {
+		if (!deleteManagedWorkingDirectory && session.currentTurnId !== undefined) {
 			return;
 		}
 		this._logService.info(`[Codex:${session.threadId}] Releasing idle session from memory (durable state preserved)`);
-		if (session.managedWorkingDirectory) {
+		if (!deleteManagedWorkingDirectory && session.managedWorkingDirectory) {
 			this._releasedManagedWorkingDirectories.set(sessionId, session.managedWorkingDirectory);
 		}
-		await this._teardownSessionInMemory(session, sessionId, false);
+		await this._teardownSessionInMemory(session, sessionId, deleteManagedWorkingDirectory);
 	}
 
 	/**
@@ -4413,9 +4485,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._readSession(sessionUri).then(read => read ? replayThreadToTurns(read.thread) : []);
 	}
 
-	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
-		const sessionId = AgentSession.id(session);
-		const read = await this._readSession(session);
+	async getSessionMetadata(session: URI, providerData?: string): Promise<IAgentSessionMetadata | undefined> {
+		const backing = providerData ? decodeCodexChat(providerData) : undefined;
+		const sessionId = backing?.sessionId ?? AgentSession.id(session);
+		const backingUri = backing ? AgentSession.uri(this.id, backing.sessionId) : session;
+		const read = await this._readSession(backingUri);
 		if (!read) {
 			return undefined;
 		}
@@ -4430,7 +4504,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!this._sessions.has(sessionId)) {
 			const workingDirectory = read.thread.cwd ? URI.file(read.thread.cwd) : undefined;
 			const threadId = read.thread.id;
-			const overlay = await this._metadataStore.read(session);
+			const overlay = await this._metadataStore.read(backingUri);
 			const restoredModel = read.persistedModelId ? { id: read.persistedModelId } : undefined;
 			const restored = this._createResumedSessionEntry(sessionId, threadId, session, workingDirectory, restoredModel, undefined, metadata.workingDirectories, undefined, overlay.agent);
 			if (overlay.ownsManagedWorkingDirectory) {
@@ -4495,6 +4569,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		return [];
+	}
+
+	async listLegacySessions(): Promise<IAgentSessionMetadata[]> {
 		// After the orchestrator-owned session registry (I3-removal stage 2),
 		// AH no longer unions provider `listSessions()` for top-level
 		// enumeration; this now serves only the registry's one-time backfill of
@@ -4576,22 +4654,40 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._serverToolHost = host;
 	}
 
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats: readonly URI[] = [URI.parse(buildDefaultChatUri(session))]): IActiveClient {
 		const sessionId = AgentSession.id(session);
-		return new CodexActiveClientHandle(
-			() => this._sessions.get(sessionId),
+		const key = `${sessionId}\u0000${client.clientId}`;
+		const existing = this._activeClientHandles.get(key);
+		if (existing) {
+			return existing;
+		}
+		const sessions = chats.flatMap(chat => {
+			const runtimeId = this._sessionIdByChatUri.get(chat.toString());
+			const target = runtimeId ? this._sessions.get(runtimeId) : undefined;
+			return target ? [target] : [];
+		});
+		const handle = new CodexActiveClientHandle(
+			sessions.length > 0 ? sessions : [...(this._sessions.get(sessionId) ? [this._sessions.get(sessionId)!] : [])],
 			client.clientId,
 			client.displayName,
 			tools => this._logService.info(`[Codex:${sessionId}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}]`),
-			customizations => { void this._syncClientCustomizations(session, client.clientId, [...customizations]); },
+			(targetSessions, customizations) => {
+				void Promise.all(targetSessions.flatMap(target =>
+					target ? [this._syncClientCustomizations(target.sessionUri, client.clientId, [...customizations], { quiet: target.sessionId !== sessionId })] : []
+				));
+			},
 		);
+		this._activeClientHandles.set(key, handle);
+		return handle;
 	}
 
 	removeActiveClient(session: URI, clientId: string): void {
 		const sessionId = AgentSession.id(session);
+		const handle = this._activeClientHandles.get(`${sessionId}\u0000${clientId}`);
+		this._activeClientHandles.delete(`${sessionId}\u0000${clientId}`);
+		handle?.remove();
 		const sess = this._sessions.get(sessionId);
-		sess?.clientToolSet.delete(clientId);
-		if (sess?.clientCustomizations.removeClient(clientId)) {
+		if (sess && handle) {
 			// A departing client's skills may drop out of the process-global union.
 			void this._refreshSkillExtraRoots();
 			void this._reconcileMaterializedCustomizations(sess);

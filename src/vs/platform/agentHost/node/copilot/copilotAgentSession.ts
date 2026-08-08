@@ -46,7 +46,7 @@ import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } fr
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
@@ -635,7 +635,9 @@ class CopilotTurn {
  */
 export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
-	readonly sessionUri: URI;
+	readonly resourceUri: URI;
+	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
+	get sessionUri(): URI { return this.resourceUri; }
 	private _chatChannelUri: URI;
 	/**
 	 * Persistence/config scope for this chat, fixed at construction. It is the
@@ -917,12 +919,12 @@ export class CopilotAgentSession extends Disposable {
 		super();
 		this._abortCts.value = new CancellationTokenSource();
 		this.sessionId = options.rawSessionId;
-		this.sessionUri = options.sessionUri;
+		this.resourceUri = options.resource ?? options.sessionUri;
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands), this._logService);
 		this._chatChannelUri = options.chatChannelUri;
 		// Persistence scope: honor the host-supplied resource; otherwise fall
 		// back once to the URI-shape inference (default chat → session scope).
-		this._storageUri = options.resource ?? (isDefaultChatUri(this._chatChannelUri) ? this.sessionUri : this._chatChannelUri);
+		this._storageUri = this.resourceUri;
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
@@ -961,9 +963,9 @@ export class CopilotAgentSession extends Disposable {
 		this._editTracker = this._instantiationService.createInstance(FileEditTracker, this._storageUri.toString(), this._databaseRef.object);
 
 		this._mcpCustomizations = this._register(this._instantiationService.createInstance(McpCustomizationController, {
-			providerId: this.sessionUri.scheme,
+			providerId: this.resourceUri.scheme,
 			sessionId: this.sessionId,
-			sessionUri: this.sessionUri,
+			sessionUri: this.resourceUri,
 			resolveChildId: options.resolveMcpChildId,
 			emit: action => this._emitAction(action),
 		}));
@@ -1005,7 +1007,7 @@ export class CopilotAgentSession extends Disposable {
 	private _emitAction(action: SessionAction | ChatAction, parentToolCallId?: string): void {
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			resource: isChatAction(action) ? this._chatChannelUri : this.sessionUri,
+			resource: isChatAction(action) ? this._chatChannelUri : this.resourceUri,
 			action,
 			parentToolCallId,
 		});
@@ -1365,7 +1367,7 @@ export class CopilotAgentSession extends Disposable {
 		turn.toolCallDetailsReported = true;
 		void this._telemetryReporter.toolCallDetails({
 			provider: 'copilot',
-			session: this.sessionUri.toString(),
+			session: this.resourceUri.toString(),
 			turnId: turn.id,
 			clientType: turn.clientType,
 			model: turn.lastModel,
@@ -1390,7 +1392,7 @@ export class CopilotAgentSession extends Disposable {
 		const confirmKind = mapPermissionResultToConfirmKind(record?.resultKind, record?.resolvedByHook === true);
 		this._telemetryReporter.toolApproval({
 			provider: 'copilot',
-			session: this.sessionUri.toString(),
+			session: this.resourceUri.toString(),
 			turnId: this._turnId,
 			toolId: toolName,
 			toolSourceKind: this._toolSourceKindFor(toolName, mcpServerName),
@@ -1800,7 +1802,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
-		this._promptCacheState = readSessionPromptCacheState(this._stateManager.getSessionSummary(this.sessionUri.toString())?._meta);
+		this._promptCacheState = readSessionPromptCacheState(this._stateManager.getSessionSummary(this.resourceUri.toString())?._meta);
 		if (this._launchPlan.kind === 'resume') {
 			await this._refreshSessionUsageMetrics();
 			if (this._store.isDisposed) {
@@ -1815,7 +1817,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _setPromptCacheState(promptCache: ISessionPromptCacheState | undefined): void {
-		const currentSummary = this._stateManager.getSessionSummary(this.sessionUri.toString());
+		const currentSummary = this._stateManager.getSessionSummary(this.resourceUri.toString());
 		const currentMeta = currentSummary?._meta;
 		// Concurrent sessions can share `sessionUri`, so the persisted metadata — not this
 		// instance's cached value — is authoritative whenever a summary is available.
@@ -1825,7 +1827,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._promptCacheState = promptCache;
-		this._stateManager.setSessionMeta(this.sessionUri.toString(), withSessionPromptCacheState(currentMeta, promptCache));
+		this._stateManager.setSessionMeta(this.resourceUri.toString(), withSessionPromptCacheState(currentMeta, promptCache));
 	}
 
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
@@ -2174,7 +2176,7 @@ export class CopilotAgentSession extends Disposable {
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._reconcileMcpServerEnablement();
-		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 		await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined }));
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
@@ -2568,7 +2570,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _reconcileMcpServerEnablement(): Promise<void> {
-		const desiredCustomizations = this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
+		const desiredCustomizations = this._stateManager.getSessionState(this.resourceUri.toString())?.customizations ?? [];
 		const desiredServers = getEffectiveMcpServerCustomizations(desiredCustomizations);
 		if (desiredServers.length === 0) {
 			return;
@@ -3586,7 +3588,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!resolved || this._store.isDisposed || !isCurrent()) {
 			return undefined;
 		}
-		await this._repoInfoTelemetry.reportBegin(resolved.context, this.sessionUri.toString(), telemetryMessageId, clientType, this._workingDirectory, resolved.baseBranch, isCurrent, paths => this._wrapper.session.rpc.contentExclusion.checkPaths({ paths: [...paths] }));
+		await this._repoInfoTelemetry.reportBegin(resolved.context, this.resourceUri.toString(), telemetryMessageId, clientType, this._workingDirectory, resolved.baseBranch, isCurrent, paths => this._wrapper.session.rpc.contentExclusion.checkPaths({ paths: [...paths] }));
 		return resolved;
 	}
 
@@ -3594,7 +3596,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!resolved || this._store.isDisposed || !isCurrent()) {
 			return;
 		}
-		await this._repoInfoTelemetry.reportEnd(resolved.context, this.sessionUri.toString(), telemetryMessageId, this._workingDirectory, resolved.baseBranch, isCurrent, paths => this._wrapper.session.rpc.contentExclusion.checkPaths({ paths: [...paths] }));
+		await this._repoInfoTelemetry.reportEnd(resolved.context, this.resourceUri.toString(), telemetryMessageId, this._workingDirectory, resolved.baseBranch, isCurrent, paths => this._wrapper.session.rpc.contentExclusion.checkPaths({ paths: [...paths] }));
 	}
 
 	private _completeActiveRepoInfoTelemetry(): void {
@@ -3749,9 +3751,9 @@ export class CopilotAgentSession extends Disposable {
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId) {
 				const clientType = this._currentTurn?.clientType ?? AgentHostClientType.Unknown;
-				void this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.assistantMessageReceived(this.resourceUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
-				void this._telemetryReporter.modelMessageText(this.sessionUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.clientRequestId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.modelMessageText(this.resourceUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.clientRequestId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Accumulate the per-turn tool-call aggregate for the restricted `toolCallDetails` event.
 				// Every main-agent `assistant.message` is one model-call round (matches the extension's
 				// `numRequests = toolCallRounds.length`, which counts the final tool-free response round
@@ -4085,7 +4087,7 @@ export class CopilotAgentSession extends Disposable {
 			if (e.data.success && tracked.contributor === undefined) {
 				const telemetrySession = parentToolCallId
 					? URI.parse(buildSubagentSessionUri(this._storageUri.toString(), parentToolCallId))
-					: this.sessionUri;
+					: this.resourceUri;
 				reportCopilotTodoStoreOperation(this._telemetryService, telemetrySession, e.data.toolCallId, tracked.toolName, tracked.parameters);
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
@@ -4128,7 +4130,7 @@ export class CopilotAgentSession extends Disposable {
 				});
 			}
 
-			const shellExit = appendSdkToolResultContent(content, e.data.result?.contents, { session: this.sessionUri, toolCallId: e.data.toolCallId, title: tracked.displayName });
+			const shellExit = appendSdkToolResultContent(content, e.data.result?.contents, { session: this.resourceUri, toolCallId: e.data.toolCallId, title: tracked.displayName });
 			if (isShellTool(tracked.toolName) && !ptyTerminalUri) {
 				const completion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
 				if (completion) {
@@ -4311,7 +4313,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
-			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.sessionUri, this._chatChannelUri, this._turnId, this.sessionId));
+			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId));
 			if (this._currentTurn) {
 				this._reportToolCallDetails(this._currentTurn, 'failed');
 			}
@@ -4332,7 +4334,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onModelCallFailure(e => {
-			reportCopilotModelCallFailure(this._telemetryService, e, createCopilotFailureCorrelation(this.sessionUri, this._chatChannelUri, this._turnId, this.sessionId));
+			reportCopilotModelCallFailure(this._telemetryService, e, createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId));
 		}));
 
 		// Tracks the last parent-scope usage so the async attribution enrichment
@@ -4350,7 +4352,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (!e.agentId) {
 				this._telemetryReporter.autoModeRouterDecision({
-					session: this.sessionUri.toString(),
+					session: this.resourceUri.toString(),
 					turnId,
 					clientType: this._currentTurn?.clientType ?? AgentHostClientType.Unknown,
 					chosenModel: e.data.chosenModel,
@@ -5093,9 +5095,9 @@ export class CopilotAgentSession extends Disposable {
 					comment: 'Agent Host emission of agentHost.instructionsCollected. Carries the subset of the local shape that can be honestly (or close-analogously) computed from the SDK\'s InstructionSource list; other fields are intentionally omitted (see source comment).';
 				};
 				this._telemetryService.publicLog2<AgentHostInstructionsCollectedEvent, AgentHostInstructionsCollectedClassification>('agentHost.instructionsCollected', {
-					provider: this.sessionUri.scheme,
-					agentSessionId: AgentSession.id(this.sessionUri),
-					isSubagentSession: isSubagentSession(this.sessionUri),
+					provider: this.resourceUri.scheme,
+					agentSessionId: AgentSession.id(this.resourceUri),
+					isSubagentSession: isSubagentSession(this.resourceUri),
 					totalInstructionsCount: sources.length,
 					agentInstructionsCount,
 					applyingInstructionsCount,
@@ -5196,7 +5198,7 @@ export class CopilotAgentSession extends Disposable {
 			// and SDK-injected synthetic messages (skill/harness injections carry a non-`user` source,
 			// matching `isSyntheticUserMessage`) so injected content is not reported as the user's prompt.
 			if (!e.agentId && (!e.data.source || e.data.source.toLowerCase() === 'user')) {
-				void this._telemetryReporter.userMessageText(this.sessionUri.toString(), this._currentTurn?.clientType ?? AgentHostClientType.Unknown, e.data.content, this._turnOrdinal).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
+				void this._telemetryReporter.userMessageText(this.resourceUri.toString(), this._currentTurn?.clientType ?? AgentHostClientType.Unknown, e.data.content, this._turnOrdinal).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 			}
 		}));
 

@@ -20,7 +20,7 @@ import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
-import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
@@ -814,6 +814,8 @@ export interface IAgentSessionProjectInfo {
 export interface IAgentCreateSessionResult {
 	readonly session: URI;
 	readonly project?: IAgentSessionProjectInfo;
+	/** Opaque provider backing for the session's initial chat, when it has one. */
+	readonly chat?: IAgentCreateChatResult;
 	/**
 	 * The single working directory the provider resolved for this session — its
 	 * process root. This may differ from the requested primary (e.g. a
@@ -1062,6 +1064,7 @@ export interface IAgentCreateSessionConfig {
 export interface IAgentChatContext {
 	readonly session: URI;
 	readonly resource: URI;
+	readonly origin?: ChatOrigin;
 }
 
 /**
@@ -1108,8 +1111,10 @@ export interface IAgentCreateChatOptions {
  * parent session.
  */
 export interface IAgentInheritedChatContext {
-	/** The AH-resolved working directory (worktree or folder) the chat runs in. */
-	readonly workingDirectory: URI;
+	/** The AH-resolved working directories the chat can access. */
+	readonly workingDirectories: readonly URI[];
+	/** The owning session's resolved project metadata. */
+	readonly project?: IAgentSessionProjectInfo;
 	/** The owning session's config values, for provider-specific setting resolution (e.g. permissions). */
 	readonly config?: Record<string, unknown>;
 }
@@ -1317,13 +1322,12 @@ export interface IAgentChats {
 	 * the owning session (plus persistence scope) via `context`, and passes the
 	 * same {@link IAgentCreateSessionConfig} `createSession` used to receive
 	 * (including `fork`/`importConversation`, which produce a new session whose
-	 * default chat carries the copied/imported history). Unlike
-	 * {@link createChat} this is the session-backed chat: the agent reuses the
-	 * session id as its SDK id (no separate backing, so it is never I7-suppressed)
-	 * and returns the {@link IAgentCreateSessionResult} the orchestrator uses to
-	 * drive the session lifecycle. Optional during the migration: agents that
-	 * still expose {@link IAgent.createSession} omit it, and the orchestrator
-	 * falls back to the create-then-bind pair.
+	 * default chat carries the copied/imported history). The returned
+	 * {@link IAgentCreateSessionResult.chat} is persisted for exact restore when
+	 * the provider uses an SDK identity independent of the owning session.
+	 * Optional during the migration: agents that still expose
+	 * {@link IAgent.createSession} omit it, and the orchestrator falls back to
+	 * the create-then-bind pair.
 	 */
 	createSessionChat?(chat: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
@@ -1351,7 +1355,7 @@ export interface IAgentChats {
 	bindSessionChat?(chat: URI, context: URI | IAgentChatContext): Promise<void>;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
-	releaseChat(chat: URI): Promise<void>;
+	releaseChat(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`. On every send, the host passes the complete
@@ -1816,6 +1820,9 @@ export interface IAgent {
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
 
+	/** Finalize session-scoped resources after Agent Host has disposed every chat. */
+	finalizeSession?(session: URI, context?: { readonly workspaceless?: boolean }): Promise<void>;
+
 	/**
 	 * Release a session's in-memory resources (SDK session/connection, cached
 	 * per-session state) without deleting any durable data. Unlike
@@ -1849,8 +1856,11 @@ export interface IAgent {
 	 */
 	listSessions(): Promise<readonly IAgentSessionMetadata[]>;
 
-	/** Retrieve metadata for a single persisted session, without enumerating the provider catalog. */
-	getSessionMetadata?(session: URI): Promise<IAgentSessionMetadata | undefined>;
+	/** Enumerate SDK sessions only for one-time legacy discovery/import. */
+	listLegacySessions?(): Promise<readonly IAgentSessionMetadata[]>;
+
+	/** Retrieve metadata for a registered session using its exact initial-chat backing when present. */
+	getSessionMetadata?(session: URI, providerData?: string): Promise<IAgentSessionMetadata | undefined>;
 
 	/** Declare protected resources this agent requires auth for (RFC 9728). */
 	getProtectedResources(): ProtectedResourceMetadata[];
@@ -1954,7 +1964,7 @@ export interface IAgent {
 	 * @param session The session URI this client contributes to.
 	 * @param client The client's `clientId` and optional human-readable name.
 	 */
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient;
+	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats?: readonly URI[]): IActiveClient;
 
 	/**
 	 * Remove an active client from a session, clearing its tool and

@@ -4514,6 +4514,58 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('collapsed session creation persists and restores exact default-chat provider data', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const calls: { op: string; providerData?: string }[] = [];
+			class ExactDefaultChatAgent extends MockAgent {
+				override readonly chats: IAgentChats = {
+					createChat: async () => undefined,
+					createSessionChat: async (_chat, context, config) => {
+						const result = await super.createSession(config);
+						const { session } = resolveAgentChatContext(context, _chat);
+						assert.strictEqual(result.session.toString(), session.toString());
+						return {
+							...result,
+							chat: {
+								providerData: 'default-backing',
+								backingSession: AgentSession.uri(this.id, 'sdk-default'),
+							},
+						};
+					},
+					bindSessionChat: async () => {
+						calls.push({ op: 'bind' });
+					},
+					fork: async () => undefined,
+					disposeChat: async () => { },
+					releaseChat: async () => { },
+					sendMessage: async () => { },
+					abort: async () => { },
+					changeModel: async () => { },
+					changeAgent: async () => { },
+					getMessages: async () => [],
+				};
+
+				async materializeChat(_chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
+					calls.push({ op: 'materialize', providerData });
+				}
+			}
+			const agent = disposables.add(new ExactDefaultChatAgent('copilot'));
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				persisted: await db.getMetadata('defaultChatProviderData'),
+				calls,
+			}, {
+				persisted: 'default-backing',
+				calls: [{ op: 'materialize', providerData: 'default-backing' }],
+			});
+		});
+
 		test('session disposal visits peer chats before provider session finalization', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
 			service.registerProvider(agent);
@@ -4529,6 +4581,27 @@ suite('AgentService (node dispatcher)', () => {
 				{ op: 'disposeChat', args: [chatA.toString()] },
 				{ op: 'disposeChat', args: [chatB.toString()] },
 				{ op: 'finalizeSession', args: [session.toString()] },
+			]);
+		});
+
+		test('exact finalization disposes every chat before session-scoped cleanup', async () => {
+			class ExactFinalizationAgent extends ChatSurfaceAgent {
+				async finalizeSession(session: URI, context?: { readonly workspaceless?: boolean }): Promise<void> {
+					this.chatCalls.push({ op: 'exactFinalize', args: [session.toString(), String(context?.workspaceless)] });
+				}
+			}
+			const agent = disposables.add(new ExactFinalizationAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			await service.createChat(session, peer);
+
+			await service.disposeSession(session);
+
+			assert.deepStrictEqual(agent.chatCalls.filter(call => call.op === 'disposeChat' || call.op === 'exactFinalize'), [
+				{ op: 'disposeChat', args: [peer.toString()] },
+				{ op: 'disposeChat', args: [buildDefaultChatUri(session)] },
+				{ op: 'exactFinalize', args: [session.toString(), 'true'] },
 			]);
 		});
 

@@ -246,8 +246,8 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	constructor(
 		readonly sessionId: string,
-		readonly sessionUri: URI,
 		readonly chatChannelUri: URI,
+		resource: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
@@ -271,7 +271,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*

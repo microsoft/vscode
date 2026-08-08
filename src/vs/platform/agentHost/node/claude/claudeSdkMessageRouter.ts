@@ -11,7 +11,6 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { resolveChatUri } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -40,8 +39,8 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	private _clientToolOwner: ((toolName: string) => string | undefined) | undefined;
 
 	constructor(
-		sessionUri: URI,
 		private readonly _chatChannelUri: URI,
+		resource: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
@@ -51,7 +50,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		super();
 		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, resolveChatUri(sessionUri, this._chatChannelUri).toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, resource.toString(), dbRef),
 		);
 	}
 

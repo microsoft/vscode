@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
+import { URI } from '../../../../base/common/uri.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ChatInputRequestPurpose, ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -24,6 +25,7 @@ import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermis
 export interface IClaudeCanUseToolDeps {
 	readonly getSession: (sessionId: string) => ClaudeAgentSession | undefined;
 	readonly configurationService: IAgentConfigurationService;
+	readonly resource: URI;
 }
 
 /**
@@ -234,7 +236,7 @@ async function handleExitPlanMode(
 		...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 	});
 	if (approved) {
-		deps.configurationService.updateSessionConfig(session.sessionUri.toString(), {
+		deps.configurationService.updateSessionConfig(deps.resource.toString(), {
 			[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits' satisfies ClaudePermissionMode,
 		});
 		return { behavior: 'allow', updatedInput: input };

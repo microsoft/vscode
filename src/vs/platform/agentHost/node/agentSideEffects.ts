@@ -1493,7 +1493,7 @@ export class AgentSideEffects extends Disposable {
 				const handle = agent.getOrCreateActiveClient(URI.parse(channel), {
 					clientId: activeClient.clientId,
 					displayName: activeClient.displayName,
-				});
+				}, this._stateManager.getSessionState(channel)?.chats.map(chat => URI.parse(chat.resource)));
 				handle.tools = activeClient.tools;
 				handle.customizations = activeClient.customizations ?? [];
 				break;
