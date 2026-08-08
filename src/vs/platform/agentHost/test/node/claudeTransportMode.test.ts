@@ -105,5 +105,19 @@ suite('claudeTransportMode', () => {
 
 			assert.deepStrictEqual(results, { helper: true, helperAmongOthers: true, emptyValue: false, wrongType: false });
 		});
+
+		test('a malformed source never masks a usable one', () => {
+			const results: Record<string, boolean> = {};
+			writeSettings(JSON.stringify({ apiKeyHelper: '/bin/mint-key.sh', env: { ANTHROPIC_API_KEY: 42 } }));
+			results.helperWithMistypedEnvKey = detectExistingClaudeSetup(homeDir, {});
+			writeSettings(JSON.stringify({ apiKeyHelper: 42, env: { ANTHROPIC_API_KEY: 'sk-ant-api-x' } }));
+			results.apiKeyWithMistypedHelper = detectExistingClaudeSetup(homeDir, {});
+			writeSettings(JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-api-x', ANTHROPIC_BASE_URL: 8080 } }));
+			results.apiKeyWithMistypedSibling = detectExistingClaudeSetup(homeDir, {});
+			writeSettings(JSON.stringify({ apiKeyHelper: '/bin/mint-key.sh', env: 'not an object' }));
+			results.helperWithNonObjectEnv = detectExistingClaudeSetup(homeDir, {});
+
+			assert.deepStrictEqual(results, { helperWithMistypedEnvKey: true, apiKeyWithMistypedHelper: true, apiKeyWithMistypedSibling: true, helperWithNonObjectEnv: true });
+		});
 	});
 });
