@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { readFileSync } from 'fs';
-import { parse as parseJSONC } from '../../../../base/common/json.js';
+import { parse as parseJSONC, type ParseError } from '../../../../base/common/json.js';
 import { join } from '../../../../base/common/path.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { isString } from '../../../../base/common/types.js';
@@ -135,9 +135,16 @@ function hasValue(value: unknown): value is string {
 
 /** Parsed JSON, or `undefined` when the file is missing, unreadable or malformed. */
 function readJsonFile(path: string): unknown {
+	let text: string;
 	try {
-		return parseJSONC(readFileSync(path, 'utf8'));
+		text = readFileSync(path, 'utf8');
 	} catch {
 		return undefined;
 	}
+	// The tolerant parser reports on `errors` rather than throwing, and salvages a
+	// partial result from broken input — so a truncated file has to be rejected
+	// here, or half a credential reads as a setup the CLI could not load either.
+	const errors: ParseError[] = [];
+	const parsed: unknown = parseJSONC(text, errors, { allowTrailingComma: true, allowEmptyContent: true });
+	return errors.length === 0 ? parsed : undefined;
 }

@@ -89,12 +89,17 @@ suite('claudeTransportMode', () => {
 			results.noEnvBlock = detectExistingClaudeSetup(homeDir, {});
 			writeSettings('not json');
 			results.malformed = detectExistingClaudeSetup(homeDir, {});
+			// The tolerant parser salvages a partial object from a truncated file
+			// rather than failing, so the credential it recovers must not count —
+			// the CLI reading the same file would not get one.
+			writeSettings('{ "env": { "ANTHROPIC_API_KEY": "sk-ant-api-x"');
+			results.truncated = detectExistingClaudeSetup(homeDir, {});
 			// Read with the same tolerant parser VS Code uses for every other
 			// hand-edited config, so comments and a trailing comma still resolve.
 			writeSettings('{\n\t// my key\n\t"env": { "ANTHROPIC_API_KEY": "sk-ant-api-x", },\n}');
 			results.jsonc = detectExistingClaudeSetup(homeDir, {});
 
-			assert.deepStrictEqual(results, { apiKey: true, authToken: true, baseUrl: true, oauthToken: true, emptyValue: false, whitespaceValue: false, noEnvBlock: false, malformed: false, jsonc: true });
+			assert.deepStrictEqual(results, { apiKey: true, authToken: true, baseUrl: true, oauthToken: true, emptyValue: false, whitespaceValue: false, noEnvBlock: false, malformed: false, truncated: false, jsonc: true });
 		});
 
 		test('detects the top-level apiKeyHelper alongside unrecognized settings', () => {
