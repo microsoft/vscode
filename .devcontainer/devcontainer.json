@@ -1,15 +1,27 @@
 {
-	"name": "Code - OSS",
+	"name": "Code - OSS (ARM64/aarch64)",
 	"build": {
-		"dockerfile": "Dockerfile"
+		"dockerfile": "Dockerfile",
+		"args": {
+			"BUILDARCH": "arm64",
+			"TARGETARCH": "arm64"
+		}
 	},
 	"features": {
-		"ghcr.io/devcontainers/features/desktop-lite:": {},
-		"ghcr.io/devcontainers/features/rust:": {},
-		"ghcr.io/devcontainers/features/sshd:1": {}
+		"ghcr.io/devcontainers/features/desktop-lite:1": {},
+		"ghcr.io/devcontainers/features/rust:1": {
+			"profile": "minimal"
+		},
+		"ghcr.io/devcontainers/features/sshd:1": {},
+		"ghcr.io/devcontainers/features/common-utils:2": {
+			"installZsh": true
+		}
 	},
 	"containerEnv": {
-		"DISPLAY": "" // Allow the Dev Containers extension to set DISPLAY, post-create.sh will add it back in ~/.bashrc and ~/.zshrc if not set.
+		"DISPLAY": "",
+		"BUILDARCH": "arm64",
+		"TARGETARCH": "arm64",
+		"PLATFORM": "linux/arm64"
 	},
 	"overrideCommand": false,
 	"privileged": true,
@@ -25,7 +37,9 @@
 		"vscode": {
 			"settings": {
 				"resmon.show.battery": false,
-				"resmon.show.cpufreq": false
+				"resmon.show.cpufreq": false,
+				"extensions.ignoreRecommendations": false,
+				"telemetry.telemetryLevel": "off"
 			},
 			"extensions": [
 				"dbaeumer.vscode-eslint",
@@ -33,11 +47,13 @@
 				"GitHub.vscode-pull-request-github",
 				"ms-vscode.vscode-github-issue-notebooks",
 				"ms-vscode.vscode-selfhost-test-provider",
-				"mutantdino.resourcemonitor"
+				"mutantdino.resourcemonitor",
+				"ms-vscode-remote.remote-containers",
+				"ms-vscode.makefile-tools"
 			]
 		}
 	},
-	"forwardPorts": [6080, 5901],
+	"forwardPorts": [6080, 5901, 8000, 8080, 3000, 5000],
 	"portsAttributes": {
 		"6080": {
 			"label": "VNC web client (noVNC)",
@@ -46,9 +62,19 @@
 		"5901": {
 			"label": "VNC TCP port",
 			"onAutoForward": "silent"
+		},
+		"3000": {
+			"label": "Application",
+			"onAutoForward": "notify"
+		},
+		"8080": {
+			"label": "Web Server",
+			"onAutoForward": "notify"
 		}
 	},
 	"hostRequirements": {
-		"memory": "9gb"
-	}
+		"memory": "12gb",
+		"cpus": 4
+	},
+	"remoteUser": "node"
 }
