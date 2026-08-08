@@ -24,6 +24,7 @@ import { SnippetsResource, SnippetsResourceTreeItem } from './snippetsResource.j
 import { TasksResource, TasksResourceTreeItem } from './tasksResource.js';
 import { ExtensionsResource, ExtensionsResourceExportTreeItem, ExtensionsResourceTreeItem } from './extensionsResource.js';
 import { GlobalStateResource, GlobalStateResourceExportTreeItem, GlobalStateResourceTreeItem } from './globalStateResource.js';
+import { McpProfileResource, McpResourceTreeItem } from './mcpProfileResource.js';
 import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -50,6 +51,7 @@ interface IUserDataProfileTemplate {
 	readonly snippets?: string;
 	readonly globalState?: string;
 	readonly extensions?: string;
+	readonly mcp?: string;
 }
 
 function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
@@ -59,8 +61,12 @@ function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTem
 		&& (candidate.name && typeof candidate.name === 'string')
 		&& (isUndefined(candidate.icon) || typeof candidate.icon === 'string')
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
+		&& (isUndefined(candidate.keybindings) || typeof candidate.keybindings === 'string')
+		&& (isUndefined(candidate.tasks) || typeof candidate.tasks === 'string')
+		&& (isUndefined(candidate.snippets) || typeof candidate.snippets === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
-		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string'));
+		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string')
+		&& (isUndefined(candidate.mcp) || typeof candidate.mcp === 'string'));
 }
 
 export class UserDataProfileImportExportService extends Disposable implements IUserDataProfileImportExportService {
@@ -206,9 +212,16 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (profileTemplate.globalState && !profile.useDefaultFlags?.globalState) {
+		if (profileTemplate.globalState && (options.resourceTypeFlags?.globalState ?? true) && !profile.useDefaultFlags?.globalState) {
 			reportProgress(localize('applying global state', "Applying UI State..."));
 			await this.instantiationService.createInstance(GlobalStateResource).apply(profileTemplate.globalState, profile);
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (profileTemplate.mcp && (options.resourceTypeFlags?.mcp ?? true) && !profile.useDefaultFlags?.mcp) {
+			reportProgress(localize('creating mcp', "Creating MCP Servers..."));
+			await this.instantiationService.createInstance(McpProfileResource).apply(profileTemplate.mcp, profile);
 		}
 		if (token.isCancellationRequested) {
 			return;
@@ -362,6 +375,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			profileTemplate.globalState = undefined;
 		}
 
+		if (options?.resourceTypeFlags?.mcp === false) {
+			profileTemplate.mcp = undefined;
+		}
+
 		if (options?.resourceTypeFlags?.extensions === false) {
 			profileTemplate.extensions = undefined;
 		}
@@ -394,6 +411,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		if (profileTemplate.globalState && !profile.useDefaultFlags?.globalState) {
 			progress(localize('progress global state', "Applying State..."));
 			await this.instantiationService.createInstance(GlobalStateResource).apply(profileTemplate.globalState, profile);
+		}
+		if (profileTemplate.mcp && !profile.useDefaultFlags?.mcp) {
+			progress(localize('progress mcp', "Applying MCP Servers..."));
+			await this.instantiationService.createInstance(McpProfileResource).apply(profileTemplate.mcp, profile);
 		}
 		if (profileTemplate.extensions && extensions && !profile.useDefaultFlags?.extensions) {
 			progress(localize('progress extensions', "Applying Extensions..."));
@@ -614,6 +635,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		let snippets: string | undefined;
 		let extensions: string | undefined;
 		let globalState: string | undefined;
+		let mcp: string | undefined;
 		for (const root of roots) {
 			if (!this.isSelected(root)) {
 				continue;
@@ -630,6 +652,8 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 				extensions = await root.getContent();
 			} else if (root instanceof GlobalStateResourceTreeItem) {
 				globalState = await root.getContent();
+			} else if (root instanceof McpResourceTreeItem) {
+				mcp = await root.getContent();
 			}
 		}
 
@@ -641,7 +665,8 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			tasks,
 			snippets,
 			extensions,
-			globalState
+			globalState,
+			mcp
 		};
 	}
 
@@ -714,6 +739,16 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			const tasksResourceTreeItem = this.instantiationService.createInstance(TasksResourceTreeItem, exportPreviewProfle);
 			if (await tasksResourceTreeItem.hasContent()) {
 				roots.push(tasksResourceTreeItem);
+			}
+		}
+
+		if (this.exportFlags?.mcp ?? true) {
+			const mcpResource = this.instantiationService.createInstance(McpProfileResource);
+			const mcpContent = await mcpResource.getContent(this.profile);
+			await mcpResource.apply(mcpContent, exportPreviewProfle);
+			const mcpResourceTreeItem = this.instantiationService.createInstance(McpResourceTreeItem, exportPreviewProfle);
+			if (await mcpResourceTreeItem.hasContent()) {
+				roots.push(mcpResourceTreeItem);
 			}
 		}
 
