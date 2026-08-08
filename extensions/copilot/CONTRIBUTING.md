@@ -392,7 +392,7 @@ Object.assign(product, {
 					'name': 'Apple'
 				}
 			},
-			'providerUriSetting': 'github-enterprise.uri',
+			'providerUriSetting': 'github.copilot.enterprise.uri',
 			'providerScopes': [
 				[
 					'user:email'
