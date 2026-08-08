@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, autorun } from '../../../../base/common/observable.js';
+import { IObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -130,6 +130,9 @@ export interface ISessionsService {
 	 */
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 
+	/** Whether the initial persisted visible-session restore has settled. */
+	readonly initialRestoreComplete: IObservable<boolean>;
+
 	/** Fires after a session's stickiness was toggled via {@link toggleSessionStickiness}. */
 	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent>;
 
@@ -179,7 +182,7 @@ export interface ISessionsService {
 	 *   that folder (via {@link ISessionsManagementService.createNewSession})
 	 *   and shows it as the active session, returning it as `result.session`.
 	 */
-	openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult>;
+	openNewSession(options?: IOpenNewSessionOptions, token?: CancellationToken): Promise<IOpenNewSessionResult>;
 
 	/**
 	 * Open a new **quick chat**: create a concrete workspace-less draft session
@@ -267,6 +270,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** The canonical active session — the visible active slot. */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
+	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
+	readonly initialRestoreComplete: IObservable<boolean> = this._initialRestoreComplete;
 
 	private readonly _isNewChatSessionContext: IContextKey<boolean>;
 
@@ -706,6 +711,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
+
 		this._activate(sessionData, options?.preserveFocus);
 		if (!await this._waitForSessionToLoad(sessionData, token)) {
 			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionResource.toString()}`);
@@ -720,7 +726,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(undefined);
 	}
 
-	async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+	async openNewSession(options?: IOpenNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<IOpenNewSessionResult> {
 		const folderUri = options?.folderUri;
 		if (folderUri) {
 			// Single trust gate for every path that creates a concrete session for
@@ -736,11 +742,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 					uri: folderUri,
 					message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 				});
+				if (token.isCancellationRequested) {
+					return { session: undefined, trustDeclined: false };
+				}
 				if (!trusted) {
 					return { session: undefined, trustDeclined: true };
 				}
 			}
 
+			if (token.isCancellationRequested) {
+				return { session: undefined, trustDeclined: false };
+			}
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
@@ -1096,6 +1108,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async restoreVisibleSessions(): Promise<void> {
+		try {
+			await this._restoreVisibleSessions();
+		} finally {
+			this._initialRestoreComplete.set(true, undefined);
+		}
+	}
+
+	private async _restoreVisibleSessions(): Promise<void> {
 		// Ordered list of slots to restore: real sessions plus, optionally, the
 		// empty (new-session) slot when it was active.
 		interface IRestoreTarget {

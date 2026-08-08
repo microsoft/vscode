@@ -6,15 +6,16 @@
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
+import { IVoiceAttachmentResult, IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 
 /**
@@ -96,6 +97,42 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 				return activeChat.toString();
 			}
 			return this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource?.toString();
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
+			const composer = this._activeComposerTarget();
+			const widget = composer ? undefined : this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			const models = composer?.getVoiceModels() ?? widget?.inputPart.availableLanguageModels;
+			if (!models) {
+				return { ok: false, reason: 'no_input' };
+			}
+			const resolved = resolveVoiceModel(models, requestedModel);
+			if (!resolved.ok || !resolved.identifier) {
+				return resolved;
+			}
+			const selected = composer
+				? composer.selectVoiceModel(resolved.identifier)
+				: widget!.inputPart.switchModelByIdentifier(resolved.identifier, true, true);
+			return selected ? resolved : { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.attachFiles', async (_accessor, resourceStrings: readonly string[]): Promise<IVoiceAttachmentResult> => {
+			const composer = this._activeComposerTarget();
+			const widget = composer ? undefined : this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			if (!composer && !widget) {
+				return { ok: false, reason: 'no_input' };
+			}
+			try {
+				const resources = resourceStrings.map(resource => URI.parse(resource));
+				if (composer) {
+					composer.attach(resources);
+				} else {
+					await Promise.all(resources.map(resource => widget!.attachmentModel.addFile(resource)));
+				}
+				return { ok: true, attached: resources.map(resource => basename(resource)) };
+			} catch {
+				return { ok: false, reason: 'attachment_failed' };
+			}
 		}));
 
 		// Reveal the session that owns the given chat resource.
@@ -213,12 +250,28 @@ class SessionsVoiceActiveSessionContribution extends Disposable implements IWork
 	) {
 		super();
 
+		let voiceDraftSession: IActiveSession | undefined;
 		this._register(autorun(reader => {
 			const active = this.sessionsService.activeSession.read(reader);
-			const resource = active?.isCreated.read(reader)
-				? active.activeChat.read(reader)?.resource
-				: undefined;
-			this.voiceSessionController.setActiveSessionShown(resource);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			if (!hasDraftTarget) {
+				voiceDraftSession = undefined;
+			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
+				voiceDraftSession = active;
+			}
+			if (voiceDraftSession?.isCreated.read(reader)) {
+				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.activeChat.read(reader).resource);
+				voiceDraftSession = undefined;
+			}
+			if (!active) {
+				this.voiceSessionController.setActiveSessionShown(undefined);
+				return;
+			}
+			if (!active.isCreated.read(reader)) {
+				this.voiceSessionController.setActiveSessionShown(null);
+				return;
+			}
+			this.voiceSessionController.setActiveSessionShown(active.activeChat.read(reader)?.resource);
 		}));
 	}
 }

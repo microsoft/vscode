@@ -12,6 +12,7 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -21,7 +22,7 @@ import { dirname } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -29,7 +30,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
@@ -50,7 +53,7 @@ import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from 
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { getInstalledPluginContextMenuActions, InstallPluginAction, OpenPluginReadmeAction } from './agentPluginActions.js';
-import { InstalledAgentPluginsViewId, HasInstalledAgentPluginsContext } from './chat.js';
+import { ForceUpdateAgentPluginsCommandId, HasInstalledAgentPluginsContext, InstalledAgentPluginsViewId, RefreshAgentPluginMarketplacesCommandId, UpdateAgentPluginsCommandId, UpdatingAgentPluginsContext } from './chat.js';
 
 //#region Item model
 
@@ -556,6 +559,39 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 //#region Browse command
 
+let updatingPluginsContextKey: IContextKey<boolean> | undefined;
+let updatePluginsPromise: Promise<void> | undefined;
+
+function updatePlugins(accessor: ServicesAccessor, force: boolean): Promise<void> {
+	if (updatePluginsPromise) {
+		return updatePluginsPromise;
+	}
+
+	// Services must be resolved synchronously — the accessor is invalidated as
+	// soon as the command handler returns, so a lookup after the `await` below
+	// would throw instead of showing the notification.
+	const pluginInstallService = accessor.get(IPluginInstallService);
+	const notificationService = accessor.get(INotificationService);
+
+	updatingPluginsContextKey?.set(true);
+	updatePluginsPromise = (async () => {
+		try {
+			const result = await pluginInstallService.updateAllPlugins({ force }, CancellationToken.None);
+			if (result.updatedNames.length === 0 && result.failedNames.length === 0) {
+				notificationService.info(localize('agentPlugins.upToDate', "Plugins are up to date."));
+			}
+		} catch (error) {
+			notificationService.error(localize('agentPlugins.updateFailed', "Failed to update plugins: {0}", getErrorMessage(error)));
+			throw error;
+		} finally {
+			updatePluginsPromise = undefined;
+			updatingPluginsContextKey?.set(false);
+		}
+	})();
+
+	return updatePluginsPromise;
+}
+
 class AgentPluginsBrowseCommand extends Action2 {
 	constructor() {
 		super({
@@ -585,32 +621,104 @@ class AgentPluginsBrowseCommand extends Action2 {
 class CheckForPluginUpdatesCommand extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.agentPlugins.checkForUpdates',
+			id: UpdateAgentPluginsCommandId,
 			title: localize2('agentPlugins.checkForUpdates', "Update Plugins"),
 			category: localize2('chat.category', "Chat"),
-			precondition: ChatContextKeys.enabled,
+			icon: Codicon.refresh,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, UpdatingAgentPluginsContext.negate()),
 			f1: true,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', InstalledAgentPluginsViewId),
+					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
+				),
+				group: 'navigation',
+				order: 1,
+				alt: {
+					id: ForceUpdateAgentPluginsCommandId,
+					title: localize2('agentPlugins.forceUpdate', "Update Plugins (Force)"),
+					icon: Codicon.refresh,
+				},
+			}],
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		await accessor.get(IPluginInstallService).updateAllPlugins({}, CancellationToken.None);
+		await updatePlugins(accessor, false);
 	}
 }
 
 class ForceUpdatePluginsCommand extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.agentPlugins.forceUpdate',
+			id: ForceUpdateAgentPluginsCommandId,
 			title: localize2('agentPlugins.forceUpdate', "Update Plugins (Force)"),
 			category: localize2('chat.category', "Chat"),
+			icon: Codicon.refresh,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, UpdatingAgentPluginsContext.negate()),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		await updatePlugins(accessor, true);
+	}
+}
+
+class RefreshPluginMarketplacesCommand extends Action2 {
+	constructor() {
+		super({
+			id: RefreshAgentPluginMarketplacesCommandId,
+			title: localize2('agentPlugins.refreshMarketplaces', "Refresh Plugin Marketplaces"),
+			category: localize2('chat.category', "Chat"),
+			icon: Codicon.refresh,
 			precondition: ChatContextKeys.enabled,
 			f1: true,
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		await accessor.get(IPluginInstallService).updateAllPlugins({ force: true }, CancellationToken.None);
+		// Services must be resolved synchronously — the accessor is invalidated
+		// as soon as this method returns its promise.
+		const marketplaceService = accessor.get(IPluginMarketplaceService);
+		const notificationService = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
+
+		const cts = new CancellationTokenSource();
+		const failedLabels: string[] = [];
+		try {
+			await progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title: localize('agentPlugins.refreshingMarketplaces', "Refreshing plugin marketplaces..."),
+					cancellable: true,
+				},
+				() => marketplaceService.fetchMarketplacePlugins(cts.token, undefined, {
+					refresh: true,
+					onMarketplaceError: reference => failedLabels.push(reference.displayLabel),
+				}),
+				() => cts.dispose(true),
+			);
+
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			// Individual marketplace failures don't reject the fetch, so report
+			// them explicitly rather than claiming an unqualified success.
+			if (failedLabels.length > 0) {
+				notificationService.warn(localize('agentPlugins.marketplacesRefreshedWithErrors', "Refreshed plugin marketplaces, but {0} could not be read: {1}", failedLabels.length, failedLabels.join(', ')));
+			} else {
+				notificationService.info(localize('agentPlugins.marketplacesRefreshed', "Plugin marketplaces refreshed."));
+			}
+		} catch (error) {
+			notificationService.error(localize('agentPlugins.refreshMarketplacesFailed', "Failed to refresh plugin marketplaces: {0}", getErrorMessage(error)));
+			throw error;
+		} finally {
+			cts.dispose();
+		}
 	}
 }
 
@@ -628,6 +736,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 		super();
 
 		const hasInstalledKey = HasInstalledAgentPluginsContext.bindTo(contextKeyService);
+		updatingPluginsContextKey = UpdatingAgentPluginsContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			hasInstalledKey.set(agentPluginService.plugins.read(reader).length > 0);
 		}));
@@ -635,6 +744,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 		registerAction2(AgentPluginsBrowseCommand);
 		registerAction2(CheckForPluginUpdatesCommand);
 		registerAction2(ForceUpdatePluginsCommand);
+		registerAction2(RefreshPluginMarketplacesCommand);
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 			{

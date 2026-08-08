@@ -127,6 +127,8 @@ class MockTASExperimentationService implements ITASExperimentationService {
 		this.refreshCallCount = 0;
 		this.treatmentRequests = [];
 	}
+
+	dispose(): void { }
 }
 
 describe('ExP Service Tests', () => {

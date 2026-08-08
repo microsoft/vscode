@@ -15,6 +15,7 @@ import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from './promptTemplatePlaceholder.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -30,6 +31,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
+		content.push(localize('sessionsChat.promptTemplatePlaceholder', "When the new-session prompt contains a highlighted task placeholder, place the caret inside it and replace it{0} to type your task.", `<keybinding:${REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.feedbackComments', "When feedback comments are available for a new session, a comments banner appears above the input. You can send the comments without typing a message, or focus the Reveal button to open the first comment in its editor."));
 		content.push(localize('sessionsChat.inputBackground', "Press Alt+Enter to start the session in the background without navigating into it. The started session appears in the Chat Sessions view."));
 		content.push(localize('sessionsChat.workspace', "Shift+Tab to navigate to the workspace picker and choose a workspace for your session."));

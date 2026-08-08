@@ -12,6 +12,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import type { IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentHostByokLmHandler } from '../../../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -54,6 +58,16 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 	}
 }
 
+class TestChatEntitlementService extends mock<IChatEntitlementService>() {
+	constructor(private readonly _contextKeyService: IContextKeyService) {
+		super();
+	}
+
+	override get clientByokEnabled(): boolean {
+		return this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key) === true;
+	}
+}
+
 function byokModel(vendor: string, id: string, capabilities?: ILanguageModelChatMetadata['capabilities']): ILanguageModelChatMetadata {
 	return {
 		extension: new ExtensionIdentifier('test.byok'),
@@ -85,9 +99,54 @@ suite('AgentHostByokLmHandler', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
-		return store.add(new AgentHostByokLmHandler(service, new NullLogService()));
+	function createPolicyContext(enabled: boolean): { contextKeyService: IContextKeyService; clientByokEnabled: IContextKey<boolean> } {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const clientByokEnabled = ChatEntitlementContextKeys.clientByokEnabled.bindTo(contextKeyService);
+		clientByokEnabled.set(enabled);
+		return { contextKeyService, clientByokEnabled };
 	}
+
+	function createHandler(service: ILanguageModelsService): AgentHostByokLmHandler {
+		const { contextKeyService } = createPolicyContext(true);
+		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+	}
+
+	test('updates model discovery and blocks requests when BYOK policy changes', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme', byokModel('acme', 'claude')]]),
+			() => responseOf([]),
+		);
+		const { contextKeyService, clientByokEnabled } = createPolicyContext(true);
+		const handler = store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
+		let modelChangeCount = 0;
+		store.add(handler.onDidChangeModels(() => modelChangeCount++));
+
+		clientByokEnabled.set(false);
+		const disabledModels = await handler.listModels(CancellationToken.None);
+		const disabledResult = await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [],
+		}, CancellationToken.None);
+		clientByokEnabled.set(true);
+		const enabledModels = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			modelChangeCount,
+			disabledModels,
+			disabledResult,
+			enabledModels,
+			requestSent: service.captured !== undefined,
+		}, {
+			modelChangeCount: 2,
+			disabledModels: [],
+			disabledResult: { output: [], error: 'BYOK models are disabled by policy.' },
+			enabledModels: [
+				{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 2000, supportsVision: false },
+			],
+			requestSent: false,
+		});
+	});
 
 	test('listModels enumerates renderer BYOK models and excludes agent-host copies', async () => {
 		const service = new TestLanguageModelsService(
@@ -127,6 +186,77 @@ suite('AgentHostByokLmHandler', () => {
 			{ vendor: 'openrouter', id: 'ai21/jamba-large-1.7', name: 'openrouter ai21/jamba-large-1.7', modelIdentifier: groupedId, maxContextWindowTokens: 2000, supportsVision: false },
 			{ vendor: 'openrouter', id: 'gpt-4', name: 'openrouter gpt-4', modelIdentifier: 'openrouter/gpt-4', maxContextWindowTokens: 2000, supportsVision: false },
 		]);
+	});
+
+	test('listModels carries string reasoning effort metadata from renderer BYOK schemas', async () => {
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([
+				['id-reasoning', {
+					...byokModel('acme', 'reasoning'),
+					configurationSchema: {
+						properties: {
+							reasoningEffort: {
+								type: 'string',
+								enum: ['minimal', 'low', 1, 'high'],
+								default: 'high',
+							},
+						},
+					},
+				}],
+				['id-malformed', {
+					...byokModel('acme', 'malformed'),
+					configurationSchema: {
+						properties: {
+							reasoningEffort: {
+								type: 'string',
+								enum: [1, false],
+								default: 1,
+							},
+						},
+					},
+				}],
+				['id-plain', byokModel('acme', 'plain')],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		const models = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual(models, [
+			{
+				vendor: 'acme',
+				id: 'reasoning',
+				name: 'acme reasoning',
+				modelIdentifier: 'id-reasoning',
+				maxContextWindowTokens: 2000,
+				supportsVision: false,
+				supportedReasoningEfforts: ['minimal', 'low', 'high'],
+				defaultReasoningEffort: 'high',
+			},
+			{ vendor: 'acme', id: 'malformed', name: 'acme malformed', modelIdentifier: 'id-malformed', maxContextWindowTokens: 2000, supportsVision: false },
+			{ vendor: 'acme', id: 'plain', name: 'acme plain', modelIdentifier: 'id-plain', maxContextWindowTokens: 2000, supportsVision: false },
+		]);
+	});
+
+	test('chat resolves the configured provider group when models share a vendor and id', async () => {
+		const workIdentifier = 'google/Gemini Work/gemini-2.5-pro';
+		const service = new TestLanguageModelsService(
+			new Map([
+				['google/Gemini Personal/gemini-2.5-pro', byokModel('google', 'gemini-2.5-pro')],
+				[workIdentifier, byokModel('google', 'gemini-2.5-pro')],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat({
+			vendor: 'google',
+			modelId: 'Gemini Work/gemini-2.5-pro',
+			input: [],
+		}, CancellationToken.None);
+
+		assert.strictEqual(service.captured?.modelId, workIdentifier);
 	});
 
 	test('buffers ordered thinking, text, tool calls, continuation and usage', async () => {
@@ -200,7 +330,14 @@ suite('AgentHostByokLmHandler', () => {
 					{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
 					{ type: 'function_call_output', callId: 't1', output: 'sunny' },
 					{ type: 'custom_tool_call_output', callId: 't2', output: 'Done!' },
-					{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] },
+					{
+						type: 'message',
+						role: 'user',
+						content: [
+							{ type: 'text', text: 'hi' },
+							{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' },
+						],
+					},
 				],
 			},
 			CancellationToken.None,
@@ -229,7 +366,13 @@ suite('AgentHostByokLmHandler', () => {
 				},
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't2', value: [{ type: 'text', value: 'Done!' }] }] },
-				{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },
+				{
+					role: ChatMessageRole.User,
+					content: [
+						{ type: 'text', value: 'hi' },
+						{ type: 'image_url', value: { mimeType: 'image/png', data: VSBuffer.fromString('image') } },
+					],
+				},
 			],
 			options: {
 				modelOptions: { temperature: 0.5 },
