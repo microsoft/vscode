@@ -369,7 +369,7 @@ export class ConfigurationModelParser {
 			if (Array.isArray(currentParent)) {
 				currentParent.push(value);
 			} else if (currentProperty !== null) {
-				currentParent[currentProperty] = value;
+				json.setObjectProperty(currentParent as Record<string, unknown>, currentProperty, value);
 			}
 		}
 
