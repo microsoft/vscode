@@ -501,11 +501,14 @@ export class PromptFilesLocator {
 		const configuredLocations = this.getPromptSourceFolders(type);
 		const defaultFolders = this.getDefaultSourceFolders(type);
 
-		// Merge default folders with configured locations, avoiding duplicates
-		const allFolders = [
-			...defaultFolders,
-			...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))
-		];
+		// When the locations setting is configured, `getPromptSourceFolders()`
+		// already returns the enabled defaults plus any custom locations and
+		// omits explicitly disabled defaults; use it directly so a disabled
+		// default (e.g. "chat.agentSkillsLocations": { ".github/skills": false })
+		// does not reappear. Only fall back to the raw defaults when the setting
+		// is unset (in which case `getPromptSourceFolders()` returns an empty list).
+		const isConfigured = PromptsConfig.getLocationsValue(this.configService, type) !== undefined;
+		const allFolders = isConfigured ? configuredLocations : defaultFolders;
 
 		const absoluteLocations = await this.toAbsoluteLocations(type, allFolders, defaultFolders);
 		if (type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt) {

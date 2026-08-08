@@ -5,20 +5,21 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
+import { PromptSectionTokenCounts } from '../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, isRejectedEditMemoryEnabled, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
-import { IXtabHistoryEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ContextKind, TraitContext } from '../../../platform/languageServer/common/languageContextService';
 import { Result } from '../../../util/common/result';
 import { range } from '../../../util/vs/base/common/arrays';
 import { assertNever, softAssert } from '../../../util/vs/base/common/assert';
 import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
-import { getEditDiffHistory } from './diffHistoryForPrompt';
+import { getEditDiffHistory, REJECTED_EDIT_TAG } from './diffHistoryForPrompt';
 import { LintErrors } from './lintErrors';
 import { countTokensForLines, toUniquePath } from './promptCraftingUtils';
-import { appendLanguageContextSnippets, appendNeighborFileSnippets, AppendNeighborFileSnippetsResult, buildCodeSnippetsUsingPagedClipping, getRecentCodeSnippets, prepareRecentCodeSnippets } from './recentFilesForPrompt';
+import { appendLanguageContextSnippets, appendNeighborFileSnippets, AppendNeighborFileSnippetsResult, buildCodeSnippetsUsingPagedClipping, getRecentCodeSnippets, prepareRecentCodeSnippets, RecentlyViewedSubsectionSnippets } from './recentFilesForPrompt';
 import { INeighborFileSnippet } from './similarFilesContextService';
 import { PromptTags } from './tags';
 import { CurrentDocument } from './xtabCurrentDocument';
@@ -37,6 +38,7 @@ export class PromptPieces {
 		public readonly lintErrors: LintErrors,
 		public readonly computeTokens: (s: string) => number,
 		public readonly opts: PromptOptions,
+		public readonly rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
 		public readonly neighborSnippets?: readonly INeighborFileSnippet[],
 		/**
 		 * A cascade result computed by the caller (the provider, which runs the
@@ -54,8 +56,13 @@ export class PromptPieces {
 export interface UserPromptResult {
 	readonly prompt: string;
 	readonly nDiffsInPrompt: number;
-	readonly diffTokensInPrompt: number;
 	readonly neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
+	/**
+	 * Approximate per-section token counts for the user prompt. `systemPrompt` is
+	 * left at 0 here (the system message is not part of the user prompt) and is
+	 * filled in by the provider.
+	 */
+	readonly sectionTokens: PromptSectionTokenCounts;
 }
 
 export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
@@ -64,59 +71,65 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 	const currentFileContent = taggedCurrentDocLines.join('\n');
 
 	let recentlyViewedCodeSnippets: string;
+	let recentlyViewedSubsections: RecentlyViewedSubsectionSnippets;
 	let docsInPrompt: Set<DocumentId>;
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	let editDiffHistory: string;
 	let nDiffsInPrompt: number;
-	let diffTokensInPrompt: number;
+	const rejectedEditMemoryEnabled = isRejectedEditMemoryEnabled(opts);
+	const rejectedEditHistory = rejectedEditMemoryEnabled ? promptPieces.rejectedEditHistory : [];
 
 	if (opts.globalBudget !== undefined) {
 		// Reuse a cascade the caller already ran (the provider runs it first so it can
 		// clip the current file last from `finalSurplus`), or run it now for callers
 		// that set a global budget without precomputing (e.g. tests).
-		const cascade = precomputedCascade ?? runGlobalBudgetCascade(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets, opts.globalBudget);
+		const cascade = precomputedCascade ?? runGlobalBudgetCascade(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets, opts.globalBudget, rejectedEditHistory);
 		recentlyViewedCodeSnippets = cascade.codeSnippets;
+		recentlyViewedSubsections = cascade.subsections;
 		docsInPrompt = cascade.documents;
 		neighborSnippetsResult = cascade.neighborSnippetsResult;
 		editDiffHistory = cascade.editDiffHistory;
 		nDiffsInPrompt = cascade.nDiffsInPrompt;
-		diffTokensInPrompt = cascade.diffTokensInPrompt;
 	} else {
 		const r = getRecentCodeSnippets(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets);
 		recentlyViewedCodeSnippets = r.codeSnippets;
+		recentlyViewedSubsections = r.subsections;
 		docsInPrompt = r.documents;
 		neighborSnippetsResult = r.neighborSnippetsResult;
 
 		docsInPrompt.add(activeDoc.id); // Add active document to the set of documents in prompt
 
-		const diff = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory);
+		const diff = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory, rejectedEditHistory);
 		editDiffHistory = diff.promptPiece;
 		nDiffsInPrompt = diff.nDiffs;
-		diffTokensInPrompt = diff.totalTokens;
 	}
 
 	const relatedInformation = getRelatedInformation(langCtx);
 
 	const currentFilePath = toUniquePath(activeDoc.id, activeDoc.workspaceRoot?.path);
 
-	const postScript = promptPieces.opts.includePostScript ? getPostScript(opts.promptingStrategy, currentFilePath, aggressivenessLevel) : '';
+	const postScript = promptPieces.opts.includePostScript ? getPostScript(opts, currentFilePath, aggressivenessLevel) : '';
+	const rejectedEditMemoryInstruction = rejectedEditMemoryEnabled
+		? `\n\nEdit history hunks whose header ends with \`${REJECTED_EDIT_TAG}\` are previous suggestions the developer rejected; avoid repeating them unless later context makes them clearly appropriate.`
+		: '';
+	const promptSuffix = postScript + rejectedEditMemoryInstruction;
 
 	const lintsWithNewLinePadding = opts.lintOptions ? `\n${lintErrors.getFormattedLintErrors(opts.lintOptions)}\n` : '';
 
-	const basePrompt = `${PromptTags.RECENT_FILES.start}
-${recentlyViewedCodeSnippets}
-${PromptTags.RECENT_FILES.end}
+	// Build each rendered section string exactly once and assemble `basePrompt`
+	// from those same locals, so the per-section token counts below are derived
+	// from the identical text that goes into the prompt (single source of truth,
+	// no rebuild and no drift). `areaAroundCodeToEdit`/`cursorLocation` are
+	// mutually exclusive and appended per-strategy below.
+	const recentFilesSection = `${PromptTags.RECENT_FILES.start}\n${recentlyViewedCodeSnippets}\n${PromptTags.RECENT_FILES.end}`;
+	const currentFileSection = `${PromptTags.CURRENT_FILE.start}\ncurrent_file_path: ${currentFilePath}\n${currentFileContent}\n${PromptTags.CURRENT_FILE.end}`;
+	const editHistorySection = `${PromptTags.EDIT_HISTORY.start}\n${editDiffHistory}\n${PromptTags.EDIT_HISTORY.end}`;
 
-${PromptTags.CURRENT_FILE.start}
-current_file_path: ${currentFilePath}
-${currentFileContent}
-${PromptTags.CURRENT_FILE.end}
-${lintsWithNewLinePadding}
-${PromptTags.EDIT_HISTORY.start}
-${editDiffHistory}
-${PromptTags.EDIT_HISTORY.end}`;
+	const basePrompt = `${recentFilesSection}\n\n${currentFileSection}\n${lintsWithNewLinePadding}\n${editHistorySection}`;
 
 	let mainPrompt: string;
+	let cursorLocationSection = '';
+	let areaAroundSection = '';
 	switch (opts.promptingStrategy) {
 		case PromptingStrategy.PatchBased01:
 			mainPrompt = basePrompt;
@@ -147,10 +160,12 @@ ${PromptTags.EDIT_HISTORY.end}`;
 				`${lineNumbering}${cursorLineWithTag}`,
 				PromptTags.CURSOR_LOCATION.end
 			].join('\n');
+			cursorLocationSection = lineWithCursorSnippet;
 			mainPrompt = basePrompt + `\n\n${lineWithCursorSnippet}`;
 			break;
 		}
 		default:
+			areaAroundSection = areaAroundCodeToEdit;
 			mainPrompt = basePrompt + `\n\n${areaAroundCodeToEdit}`;
 			break;
 	}
@@ -164,11 +179,40 @@ ${PromptTags.EDIT_HISTORY.end}`;
 
 	const packagedPrompt = includeBackticks ? wrapInBackticks(mainPrompt) : mainPrompt;
 	const packagedPromptWithRelatedInfo = addRelatedInformation(relatedInformation, packagedPrompt, opts.languageContext.traitPosition);
-	const prompt = packagedPromptWithRelatedInfo + postScript;
+	const prompt = packagedPromptWithRelatedInfo + promptSuffix;
 
 	const trimmedPrompt = prompt.trim();
 
-	return { prompt: trimmedPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult };
+	const recentlyViewedTokens = computeTokens(recentFilesSection);
+	const currentFileTokens = computeTokens(currentFileSection);
+	const lintErrorsTokens = computeTokens(lintsWithNewLinePadding);
+	const editHistoryTokens = computeTokens(editHistorySection);
+	const areaAroundCodeToEditTokens = computeTokens(areaAroundSection);
+	const cursorLocationTokens = computeTokens(cursorLocationSection);
+	const relatedInformationTokens = computeTokens(relatedInformation);
+	const postScriptTokens = computeTokens(promptSuffix);
+	const userPromptTotalTokens = computeTokens(trimmedPrompt);
+	const sectionsSum = recentlyViewedTokens + currentFileTokens + lintErrorsTokens + editHistoryTokens + areaAroundCodeToEditTokens + cursorLocationTokens + relatedInformationTokens + postScriptTokens;
+	const sectionTokens: PromptSectionTokenCounts = {
+		recentlyViewed: recentlyViewedTokens,
+		currentFile: currentFileTokens,
+		lintErrors: lintErrorsTokens,
+		editHistory: editHistoryTokens,
+		areaAroundCodeToEdit: areaAroundCodeToEditTokens,
+		cursorLocation: cursorLocationTokens,
+		relatedInformation: relatedInformationTokens,
+		postScript: postScriptTokens,
+		overhead: userPromptTotalTokens - sectionsSum,
+		userPromptTotal: userPromptTotalTokens,
+		systemPrompt: 0,
+		recentlyViewedSubsections: {
+			recentlyViewedFiles: computeTokens(recentlyViewedSubsections.recentlyViewedFiles),
+			languageContext: computeTokens(recentlyViewedSubsections.languageContext),
+			neighborFiles: computeTokens(recentlyViewedSubsections.neighborFiles),
+		},
+	};
+
+	return { prompt: trimmedPrompt, nDiffsInPrompt, neighborSnippetsResult, sectionTokens };
 }
 
 export interface CascadeResult {
@@ -177,7 +221,8 @@ export interface CascadeResult {
 	readonly neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	readonly editDiffHistory: string;
 	readonly nDiffsInPrompt: number;
-	readonly diffTokensInPrompt: number;
+	/** Per-source breakdown of {@link codeSnippets} for per-subsection token reporting. */
+	readonly subsections: RecentlyViewedSubsectionSnippets;
 	/**
 	 * Budget left unused after the last part in `order` ran. The provider adds it
 	 * to the current file's clip budget (`currentFileBudget + finalSurplus`) so the
@@ -214,6 +259,7 @@ export function runGlobalBudgetCascade(
 	opts: PromptOptions,
 	neighborSnippets: readonly INeighborFileSnippet[] | undefined,
 	globalBudget: GlobalBudgetOptions,
+	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
 ): CascadeResult {
 	GlobalBudgetOptions.validate(globalBudget);
 
@@ -226,7 +272,6 @@ export function runGlobalBudgetCascade(
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	let editDiffHistory = '';
 	let nDiffsInPrompt = 0;
-	let diffTokensInPrompt = 0;
 
 	const preparedRecent = prepareRecentCodeSnippets(activeDoc, xtabHistory, opts);
 
@@ -249,7 +294,7 @@ export function runGlobalBudgetCascade(
 			}
 			case 'languageContext': {
 				if (langCtx) {
-					tokensConsumed = appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+					tokensConsumed = appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens);
 				}
 				break;
 			}
@@ -262,10 +307,9 @@ export function runGlobalBudgetCascade(
 			}
 			case 'diffHistory': {
 				const overriddenDiff = { ...opts.diffHistory, maxTokens: budget };
-				const r = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, overriddenDiff);
+				const r = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, overriddenDiff, rejectedEditHistory);
 				editDiffHistory = r.promptPiece;
 				nDiffsInPrompt = r.nDiffs;
-				diffTokensInPrompt = r.totalTokens;
 				tokensConsumed = r.totalTokens;
 				break;
 			}
@@ -288,7 +332,11 @@ export function runGlobalBudgetCascade(
 		neighborSnippetsResult,
 		editDiffHistory,
 		nDiffsInPrompt,
-		diffTokensInPrompt,
+		subsections: {
+			recentlyViewedFiles: recentlyViewedSnippets.join('\n\n'),
+			languageContext: langCtxSnippets.join('\n\n'),
+			neighborFiles: neighborOutSnippets.join('\n\n'),
+		},
 		finalSurplus: surplus,
 	};
 }
@@ -319,15 +367,18 @@ function appendWithNewLineIfNeeded(base: string, toAppend: string, minNewLines: 
 	return (base + '\n'.repeat(newLinesToAdd) + toAppend).trim();
 }
 
-function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
+function getPostScript(opts: PromptOptions, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
+	const { promptingStrategy } = opts;
 	const xtab275BasePostScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.`;
 
 	let postScript: string | undefined;
-	switch (strategy) {
+	switch (promptingStrategy) {
 		case PromptingStrategy.PatchBased01:
 		case PromptingStrategy.Codexv21NesUnified:
 			break;
 		case PromptingStrategy.PatchBased02:
+			postScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
+			break;
 		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 			postScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
@@ -369,7 +420,7 @@ they would have made next. Provide the revised code that was between the \`${Pro
 \`\`\``;
 			break;
 		default:
-			assertNever(strategy);
+			assertNever(promptingStrategy);
 	}
 
 	const formattedPostScript = postScript === undefined ? '' : `\n\n${postScript}`;

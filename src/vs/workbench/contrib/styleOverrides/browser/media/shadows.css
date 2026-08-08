@@ -46,3 +46,7 @@
 .style-override.monaco-workbench:not(.hc-black):not(.hc-light) .terminal-resize-overlay {
 	box-shadow: var(--vscode-shadow-lg);
 }
+
+.style-override.monaco-workbench .monaco-diff-editor.side-by-side .editor.modified {
+	border-left: 1px solid var(--vscode-surface-border);
+}

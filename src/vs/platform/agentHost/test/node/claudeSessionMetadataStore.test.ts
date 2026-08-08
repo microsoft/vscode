@@ -63,6 +63,30 @@ suite('ClaudeSessionMetadataStore', () => {
 		});
 	});
 
+	test('write then read round-trips the working-directory set', async () => {
+		const store = createStore(disposables);
+
+		await store.write(SESSION_URI, {
+			workingDirectories: [URI.file('/a'), URI.file('/b'), URI.file('/c')],
+		});
+
+		const overlay = await store.read(SESSION_URI);
+
+		assert.deepStrictEqual(
+			overlay.workingDirectories?.map(d => d.toString()),
+			[URI.file('/a').toString(), URI.file('/b').toString(), URI.file('/c').toString()],
+		);
+	});
+
+	test('read returns undefined workingDirectories when none were persisted', async () => {
+		const store = createStore(disposables);
+
+		await store.write(SESSION_URI, { permissionMode: 'plan' });
+		const overlay = await store.read(SESSION_URI);
+
+		assert.strictEqual(overlay.workingDirectories, undefined);
+	});
+
 	test('write skips undefined fields (only-write-on-defined)', async () => {
 		const db = new TestSessionDatabase();
 		const store = createStore(disposables, createSessionDataService(db));
@@ -119,28 +143,24 @@ suite('ClaudeSessionMetadataStore', () => {
 		assert.deepStrictEqual(overlay.model, { id: 'm', config: { thinking: 'high' } });
 	});
 
-	test('project combines SDK info with overlay onto IAgentSessionMetadata', async () => {
+	test('project maps SDK info onto IAgentSessionMetadata', async () => {
 		const store = createStore(disposables);
 		const sdkInfo = makeSdkInfo({ sessionId: 'abc', summary: 'sdk-summary', customTitle: 'custom', cwd: '/repo' });
 
-		const projected = store.project(sdkInfo, {
-			customizationDirectory: URI.file('/custom'),
-		});
+		const projected = store.project(sdkInfo);
 
 		assert.deepStrictEqual({
 			session: projected.session.toString(),
 			startTime: projected.startTime,
 			modifiedTime: projected.modifiedTime,
 			summary: projected.summary,
-			workingDirectory: projected.workingDirectory?.toString(),
-			customizationDirectory: projected.customizationDirectory?.toString(),
+			workingDirectory: projected.workingDirectories?.[0]?.toString(),
 		}, {
 			session: 'claude:/abc',
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'custom',
 			workingDirectory: URI.file('/repo').toString(),
-			customizationDirectory: URI.file('/custom').toString(),
 		});
 	});
 
@@ -148,16 +168,14 @@ suite('ClaudeSessionMetadataStore', () => {
 		const store = createStore(disposables);
 		const sdkInfo = makeSdkInfo({ summary: 'fallback', customTitle: undefined, cwd: undefined });
 
-		const projected = store.project(sdkInfo, {});
+		const projected = store.project(sdkInfo);
 
 		assert.deepStrictEqual({
 			summary: projected.summary,
-			workingDirectory: projected.workingDirectory,
-			customizationDirectory: projected.customizationDirectory,
+			workingDirectory: projected.workingDirectories?.[0],
 		}, {
 			summary: 'fallback',
 			workingDirectory: undefined,
-			customizationDirectory: undefined,
 		});
 	});
 });

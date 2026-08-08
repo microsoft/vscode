@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SectionOverride, SystemMessageSection } from '@github/copilot-sdk';
-import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
+import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { agentHostPromptRegistry, type IAgentHostPrompt, type IAgentHostPromptContext } from './promptRegistry.js';
 import { COPILOT_AGENT_HOST_IDENTITY } from './systemMessage.js';
@@ -47,23 +47,15 @@ function opus48SectionOverrides(): Partial<Record<SystemMessageSection, SectionO
 	};
 }
 
-/**
- * Returns whether `model` is a Claude Opus 4.8 model. Mirrors the Copilot
- * extension's version-specific `isOpus47`, matching both the SDK dashed id
- * (`claude-opus-4-8`) and the CAPI dotted id (`claude-opus-4.8`).
- */
+/** Whether `model` is Claude Opus 4.8 — matches the SDK dashed id and the CAPI dotted id. */
 function isOpus48(model: ModelSelection): boolean {
 	return model.id.startsWith('claude-opus-4-8') || model.id.startsWith('claude-opus-4.8');
 }
 
 /**
- * Resolves the Opus 4.8 agent prompt for Claude Opus 4.8 Copilot SDK sessions.
- *
- * Mirrors the Copilot extension's version-specific opus resolver
- * (`Claude47OpusPrompt`, gated by `isOpus47` + a setting): it matches only Opus
- * 4.8 via {@link isOpus48}, and is opt-in via
- * {@link AgentHostConfigKey.Opus48Prompt}. When the setting is off it returns
- * `undefined` and the registry falls back to the default system message.
+ * Opus 4.8 agent prompt for Claude Opus 4.8 sessions: matches only Opus 4.8 and
+ * is opt-in via {@link CopilotCliConfigKey.Opus48Prompt}. Off → falls back to the
+ * default system message.
  */
 class Claude48OpusPromptResolver implements IAgentHostPrompt {
 	static readonly familyPrefixes: readonly string[] = [];
@@ -73,7 +65,7 @@ class Claude48OpusPromptResolver implements IAgentHostPrompt {
 	}
 
 	resolveSectionOverrides(_model: ModelSelection, context: IAgentHostPromptContext): Partial<Record<SystemMessageSection, SectionOverride>> | undefined {
-		return context.getSetting(AgentHostConfigKey.Opus48Prompt) === true ? opus48SectionOverrides() : undefined;
+		return context.getSetting(CopilotCliConfigKey.Opus48Prompt) === true ? opus48SectionOverrides() : undefined;
 	}
 }
 

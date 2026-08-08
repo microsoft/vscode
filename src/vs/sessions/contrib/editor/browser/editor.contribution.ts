@@ -3,22 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../../../workbench/contrib/styleOverrides/browser/media/tabs.css';
+import './media/editorBreadcrumbs.css';
+import './media/editorHeader.css';
+import './diffEditor.sessions.contribution.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { EditorMaximizedContext, SinglePaneDetailChangesOrFilesActiveContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, EditorMaximizedContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -37,22 +42,24 @@ import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
 // The pop-out-to-modal and close-editor-area buttons do not apply to the single-pane
-// redesign, so they are hidden when the setting is enabled (original layout keeps them).
-const singlePaneDetailPanel = ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true);
+// redesign, so they are hidden when single-pane is enabled (original layout keeps them).
+const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
 const notSinglePaneDetailPanel = singlePaneDetailPanel.negate();
 
 const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-const singlePaneEditorTitleMaximizeOrder = 1000000;
-const singlePaneEditorTitleHideEditorOrder = 999999;
+// Maximize/restore renders first in the editor-title layout cluster.
+// Hide/Show Editor follow immediately after. Toggle Details remains
+// alone in the trailing editor-header layout group.
+const singlePaneLayoutMaximizeOrder = 10;
+const singlePaneLayoutHideEditorOrder = 20;
 
 // Keybinding scope for the single-pane maximize/restore toggle: active in the
 // main sessions window whenever the single-pane layout is on and the editor
@@ -102,9 +109,9 @@ class MaximizeMainEditorPartAction extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.EditorTitle,
+					id: MenuId.EditorTitleLayout,
 					group: 'navigation',
-					order: singlePaneEditorTitleMaximizeOrder,
+					order: singlePaneLayoutMaximizeOrder,
 					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), singlePaneDetailPanel, MainEditorAreaVisibleContext)
 				},
 				{
@@ -156,9 +163,9 @@ class RestoreMainEditorPartAction extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.EditorTitle,
+					id: MenuId.EditorTitleLayout,
 					group: 'navigation',
-					order: singlePaneEditorTitleMaximizeOrder,
+					order: singlePaneLayoutMaximizeOrder,
 					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, singlePaneDetailPanel, MainEditorAreaVisibleContext)
 				},
 				{
@@ -194,18 +201,15 @@ class HideMainEditorPartAction extends Action2 {
 		super({
 			id: HideMainEditorPartAction.ID,
 			title: localize2('hideMainEditorPart', "Hide Editor"),
-			icon: Codicon.chevronRight,
+			icon: Codicon.rightPanelHide,
 			f1: false,
 			menu: {
-				id: MenuId.EditorTitle,
+				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: singlePaneEditorTitleHideEditorOrder,
+				order: singlePaneLayoutHideEditorOrder,
 				when: ContextKeyExpr.and(
 					editorTitleActionsWhen,
 					singlePaneDetailPanel,
-					EditorMaximizedContext.negate(),
-					AuxiliaryBarVisibleContext,
-					SinglePaneDetailChangesOrFilesActiveContext,
 					MainEditorAreaVisibleContext)
 			}
 		});
@@ -213,6 +217,8 @@ class HideMainEditorPartAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		// Reveal the detail panel before hiding the editor, so the pane never
+		// passes through fully empty.
 		layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 		layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		// Closing the editor area frees horizontal space, so bring the sessions
@@ -222,6 +228,41 @@ class HideMainEditorPartAction extends Action2 {
 }
 
 registerAction2(HideMainEditorPartAction);
+
+class ShowMainEditorPartAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.showMainEditorPart';
+
+	constructor() {
+		super({
+			id: ShowMainEditorPartAction.ID,
+			title: localize2('showMainEditorPart', "Show Editor"),
+			icon: Codicon.rightPanelShow,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitleLayout,
+				group: 'navigation',
+				order: singlePaneLayoutHideEditorOrder,
+				when: ContextKeyExpr.and(
+					editorTitleActionsWhen,
+					singlePaneDetailPanel,
+					MainEditorAreaVisibleContext.toNegated())
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		// A deliberate user action, so reveal the editor area explicitly (like the
+		// session-header Changes pill) rather than a plain part-visibility toggle:
+		// this records the reveal as intentional so the automatic single-pane hide
+		// rules do not undo it.
+		layoutService.revealEditorPartExplicitly();
+		editorGroupsService.activeGroup.focus();
+	}
+}
+
+registerAction2(ShowMainEditorPartAction);
 
 class CloseMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.closeMainEditorPart';
@@ -328,6 +369,8 @@ class OpenModalEditorInEditorAction extends Action2 {
 			title: localize2('openModalEditorInEditor', "Open in Editor Area"),
 			icon: Codicon.openInWindow,
 			f1: false,
+			// The editor area is not rendered while a custom view replaces the sessions grid.
+			precondition: CustomViewVisibleContext.negate(),
 			menu: {
 				id: MenuId.ModalEditorTitle,
 				group: 'navigation',
@@ -410,12 +453,17 @@ class AddFileAsContextAction extends Action2 {
 			icon: Codicon.attach,
 			f1: true,
 			precondition,
-			menu: {
+			menu: [{
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'navigation',
+				order: 100000,
+				when: ContextKeyExpr.and(precondition, singlePaneDetailPanel)
+			}, {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
 				order: 100000, // towards the far right, mirroring Split Editor Right in the regular window
-				when: precondition
-			}
+				when: ContextKeyExpr.and(precondition, notSinglePaneDetailPanel)
+			}]
 		});
 	}
 
@@ -439,3 +487,56 @@ class AddFileAsContextAction extends Action2 {
 }
 
 registerAction2(AddFileAsContextAction);
+
+/**
+ * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorHeaderSecondary}
+ * so they are not lost in the single-pane layout. See `LAYOUT.md` for details.
+ */
+export class EditorTitleMenuBridgeContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.editorTitleMenuBridge';
+
+	// Extension submenus are registered with a `MenuId.for('api:<id>')` id (see the
+	// `submenus` extension point), which distinguishes them from core submenus.
+	private static readonly _extensionSubmenuPrefix = 'api:';
+
+	private readonly _mirrored = this._register(new DisposableStore());
+
+	constructor(
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+	) {
+		super();
+
+		if (!layoutService.isSinglePaneLayoutEnabled) {
+			return;
+		}
+
+		this._sync();
+		this._register(MenuRegistry.onDidChangeMenu(e => {
+			if (e.has(MenuId.EditorTitle)) {
+				this._sync();
+			}
+		}));
+	}
+
+	private _sync(): void {
+		this._mirrored.clear();
+
+		for (const item of MenuRegistry.getMenuItems(MenuId.EditorTitle)) {
+			// Bridge only extension contributions: command items whose command carries a
+			// `source` (set by the `commands` extension point), and submenu items whose
+			// submenu is an extension `api:` menu. Core items have neither.
+			const isExtensionItem = isIMenuItem(item)
+				? !!item.command.source
+				: item.submenu.id.startsWith(EditorTitleMenuBridgeContribution._extensionSubmenuPrefix);
+			if (isExtensionItem) {
+				const group = item.group === 'navigation'
+					? 'extension/navigation'
+					: `secondary/extension/${item.group ?? 'other'}`;
+				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, { ...item, group }));
+			}
+		}
+	}
+}
+
+registerWorkbenchContribution2(EditorTitleMenuBridgeContribution.ID, EditorTitleMenuBridgeContribution, WorkbenchPhase.BlockStartup);

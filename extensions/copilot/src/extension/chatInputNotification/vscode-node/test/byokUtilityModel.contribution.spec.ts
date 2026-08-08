@@ -25,6 +25,7 @@ const mockNotification = {
 
 const onDidChangeChatModelsEmitter = new Emitter<void>();
 const selectChatModelsMock = vi.fn();
+const mockWorkspace = vi.hoisted(() => ({ isAgentSessionsWorkspace: false }));
 
 vi.mock('vscode', () => ({
 	ChatInputNotificationSeverity: { Info: 1 },
@@ -36,6 +37,7 @@ vi.mock('vscode', () => ({
 		selectChatModels: (...args: unknown[]) => selectChatModelsMock(...args),
 	},
 	l10n: { t: (str: string, ...args: unknown[]) => str.replace(/\{(\d+)\}/g, (_, i) => String(args[Number(i)])) },
+	workspace: mockWorkspace,
 }));
 
 import { ByokUtilityModelNotificationContribution } from '../byokUtilityModel.contribution';
@@ -97,6 +99,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		mockNotification.message = '';
 		mockNotification.description = '';
 		mockNotification.actions = [];
+		mockWorkspace.isAgentSessionsWorkspace = false;
 		selectChatModelsMock.mockResolvedValue([{ vendor: 'ollama', id: 'llama3' }]);
 	});
 
@@ -116,7 +119,19 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		expect(mockNotification.message).toBe('Set BYOK utility models');
 		expect(mockNotification.actions).toHaveLength(1);
 		expect(mockNotification.actions[0].commandId).toBe('workbench.action.openSettings');
-		expect(mockNotification.actions[0].commandArgs).toEqual(['chat.utility']);
+		expect(mockNotification.actions[0].commandArgs).toEqual(['chat.byokUtilityModelDefault']);
+	});
+
+	test('does not show notification in the Agents window', async () => {
+		mockWorkspace.isAgentSessionsWorkspace = true;
+		const { authService } = createAuthService({ anyGitHubSession: undefined });
+		const { configService } = createConfigService();
+		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
+
+		await flushAsync();
+
+		expect(mockNotification.show).not.toHaveBeenCalled();
+		expect(selectChatModelsMock).not.toHaveBeenCalled();
 	});
 
 	test('shows notification with single action when only chat.utilityModel is unset', async () => {
@@ -166,6 +181,30 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		expect(mockNotification.show).not.toHaveBeenCalled();
 	});
 
+	test('does not show notification when the main agent model is the BYOK utility default', async () => {
+		const { authService } = createAuthService({ anyGitHubSession: undefined });
+		const { configService } = createConfigService({
+			'chat.byokUtilityModelDefault': 'mainAgent',
+		});
+		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
+
+		await flushAsync();
+
+		expect(mockNotification.show).not.toHaveBeenCalled();
+	});
+
+	test('continues to show notification when Copilot is the BYOK utility default while signed out', async () => {
+		const { authService } = createAuthService({ anyGitHubSession: undefined });
+		const { configService } = createConfigService({
+			'chat.byokUtilityModelDefault': 'copilot',
+		});
+		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
+
+		await flushAsync();
+
+		expect(mockNotification.show).toHaveBeenCalled();
+	});
+
 	test('hides notification once both utility settings are configured', async () => {
 		const { authService } = createAuthService({ anyGitHubSession: undefined });
 		const { configService, set } = createConfigService();
@@ -180,6 +219,20 @@ describe('ByokUtilityModelNotificationContribution', () => {
 
 		set('chat.utilitySmallModel', 'ollama/llama3');
 		await flushAsync();
+		expect(mockNotification.hide).toHaveBeenCalled();
+	});
+
+	test('hides notification when the main agent model is the BYOK utility default', async () => {
+		const { authService } = createAuthService({ anyGitHubSession: undefined });
+		const { configService, set } = createConfigService();
+		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
+
+		await flushAsync();
+		expect(mockNotification.show).toHaveBeenCalled();
+
+		set('chat.byokUtilityModelDefault', 'mainAgent');
+		await flushAsync();
+
 		expect(mockNotification.hide).toHaveBeenCalled();
 	});
 

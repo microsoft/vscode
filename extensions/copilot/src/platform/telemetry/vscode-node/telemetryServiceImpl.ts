@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CustomFetcher } from '@vscode/extension-telemetry';
+import * as vscode from 'vscode';
+import * as zlib from 'zlib';
+import { promisify } from 'util';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
@@ -14,9 +17,30 @@ import { IFetcherService, NO_FETCH_TELEMETRY } from '../../networking/common/fet
 import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl';
 import { BaseTelemetryService } from '../common/baseTelemetryService';
 import { IExperimentationService } from '../common/nullExperimentationService';
-import { ITelemetryUserConfig, TelemetryTrustedValue } from '../common/telemetry';
+import { ITelemetryUserConfig, setTelemetryPropertyCompressor, TelemetryTrustedValue } from '../common/telemetry';
 import { GitHubTelemetrySender } from './githubTelemetrySender';
 import { MicrosoftTelemetrySender } from './microsoftTelemetrySender';
+
+// Register the Node-only property compressor with the common-layer multiplexProperties helper once,
+// so oversized telemetry properties are chunked in gzip + base64 form without every call site
+// having to thread the compressor through. gzip runs on the libuv threadpool so it never blocks the
+// host process event loop.
+const gzip = promisify(zlib.gzip);
+setTelemetryPropertyCompressor(async value => (await gzip(Buffer.from(value, 'utf8'))).toString('base64'));
+
+/**
+ * The shared telemetry property carrying the CAPI flight assignment context.
+ * Kept in sync with `CAPI_ASSIGNMENT_CONTEXT_PROPERTY` in the VS Code core
+ * (`src/vs/workbench/api/browser/mainThreadTelemetry.ts`).
+ */
+const CAPI_ASSIGNMENT_CONTEXT_PROPERTY = 'capi.assignmentcontext';
+
+/**
+ * Private core command that forwards the CAPI assignment context onto core
+ * telemetry events. Kept in sync with `SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND` in
+ * `src/vs/workbench/api/browser/mainThreadTelemetry.ts`.
+ */
+const SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND = '_telemetry.setCapiAssignmentContext';
 
 export class TelemetryService extends BaseTelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -118,6 +142,19 @@ export class TelemetryService extends BaseTelemetryService {
 					statusCode: event.statusCode,
 				});
 			});
+		}
+	}
+
+	// __GDPR__COMMON__ "capi.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	override setSharedProperty(name: string, value: string): void {
+		super.setSharedProperty(name, value);
+
+		// Forward the CAPI assignment context to the core telemetry pipeline so it
+		// appears on all telemetry events from the current window (same scope as
+		// `abexp.assignmentcontext`). The core side (`mainThreadTelemetry.ts`)
+		// validates the value before trusting it onto telemetry events.
+		if (name === CAPI_ASSIGNMENT_CONTEXT_PROPERTY) {
+			vscode.commands.executeCommand(SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND, value);
 		}
 	}
 }

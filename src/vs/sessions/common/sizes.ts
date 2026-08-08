@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Agent-sessions font-ramp size tokens.
+// Agent-sessions size tokens.
 //
 // Registrations live here in the sessions layer. The workbench entry point
 // (`workbench.common.main.ts`) imports this file as a side-effect so the
@@ -12,7 +12,18 @@
 
 import { localize } from '../../nls.js';
 import { registerSize, sizeForAllThemes } from '../../platform/theme/common/sizeUtils.js';
+import { AGENTS_FLOATING_PANEL_GAP } from './layoutConstants.js';
 
+// ============================================================================
+// Agents window — layout
+// ============================================================================
+
+/** Gap between floating panels in the Agents window. */
+export const agentsLayoutFloatingPanelGap = registerSize(
+	'agents.layout.floatingPanelGap',
+	sizeForAllThemes(AGENTS_FLOATING_PANEL_GAP, 'px'),
+	localize('agents.layout.floatingPanelGap', "Gap between floating panels in the Agents window.")
+);
 // ============================================================================
 // Agents window — font ramp
 // ============================================================================

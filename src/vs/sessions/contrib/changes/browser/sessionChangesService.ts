@@ -6,11 +6,10 @@
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 
 export const ISessionChangesService = createDecorator<ISessionChangesService>('sessionChangesService');
@@ -62,7 +61,7 @@ export class SessionChangesService implements ISessionChangesService {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 	) { }
 
 	getChangesEditorResource(sessionResource: URI): URI {
@@ -94,11 +93,7 @@ export class SessionChangesService implements ISessionChangesService {
 	async openChangesEditor(sessionResource: URI, options?: IMultiDiffEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined> {
 		const multiDiffSource = this.getChangesEditorResource(sessionResource);
 
-		// Read the setting directly (rather than via IAgentWorkbenchLayoutService) so this
-		// singleton also resolves in minimal environments — component fixtures / tests — that
-		// don't register the Agents-window layout service. The layout service remains the
-		// single source of truth for contributions that run only in the real window.
-		if (this.configurationService.getValue<boolean>(DOCK_DETAIL_PANEL_SETTING) === true) {
+		if (this.layoutService.isSinglePaneLayoutEnabled) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
 			const pane = await this.editorService.openEditor(input, { ...options, pinned: true }, group);
 			return pane?.group;

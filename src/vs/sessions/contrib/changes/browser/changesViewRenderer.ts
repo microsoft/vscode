@@ -7,16 +7,14 @@ import * as dom from '../../../../base/browser/dom.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
-import { ActionRunner, toAction } from '../../../../base/common/actions.js';
+import { ActionRunner } from '../../../../base/common/actions.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, relativePath } from '../../../../base/common/resources.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -28,7 +26,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 
@@ -157,8 +155,7 @@ export function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: ICha
 
 interface IChangesTreeTemplate {
 	readonly label: IResourceLabel;
-	readonly toolbar: WorkbenchToolBar;
-	readonly toolbarMenu: IMenu;
+	readonly toolbar: MenuWorkbenchToolBar;
 	readonly changeKindContextKey: IContextKey<'root' | 'folder' | 'file'>;
 	readonly reviewCommentsBadge: HTMLElement;
 	readonly agentFeedbackBadge: HTMLElement;
@@ -174,9 +171,6 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 	static TEMPLATE_ID = 'changesTreeRenderer';
 	readonly templateId: string = ChangesTreeRenderer.TEMPLATE_ID;
 
-	private readonly _changeset: IObservable<ISessionChangeset | undefined>;
-	private readonly _operations: IObservable<readonly ISessionChangesetOperation[]>;
-
 	constructor(
 		private labels: ResourceLabels,
 		private actionRunner: ActionRunner | undefined,
@@ -185,22 +179,8 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IMenuService private readonly menuService: IMenuService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-	) {
-		this._changeset = derived(reader => {
-			return changesViewService.activeSessionChangesetObs.read(reader);
-		});
-
-		this._operations = derived(reader => {
-			const activeSessionChangeset = changesViewService.activeSessionChangesetObs.read(reader);
-			const activeSessionChangesetOperations = activeSessionChangeset?.operations.read(reader);
-
-			return activeSessionChangesetOperations
-				? activeSessionChangesetOperations.filter(o => o.scopes.includes(SessionChangesetOperationScope.Resource))
-				: [];
-		});
-	}
+	) { }
 
 	renderTemplate(container: HTMLElement): IChangesTreeTemplate {
 		const templateDisposables = new DisposableStore();
@@ -222,10 +202,10 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		const actionBarContainer = $('.chat-collapsible-list-action-bar');
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		const toolbar = templateDisposables.add(scopedInstantiationService.createInstance(WorkbenchToolBar, actionBarContainer, { actionRunner: this.actionRunner, menuOptions: { shouldForwardArgs: true, arg: undefined } }));
+		const toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.AgentsChangeInlineToolbar, {
+			menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner
+		}));
 		label.element.appendChild(actionBarContainer);
-
-		const toolbarMenu = templateDisposables.add(this.menuService.createMenu(MenuId.AgentsChangeInlineToolbar, contextKeyService));
 
 		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
@@ -245,7 +225,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		const decorationBadge = dom.$('.changes-decoration-badge');
 		label.element.appendChild(decorationBadge);
 
-		return { label, toolbar, toolbarMenu, changeKindContextKey, reviewCommentsBadge, agentFeedbackBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer, elementDisposables: new DisposableStore(), templateDisposables };
+		return { label, toolbar, changeKindContextKey, reviewCommentsBadge, agentFeedbackBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(node: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
@@ -380,49 +360,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 			templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 		}
 
-		// Menu actions
-		const menuActionsObs = observableFromEvent(templateData.toolbarMenu.onDidChange, () => {
-			return getActionBarActions(templateData.toolbarMenu.getActions({ shouldForwardArgs: true }));
-		});
-
-		// Operation actions
-		const operationActionsObs = derived(reader => {
-			const changeset = this._changeset.read(reader);
-			if (!changeset) {
-				return [];
-			}
-
-			// For the time being we omit operations in the
-			// 'review' group until we better understand how
-			// we want to render them in the list/tree.
-			const operations = this._operations.read(reader)
-				.filter(operation => operation.group !== 'review');
-
-			const actions = operations.map(operation => toAction({
-				id: operation.id,
-				label: operation.label,
-				class: operation.icon
-					? ThemeIcon.asClassName(operation.icon)
-					: undefined,
-				enabled: true,
-				run: () => changeset.invokeOperation(operation.id, {
-					kind: 'resource',
-					resource: data.uri,
-				})
-			}));
-
-			return actions;
-		});
-
-		templateData.elementDisposables.add(autorun(reader => {
-			const operationActions = operationActionsObs.read(reader);
-			const menuActions = menuActionsObs.read(reader);
-
-			templateData.toolbar.setActions([...menuActions.primary, ...operationActions], menuActions.secondary);
-		}));
-
 		templateData.toolbar.context = data;
-
 		templateData.changeKindContextKey.set('file');
 	}
 
@@ -440,9 +378,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateData.decorationBadge.style.display = 'none';
 		templateData.lineCountsContainer.style.display = 'none';
 
-		templateData.toolbar.setActions([], []);
 		templateData.toolbar.context = data.uri;
-
 		templateData.changeKindContextKey.set('root');
 	}
 
@@ -458,9 +394,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateData.decorationBadge.style.display = 'none';
 		templateData.lineCountsContainer.style.display = 'none';
 
-		templateData.toolbar.setActions([], []);
 		templateData.toolbar.context = node;
-
 		templateData.changeKindContextKey.set('folder');
 	}
 

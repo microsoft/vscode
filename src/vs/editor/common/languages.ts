@@ -1138,6 +1138,7 @@ export type LifetimeSummary = {
 	editKind: string | undefined;
 	longDistanceHintVisible?: boolean;
 	longDistanceHintDistance?: number;
+	isForAnotherDocument?: boolean;
 };
 
 export interface CodeAction {

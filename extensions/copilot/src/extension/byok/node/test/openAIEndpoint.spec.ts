@@ -527,6 +527,48 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(body.reasoning?.effort).toBeUndefined();
 		});
 
+		it('places `output_config.effort` on the Messages API path when the model supports the requested level', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({ supported_endpoints: [ModelSupportedEndpoint.Messages] }),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.output_config).toEqual({ effort: 'high' });
+			expect(body.reasoning_effort).toBeUndefined();
+			expect(body.reasoning).toBeUndefined();
+		});
+
+		it('emits top-level `reasoning_effort` instead of `output_config.effort` when `reasoningEffortFormat` is `chat-completions` on a Messages URL', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({
+					reasoningEffortFormat: 'chat-completions',
+					supported_endpoints: [ModelSupportedEndpoint.Messages],
+				}),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.reasoning_effort).toBe('high');
+			expect(body.output_config).toBeUndefined();
+		});
+
+		it('scrubs `output_config.effort` while preserving other `output_config` fields', () => {
+			// `output_config` also carries structured-output fields (e.g. `format`); only the effort may be rewritten
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({ supported_endpoints: [ModelSupportedEndpoint.Messages] }),
+				'test-api-key',
+				'https://api.anthropic.com/v1/messages');
+			const apply = (endpoint as unknown as { _applyReasoningEffort: (body: IEndpointBody, options: ICreateEndpointBodyOptions) => void })._applyReasoningEffort.bind(endpoint);
+
+			const body: IEndpointBody = { output_config: { effort: 'unsupported-level', format: { type: 'json_schema', schema: {} } } as IEndpointBody['output_config'] };
+			apply(body, buildOptions('high'));
+
+			expect(body.output_config).toEqual({ format: { type: 'json_schema', schema: {} }, effort: 'high' });
+		});
+
 		it('does not emit a reasoning field when the model declares no reasoning support', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{

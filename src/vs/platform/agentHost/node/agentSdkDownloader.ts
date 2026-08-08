@@ -53,7 +53,7 @@ export interface IAgentSdkPackage {
 	/**
 	 * Brand display name for user-facing progress, e.g. `'Claude'`, `'Codex'`.
 	 * The downloader puts this on {@link IAgentSdkDownloadProgress.displayName}
-	 * so clients can build a localized "Downloading {displayName} agent…" label.
+	 * so clients can build a localized "Downloading {displayName} agent" label.
 	 */
 	readonly displayName: string;
 	/** Env var that, when set, becomes the SDK root and short-circuits the download. */

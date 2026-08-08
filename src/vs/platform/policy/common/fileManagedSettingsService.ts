@@ -12,7 +12,7 @@ import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IFileManagedSettingsService, normalizeManagedSettings } from './copilotManagedSettings.js';
+import { IFileManagedSettingsService, normalizeManagedSettings, RawManagedSettingsData } from './copilotManagedSettings.js';
 
 /**
  * Upper bound on the size of `managed-settings.json` we will read into the main process. A
@@ -26,8 +26,14 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 
 	readonly _serviceBrand: undefined;
 
+	private _rawManagedSettings: RawManagedSettingsData = {};
+	get rawManagedSettings(): RawManagedSettingsData { return this._rawManagedSettings; }
+
 	private _managedSettings: ManagedSettingsData = {};
 	get managedSettings(): ManagedSettingsData { return this._managedSettings; }
+
+	private readonly _onDidChangeRawManagedSettings = this._register(new Emitter<RawManagedSettingsData>());
+	readonly onDidChangeRawManagedSettings = this._onDidChangeRawManagedSettings.event;
 
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
@@ -52,6 +58,7 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 	}
 
 	private async refresh(): Promise<void> {
+		const previousRaw = this._rawManagedSettings;
 		const previous = this._managedSettings;
 
 		try {
@@ -59,19 +66,25 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 			const parsed = JSON.parse(content.value.toString());
 
 			if (isObject(parsed)) {
+				this._rawManagedSettings = parsed as Record<string, unknown>;
 				this._managedSettings = normalizeManagedSettings(parsed as Record<string, unknown>,
 					msg => this.logService.warn(`[FileManagedSettingsService] ${msg}`));
 			} else {
 				this.logService.warn('[FileManagedSettingsService] managed-settings.json is not a JSON object');
+				this._rawManagedSettings = {};
 				this._managedSettings = {};
 			}
 		} catch (error) {
 			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 				this.logService.error('[FileManagedSettingsService] Failed to read managed-settings.json', error);
 			}
+			this._rawManagedSettings = {};
 			this._managedSettings = {};
 		}
 
+		if (!equals(previousRaw, this._rawManagedSettings)) {
+			this._onDidChangeRawManagedSettings.fire(this._rawManagedSettings);
+		}
 		if (!equals(previous, this._managedSettings)) {
 			this._onDidChangeManagedSettings.fire(this._managedSettings);
 		}

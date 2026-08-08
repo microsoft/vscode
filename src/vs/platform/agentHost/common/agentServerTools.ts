@@ -40,5 +40,5 @@ export interface IAgentServerToolHost {
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string;
+	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
 }

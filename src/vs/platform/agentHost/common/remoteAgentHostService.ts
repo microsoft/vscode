@@ -106,6 +106,7 @@ export const enum RemoteAgentHostEntryType {
 	SSH = 'ssh',
 	WSL = 'wsl',
 	Tunnel = 'tunnel',
+	CloudSandbox = 'cloudSandbox',
 }
 
 export interface IRemoteAgentHostWebSocketConnection {
@@ -166,7 +167,23 @@ export interface IRemoteAgentHostWSLConnection {
 	readonly distro: string;
 }
 
-export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection;
+/**
+ * A connection to a Copilot cloud "sandbox" environment (agent integration slug
+ * `copilot-developer-cli`), reached over a Mission Control-brokered Azure Web
+ * PubSub relay. Not persisted to settings — the connection is established
+ * on demand with freshly-minted, short-lived credentials.
+ */
+export interface IRemoteAgentHostCloudSandboxConnection {
+	readonly type: RemoteAgentHostEntryType.CloudSandbox;
+	/** Synthesized display address: `cloudsandbox:<environmentId>`. */
+	readonly address: string;
+	/** Stable Mission Control environment identifier (`env_<uuid>`). */
+	readonly environmentId: string;
+	/** The cloud session/task id this connection is for, when known. */
+	readonly sessionId?: string;
+}
+
+export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection;
 
 /** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
@@ -180,6 +197,7 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 		case RemoteAgentHostEntryType.WebSocket:
 		case RemoteAgentHostEntryType.SSH:
 		case RemoteAgentHostEntryType.WSL:
+		case RemoteAgentHostEntryType.CloudSandbox:
 			return entry.connection.address;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `${TUNNEL_ADDRESS_PREFIX}${entry.connection.tunnelId}`;
@@ -488,6 +506,7 @@ export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHo
 			};
 		case RemoteAgentHostEntryType.WSL:
 		case RemoteAgentHostEntryType.Tunnel:
+		case RemoteAgentHostEntryType.CloudSandbox:
 			return undefined;
 	}
 }

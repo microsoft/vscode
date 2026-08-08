@@ -11,6 +11,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { modelCanUseImageURL } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IImageService } from '../../../../platform/image/common/imageService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { isCAPIEndpoint } from '../../../../platform/networking/common/networking';
 import { getMimeType } from '../../../../util/common/imageUtils';
 import { Uri } from '../../../../vscodeTypes';
 import { IPromptEndpoint } from '../base/promptRenderer';
@@ -35,6 +36,11 @@ export interface HistoricalImageProps extends BasePromptElementProps {
 	mimeType?: string;
 }
 
+function canSendImage(endpoint: IPromptEndpoint, authService: IAuthenticationService): boolean {
+	return endpoint.supportsVision
+		&& (!isCAPIEndpoint(endpoint) || (authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true));
+}
+
 /**
  * Renders an image from conversation history.
  * Checks if the current model supports vision and omits the image if not.
@@ -43,13 +49,13 @@ export class HistoricalImage extends PromptElement<HistoricalImageProps, unknown
 	constructor(
 		props: HistoricalImageProps,
 		@IPromptEndpoint private readonly promptEndpoint: IPromptEndpoint,
+		@IAuthenticationService private readonly authService: IAuthenticationService,
 	) {
 		super(props);
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		// If the model doesn't support vision, omit historical images
-		if (!this.promptEndpoint.supportsVision) {
+		if (!canSendImage(this.promptEndpoint, this.authService)) {
 			return undefined;
 		}
 
@@ -70,19 +76,24 @@ export class Image extends PromptElement<ImageProps, unknown> {
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		const options = { status: { description: l10n.t("{0} does not support images.", this.promptEndpoint.model), kind: ChatResponseReferencePartStatusKind.Omitted } };
+		const noVisionDescription = l10n.t("{0} does not support images.", this.promptEndpoint.model);
+		const omittedDescription = !this.promptEndpoint.supportsVision
+			? noVisionDescription
+			: l10n.t("Images are omitted because editor preview features are disabled by organization policy.");
+		const omittedOptions = { status: { description: omittedDescription, kind: ChatResponseReferencePartStatusKind.Omitted } };
+		const errorOptions = { status: { description: noVisionDescription, kind: ChatResponseReferencePartStatusKind.Omitted } };
 
 		const fillerUri: Uri = this.props.reference ?? Uri.parse('Attached Image');
 
 		try {
-			if (!this.promptEndpoint.supportsVision) {
+			if (!canSendImage(this.promptEndpoint, this.authService)) {
 				if (this.props.omitReferences) {
 					return;
 				}
 
 				return (
 					<>
-						<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, options)]} />
+						<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, omittedOptions)]} />
 					</>
 				);
 			}
@@ -121,7 +132,7 @@ export class Image extends PromptElement<ImageProps, unknown> {
 
 			return (
 				<>
-					<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, options)]} />
+					<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, errorOptions)]} />
 				</>);
 		}
 	}
