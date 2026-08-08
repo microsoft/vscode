@@ -295,6 +295,60 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				'X-Gateway-Token': 'Bearer k_gateway',
 			});
 		}, 30_000);
+
+		it('allows an Authorization override header through and suppresses the SDK-generated x-goog-api-key', async () => {
+			const genai = await import('@google/genai');
+			const MockGoogleGenAI = genai.GoogleGenAI as unknown as { createdWithHttpOptions: unknown[]; streamChunks: any[] };
+			MockGoogleGenAI.createdWithHttpOptions.length = 0;
+			MockGoogleGenAI.streamChunks.length = 0;
+			MockGoogleGenAI.streamChunks.push({
+				candidates: [{ content: { parts: [{ text: 'Hello from Gemini' }] } }],
+				usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+			});
+
+			const storageService = createStorageService();
+			const geminiDelegate = instaService.createInstance(GeminiNativeBYOKLMProvider, undefined, storageService);
+			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, storageService, geminiDelegate);
+			const model = {
+				id: 'gemini-3.6-flash',
+				name: 'Gemini via gateway',
+				maxInputTokens: 1000,
+				maxOutputTokens: 1000,
+				capabilities: { toolCalling: false, imageInput: false },
+				url: 'https://gateway.example.com',
+				configuration: {
+					apiKey: 'k_gateway',
+					models: [{
+						id: 'gemini-3.6-flash',
+						name: 'Gemini via gateway',
+						url: 'https://gateway.example.com',
+						apiType: 'gemini',
+						toolCalling: false,
+						vision: false,
+						maxOutputTokens: 1000,
+						requestHeaders: { 'Authorization': 'Bearer ${apiKey}' },
+					}],
+				},
+			} as any;
+
+			const tokenSource = new vscode.CancellationTokenSource();
+			try {
+				await provider.provideLanguageModelChatResponse(
+					model,
+					[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+					{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto } as any,
+					{ report: () => { } },
+					tokenSource.token
+				);
+			} finally {
+				tokenSource.dispose();
+			}
+
+			expect((MockGoogleGenAI.createdWithHttpOptions.at(-1) as any)?.headers).toEqual({
+				'Authorization': 'Bearer k_gateway',
+				'x-goog-api-key': '',
+			});
+		}, 30_000);
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {

@@ -15,7 +15,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
-import { sanitizeCustomHeaders } from '../common/customHeaderSanitizer';
+import { hasAuthOverrideHeader, isReservedHeaderAllowingAuthOverride, sanitizeCustomHeaders } from '../common/customHeaderSanitizer';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, ExtendedLanguageModelChatInformation, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
@@ -209,16 +209,26 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 	private _toGeminiModel(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): ExtendedLanguageModelChatInformation<GeminiModelConfiguration> {
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
 		const { baseUrl, apiVersion } = resolveGeminiBaseUrl(model.url);
+		const headers = interpolateApiKeyInHeaders(
+			// Same auth-override allowance as CustomEndpointOAIEndpoint: api-key/authorization
+			// are permitted through so a gateway behind this URL can replace the inferred auth.
+			sanitizeCustomHeaders(modelConfiguration?.requestHeaders, model.id, this._logService, isReservedHeaderAllowingAuthOverride),
+			model.configuration?.apiKey
+		) ?? {};
+		if (hasAuthOverrideHeader(headers) && !Object.keys(headers).some(key => key.toLowerCase() === 'x-goog-api-key')) {
+			// The user is authenticating via their own header. @google/genai's NodeAuth still
+			// auto-adds x-goog-api-key from the configured apiKey unless that exact header is
+			// already present, so pre-empt it with an empty placeholder to avoid sending a
+			// second, conflicting credential to the gateway.
+			headers['x-goog-api-key'] = '';
+		}
 		return {
 			...model,
 			configuration: {
 				apiKey: model.configuration?.apiKey,
 				baseUrl,
 				apiVersion,
-				headers: interpolateApiKeyInHeaders(
-					sanitizeCustomHeaders(modelConfiguration?.requestHeaders, model.id, this._logService),
-					model.configuration?.apiKey
-				),
+				headers,
 				modelOptions: modelConfiguration?.modelOptions,
 				streaming: modelConfiguration?.streaming,
 				supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
@@ -311,34 +321,6 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    conflicting credentials.
  */
 export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
-	/**
-	 * Reserved auth headers that we permit users to override via `requestHeaders`
-	 * for this subclass only. Other well-known auth headers like `x-api-key`,
-	 * `x-goog-api-key`, `apikey`, `ocp-apim-subscription-key`, and
-	 * `x-functions-key` are not on the base reserved list, so they already pass
-	 * through without needing to be listed here.
-	 */
-	private static readonly _overridableReservedAuthHeaders: ReadonlySet<string> = new Set([
-		'api-key',
-		'authorization',
-	]);
-
-	/**
-	 * Well-known auth header names whose presence in `requestHeaders` signals
-	 * that the user is supplying their own credentials, so the default URL-
-	 * inferred auth header should not also be sent (otherwise the endpoint
-	 * receives two conflicting credentials). Headers that are typically
-	 * complementary to a backend auth header (e.g. APIM subscription keys,
-	 * Azure Functions keys) are intentionally excluded.
-	 */
-	private static readonly _userAuthHeaderSuppressionSet: ReadonlySet<string> = new Set([
-		'api-key',
-		'authorization',
-		'x-api-key',
-		'x-goog-api-key',
-		'apikey',
-	]);
-
 	constructor(
 		modelMetadata: IChatModelInformation,
 		apiKey: string,
@@ -360,10 +342,7 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	}
 
 	protected override _isReservedHeader(lowerKey: string): boolean {
-		if (CustomEndpointOAIEndpoint._overridableReservedAuthHeaders.has(lowerKey)) {
-			return false;
-		}
-		return super._isReservedHeader(lowerKey);
+		return isReservedHeaderAllowingAuthOverride(lowerKey);
 	}
 
 	public override getExtraHeaders(): Record<string, string> {
@@ -391,12 +370,7 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	}
 
 	private _hasUserAuthHeader(): boolean {
-		for (const key of Object.keys(this._customHeaders)) {
-			if (CustomEndpointOAIEndpoint._userAuthHeaderSuppressionSet.has(key.toLowerCase())) {
-				return true;
-			}
-		}
-		return false;
+		return hasAuthOverrideHeader(this._customHeaders);
 	}
 
 	private _interpolateApiKey(value: string): string {

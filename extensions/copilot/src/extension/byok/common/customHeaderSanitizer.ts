@@ -71,6 +71,48 @@ export function isDefaultReservedHeader(lowerKey: string): boolean {
 }
 
 /**
+ * Well-known auth header names whose presence in `requestHeaders` signals that the
+ * user is supplying their own credentials for an endpoint behind a gateway, APIM,
+ * vanity domain, etc. where the URL-based heuristic cannot infer the correct header.
+ * When any of these is present, a default/SDK-generated auth header must not also be
+ * sent, or the endpoint receives two conflicting credentials. Shared by
+ * {@link CustomEndpointOAIEndpoint} and the Gemini delegation path so a gateway auth
+ * override behaves the same way for every apiType. Headers that are typically
+ * complementary to a backend auth header (e.g. APIM subscription keys, Azure
+ * Functions keys) are intentionally excluded.
+ */
+const AUTH_OVERRIDE_SIGNAL_HEADERS: ReadonlySet<string> = new Set([
+	'api-key',
+	'authorization',
+	'x-api-key',
+	'x-goog-api-key',
+	'apikey',
+]);
+
+/**
+ * Reserved auth headers that a caller may permit users to override via
+ * `requestHeaders`. Other well-known auth headers like `x-api-key`,
+ * `x-goog-api-key`, `apikey`, `ocp-apim-subscription-key`, and `x-functions-key`
+ * are not on the base reserved list, so they already pass through without needing
+ * to be listed here.
+ */
+export function isReservedHeaderAllowingAuthOverride(lowerKey: string): boolean {
+	if (lowerKey === 'api-key' || lowerKey === 'authorization') {
+		return false;
+	}
+	return isDefaultReservedHeader(lowerKey);
+}
+
+/**
+ * Whether the given (already-sanitized) headers include a well-known auth header,
+ * meaning the user is supplying their own credentials. See
+ * {@link AUTH_OVERRIDE_SIGNAL_HEADERS}.
+ */
+export function hasAuthOverrideHeader(headers: Readonly<Record<string, string>>): boolean {
+	return Object.keys(headers).some(key => AUTH_OVERRIDE_SIGNAL_HEADERS.has(key.toLowerCase()));
+}
+
+/**
  * Detects zero-width characters (U+200B-U+200D, U+FEFF) and bidirectional
  * override controls (U+202A-U+202E), which could otherwise be used to hide or
  * visually reorder header content. Checked by code point, not a regex literal
