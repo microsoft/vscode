@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import '../../../../browser/parts/editor/media/modalEditorPart.css';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider, isModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
@@ -88,5 +89,26 @@ suite('Modal Editor Compact Header', () => {
 
 		// Compact-header variant measured at 40px → measured value wins
 		assert.strictEqual(resolveHeaderHeight({ offsetHeight: 40 }), 40);
+	});
+
+	test('compact header removes the modal header divider styling', () => {
+		const modalElement = document.createElement('div');
+		modalElement.classList.add('monaco-modal-editor-block', 'compact-header');
+		const modalPart = document.createElement('div');
+		modalPart.classList.add('modal-editor-part');
+		modalElement.appendChild(modalPart);
+
+		const header = document.createElement('div');
+		header.classList.add('modal-editor-header');
+		modalPart.appendChild(header);
+
+		document.body.appendChild(modalElement);
+
+		try {
+			const computedStyle = window.getComputedStyle(modalPart);
+			assert.strictEqual(computedStyle.borderTopStyle, 'none');
+		} finally {
+			modalElement.remove();
+		}
 	});
 });
