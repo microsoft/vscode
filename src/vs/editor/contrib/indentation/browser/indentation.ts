@@ -397,12 +397,12 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return;
 		}
 
-		this.callOnModel.add(this.editor.onDidPaste(({ range }) => {
-			this.trigger(range);
+		this.callOnModel.add(this.editor.onDidPaste(({ range, replacedSelection }) => {
+			this.trigger(range, replacedSelection);
 		}));
 	}
 
-	public trigger(range: Range): void {
+	public trigger(range: Range, replacedSelection?: Selection): void {
 		const selections = this.editor.getSelections();
 		if (selections === null || selections.length > 1) {
 			return;
@@ -469,8 +469,20 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		const firstLineNumber = startLineNumber;
 
+		// When the pasted text ends with a line break, the last line of the range holds no pasted
+		// characters. If whole lines were replaced, that line is a pre-existing line pushed down
+		// with its indentation intact, so leave it alone. If part of a line was replaced, the last
+		// line is that line's remainder, which lost its leading text and does need reindenting.
+		const replacedWholeLines = !!replacedSelection && replacedSelection.startColumn === 1 && replacedSelection.endColumn === 1;
+		let endLineNumber = range.endLineNumber;
+		if (replacedWholeLines && range.endColumn === 1
+			&& endLineNumber > range.startLineNumber
+			&& model.getLineContent(endLineNumber).length > 0) {
+			endLineNumber--;
+		}
+
 		// ignore empty or ignored lines
-		while (startLineNumber < range.endLineNumber) {
+		while (startLineNumber < endLineNumber) {
 			if (!/\S/.test(model.getLineContent(startLineNumber + 1))) {
 				startLineNumber++;
 				continue;
@@ -478,7 +490,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			break;
 		}
 
-		if (startLineNumber !== range.endLineNumber) {
+		if (startLineNumber !== endLineNumber) {
 			const virtualModel = {
 				tokenization: {
 					getLineTokens: (lineNumber: number) => {
@@ -506,7 +518,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
 					const spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
-					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
+					for (let i = startLineNumber + 1; i <= endLineNumber; i++) {
 						const lineContent = model.getLineContent(i);
 						const originalIndent = strings.getLeadingWhitespace(lineContent);
 						const originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);

@@ -1209,14 +1209,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 		const viewModel = this._modelData.viewModel;
-		const startPosition = viewModel.getSelection().getStartPosition();
+		const replacedSelection = viewModel.getSelection();
+		const startPosition = replacedSelection.getStartPosition();
 		viewModel.paste(text, pasteOnNewLine, multicursorText, source);
 		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
 				clipboardEvent,
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
-				languageId: mode
+				languageId: mode,
+				replacedSelection
 			});
 		}
 	}
