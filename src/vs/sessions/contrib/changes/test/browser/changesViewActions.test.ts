@@ -9,10 +9,11 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ChangesContextKeys } from '../../common/changes.js';
+import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
@@ -177,6 +178,17 @@ suite('Changes View Actions', () => {
 
 		const actual = items.map(item => {
 			const when = item.when?.serialize() ?? '';
+			const context = new Context(1, null);
+			context.setValue(IsSessionsWindowContext.key, true);
+			context.setValue(TextCompareEditorActiveContext.key, true);
+			context.setValue(SinglePaneLayoutEnabledContext.key, true);
+			context.setValue(IsAuxiliaryWindowContext.key, false);
+			context.setValue(IsTopRightEditorGroupContext.key, true);
+			context.setValue(AuxiliaryBarVisibleContext.key, true);
+			context.setValue(
+				ChangesContextKeys.ViewMode.key,
+				item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' ? ChangesViewMode.Tree : ChangesViewMode.List
+			);
 			return {
 				id: item.command.id,
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -185,9 +197,11 @@ suite('Changes View Actions', () => {
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 				hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 				hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+				hasTextCompareEditorGate: when.includes(TextCompareEditorActiveContext.key),
 				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 				hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
 				hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
+				matchesSingleFileDiffContext: item.when?.evaluate(context) ?? false,
 			};
 		}).sort((a, b) => a.id.localeCompare(b.id));
 
@@ -199,9 +213,11 @@ suite('Changes View Actions', () => {
 			icon: Codicon.listFlat.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
+			hasTextCompareEditorGate: true,
 			hasSinglePaneConfigGate: true,
 			hasAuxBarVisibleGate: true,
 			hasViewModeGate: true,
+			matchesSingleFileDiffContext: true,
 		}, {
 			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 			title: 'View as Tree',
@@ -210,9 +226,11 @@ suite('Changes View Actions', () => {
 			icon: Codicon.listTree.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
+			hasTextCompareEditorGate: true,
 			hasSinglePaneConfigGate: true,
 			hasAuxBarVisibleGate: true,
 			hasViewModeGate: true,
+			matchesSingleFileDiffContext: true,
 		}]);
 	});
 

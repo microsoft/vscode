@@ -146,10 +146,14 @@ const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
 	MainEditorAreaVisibleContext
 );
 
-const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
+const singlePaneDiffEditorTitle = ContextKeyExpr.and(
 	ContextKeyExpr.or(singlePaneChangesEditorActive, singlePaneFileDiffEditorActive),
 	IsAuxiliaryWindowContext.toNegated(),
-	IsTopRightEditorGroupContext,
+	IsTopRightEditorGroupContext
+);
+
+const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
+	singlePaneDiffEditorTitle,
 	MainEditorAreaVisibleContext
 );
 
@@ -196,7 +200,7 @@ class SetChangesListViewModeAction extends Action2 {
 				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitle,
+					singlePaneDiffEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
 			}
@@ -227,7 +231,7 @@ class SetChangesTreeViewModeAction extends Action2 {
 				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitle,
+					singlePaneDiffEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
 			}
