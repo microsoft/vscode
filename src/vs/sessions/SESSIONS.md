@@ -454,10 +454,11 @@ server tools normalize chat channels to the parent annotations channel, while th
 review-confirmation command bridge resolves the rendered `IChat.resource` through
 `ISessionsManagementService.getSessionForChatResource` before reading or mutating
 feedback. This keeps the unreviewed count, picker contents, and reveal selection on
-the same parent session even when the tool is invoked from an additional chat. When
-`viewUnreviewedComments` is auto-approved, no selection UI runs: every created PR
-and code-review comment is returned and transitioned directly to `submitted`.
-Interactive approval continues to return only the comments selected by the user.
+the same parent session even when the tool is invoked from an additional chat.
+`viewUnreviewedComments` returns an explicit picker selection when one exists;
+otherwise, including when confirmation is automatically approved, it returns every
+created PR and code-review comment and transitions them directly to `submitted`.
+The picker disables **Reveal Selected** when no comments are selected.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s

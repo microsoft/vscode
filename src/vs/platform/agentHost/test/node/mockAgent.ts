@@ -10,7 +10,7 @@ import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/c
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentPermissionResponseOptions, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -66,7 +66,6 @@ export class MockAgent implements IAgent {
 	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
-	readonly autoApprovedPermissionCalls: string[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
 	readonly changeAgentCalls: { session: URI; agent: AgentSelection | undefined; chat?: URI }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
@@ -205,11 +204,8 @@ export class MockAgent implements IAgent {
 		this.truncateSessionCalls.push({ session, turnId, chat });
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean, options?: IAgentPermissionResponseOptions): void {
+	respondToPermissionRequest(requestId: string, approved: boolean): void {
 		this.respondToPermissionCalls.push({ requestId, approved });
-		if (options?.autoApproved) {
-			this.autoApprovedPermissionCalls.push(requestId);
-		}
 	}
 
 	respondToUserInputRequest(): void {

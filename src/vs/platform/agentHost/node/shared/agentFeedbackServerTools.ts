@@ -5,7 +5,6 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import type { IAgentServerToolExecutionContext } from '../../common/agentServerTools.js';
 import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, ADD_COMMENT_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
@@ -300,8 +299,8 @@ function listableAnnotations(state: AnnotationsState): Annotation[] {
 /**
  * Feedback annotations of a {@link REVIEWABLE_FEEDBACK_KINDS reviewable kind}
  * the user has flagged for reveal to the agent (via the confirmation of the
- * {@link viewUnreviewedCommentsToolName} tool). These are exactly the comments
- * the user chose to reveal for the current invocation; everything else
+ * {@link viewUnreviewedCommentsToolName} tool). These are the comments the user
+ * chose to reveal and have not yet been delivered; everything else
  * (including review comments that happen to be accepted from a previous reveal
  * or a manual accept) is excluded.
  */
@@ -401,7 +400,7 @@ export interface IFeedbackToolOutcome {
  *
  * @throws if {@link toolName} is unknown or the arguments are invalid.
  */
-export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown, context?: IAgentServerToolExecutionContext): IFeedbackToolOutcome {
+export function applyFeedbackTool(state: AnnotationsState, sessionResource: string, toolName: string, rawArgs: unknown): IFeedbackToolOutcome {
 	switch (toolName) {
 		case addCommentToolName: {
 			const { resourceUri, range, text } = getAddCommentArgs(rawArgs);
@@ -434,25 +433,24 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			return { actions: [], result: JSON.stringify(payload, undefined, 2) };
 		}
 		case viewUnreviewedCommentsToolName: {
-			if (context?.autoApproved) {
+			const pending = pendingRevealAnnotations(state);
+			if (!pending.length) {
 				const unreviewed = createdReviewableAnnotations(state);
-				const actions: AnnotationsAction[] = unreviewed.map(annotation => ({
-					type: ActionType.AnnotationsSet,
-					annotation: markSubmitted(annotation),
-				}));
 				return {
-					actions,
+					actions: unreviewed.map(annotation => ({
+						type: ActionType.AnnotationsSet,
+						annotation: markSubmitted(annotation),
+					})),
 					result: JSON.stringify({ comments: unreviewed.map(serializeComment) }, undefined, 2),
 				};
 			}
 			// The confirmation gate runs before this body. When the user accepts
 			// the confirmation, the client flags exactly the comments they chose
 			// to reveal with `pendingAgentReveal` on the shared annotations
-			// channel. Return those comments and clear the flag so a later
-			// invocation does not re-return them; comments the user left
+			// channel. Return those comments and clear the flag after delivery;
+			// comments the user left
 			// unchecked (and review comments accepted by other means) are not
 			// flagged and so are excluded.
-			const pending = pendingRevealAnnotations(state);
 			const comments = pending.map(serializeComment);
 			const actions: AnnotationsAction[] = pending.map(annotation => ({
 				type: ActionType.AnnotationsSet,
@@ -613,7 +611,7 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 		return getFeedbackToolDisplay(toolName, args, result);
 	},
-	execute(stateManager, chatUri, toolName, rawArgs, context): string {
+	execute(stateManager, chatUri, toolName, rawArgs): string {
 		// A session can contain multiple chats, each addressed by its own
 		// `ahp-chat` URI but sharing the same context/workspace. Comments belong
 		// to the session as a whole, so always resolve a chat URI back to its
@@ -622,7 +620,7 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 		const annotationsUri = buildAnnotationsUri(mainSessionUri);
 		const snapshot = stateManager.getSnapshot(annotationsUri);
 		const state: AnnotationsState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
-		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs, context);
+		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);
 		}

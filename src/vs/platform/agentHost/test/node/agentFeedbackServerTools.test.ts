@@ -144,7 +144,7 @@ suite('AgentFeedbackServerTools', () => {
 		);
 	});
 
-	test('viewUnreviewedComments returns the comments flagged for reveal and clears the flag', () => {
+	test('viewUnreviewedComments delivers a pending explicit selection before newer unreviewed comments', () => {
 		const state = stateWith(
 			annotation('pr1', 'created', false, 'still hidden', 'prReview'),
 			annotation('pr2', 'accepted', false, 'revealed pr', 'prReview', true),
@@ -168,14 +168,14 @@ suite('AgentFeedbackServerTools', () => {
 		});
 	});
 
-	test('auto-approved viewUnreviewedComments submits and returns every unreviewed review comment', () => {
+	test('viewUnreviewedComments submits and returns every unreviewed review comment when there is no explicit selection', () => {
 		const state = stateWith(
 			annotation('pr1', 'created', false, 'new pr', 'prReview'),
-			annotation('cr1', 'created', false, 'new code review', 'codeReview', true),
+			annotation('cr1', 'created', false, 'new code review', 'codeReview'),
 			annotation('pr2', 'accepted', false, 'already accepted', 'prReview'),
 			annotation('u1', 'created', false, 'user comment', 'user'),
 		);
-		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {}, { autoApproved: true });
+		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {});
 		const submitted = outcome.actions.map(action => {
 			const annotation = (action as Extract<typeof action, { type: ActionType.AnnotationsSet }>).annotation;
 			const meta = annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
@@ -314,14 +314,14 @@ suite('AgentFeedbackServerTools', () => {
 			});
 		});
 
-		test('executeTool forwards auto approval context to the feedback tool', async () => {
+		test('executeTool submits every unreviewed comment when there is no explicit selection', async () => {
 			const annotationsUri = buildAnnotationsUri(sessionResource);
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('auto-submit', 'created', false, 'submit me', 'prReview'),
 			});
 
-			const result = await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {}, { autoApproved: true });
+			const result = await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
 			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
 			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta;
 

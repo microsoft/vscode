@@ -53,7 +53,7 @@ import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/san
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
-import type { IAgentServerToolExecutionContext, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -7783,8 +7783,6 @@ suite('CopilotAgentSession', () => {
 			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
-			readonly executionContexts: Array<IAgentServerToolExecutionContext | undefined> = [];
-			readonly confirmationToolNames = new Set<string>();
 			result = 'ok';
 			error: Error | undefined;
 
@@ -7792,11 +7790,10 @@ suite('CopilotAgentSession', () => {
 				this.advertised.push(sessionUri);
 			}
 
-			requiresConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
+			requiresConfirmation(_toolName: string): boolean { return false; }
 
-			executeTool(sessionUri: string, toolName: string, rawArgs: unknown, context?: IAgentServerToolExecutionContext): string {
+			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });
-				this.executionContexts.push(context);
 				if (this.error) {
 					throw this.error;
 				}
@@ -7867,27 +7864,6 @@ suite('CopilotAgentSession', () => {
 				results: serverToolHost.toolNames.map(() => ({ kind: 'approve-once' })),
 				pendingConfirmations: 0,
 			});
-		});
-
-		test('distinguishes auto-approved and interactively approved server tools', async () => {
-			const serverToolHost = new FakeServerToolHost();
-			const toolName = serverToolHost.toolNames[0];
-			serverToolHost.confirmationToolNames.add(toolName);
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables, { serverToolHost });
-			const tool = runtime.createServerSdkTools().find(tool => tool.name === toolName)!;
-
-			await invokeClientToolHandler(tool, 'tc-auto');
-
-			const permission = runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: 'tc-interactive', toolName });
-			await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === 'tc-interactive');
-			assert.strictEqual(session.respondToPermissionRequest('tc-interactive', true), true);
-			await permission;
-			await invokeClientToolHandler(tool, 'tc-interactive');
-
-			assert.deepStrictEqual(serverToolHost.executionContexts, [
-				{ autoApproved: true },
-				undefined,
-			]);
 		});
 	});
 

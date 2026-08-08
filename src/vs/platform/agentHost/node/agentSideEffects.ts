@@ -1273,7 +1273,7 @@ export class AgentSideEffects extends Disposable {
 			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
 		} else if (autoApproval !== undefined) {
 			this._toolCallAgents.delete(toolCallKey);
-			agent.respondToPermissionRequest(e.state.toolCallId, true, { autoApproved: true });
+			agent.respondToPermissionRequest(e.state.toolCallId, true);
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };

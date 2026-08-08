@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolExecutionContext, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import type { StringOrMarkdown, ToolDefinition, URI } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
@@ -55,9 +55,11 @@ export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
 	readonly definitions: readonly ToolDefinition[];
 	/**
-	 * Whether {@link toolName} (one of this group's {@link definitions}) has a
-	 * confirmation UI when it is not automatically approved. Absent or `false`
-	 * means no confirmation is needed.
+	 * Whether {@link toolName} (one of this group's {@link definitions}) must be
+	 * confirmed by the user before it runs. Providers exclude such tools from
+	 * their server-tool auto-approve lists so the call surfaces a confirmation.
+	 * Absent or `false` means the tool is auto-approved like every other server
+	 * tool.
 	 */
 	requiresConfirmation?(toolName: string): boolean;
 	/**
@@ -69,7 +71,7 @@ export interface IServerToolGroup {
 	 * @throws if {@link toolName} is not owned by this group or the arguments
 	 * are invalid.
 	 */
-	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown, context?: IAgentServerToolExecutionContext): string | Promise<string>;
+	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
 
 	/**
 	 * Display strings for {@link toolName} (one of this group's
@@ -132,11 +134,11 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
 	}
 
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown, context?: IAgentServerToolExecutionContext): string | Promise<string> {
+	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
 		}
-		return group.execute(this._stateManager, sessionUri, toolName, rawArgs, context);
+		return group.execute(this._stateManager, sessionUri, toolName, rawArgs);
 	}
 }
