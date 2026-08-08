@@ -524,42 +524,45 @@ export class CodeActionParticipantUtils {
 		};
 
 		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await CodeActionParticipantUtils.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token);
-			if (token.isCancellationRequested) {
-				actionsToRun.dispose();
-				return;
-			}
+			const providers = languageFeaturesService.codeActionProvider.all(model);
+			for (const provider of providers) {
+				const actionsToRun = await CodeActionParticipantUtils.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token, provider);
+				if (token.isCancellationRequested) {
+					actionsToRun.dispose();
+					return;
+				}
 
-			try {
-				for (const action of actionsToRun.validActions) {
-					const codeActionEdits = action.action.edit?.edits;
-					let breakFlag = false;
-					if (!action.action.kind?.startsWith('notebook')) {
-						for (const edit of codeActionEdits ?? []) {
-							const workspaceTextEdit = edit as IWorkspaceTextEdit;
-							if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
-								continue;
-							} else {
-								// error -> applied to multiple resources
-								breakFlag = true;
-								break;
+				try {
+					for (const action of actionsToRun.validActions) {
+						const codeActionEdits = action.action.edit?.edits;
+						let breakFlag = false;
+						if (!action.action.kind?.startsWith('notebook')) {
+							for (const edit of codeActionEdits ?? []) {
+								const workspaceTextEdit = edit as IWorkspaceTextEdit;
+								if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
+									continue;
+								} else {
+									// error -> applied to multiple resources
+									breakFlag = true;
+									break;
+								}
 							}
 						}
+						if (breakFlag) {
+							logService.warn('Failed to apply code action on save, applied to multiple resources.');
+							continue;
+						}
+						progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
+						await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
+						if (token.isCancellationRequested) {
+							return;
+						}
 					}
-					if (breakFlag) {
-						logService.warn('Failed to apply code action on save, applied to multiple resources.');
-						continue;
-					}
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
-					if (token.isCancellationRequested) {
-						return;
-					}
+				} catch {
+					// Failure to apply a code action should not block other on save actions
+				} finally {
+					actionsToRun.dispose();
 				}
-			} catch {
-				// Failure to apply a code action should not block other on save actions
-			} finally {
-				actionsToRun.dispose();
 			}
 		}
 	}
@@ -629,12 +632,12 @@ export class CodeActionParticipantUtils {
 	}
 
 	// @Yoyokrazy this could likely be modified to leverage the extensionID, therefore not getting actions from providers unnecessarily -- future work
-	static getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], languageFeaturesService: ILanguageFeaturesService, progress: IProgress<CodeActionProvider>, token: CancellationToken) {
+	static getActionsToRun(model: ITextModel, codeActionKind: HierarchicalKind, excludes: readonly HierarchicalKind[], languageFeaturesService: ILanguageFeaturesService, progress: IProgress<CodeActionProvider>, token: CancellationToken, provider?: CodeActionProvider) {
 		return getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Invoke,
 			triggerAction: CodeActionTriggerSource.OnSave,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
-		}, progress, token);
+		}, progress, token, provider);
 	}
 
 }
