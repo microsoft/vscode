@@ -89,6 +89,10 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public readonly inChordMode: boolean = false;
 
+	public get currentlyDispatchingCommandId(): string | null {
+		return null;
+	}
+
 	public get onDidUpdateKeybindings(): Event<void> {
 		return Event.None;
 	}
