@@ -295,6 +295,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 
 			const terminalSubscribeResult = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const initialTerminalState = terminalSubscribeResult.snapshot!.state as TerminalState;
+			assert.ok(initialTerminalState.cwd, 'terminal should report its working directory');
 			assert.strictEqual(realpathSync(initialTerminalState.cwd), canonicalWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
 
 			await context.client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
