@@ -38,7 +38,7 @@ function getGeminiServerAddress(baseUrl: string | undefined): string {
 		return 'generativelanguage.googleapis.com';
 	}
 	try {
-		return new URL(baseUrl).host;
+		return new URL(baseUrl).hostname;
 	} catch {
 		return 'generativelanguage.googleapis.com';
 	}
