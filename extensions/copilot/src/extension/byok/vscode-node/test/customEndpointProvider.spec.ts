@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OpenAI, Raw } from '@vscode/prompt-tsx';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as vscode from 'vscode';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
@@ -14,7 +15,51 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl, resolveGeminiBaseUrl } from '../customEndpointProvider';
+import { IBYOKStorageService } from '../byokStorageService';
+import { CustomEndpointBYOKModelProvider, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl, resolveGeminiBaseUrl } from '../customEndpointProvider';
+
+// Same shape as geminiNativeProvider.spec.ts's mock: this file delegates to the real
+// GeminiNativeBYOKLMProvider, so it needs its own copy (vi.mock is file-scoped).
+vi.mock('@google/genai', () => {
+	class MockGoogleGenAI {
+		public static createdWithApiKeys: string[] = [];
+		public static createdWithHttpOptions: (unknown | undefined)[] = [];
+		public static streamChunks: any[] = [];
+
+		public readonly models: {
+			generateContentStream: (params: unknown) => Promise<AsyncIterable<any>>;
+		};
+
+		constructor(opts: { apiKey: string; httpOptions?: unknown }) {
+			MockGoogleGenAI.createdWithApiKeys.push(opts.apiKey);
+			MockGoogleGenAI.createdWithHttpOptions.push(opts.httpOptions);
+			this.models = {
+				generateContentStream: async () => (async function* () {
+					for (const c of MockGoogleGenAI.streamChunks) {
+						yield c;
+					}
+				})()
+			};
+		}
+	}
+
+	return {
+		GoogleGenAI: MockGoogleGenAI,
+		ThinkingLevel: { LOW: 'LOW', HIGH: 'HIGH' },
+		Type: { OBJECT: 'object' },
+	};
+});
+
+function createStorageService(): IBYOKStorageService {
+	return {
+		getAPIKey: async () => undefined,
+		storeAPIKey: async () => undefined,
+		deleteAPIKey: async () => undefined,
+		getStoredModelConfigs: async () => ({}),
+		saveModelConfig: async () => undefined,
+		removeModelConfig: async () => undefined,
+	} as unknown as IBYOKStorageService;
+}
 
 describe('CustomEndpointBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
@@ -137,6 +182,63 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				apiVersion: undefined,
 			});
 		});
+	});
+
+	describe('Gemini delegation', () => {
+		it('routes an apiType: "gemini" model to the Gemini delegate with the resolved baseUrl and apiKey', async () => {
+			const genai = await import('@google/genai');
+			const MockGoogleGenAI = genai.GoogleGenAI as unknown as { createdWithApiKeys: string[]; createdWithHttpOptions: unknown[]; streamChunks: any[] };
+			MockGoogleGenAI.createdWithApiKeys.length = 0;
+			MockGoogleGenAI.createdWithHttpOptions.length = 0;
+			MockGoogleGenAI.streamChunks.length = 0;
+			MockGoogleGenAI.streamChunks.push({
+				candidates: [{ content: { parts: [{ text: 'Hello from Gemini' }] } }],
+				usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+			});
+
+			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, createStorageService());
+			const model = {
+				id: 'gemini-2.5-flash',
+				name: 'Gemini via gateway',
+				maxInputTokens: 1000,
+				maxOutputTokens: 1000,
+				capabilities: { toolCalling: false, imageInput: false },
+				url: 'https://gateway.example.com/v1beta/models/gemini-2.5-flash:generateContent',
+				configuration: {
+					apiKey: 'k_gateway',
+					models: [{
+						id: 'gemini-2.5-flash',
+						name: 'Gemini via gateway',
+						url: 'https://gateway.example.com/v1beta/models/gemini-2.5-flash:generateContent',
+						apiType: 'gemini',
+						toolCalling: false,
+						vision: false,
+						maxOutputTokens: 1000,
+					}],
+				},
+			} as any;
+
+			const tokenSource = new vscode.CancellationTokenSource();
+			try {
+				await provider.provideLanguageModelChatResponse(
+					model,
+					[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+					{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto } as any,
+					{ report: () => { } },
+					tokenSource.token
+				);
+			} finally {
+				tokenSource.dispose();
+			}
+
+			expect({
+				apiKeys: MockGoogleGenAI.createdWithApiKeys,
+				httpOptions: MockGoogleGenAI.createdWithHttpOptions.at(-1),
+			}).toEqual({
+				apiKeys: ['k_gateway'],
+				httpOptions: { baseUrl: 'https://gateway.example.com', apiVersion: 'v1beta' },
+			});
+		}, 30_000);
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
