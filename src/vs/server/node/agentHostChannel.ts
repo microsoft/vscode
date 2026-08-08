@@ -385,14 +385,17 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 			return endpoint;
 		}
 
+		// Only the in-flight resolution is shared, so concurrent renderer connects
+		// collapse into one call. It is dropped once settled: in the lazy server
+		// path resolution *is* `ensureStarted()`, so caching a success would let a
+		// later reconnect dial a dead socket instead of restarting the host.
 		const endpointPromise = this._endpointPromise ??= Promise.resolve().then(() => endpoint());
 		try {
 			return await endpointPromise;
-		} catch (error) {
+		} finally {
 			if (this._endpointPromise === endpointPromise) {
 				this._endpointPromise = undefined;
 			}
-			throw error;
 		}
 	}
 

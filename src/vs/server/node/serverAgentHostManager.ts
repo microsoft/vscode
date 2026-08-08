@@ -93,87 +93,103 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		return this._startPromise;
 	}
 
+	/**
+	 * Retries startup in-place until it succeeds or the crash-retry budget is
+	 * exhausted, so the caller's `ensureStarted()` stays pending across
+	 * automatic retries instead of rejecting while a retry is still in flight.
+	 * A rejection here therefore means "no agent host, and we stopped trying".
+	 */
 	private async _start(): Promise<void> {
-		try {
-			const connection = await this._starter.start();
-
-			if (this._store.isDisposed) {
-				connection.store.dispose();
-				return;
-			}
-
-			// Handle unexpected exit
-			connection.store.add(connection.onDidProcessExit(e => {
-				if (!this._store.isDisposed) {
-					this._hasActiveSessions = false;
-					this._connectionCount = 0;
-					this._lifetimeToken.clear();
-
-					const willRestart = this._restartCount <= Constants.MaxRestarts;
-					reportAgentHostProcessError(this._telemetryService, {
-						hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
-						kind: 'unexpectedExit',
-						code: e.code,
-						restartCount: this._restartCount,
-						willRestart,
-					});
-					if (willRestart) {
-						this._logService.error(`ServerAgentHostManager: agent host terminated unexpectedly with code ${e.code}`);
-						this._restartCount++;
-						connection.store.dispose();
-						this._startPromise = undefined;
-						void this.ensureStarted().catch(() => undefined);
-					} else {
-						this._logService.error(`ServerAgentHostManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
-						// A future explicit request gets a fresh crash-retry budget.
-						this._restartCount = 0;
-						this._startPromise = undefined;
-					}
-				}
-			}));
-
-			this._trackActiveSessions(connection);
+		while (true) {
 			try {
-				await this._trackClientConnections(connection);
+				await this._startOnce();
+				return;
 			} catch (error) {
-				connection.store.dispose();
-				throw error;
-			}
-			if (this._store.isDisposed || connection.store.isDisposed) {
-				connection.store.dispose();
-				return;
-			}
+				if (this._store.isDisposed) {
+					return;
+				}
 
-			this._logService.info('ServerAgentHostManager: agent host started');
+				const willRestart = this._restartCount <= Constants.MaxRestarts;
+				reportAgentHostProcessError(this._telemetryService, {
+					hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
+					kind: 'startFailed',
+					restartCount: this._restartCount,
+					willRestart,
+				}, error);
+				if (!willRestart) {
+					this._logService.error(`ServerAgentHostManager: agent host failed to start, giving up after ${Constants.MaxRestarts} restarts`, error);
+					// A future explicit request gets a fresh crash-retry budget.
+					this._restartCount = 0;
+					throw error;
+				}
 
-			// Connect logger channel so agent host logs appear in the output channel
-			connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
-
-			this._register(toDisposable(() => connection.store.dispose()));
-		} catch (error) {
-			if (this._store.isDisposed) {
-				return;
-			}
-
-			const willRestart = this._restartCount <= Constants.MaxRestarts;
-			reportAgentHostProcessError(this._telemetryService, {
-				hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
-				kind: 'startFailed',
-				restartCount: this._restartCount,
-				willRestart,
-			}, error);
-			if (willRestart) {
 				this._logService.error('ServerAgentHostManager: agent host failed to start', error);
 				this._restartCount++;
-				this._startPromise = undefined;
-				void this.ensureStarted().catch(() => undefined);
-			} else {
-				this._logService.error(`ServerAgentHostManager: agent host failed to start, giving up after ${Constants.MaxRestarts} restarts`, error);
-				// A future explicit request gets a fresh crash-retry budget.
-				this._restartCount = 0;
-				this._startPromise = undefined;
 			}
+		}
+	}
+
+	private async _startOnce(): Promise<void> {
+		const connection = await this._starter.start();
+
+		if (this._store.isDisposed) {
+			connection.store.dispose();
+			return;
+		}
+
+		this._trackActiveSessions(connection);
+		try {
+			await this._trackClientConnections(connection);
+		} catch (error) {
+			connection.store.dispose();
 			throw error;
+		}
+		if (this._store.isDisposed || connection.store.isDisposed) {
+			connection.store.dispose();
+			return;
+		}
+
+		this._logService.info('ServerAgentHostManager: agent host started');
+
+		// Connect logger channel so agent host logs appear in the output channel
+		connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
+
+		// Only watch for crashes once startup has fully succeeded. An exit during
+		// startup already surfaces as a rejection of the readiness request above,
+		// so the retry loop owns that case exclusively and the two paths can never
+		// both restart the same failure.
+		connection.store.add(connection.onDidProcessExit(e => this._handleUnexpectedExit(connection, e)));
+
+		this._register(toDisposable(() => connection.store.dispose()));
+	}
+
+	private _handleUnexpectedExit(connection: IAgentHostConnection, e: { code: number; signal: string }): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		this._hasActiveSessions = false;
+		this._connectionCount = 0;
+		this._lifetimeToken.clear();
+
+		const willRestart = this._restartCount <= Constants.MaxRestarts;
+		reportAgentHostProcessError(this._telemetryService, {
+			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
+			kind: 'unexpectedExit',
+			code: e.code,
+			restartCount: this._restartCount,
+			willRestart,
+		});
+		connection.store.dispose();
+		this._startPromise = undefined;
+		if (willRestart) {
+			this._logService.error(`ServerAgentHostManager: agent host terminated unexpectedly with code ${e.code}`);
+			this._restartCount++;
+			void this.ensureStarted().catch(() => undefined);
+		} else {
+			this._logService.error(`ServerAgentHostManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
+			// A future explicit request gets a fresh crash-retry budget.
+			this._restartCount = 0;
 		}
 	}
 

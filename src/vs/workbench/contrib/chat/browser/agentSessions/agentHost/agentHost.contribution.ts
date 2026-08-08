@@ -5,6 +5,13 @@
 
 /**
  * Agent-host registrations are browser-safe so desktop and web workbenches share the same path.
+ *
+ * Note that `AgentHostContribution` injects `IAgentHostService`, whose remote
+ * implementation connects from its constructor. Instantiating this at
+ * `AfterRestored` therefore starts the agent host once a chat-enabled remote
+ * window has loaded, rather than on first use of a session. That matches the
+ * pre-existing desktop behaviour; the laziness on the server side is about
+ * servers with no connected renderer, not about windows that never chat.
  */
 
 import { IAgentHostByokLmHandler } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';

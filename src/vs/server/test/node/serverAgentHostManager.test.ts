@@ -164,10 +164,11 @@ suite('ServerAgentHostManager', () => {
 		));
 	}
 
-	// `ServerAgentHostManager._start()` is async (awaits `starter.start()`).
-	// Wait a microtask so the channel listeners are wired up before tests fire events.
-	async function waitForStart(): Promise<void> {
-		await Promise.resolve();
+	// `ServerAgentHostManager` reports startup complete only once the agent host
+	// confirms its configured WebSocket listener is bound, so wait for the real
+	// signal rather than a fixed number of microtasks.
+	async function waitForStart(manager: ServerAgentHostManager): Promise<void> {
+		await manager.ensureStarted();
 	}
 
 	function fireActiveSessions(count: number): void {
@@ -183,28 +184,28 @@ suite('ServerAgentHostManager', () => {
 	}
 
 	test('no lifetime token initially', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
 	});
 
 	test('acquires token when sessions become active', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 		fireActiveSessions(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
 	test('acquires token when standalone WebSocket clients connect', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 		fireConnectionCount(2);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
 	test('releases token only when both sessions and standalone WebSocket connections are zero', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 
 		fireActiveSessions(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
@@ -220,8 +221,8 @@ suite('ServerAgentHostManager', () => {
 	});
 
 	test('process exit resets both signals and clears token', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 		fireActiveSessions(2);
 		fireConnectionCount(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
@@ -231,8 +232,8 @@ suite('ServerAgentHostManager', () => {
 	});
 
 	test('reports unexpected process exit', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 
 		starter.fireProcessExit(17);
 
@@ -253,9 +254,8 @@ suite('ServerAgentHostManager', () => {
 		const error = new Error('test start failure');
 		error.stack = 'test start failure stack';
 		starter.failNextStart(error);
-		createManager();
-		await waitForStart();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 
 		assert.deepStrictEqual(telemetryService.errorEvents, [{
 			eventName: 'agentHost.processError',
@@ -347,5 +347,31 @@ suite('ServerAgentHostManager', () => {
 		await manager.ensureStarted();
 
 		assert.strictEqual(starter.startCount, 8);
+	});
+
+	test('keeps the original request pending while a transient start failure is retried', async () => {
+		const manager = createManager({ startMode: 'lazy' });
+		starter.failNextStart(new Error('transient'));
+
+		await manager.ensureStarted();
+
+		assert.strictEqual(starter.startCount, 2);
+	});
+
+	test('does not double-restart when the host exits during startup', async () => {
+		const ready = new DeferredPromise<void>();
+		starter.connectionTrackerChannel.setCallResult('waitForConfiguredWebSocketServer', ready.p);
+		const manager = createManager({ startMode: 'lazy' });
+		const start = manager.ensureStarted();
+
+		await Promise.resolve();
+		// The IPC client rejects in-flight requests before surfacing the exit, so
+		// both the readiness rejection and the exit event race to restart.
+		starter.connectionTrackerChannel.setCallResult('waitForConfiguredWebSocketServer', Promise.resolve());
+		ready.error(new Error('canceled'));
+		starter.fireProcessExit(1);
+		await start;
+
+		assert.strictEqual(starter.startCount, 2);
 	});
 });

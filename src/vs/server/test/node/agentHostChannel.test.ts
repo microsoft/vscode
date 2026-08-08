@@ -194,6 +194,27 @@ suite('AgentHostChannel', () => {
 		await assert.doesNotReject(() => channel.call('renderer', 'connect'));
 		assert.strictEqual(resolveCount, 2);
 	});
+
+	test('re-resolves the endpoint for later connections', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		let resolveCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => {
+				resolveCount++;
+				return { socketPath: 'agent-host.sock' };
+			},
+			new NullLogService(),
+			() => ds.add(new FakeUpstream()),
+		));
+
+		await channel.call('first', 'connect');
+		await channel.call('second', 'connect');
+
+		// Resolution is `ensureStarted()` in the lazy server path, so a later
+		// connection must be able to restart a host that has since died.
+		assert.strictEqual(resolveCount, 2);
+	});
 });
 
 suite('UnavailableAgentHostChannel', () => {
