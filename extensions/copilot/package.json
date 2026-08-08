@@ -2077,7 +2077,7 @@
                     "type": "string",
                     "pattern": "^https?://.+",
                     "patternErrorMessage": "URL must start with http:// or https://",
-                    "markdownDescription": "URL endpoint for the model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths are respected: `/chat/completions`, `/responses`, `/v1/messages` (Anthropic-compatible), and `models/{model}:generateContent` (Gemini-compatible). Use the `apiType` property to override the request/response format independently of the URL."
+                    "markdownDescription": "URL endpoint for the model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths are respected for detecting the format: `/chat/completions`, `/responses`, `/v1/messages` (Anthropic-compatible), and `models/{model}:generateContent` (Gemini-compatible). Use the `apiType` property to override the request/response format independently of the URL.\n\nFor Gemini, the URL is only used to detect the format and derive a base URL; the `:generateContent` vs `:streamGenerateContent` suffix is not preserved as-is. Whether requests actually stream is controlled by the `streaming` property (defaults to `true`), not by that suffix."
                   },
                   "apiType": {
                     "type": "string",
