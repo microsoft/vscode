@@ -12,10 +12,9 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import { IExtHostTerminalService } from './extHostTerminalService.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
-import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
+import { AsyncIterableProducer, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
 
-export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
-	readonly _serviceBrand: undefined;
+export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {\n\treadonly _serviceBrand: undefined;
 
 	readonly onDidChangeTerminalShellIntegration: Event<vscode.TerminalShellIntegrationChangeEvent>;
 	readonly onDidStartTerminalShellExecution: Event<vscode.TerminalShellExecutionStartEvent>;
@@ -105,8 +104,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 
 	public $shellExecutionStart(instanceId: number, supportsExecuteCommandApi: boolean, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void {
-		// Force shellIntegration creation if it hasn't been created yet, this could when events
-		// don't come through on startup
+		// Force shellIntegration creation if it hasn't been created yet, this could when events\n\t\t// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
 			this.$shellIntegrationChange(instanceId, supportsExecuteCommandApi);
 		}
@@ -145,10 +143,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 
 	private _convertCwdToUri(cwd: string | undefined): URI | undefined {
-		// IMPORTANT: cwd is provided to the exthost as a string from the renderer and only
-		// converted to a URI on the machine in which the pty is hosted on. The string version of
-		// the cwd is used from the renderer such that it's access is synchronous and its event
-		// comes through in order relative to other shell integration events.
+		// IMPORTANT: cwd is provided to the exthost as a string from the renderer and only\n\t\t// converted to a URI on the machine in which the pty is hosted on. The string version of\n\t\t// the cwd is used from the renderer such that it's access is synchronous and its event\n\t\t// comes through in order relative to other shell integration events.
 		return cwd ? URI.file(cwd) : undefined;
 	}
 }
@@ -213,9 +208,9 @@ export class InternalTerminalShellIntegration extends Disposable {
 				let commandLineValue = commandLineOrExecutable;
 				if (args) {
 					for (const arg of args) {
-						const wrapInQuotes = !arg.match(/["'`]/) && arg.match(/\s/);
+						const wrapInQuotes = !arg.match(/[\"'`]/) && arg.match(/\\s/);
 						if (wrapInQuotes) {
-							commandLineValue += ` "${arg}"`;
+							commandLineValue += ` \"${arg}\"`;
 						} else {
 							commandLineValue += ` ${arg}`;
 						}
@@ -223,8 +218,7 @@ export class InternalTerminalShellIntegration extends Disposable {
 				}
 
 				that._onDidRequestShellExecution.fire(commandLineValue);
-				// Fire the event in a microtask to allow the extension to use the execution before
-				// the start event fires
+				// Fire the event in a microtask to allow the extension to use the execution before\n\t\t\t\t// the start event fires
 				const commandLine: vscode.TerminalShellExecutionCommandLine = {
 					value: commandLineValue,
 					confidence: TerminalShellExecutionCommandLineConfidence.High,
@@ -251,9 +245,7 @@ export class InternalTerminalShellIntegration extends Disposable {
 	}
 
 	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined): undefined {
-		// Since an execution is starting, fire the end event for any execution that is awaiting to
-		// end. When this happens it means that the data stream may not be flushed and therefore may
-		// fire events after the end event.
+		// Since an execution is starting, fire the end event for any execution that is awaiting to\n\t\t// end. When this happens it means that the data stream may not be flushed and therefore may\n\t\t// fire events after the end event.
 		if (this._pendingEndingExecution) {
 			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._pendingEndingExecution.value, exitCode: undefined });
 			this._pendingEndingExecution = undefined;
@@ -273,8 +265,7 @@ export class InternalTerminalShellIntegration extends Disposable {
 			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
 		}
 
-		// Get the matching pending execution, how strict this is depends on the confidence of the
-		// command line
+		// Get the matching pending execution, how strict this is depends on the confidence of the\n		// command line
 		let currentExecution: InternalTerminalShellExecution | undefined;
 		if (commandLine.confidence === TerminalShellExecutionCommandLineConfidence.High) {
 			for (const [i, execution] of this._pendingExecutions.entries()) {
@@ -319,8 +310,7 @@ export class InternalTerminalShellIntegration extends Disposable {
 	}
 
 	endShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine | undefined, exitCode: number | undefined): void {
-		// If the current execution is multi-line, don't end it until the next command line is
-		// confirmed to not be a part of it.
+		// If the current execution is multi-line, don't end it until the next command line is\n\t\t// confirmed to not be a part of it.
 		if (this._currentExecutionProperties?.isMultiLine) {
 			if (this._currentExecutionProperties.unresolvedCommandLines && this._currentExecutionProperties.unresolvedCommandLines.length > 0) {
 				return;
@@ -333,11 +323,9 @@ export class InternalTerminalShellIntegration extends Disposable {
 			const currentExecution = this._currentExecution;
 			this._pendingEndingExecution = currentExecution;
 			this._currentExecution = undefined;
-			// IMPORTANT: Ensure the current execution's data events are flushed in order to
-			// prevent data events firing after the end event fires.
+			// IMPORTANT: Ensure the current execution's data events are flushed in order to\n\t\t\t// prevent data events firing after the end event fires.
 			currentExecution.flush().then(() => {
-				// Only fire if it's still the same execution, if it's changed it would have already
-				// been fired.
+				// Only fire if it's still the same execution, if it's changed it would have already\n\t\t\t\t// been fired.
 				if (this._pendingEndingExecution === currentExecution) {
 					this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: currentExecution.value, exitCode });
 					this._pendingEndingExecution = undefined;
@@ -400,7 +388,7 @@ class InternalTerminalShellExecution {
 	private _createDataStream(): AsyncIterable<string> {
 		if (!this._dataStream) {
 			if (this._isEnded) {
-				return AsyncIterableObject.EMPTY;
+				return AsyncIterableProducer.EMPTY;
 			}
 			this._dataStream = new ShellExecutionDataStream();
 		}
@@ -432,7 +420,7 @@ class InternalTerminalShellExecution {
 
 class ShellExecutionDataStream extends Disposable {
 	private _barrier: Barrier | undefined;
-	private _iterables: AsyncIterableObject<string>[] = [];
+	private _iterables: AsyncIterableProducer<string>[] = [];
 	private _emitters: AsyncIterableEmitter<string>[] = [];
 
 	createIterable(): AsyncIterable<string> {
@@ -440,7 +428,7 @@ class ShellExecutionDataStream extends Disposable {
 			this._barrier = new Barrier();
 		}
 		const barrier = this._barrier;
-		const iterable = new AsyncIterableObject<string>(async emitter => {
+		const iterable = new AsyncIterableProducer<string>(async emitter => {
 			this._emitters.push(emitter);
 			await barrier.wait();
 		});
@@ -459,7 +447,7 @@ class ShellExecutionDataStream extends Disposable {
 	}
 
 	async flush(): Promise<void> {
-		await Promise.all(this._iterables.map(e => e.toPromise()));
+		await this._barrier?.wait();
 	}
 }
 
@@ -471,10 +459,7 @@ function splitAndSanitizeCommandLine(commandLine: string): string[] {
 }
 
 /**
- * When executing something that the shell considers multiple commands, such as
- * a comment followed by a command, this needs to all be tracked under a single
- * execution.
- */
+ * When executing something that the shell considers multiple commands, such as\n * a comment followed by a command, this needs to all be tracked under a single\n * execution.\n */
 function isSubExecution(unresolvedCommandLines: string[], commandLine: vscode.TerminalShellExecutionCommandLine): { unresolvedCommandLines: string[] } | false {
 	if (unresolvedCommandLines.length === 0) {
 		return false;
@@ -482,8 +467,7 @@ function isSubExecution(unresolvedCommandLines: string[], commandLine: vscode.Te
 	const newUnresolvedCommandLines = [...unresolvedCommandLines];
 	const subExecutionLines = splitAndSanitizeCommandLine(commandLine.value);
 	if (newUnresolvedCommandLines && newUnresolvedCommandLines.length > 0) {
-		// If all sub-execution lines are in the command line, this is part of the
-		// multi-line execution.
+		// If all sub-execution lines are in the command line, this is part of the\n\t\t// multi-line execution.
 		while (newUnresolvedCommandLines.length > 0) {
 			if (newUnresolvedCommandLines[0] !== subExecutionLines[0]) {
 				break;
