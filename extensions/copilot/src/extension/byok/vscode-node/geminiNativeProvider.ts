@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ApiError, GenerateContentParameters, GoogleGenAI, ThinkingLevel, Tool, Type } from '@google/genai';
+import { ApiError, GenerateContentParameters, GenerateContentResponse, GoogleGenAI, ThinkingLevel, Tool, Type } from '@google/genai';
 import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelDataPart, LanguageModelResponsePart2, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -33,6 +33,8 @@ export interface GeminiModelConfiguration extends LanguageModelChatConfiguration
 	readonly apiVersion?: string;
 	readonly headers?: Record<string, string>;
 	readonly modelOptions?: IChatModelRequestOptions;
+	/** Defaults to `true`, matching this provider's original always-streaming behavior. */
+	readonly streaming?: boolean;
 }
 
 /** OTel server-address host: the custom base URL's host, or the default Gemini API host. */
@@ -214,8 +216,10 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 
 			const wrappedProgress = new RecordedProgress(progress);
 
+			const streaming = model.configuration?.streaming ?? true;
+
 			try {
-				const result = await this._makeRequest(client, wrappedProgress, params, token, issuedTime);
+				const result = await this._makeRequest(client, wrappedProgress, params, token, issuedTime, streaming);
 				if (result.ttft) {
 					pendingLoggedChatRequest.markTimeToFirstToken(result.ttft);
 				}
@@ -475,14 +479,19 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		return Math.ceil(text.toString().length / 4);
 	}
 
-	private async _makeRequest(client: GoogleGenAI, progress: Progress<LMResponsePart>, params: GenerateContentParameters, token: CancellationToken, issuedTime: number): Promise<{ ttft: number | undefined; ttfte: number | undefined; usage: APIUsage | undefined }> {
+	private async _makeRequest(client: GoogleGenAI, progress: Progress<LMResponsePart>, params: GenerateContentParameters, token: CancellationToken, issuedTime: number, streaming: boolean): Promise<{ ttft: number | undefined; ttfte: number | undefined; usage: APIUsage | undefined }> {
 		const start = Date.now();
 		let ttft: number | undefined;
 		let ttfte: number | undefined;
 		let usage: APIUsage | undefined;
 
 		try {
-			const stream = await client.models.generateContentStream(params);
+			// A non-streaming request is treated as a single-chunk stream so the chunk-processing
+			// loop below (thought signatures, tool calls, usage accumulation) stays shared: some
+			// gateways only implement the unary `generateContent` route, not `streamGenerateContent`.
+			const stream: AsyncIterable<GenerateContentResponse> | Iterable<GenerateContentResponse> = streaming
+				? await client.models.generateContentStream(params)
+				: [await client.models.generateContent(params)];
 
 			let pendingThinkingSignature: string | undefined;
 

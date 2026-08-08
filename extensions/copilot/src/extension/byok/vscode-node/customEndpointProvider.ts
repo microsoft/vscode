@@ -201,6 +201,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 				apiVersion,
 				headers: modelConfiguration?.requestHeaders,
 				modelOptions: modelConfiguration?.modelOptions,
+				streaming: modelConfiguration?.streaming,
 			}
 		};
 	}
