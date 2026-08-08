@@ -6,7 +6,7 @@
 import { assert } from 'chai';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, suite, test } from 'vitest';
+import { afterEach, beforeEach, expect, suite, test } from 'vitest';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';
@@ -20,9 +20,14 @@ import { CachedAgentFileWriter } from '../cachedAgentFileWriter';
 
 class CountingFileSystemService extends MockFileSystemService {
 	writeCount = 0;
+	failNextWrite = false;
 
 	override async writeFile(uri: Parameters<MockFileSystemService['writeFile']>[0], content: Uint8Array): Promise<void> {
 		this.writeCount++;
+		if (this.failNextWrite) {
+			this.failNextWrite = false;
+			throw new Error('Test write failure');
+		}
 		await super.writeFile(uri, content);
 	}
 }
@@ -55,6 +60,16 @@ suite('CachedAgentFileWriter', () => {
 		await Promise.all([first, concurrent]);
 		await writer.write('first');
 		await writer.write('second');
+
+		assert.strictEqual(fileSystemService.writeCount, 2);
+	});
+
+	test('retries identical content after a failed write', async () => {
+		const writer = instantiationService.createInstance(CachedAgentFileWriter, 'plan-agent', 'Plan.agent.md', 'TestAgentProvider');
+		fileSystemService.failNextWrite = true;
+
+		await expect(writer.write('content')).rejects.toThrow('Test write failure');
+		await writer.write('content');
 
 		assert.strictEqual(fileSystemService.writeCount, 2);
 	});

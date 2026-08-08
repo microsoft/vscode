@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { createHash } from 'node:crypto';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../platform/log/common/logService';
 
 export class CachedAgentFileWriter {
-	private _cachedWrite: { readonly content: string; readonly result: Promise<vscode.Uri> } | undefined;
+	private _cachedWrite: { readonly contentHash: string; readonly result: Promise<vscode.Uri> } | undefined;
 
 	constructor(
 		private readonly _cacheDirectory: string,
@@ -21,12 +22,13 @@ export class CachedAgentFileWriter {
 	) { }
 
 	write(content: string): Promise<vscode.Uri> {
-		if (this._cachedWrite?.content === content) {
+		const contentHash = createHash('sha256').update(content).digest('hex');
+		if (this._cachedWrite?.contentHash === contentHash) {
 			return this._cachedWrite.result;
 		}
 
 		const result = this._write(content);
-		this._cachedWrite = { content, result };
+		this._cachedWrite = { contentHash, result };
 		void result.catch(() => {
 			if (this._cachedWrite?.result === result) {
 				this._cachedWrite = undefined;
