@@ -11,11 +11,12 @@ import { IFileQueryBuilderOptions, QueryBuilder } from '../../../services/search
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from '../common/search.js';
 import { ISearchService, ISearchComplete } from '../../../services/search/common/search.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { untildify } from '../../../../base/common/labels.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toLocalResource, dirname, basenameOrAuthority } from '../../../../base/common/resources.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -775,32 +776,52 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// and return them as results if the absolute paths exist
 		const isAbsolutePathQuery = (await this.pathService.path).isAbsolute(query.original);
 		if (!isAbsolutePathQuery) {
-			const resources: URI[] = [];
+			const resources = new ResourceMap<URI>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 			for (const folder of this.contextService.getWorkspace().folders) {
 				if (token.isCancellationRequested) {
 					break;
 				}
 
-				const resource = toLocalResource(
-					folder.toResource(query.original),
-					this.environmentService.remoteAuthority,
-					this.pathService.defaultUriScheme
-				);
+				// Try the query as-is relative to the folder
+				await this.tryAddRelativePathFileResult(folder.toResource(query.original), resources);
 
-				try {
-					const stat = await this.fileService.stat(resource);
-					if (stat.isFile) {
-						resources.push(await this.matchFilenameCasing(resource));
-					}
-				} catch (error) {
-					// ignore if file does not exist
+				// Also try the query with a leading workspace folder name prefix stripped. This helps
+				// when users paste fully-qualified paths (e.g. from GitHub or a multi-root workspace
+				// where the folder's display name or basename is part of the path) such as
+				// `folderName/path/to/file.txt`. Without this, `folder.toResource(...)` would produce
+				// `<folderUri>/folderName/path/to/file.txt` which does not exist.
+				const stripped = stripWorkspaceFolderPrefix(query.original, folder);
+				if (stripped !== undefined) {
+					await this.tryAddRelativePathFileResult(folder.toResource(stripped), resources);
 				}
 			}
 
-			return resources;
+			return [...resources.values()];
 		}
 
 		return;
+	}
+
+	private async tryAddRelativePathFileResult(uri: URI, resources: ResourceMap<URI>): Promise<void> {
+		const resource = toLocalResource(
+			uri,
+			this.environmentService.remoteAuthority,
+			this.pathService.defaultUriScheme
+		);
+
+		if (resources.has(resource)) {
+			return;
+		}
+
+		try {
+			const stat = await this.fileService.stat(resource);
+			if (stat.isFile) {
+				const cased = await this.matchFilenameCasing(resource);
+				resources.set(cased, cased);
+			}
+		} catch (error) {
+			// ignore if file does not exist
+		}
 	}
 
 	/**
@@ -1147,4 +1168,31 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	//#endregion
+}
+
+/**
+ * If `query` starts with a path segment that matches the workspace folder's
+ * `name` or the basename of its URI (case-insensitive), returns the remainder
+ * of the query with that segment removed. Otherwise returns `undefined`.
+ *
+ * This enables matching queries like `folderName/path/to/file.txt` against
+ * workspace folders whose name (or basename) matches the first path segment.
+ */
+export function stripWorkspaceFolderPrefix(query: string, folder: IWorkspaceFolder): string | undefined {
+	// Find the first path separator (either / or \)
+	const separatorIndex = query.search(/[\\/]/);
+	if (separatorIndex <= 0) {
+		return undefined;
+	}
+
+	const firstSegment = query.substring(0, separatorIndex);
+	const folderBasename = basenameOrAuthority(folder.uri);
+
+	if (!equalsIgnoreCase(firstSegment, folder.name) && !equalsIgnoreCase(firstSegment, folderBasename)) {
+		return undefined;
+	}
+
+	const remainder = query.substring(separatorIndex + 1);
+	// Avoid producing an empty path which would just match the folder itself.
+	return remainder.length > 0 ? remainder : undefined;
 }
