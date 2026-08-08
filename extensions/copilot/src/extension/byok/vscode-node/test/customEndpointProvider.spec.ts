@@ -349,6 +349,56 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				'x-goog-api-key': '',
 			});
 		}, 30_000);
+
+		it('does not require an apiKey for an unauthenticated self-hosted Gemini endpoint', async () => {
+			const genai = await import('@google/genai');
+			const MockGoogleGenAI = genai.GoogleGenAI as unknown as { createdWithApiKeys: string[]; streamChunks: any[] };
+			MockGoogleGenAI.createdWithApiKeys.length = 0;
+			MockGoogleGenAI.streamChunks.length = 0;
+			MockGoogleGenAI.streamChunks.push({
+				candidates: [{ content: { parts: [{ text: 'Hello from Gemini' }] } }],
+				usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+			});
+
+			const storageService = createStorageService();
+			const geminiDelegate = instaService.createInstance(GeminiNativeBYOKLMProvider, undefined, storageService);
+			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, storageService, geminiDelegate);
+			const model = {
+				id: 'gemini-3.6-flash',
+				name: 'Gemini on self-hosted endpoint',
+				maxInputTokens: 1000,
+				maxOutputTokens: 1000,
+				capabilities: { toolCalling: false, imageInput: false },
+				url: 'https://self-hosted.example.com',
+				configuration: {
+					// No apiKey: matches CustomEndpointOAIEndpoint's support for unauthenticated endpoints.
+					models: [{
+						id: 'gemini-3.6-flash',
+						name: 'Gemini on self-hosted endpoint',
+						url: 'https://self-hosted.example.com',
+						apiType: 'gemini',
+						toolCalling: false,
+						vision: false,
+						maxOutputTokens: 1000,
+					}],
+				},
+			} as any;
+
+			const tokenSource = new vscode.CancellationTokenSource();
+			try {
+				await provider.provideLanguageModelChatResponse(
+					model,
+					[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+					{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto } as any,
+					{ report: () => { } },
+					tokenSource.token
+				);
+			} finally {
+				tokenSource.dispose();
+			}
+
+			expect(MockGoogleGenAI.createdWithApiKeys.at(-1)).toBe('');
+		}, 30_000);
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {

@@ -37,6 +37,13 @@ export interface GeminiModelConfiguration extends LanguageModelChatConfiguration
 	readonly streaming?: boolean;
 	/** Overrides the constructor-time knownModels lookup for reasoning effort support. */
 	readonly supportsReasoningEffort?: string[];
+	/**
+	 * Custom Endpoint delegation only: allows an absent `apiKey`, matching
+	 * `CustomEndpointOAIEndpoint`'s support for endpoints that are either
+	 * unauthenticated or authenticated solely via a `requestHeaders` entry. The
+	 * native provider (talking to the official Google API) always requires a key.
+	 */
+	readonly apiKeyOptional?: boolean;
 }
 
 /** OTel server-address host: the custom base URL's host, or the default Gemini API host. */
@@ -119,7 +126,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		const doRequest = async () => {
 			const issuedTime = Date.now();
 			const apiKey = model.configuration?.apiKey;
-			if (!apiKey) {
+			if (!apiKey && !model.configuration?.apiKeyOptional) {
 				throw new Error('API key not found for the model');
 			}
 
@@ -130,7 +137,9 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 			const headers = model.configuration?.headers;
 			const hasHeaders = !!headers && Object.keys(headers).length > 0;
 			const client = new GoogleGenAI({
-				apiKey,
+				// An explicit '' rather than undefined: passing undefined makes the SDK fall back to
+				// ambient Application Default Credentials lookup instead of using no credential at all.
+				apiKey: apiKey ?? '',
 				...(baseUrl || hasHeaders ? {
 					httpOptions: {
 						...(baseUrl ? { baseUrl, apiVersion: model.configuration?.apiVersion } : {}),

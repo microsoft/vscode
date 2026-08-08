@@ -226,6 +226,10 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			...model,
 			configuration: {
 				apiKey: model.configuration?.apiKey,
+				// Custom Endpoint models don't require an apiKey (see CustomEndpointOAIEndpoint,
+				// which passes '' the same way for the other apiTypes): the endpoint may be
+				// unauthenticated, or authenticated solely via a requestHeaders entry.
+				apiKeyOptional: true,
 				baseUrl,
 				apiVersion,
 				headers,

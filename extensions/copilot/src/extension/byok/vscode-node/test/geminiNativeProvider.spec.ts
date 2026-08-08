@@ -478,6 +478,73 @@ describe('GeminiNativeBYOKLMProvider', () => {
 		expect(MockGoogleGenAI.generateContentParams.at(-1)?.config?.thinkingConfig?.thinkingLevel).toBe('HIGH');
 	}, 30_000);
 
+	it('throws when apiKey is absent and apiKeyOptional is not set, matching prior native behavior', async () => {
+		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
+		const provider = new GeminiNativeBYOKLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
+		const model = {
+			id: 'gemini-3.6-flash',
+			name: 'Gemini 3.6 Flash',
+			family: 'Gemini',
+			version: '1.0.0',
+			maxInputTokens: 1000,
+			maxOutputTokens: 1000,
+			capabilities: { toolCalling: false, imageInput: false },
+			configuration: {}
+		} as any;
+
+		const tokenSource = new vscode.CancellationTokenSource();
+		try {
+			await expect(provider.provideLanguageModelChatResponse(
+				model,
+				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+				{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto } as any,
+				new TestProgress(),
+				tokenSource.token
+			)).rejects.toThrow('API key not found for the model');
+		} finally {
+			tokenSource.dispose();
+		}
+	}, 30_000);
+
+	it('permits an absent apiKey when apiKeyOptional is set, as Custom Endpoint delegates', async () => {
+		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
+		const genai = await import('@google/genai');
+		const MockGoogleGenAI = genai.GoogleGenAI as unknown as { createdWithHttpOptions: unknown[]; streamChunks: any[] };
+		MockGoogleGenAI.createdWithHttpOptions.length = 0;
+		MockGoogleGenAI.streamChunks.length = 0;
+		MockGoogleGenAI.streamChunks.push({
+			candidates: [{ content: { parts: [{ text: 'Hello from Gemini' }] } }],
+			usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+		});
+
+		const provider = new GeminiNativeBYOKLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
+		const model = {
+			id: 'gemini-3.6-flash',
+			name: 'Gemini 3.6 Flash',
+			family: 'Gemini',
+			version: '1.0.0',
+			maxInputTokens: 1000,
+			maxOutputTokens: 1000,
+			capabilities: { toolCalling: false, imageInput: false },
+			configuration: { baseUrl: 'https://self-hosted.example.com', apiKeyOptional: true }
+		} as any;
+
+		const tokenSource = new vscode.CancellationTokenSource();
+		try {
+			await provider.provideLanguageModelChatResponse(
+				model,
+				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+				{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto } as any,
+				new TestProgress(),
+				tokenSource.token
+			);
+		} finally {
+			tokenSource.dispose();
+		}
+
+		expect((genai.GoogleGenAI as unknown as { createdWithApiKeys: string[] }).createdWithApiKeys.at(-1)).toBe('');
+	}, 30_000);
+
 	it.skip('throws a clear error when no API key is configured (no silent return)', async () => {
 		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
 		const storage = createStorageService({ getAPIKey: vi.fn().mockResolvedValue(undefined) });
