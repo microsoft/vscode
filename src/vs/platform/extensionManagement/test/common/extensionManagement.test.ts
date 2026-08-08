@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EXTENSION_IDENTIFIER_PATTERN } from '../../common/extensionManagement.js';
+import { EXTENSION_IDENTIFIER_PATTERN, EXTENSION_PUBLISHER_IDENTIFIER_PATTERN } from '../../common/extensionManagement.js';
 import { ExtensionKey } from '../../common/extensionManagementUtil.js';
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 
@@ -30,6 +30,22 @@ suite('Extension Identifier Pattern', () => {
 		assert.strictEqual(false, regEx.test('-publisher.-name'));
 		assert.strictEqual(false, regEx.test('publ_isher.name'));
 		assert.strictEqual(false, regEx.test('publisher._name'));
+	});
+
+	test('extension identifier pattern and publisher identifier pattern are mutually exclusive (#327194)', () => {
+		// A key like `ms-vscode.cpptools` must match exactly one of the two
+		// `extensions.allowed` patternProperties patterns, otherwise the JSON
+		// schema validator requires the value to satisfy both patterns' schemas,
+		// incorrectly rejecting an array value (e.g. `["1.31.4"]`) that's only
+		// valid under the extension identifier pattern.
+		const extensionIdRegEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+		const publisherRegEx = new RegExp(EXTENSION_PUBLISHER_IDENTIFIER_PATTERN);
+
+		assert.strictEqual(extensionIdRegEx.test('ms-vscode.cpptools'), true);
+		assert.strictEqual(publisherRegEx.test('ms-vscode.cpptools'), false);
+
+		assert.strictEqual(extensionIdRegEx.test('ms-vscode'), false);
+		assert.strictEqual(publisherRegEx.test('ms-vscode'), true);
 	});
 
 	test('extension key', () => {
