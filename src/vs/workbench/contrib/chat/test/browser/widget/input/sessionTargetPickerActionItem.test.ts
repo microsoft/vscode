@@ -98,4 +98,5 @@ suite('SessionTypePickerActionItem', () => {
 			hover: '[Sign in to GitHub Copilot](command:workbench.action.chat.triggerSetup) to use this agent.',
 		});
 	});
+
 });
