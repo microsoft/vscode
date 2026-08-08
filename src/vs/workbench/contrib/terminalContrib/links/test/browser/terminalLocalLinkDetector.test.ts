@@ -344,6 +344,18 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				await assertLinks(TerminalBuiltinLinkType.LocalFile, baseLink, [{ uri: resource, range: [[1, 1], [baseLink.length, 1]] }]);
 			});
 		}
+
+		// Suffix-anchored paths with embedded spaces only resolve when the file system says the
+		// extended path exists. See #212334.
+		test('should detect absolute path with embedded space when followed by a row suffix (#212334)', async () => {
+			const resource = URI.file('/Users/me/My Project/file.ts');
+			validResources = [resource];
+			fileService.setFiles(validResources);
+			const line = '/Users/me/My Project/file.ts:10';
+			await assertLinks(TerminalBuiltinLinkType.LocalFile, line, [
+				{ uri: resource, range: [[1, 1], [line.length, 1]] }
+			]);
+		});
 	});
 
 	// Only test these when on Windows because there is special behavior around replacing separators
@@ -428,6 +440,17 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 					await assertLinks(TerminalBuiltinLinkType.LocalFile, baseLink, [{ uri: resource, range: [[1, 1], [baseLink.length, 1]] }]);
 				});
 			}
+
+			// Suffix-anchored Windows path with embedded space. See #212334.
+			test('should detect drive-letter path with embedded space when followed by a row suffix (#212334)', async () => {
+				const resource = URI.file('C:\\Users\\Test User\\file.ts');
+				validResources = [resource];
+				fileService.setFiles(validResources);
+				const line = 'C:\\Users\\Test User\\file.ts:10';
+				await assertLinks(TerminalBuiltinLinkType.LocalFile, line, [
+					{ uri: resource, range: [[1, 1], [line.length, 1]] }
+				]);
+			});
 
 			suite('WSL', () => {
 				test('Unix -> Windows /mnt/ style links', async () => {
