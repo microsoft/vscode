@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { PromptTimelineDockRail } from '../../../browser/promptTimeline/promptTimelineDockRail.js';
+import { PromptTimelineGutterRail } from '../../../browser/promptTimeline/promptTimelineGutterRail.js';
 import { PromptTick } from '../../../browser/promptTimeline/promptTimelineModel.js';
 
-suite('PromptTimelineDockRail', () => {
+suite('PromptTimelineGutterRail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function tick(index: number): PromptTick {
@@ -17,11 +17,11 @@ suite('PromptTimelineDockRail', () => {
 	}
 
 	test('pairs row and dot hover feedback', () => {
-		const rail = store.add(new PromptTimelineDockRail());
+		const rail = store.add(new PromptTimelineGutterRail());
 		rail.setTicks(Array.from({ length: 3 }, (_, index) => tick(index)));
 
-		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-dock-row'));
-		const dots = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-dock-dot'));
+		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-row'));
+		const dots = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-dot'));
 
 		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 		const rowHover = {
@@ -48,11 +48,11 @@ suite('PromptTimelineDockRail', () => {
 	});
 
 	test('maps row hover to the nearest sampled dot when capped', () => {
-		const rail = store.add(new PromptTimelineDockRail());
+		const rail = store.add(new PromptTimelineGutterRail());
 		rail.setTicks(Array.from({ length: 51 }, (_, index) => tick(index)));
 
-		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-dock-row'));
-		const dots = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-dock-dot'));
+		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-row'));
+		const dots = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-dot'));
 		rows[25].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 
 		assert.deepStrictEqual({
