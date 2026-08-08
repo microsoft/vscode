@@ -16,7 +16,7 @@ import { IEditorDecorationsCollection } from '../../../../editor/common/editorCo
 import { OverviewRulerLane, IModelDecorationOptions, MinimapPosition, IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ChangeType, getChangeType, IQuickDiffService, QuickDiffProvider, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../common/quickDiff.js';
+import { ChangeType, getChangeType, IQuickDiffService, QuickDiffProvider, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerAddedSecondaryForeground, overviewRulerDeletedForeground, overviewRulerDeletedSecondaryForeground, overviewRulerModifiedForeground, overviewRulerModifiedSecondaryForeground } from '../common/quickDiff.js';
 import { QuickDiffModel, IQuickDiffModelService } from './quickDiffModel.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -91,10 +91,16 @@ class QuickDiffDecorator extends Disposable {
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
 			isWholeLine: true
 		};
+		const diffAddedSecondaryOptions = {
+			gutter,
+			overview: { active: overview, color: overviewRulerAddedSecondaryForeground },
+			minimap: { active: minimap, color: minimapGutterAddedBackground },
+			isWholeLine: true
+		};
 		this.addedOptions = QuickDiffDecorator.createDecoration('dirty-diff-added primary', diffAdded, diffAddedOptions);
 		this.addedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added primary pattern', diffAdded, diffAddedOptions);
-		this.addedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-added secondary', diffAdded, diffAddedOptions);
-		this.addedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added secondary pattern', diffAdded, diffAddedOptions);
+		this.addedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-added secondary', diffAdded, diffAddedSecondaryOptions);
+		this.addedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-added secondary pattern', diffAdded, diffAddedSecondaryOptions);
 
 		const diffModified = nls.localize('diffModified', 'Changed lines');
 		const diffModifiedOptions = {
@@ -103,10 +109,16 @@ class QuickDiffDecorator extends Disposable {
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
 		};
+		const diffModifiedSecondaryOptions = {
+			gutter,
+			overview: { active: overview, color: overviewRulerModifiedSecondaryForeground },
+			minimap: { active: minimap, color: minimapGutterModifiedBackground },
+			isWholeLine: true
+		};
 		this.modifiedOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified primary', diffModified, diffModifiedOptions);
 		this.modifiedPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified primary pattern', diffModified, diffModifiedOptions);
-		this.modifiedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified secondary', diffModified, diffModifiedOptions);
-		this.modifiedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified secondary pattern', diffModified, diffModifiedOptions);
+		this.modifiedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified secondary', diffModified, diffModifiedSecondaryOptions);
+		this.modifiedSecondaryPatternOptions = QuickDiffDecorator.createDecoration('dirty-diff-modified secondary pattern', diffModified, diffModifiedSecondaryOptions);
 
 		const diffDeleted = nls.localize('diffDeleted', 'Removed lines');
 		const diffDeletedOptions = {
@@ -115,8 +127,14 @@ class QuickDiffDecorator extends Disposable {
 			minimap: { active: minimap, color: minimapGutterDeletedBackground },
 			isWholeLine: false
 		};
+		const diffDeletedSecondaryOptions = {
+			gutter,
+			overview: { active: overview, color: overviewRulerDeletedSecondaryForeground },
+			minimap: { active: minimap, color: minimapGutterDeletedBackground },
+			isWholeLine: false
+		};
 		this.deletedOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted primary', diffDeleted, diffDeletedOptions);
-		this.deletedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted secondary', diffDeleted, diffDeletedOptions);
+		this.deletedSecondaryOptions = QuickDiffDecorator.createDecoration('dirty-diff-deleted secondary', diffDeleted, diffDeletedSecondaryOptions);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.diffDecorationsGutterPattern')) {
