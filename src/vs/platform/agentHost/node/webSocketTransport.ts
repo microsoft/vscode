@@ -14,6 +14,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { AgentHostTransportKind } from '../common/agentHostTelemetry.js';
 import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import type * as wsTypes from 'ws';
@@ -45,6 +46,7 @@ export interface IWebSocketServerOptions {
  * Messages are serialized as JSON with URI revival.
  */
 export class WebSocketProtocolTransport extends Disposable implements IProtocolTransport {
+	readonly transportKind = AgentHostTransportKind.WebSocket;
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;

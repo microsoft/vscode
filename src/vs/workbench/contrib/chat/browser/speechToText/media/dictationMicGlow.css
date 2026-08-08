@@ -12,14 +12,16 @@
 	--dictation-mic-level: 0;
 }
 
-/* Keep the mic glyph above the glow so the icon stays crisp. */
-.dictation-mic-active > * {
+/* Keep the mic glyph above the glow so the icon stays crisp. The rim slot is
+	excluded: it positions itself over the button and sits deliberately behind. */
+.dictation-mic-active > *:not(.voice-glow-slot) {
 	position: relative;
 	z-index: 1;
 }
 
-/* Audio-reactive inner glow matching Voice Mode's listening glow style (inner border + inset wash). */
-.dictation-mic-active::after {
+/* Fallback glow for hosts that mount without a theme service, and so can't be
+	given the real rim. Suppressed when the rim is present so the two never stack. */
+.dictation-mic-active:not(:has(> .voice-glow-slot-inline))::after {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -35,12 +37,24 @@
 	will-change: opacity, box-shadow;
 }
 
+/* The rim carries its own corner radius from the button, but it has to be told
+	how round the button is when the button itself isn't the rounded element. */
+.dictation-mic-active > .voice-glow-slot-inline {
+	border-radius: var(--dictation-mic-glow-radius, var(--vscode-cornerRadius-small));
+}
+
 /* Recording has stopped and the final transcript is landing. */
 .dictation-mic-active.dictation-mic-settling::after {
 	opacity: 0.2;
 }
 
-/* Keeps the button from ever being completely still during a pause in speech. */
+.dictation-mic-active.dictation-mic-settling > .voice-glow-slot-inline {
+	opacity: 0.25;
+}
+
+/* The rim drives its own motion from the audio level, so it needs no keyframe of
+	its own — this only keeps the fallback glow from ever being completely still
+	during a pause in speech. */
 .monaco-workbench.monaco-enable-motion .dictation-mic-active:not(.dictation-mic-settling)::after {
 	animation: dictation-mic-breathe 5.5s ease-in-out infinite;
 }
@@ -55,12 +69,31 @@
 	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
 }
 
-/* High-contrast themes replace the soft glow with a solid outline, which must
-	stay fully opaque to keep its contrast at low levels. */
+/* Standalone dictation buttons are discs, so the glow has to be one too —
+	otherwise the light spills past the button's own edge. Covers the editor
+	chat toolbar and the Agents window composer's mic button. */
+.chat-execute-toolbar .monaco-action-bar .action-item.dictation-mic-active,
+.sessions-chat-stt-button.dictation-mic-active {
+	--dictation-mic-glow-radius: var(--vscode-cornerRadius-circle);
+}
+
+/* High-contrast themes replace the fallback glow with a solid line, matching the
+	Voice Mode rim's high-contrast treatment — blue, since an open microphone is
+	the listening state. The rim itself is already handled by voiceGlow.css, which
+	collapses `voice-glow-rim-cool` to the same line. It stays fully opaque to keep
+	its contrast at low levels. */
 .hc-black .dictation-mic-active::after,
 .hc-light .dictation-mic-active::after {
 	opacity: 1;
 	background: none;
 	box-shadow: none;
-	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline: var(--vscode-strokeThickness) solid var(--vscode-charts-blue);
+}
+
+.hc-black .dictation-mic-active::after {
+	outline-color: var(--vscode-charts-blue, #3794ff);
+}
+
+.hc-light .dictation-mic-active::after {
+	outline-color: var(--vscode-charts-blue, #0f4a85);
 }

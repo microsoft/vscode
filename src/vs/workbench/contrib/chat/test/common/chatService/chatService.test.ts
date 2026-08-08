@@ -237,6 +237,26 @@ suite('ChatService', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('propagates Agents Voice Mode input to the participant request', async () => {
+		const captured = new DeferredPromise<boolean | undefined>();
+		testDisposables.add(chatAgentService.registerAgent('voiceAgent', getAgentData('voiceAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('voiceAgent', {
+			async invoke(request) {
+				captured.complete(request.isVoiceModeInput);
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+
+		await service.sendRequest(model.sessionResource, 'voice request', {
+			agentId: 'voiceAgent',
+			isVoiceModeInput: true,
+		});
+
+		assert.strictEqual(await captured.p, true);
+	});
+
 	test('slash commands can share ids across non-overlapping session types', async () => {
 		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
 		const executions: string[] = [];
@@ -651,6 +671,38 @@ suite('ChatService', () => {
 		assert.strictEqual(disposed, true);
 	});
 
+	test('disposing a session cancels pending followups', async () => {
+		let followupsToken: CancellationToken | undefined;
+		const followupsCancelled = new DeferredPromise<IChatFollowup[]>();
+		const followupsAgent: IChatAgentImplementation = {
+			async invoke() {
+				return {};
+			},
+			provideFollowups(request, result, history, token) {
+				followupsToken = token;
+				testDisposables.add(token.onCancellationRequested(() => followupsCancelled.complete([])));
+				return followupsCancelled.p;
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('followupsAgent', { ...getAgentData('followupsAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('followupsAgent', followupsAgent));
+
+		const testService = createChatService();
+		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const response = await testService.sendRequest(modelRef.object.sessionResource, 'test request', { agentId: 'followupsAgent' });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.ok(followupsToken);
+		assert.strictEqual(followupsToken.isCancellationRequested, false);
+
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+
+		assert.strictEqual(followupsToken.isCancellationRequested, true);
+	});
+
 	test('steering message queued triggers setYieldRequested', async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
@@ -859,6 +911,7 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.strictEqual(model.getPendingRequests().length, 1, 'queued message should wait while the streamed turn is in progress');
+		assert.strictEqual(queued.requestId, model.getPendingRequests()[0].request.id, 'queued result should identify the pending request it created');
 
 		isCompleteObs.set(true, undefined);
 		await invoked.p;

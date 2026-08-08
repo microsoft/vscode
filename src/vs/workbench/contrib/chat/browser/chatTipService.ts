@@ -13,7 +13,7 @@ import { getSelectedModelIdentifier } from '../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -28,6 +28,7 @@ import { ChatTipExperiment, ChatTipTier, extractCommandIds, ITipBuildContext, IT
 import { ChatTipStorageKeys, TipTrackingCommands } from './chatTipStorageKeys.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IChatWidgetService } from './chat.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -217,6 +218,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._tracker = this._register(instantiationService.createInstance(TipEligibilityTracker, TIP_CATALOG));
@@ -260,6 +262,21 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				}
 			}));
 		}
+
+		// Dynamic commands (e.g. 'workbench.action.chat.openPlan') are registered at
+		// WorkbenchPhase.Eventually and may be removed when the focused modes change.
+		// Re-evaluate the shown tip whenever any command is registered so that tips are
+		// neither shown with dead links nor permanently blocked from appearing due to a
+		// registration race at startup.
+		this._register(CommandsRegistry.onDidRegisterCommand(commandId => {
+			this._hideShownTipIfNowIneligible();
+			// If the newly registered command was a requirement that blocked a tip from
+			// being selected, reset the cached selection so the next getWelcomeTip call
+			// can re-pick the most suitable tip.
+			if (this._tipRequestId === 'welcome' && TIP_CATALOG.some(tip => tip.requiresCommands?.includes(commandId))) {
+				this._tipRequestId = undefined;
+			}
+		}));
 	}
 
 	private _hasFileOrFolderReference(message: IParsedChatRequest): boolean {
@@ -760,6 +777,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logService.debug('#ChatTips: tip is not eligible due to when clause', tip.id, tip.when.serialize());
 			return false;
 		}
+		if (tip.requiresModeNames?.some(modeName => !this._isModeAvailable(modeName, contextKeyService))) {
+			this._logService.debug('#ChatTips: tip is not eligible because a required mode is not available', tip.id, tip.requiresModeNames);
+			return false;
+		}
+		if (tip.requiresCommands?.some(commandId => !CommandsRegistry.getCommand(commandId))) {
+			this._logService.debug('#ChatTips: tip is not eligible because a required command is not registered', tip.id, tip.requiresCommands);
+			return false;
+		}
 		if (this._tracker.isExcluded(tip)) {
 			return false;
 		}
@@ -767,7 +792,28 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logService.debug('#ChatTips: tip excluded because thinking phrases setting was previously modified', tip.id);
 			return false;
 		}
+		if (!this._areTipCommandsRegistered(tip)) {
+			return false;
+		}
 		this._logService.debug('#ChatTips: tip is eligible', tip.id);
+		return true;
+	}
+
+	private _isModeAvailable(modeName: string, contextKeyService: IContextKeyService): boolean {
+		const widget = this._chatWidgetService.getAllWidgets().find(widget => widget.scopedContextKeyService === contextKeyService);
+		return !!widget?.input.currentChatModesObs.get().findModeByName(modeName);
+	}
+
+	private _areTipCommandsRegistered(tip: ITipDefinition): boolean {
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, experimentalTipMessages: this._experimentalTipMessages };
+		const rawMessage = tip.buildMessage(ctx);
+		const commandIds = extractCommandIds(rawMessage.value);
+		for (const commandId of commandIds) {
+			if (!CommandsRegistry.getCommand(commandId)) {
+				this._logService.debug('#ChatTips: tip excluded because command is not registered', tip.id, commandId);
+				return false;
+			}
+		}
 		return true;
 	}
 

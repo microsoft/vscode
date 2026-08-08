@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -37,8 +38,17 @@ suite('Chat input onboarding', () => {
 		const card = context.container.ownerDocument.createElement('div');
 		card.classList.add('chat-input-onboarding-card');
 		context.container.appendChild(card);
-		return toDisposable(() => card.remove());
+		const disposable = toDisposable(() => card.remove());
+		return {
+			announce: () => { announceCalls++; },
+			dispose: () => disposable.dispose(),
+		};
 	}
+
+	let announceCalls = 0;
+	setup(() => {
+		announceCalls = 0;
+	});
 
 	test('owns one card and restores focus when it is dismissed', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.ownsCard');
@@ -97,6 +107,39 @@ suite('Chat input onboarding', () => {
 		disposables.add(onboarding.registerHost(host.container, host.root));
 
 		assert.strictEqual(onboarding.showIfNeeded(createCard), true);
+	});
+
+	test('announces once on show', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.announces');
+		const host = createHost(disposables);
+		disposables.add(onboarding.registerHost(host.container, host.root));
+
+		const shown = onboarding.show(createCard);
+		onboarding.showIfNeeded(createCard); // no-op while already visible, must not re-announce
+
+		assert.deepStrictEqual(
+			{ shown, announceCalls },
+			{ shown: true, announceCalls: 1 });
+	});
+
+	test('announces how to reach the card in the tab order', () => {
+		const host = createHost(disposables);
+		const ariaContainer = dom.append(host.root, dom.$('div'));
+		setARIAContainer(ariaContainer);
+		const card = disposables.add(new ChatInputOnboardingCard({
+			container: host.container,
+			className: 'chat-input-onboarding-card',
+			ariaLabel: 'Test onboarding',
+			ariaDescription: 'Test description.',
+			onEscape: () => { },
+		}));
+
+		card.announce();
+		const announced = ariaContainer.textContent;
+
+		assert.deepStrictEqual(
+			{ announced, tabIndex: card.domNode.tabIndex },
+			{ announced: 'Test onboarding. Use Shift+Tab to reach the introduction.', tabIndex: 0 });
 	});
 
 	test('handles unmodified keyboard dismissal and action activation', () => {

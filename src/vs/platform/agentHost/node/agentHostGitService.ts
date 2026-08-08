@@ -623,6 +623,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return out?.trim() || undefined;
 	}
 
+	async listRefNamesWithOids(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>> {
+		const out = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(objectname)', pattern]);
+		if (!out) {
+			return [];
+		}
+		const result: Array<{ ref: string; oid: string }> = [];
+		for (const line of out.split('\n')) {
+			const trimmed = line.trim();
+			if (!trimmed) {
+				continue;
+			}
+			const [ref, oid] = trimmed.split('\x00');
+			if (ref && oid) {
+				result.push({ ref, oid });
+			}
+		}
+		return result;
+	}
+
 	async overlayPathIntoTree(repositoryRoot: URI, baseTreeOid: string, path: string, sourceTreeOid: string): Promise<string | undefined> {
 		// Build a throwaway index seeded from `baseTreeOid`, replace/remove the
 		// single `path` using `sourceTreeOid`, and write the result back out as
@@ -760,6 +779,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
+		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
+		const githubHeadRepo = upstreamRemote ? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote) : undefined;
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -786,6 +807,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
 			githubOwner: githubRepo?.owner,
+			githubHeadOwner: githubHeadRepo?.owner,
 			githubRepo: githubRepo?.repo,
 		};
 		// Strip undefined fields so the resulting object is the same regardless
@@ -1283,15 +1305,9 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
 
 /** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 export function parseFetchRemoteUrls(remotesOutput: string | undefined, preferredRemote?: string): string[] | undefined {
-	if (remotesOutput === undefined) {
+	const candidates = parseFetchRemotes(remotesOutput);
+	if (!candidates) {
 		return undefined;
-	}
-	const candidates: { name: string; url: string }[] = [];
-	for (const rawLine of remotesOutput.split(/\r?\n/)) {
-		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
-		if (match) {
-			candidates.push({ name: match[1], url: match[2] });
-		}
 	}
 	const preferredNames = new Set([preferredRemote, 'origin'].filter((name): name is string => Boolean(name)));
 	const ordered = [
@@ -1302,16 +1318,30 @@ export function parseFetchRemoteUrls(remotesOutput: string | undefined, preferre
 	return [...new Set(ordered.map(candidate => candidate.url))];
 }
 
+function parseFetchRemotes(remotesOutput: string | undefined): { name: string; url: string }[] | undefined {
+	if (remotesOutput === undefined) {
+		return undefined;
+	}
+	const candidates: { name: string; url: string }[] = [];
+	for (const rawLine of remotesOutput.split(/\r?\n/)) {
+		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
+		if (match) {
+			candidates.push({ name: match[1], url: match[2] });
+		}
+	}
+	return candidates;
+}
+
 /**
- * Parse `owner` and `repo` from `git remote -v` output. Prefers the `origin`
- * remote; falls back to the first GitHub remote so worktrees that renamed
- * the remote still surface PR state. Returns `undefined` if no GitHub
- * remote is present or the URL doesn't match a GitHub repo shape.
+ * Parse `owner` and `repo` from `git remote -v` output. When `remoteName` is
+ * provided, only that remote is considered. Otherwise, `origin` is preferred.
  *
  * Exported for tests.
  */
-export function parseGitHubRepoFromRemote(remotesOutput: string | undefined): { owner: string; repo: string } | undefined {
-	const candidates = parseFetchRemoteUrls(remotesOutput);
+export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, remoteName?: string): { owner: string; repo: string } | undefined {
+	const candidates = remoteName === undefined
+		? parseFetchRemoteUrls(remotesOutput)
+		: parseFetchRemotes(remotesOutput)?.filter(candidate => candidate.name === remoteName).map(candidate => candidate.url);
 	if (!candidates) {
 		return undefined;
 	}
