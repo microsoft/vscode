@@ -291,6 +291,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	/** Recreates the TAS client when the resolved assignments endpoint has changed. */
 	private recreateTasClientIfEndpointChanged(): void {
+		if (this._store.isDisposed) {
+			return; // the service was disposed before the (async) account load resolved
+		}
 		const next = this.getAssignmentsEndpoint();
 		if (next !== this.assignmentsEndpoint) {
 			this.tasClient = this.setupTASClient();

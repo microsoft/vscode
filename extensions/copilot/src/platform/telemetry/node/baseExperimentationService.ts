@@ -172,8 +172,8 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 		const delegate = this._delegateFn(this._globalState, this._userInfoStore);
 		this._delegateDisposable.value = toDisposable(() => delegate.dispose());
 		delegate.initialFetch.then(() => {
-			if (generation !== this._delegateGeneration) {
-				return; // superseded by a newer delegate
+			if (generation !== this._delegateGeneration || this._store.isDisposed) {
+				return; // superseded by a newer delegate, or the service was disposed
 			}
 			this._logService.trace(`[BaseExperimentationService] Initial fetch completed`);
 			// A replacement delegate (e.g. once the assignments endpoint arrives) may carry
