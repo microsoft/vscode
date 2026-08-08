@@ -6,6 +6,9 @@
 import { SaveDialogOptions, OpenDialogOptions } from '../../../../base/parts/sandbox/common/electronTypes.js';
 import { IHostService } from '../../host/browser/host.js';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService, INativeOpenDialogOptions } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWindowSettings } from '../../../../platform/window/common/window.js';
+import Severity from '../../../../base/common/severity.js';
+import * as nls from '../../../../nls.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../history/common/history.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -28,6 +31,7 @@ import { IEditorService } from '../../editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -114,7 +118,60 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.pickFolderAndOpenSimplified(schema, options);
 		}
+
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		if (!options.forceNewWindow && windowConfig?.openFoldersInNewWindow === 'ask') {
+			return this.pickFolderAndOpenWithAsk(options);
+		}
+
 		return this.nativeHostService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+	}
+
+	private async pickFolderAndOpenWithAsk(options: IPickAndOpenOptions): Promise<void> {
+		const properties: Array<'openDirectory' | 'createDirectory' | 'multiSelections' | 'treatPackageAsDirectory'> = ['openDirectory', 'createDirectory', 'multiSelections'];
+		if (isMacintosh) {
+			properties.push('treatPackageAsDirectory');
+		}
+
+		const result = await this.nativeHostService.showOpenDialog({
+			title: nls.localize('openFolder.title', 'Open Folder'),
+			defaultPath: options.defaultUri?.fsPath,
+			properties,
+			targetWindowId: getActiveWindow().vscodeWindowId
+		});
+
+		if (!result || result.canceled || result.filePaths.length === 0) {
+			return;
+		}
+
+		type WindowChoice = 'current' | 'new';
+		const { result: windowChoice } = await this.dialogService.prompt<WindowChoice>({
+			type: Severity.Info,
+			message: nls.localize('openFolderInNewWindow', "How would you like to open the folder?"),
+			buttons: [
+				{
+					label: nls.localize({ key: 'openFolderCurrentWindow', comment: ['&& denotes a mnemonic'] }, "&&Current Window"),
+					run: () => 'current' as WindowChoice
+				},
+				{
+					label: nls.localize({ key: 'openFolderNewWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
+					run: () => 'new' as WindowChoice
+				}
+			],
+			cancelButton: true
+		});
+
+		if (!windowChoice) {
+			return; // cancelled
+		}
+
+		await this.hostService.openWindow(
+			result.filePaths.map(path => ({ folderUri: URI.file(path) })),
+			{
+				...(windowChoice === 'current' ? { forceReuseWindow: true } : { forceNewWindow: true }),
+				remoteAuthority: options.remoteAuthority
+			}
+		);
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
