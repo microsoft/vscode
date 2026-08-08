@@ -219,6 +219,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 				headers: interpolateApiKeyInHeaders(modelConfiguration?.requestHeaders, model.configuration?.apiKey),
 				modelOptions: modelConfiguration?.modelOptions,
 				streaming: modelConfiguration?.streaming,
+				supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			}
 		};
 	}

@@ -35,6 +35,8 @@ export interface GeminiModelConfiguration extends LanguageModelChatConfiguration
 	readonly modelOptions?: IChatModelRequestOptions;
 	/** Defaults to `true`, matching this provider's original always-streaming behavior. */
 	readonly streaming?: boolean;
+	/** Overrides the constructor-time knownModels lookup for reasoning effort support. */
+	readonly supportsReasoningEffort?: string[];
 }
 
 /** OTel server-address host: the custom base URL's host, or the default Gemini API host. */
@@ -191,7 +193,9 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 			});
 
 			const rawEffort = options.modelConfiguration?.reasoningEffort;
-			const supportedEffortLevels = this._knownModels?.[model.id]?.supportsReasoningEffort;
+			// Per-request configuration (Custom Endpoint) takes priority over the constructor-time
+			// knownModels registry (native vendor: gemini), which the delegate never has populated.
+			const supportedEffortLevels = model.configuration?.supportsReasoningEffort ?? this._knownModels?.[model.id]?.supportsReasoningEffort;
 			const thinkingLevel = typeof rawEffort === 'string' && supportedEffortLevels?.includes(rawEffort)
 				? Object.values(ThinkingLevel).find(level => level.toLowerCase() === rawEffort)
 				: undefined;
