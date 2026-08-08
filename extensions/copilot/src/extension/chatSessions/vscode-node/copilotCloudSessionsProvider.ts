@@ -1270,6 +1270,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				this.logService.debug('copilotCloudSessionsProvider#provideChatSessionItems: not a GitHub repo, returning empty');
 				return [];
 			}
+			// Listing cloud sessions requires a permissive GitHub session. Without one the backend's
+			// list call throws "Sign in to GitHub to use the Cloud Agent", which surfaces as an
+			// unhandled error because this passive refresh path has no try/catch. Return no sessions
+			// instead; the sign-in prompt is driven by the explicit create/use flows, and this list is
+			// re-fetched via onDidAuthenticationChange once the user signs in.
+			if (!this._authenticationService.permissiveGitHubSession) {
+				this.logService.debug('copilotCloudSessionsProvider#provideChatSessionItems: no permissive GitHub session, returning empty');
+				return [];
+			}
 			const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, true);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
 			this.cachedSessionsSize = sessionList.length;
