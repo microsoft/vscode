@@ -201,7 +201,7 @@ Claude additionally applies:
 - `hiddenSections: [Prompts, Plugins]`
 - `instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md']`
 - `workspaceSubpaths: ['.claude']` (instruction files matching `instructionFileFilter` are exempt)
-- `sectionOverrides`: Hooks → `copilot.claude.hooks` command; Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
+- `sectionOverrides`: Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
 
 ### Built-in Extension Grouping (Core VS Code)
 
