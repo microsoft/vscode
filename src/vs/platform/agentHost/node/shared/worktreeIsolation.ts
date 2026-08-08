@@ -9,6 +9,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlCon
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -861,6 +862,33 @@ export class WorktreeIsolation extends Disposable {
 	/** Reads the persisted worktree metadata for a session, if any. */
 	async readWorktreeMetadata(sessionUri: URI): Promise<{ branchName: string; worktreePath?: URI; repositoryRoot?: URI } | undefined> {
 		return this._readWorktreeMetadata(sessionUri);
+	}
+
+	/**
+	 * Bridges worktree metadata for a legacy session adopted in place, whose
+	 * working directory is a pre-existing git worktree the agent host did not
+	 * create. When `workingDirectory` is a linked worktree (its checkout root
+	 * differs from the repository's primary worktree root), persists the worktree
+	 * branch / path / repository-root (and diff base branch) so the adopted
+	 * session groups under its repository and computes diffs against the right
+	 * base — parity with natively worktree-isolated sessions. Deliberately does
+	 * NOT register the worktree as host-created, so disposing the session never
+	 * deletes the user-owned worktree. Returns `true` when metadata was recorded.
+	 */
+	async adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean> {
+		const worktreeRoot = await this._gitService.getRepositoryRoot(workingDirectory).catch(() => undefined);
+		if (!worktreeRoot) {
+			return false;
+		}
+		const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, worktreeRoot).catch(() => undefined);
+		// A primary checkout (not a linked worktree) resolves to itself; nothing to bridge.
+		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
+			return false;
+		}
+		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
+		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
+		await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktreeRoot, repositoryRoot: primaryRoot });
+		return true;
 	}
 
 	/**

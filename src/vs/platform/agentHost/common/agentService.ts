@@ -1546,6 +1546,18 @@ export interface IActiveClient {
 }
 
 /**
+ * Outcome of {@link IAgent.ensureSessionAdopted}. `adopted` is true iff this
+ * call newly seeded metadata for the session; `eligible` is true iff the session
+ * is a legacy on-disk session that was a genuine adoption candidate (whether or
+ * not it was adopted this call), so callers can distinguish a migration that did
+ * not happen from an ordinary native restore.
+ */
+export interface IAgentSessionAdoptionResult {
+	readonly adopted: boolean;
+	readonly eligible: boolean;
+}
+
+/**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
@@ -1606,12 +1618,13 @@ export interface IAgent {
 	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
 	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
 	 * no agent-host metadata yet, seed that metadata in place — reusing the event
-	 * log verbatim — so the normal restore flow can resume it. Returns `true` iff
-	 * it newly adopted the session (so the caller can run a one-time checkpoint
-	 * bridge), `false` otherwise. Optional: providers without a legacy on-disk
-	 * format omit it.
+	 * log verbatim — so the normal restore flow can resume it. Reports whether the
+	 * session was newly adopted (so the caller can run a one-time checkpoint
+	 * bridge) and whether it was an eligible legacy session at all (so the caller
+	 * can tell a genuine migration candidate apart from an ordinary native
+	 * restore). Optional: providers without a legacy on-disk format omit it.
 	 */
-	ensureSessionAdopted?(session: URI): Promise<boolean>;
+	ensureSessionAdopted?(session: URI): Promise<IAgentSessionAdoptionResult>;
 
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
