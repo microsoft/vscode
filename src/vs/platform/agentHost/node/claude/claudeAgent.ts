@@ -630,10 +630,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._githubToken = token;
 		this._logService.info('[Claude] Auth token updated');
 		oldHandle?.dispose();
-		// A different account can have different model entitlements; do not retain
-		// the previous list if enumeration for the new token fails. The `models`
-		// write also republishes the protected resources downstream.
-		this._models.set([], undefined);
+		// Blank the catalog only on a *replacement*: a different account can have
+		// different model entitlements, so don't retain the previous list if
+		// enumeration for the new token fails.
+		//
+		// A first sign-in (no `oldHandle`) must NOT blank. It has no superseded
+		// account to drop, and the catalog it would clear is native-only — the
+		// bootstrap list, which is account-independent and stays valid. Blanking
+		// there publishes an empty catalog for the length of the refresh, which the
+		// window gate reads as `SessionTypeAuthRequirement.Unusable` (an agent with
+		// no models is unusable). That closes the `allowSignedOutWhenUsable` gate
+		// mid-startup and forces the sign-in dialog on a user who is already signed
+		// in — the GitHub session resolves before the Copilot default account does,
+		// so the welcome flow still believes it is signed out.
+		if (oldHandle) {
+			this._models.set([], undefined);
+		}
 		void this._startModelRefresh();
 		return true;
 	}
