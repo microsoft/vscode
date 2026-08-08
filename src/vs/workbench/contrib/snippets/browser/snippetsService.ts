@@ -256,7 +256,6 @@ export class SnippetsService implements ISnippetsService {
 
 	private async _joinSnippets(): Promise<void> {
 		const promises = [...this._pendingWork];
-		this._pendingWork.clear();
 		await Promise.all(promises);
 	}
 
