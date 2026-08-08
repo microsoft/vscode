@@ -34,6 +34,12 @@ export interface IAgentServerToolHost {
 	 */
 	requiresConfirmation(toolName: string): boolean;
 	/**
+	 * Whether {@link toolName} needs confirmation for its current invocation in
+	 * {@link sessionUri}. Defaults to {@link requiresConfirmation} when the
+	 * owning tool group has no session-specific condition.
+	 */
+	requiresConfirmationForSession(sessionUri: URI, toolName: string): boolean;
+	/**
 	 * Executes a server tool against the session's state, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.
 	 *

@@ -63,6 +63,12 @@ export interface IServerToolGroup {
 	 */
 	requiresConfirmation?(toolName: string): boolean;
 	/**
+	 * Whether {@link toolName} needs confirmation for its current invocation in
+	 * {@link sessionUri}. Use this for state-dependent confirmation while
+	 * keeping {@link requiresConfirmation} stable for provider allow-lists.
+	 */
+	requiresConfirmationForSession?(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string): boolean;
+	/**
 	 * Executes {@link toolName} (one of this group's {@link definitions})
 	 * against the session's state, dispatching any resulting actions through
 	 * the state manager (the single writer), and returns the textual tool
@@ -132,6 +138,13 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 
 	requiresConfirmation(toolName: string): boolean {
 		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
+	}
+
+	requiresConfirmationForSession(sessionUri: URI, toolName: string): boolean {
+		const group = this._groupByToolName.get(toolName);
+		return group?.requiresConfirmationForSession?.(this._stateManager, sessionUri, toolName)
+			?? group?.requiresConfirmation?.(toolName)
+			?? false;
 	}
 
 	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {

@@ -352,6 +352,50 @@ suite('AgentFeedbackServerTools', () => {
 				unknown: false,
 			});
 		});
+
+		test('requiresConfirmationForSession only prompts when comments can be revealed', async () => {
+			const annotationsUri = buildAnnotationsUri(sessionResource);
+			const chatUri = buildChatUri(sessionResource, 'peer-chat-1');
+			const empty = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('accepted', 'accepted', false, 'already accepted', 'prReview'),
+			});
+			const acceptedOnly = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('created', 'created', false, 'new comment', 'codeReview'),
+			});
+			const created = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+			const peerChat = host.requiresConfirmationForSession(chatUri, viewUnreviewedCommentsToolName);
+
+			await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
+			const delivered = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+
+			manager.dispatchServerAction(annotationsUri, {
+				type: ActionType.AnnotationsSet,
+				annotation: annotation('pending', 'accepted', false, 'selected comment', 'prReview', true),
+			});
+			const pendingSelection = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+
+			assert.deepStrictEqual({
+				empty,
+				acceptedOnly,
+				created,
+				peerChat,
+				delivered,
+				pendingSelection,
+			}, {
+				empty: false,
+				acceptedOnly: false,
+				created: true,
+				peerChat: true,
+				delivered: false,
+				pendingSelection: true,
+			});
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

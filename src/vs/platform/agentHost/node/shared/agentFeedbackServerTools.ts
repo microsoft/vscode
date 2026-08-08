@@ -349,6 +349,10 @@ function createdReviewableAnnotations(state: AnnotationsState): Annotation[] {
 	});
 }
 
+function hasRevealableComments(state: AnnotationsState): boolean {
+	return pendingRevealAnnotations(state).length > 0 || createdReviewableAnnotations(state).length > 0;
+}
+
 /**
  * A short note appended to the {@link listCommentsToolName} result when there
  * are reviewable comments the user has not accepted yet, pointing the agent at
@@ -608,18 +612,17 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	requiresConfirmation(toolName): boolean {
 		return feedbackToolRequiresConfirmation(toolName);
 	},
+	requiresConfirmationForSession(stateManager, chatUri, toolName): boolean {
+		if (!feedbackToolRequiresConfirmation(toolName)) {
+			return false;
+		}
+		return hasRevealableComments(getFeedbackToolState(stateManager, chatUri).state);
+	},
 	getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 		return getFeedbackToolDisplay(toolName, args, result);
 	},
 	execute(stateManager, chatUri, toolName, rawArgs): string {
-		// A session can contain multiple chats, each addressed by its own
-		// `ahp-chat` URI but sharing the same context/workspace. Comments belong
-		// to the session as a whole, so always resolve a chat URI back to its
-		// owning session and operate on the main session's annotations channel.
-		const mainSessionUri = parseChatUri(chatUri)?.session ?? chatUri;
-		const annotationsUri = buildAnnotationsUri(mainSessionUri);
-		const snapshot = stateManager.getSnapshot(annotationsUri);
-		const state: AnnotationsState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
+		const { mainSessionUri, annotationsUri, state } = getFeedbackToolState(stateManager, chatUri);
 		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);
@@ -627,3 +630,12 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 		return outcome.result;
 	},
 };
+
+function getFeedbackToolState(stateManager: AgentHostStateManager, chatUri: string): { mainSessionUri: string; annotationsUri: string; state: AnnotationsState } {
+	// Peer chats share feedback with their owning session.
+	const mainSessionUri = parseChatUri(chatUri)?.session ?? chatUri;
+	const annotationsUri = buildAnnotationsUri(mainSessionUri);
+	const snapshot = stateManager.getSnapshot(annotationsUri);
+	const state = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
+	return { mainSessionUri, annotationsUri, state };
+}
