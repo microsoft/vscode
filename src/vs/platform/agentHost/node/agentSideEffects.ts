@@ -310,6 +310,10 @@ export class AgentSideEffects extends Disposable {
 						this._cancelledTurnIds.set(envelope.channel, turnIds);
 					}
 					turnIds.add(envelope.action.turnId);
+					if (isAhpChatChannel(envelope.channel)) {
+						const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
+						void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId);
+					}
 				}
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
 				this._trackTurnUsage(envelope.channel, envelope.action);
@@ -763,7 +767,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			this._stateManager.dispatchServerAction(sessionKey, action);
 			if (action.type === ActionType.ChatTurnComplete) {
-				this._runTurnCompleteSideEffects(sessionKey, undefined);
+				this._runTurnCompleteSideEffects(sessionKey, action.turnId);
 			}
 		}
 	}
@@ -921,7 +925,7 @@ export class AgentSideEffects extends Disposable {
 			// mid-turn-debounce entry points, so it has no single point at
 			// which a caller-supplied set would apply.
 			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
-			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), turnId, workingDirectories).then(() => {
+			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => {
 				this._changesets.onTurnComplete(sessionUri, turnId);
 			}, err => {
 				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
@@ -1308,6 +1312,15 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatTurnStarted must be handled on an AHP chat channel: ${channel}`);
 				}
 				const turnStopWatch = StopWatch.create(false);
+				if (this._isTurnIdUsedByAnotherChat(sessionChannel, chatChannel, action.turnId)) {
+					this._stateManager.dispatchServerAction(channel, {
+						type: ActionType.ChatError,
+						turnId: action.turnId,
+						duration: this._turnDuration(turnStopWatch),
+						error: { errorType: 'duplicateTurnId', message: `Turn id '${action.turnId}' is already used by another chat in this session.` },
+					});
+					return;
+				}
 				// Per-turn streaming part tracking is owned by the agent
 				// (e.g. CopilotAgentSession) and reset on its `send()` call.
 
@@ -1473,6 +1486,7 @@ export class AgentSideEffects extends Disposable {
 				const survivingIds = new Set((this._stateManager.getChatState(chatChannel)?.turns ?? []).map(t => t.id));
 				const removed = this._options.localTurns.getLocalTurnIds(chatChannel).filter(id => !survivingIds.has(id));
 				this._options.localTurns.deleteLocals(sessionChannel, removed);
+				void this._checkpointService.discardChatTurnStartCheckpoints(URI.parse(sessionChannel), URI.parse(chatChannel));
 				this._changesets.onSessionTruncated(sessionChannel);
 				break;
 			}
@@ -1783,6 +1797,27 @@ export class AgentSideEffects extends Disposable {
 		});
 	}
 
+	private _isTurnIdUsedByAnotherChat(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, turnId: string): boolean {
+		const sessionState = this._stateManager.getSessionState(sessionChannel);
+		if (!sessionState) {
+			return false;
+		}
+
+		if (sessionState.defaultChat !== chatChannel
+			&& (sessionState.activeTurn?.id === turnId || (sessionState.turns ?? []).some(turn => turn.id === turnId))) {
+			return true;
+		}
+		for (const chat of sessionState.chats ?? []) {
+			if (chat.resource === chatChannel || isDefaultChatUri(chat.resource)) {
+				continue;
+			}
+			const chatState = this._stateManager.getChatState(chat.resource);
+			if (chatState?.activeTurn?.id === turnId || chatState?.turns.some(turn => turn.id === turnId)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
@@ -1880,6 +1915,11 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
+			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(turnChannel), turnId, resolvedWorkingDirectories);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(turnChannel), turnId);
+				return;
+			}
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
@@ -1893,6 +1933,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
+			void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(turnChannel), turnId);
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
 	}
