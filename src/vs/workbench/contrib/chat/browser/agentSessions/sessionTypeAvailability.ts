@@ -63,6 +63,7 @@ export function getSessionTypeAvailability(
 	chatEntitlementService: IChatEntitlementService,
 	languageModelsService: ILanguageModelsService,
 	type: string,
+	allowSignedOutWhenUsable = false,
 ): SessionTypeAvailability {
 	// Contribution loads asynchronously; while missing (e.g. during a reload) we
 	// can't judge the type, so stay selectable to avoid locking it prematurely.
@@ -71,7 +72,7 @@ export function getSessionTypeAvailability(
 	}
 	const entitlement = chatEntitlementService.entitlement;
 	const hasTargetedModels = hasModelsTargetingSessionType(languageModelsService, type);
-	const hasVisibleByokModels = chatEntitlementService.clientByokEnabled && hasVisibleByokModelsTargetingSessionType(languageModelsService, type);
+	const hasVisibleByokModels = allowSignedOutWhenUsable && chatEntitlementService.clientByokEnabled && hasVisibleByokModelsTargetingSessionType(languageModelsService, type);
 	// A visible Agent Host BYOK model can run without a Copilot account.
 	if (entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous && chatSessionsService.requiresCopilotSignInForSessionType(type) && !hasVisibleByokModels) {
 		return SessionTypeAvailability.SignInRequired;

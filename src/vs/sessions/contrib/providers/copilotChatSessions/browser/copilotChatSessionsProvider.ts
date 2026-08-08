@@ -60,7 +60,7 @@ export const ClaudeCodeSessionType: ISessionType = {
 	id: 'claude-code',
 	label: localize('claudeCode', "Claude"),
 	icon: Codicon.claude,
-	authRequirement: SessionTypeAuthRequirement.None,
+	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
 
 /** Copilot Cloud session type - cloud-hosted agent. */
@@ -68,7 +68,7 @@ export const CopilotCloudSessionType: ISessionType = {
 	id: 'copilot-cloud-agent',
 	label: localize('copilotCloud', "Cloud"),
 	icon: Codicon.cloud,
-	authRequirement: SessionTypeAuthRequirement.None,
+	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");

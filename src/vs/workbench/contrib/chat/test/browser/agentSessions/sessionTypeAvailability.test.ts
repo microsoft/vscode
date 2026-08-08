@@ -210,7 +210,19 @@ suite('getSessionTypeAvailability', () => {
 			createEntitlementService(ChatEntitlement.Unknown),
 			createByokLanguageModelsService(TYPE),
 			TYPE,
+			true,
 		), SessionTypeAvailability.Available);
+	});
+
+	test('an Agent Host BYOK model does not override sign-in when signed-out operation is disabled', () => {
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
+		assert.strictEqual(getSessionTypeAvailability(
+			createChatSessionsService(config),
+			createEntitlementService(ChatEntitlement.Unknown),
+			createByokLanguageModelsService(TYPE),
+			TYPE,
+			false,
+		), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('an Agent Host BYOK model does not override sign-in when client BYOK is disabled', () => {
@@ -220,6 +232,7 @@ suite('getSessionTypeAvailability', () => {
 			createEntitlementService(ChatEntitlement.Unknown, false, false),
 			createByokLanguageModelsService(TYPE),
 			TYPE,
+			true,
 		), SessionTypeAvailability.SignInRequired);
 	});
 
@@ -230,6 +243,7 @@ suite('getSessionTypeAvailability', () => {
 			createEntitlementService(ChatEntitlement.Unknown),
 			createByokLanguageModelsService(TYPE, hidden),
 			TYPE,
+			true,
 		);
 		assert.deepStrictEqual({
 			copyHidden: availabilityForHidden(['agent-host-byok']),
@@ -247,6 +261,7 @@ suite('getSessionTypeAvailability', () => {
 			createEntitlementService(ChatEntitlement.Unknown),
 			createByokLanguageModelsService(TYPE, [], false),
 			TYPE,
+			true,
 		), SessionTypeAvailability.SignInRequired);
 	});
 

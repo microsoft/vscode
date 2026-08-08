@@ -99,10 +99,11 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			let isFirstInGroup = true;
 			for (const { providerId, sessionType } of types) {
 				const modelTarget = sessionType.chatSessionType ?? sessionType.id;
+				const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
 				const availability = getSessionTypePickerAvailability(
 					modelTarget,
-					getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget),
-					isAllowSignedOutWhenUsableEnabled(this.configurationService),
+					getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
+					allowSignedOutWhenUsable,
 				);
 				sheetItems.push({
 					id: `${providerId}\u0000${sessionType.id}`,

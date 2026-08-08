@@ -285,7 +285,7 @@ export const CopilotCLISessionType: ISessionType = {
 	label: localize('copilotCLI', "Copilot"),
 	icon: Codicon.copilot,
 	supportsWorktreeConfiguration: true,
-	authRequirement: SessionTypeAuthRequirement.None,
+	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
 
 /**
