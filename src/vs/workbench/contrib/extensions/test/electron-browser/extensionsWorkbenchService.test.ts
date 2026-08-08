@@ -1778,6 +1778,54 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 	});
 
+	test('Test per-extension auto update opt-out is ignored when locked by policy (#325909)', async () => {
+		stubConfiguration(true, undefined, true);
+
+		const extension1 = aLocalExtension('a');
+		const extension2 = aLocalExtension('b');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
+
+		// The opt-out is still recorded, but must not be honored while the policy is in effect.
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), ['pub.a']);
+		assert.strictEqual(testObject.isAutoUpdateEnabledFor(testObject.local[0]), true);
+	});
+
+	test('Test a pre-existing pin is ignored when locked by policy (#325909)', async () => {
+		stubConfiguration(true, undefined, true);
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1]);
+		testObject = await aWorkbenchService();
+
+		// The extension was pinned before (or independently of) the policy taking effect,
+		// but the policy still wins.
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.isAutoUpdateEnabledFor(testObject.local[0]), true);
+	});
+
+	test('Test updateAutoUpdateForAllExtensions is a no-op when locked by policy (#325909)', async () => {
+		stubConfiguration(true, undefined, true);
+		instantiationService.stub(IDialogService, {
+			confirm: () => Promise.resolve({ confirmed: true })
+		});
+
+		const extension1 = aLocalExtension('a');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1]);
+		testObject = await aWorkbenchService();
+
+		await testObject.updateAutoUpdateForAllExtensions(false);
+
+		assert.strictEqual(testObject.getAutoUpdateValue(), 'on');
+		assert.strictEqual(testObject.isAutoUpdateEnabledFor(testObject.local[0]), true);
+	});
+
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
 		const workbenchService: ExtensionsWorkbenchService = disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		await workbenchService.queryLocal();
@@ -1796,7 +1844,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return workbenchService;
 	}
 
-	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
+	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any, autoUpdatePolicyValue?: any): void {
 		const values: any = {
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
 			[AutoUpdateDelayConfigurationKey]: 2,
@@ -1820,6 +1868,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				});
 			},
 			inspect: (key: string) => {
+				if (key === AutoUpdateConfigurationKey && autoUpdatePolicyValue !== undefined) {
+					return { policyValue: autoUpdatePolicyValue };
+				}
 				return {};
 			}
 		});
