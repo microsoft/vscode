@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { getSubmoduleDisplayName, GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -194,6 +194,16 @@ suite('git', () => {
 			assert.deepStrictEqual(parseGitmodules(sample), [
 				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
 			]);
+		});
+	});
+
+	suite('getSubmoduleDisplayName', () => {
+		test('returns customized names only', () => {
+			assert.deepStrictEqual([
+				getSubmoduleDisplayName({ name: 'mpil', path: 'dependencies/metaprogramming', url: 'https://example.com/mpil.git' }),
+				getSubmoduleDisplayName({ name: 'dependencies/spdlog', path: 'dependencies/spdlog', url: 'https://example.com/spdlog.git' }),
+				getSubmoduleDisplayName({ name: 'foo', path: 'dependencies/foo', url: 'https://example.com/foo.git' })
+			], ['mpil', undefined, 'foo']);
 		});
 	});
 

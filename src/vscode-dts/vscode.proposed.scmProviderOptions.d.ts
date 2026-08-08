@@ -34,6 +34,18 @@ declare module 'vscode' {
 	}
 
 	export namespace scm {
-		export function createSourceControl(id: string, label: string, rootUri?: Uri, iconPath?: IconPath, isHidden?: boolean, parent?: SourceControl): SourceControl;
+		/**
+		 * Creates a new source control instance.
+		 *
+		 * @param id An `id` for the source control. Something short, e.g. `git`.
+		 * @param label A human-readable label for the source control provider. E.g. `Git`.
+		 * @param rootUri An optional Uri of the root of the source control.
+		 * @param iconPath An optional icon for the source control.
+		 * @param isHidden Whether the source control is hidden by default.
+		 * @param parent An optional parent source control.
+		 * @param name An optional human-readable name for the source control repository.
+		 * @returns An instance of source control.
+		 */
+		export function createSourceControl(id: string, label: string, rootUri?: Uri, iconPath?: IconPath, isHidden?: boolean, parent?: SourceControl, name?: string): SourceControl;
 	}
 }

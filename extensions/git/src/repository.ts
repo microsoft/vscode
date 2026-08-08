@@ -18,7 +18,7 @@ import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constan
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, IDotGit, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, getSubmoduleDisplayName, GitError, IDotGit, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -739,6 +739,9 @@ export class Repository implements Disposable {
 	private _sourceControl: SourceControl;
 	get sourceControl(): SourceControl { return this._sourceControl; }
 
+	private readonly _name: string | undefined;
+	get name(): string { return this._name ?? path.basename(this.root); }
+
 	get inputBox(): SourceControlInputBox { return this._sourceControl.inputBox; }
 
 	private _mergeGroup: SourceControlResourceGroup;
@@ -962,9 +965,17 @@ export class Repository implements Disposable {
 				: repository.kind === 'worktree' && repository.dotGit.commonPath
 					? path.dirname(repository.dotGit.commonPath)
 					: undefined;
-		const parent = parentRoot
-			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
+		const parentRepository = parentRoot
+			? this.repositoryResolver.getRepository(parentRoot)
 			: undefined;
+		const parent = parentRepository?.sourceControl;
+
+		let submodule: Submodule | undefined;
+		if (repository.kind === 'submodule' && parentRepository) {
+			submodule = parentRepository.submodules.find(submodule =>
+				pathEquals(path.join(parentRepository.root, submodule.path), repository.root));
+		}
+		this._name = submodule ? getSubmoduleDisplayName(submodule) : undefined;
 
 		// Icon
 		const icon = repository.kind === 'submodule'
@@ -986,7 +997,7 @@ export class Repository implements Disposable {
 				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent, this._name);
 		this._sourceControl.contextValue = repository.kind;
 
 		this._sourceControl.quickDiffProvider = new GitQuickDiffProvider(this, this.repositoryResolver, logger);
