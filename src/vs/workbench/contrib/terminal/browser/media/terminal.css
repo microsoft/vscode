@@ -477,13 +477,27 @@
 .monaco-action-bar .action-item .single-terminal-tab {
 	display: flex !important;
 	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab .single-terminal-tab-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab .codicon {
+	flex-shrink: 0;
 }
 
 .monaco-action-bar .action-item .single-terminal-tab .codicon:first-child {
 	margin-right: 4px;
 }
 
-.monaco-action-bar .action-item .single-terminal-tab .codicon:nth-child(2) {
+.monaco-action-bar .action-item .single-terminal-tab .codicon:last-child {
 	margin-left: 4px;
 	color: inherit;
 }
