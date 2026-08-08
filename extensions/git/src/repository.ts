@@ -2517,8 +2517,8 @@ export class Repository implements Disposable {
 		});
 	}
 
-	async buffer(ref: string, filePath: string): Promise<Buffer> {
-		return this.run(Operation.Show, () => this.repository.buffer(ref, filePath));
+	async buffer(ref: string, filePath: string, options?: { textconv?: boolean }): Promise<Buffer> {
+		return this.run(Operation.Show, () => this.repository.buffer(ref, filePath, options));
 	}
 
 	getObjectFiles(ref: string): Promise<LsTreeElement[]> {

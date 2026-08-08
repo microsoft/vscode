@@ -11,6 +11,8 @@ export interface GitUriParams {
 	path: string;
 	ref: string;
 	submoduleOf?: string;
+	/** When `false`, `git show` omits `--textconv` (microsoft/vscode#113609). */
+	textconv?: boolean;
 }
 
 export function isGitUri(uri: Uri): boolean {
@@ -25,6 +27,8 @@ export interface GitUriOptions {
 	scheme?: string;
 	replaceFileExtension?: boolean;
 	submoduleOf?: string;
+	/** Pass `false` for quick-diff originals so gutter compares raw-vs-raw (#113609). */
+	textconv?: boolean;
 }
 
 // As a mitigation for extensions like ESLint showing warnings and errors
@@ -46,6 +50,10 @@ export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Ur
 		path = `${path}.git`;
 	} else if (options.submoduleOf) {
 		path = `${path}.diff`;
+	}
+
+	if (options.textconv === false) {
+		params.textconv = false;
 	}
 
 	return uri.with({ scheme: options.scheme ?? 'git', path, query: JSON.stringify(params) });

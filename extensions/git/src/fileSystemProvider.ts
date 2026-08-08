@@ -70,7 +70,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		}
 
 		const diffOriginalResourceUri = toGitUri(uri, '~',);
-		const quickDiffOriginalResourceUri = toGitUri(uri, '', { replaceFileExtension: true });
+		const quickDiffOriginalResourceUri = toGitUri(uri, '', { replaceFileExtension: true, textconv: false });
 
 		this.mtime = new Date().getTime();
 		this._onDidChangeFile.fire([
@@ -197,7 +197,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	async readFile(uri: Uri): Promise<Uint8Array> {
 		await this.model.isInitialized;
 
-		const { path, ref, submoduleOf } = fromGitUri(uri);
+		const { path, ref, submoduleOf, textconv } = fromGitUri(uri);
 
 		if (submoduleOf) {
 			const repository = await this.getOrOpenRepository(submoduleOf);
@@ -228,7 +228,8 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.cache.set(uri.toString(), cacheValue);
 
 		try {
-			return await repository.buffer(sanitizeRef(ref, path, submoduleOf, repository), path);
+			const bufferOptions = textconv === false ? { textconv: false } : undefined;
+			return await repository.buffer(sanitizeRef(ref, path, submoduleOf, repository), path, bufferOptions);
 		} catch {
 			// Empty tree
 			if (ref === await repository.getEmptyTree()) {
