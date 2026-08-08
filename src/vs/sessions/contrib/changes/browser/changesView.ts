@@ -215,10 +215,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			}
 			return { showIcon: false, showLabel: true, isSecondary: false, customLabel: `$(loading) ${labelWithCount}` };
 		}
-		if (
-			action.id === 'github.copilot.claude.sessions.sync' ||
-			action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID
-		) {
+		if (action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID) {
 			const customLabel = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
 				: action.label;
@@ -240,9 +237,6 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
 			action.id === 'pr.checkoutFromChat' ||
 			action.id === 'github.copilot.sessions.initializeRepository' ||
-			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
-			action.id === 'github.copilot.claude.sessions.commit' ||
-			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
 			action.id === 'agentSession.restore' ||
 			action.id === 'sessions.action.fixCIChecks' ||
 			isAgentHostSkillButtonId(action.id)
