@@ -1251,8 +1251,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _usesHarnessProviderIcon(): boolean {
 		const sessionType = this.getCurrentSessionType();
-		return sessionType === SessionType.ClaudeCode
-			|| sessionType === SessionType.Codex
+		return sessionType === SessionType.Codex
 			|| sessionType === SessionType.AgentHostClaude
 			|| sessionType === SessionType.AgentHostCodex;
 	}

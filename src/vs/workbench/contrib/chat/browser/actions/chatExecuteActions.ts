@@ -471,7 +471,6 @@ export class OpenPermissionPickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
-							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Claude),
 						),
 					)
 			}

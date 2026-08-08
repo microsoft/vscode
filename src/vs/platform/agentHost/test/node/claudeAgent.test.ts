@@ -1468,11 +1468,6 @@ suite('ClaudeAgent', () => {
 		// `capabilities.supports.reasoning_effort` list — different
 		// Claude models support different effort subsets (some
 		// `['low','medium','high']`, some `['high']`, some none at all).
-		// Mirror of the extension pattern at
-		// extensions/copilot/src/extension/chatSessions/claude/node/
-		// claudeCodeModels.ts:208-212 (`pickReasoningEffort`), which
-		// reads `endpoint.supportsReasoningEffort` per-endpoint.
-		//
 		// CAPI's `/models` JSON exposes `reasoning_effort: string[]` and
 		// `adaptive_thinking: boolean` on each model's `supports` bag,
 		// but the published `@vscode/copilot-api` types don't yet
