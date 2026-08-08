@@ -562,7 +562,13 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	test('custom terminal tool preserves a nonzero shell exit code', async function () {
+	// Record-only: this scenario asserts on live terminal shell-integration state
+	// (supportsCommandDetection and the OSC 633 command part) captured from a real PTY in
+	// real time. That capture depends on process timing and cannot be preserved across a
+	// deterministic replay, so a broad shared-process run can miss the detection/completion
+	// events that a focused record run observes. See KNOWN_ISSUES.md
+	// ("Asynchronous Copilot shell lifecycles are record-only") for the same class of gate.
+	(context.runRecordOnlyTests ? test : test.skip)('custom terminal tool preserves a nonzero shell exit code', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code');
 		try {
