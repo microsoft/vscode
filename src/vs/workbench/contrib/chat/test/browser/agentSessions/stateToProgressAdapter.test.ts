@@ -2380,13 +2380,14 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput, undefined);
 		});
 
-		test('uses terminal completion exit code for completed SDK shell tool history', () => {
+		test('uses tool completion text for truncated SDK shell output', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
-				toolInput: 'gti status',
+				toolInput: 'cat large-output.txt',
 				content: [
-					{ type: ToolResultContentType.Text, text: 'command not found\n<shellId: 104 completed with exit code 127>' },
-					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 127, preview: 'preview only\n', truncated: true } },
+					// TODO: Prefer shell_exit once the SDK exposes the saved output file path as structured data.
+					{ type: ToolResultContentType.Text, text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\nUse view with view_range to examine portions of the output.<shellId: 104 completed with exit code -1>' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: 'preview only\n', truncated: true } },
 				],
 				success: true,
 			});
@@ -2401,10 +2402,16 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const serialized = response.parts[0] as IChatToolInvocationSerialized;
 			const termData = getSerializedTerminalData(serialized);
-			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'preview only\r\n');
-			assert.strictEqual(termData.terminalCommandOutput?.truncated, true);
-			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+			assert.deepStrictEqual({
+				output: termData.terminalCommandOutput,
+				state: termData.terminalCommandState,
+			}, {
+				output: {
+					text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\r\nUse view with view_range to examine portions of the output.',
+					truncated: true,
+				},
+				state: { exitCode: 0 },
+			});
 		});
 
 		test('preserves an explicitly empty non-PTY retained completion snapshot', () => {
