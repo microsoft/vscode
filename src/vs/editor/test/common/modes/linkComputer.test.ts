@@ -9,7 +9,7 @@ import { ILinkComputerTarget, computeLinks } from '../../../common/languages/lin
 
 class SimpleLinkComputerTarget implements ILinkComputerTarget {
 
-	constructor(private _lines: string[]) {
+	constructor(private _lines: string[], private _languageId?: string) {
 		// Intentional Empty
 	}
 
@@ -20,10 +20,14 @@ class SimpleLinkComputerTarget implements ILinkComputerTarget {
 	public getLineContent(lineNumber: number): string {
 		return this._lines[lineNumber - 1];
 	}
+
+	public getLanguageId(): string | undefined {
+		return this._languageId;
+	}
 }
 
-function myComputeLinks(lines: string[]): ILink[] {
-	const target = new SimpleLinkComputerTarget(lines);
+function myComputeLinks(lines: string[], languageId?: string): ILink[] {
+	const target = new SimpleLinkComputerTarget(lines, languageId);
 	return computeLinks(target);
 }
 
@@ -282,5 +286,92 @@ suite('Editor Modes - Link Computer', () => {
 			` * {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers|Promise.withResolvers}`,
 			`          https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers                       `,
 		);
+	});
+
+	test('issue #318083: Markdown wrong parsing for link in codeblock', () => {
+		// URLs inside markdown fenced code blocks should not be linkified
+		const lines = [
+			'Some text before',
+			'```',
+			'https://www.abc.com/',
+			'```',
+			'Some text after with https://www.example.com/'
+		];
+		const links = myComputeLinks(lines, 'markdown');
+
+		// Should only find the link outside the code block (line 5)
+		assert.strictEqual(links.length, 1);
+		assert.strictEqual(links[0].range.startLineNumber, 5);
+		assert.strictEqual(links[0].url, 'https://www.example.com/');
+	});
+
+	test('issue #318083: Markdown code block with language specifier', () => {
+		const lines = [
+			'Example:',
+			'```bash',
+			'curl https://api.example.com/data',
+			'```',
+			'See https://docs.example.com/ for more info'
+		];
+		const links = myComputeLinks(lines, 'markdown');
+
+		// Should only find the link outside the code block (line 5)
+		assert.strictEqual(links.length, 1);
+		assert.strictEqual(links[0].range.startLineNumber, 5);
+		assert.strictEqual(links[0].url, 'https://docs.example.com/');
+	});
+
+	test('issue #318083: Markdown tilde fenced code block', () => {
+		const lines = [
+			'Example:',
+			'~~~',
+			'https://www.test.com/',
+			'~~~',
+			'Link: https://www.real.com/'
+		];
+		const links = myComputeLinks(lines, 'markdown');
+
+		// Should only find the link outside the code block (line 5)
+		assert.strictEqual(links.length, 1);
+		assert.strictEqual(links[0].range.startLineNumber, 5);
+		assert.strictEqual(links[0].url, 'https://www.real.com/');
+	});
+
+	test('issue #318083: Markdown multiple code blocks', () => {
+		const lines = [
+			'First: https://first.com/',
+			'```',
+			'https://inside1.com/',
+			'```',
+			'Middle: https://middle.com/',
+			'```',
+			'https://inside2.com/',
+			'```',
+			'Last: https://last.com/'
+		];
+		const links = myComputeLinks(lines, 'markdown');
+
+		// Should find links on lines 1, 5, and 9 (outside code blocks)
+		assert.strictEqual(links.length, 3);
+		assert.strictEqual(links[0].range.startLineNumber, 1);
+		assert.strictEqual(links[0].url, 'https://first.com/');
+		assert.strictEqual(links[1].range.startLineNumber, 5);
+		assert.strictEqual(links[1].url, 'https://middle.com/');
+		assert.strictEqual(links[2].range.startLineNumber, 9);
+		assert.strictEqual(links[2].url, 'https://last.com/');
+	});
+
+	test('issue #318083: Non-markdown files should still linkify everything', () => {
+		const lines = [
+			'```',
+			'https://www.abc.com/',
+			'```'
+		];
+		const links = myComputeLinks(lines, 'javascript');
+
+		// Should find the link even though it looks like a code block
+		// because this is not a markdown file
+		assert.strictEqual(links.length, 1);
+		assert.strictEqual(links[0].url, 'https://www.abc.com/');
 	});
 });
