@@ -13,7 +13,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentHostCodexAgentEnabledSettingId, AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentSession, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -702,7 +702,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('session type icons use per-agent codicons', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
 			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
 		]);
@@ -711,20 +711,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
 			[
 				{ id: 'copilotcli', icon: 'copilot' },
-				{ id: 'claude-code', icon: 'claude' },
+				{ id: 'claude', icon: 'claude' },
 				{ id: 'openai', icon: 'openai' },
 				{ id: 'unknown-agent', icon: 'vm' },
 			],
 		);
 	});
-
-	// ---- AH/EH gate (preferAgentHost) -------
-
-	// The agent host's Claude provider id is `claude`. In a window that prefers
-	// the extension-host Claude (the GitHub Copilot Chat extension's), the local
-	// provider must NOT advertise its own `claude` session type, otherwise the
-	// welcome picker lists Claude twice. Mirrors the EH-side gate in
-	// `copilotChatSessionsProvider`.
 
 	function fireConfigChange(configService: TestConfigurationService, settingId: string): void {
 		configService.onDidChangeConfigurationEmitter.fire({
@@ -735,26 +727,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
-	test('hides agent-host Claude when the Agents window prefers extension-host Claude', () => {
+	test('always advertises agent-host Claude', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli']);
-	});
-
-	test('shows agent-host Claude when the Agents window prefers agent-host Claude', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+		const provider = createProvider(disposables, agentHost);
 
 		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'claude']);
 	});
@@ -784,61 +762,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('gates agent-host Claude on the editor-window setting outside the Agents window', () => {
-		agentHost.setAgents([
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		// Editor-window setting on; Agents-window setting deliberately left off to
-		// prove the non-sessions-window provider reads the editor-window setting.
-		configService.setUserConfiguration(ClaudePreferAgentHostEditorSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: false });
-
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['claude']);
-	});
-
-	test('adds agent-host Claude live when preferAgentHost flips on', () => {
+	test('getSessions includes agent-host Claude sessions', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli']);
-
-		let fired = false;
-		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
-
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		fireConfigChange(configService, ClaudePreferAgentHostAgentsSettingId);
-
-		assert.ok(fired, 'onDidChangeSessionTypes should fire when the gate flips');
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'claude']);
-	});
-
-	test('getSessions hides agent-host Claude sessions when extension-host Claude is preferred', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
-		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
-
-		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['copilotcli']);
-	});
-
-	test('getSessions shows agent-host Claude sessions when agent-host Claude is preferred', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
 		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
 
@@ -846,72 +775,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.getSessions().map(s => s.sessionType).sort(),
 			['claude', 'copilotcli'],
 		);
-	});
-
-	test('flipping preferAgentHost reveals agent-host Claude sessions and fires a refresh', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
-		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
-		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['copilotcli']);
-
-		let fired = false;
-		disposables.add(provider.onDidChangeSessions(() => { fired = true; }));
-
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		fireConfigChange(configService, ClaudePreferAgentHostAgentsSettingId);
-
-		assert.ok(fired, 'onDidChangeSessions should fire so the open list re-queries');
-		assert.deepStrictEqual(
-			provider.getSessions().map(s => s.sessionType).sort(),
-			['claude', 'copilotcli'],
-		);
-	});
-
-	test('flipping preferAgentHost off does not announce hidden sessions as removed', () => {
-		// The list refresh fires an empty-payload change: hidden Claude sessions
-		// are filtered out at read time, not reported as `removed` (which the
-		// sessions telemetry contribution would misread as a remote deletion).
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
-		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['claude']);
-
-		const removed: string[] = [];
-		disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.sessionType))));
-
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		fireConfigChange(configService, ClaudePreferAgentHostAgentsSettingId);
-
-		assert.deepStrictEqual(removed, [], 'hidden sessions must not be reported as removed');
-		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), []);
 	});
 
 	test('session icons match the session type icon', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
 		]);
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
-		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude-code' });
+		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
 		fireSessionAdded(agentHost, 'unknown-sess', { title: 'Unknown', provider: 'unknown-agent' });
 
 		assert.deepStrictEqual(
 			provider.getSessions().map(s => ({ sessionType: s.sessionType, icon: s.icon.id })).sort((a, b) => a.sessionType.localeCompare(b.sessionType)),
 			[
-				{ sessionType: 'claude-code', icon: 'claude' },
+				{ sessionType: 'claude', icon: 'claude' },
 				{ sessionType: 'copilotcli', icon: 'copilot' },
 				{ sessionType: 'unknown-agent', icon: 'vm' },
 			],
@@ -3667,9 +3547,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 				{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 			]);
-			const configService = new TestConfigurationService();
-			configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-			const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+			const provider = createProvider(disposables, agentHost);
 			fireSessionAdded(agentHost, 'claude-sub', { title: 'Claude', provider: 'claude' });
 			const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'claude-sub');
 			assert.ok(session);
