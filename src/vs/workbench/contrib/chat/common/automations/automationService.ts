@@ -111,9 +111,7 @@ export interface IAutomationRunClaim {
  * mutation point. Scheduler, runner, and UI all flow through it to keep
  * cross-window propagation, persistence, and observables consistent.
  */
-export interface IAutomationService {
-	readonly _serviceBrand: undefined;
-
+export interface IAutomationStore {
 	/** All defined automations, newest first. */
 	readonly automations: IObservable<readonly IAutomation[]>;
 
@@ -157,4 +155,8 @@ export interface IAutomationService {
 
 	/** Marks all stuck (`pending`/`running`) runs failed. Called on startup to recover from crashes. */
 	markStaleRunsFailed(reason: string): Promise<void>;
+}
+
+export interface IAutomationService extends IAutomationStore {
+	readonly _serviceBrand: undefined;
 }
