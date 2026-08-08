@@ -205,8 +205,13 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
-	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 60_000, throwOnError: true });
+	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
+		const args = ['worktree', 'remove'];
+		if (options?.force) {
+			args.push('--force');
+		}
+		args.push(worktree.fsPath);
+		await this._runGit(repositoryRoot, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
