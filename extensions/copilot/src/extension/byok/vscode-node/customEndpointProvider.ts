@@ -161,6 +161,14 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 	public static readonly providerName = 'CustomEndpoint';
 	public static readonly providerId = this.providerName.toLowerCase();
 
+	// Handles every `apiType: 'gemini'` request. Declared as a constructor-injected
+	// dependency rather than resolved lazily via the service locator, per this repo's
+	// convention that service dependencies must be declared in constructors. Its
+	// constructor's legacy API-key migration re-running here is a harmless no-op: the
+	// registered Gemini provider singleton already completes it first, at extension
+	// startup, well before this provider handles its first request.
+	private readonly _geminiDelegate: GeminiNativeBYOKLMProvider;
+
 	constructor(
 		_byokStorageService: IBYOKStorageService,
 		@ILogService logService: ILogService,
@@ -170,21 +178,12 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		@IExperimentationService expService: IExperimentationService,
 	) {
 		super(CustomEndpointBYOKModelProvider.providerId, CustomEndpointBYOKModelProvider.providerName, undefined, _byokStorageService, fetcherService, logService, instantiationService, configurationService, expService);
+		this._geminiDelegate = instantiationService.createInstance(GeminiNativeBYOKLMProvider, undefined, _byokStorageService);
 	}
 
 	protected override async configureDefaultGroupWithApiKeyOnly(): Promise<string | undefined> {
 		// No-op: Custom Endpoint models are configured via the JSON snippet flow, not by an API-key-only prompt.
 		return;
-	}
-
-	// Lazily created and reused for every `apiType: 'gemini'` request. Its constructor's
-	// legacy API-key migration re-running here is a harmless no-op: the registered Gemini
-	// provider singleton already completed it well before this delegate is ever created.
-	private _geminiDelegate: GeminiNativeBYOKLMProvider | undefined;
-
-	private _getGeminiDelegate(): GeminiNativeBYOKLMProvider {
-		this._geminiDelegate ??= this._instantiationService.createInstance(GeminiNativeBYOKLMProvider, undefined, this._byokStorageService);
-		return this._geminiDelegate;
 	}
 
 	/**
@@ -205,14 +204,14 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 
 	override async provideLanguageModelChatResponse(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<void> {
 		if (this._resolveApiType(model) === 'gemini') {
-			return this._getGeminiDelegate().provideLanguageModelChatResponse(this._toGeminiModel(model), messages, options, progress, token);
+			return this._geminiDelegate.provideLanguageModelChatResponse(this._toGeminiModel(model), messages, options, progress, token);
 		}
 		return super.provideLanguageModelChatResponse(model, messages, options, progress, token);
 	}
 
 	override async provideTokenCount(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Promise<number> {
 		if (this._resolveApiType(model) === 'gemini') {
-			return this._getGeminiDelegate().provideTokenCount(this._toGeminiModel(model), text, token);
+			return this._geminiDelegate.provideTokenCount(this._toGeminiModel(model), text, token);
 		}
 		return super.provideTokenCount(model, text, token);
 	}
