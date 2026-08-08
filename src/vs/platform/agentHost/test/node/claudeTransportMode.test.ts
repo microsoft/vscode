@@ -59,7 +59,7 @@ suite('claudeTransportMode', () => {
 			fs.writeFileSync(join(dir, 'settings.json'), contents, 'utf8');
 		}
 
-		test('detects each env-var credential (and ignores an empty value)', () => {
+		test('detects each env-var credential (and ignores a blank value)', () => {
 			assert.deepStrictEqual({
 				none: detectExistingClaudeSetup(homeDir, {}),
 				apiKey: detectExistingClaudeSetup(homeDir, { ANTHROPIC_API_KEY: 'sk-ant-api-x' }),
@@ -67,7 +67,8 @@ suite('claudeTransportMode', () => {
 				baseUrl: detectExistingClaudeSetup(homeDir, { ANTHROPIC_BASE_URL: 'https://gateway.example/v1' }),
 				oauthToken: detectExistingClaudeSetup(homeDir, { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat-x' }),
 				emptyValue: detectExistingClaudeSetup(homeDir, { ANTHROPIC_API_KEY: '' }),
-			}, { none: false, apiKey: true, authToken: true, baseUrl: true, oauthToken: true, emptyValue: false });
+				whitespaceValue: detectExistingClaudeSetup(homeDir, { ANTHROPIC_API_KEY: '   ' }),
+			}, { none: false, apiKey: true, authToken: true, baseUrl: true, oauthToken: true, emptyValue: false, whitespaceValue: false });
 		});
 
 		test('detects a credential in the settings.json env block (empty env injected)', () => {
@@ -82,12 +83,18 @@ suite('claudeTransportMode', () => {
 			results.oauthToken = detectExistingClaudeSetup(homeDir, {});
 			writeSettings(JSON.stringify({ env: { ANTHROPIC_API_KEY: '' } }));
 			results.emptyValue = detectExistingClaudeSetup(homeDir, {});
+			writeSettings(JSON.stringify({ env: { ANTHROPIC_API_KEY: '   ' } }));
+			results.whitespaceValue = detectExistingClaudeSetup(homeDir, {});
 			writeSettings(JSON.stringify({ model: 'claude-sonnet-4-5' }));
 			results.noEnvBlock = detectExistingClaudeSetup(homeDir, {});
 			writeSettings('not json');
 			results.malformed = detectExistingClaudeSetup(homeDir, {});
+			// Read with the same tolerant parser VS Code uses for every other
+			// hand-edited config, so comments and a trailing comma still resolve.
+			writeSettings('{\n\t// my key\n\t"env": { "ANTHROPIC_API_KEY": "sk-ant-api-x", },\n}');
+			results.jsonc = detectExistingClaudeSetup(homeDir, {});
 
-			assert.deepStrictEqual(results, { apiKey: true, authToken: true, baseUrl: true, oauthToken: true, emptyValue: false, noEnvBlock: false, malformed: false });
+			assert.deepStrictEqual(results, { apiKey: true, authToken: true, baseUrl: true, oauthToken: true, emptyValue: false, whitespaceValue: false, noEnvBlock: false, malformed: false, jsonc: true });
 		});
 
 		test('detects the top-level apiKeyHelper alongside unrecognized settings', () => {

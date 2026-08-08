@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { readFileSync } from 'fs';
+import { parse as parseJSONC } from '../../../../base/common/json.js';
 import { join } from '../../../../base/common/path.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { isString } from '../../../../base/common/types.js';
 import { vObj, vOptionalProp, vUnknown, type ValidatorType } from '../../../../base/common/validation.js';
 
 /**
@@ -81,7 +84,7 @@ export function resolveClaudeTransportMode(inputs: IClaudeTransportModeInputs): 
  * Validators for the `~/.claude/settings.json` sources that indicate a usable
  * native setup, kept separate — and holding `unknown` rather than `vString()` —
  * so one malformed entry reads as absent instead of voiding its siblings.
- * {@link isNonEmptyString} is what decides usability.
+ * {@link hasValue} is what decides usability.
  */
 const claudeApiKeyHelperValidator = vObj({
 	apiKeyHelper: vOptionalProp(vUnknown()),
@@ -114,26 +117,26 @@ export function detectExistingClaudeSetup(homeDir: string, env: NodeJS.ProcessEn
 	}
 	const settings = readJsonFile(join(homeDir, '.claude', 'settings.json'));
 	return hasNativeClaudeEnv(claudeSettingsEnvValidator.validate(settings).content?.env)
-		|| isNonEmptyString(claudeApiKeyHelperValidator.validate(settings).content?.apiKeyHelper);
+		|| hasValue(claudeApiKeyHelperValidator.validate(settings).content?.apiKeyHelper);
 }
 
 /** True when any recognized native-Claude key carries a usable value. */
 function hasNativeClaudeEnv(env: ClaudeNativeEnv | undefined): boolean {
-	return isNonEmptyString(env?.ANTHROPIC_API_KEY)
-		|| isNonEmptyString(env?.ANTHROPIC_AUTH_TOKEN)
-		|| isNonEmptyString(env?.ANTHROPIC_BASE_URL)
-		|| isNonEmptyString(env?.CLAUDE_CODE_OAUTH_TOKEN);
+	return hasValue(env?.ANTHROPIC_API_KEY)
+		|| hasValue(env?.ANTHROPIC_AUTH_TOKEN)
+		|| hasValue(env?.ANTHROPIC_BASE_URL)
+		|| hasValue(env?.CLAUDE_CODE_OAUTH_TOKEN);
 }
 
 /** A setting counts only when it actually carries a value, never a blank leftover. */
-function isNonEmptyString(value: unknown): value is string {
-	return typeof value === 'string' && value.length > 0;
+function hasValue(value: unknown): value is string {
+	return isString(value) && !isFalsyOrWhitespace(value);
 }
 
 /** Parsed JSON, or `undefined` when the file is missing, unreadable or malformed. */
 function readJsonFile(path: string): unknown {
 	try {
-		return JSON.parse(readFileSync(path, 'utf8'));
+		return parseJSONC(readFileSync(path, 'utf8'));
 	} catch {
 		return undefined;
 	}
