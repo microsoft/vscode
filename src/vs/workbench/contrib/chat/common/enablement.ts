@@ -27,6 +27,11 @@ export interface IEnablementModel {
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState;
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void;
 	remove(key: string): void;
+	/**
+	 * Whether the contribution is disabled at the profile level, regardless
+	 * of any workspace-scoped override that may currently be in effect.
+	 */
+	isDisabledInProfile(key: string, reader?: IReader): boolean;
 }
 
 type EnablementMap = ReadonlyMap<string, boolean>;
@@ -95,6 +100,10 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 		}
 
 		return ContributionEnablementState.EnabledProfile;
+	}
+
+	isDisabledInProfile(key: string, reader?: IReader): boolean {
+		return this._profileState.read(reader).get(key) === false;
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
@@ -194,6 +203,10 @@ export class CollisionEnablementModel implements IEnablementModel {
 			}
 		}
 		return baseState;
+	}
+
+	isDisabledInProfile(key: string, reader?: IReader): boolean {
+		return this._base.isDisabledInProfile(key, reader);
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
