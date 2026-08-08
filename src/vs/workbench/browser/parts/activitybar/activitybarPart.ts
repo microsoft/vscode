@@ -58,10 +58,8 @@ export class ActivitybarPart extends Part {
 	static readonly COMPACT_ICON_SIZE = 16;
 
 	/**
-	 * Gutter reserved on the left and bottom edges under the floating panels
-	 * experiment so the activity bar aligns with the floating cards (it stays
-	 * flush with the title bar, so no top gutter). Must match the margins applied
-	 * in `part.css` under `.floating-panels`.
+	 * Base gutter reserved around the activity bar under the floating panels
+	 * experiment. Must match the margins applied in `floatingPanels.css`.
 	 */
 	static readonly FLOATING_MARGIN = FLOATING_PANEL_MARGIN;
 
@@ -71,8 +69,8 @@ export class ActivitybarPart extends Part {
 
 	//#region IView
 
-	get minimumWidth(): number { return this.baseWidth + this.floatingGutter; }
-	get maximumWidth(): number { return this.baseWidth + this.floatingGutter; }
+	get minimumWidth(): number { return this.baseWidth + this.floatingHorizontalGutter; }
+	get maximumWidth(): number { return this.baseWidth + this.floatingHorizontalGutter; }
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
@@ -94,8 +92,9 @@ export class ActivitybarPart extends Part {
 		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
 	}
 
-	/** Leading gutter reserved beside the part when the floating panels experiment is enabled. */
-	private get floatingGutter(): number { return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN : 0; }
+	private get floatingHorizontalGutter(): number {
+		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN * 2 : 0;
+	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
@@ -271,7 +270,7 @@ export class ActivitybarPart extends Part {
 		}
 
 		const { top, bottom } = this.getFloatingGutters();
-		const contentWidth = Math.max(0, width - this.floatingGutter);
+		const contentWidth = Math.max(0, width - this.floatingHorizontalGutter);
 		const contentHeight = Math.max(0, height - top - bottom);
 
 		// Layout contents
@@ -291,7 +290,7 @@ export class ActivitybarPart extends Part {
 		}
 
 		return {
-			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : 0,
+			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
 			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
 		};
 	}

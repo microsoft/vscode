@@ -14,6 +14,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -115,6 +116,41 @@ suite('Sessions - Editor Contribution', () => {
 		}, {
 			resource: URI.file('/repo/other').toString(),
 			matchesAnotherEmptyInput: true
+		});
+	});
+
+	test('empty file editor updates managed Files capabilities with editor area visibility', () => {
+		let editorVisible = false;
+		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART && editorVisible;
+			}
+		};
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		let capabilitiesChanges = 0;
+		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
+
+		const hiddenCapabilities = input.capabilities;
+		editorVisible = true;
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			hiddenCapabilities,
+			visibleCapabilities: input.capabilities,
+			capabilitiesChanges
+		}, {
+			hiddenCapabilities: EditorInputCapabilities.ExcludeFromEditorLimit |
+				EditorInputCapabilities.Readonly |
+				EditorInputCapabilities.Singleton |
+				EditorInputCapabilities.ForceReveal |
+				EditorInputCapabilities.CannotClose,
+			visibleCapabilities: EditorInputCapabilities.ExcludeFromEditorLimit |
+				EditorInputCapabilities.Readonly |
+				EditorInputCapabilities.Singleton |
+				EditorInputCapabilities.ForceReveal,
+			capabilitiesChanges: 1
 		});
 	});
 
