@@ -22,6 +22,7 @@ export class SemanticTokensProviderStyling {
 	private _hasWarnedOverlappingTokens = false;
 	private _hasWarnedInvalidLengthTokens = false;
 	private _hasWarnedInvalidEditStart = false;
+	private _hasWarnedInvalidEditDeleteCount = false;
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
@@ -122,6 +123,13 @@ export class SemanticTokensProviderStyling {
 		if (!this._hasWarnedInvalidEditStart) {
 			this._hasWarnedInvalidEditStart = true;
 			this._logService.warn(`Invalid semantic tokens edit detected (previousResultId: ${previousResultId}, resultId: ${resultId}) at edit #${editIndex}: The provided start offset ${editStart} is outside the previous data (length ${maxExpectedStart}).`);
+		}
+	}
+
+	public warnInvalidEditDeleteCount(previousResultId: string | undefined, resultId: string | undefined, srcLength: number, deltaLength: number): void {
+		if (!this._hasWarnedInvalidEditDeleteCount) {
+			this._hasWarnedInvalidEditDeleteCount = true;
+			this._logService.warn(`Invalid semantic tokens edit detected (previousResultId: ${previousResultId}, resultId: ${resultId}): The edits delete more tokens than the previous data contains (previous length ${srcLength}, computed length ${srcLength + deltaLength}).`);
 		}
 	}
 
