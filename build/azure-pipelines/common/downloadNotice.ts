@@ -44,9 +44,9 @@ const QUALITY_JOB_NAMES = ['Quality Checks', 'Quality'];
 const SHIPPING_NOTICE_NAME = 'ThirdPartyNotices.new.txt';
 const TARGET_NOTICE = path.resolve('ThirdPartyNotices.txt');
 
-// Poll budget: 30 attempts x 30s = 15 minutes. Deliberately far below the
-// copilot 30min so a never-produced artifact degrades to fallback quickly, but
-// with generous margin over the parallel Quality stage (CG + scan + merge).
+// Poll budget: 40 attempts x 30s = 20 minutes. This remains below the copilot
+// 30min budget, but covers Quality runs where the CG service exhausts its own
+// retries before producing the merged notice.
 // The gate accepts only once ThirdPartyNotices.new.txt has been downloaded,
 // extracted, and validated non-empty (>1KB) -- merely seeing it in the
 // container listing is NOT sufficient, because the listing entry can appear
@@ -58,7 +58,7 @@ const TARGET_NOTICE = path.resolve('ThirdPartyNotices.txt');
 // NB: this is the OUTER artifact-availability poll. It is unrelated to the
 // inner retry() wrapper in retry.ts, which independently retries each AZDO API
 // call up to 10 times for transient network errors and emits no attempt log.
-const POLL_ATTEMPTS = 30;
+const POLL_ATTEMPTS = 40;
 const POLL_INTERVAL_MS = 30_000;
 
 function log(message: string): void {

@@ -90,3 +90,111 @@ jobs:
           VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
           VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
           VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+          VSCODE_RUN_TESTS_IN_PARALLEL: ${{ or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: ../common/product-test-job.yml@self
+      parameters:
+        jobName: macOS_${{ parameters.VSCODE_ARCH }}_Unit
+        displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) Unit Tests
+        platform: macos
+        arch: ${{ parameters.VSCODE_ARCH }}
+        testName: unit
+        artifactPrefix: product-tests-macos-${{ parameters.VSCODE_ARCH }}
+        waitForArtifactsArgs: '"--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo'
+        timeoutInMinutes: 120
+        publishNodeModulesOnFailure: true
+        publishCrashReportsOnFailureOnly: true
+        downloadElectronAndPlaywright: false
+        keyVaultDisplayName: "Azure Key Vault: Get GitHub token"
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+        extractArtifactSteps:
+          - script: tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+            displayName: Extract built workspace
+        testSteps:
+          - template: ./steps/product-build-darwin-test.yml@self
+            parameters:
+              VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+              VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+              VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+              VSCODE_TEST_TYPE: Unit
+
+    - template: ../common/product-test-job.yml@self
+      parameters:
+        jobName: macOS_${{ parameters.VSCODE_ARCH }}_Integration
+        displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) Integration Tests
+        platform: macos
+        arch: ${{ parameters.VSCODE_ARCH }}
+        testName: integration
+        artifactPrefix: product-tests-macos-${{ parameters.VSCODE_ARCH }}
+        waitForArtifactsArgs: '"--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-app=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-server=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-web=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo product-tests-macos-${{ parameters.VSCODE_ARCH }}-app product-tests-macos-${{ parameters.VSCODE_ARCH }}-server product-tests-macos-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 120
+        publishNodeModulesOnFailure: true
+        publishCrashReportsOnFailureOnly: true
+        downloadElectronAndPlaywright: false
+        keyVaultDisplayName: "Azure Key Vault: Get GitHub token"
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+          - name: server
+            displayName: Download packaged server
+          - name: web
+            displayName: Download packaged web server
+        extractArtifactSteps:
+          - script: |
+              set -e
+              tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-app/app.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-server/server.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-web/web.tar.gz -C $(Agent.BuildDirectory)
+            displayName: Extract built workspace and products
+        testSteps:
+          - template: ./steps/product-build-darwin-test.yml@self
+            parameters:
+              VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+              VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+              VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+              VSCODE_TEST_TYPE: Integration
+
+    - template: ../common/product-test-job.yml@self
+      parameters:
+        jobName: macOS_${{ parameters.VSCODE_ARCH }}_Smoke
+        displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) Smoke Tests
+        platform: macos
+        arch: ${{ parameters.VSCODE_ARCH }}
+        testName: smoke
+        artifactPrefix: product-tests-macos-${{ parameters.VSCODE_ARCH }}
+        waitForArtifactsArgs: '"--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-app=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-server=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-web=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo product-tests-macos-${{ parameters.VSCODE_ARCH }}-app product-tests-macos-${{ parameters.VSCODE_ARCH }}-server product-tests-macos-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 120
+        publishNodeModulesOnFailure: true
+        publishCrashReportsOnFailureOnly: true
+        downloadElectronAndPlaywright: false
+        keyVaultDisplayName: "Azure Key Vault: Get GitHub token"
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+          - name: server
+            displayName: Download packaged server
+          - name: web
+            displayName: Download packaged web server
+        extractArtifactSteps:
+          - script: |
+              set -e
+              tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-app/app.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-server/server.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-web/web.tar.gz -C $(Agent.BuildDirectory)
+            displayName: Extract built workspace and products
+        testSteps:
+          - template: ./steps/product-build-darwin-test.yml@self
+            parameters:
+              VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+              VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+              VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+              VSCODE_TEST_TYPE: Smoke
