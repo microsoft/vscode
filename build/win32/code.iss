@@ -115,7 +115,7 @@ Name: "{autodesktop}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: 
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}.lnk'))
 
 [Run]
-Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
+Filename: "{app}\{#ExeBasename}.exe"; Parameters: "{code:GetRelaunchArgs}"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Flags: nowait postinstall; Check: WizardNotSilent
 
 [Registry]
@@ -1307,6 +1307,46 @@ Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue
 
 [Code]
+// Imports MultiByteToWideChar to decode UTF-8 bytes (LoadStringFromFile returns raw bytes) into a Unicode string.
+function MultiByteToWideChar(CodePage: Cardinal; dwFlags: Cardinal; const lpMultiByteStr: AnsiString; cbMultiByte: Integer; lpWideCharStr: String; cchWideChar: Integer): Integer;
+  external 'MultiByteToWideChar@kernel32.dll stdcall';
+
+// Decodes UTF-8 bytes into a Unicode string; falls back to a raw byte conversion on failure.
+function UTF8ToString(const Bytes: AnsiString): String;
+var
+  CharCount: Integer;
+begin
+  Result := '';
+  if Length(Bytes) = 0 then
+    Exit;
+
+  CharCount := MultiByteToWideChar(65001, 0, Bytes, Length(Bytes), '', 0); // 65001 = CP_UTF8
+  if CharCount <= 0 then
+  begin
+    Result := String(Bytes);
+    Exit;
+  end;
+
+  SetLength(Result, CharCount);
+  MultiByteToWideChar(65001, 0, Bytes, Length(Bytes), Result, CharCount);
+end;
+
+// Returns the arguments to pass when relaunching after an update. VS Code writes them (UTF-8, already quoted) to the
+// file given by the /relaunchargs parameter so arguments such as --extensions-dir are preserved. See #322663.
+function GetRelaunchArgs(Value: String): String;
+var
+  ArgsFile: String;
+  RawArgs: AnsiString;
+begin
+  Result := '';
+  ArgsFile := ExpandConstant('{param:relaunchargs|}');
+  if (ArgsFile <> '') and FileExists(ArgsFile) then
+  begin
+    if LoadStringFromFile(ArgsFile, RawArgs) then
+      Result := Trim(UTF8ToString(RawArgs));
+  end;
+end;
+
 function IsBackgroundUpdate(): Boolean;
 begin
   Result := ExpandConstant('{param:update|false}') <> 'false';
