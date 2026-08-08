@@ -80,7 +80,7 @@ export function buildUnavailableStateItems(options: IBuildModelPickerItemsOption
 				hideIcon: false,
 			},
 		];
-		if (options.manageModelsAction) {
+		if (options.presentation.showManageModelsInSetupRequired && options.manageModelsAction) {
 			items.push(
 				{ kind: ActionListItemKind.Separator },
 				{
