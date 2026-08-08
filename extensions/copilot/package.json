@@ -2065,6 +2065,36 @@
                     "type": "string",
                     "description": "Display name of the model"
                   },
+                  "description": {
+                    "type": "string",
+                    "description": "Detailed description or tooltip for the model"
+                  },
+                  "icon": {
+                    "type": "string",
+                    "description": "Theme icon or codicon id for the model"
+                  },
+                  "maxTokens": {
+                    "type": "number",
+                    "description": "Maximum token limit for the context window"
+                  },
+                  "credits": {
+                    "type": "object",
+                    "description": "Token pricing / credit cost configuration for this model",
+                    "properties": {
+                      "input": {
+                        "type": "number",
+                        "description": "Cost per input token"
+                      },
+                      "output": {
+                        "type": "number",
+                        "description": "Cost per output token"
+                      },
+                      "cacheRead": {
+                        "type": "number",
+                        "description": "Cost per cached input token read"
+                      }
+                    }
+                  },
                   "url": {
                     "type": "string",
                     "pattern": "^https?://.+",
