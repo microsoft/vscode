@@ -251,6 +251,15 @@ export interface IDebugSessionOptions {
 	 * the session will instead stop/restart the test run.
 	 */
 	testRun?: IDebugTestRunReference;
+	/**
+	 * The active file URI at the moment the user triggered debugging. When set,
+	 * variables like `${file}` and `${fileDirname}` will resolve against this
+	 * snapshot instead of the live `activeEditor`. This is set by callers such
+	 * as the F5 command handler so that async work (saving files, activating
+	 * extensions, running preLaunch tasks) between the keystroke and variable
+	 * resolution does not cause the wrong file to be launched. See #278130.
+	 */
+	activeFileOverride?: URI;
 }
 
 export interface IDataBreakpointInfoResponse {

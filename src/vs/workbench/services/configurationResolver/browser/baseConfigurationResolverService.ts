@@ -35,6 +35,16 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 	private userInputAccessQueue = new Queue<string | IQuickPickItem | undefined>();
 
+	/**
+	 * Stack of active-file URI overrides. When non-empty, the top value is used
+	 * as the "active editor" resource for `${file}` and related variables instead
+	 * of `editorService.activeEditor`. This lets callers (e.g. the debug service
+	 * when handling F5) snapshot the active file at the time the user initiated
+	 * the operation so that later async work which changes focus does not affect
+	 * the resolution. See https://github.com/microsoft/vscode/issues/278130.
+	 */
+	private readonly activeFileOverrides: (uri | undefined)[] = [];
+
 	constructor(
 		context: {
 			getAppRoot: () => string | undefined;
@@ -51,6 +61,15 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		extensionService: IExtensionService,
 		private readonly storageService: IStorageService,
 	) {
+		const getActiveFileResource = (): uri | undefined => {
+			if (this.activeFileOverrides.length > 0) {
+				return this.activeFileOverrides[this.activeFileOverrides.length - 1];
+			}
+			return EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
+				supportSideBySide: SideBySideEditor.PRIMARY,
+				filterByScheme: [Schemas.file, Schemas.vscodeUserData, this.pathService.defaultUriScheme]
+			});
+		};
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
 				const folder = workspaceContextService.getWorkspace().folders.filter(f => f.name === folderName).pop();
@@ -69,20 +88,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return context.getExecPath();
 			},
 			getFilePath: (): string | undefined => {
-				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
-					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.vscodeUserData, this.pathService.defaultUriScheme]
-				});
+				const fileResource = getActiveFileResource();
 				if (!fileResource) {
 					return undefined;
 				}
 				return this.labelService.getUriLabel(fileResource, { noPrefix: true });
 			},
 			getWorkspaceFolderPathForFile: (): string | undefined => {
-				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
-					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.vscodeUserData, this.pathService.defaultUriScheme]
-				});
+				const fileResource = getActiveFileResource();
 				if (!fileResource) {
 					return undefined;
 				}
@@ -141,6 +154,28 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 		this.resolvableVariables.add('command');
 		this.resolvableVariables.add('input');
+	}
+
+	/**
+	 * Runs `fn` with the `${file}` (and related `file*`) variables bound to the given
+	 * URI instead of the current active editor. This is used to capture the active
+	 * file at the moment the user initiates an operation (e.g. pressing F5) so that
+	 * later async work which changes the active editor does not cause variables to
+	 * resolve to a different file.
+	 *
+	 * If `resource` is `undefined`, the active editor lookup is short-circuited so
+	 * file variables will report "no editor open" rather than picking up whichever
+	 * editor happens to be active when substitution actually runs.
+	 *
+	 * Overrides are stacked: nested calls respect the most recently pushed value.
+	 */
+	public override async withActiveFileOverride<T>(resource: uri | undefined, fn: () => Promise<T>): Promise<T> {
+		this.activeFileOverrides.push(resource);
+		try {
+			return await fn();
+		} finally {
+			this.activeFileOverrides.pop();
+		}
 	}
 
 	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: unknown, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<unknown> {
