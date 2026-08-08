@@ -19,6 +19,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 		additionalServices: (reg) => {
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly quality = 'insider';
+				override readonly nameShort = 'Code - Insiders';
 				override readonly urlProtocol = 'vscode-insiders';
 			}());
 			reg.definePartialInstance(IWorkbenchLayoutService, { mainContainer: ctx.container });
@@ -49,6 +50,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		render: (ctx) => createOverlay(ctx, {
 			reason: SessionsBlockedReason.AccountPolicyGate,
+		}),
+	}),
+	ManagedSettingsUpdateRequired: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => createOverlay(ctx, {
+			reason: SessionsBlockedReason.ManagedSettingsUpdateRequired,
 		}),
 	}),
 });

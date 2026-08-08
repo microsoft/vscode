@@ -111,6 +111,9 @@ import { INativeManagedSettingsService, IFileManagedSettingsService } from '../.
 import { NativeManagedSettingsChannel } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
 import { FileManagedSettingsChannel } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
+import { MANAGED_SETTINGS_REQUEST_CALL_SITE, MANAGED_SETTINGS_REQUEST_CHANNEL } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { IRequestService } from '../../platform/request/common/request.js';
+import { RequestChannel } from '../../platform/request/common/requestIpc.js';
 import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { IExtensionsScannerService } from '../../platform/extensionManagement/common/extensionsScannerService.js';
@@ -1328,6 +1331,11 @@ export class CodeApplication extends Disposable {
 		const policyChannel = disposables.add(new PolicyChannel(accessor.get(IPolicyService)));
 		mainProcessElectronServer.registerChannel('policy', policyChannel);
 		sharedProcessClient.then(client => client.registerChannel('policy', policyChannel));
+
+		mainProcessElectronServer.registerChannel(
+			MANAGED_SETTINGS_REQUEST_CHANNEL,
+			new RequestChannel(accessor.get(IRequestService), options => options.callSite === MANAGED_SETTINGS_REQUEST_CALL_SITE)
+		);
 
 		const nativeManagedSettingsChannel = disposables.add(new NativeManagedSettingsChannel(accessor.get(INativeManagedSettingsService)));
 		mainProcessElectronServer.registerChannel('nativeManagedSettings', nativeManagedSettingsChannel);

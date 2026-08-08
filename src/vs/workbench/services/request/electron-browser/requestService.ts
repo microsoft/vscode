@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { MANAGED_SETTINGS_REQUEST_CALL_SITE, MANAGED_SETTINGS_REQUEST_CHANNEL } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService, readHeader } from '../../../../platform/request/common/request.js';
+import { RequestChannelClient } from '../../../../platform/request/common/requestIpc.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -18,10 +21,12 @@ import { LogService } from '../../../../platform/log/common/logService.js';
 export class NativeRequestService extends AbstractRequestService implements IRequestService {
 
 	declare readonly _serviceBrand: undefined;
+	private readonly nodeRequestService: IRequestService;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IMainProcessService mainProcessService: IMainProcessService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		const logger = loggerService.createLogger(`network`, { name: localize('network', "Network"), group: windowLogGroup });
@@ -29,9 +34,13 @@ export class NativeRequestService extends AbstractRequestService implements IReq
 		super(logService);
 		this._register(logger);
 		this._register(logService);
+		this.nodeRequestService = new RequestChannelClient(mainProcessService.getChannel(MANAGED_SETTINGS_REQUEST_CHANNEL));
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (options.callSite === MANAGED_SETTINGS_REQUEST_CALL_SITE && readHeader(options.headers, 'User-Agent')) {
+			return this.nodeRequestService.request(options, token);
+		}
 		if (!options.proxyAuthorization) {
 			options.proxyAuthorization = this.configurationService.inspect<string>('http.proxyAuthorization').userLocalValue;
 		}

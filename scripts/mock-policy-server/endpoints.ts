@@ -24,6 +24,7 @@ export interface EndpointPreset {
 	id: string;
 	label: string;
 	description: string;
+	status?: number;
 	body: unknown;
 }
 
@@ -65,7 +66,26 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					id: 'empty',
 					label: 'Empty (no policy file)',
 					description: 'An empty object is a successful "no enterprise policy file present" response.',
+					status: 200,
 					body: {}
+				},
+				{
+					id: 'not-configured',
+					label: 'Not configured (404)',
+					description: 'No server-managed policy is configured.',
+					status: 404,
+					body: {}
+				},
+				{
+					id: 'update-required',
+					label: 'Client update required (466)',
+					description: 'Reject the client because it cannot enforce the effective managed settings.',
+					status: 466,
+					body: {
+						error_code: 'copilot_runtime_update_required',
+						client_version: '1.0.79',
+						minimum_client_version: '1.0.80'
+					}
 				}
 			]
 		},

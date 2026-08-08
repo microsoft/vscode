@@ -54,8 +54,10 @@ const SCHEMA_SOURCE = args.schema || process.env.MANAGED_SETTINGS_SCHEMA || DEFA
 const endpointByPath = new Map(endpoints.map(e => [e.path, e]));
 
 const currentBodies: Record<string, unknown> = {};
+const currentStatuses: Record<string, number> = {};
 for (const endpoint of endpoints) {
 	currentBodies[endpoint.id] = endpoint.presets[0] ? clone(endpoint.presets[0].body) : {};
+	currentStatuses[endpoint.id] = endpoint.presets[0]?.status ?? 200;
 }
 
 const server = http.createServer((req, res) => {
@@ -79,7 +81,7 @@ const server = http.createServer((req, res) => {
 				return;
 			}
 			if (req.method === 'GET') {
-				return sendJson(res, 200, currentBodies[endpoint.id]);
+				return sendJson(res, currentStatuses[endpoint.id], currentBodies[endpoint.id]);
 			}
 		}
 
@@ -111,7 +113,11 @@ const server = http.createServer((req, res) => {
 				if (!def) {
 					return sendJson(res, 400, { error: `Unknown endpoint "${payload?.endpoint}".` });
 				}
+				if (!Number.isInteger(payload.status) || payload.status < 200 || payload.status > 599) {
+					return sendJson(res, 400, { error: 'Status must be an integer from 200 to 599.' });
+				}
 				currentBodies[def.id] = payload.body;
+				currentStatuses[def.id] = payload.status;
 				return sendJson(res, 200, getState());
 			});
 		}
@@ -213,6 +219,7 @@ function getState() {
 			description: e.description,
 			url: endpointUrl(e),
 			presets: e.presets,
+			status: currentStatuses[e.id],
 			body: currentBodies[e.id]
 		})),
 		wired: isWired(),

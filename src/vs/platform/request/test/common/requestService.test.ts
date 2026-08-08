@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestCompleteEvent, NO_FETCH_TELEMETRY } from '../../common/request.js';
+import { RequestChannel } from '../../common/requestIpc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 class TestRequestService extends AbstractRequestService {
@@ -97,5 +98,15 @@ suite('AbstractRequestService', () => {
 		await service.request({ url: 'http://test/2', callSite: 'second' }, CancellationToken.None);
 
 		assert.deepStrictEqual(events.map(e => e.callSite), ['first', 'second']);
+	});
+
+	test('restricted request channel accepts only matching requests', async () => {
+		const service = store.add(new TestRequestService(() => Promise.resolve(makeResponse(200))));
+		const channel = new RequestChannel(service, options => options.callSite === 'allowed');
+
+		await channel.call(undefined, 'request', [{ url: 'http://test', callSite: 'allowed' }]);
+
+		assert.throws(() => channel.call(undefined, 'request', [{ url: 'http://test', callSite: 'blocked' }]));
+		assert.throws(() => channel.call(undefined, 'resolveProxy', ['http://test']));
 	});
 });

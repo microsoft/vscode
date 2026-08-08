@@ -20,19 +20,31 @@ type RequestResponse = [
 
 export class RequestChannel implements IServerChannel {
 
-	constructor(private readonly service: IRequestService) { }
+	constructor(
+		private readonly service: IRequestService,
+		private readonly isRequestAllowed?: (options: IRequestOptions) => boolean,
+	) { }
 
 	listen(context: any, event: string): Event<any> {
 		throw new Error('Invalid listen');
 	}
 
 	call(context: any, command: string, args?: any, token: CancellationToken = CancellationToken.None): Promise<any> {
+		if (this.isRequestAllowed && command !== 'request') {
+			throw new Error(`Invalid call on restricted request channel: ${command}`);
+		}
 		switch (command) {
-			case 'request': return this.service.request(args[0], token)
-				.then(async ({ res, stream }) => {
-					const buffer = await streamToBuffer(stream);
-					return <RequestResponse>[{ statusCode: res.statusCode, headers: res.headers }, buffer];
-				});
+			case 'request': {
+				const options: IRequestOptions = args[0];
+				if (this.isRequestAllowed && !this.isRequestAllowed(options)) {
+					throw new Error(`Request is not allowed on this channel: ${options.callSite}`);
+				}
+				return this.service.request(options, token)
+					.then(async ({ res, stream }) => {
+						const buffer = await streamToBuffer(stream);
+						return <RequestResponse>[{ statusCode: res.statusCode, headers: res.headers }, buffer];
+					});
+			}
 			case 'resolveProxy': return this.service.resolveProxy(args[0]);
 			case 'lookupAuthorization': return this.service.lookupAuthorization(args[0]);
 			case 'lookupKerberosAuthorization': return this.service.lookupKerberosAuthorization(args[0]);

@@ -9,11 +9,11 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 /**
  * Policy name (declared by `chat.approvedAccountOrganizations`) holding the list of
@@ -33,18 +33,26 @@ export const enum AccountPolicyGateUnsatisfiedReason {
 	WrongProvider = 'wrongProvider',
 	OrgNotApproved = 'orgNotApproved',
 	PolicyNotResolved = 'policyNotResolved',
+	ManagedSettingsUpdateRequired = 'managedSettingsUpdateRequired',
 }
 
 export interface IAccountPolicyGateInfo {
 	readonly state: AccountPolicyGateState;
 	readonly reason?: AccountPolicyGateUnsatisfiedReason;
 	readonly approvedOrganizations?: readonly string[];
+	readonly managedSettingsCompatibilityError?: IManagedSettingsCompatibilityError;
 }
 
 export const ChatAccountPolicyGateActiveContext = new RawContextKey<boolean>(
 	'chatAccountPolicyGateActive',
 	false,
 	{ type: 'boolean', description: localize('chatAccountPolicyGateActive', "True when the 'Require Approved Account' policy is in effect and the user is not yet signed into an approved GitHub organization, so all AI features are disabled until they sign in.") }
+);
+
+export const ChatManagedSettingsUpdateRequiredContext = new RawContextKey<boolean>(
+	'chatManagedSettingsUpdateRequired',
+	false,
+	{ type: 'boolean', description: localize('chatManagedSettingsUpdateRequired', "True when AI features are disabled because the bundled Copilot runtime cannot enforce the effective enterprise managed settings.") }
 );
 
 /**
@@ -100,6 +108,9 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
 			this._updatePolicyDefinitions(this.policyDefinitions);
 		}));
+		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(() => {
+			this._updatePolicyDefinitions(this.policyDefinitions);
+		}));
 		if (this.managedPolicyReader) {
 			this._register(this.managedPolicyReader.onDidChange(names => {
 				if (names.includes(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME)) {
@@ -137,9 +148,13 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		this._gateInfo = this.computeGateInfo();
 		const previousApprovedOrgs = previousInfo.approvedOrganizations?.join('\n') ?? '';
 		const currentApprovedOrgs = this._gateInfo.approvedOrganizations?.join('\n') ?? '';
+		const previousCompatibility = previousInfo.managedSettingsCompatibilityError;
+		const currentCompatibility = this._gateInfo.managedSettingsCompatibilityError;
 		const gateInfoChanged = previousInfo.state !== this._gateInfo.state
 			|| previousInfo.reason !== this._gateInfo.reason
-			|| previousApprovedOrgs !== currentApprovedOrgs;
+			|| previousApprovedOrgs !== currentApprovedOrgs
+			|| previousCompatibility?.clientVersion !== currentCompatibility?.clientVersion
+			|| previousCompatibility?.minimumClientVersion !== currentCompatibility?.minimumClientVersion;
 
 		// `policyNotResolved` is a transient state where the user IS in an approved
 		// org but account-side policy data hasn't loaded yet. We don't force restricted
@@ -258,6 +273,15 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	}
 
 	private computeGateInfo(): IAccountPolicyGateInfo {
+		const managedSettingsCompatibilityError = this.defaultAccountService.managedSettingsCompatibilityError;
+		if (managedSettingsCompatibilityError) {
+			return {
+				state: AccountPolicyGateState.Restricted,
+				reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsUpdateRequired,
+				managedSettingsCompatibilityError,
+			};
+		}
+
 		if (!this.managedPolicyReader) {
 			return { state: AccountPolicyGateState.Inactive };
 		}

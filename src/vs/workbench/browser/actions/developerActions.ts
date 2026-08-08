@@ -923,9 +923,11 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += PROPERTY_VALUE_TABLE_HEADER;
 			content += '| Endpoint | `/copilot_internal/managed_settings` |\n';
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
-			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\``} |\n`;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
-			content += `| Last successful fetch | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\`${fetchedAt ? ` at ${new Date(fetchedAt).toLocaleString()}` : ''}`} |\n`;
+			content += `| User-Agent | \`vscode/${productService.version} copilot-runtime/${productService.copilotVersions?.runtime ?? 'unknown'}\` |\n`;
+			const compatibilityError = defaultAccountService.managedSettingsCompatibilityError;
+			content += `| Compatibility | ${compatibilityError ? `\`update required\` (${compatibilityError.clientVersion ?? '?'} → ${compatibilityError.minimumClientVersion ?? '?'})` : '`compatible or not evaluated`'} |\n`;
 			content += `| Contributes winning keys | ${channelContributes('server') ? 'yes' : 'no'} |\n\n`;
 
 			const rawResponse = defaultAccountService.managedSettingsRawResponse;
