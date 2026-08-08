@@ -85,20 +85,12 @@ export interface ILocalCustomizationFile {
  * (to render disable affordances) and the agent host wire (to compute the
  * `customizations` set published via `activeClientSet`).
  *
- * A file counts as opted out when either the per-harness sync provider has it
- * disabled (the plugin-level auto-sync opt-out) or — for the customizations the
- * user can toggle from the Customizations UI, see
- * {@link isUserToggleableCustomization} — the user disabled it there
- * (`IPromptsService.getDisabledPromptFiles`, the store behind the Enable/Disable
- * actions on built-in skills). Both stores must be consulted here, otherwise
- * disabling a built-in skill would leave it on the wire.
- *
- * The user-disabled store is deliberately *not* honoured for customizations the
- * Customizations UI cannot re-enable. Callers drop opted-out files from the
- * bundle entirely, and the Agents-window lists are derived from that bundle, so
- * honouring it more widely would make such a file vanish from the UI with no
- * way to restore it. (`getDisabledPromptFiles(PromptsType.agent)` is written by
- * the chat view agent picker, which has its own unhide affordance.)
+ * A file counts as opted out when the per-harness sync provider has it disabled,
+ * or when the user disabled it in the Customizations UI
+ * (`IPromptsService.getDisabledPromptFiles`) and that customization is one the
+ * UI can re-enable ({@link isUserToggleableCustomization}). See "Enabling and
+ * Disabling Built-in Skills" in `src/vs/sessions/AI_CUSTOMIZATIONS.md` for why
+ * the second store is scoped rather than honoured for every prompt type.
  *
  * Built-in skills bundled with the Agents app (only present when the
  * sessions-aware prompts service is in play) are also enumerated so that

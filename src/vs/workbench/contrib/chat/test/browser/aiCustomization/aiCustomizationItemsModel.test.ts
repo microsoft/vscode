@@ -771,12 +771,14 @@ suite('AICustomizationItemsModel', () => {
 		let providerItems: ICustomizationItem[];
 		let builtinSkills: IPromptPath[];
 		let disabledPromptFiles: ResourceSet;
+		let onDidChangeSkills: Emitter<void>;
 
 		setup(() => {
 			disposables = new DisposableStore();
 			providerItems = [];
 			builtinSkills = [];
 			disabledPromptFiles = new ResourceSet();
+			onDidChangeSkills = disposables.add(new Emitter<void>());
 
 			const sessionType = 'agent-host-test';
 			const provider: ICustomizationItemProvider = {
@@ -796,7 +798,7 @@ suite('AICustomizationItemsModel', () => {
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
-				onDidChangeSkills: Event.None,
+				onDidChangeSkills: onDidChangeSkills.event,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
 				onDidChangeAgentInstructions: Event.None,
@@ -908,6 +910,40 @@ suite('AICustomizationItemsModel', () => {
 					{ name: 'merge', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, disabled: false },
 				],
 			);
+		});
+		test('refreshes built-in skill disabled state when onDidChangeSkills fires', async () => {
+			// The Disable action writes to IPromptsService and fires
+			// onDidChangeSkills; the provider is unchanged (its bundle refresh is
+			// asynchronous and may lag). PureItemProviderItemSource must still
+			// re-derive `disabled` from the prompts service, otherwise the row
+			// would stay stale until some unrelated provider change happened.
+			const skill = URI.file('/builtin/create-pr/SKILL.md');
+			builtinSkills = [
+				{ uri: skill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'create-pr' } as IPromptPath,
+			];
+			providerItems = [
+				{ uri: skill, type: PromptsType.skill, name: 'create-pr', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, extensionId: undefined, pluginUri: undefined, userInvocable: true },
+			];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const skillItems = model.getItems(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			// Let any refetch scheduled during construction settle, so the
+			// assertion below can only be satisfied by a refetch that the
+			// onDidChangeSkills subscription itself triggered.
+			await timeout(0);
+			assert.deepStrictEqual(skillItems.get().map(i => ({ name: i.name, disabled: i.disabled })), [
+				{ name: 'create-pr', disabled: false },
+			]);
+
+			disabledPromptFiles = new ResourceSet([skill]);
+			onDidChangeSkills.fire();
+			await timeout(0);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+
+			assert.deepStrictEqual(skillItems.get().map(i => ({ name: i.name, disabled: i.disabled })), [
+				{ name: 'create-pr', disabled: true },
+			]);
 		});
 	});
 });

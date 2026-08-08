@@ -258,33 +258,17 @@ export class AICustomizationItemNormalizer {
 
 /**
  * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
- * into an item provider's items. The provider may re-discover the bundled
- * copies — either by scanning disk, or (on agent-host harnesses) by expanding
- * the synthetic bundle that carries them to the host. Those duplicates are
- * dropped (deduped by URI) and replaced with the authoritative built-in entry
- * tagged `groupKey: BUILTIN_STORAGE` so the UI renders them in the "Built-in"
- * group. User-authored overrides (different URI, same name) are preserved.
+ * into an item provider's items, deduped by URI so a copy the provider
+ * re-discovered is replaced by the authoritative entry, and tagged
+ * `groupKey: BUILTIN_STORAGE`. User-authored overrides (different URI, same
+ * name) are preserved.
  *
- * Deriving the built-in entries from the prompts service rather than from the
- * provider is what makes the Enable/Disable actions observable: a disabled
- * built-in skill is excluded from the agent-host bundle, so the provider no
- * longer reports it, yet it must stay listed (as disabled) so it can be
- * re-enabled.
- *
- * This is the restore path that `isUserToggleableCustomization` (in
- * `common/promptSyntax/service/promptsService.ts`) guards: the wire only hides
- * user-disabled customizations for the (type, storage) combination re-added
- * here, so the two must be kept in sync.
- *
- * `enabled` is derived solely from the prompts service, deliberately ignoring
- * the per-harness `ICustomizationSyncProvider` opt-out that the wire also
- * honours. That is sound only because the sync store holds *plugin* URIs — its
- * one writer is the Plugins section checkbox, and `isDisabled` matches URIs
- * exactly rather than by containment — so it can never opt out an individual
- * built-in skill. Should a per-file sync opt-out ever be introduced, this
- * derivation must account for it, otherwise a skill dropped from the wire would
- * be re-listed here as enabled (and the Enable action, which writes only the
- * prompts store, could not correct it).
+ * `enabled` is derived from `getDisabledPromptFiles` alone, so a built-in that
+ * the wire dropped from the agent-host bundle stays listed as disabled and can
+ * be re-enabled. This is the restore path that `isUserToggleableCustomization`
+ * guards, and it is why that predicate must stay in sync with what this merges
+ * back. See "Enabling and Disabling Built-in Skills" in
+ * `src/vs/sessions/AI_CUSTOMIZATIONS.md`.
  *
  * A workbench that uses the base `PromptsService` contributes no built-in
  * skills, so `builtinPaths` is empty and the items are returned unchanged.

@@ -284,11 +284,16 @@ All built-in customizations bundled with the Sessions app are skills, living in 
 
 #### Enabling and Disabling Built-in Skills
 
-The **Enable** / **Disable** actions on a built-in skill persist to `IPromptsService.setDisabledPromptFiles(PromptsType.skill, …)` (profile-scoped storage). This is a distinct store from the per-harness auto-sync opt-out owned by `ICustomizationSyncProvider`, which the Plugins section writes; both are honored wherever a customization's disabled state is evaluated.
+The **Enable** / **Disable** actions on a built-in skill persist to `IPromptsService.setDisabledPromptFiles(PromptsType.skill, …)` (profile-scoped storage). This is a distinct store from the per-harness auto-sync opt-out owned by `ICustomizationSyncProvider`, which the Plugins section writes.
+
+The two stores are consulted at different points, and deliberately not identically:
+
+- **The wire** honors *both*. `enumerateLocalCustomizationsForHarness` marks a file disabled when either store opts it out, so a disabled skill is excluded from the synthetic Open Plugin bundle and never reaches the agent host.
+- **The list** derives `enabled` from the prompts-service store *only*. `mergeBuiltinSkills` ignores the sync-provider store because that store holds **plugin** URIs — its sole writer is the Plugins section checkbox, and `isDisabled` matches URIs exactly rather than by containment — so it can never opt out an individual built-in skill. If a per-file sync opt-out is ever added, this derivation must account for it; otherwise a skill dropped from the wire would be re-listed as enabled, and the **Enable** action (which writes only the prompts store) could not correct it.
 
 Two places must consult the prompts-service store for the toggle to take effect on an agent-host harness:
 
-- **The wire.** `enumerateLocalCustomizationsForHarness` marks a file disabled when *either* store opts it out, so a disabled skill is excluded from the synthetic Open Plugin bundle and never reaches the agent host.
+- **The wire.** As above — the skill is excluded from the bundle.
 - **The list.** Because a disabled skill is no longer in the bundle, the agent-host item provider stops reporting it. `PureItemProviderItemSource` therefore merges built-in skills in from `IPromptsService.listPromptFilesForStorage(skill, builtIn)` (via the shared `mergeBuiltinSkills` helper, deduped by URI against provider rows) and derives their `enabled` state from `getDisabledPromptFiles`. This keeps a disabled built-in listed — greyed out, with an **Enable** action — instead of vanishing with no way to restore it. Its `onDidAICustomizationItemsChange` includes `onDidChangeSkills` so the row updates immediately.
 
 `ItemProviderItemSource` (non-agent-host harnesses) uses the same helper, so both paths group, dedupe, and gate built-ins identically.
