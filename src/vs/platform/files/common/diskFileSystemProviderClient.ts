@@ -18,6 +18,36 @@ import { reviveFileChanges } from './watcher.js';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
 
+export type IPCFileData = string | VSBuffer;
+
+export interface IPCFileStringData {
+	data: string;
+}
+
+export type IPCFileStreamData = IPCFileStringData | VSBuffer;
+
+const utf8Decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+
+export function encodeIPCFileData(content: Uint8Array): IPCFileData {
+	if (content.includes(0)) {
+		return VSBuffer.wrap(content);
+	}
+
+	try {
+		return utf8Decoder.decode(content);
+	} catch {
+		return VSBuffer.wrap(content);
+	}
+}
+
+export function decodeIPCFileData(content: IPCFileData): Uint8Array {
+	return typeof content === 'string' ? VSBuffer.fromString(content).buffer : content.buffer;
+}
+
+function isIPCFileStringData(content: unknown): content is IPCFileStringData {
+	return !!content && typeof content === 'object' && 'data' in content && typeof content.data === 'string';
+}
+
 /**
  * An implementation of a local disk file system provider
  * that is backed by a `IChannel` and thus implemented via
@@ -93,9 +123,9 @@ export class DiskFileSystemProviderClient extends Disposable implements
 	//#region File Reading/Writing
 
 	async readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array> {
-		const { buffer } = await this.channel.call('readFile', [resource, opts]) as VSBuffer;
+		const content = await this.channel.call<IPCFileData>('readFile', [resource, opts]);
 
-		return buffer;
+		return decodeIPCFileData(content);
 	}
 
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
@@ -103,11 +133,11 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		const disposables = new DisposableStore();
 
 		// Reading as file stream goes through an event to the remote side
-		disposables.add(this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
+		disposables.add(this.channel.listen<ReadableStreamEventPayload<IPCFileStreamData>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
 
 			// data
-			if (dataOrErrorOrEnd instanceof VSBuffer) {
-				stream.write(dataOrErrorOrEnd.buffer);
+			if (dataOrErrorOrEnd instanceof VSBuffer || isIPCFileStringData(dataOrErrorOrEnd)) {
+				stream.write(decodeIPCFileData(dataOrErrorOrEnd instanceof VSBuffer ? dataOrErrorOrEnd : dataOrErrorOrEnd.data));
 			}
 
 			// end or error
@@ -158,7 +188,7 @@ export class DiskFileSystemProviderClient extends Disposable implements
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		return this.channel.call('writeFile', [resource, VSBuffer.wrap(content), opts]);
+		return this.channel.call('writeFile', [resource, encodeIPCFileData(content), opts]);
 	}
 
 	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
@@ -170,19 +200,19 @@ export class DiskFileSystemProviderClient extends Disposable implements
 	}
 
 	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const [bytes, bytesRead]: [VSBuffer, number] = await this.channel.call('read', [fd, pos, length]);
+		const [bytes, bytesRead]: [IPCFileData, number] = await this.channel.call('read', [fd, pos, length]);
 
 		// copy back the data that was written into the buffer on the remote
 		// side. we need to do this because buffers are not referenced by
 		// pointer, but only by value and as such cannot be directly written
 		// to from the other process.
-		data.set(bytes.buffer.slice(0, bytesRead), offset);
+		data.set(decodeIPCFileData(bytes).slice(0, bytesRead), offset);
 
 		return bytesRead;
 	}
 
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this.channel.call('write', [fd, pos, VSBuffer.wrap(data), offset, length]);
+		return this.channel.call('write', [fd, pos, encodeIPCFileData(data), offset, length]);
 	}
 
 	//#endregion

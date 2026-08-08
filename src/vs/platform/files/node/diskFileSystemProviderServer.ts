@@ -16,6 +16,7 @@ import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFi
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IRecursiveWatcherOptions } from '../common/watcher.js';
+import { decodeIPCFileData, encodeIPCFileData, IPCFileData, IPCFileStreamData } from '../common/diskFileSystemProviderClient.js';
 
 export interface ISessionFileWatcher extends IDisposable {
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable;
@@ -44,8 +45,8 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 			case 'close': return this.close(args[0] as number) as Promise<TResult>;
 			case 'read': return this.read(args[0] as number, args[1] as number, args[2] as number) as Promise<TResult>;
 			case 'readFile': return this.readFile(uriTransformer, args[0] as UriComponents, args[1] as IFileAtomicReadOptions) as Promise<TResult>;
-			case 'write': return this.write(args[0] as number, args[1] as number, args[2] as VSBuffer, args[3] as number, args[4] as number) as Promise<TResult>;
-			case 'writeFile': return this.writeFile(uriTransformer, args[0] as UriComponents, args[1] as VSBuffer, args[2] as IFileWriteOptions) as Promise<TResult>;
+			case 'write': return this.write(args[0] as number, args[1] as number, args[2] as IPCFileData, args[3] as number, args[4] as number) as Promise<TResult>;
+			case 'writeFile': return this.writeFile(uriTransformer, args[0] as UriComponents, args[1] as IPCFileData, args[2] as IFileWriteOptions) as Promise<TResult>;
 			case 'rename': return this.rename(uriTransformer, args[0] as UriComponents, args[1] as UriComponents, args[2] as IFileOverwriteOptions) as Promise<TResult>;
 			case 'copy': return this.copy(uriTransformer, args[0] as UriComponents, args[1] as UriComponents, args[2] as IFileOverwriteOptions) as Promise<TResult>;
 			case 'cloneFile': return this.cloneFile(uriTransformer, args[0] as UriComponents, args[1] as UriComponents) as Promise<TResult>;
@@ -97,18 +98,18 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 	//#region File Reading/Writing
 
-	private async readFile(uriTransformer: IURITransformer, _resource: UriComponents, opts?: IFileAtomicReadOptions): Promise<VSBuffer> {
+	private async readFile(uriTransformer: IURITransformer, _resource: UriComponents, opts?: IFileAtomicReadOptions): Promise<IPCFileData> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 		const buffer = await this.provider.readFile(resource, opts);
 
-		return VSBuffer.wrap(buffer);
+		return encodeIPCFileData(buffer);
 	}
 
-	private onReadFileStream(uriTransformer: IURITransformer, _resource: URI, opts: IFileReadStreamOptions): Event<ReadableStreamEventPayload<VSBuffer>> {
+	private onReadFileStream(uriTransformer: IURITransformer, _resource: URI, opts: IFileReadStreamOptions): Event<ReadableStreamEventPayload<IPCFileStreamData>> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 		const cts = new CancellationTokenSource();
 
-		const emitter = new Emitter<ReadableStreamEventPayload<VSBuffer>>({
+		const emitter = new Emitter<ReadableStreamEventPayload<IPCFileStreamData>>({
 			onDidRemoveLastListener: () => {
 
 				// Ensure to cancel the read operation when there is no more
@@ -119,7 +120,10 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 		const fileStream = this.provider.readFileStream(resource, opts, cts.token);
 		listenStream(fileStream, {
-			onData: chunk => emitter.fire(VSBuffer.wrap(chunk)),
+			onData: chunk => {
+				const data = encodeIPCFileData(chunk);
+				emitter.fire(typeof data === 'string' ? { data } : data);
+			},
 			onError: error => emitter.fire(error),
 			onEnd: () => {
 
@@ -135,10 +139,10 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return emitter.event;
 	}
 
-	private writeFile(uriTransformer: IURITransformer, _resource: UriComponents, content: VSBuffer, opts: IFileWriteOptions): Promise<void> {
+	private writeFile(uriTransformer: IURITransformer, _resource: UriComponents, content: IPCFileData, opts: IFileWriteOptions): Promise<void> {
 		const resource = this.transformIncoming(uriTransformer, _resource);
 
-		return this.provider.writeFile(resource, content.buffer, opts);
+		return this.provider.writeFile(resource, decodeIPCFileData(content), opts);
 	}
 
 	private open(uriTransformer: IURITransformer, _resource: UriComponents, opts: IFileOpenOptions): Promise<number> {
@@ -151,16 +155,16 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.close(fd);
 	}
 
-	private async read(fd: number, pos: number, length: number): Promise<[VSBuffer, number]> {
+	private async read(fd: number, pos: number, length: number): Promise<[IPCFileData, number]> {
 		const buffer = VSBuffer.alloc(length);
 		const bufferOffset = 0; // offset is 0 because we create a buffer to read into for each call
 		const bytesRead = await this.provider.read(fd, pos, buffer.buffer, bufferOffset, length);
 
-		return [buffer, bytesRead];
+		return [encodeIPCFileData(buffer.buffer.subarray(0, bytesRead)), bytesRead];
 	}
 
-	private write(fd: number, pos: number, data: VSBuffer, offset: number, length: number): Promise<number> {
-		return this.provider.write(fd, pos, data.buffer, offset, length);
+	private write(fd: number, pos: number, data: IPCFileData, offset: number, length: number): Promise<number> {
+		return this.provider.write(fd, pos, decodeIPCFileData(data), offset, length);
 	}
 
 	//#endregion

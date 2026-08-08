@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../common/event.js';
 import { DisposableStore } from '../../../../common/lifecycle.js';
 import { isEqual } from '../../../../common/resources.js';
 import { URI } from '../../../../common/uri.js';
-import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
+import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, IStructuredCloneMessage, IStructuredCloneMessagePassingProtocol, ProxyChannel, serialize } from '../../common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 class QueueProtocol implements IMessagePassingProtocol {
@@ -53,6 +53,52 @@ class QueueProtocol implements IMessagePassingProtocol {
 function createProtocolPair(): [IMessagePassingProtocol, IMessagePassingProtocol] {
 	const one = new QueueProtocol();
 	const other = new QueueProtocol();
+	one.other = other;
+	other.other = one;
+
+	return [one, other];
+}
+
+class StructuredCloneQueueProtocol implements IStructuredCloneMessagePassingProtocol {
+
+	readonly type = 'structuredClone';
+	private buffering = true;
+	private messages: IStructuredCloneMessage[] = [];
+	private readonly _onMessage = new Emitter<IStructuredCloneMessage>({
+		onDidAddFirstListener: () => {
+			for (const message of this.messages) {
+				this._onMessage.fire(message);
+			}
+
+			this.messages = [];
+			this.buffering = false;
+		},
+		onDidRemoveLastListener: () => {
+			this.buffering = true;
+		}
+	});
+
+	readonly onMessage = this._onMessage.event;
+	other!: StructuredCloneQueueProtocol;
+	lastSent: IStructuredCloneMessage | undefined;
+
+	send(message: IStructuredCloneMessage): void {
+		this.lastSent = message;
+		this.other.receive(structuredClone(message));
+	}
+
+	private receive(message: IStructuredCloneMessage): void {
+		if (this.buffering) {
+			this.messages.push(message);
+		} else {
+			this._onMessage.fire(message);
+		}
+	}
+}
+
+function createStructuredCloneProtocolPair(): [StructuredCloneQueueProtocol, StructuredCloneQueueProtocol] {
+	const one = new StructuredCloneQueueProtocol();
+	const other = new StructuredCloneQueueProtocol();
 	one.other = other;
 	other.other = one;
 
@@ -238,6 +284,43 @@ suite('Base IPC', function () {
 
 		assert.strictEqual(b1, b2);
 		assert.strictEqual(b3, b4);
+	});
+
+	test('structured clone protocol sends plain envelopes and preserves supported values', async function () {
+		const [clientProtocol, serverProtocol] = createStructuredCloneProtocolPair();
+		const channelDisposables = store.add(new DisposableStore());
+		const server = store.add(new ChannelServer(serverProtocol, 'ctx'));
+		server.registerChannel('echo', ProxyChannel.fromService({
+			echo: (value: unknown) => value
+		}, channelDisposables));
+		const client = store.add(new ChannelClient(clientProtocol));
+		const service = ProxyChannel.toService<{ echo(value: unknown): Promise<unknown> }>(client.getChannel('echo'));
+		const input = {
+			uri: URI.file('/structured-clone'),
+			regexp: /structured/gi,
+			buffer: VSBuffer.fromByteArray([1, 2, 3]),
+			validate: () => false
+		};
+
+		const result = await service.echo(input) as typeof input;
+
+		assert.deepStrictEqual({
+			headerIsArray: Array.isArray(clientProtocol.lastSent?.header),
+			messageIsBuffer: clientProtocol.lastSent instanceof VSBuffer,
+			uri: result.uri.toString(),
+			regexp: result.regexp.toString(),
+			bufferIsVSBuffer: result.buffer instanceof VSBuffer,
+			buffer: [...result.buffer.buffer],
+			hasValidate: Object.hasOwn(result, 'validate')
+		}, {
+			headerIsArray: true,
+			messageIsBuffer: false,
+			uri: URI.file('/structured-clone').toString(),
+			regexp: '/structured/gi',
+			bufferIsVSBuffer: true,
+			buffer: [1, 2, 3],
+			hasValidate: false
+		});
 	});
 
 	suite('one to one', function () {
