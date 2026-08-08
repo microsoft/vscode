@@ -48,6 +48,7 @@ export class PlaywrightDriver {
 
 	private static traceCounter = 1;
 	private static screenShotCounter = 1;
+	private static reloadMarkerCounter = 1;
 
 	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
 		cmd: 'Meta',
@@ -144,6 +145,43 @@ export class PlaywrightDriver {
 	}
 
 	/**
+	 * Wait for an open window/page whose URL contains the provided pattern.
+	 */
+	async waitForPage(urlPattern: string, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+	}
+
+	/**
+	 * Run an action and wait for a newly opened window/page whose URL contains the provided pattern.
+	 */
+	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const existingPages = new Set(this.getAllWindows());
+		await action();
+
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !existingPages.has(candidate) && !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for new page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+	}
+
+	/**
 	 * Take a screenshot of the current window.
 	 * @param fullPage - Whether to capture the full scrollable page
 	 * @returns Screenshot as a Buffer
@@ -158,8 +196,8 @@ export class PlaywrightDriver {
 	/**
 	 * Get the accessibility snapshot of the current window.
 	 */
-	async getAccessibilitySnapshot(): Promise<playwright.Accessibility['snapshot'] extends () => Promise<infer T> ? T : never> {
-		return await this.page.accessibility.snapshot();
+	async getAccessibilitySnapshot(): Promise<string> {
+		return await this.page.ariaSnapshot({ mode: 'ai' });
 	}
 
 	/**
@@ -399,6 +437,25 @@ export class PlaywrightDriver {
 		await this.whenLoaded;
 	}
 
+	/**
+	 * Stamps the current document so that {@link waitForWindowReload} can tell the
+	 * document apart from the one that a window reload will bring up.
+	 */
+	async markWindowForReload(): Promise<string> {
+		const marker = `vscodeSmokeTestReloadMarker${PlaywrightDriver.reloadMarkerCounter++}`;
+		await this.page.evaluate(m => { (window as unknown as Record<string, boolean>)[m] = true; }, marker);
+
+		return marker;
+	}
+
+	/**
+	 * Waits until the document that was stamped via {@link markWindowForReload} is
+	 * gone, meaning the window reload actually took effect.
+	 */
+	async waitForWindowReload(marker: string, timeout: number = 60_000): Promise<void> {
+		await this.page.waitForFunction(m => !(window as unknown as Record<string, boolean>)[m], marker, { timeout, polling: 100 });
+	}
+
 	private _cdpSession: playwright.CDPSession | undefined;
 
 	async startCDP() {
@@ -566,7 +623,79 @@ export class PlaywrightDriver {
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
 		const { x, y } = await this.getElementXY(selector, xoffset, yoffset);
-		await this.page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
+		// getElementXY already incorporates both offsets (relative to the element's
+		// top-left corner) when both are provided, so don't add them again.
+		if (xoffset !== undefined && yoffset !== undefined) {
+			await this.page.mouse.click(x, y);
+		} else {
+			await this.page.mouse.click(x + (xoffset ?? 0), y + (yoffset ?? 0));
+		}
+	}
+
+	/**
+	 * Click an element via Playwright's actionability-checked path, with a fallback
+	 * to a stable-coordinates click if Playwright refuses to interact.
+	 *
+	 * The primary path (`page.click`) is preferred because Playwright re-checks
+	 * `elementFromPoint(x, y)` immediately before dispatching, eliminating the
+	 * TOCTOU window where a sibling element could shift the target between the
+	 * position lookup and the click. The fallback only kicks in when a known
+	 * actionability error occurs — specifically when an overlay element intercepts
+	 * pointer events (the known case is Monaco's `.native-edit-context`, z-index: -10,
+	 * which `elementFromPoint` returns instead of the intended target). Other errors
+	 * (e.g. selector not found, detached element, timeout on a genuinely missing
+	 * element) are rethrown so real failures aren't silently masked.
+	 */
+	async robustClick(selector: string, timeoutMs: number = 2000): Promise<void> {
+		try {
+			await this.page.click(selector, { timeout: timeoutMs });
+			return;
+		} catch (err) {
+			if (!this.isPointerInterceptedError(err)) {
+				throw err;
+			}
+			try {
+				await this.clickAtStablePosition(selector);
+			} catch (fallbackErr) {
+				const orig = err instanceof Error ? err.message : String(err);
+				const fb = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+				throw new Error(`robustClick fallback failed for '${selector}'. Original page.click error: ${orig}. Fallback error: ${fb}`);
+			}
+		}
+	}
+
+	/**
+	 * Returns true when the error is an actionability failure caused by an overlay
+	 * element intercepting pointer events (e.g. Monaco's `.native-edit-context`).
+	 * These are the only errors for which the stable-coordinates fallback is safe.
+	 */
+	private isPointerInterceptedError(err: unknown): boolean {
+		const message = err instanceof Error ? err.message : String(err);
+		return message.includes('intercepts pointer events');
+	}
+
+	/**
+	 * Fallback for {@link robustClick}: polls the element's click position via
+	 * getElementXY until two consecutive samples (separated by `intervalMs`) return
+	 * identical coordinates, then dispatches a mouse click at those exact stable
+	 * coordinates. Clicking the already-sampled {x,y} eliminates the re-sample
+	 * window, making the race window as small as possible (just the CDP round-trip).
+	 */
+	private async clickAtStablePosition(selector: string, intervalMs: number = 100, timeoutMs: number = 5000): Promise<void> {
+		let last: { x: number; y: number } | undefined;
+		const start = Date.now();
+		while (true) {
+			const current = await this.getElementXY(selector);
+			if (last && last.x === current.x && last.y === current.y) {
+				await this.page.mouse.click(current.x, current.y);
+				return;
+			}
+			last = current;
+			if (Date.now() - start > timeoutMs) {
+				throw new Error(`Element position never stabilized for '${selector}' within ${timeoutMs}ms`);
+			}
+			await wait(intervalMs);
+		}
 	}
 
 	async setValue(selector: string, text: string) {

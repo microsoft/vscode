@@ -345,8 +345,13 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 
 	word = tryNormalizeToBase(word);
 	target = tryNormalizeToBase(target);
+	// Memoize recursive calls within a single top-level invocation. Because word
+	// separators are treated as an equivalence class by `charactersMatch`, the
+	// recursion in `_matchesWords` can otherwise explode exponentially for inputs
+	// like `editor.action` against targets that contain many separators.
+	const memo = new Map<number, IMatch[] | null>();
 	while (targetIndex < target.length) {
-		result = _matchesWords(word, target, 0, targetIndex, contiguous);
+		result = _matchesWords(word, target, 0, targetIndex, contiguous, memo);
 		if (result !== null) {
 			break;
 		}
@@ -356,14 +361,40 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	return result;
 }
 
-function _matchesWords(word: string, target: string, wordIndex: number, targetIndex: number, contiguous: boolean): IMatch[] | null {
-	let targetIndexOffset = 0;
+function cloneMatches(matches: IMatch[] | null): IMatch[] | null {
+	if (matches === null) {
+		return null;
+	}
+	const result: IMatch[] = [];
+	for (const m of matches) {
+		result.push({ start: m.start, end: m.end });
+	}
+	return result;
+}
 
+function _matchesWords(word: string, target: string, wordIndex: number, targetIndex: number, contiguous: boolean, memo: Map<number, IMatch[] | null>): IMatch[] | null {
 	if (wordIndex === word.length) {
 		return [];
 	} else if (targetIndex === target.length) {
 		return null;
-	} else if (!charactersMatch(word.charCodeAt(wordIndex), target.charCodeAt(targetIndex))) {
+	}
+
+	const memoKey = wordIndex * (target.length + 1) + targetIndex;
+	const cached = memo.get(memoKey);
+	if (cached !== undefined) {
+		// Caller (`join`) mutates the returned array, so always return a clone.
+		return cloneMatches(cached);
+	}
+
+	const computed = _matchesWordsCompute(word, target, wordIndex, targetIndex, contiguous, memo);
+	memo.set(memoKey, cloneMatches(computed));
+	return computed;
+}
+
+function _matchesWordsCompute(word: string, target: string, wordIndex: number, targetIndex: number, contiguous: boolean, memo: Map<number, IMatch[] | null>): IMatch[] | null {
+	let targetIndexOffset = 0;
+
+	if (!charactersMatch(word.charCodeAt(wordIndex), target.charCodeAt(targetIndex))) {
 		// Verify alternate characters before exiting
 		const altChars = getAlternateCodes(word.charCodeAt(wordIndex));
 		if (!altChars) {
@@ -379,10 +410,10 @@ function _matchesWords(word: string, target: string, wordIndex: number, targetIn
 
 	let result: IMatch[] | null = null;
 	let nextWordIndex = targetIndex + targetIndexOffset + 1;
-	result = _matchesWords(word, target, wordIndex + 1, nextWordIndex, contiguous);
+	result = _matchesWords(word, target, wordIndex + 1, nextWordIndex, contiguous, memo);
 	if (!contiguous) {
 		while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {
-			result = _matchesWords(word, target, wordIndex + 1, nextWordIndex, contiguous);
+			result = _matchesWords(word, target, wordIndex + 1, nextWordIndex, contiguous, memo);
 			nextWordIndex++;
 		}
 	}

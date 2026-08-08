@@ -5,7 +5,10 @@
 
 /* eslint-disable local/code-no-test-async-suite */
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { homedir, userInfo } from 'os';
+import { realpathSync, rmSync } from 'fs';
+import { homedir, tmpdir, userInfo } from 'os';
+import { FileAccess } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -16,7 +19,7 @@ import { getWindowsBuildNumberSync } from '../../../../base/node/windowsVersion.
 const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
 const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
-const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
+const shellIntegrationScriptRoot = FileAccess.asFileUri('vs/workbench/contrib/terminal/common/scripts').fsPath;
 const logService = new NullLogService();
 const productService = { applicationName: 'vscode' } as IProductService;
 const defaultEnvironment = {};
@@ -42,8 +45,8 @@ suite('platform - terminalEnvironment', async () => {
 		// These tests are only expected to work on Windows 10 build 18309 and above
 		(getWindowsBuildNumberSync() < 18309 ? suite.skip : suite)('pwsh', async () => {
 			const expectedPs1 = process.platform === 'win32'
-				? `try { . "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1" } catch {}`
-				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"`;
+				? `try { . "${shellIntegrationScriptRoot}\\shellIntegration.ps1" } catch {}`
+				: `. "${shellIntegrationScriptRoot}/shellIntegration.ps1"`;
 			suite('should override args', async () => {
 				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 					type: 'injection',
@@ -125,10 +128,10 @@ suite('platform - terminalEnvironment', async () => {
 						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zlogin`)
 					];
 					const expectedSources = [
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-rc.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-profile.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-env.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-login.zsh/
+						`${shellIntegrationScriptRoot}/shellIntegration-rc.zsh`,
+						`${shellIntegrationScriptRoot}/shellIntegration-profile.zsh`,
+						`${shellIntegrationScriptRoot}/shellIntegration-env.zsh`,
+						`${shellIntegrationScriptRoot}/shellIntegration-login.zsh`
 					];
 					function assertIsEnabled(result: IShellIntegrationConfigInjection, globalZdotdir = homedir()) {
 						strictEqual(Object.keys(result.envMixin!).length, 3);
@@ -140,10 +143,10 @@ suite('platform - terminalEnvironment', async () => {
 						ok(result.filesToCopy[1].dest.match(expectedDests[1]));
 						ok(result.filesToCopy[2].dest.match(expectedDests[2]));
 						ok(result.filesToCopy[3].dest.match(expectedDests[3]));
-						ok(result.filesToCopy[0].source.match(expectedSources[0]));
-						ok(result.filesToCopy[1].source.match(expectedSources[1]));
-						ok(result.filesToCopy[2].source.match(expectedSources[2]));
-						ok(result.filesToCopy[3].source.match(expectedSources[3]));
+						strictEqual(result.filesToCopy[0].source, expectedSources[0]);
+						strictEqual(result.filesToCopy[1].source, expectedSources[1]);
+						strictEqual(result.filesToCopy[2].source, expectedSources[2]);
+						strictEqual(result.filesToCopy[3].source, expectedSources[3]);
 					}
 					test('when undefined, []', async () => {
 						const result1 = await getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true) as IShellIntegrationConfigInjection;
@@ -152,6 +155,21 @@ suite('platform - terminalEnvironment', async () => {
 						const result2 = await getShellIntegrationInjection({ executable: 'zsh', args: undefined }, enabledProcessOptions, defaultEnvironment, logService, productService, true) as IShellIntegrationConfigInjection;
 						deepStrictEqual(result2?.newArgs, ['-i']);
 						assertIsEnabled(result2);
+					});
+					test('when shell integration directory is created concurrently', async () => {
+						const applicationName = `vscode-zsh-test-${process.pid}`;
+						const zdotdir = join(realpathSync(tmpdir()), `${username}-${applicationName}-zsh`);
+						rmSync(zdotdir, { recursive: true, force: true });
+						try {
+							const productService = { applicationName } as IProductService;
+							const results = await Promise.all([
+								getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService),
+								getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService),
+							]);
+							deepStrictEqual(results.map(result => result.type), ['injection', 'injection']);
+						} finally {
+							rmSync(zdotdir, { recursive: true, force: true });
+						}
 					});
 					suite('should incorporate login arg', async () => {
 						test('when array', async () => {
@@ -184,13 +202,24 @@ suite('platform - terminalEnvironment', async () => {
 				});
 			});
 			suite('bash', async () => {
+				suite('forceShellIntegration', async () => {
+					test('should inject when isFeatureTerminal is true but forceShellIntegration overrides it', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true, forceShellIntegration: true }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'injection');
+					});
+					test('should not inject when isFeatureTerminal is true and forceShellIntegration is false', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true, forceShellIntegration: false }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+					});
+					test('should not inject when isFeatureTerminal is true and forceShellIntegration is not set', async () => {
+						strictEqual((await getShellIntegrationInjection({ executable: 'bash', args: [], isFeatureTerminal: true }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+					});
+				});
 				suite('should override args', async () => {
 					test('when undefined, [], empty string', async () => {
 						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 							type: 'injection',
 							newArgs: [
 								'--init-file',
-								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
+								`${shellIntegrationScriptRoot}/shellIntegration-bash.sh`
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1'
@@ -205,7 +234,7 @@ suite('platform - terminalEnvironment', async () => {
 							type: 'injection',
 							newArgs: [
 								'--init-file',
-								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
+								`${shellIntegrationScriptRoot}/shellIntegration-bash.sh`
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1',

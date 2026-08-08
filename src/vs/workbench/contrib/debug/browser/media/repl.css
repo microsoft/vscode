@@ -89,6 +89,8 @@
 	/*Use direction so the source shows elipses on the left*/
 	direction: rtl;
 	max-width: 400px;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 .monaco-workbench .repl .repl-tree .output.expression > .value,

@@ -11,7 +11,7 @@ Use tools `mcp_component-exp_`* to list and screenshot fixtures. If you cannot s
 
 ## Running Fixtures Locally
 
-1. Start the component explorer daemon: run the **Launch Component Explorer** task
+1. Start the component explorer server: run the **Component Explorer Server** task
 2. Use the `mcp_component-exp_list_fixtures` tool to see all available fixtures and their URLs
 3. Use the `mcp_component-exp_screenshot` tool to capture screenshots programmatically
 
@@ -30,7 +30,7 @@ src/vs/workbench/test/browser/componentFixtures/
 ```typescript
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'myFeature/' }, {
     Default: defineComponentFixture({ render: renderMyComponent }),
     AnotherVariant: defineComponentFixture({ render: renderMyComponent }),
 });

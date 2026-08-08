@@ -20,7 +20,8 @@ export async function askForPromptFileName(
 	accessor: ServicesAccessor,
 	type: PromptsType,
 	selectedFolder: URI,
-	existingFileName?: string
+	existingFileName?: string,
+	fileExtensionOverride?: string,
 ): Promise<string | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const fileService = accessor.get(IFileService);
@@ -31,7 +32,7 @@ export async function askForPromptFileName(
 			return undefined;
 		}
 
-		const fileExtension = getPromptFileExtension(type);
+		const fileExtension = fileExtensionOverride ?? getPromptFileExtension(type);
 		return (trimmedName.endsWith(fileExtension))
 			? trimmedName
 			: `${trimmedName}${fileExtension}`;

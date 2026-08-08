@@ -134,6 +134,7 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 			const context = await this.requestService.request({
 				type: 'GET',
 				url: `${url}/${version}/servers?limit=1`,
+				callSite: 'mcpGalleryManifestService.checkVersion'
 			}, CancellationToken.None);
 			if (isSuccess(context)) {
 				return true;

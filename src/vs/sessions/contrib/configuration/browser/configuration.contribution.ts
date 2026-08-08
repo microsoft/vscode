@@ -6,46 +6,40 @@
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 
+// ⚠️  WARNING — DO NOT ADD SETTINGS HERE ⚠️
+//
+// This file overrides default configuration values for the Agents window using
+// `registerDefaultConfigurations`. Overriding defaults this way is a last resort:
+// it bypasses schema metadata, is invisible to tooling, and makes settings harder
+// to discover and reason about.
+//
+// RECOMMENDED APPROACH — use the `agentsWindow` property on the configuration
+// schema declaration instead:
+//
+//   Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+//     .registerConfiguration({
+//       properties: {
+//         'my.setting': {
+//           type: 'boolean',
+//           default: false,
+//           agentsWindow: {
+//             default: true,   // ← agents window default (replaces the override here)
+//             readOnly: true,  // ← optional: prevent writes from the agents window
+//           },
+//         },
+//       },
+//     });
+//
+// The `agentsWindow.default` value is picked up by `SessionsDefaultConfiguration`
+// in `configurationService.ts` and applied automatically — no entry here needed.
+//
+// Only add entries to this file if the setting is declared by a third party and
+// cannot be annotated with `agentsWindow`, AND you have exhausted all other options.
+
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.enabled': true,
-		'chat.agent.maxRequests': 1000,
-		'chat.restoreLastPanelSession': true,
-		'chat.unifiedAgentsBar.enabled': true,
-		'chat.viewSessions.enabled': false,
-
-		'breadcrumbs.enabled': false,
-
-		'diffEditor.renderSideBySide': false,
-		'diffEditor.hideUnchangedRegions.enabled': true,
-
-		'files.autoSave': 'afterDelay',
-
-		'git.autofetch': true,
-		'git.detectWorktrees': false,
-		'git.showProgress': false,
-
-		'github.copilot.chat.claudeCode.enabled': true,
-		'github.copilot.chat.cli.branchSupport.enabled': true,
-		'github.copilot.chat.languageContext.typescript.enabled': true,
-		'github.copilot.chat.cli.mcp.enabled': true,
-
 		'chat.customizationsMenu.userStoragePath': '~/.copilot',
-
-		'inlineChat.affordance': 'editor',
-		'inlineChat.renderMode': 'hover',
-
-		'workbench.editor.restoreEditors': false,
-		'workbench.editor.showTabs': 'single',
-		'workbench.startupEditor': 'none',
-		'workbench.tips.enabled': false,
-		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.useModal': 'all',
-		'workbench.panel.showLabels': false,
-		'window.menuStyle': 'custom',
-		'window.dialogStyle': 'custom',
-
-		'terminal.integrated.initialHint': false
+		'github.copilot.chat.claudeCode.enabled': true,
 	},
 	donotCache: true,
 	preventExperimentOverride: true,

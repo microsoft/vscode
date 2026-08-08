@@ -38,10 +38,12 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _automationProfile: unknown;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
+	private readonly _internalContributedProfiles: IExtensionTerminalProfile[] = [];
 	private _defaultProfileName?: string;
 	private _platformConfigJustRefreshed = false;
 	private readonly _refreshTerminalActionsDisposable = this._register(new MutableDisposable());
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
+	private _defaultProfileOverride: { extensionIdentifier: string; id: string } | undefined;
 
 	private readonly _onDidChangeAvailableProfiles = this._register(new Emitter<ITerminalProfile[]>());
 	get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
@@ -175,7 +177,10 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 				excludedContributedProfiles.push(profileName);
 			}
 		}
-		const filteredContributedProfiles = Array.from(this._terminalContributionService.terminalProfiles.filter(p => !excludedContributedProfiles.includes(p.title)));
+		const filteredContributedProfiles = [
+			...Array.from(this._terminalContributionService.terminalProfiles.filter(p => !excludedContributedProfiles.includes(p.title))),
+			...this._internalContributedProfiles.filter(p => !excludedContributedProfiles.includes(p.title)),
+		];
 		const contributedProfilesChanged = !arrays.equals(filteredContributedProfiles, this._contributedProfiles, contributedProfilesEqual);
 		this._contributedProfiles = filteredContributedProfiles;
 		return contributedProfilesChanged;
@@ -187,6 +192,14 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	}
 
 	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		// On web without a pty host, getBackend() waits forever for a backend
+		// that will never register. Check synchronously first to avoid hanging.
+		if (isWeb && !this._environmentService.remoteAuthority) {
+			const hasAnyBackend = [...this._terminalInstanceService.getRegisteredBackends()].length > 0;
+			if (!hasAnyBackend) {
+				return this._availableProfiles || [];
+			}
+		}
 		const primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
 		if (!primaryBackend) {
 			return this._availableProfiles || [];
@@ -243,10 +256,40 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		return;
 	}
 
+	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable {
+		this._internalContributedProfiles.push(profile);
+		this.refreshAvailableProfiles();
+		return toDisposable(() => {
+			const idx = this._internalContributedProfiles.indexOf(profile);
+			if (idx >= 0) {
+				this._internalContributedProfiles.splice(idx, 1);
+				this.refreshAvailableProfiles();
+			}
+		});
+	}
+
+	overrideDefaultProfile(extensionIdentifier: string, id: string): IDisposable {
+		this._defaultProfileOverride = { extensionIdentifier, id };
+		return toDisposable(() => {
+			if (this._defaultProfileOverride?.extensionIdentifier === extensionIdentifier && this._defaultProfileOverride?.id === id) {
+				this._defaultProfileOverride = undefined;
+			}
+		});
+	}
+
 	async getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> {
 		// prevents recursion with the MainThreadTerminalService call to create terminal
 		// and defers to the provided launch config when an executable is provided
 		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !hasKey(shellLaunchConfig, { executable: true })) {
+			// Programmatic override takes priority over configuration
+			if (this._defaultProfileOverride) {
+				const overridden = this.contributedProfiles.find(
+					p => p.extensionIdentifier === this._defaultProfileOverride!.extensionIdentifier && p.id === this._defaultProfileOverride!.id
+				);
+				if (overridden) {
+					return overridden;
+				}
+			}
 			const key = await this.getPlatformKey();
 			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
 			const contributedDefaultProfile = this.contributedProfiles.find(p => p.title === defaultProfileName);

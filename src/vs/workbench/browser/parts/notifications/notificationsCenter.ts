@@ -15,7 +15,6 @@ import { INotificationsCenterController, NotificationActionRunner } from './noti
 import { NotificationsList } from './notificationsList.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { $, Dimension, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
-import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -34,6 +33,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../pl
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -295,9 +295,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		notificationsToolBar.push(this.hideAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.hideAction) });
 
 		// Notifications List
-		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
+		this.notificationsList = this._register(this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
 			widgetAriaLabel: localize('notificationsCenterWidgetAriaLabel', "Notifications Center")
-		});
+		}));
+		this._register(onDidChangeNotificationRowHeight(() => this.notificationsList?.updateNotificationHeights()));
 		this.container.appendChild(this.notificationsCenterContainer);
 	}
 
@@ -390,8 +391,6 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	override updateStyles(): void {
 		if (this.notificationsCenterContainer && this.notificationsCenterHeader) {
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_CENTER_BORDER);
 			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : '';

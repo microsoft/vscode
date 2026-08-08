@@ -24,11 +24,12 @@ export const enum ProblemCollectorEventKind {
 
 export interface IProblemCollectorEvent {
 	kind: ProblemCollectorEventKind;
+	capturedVariables?: ReadonlyMap<string, string>;
 }
 
 namespace IProblemCollectorEvent {
-	export function create(kind: ProblemCollectorEventKind) {
-		return Object.freeze({ kind });
+	export function create(kind: ProblemCollectorEventKind, capturedVariables?: ReadonlyMap<string, string>) {
+		return Object.freeze({ kind, capturedVariables });
 	}
 }
 
@@ -563,7 +564,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}
 				if (this._activeBackgroundMatchers.delete(background.key)) {
 					this.resetCurrentResource();
-					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
+					const capturedVariables = matches.groups ? new Map(Object.entries(matches.groups)) : undefined;
+					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds, capturedVariables));
 					result = true;
 					this.lines.push(line);
 					const owner = background.matcher.owner;

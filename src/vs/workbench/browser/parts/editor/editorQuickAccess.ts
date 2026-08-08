@@ -18,6 +18,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 
 interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
 	groupId: GroupIdentifier;
@@ -142,6 +143,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 			const isDirty = editor.isDirty() && !editor.isSaving();
 			const description = editor.getDescription();
 			const nameAndDescription = description ? `${editor.getName()} ${description}` : editor.getName();
+			const icon = editor.getIcon();
 
 			return {
 				groupId,
@@ -157,7 +159,8 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					return isDirty ? localize('entryAriaLabelDirty', "{0}, unsaved changes", nameAndDescription) : nameAndDescription;
 				})(),
 				description,
-				iconClasses: getIconClasses(this.modelService, this.languageService, resource, undefined, editor.getIcon()).concat(editor.getLabelExtraClasses()),
+				iconPath: URI.isUri(icon) ? { dark: icon } : undefined,
+				iconClasses: getIconClasses(this.modelService, this.languageService, resource, undefined, icon).concat(editor.getLabelExtraClasses()),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
 				buttons: (() => {
 					return [
