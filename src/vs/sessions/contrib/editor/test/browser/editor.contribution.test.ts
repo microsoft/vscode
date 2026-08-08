@@ -29,6 +29,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
+import { EditorTabsVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
@@ -82,6 +84,33 @@ suite('Sessions - Editor Contribution', () => {
 			override readonly activeSession = constObservable({
 				workspace: constObservable(workspace)
 			} as IActiveSession);
+		});
+
+		test('single-title Add Tab menu keeps supported managed editors visible', () => {
+			const getWhen = (action: NewFileTabAction | NewChangesTabAction): string => {
+				const menu = action.desc.menu;
+				const item = Array.isArray(menu) ? menu[0] : menu;
+				return item?.when?.serialize() ?? '';
+			};
+
+			const fileWhen = getWhen(new NewFileTabAction());
+			const changesWhen = getWhen(new NewChangesTabAction());
+
+			assert.deepStrictEqual({
+				file: {
+					hasAvailability: fileWhen.includes(SinglePaneFilesTabAvailableContext.key),
+					hasMissing: fileWhen.includes(SinglePaneFilesTabMissingContext.key),
+					hasHiddenTabs: fileWhen.includes(EditorTabsVisibleContext.key)
+				},
+				changes: {
+					hasAvailability: changesWhen.includes(SinglePaneChangesTabAvailableContext.key),
+					hasMissing: changesWhen.includes(SinglePaneChangesTabMissingContext.key),
+					hasHiddenTabs: changesWhen.includes(EditorTabsVisibleContext.key)
+				}
+			}, {
+				file: { hasAvailability: true, hasMissing: true, hasHiddenTabs: true },
+				changes: { hasAvailability: true, hasMissing: true, hasHiddenTabs: true }
+			});
 		});
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {

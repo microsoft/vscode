@@ -122,6 +122,8 @@ export const SinglePaneLayoutEnabledContext = new RawContextKey<boolean>('agentS
 export const HasDockedDetailsContext = new RawContextKey<boolean>('agentSessionsHasDockedDetails', false, localize('agentSessionsHasDockedDetails', "Whether the single-pane active editor has a docked detail panel (a managed Changes/Files tab or a text file editor)"));
 export const SinglePaneChangesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabMissing', false, localize('agentSessionsSinglePaneChangesTabMissing', "Whether the single-pane session supports a Changes editor but its tab is not currently open"));
 export const SinglePaneFilesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabMissing', false, localize('agentSessionsSinglePaneFilesTabMissing', "Whether the single-pane session supports a Files tab but its tab is not currently open"));
+export const SinglePaneChangesTabAvailableContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabAvailable', false, localize('agentSessionsSinglePaneChangesTabAvailable', "Whether the single-pane session supports a Changes editor"));
+export const SinglePaneFilesTabAvailableContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabAvailable', false, localize('agentSessionsSinglePaneFilesTabAvailable', "Whether the single-pane session supports a Files editor"));
 
 //#endregion
 
