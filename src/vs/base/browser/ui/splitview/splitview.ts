@@ -682,7 +682,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 				}
 			}
 
-			// Save referene view, in case of `split` sizing
+			// Save reference view, in case of `split` sizing
 			const referenceViewItem = sizing?.type === 'split' ? this.viewItems[sizing.index] : undefined;
 
 			// Remove view
