@@ -24,7 +24,7 @@ let shown401Message = false;
 
 export class NotSignedUpError extends Error { }
 export class SubscriptionExpiredError extends Error { }
-export class ContactSupportError extends Error { }
+export class ContactSupportError extends ErrorNoTelemetry { }
 export class EnterpriseManagedError extends Error { }
 export class InvalidTokenError extends Error { }
 export class RateLimitedError extends Error { }
