@@ -18,8 +18,7 @@ import { SessionHasGitRepositoryContext, SessionProviderIdContext, SessionTypeCo
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BranchPicker } from './branchPicker.js';
-import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
-import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -28,8 +27,6 @@ import { ISessionContext } from '../../../../services/sessions/browser/sessionCo
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionClaudeCode = ContextKeyExpr.equals(SessionTypeContext.key, ClaudeCodeSessionType.id);
-const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
@@ -78,23 +75,6 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: IsActiveSessionCopilotChatCLI,
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* handled by action view item */ }
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.defaultCopilot.claudePermissionModePicker',
-			title: localize2('claudePermissionModePicker', "Permission Mode"),
-			f1: false,
-			menu: [{
-				id: Menus.NewSessionControl,
-				group: 'navigation',
-				order: 1,
-				when: IsActiveSessionCopilotChatClaudeCode,
 			}],
 		});
 	}
@@ -202,14 +182,6 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				},
 			));
 		}
-		this._register(actionViewItemService.register(
-			Menus.NewSessionControl, 'sessions.defaultCopilot.claudePermissionModePicker',
-			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(ClaudePermissionModePicker, session);
-				return new PickerActionViewItem(picker);
-			},
-		));
 	}
 }
 

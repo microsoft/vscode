@@ -484,8 +484,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
-	 * Cancel the in-flight SDK turn via the abort controller. Mirrors
-	 * the production reference (`claudeCodeAgent.ts:719`). Drops every
+	 * Cancel the in-flight SDK turn via the abort controller. Drops every
 	 * pending entry's deferred (rejected with `CancellationError`),
 	 * marks the pipeline for rebind on next {@link send}. Idempotent.
 	 *
@@ -677,7 +676,10 @@ export class ClaudeSdkPipeline extends Disposable {
 				const turnId = this._queue.peekParent()?.turnId;
 				const turnDuration = this._queue.peekParent()?.stopWatch.elapsed();
 				try {
-					await this._router.handle(message, turnId, turnDuration);
+					await this._router.handle(message, turnId, {
+						turnDuration,
+						mode: this._currentPermissionMode,
+					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}

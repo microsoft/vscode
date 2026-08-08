@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
@@ -442,8 +443,10 @@ async function startAgentHost(): Promise<void> {
 	// management IPC channel.
 	const connectionCountEmitter = disposables.add(new Emitter<number>());
 	let dynamicSocketInfo: IAgentHostSocketInfo | undefined;
+	const configuredWebSocketServer = new DeferredPromise<void>();
 	const connectionTrackerService: IConnectionTrackerService = {
 		onDidChangeConnectionCount: connectionCountEmitter.event,
+		waitForConfiguredWebSocketServer: () => configuredWebSocketServer.p,
 		async startWebSocketServer(): Promise<IAgentHostSocketInfo> {
 			if (dynamicSocketInfo) {
 				return dynamicSocketInfo;
@@ -535,7 +538,7 @@ async function startAgentHost(): Promise<void> {
 
 	// The configured bridge listener remains separate: tunnel forwarding pipes
 	// raw WebSocket streams and cannot carry the local endpoint's bearer token.
-	startWebSocketServer(
+	const configuredWebSocketServerStart = startWebSocketServer(
 		agentService,
 		clientFileSystemProvider,
 		instantiationService,
@@ -546,7 +549,9 @@ async function startAgentHost(): Promise<void> {
 		hostLaunchKind,
 		connectionTelemetryTracker,
 		count => connectionCountEmitter.fire(count),
-	).catch(err => {
+	);
+	configuredWebSocketServer.settleWith(configuredWebSocketServerStart);
+	void configuredWebSocketServerStart.catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
