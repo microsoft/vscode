@@ -56,6 +56,15 @@ export class AcpConnection extends Disposable {
 		await this._requireContext().request(this._requireSdk().methods.agent.session.close, { sessionId });
 	}
 
+	async setSessionConfigOption(sessionId: import('@agentclientprotocol/sdk').SessionId, configId: string, value: string): Promise<readonly import('@agentclientprotocol/sdk').SessionConfigOption[]> {
+		const result = await this._requireContext().request(this._requireSdk().methods.agent.session.setConfigOption, {
+			sessionId,
+			configId,
+			value,
+		});
+		return result.configOptions;
+	}
+
 	private _ensureReady(cwd: string): Promise<void> {
 		if (!this._startPromise) {
 			this._startPromise = this._start(cwd).catch(error => {
