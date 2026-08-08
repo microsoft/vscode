@@ -936,7 +936,11 @@ export class CopilotAgentSession extends Disposable {
 		this._register(toDisposable(() => this._databaseRef.dispose()));
 		this._sessionDataDir = sessionDataService.getSessionDataDir(this._storageUri);
 
-		this._editTracker = this._instantiationService.createInstance(FileEditTracker, this._storageUri.toString(), this._databaseRef.object);
+		this._editTracker = this._instantiationService.createInstance(
+			FileEditTracker,
+			this._storageUri.toString(),
+			this._databaseRef.object,
+		);
 
 		this._mcpCustomizations = this._register(this._instantiationService.createInstance(McpCustomizationController, {
 			providerId: this.sessionUri.scheme,
@@ -3533,7 +3537,8 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
-				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p)));
+				const mode = this._getConfiguredAgentMode();
+				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p, mode)));
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPreToolUse: tool=${input.toolName}`);
