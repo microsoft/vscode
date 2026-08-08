@@ -1797,6 +1797,19 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(testObject.isAutoUpdateEnabledFor(testObject.local[0]), true);
 	});
 
+	test('Test a pre-existing pin is ignored when locked by policy (#325909)', async () => {
+		stubConfiguration(true, undefined, true);
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1]);
+		testObject = await aWorkbenchService();
+
+		// The extension was pinned before (or independently of) the policy taking effect,
+		// but the policy still wins.
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.isAutoUpdateEnabledFor(testObject.local[0]), true);
+	});
+
 	test('Test updateAutoUpdateForAllExtensions is a no-op when locked by policy (#325909)', async () => {
 		stubConfiguration(true, undefined, true);
 		instantiationService.stub(IDialogService, {

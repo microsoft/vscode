@@ -1084,7 +1084,8 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 			return;
 		}
 		if (this.extensionsWorkbenchService.isAutoUpdateConfigLockedByPolicy()) {
-			// Managed by organization policy: reflect the effective state, but don't allow overriding it.
+			// Managed by organization policy: show the effective state, but keep it disabled so it can't be overridden.
+			this.class = ToggleAutoUpdateForExtensionAction.EnabledClass;
 			this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
 			return;
 		}

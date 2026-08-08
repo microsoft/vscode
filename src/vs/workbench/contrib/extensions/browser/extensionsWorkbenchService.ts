@@ -2388,12 +2388,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (extension.pinned) {
-			return false;
-		}
-
-		// Per-extension opt-outs can't override an organization policy.
+		// A pin (whether set explicitly or as a side effect of installing a specific
+		// version) is a per-extension override too, so it can't defeat the policy either.
 		if (!autoUpdateLockedByPolicy) {
+			if (extension.pinned) {
+				return false;
+			}
 			const disabledAutoUpdateExtensions = this.getDisabledAutoUpdateExtensions();
 			if (disabledAutoUpdateExtensions.includes(extension.identifier.id.toLowerCase())) {
 				return false;
