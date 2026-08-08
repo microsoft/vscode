@@ -642,6 +642,8 @@
 		"--vscode-radio-inactiveForeground",
 		"--vscode-radio-inactiveHoverBackground",
 		"--vscode-sash-hoverBorder",
+		"--vscode-scm-diffStatisticsDeletionsForeground",
+		"--vscode-scm-diffStatisticsInsertionsForeground",
 		"--vscode-scmGraph-foreground1",
 		"--vscode-scmGraph-foreground2",
 		"--vscode-scmGraph-foreground3",

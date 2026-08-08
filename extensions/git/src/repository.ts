@@ -53,6 +53,27 @@ export const enum ResourceGroupType {
 	Untracked
 }
 
+type DiffStatistics = { readonly insertions: number; readonly deletions: number };
+
+export function toDiffStatisticsMap(changes: DiffChange[]): Map<string, DiffStatistics> {
+	const result = new Map<string, DiffStatistics>();
+
+	for (const change of changes) {
+		result.set(change.uri.fsPath, { insertions: change.insertions, deletions: change.deletions });
+	}
+
+	// For renames `change.uri` is the new path while `Resource.resourceUri` is the
+	// original path. Register the original path as a fallback, without overwriting
+	// an entry that another change already claimed.
+	for (const change of changes) {
+		if (!result.has(change.originalUri.fsPath)) {
+			result.set(change.originalUri.fsPath, { insertions: change.insertions, deletions: change.deletions });
+		}
+	}
+
+	return result;
+}
+
 export class Resource implements SourceControlResourceState {
 
 	static getStatusLetter(type: Status): string {
@@ -190,6 +211,7 @@ export class Resource implements SourceControlResourceState {
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
 	get contextValue(): string | undefined { return this._repositoryKind; }
+	get diffStatistics(): DiffStatistics | undefined { return this._diffStatistics; }
 
 	private static Icons = {
 		light: {
@@ -319,6 +341,7 @@ export class Resource implements SourceControlResourceState {
 		private _useIcons: boolean,
 		private _renameResourceUri?: Uri,
 		private _repositoryKind?: 'repository' | 'submodule' | 'worktree',
+		private _diffStatistics?: DiffStatistics,
 	) { }
 
 	async open(): Promise<void> {
@@ -342,7 +365,11 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	clone(resourceGroupType?: ResourceGroupType) {
-		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind);
+		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind, this._diffStatistics);
+	}
+
+	withDiffStatistics(diffStatistics: DiffStatistics | undefined): Resource {
+		return new Resource(this._commandResolver, this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind, diffStatistics);
 	}
 }
 
@@ -1030,6 +1057,7 @@ export class Repository implements Disposable {
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
 			e.affectsConfiguration('git.branchSortOrder', root)
+			|| e.affectsConfiguration('git.diffStatistics', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
@@ -1184,6 +1212,10 @@ export class Repository implements Disposable {
 
 	diffWithHEADShortStats(path?: string): Promise<CommitShortStat> {
 		return this.run(Operation.Diff, () => this.repository.diffWithHEADShortStats(path));
+	}
+
+	diffWithHEADStatistics(options: { cached: boolean; similarityThreshold?: number }): Promise<DiffChange[]> {
+		return this.run(Operation.Diff, () => this.repository.diffWithHEADStatistics(options));
 	}
 
 	diffWith(ref: string): Promise<Change[]>;
@@ -3092,7 +3124,53 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
+		await this.applyDiffStatistics(indexGroup, workingTreeGroup, similarityThreshold, cancellationToken);
+
 		return { indexGroup, mergeGroup, untrackedGroup, workingTreeGroup };
+	}
+
+	/**
+	 * Computes the number of inserted/deleted lines for the resources of the index and
+	 * working tree groups, and replaces them in-place with resources that carry the
+	 * statistics. Merge and untracked resources are skipped as git does not report line
+	 * statistics for unmerged paths, nor for files that it does not track yet.
+	 */
+	private async applyDiffStatistics(indexGroup: Resource[], workingTreeGroup: Resource[], similarityThreshold: number, cancellationToken?: CancellationToken): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+
+		// Statistics require two additional git commands per status update, so they are
+		// skipped when disabled and for repositories that hit the status limit.
+		if (!config.get<boolean>('diffStatistics', true) || this.isRepositoryHuge) {
+			return;
+		}
+
+		let indexChanges: DiffChange[];
+		let workingTreeChanges: DiffChange[];
+
+		try {
+			[indexChanges, workingTreeChanges] = await Promise.all([
+				indexGroup.length > 0 ? this.diffWithHEADStatistics({ cached: true, similarityThreshold }) : Promise.resolve<DiffChange[]>([]),
+				workingTreeGroup.length > 0 ? this.diffWithHEADStatistics({ cached: false, similarityThreshold }) : Promise.resolve<DiffChange[]>([])
+			]);
+		} catch (err) {
+			this.logger.warn(`[Repository][applyDiffStatistics] Failed to compute diff statistics: ${err}`);
+			return;
+		}
+
+		if (cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		const applyToGroup = (group: Resource[], changes: DiffChange[]) => {
+			const statistics = toDiffStatisticsMap(changes);
+
+			for (let index = 0; index < group.length; index++) {
+				group[index] = group[index].withDiffStatistics(statistics.get(group[index].resourceUri.fsPath));
+			}
+		};
+
+		applyToGroup(indexGroup, indexChanges);
+		applyToGroup(workingTreeGroup, workingTreeChanges);
 	}
 
 	private setCountBadge(): void {

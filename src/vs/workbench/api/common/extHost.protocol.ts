@@ -2100,6 +2100,7 @@ export type SCMRawResource = [
 	ICommandDto | undefined /*command*/,
 	UriComponents | undefined /* multiFileDiffEditorOriginalUri */,
 	UriComponents | undefined /* multiFileDiffEditorModifiedUri */,
+	{ insertions: number; deletions: number } | undefined /* diffStatistics */,
 ];
 
 export type SCMRawResourceSplice = [
