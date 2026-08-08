@@ -1169,6 +1169,51 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(agent.models.get(), []);
 	});
 
+	test('first sign-in keeps the native catalog published while the proxy catalog enumerates', async () => {
+		// The window gate reads an agent with no models as `Unusable`, so a *first*
+		// sign-in must never blank the bootstrap native catalog: it has no
+		// superseded account to drop, and blanking would close the
+		// `allowSignedOutWhenUsable` gate mid-startup and force the sign-in dialog
+		// on a user who is already signing in.
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-first-signin-`));
+		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+		try {
+			const { agent, api, sdk } = createTestContext(disposables, { userHome });
+			sdk.supportedModelsResult = [
+				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+			];
+			// The constructor's bootstrap refresh publishes native-only (no token yet).
+			for (let i = 0; i < 100 && agent.models.get().length === 0; i++) {
+				await tick();
+			}
+			const bootstrap = agent.models.get().map(model => model.name);
+
+			// Hold the CAPI enumeration open so the post-sign-in refresh is still in
+			// flight when we sample the catalog — that pending window is exactly what
+			// the renderer saw as an empty (and therefore `Unusable`) agent.
+			const gate = new DeferredPromise<void>();
+			api.models = async () => { await gate.p; return [...ALL_MODELS]; };
+			await agent.authenticate('https://api.github.com', 'tok');
+			const whileEnumerating = agent.models.get().map(model => model.name);
+
+			gate.complete();
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				bootstrap,
+				whileEnumerating,
+				merged: agent.models.get().map(model => model.name),
+			}, {
+				bootstrap: ['Claude Sonnet 4.5'],
+				whileEnumerating: ['Claude Sonnet 4.5'],
+				merged: ['Claude Opus 4.6', 'Claude Sonnet 4.6', 'Claude Sonnet 4.5'],
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
+	});
+
 	test('signed out with a local setup: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
 		// Native enumeration only runs when a credential is actually present, so
 		// give this a real `~/.claude/settings.json` under a temp home. Signed out,
