@@ -15,7 +15,6 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { messageToMarkdown } from '../../../platform/log/common/messageStringify';
 import { ContextManagementResponse } from '../../../platform/networking/common/anthropic';
 import { IResponseDelta, isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
-import { IEndpointBody } from '../../../platform/networking/common/networking';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
 import { ChatRequestScheme, ILoggedElementInfo, ILoggedRequestInfo, ILoggedToolCall, LoggedInfo, LoggedInfoKind, LoggedRequest, LoggedRequestKind, resolveMarkdownContent } from '../../../platform/requestLogger/common/requestLogger';
 import { AbstractRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
@@ -602,12 +601,26 @@ export class RequestLogger extends AbstractRequestLogger {
 		result.push(`# ${entry.debugName} - ${id}`);
 		result.push(``);
 
-		// Just some other options to track
-		// TODO Probably we should just extract every item on the body and format it as below, instead of doing this one-by-one
-		const otherOptions: Record<string, string | number | boolean> = {};
-		for (const opt of ['temperature', 'stream', 'store', 'reasoning_effort'] satisfies (keyof IEndpointBody)[]) {
-			if (entry.chatParams.body?.[opt] !== undefined) {
-				otherOptions[opt] = entry.chatParams.body[opt];
+		// Options that aren't already shown all end up in 'otherOptions' for debug purposes.
+		// This includes 'temperature', 'stream', 'store', 'reasoning_effort', everything that is in 'extraBody', etc.
+		const otherOptions: Record<string, string | number | boolean | object> = {};
+		if (entry.chatParams.body) {
+			for (const [optKey, optValue] of Object.entries(entry.chatParams.body)) {
+				if ([
+					'input',
+					'max_completion_tokens',
+					'max_output_tokens',
+					'max_tokens',
+					'messages',
+					'model',
+					'prediction',
+					'reasoning',
+					'tools',
+				].includes(optKey)) {
+					continue;
+				}
+
+				otherOptions[optKey] = optValue;
 			}
 		}
 

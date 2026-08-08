@@ -102,6 +102,7 @@ interface _CustomEndpointModelConfig {
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
 	modelOptions?: IChatModelRequestOptions;
+	extraBody?: Record<string, Object>,
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
 	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
@@ -165,6 +166,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
 			modelOptions: modelConfiguration?.modelOptions,
+			extraBody: modelConfiguration?.extraBody,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat

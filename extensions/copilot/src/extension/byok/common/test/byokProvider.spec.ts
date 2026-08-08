@@ -102,6 +102,23 @@ describe('resolveModelInfo', () => {
 		});
 	});
 
+	it('propagates configured extra body properties into chat-endpoint inputs', () => {
+		const info = resolveModelInfo('m1', 'TestProvider', undefined, {
+			...baseCapabilities,
+			extraBody: {
+				chat_template_kwargs: {
+					enable_thinking: false,
+				},
+			},
+		});
+
+		expect(info.extraBody).toEqual({
+			chat_template_kwargs: {
+				enable_thinking: false,
+			},
+		});
+	});
+
 	it('honors an explicit contextWindow as the source of truth for the context window', () => {
 		// A model documented as: Context Length 1M, Max Output 384K. The user can now
 		// declare the real capability directly instead of back-computing maxInputTokens.
