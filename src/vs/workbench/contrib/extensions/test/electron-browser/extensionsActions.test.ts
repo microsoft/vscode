@@ -10,7 +10,7 @@ import * as ExtensionsActions from '../../browser/extensionsActions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionInstallStage
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, ExtensionInstallLocation, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -210,6 +210,19 @@ suite('ExtensionsActions', () => {
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('Installing', testObject.label);
 				assert.strictEqual('extension-action label install installing', testObject.class);
+
+				const extension = testObject.extension as Mutable<typeof testObject.extension>;
+				extension!.installProgress = { identifier: gallery.identifier, profileLocation: URI.file('profile'), stage: ExtensionInstallStage.Downloading, downloadedBytes: 50, totalBytes: 100 };
+				testObject.update();
+				assert.strictEqual('Downloading 50%', testObject.label);
+
+				extension!.installProgress = { identifier: gallery.identifier, profileLocation: URI.file('profile'), stage: ExtensionInstallStage.Verifying };
+				testObject.update();
+				assert.strictEqual('Verifying', testObject.label);
+
+				extension!.installProgress = { identifier: gallery.identifier, profileLocation: URI.file('profile'), stage: ExtensionInstallStage.Extracting };
+				testObject.update();
+				assert.strictEqual('Extracting', testObject.label);
 			});
 	});
 

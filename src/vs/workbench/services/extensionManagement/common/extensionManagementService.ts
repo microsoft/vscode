@@ -12,6 +12,7 @@ import {
 	UninstallExtensionInfo,
 	IAllowedExtensionsService,
 	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT,
+	InstallExtensionProgressEvent,
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IPublisherInfo, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from './extensionManagement.js';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
@@ -64,6 +65,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 
 	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionOnServerEvent>());
 	readonly onInstallExtension: Event<InstallExtensionOnServerEvent>;
+	readonly onInstallExtensionProgress: Event<InstallExtensionProgressEvent>;
 
 	private readonly _onDidInstallExtensions = this._register(new Emitter<readonly InstallExtensionResult[]>());
 	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
@@ -132,6 +134,9 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		this._register(onInstallExtensionEventMultiplexer.add(this._onInstallExtension.event));
 		this.onInstallExtension = onInstallExtensionEventMultiplexer.event;
 
+		const onInstallExtensionProgressEventMultiplexer = this._register(new EventMultiplexer<InstallExtensionProgressEvent>());
+		this.onInstallExtensionProgress = onInstallExtensionProgressEventMultiplexer.event;
+
 		const onDidInstallExtensionsEventMultiplexer = this._register(new EventMultiplexer<readonly InstallExtensionResult[]>());
 		this._register(onDidInstallExtensionsEventMultiplexer.add(this._onDidInstallExtensions.event));
 		this.onDidInstallExtensions = onDidInstallExtensionsEventMultiplexer.event;
@@ -163,6 +168,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 
 		for (const server of this.servers) {
 			this._register(onInstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onInstallExtension, e => ({ ...e, server }))));
+			this._register(onInstallExtensionProgressEventMultiplexer.add(server.extensionManagementService.onInstallExtensionProgress));
 			this._register(onDidInstallExtensionsEventMultiplexer.add(server.extensionManagementService.onDidInstallExtensions));
 			this._register(onDidProfileAwareInstallExtensionsEventMultiplexer.add(server.extensionManagementService.onProfileAwareDidInstallExtensions));
 			this._register(onUninstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onUninstallExtension, e => ({ ...e, server }))));
