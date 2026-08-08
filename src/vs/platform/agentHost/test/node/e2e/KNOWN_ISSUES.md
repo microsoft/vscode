@@ -74,6 +74,24 @@ A user can start a shell command in the background, inspect or list the running 
     --grep "managed shell|custom terminal tool manages"
   ```
 
+### Copilot terminal command-detection state is record-only
+
+A user runs a shell command through the custom terminal tool and expects the resulting terminal to report shell-integration command detection — that the command completed and with which exit code — so the transcript shows real terminal metadata rather than only the tool's returned exit status. The command runs and returns its exit code live, but the terminal's shell-integration state is captured from a real PTY that emits OSC 633 sequences in real time; deterministic replay cannot preserve whether those detection and command-completion events arrive before the assertion, so the captured terminal state changes with process timing.
+
+- Tests:
+  - `custom terminal tool preserves a nonzero shell exit code`
+- Scope: Copilot deterministic replay.
+- Expected: the terminal reports `supportsCommandDetection: true` with a completed command part carrying the real exit code on every replay.
+- Observed: a broad shared-process run can produce a terminal snapshot with no command tracker (`supportsCommandDetection`, `isComplete`, and `exitCode` all `undefined`) because the real-time OSC 633 capture did not engage, while a focused record run observes it.
+- Gate: the scenario runs only when `AGENT_HOST_REPLAY_RECORD=1` through `context.runRecordOnlyTests`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "custom terminal tool preserves a nonzero shell exit code"
+  ```
+
 ### Copilot deferred tool search cannot be replayed
 
 A Copilot session can defer client-provided tools, search for the relevant tool on demand, and then execute the selected tool. The live workflow succeeds, but the recorded Responses fixture loses the hosted tool-search output that triggers the AHP client-tool exchange, so replay ends the turn before either tool appears.
