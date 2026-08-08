@@ -156,7 +156,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				this._workspaceResolvedPromiseResolve();
 
 				if (!this.environmentService.remoteAuthority) {
-					this._workspaceTrustInitializedPromiseResolve();
+					// Persist folders passed via `--trust-folder` before signalling that
+					// trust is initialized, so they are already trusted at startup.
+					this.addTrustedFoldersFromCli().finally(() => this._workspaceTrustInitializedPromiseResolve());
 				}
 			});
 
@@ -169,7 +171,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					await this.updateWorkspaceTrust();
 				})
 				.finally(() => {
-					this._workspaceTrustInitializedPromiseResolve();
+					// The remote authority is now resolved, so `--trust-folder` values
+					// for remote folders can be canonicalized before signalling that
+					// trust is initialized.
+					this.addTrustedFoldersFromCli().finally(() => this._workspaceTrustInitializedPromiseResolve());
 				});
 		}
 
@@ -280,6 +285,33 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._onDidChangeTrustedFolders.fire();
 
 		await this.updateWorkspaceTrust();
+	}
+
+	private async addTrustedFoldersFromCli(): Promise<void> {
+		const folders = this.environmentService.trustedFolders;
+		if (!folders?.length) {
+			return;
+		}
+
+		for (const folder of folders) {
+			let uri: URI;
+			try {
+				// A value with a scheme (e.g. a remote `vscode-remote://` folder) is
+				// parsed as a URI; otherwise it is treated as a local file path.
+				uri = folder.includes('://') ? URI.parse(folder) : URI.file(folder);
+			} catch {
+				continue; // ignore a malformed --trust-folder value
+			}
+
+			try {
+				// Trust each folder independently so one value that cannot be resolved
+				// (e.g. a remote URI the resolver rejects) does not discard the other,
+				// valid --trust-folder entries.
+				await this.setUrisTrust([uri], true);
+			} catch {
+				// Never block workspace trust initialization on a bad --trust-folder value
+			}
+		}
 	}
 
 	private getWorkspaceUris(): URI[] {
@@ -625,7 +657,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
-		this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
+		await this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
 	}
 
 	getTrustedUris(): URI[] {
