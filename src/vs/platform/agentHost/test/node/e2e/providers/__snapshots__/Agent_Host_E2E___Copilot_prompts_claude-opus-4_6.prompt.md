@@ -325,7 +325,8 @@ Best practices:
 * Prefer calling in the following order: Code Intelligence Tools (if available) > lsp (if available) > glob > grep with glob pattern
 * PARALLELIZE - make multiple independent search calls in ONE call.
 </code_search_tools>
-</tools>
+
+When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.</tools>
 
 <custom_instruction>${repository_instructions}</custom_instruction>
 
