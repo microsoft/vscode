@@ -783,20 +783,55 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			.getConfiguration('git', Uri.file(repository.root))
 			.get<number>('detectWorktreesLimit') as number;
 
-		const checkForSubmodules = () => {
+		let submoduleCheckSequence = 0;
+		let submoduleLimitWarningShown = false;
+		let worktreesLimitWarningShown = false;
+		const submoduleStatLimiter = new Limiter<string | undefined>(10);
+		const checkForSubmodules = async () => {
+			const sequence = ++submoduleCheckSequence;
+
 			if (!shouldDetectSubmodules) {
 				this.logger.trace('[Model][open] Automatic detection of git submodules is not enabled.');
 				return;
 			}
 
-			if (repository.submodules.length > submodulesLimit) {
+			if (repository.submodules.length > submodulesLimit && !submoduleLimitWarningShown) {
+				submoduleLimitWarningShown = true;
 				window.showWarningMessage(l10n.t('The "{0}" repository has {1} submodules which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.submodules.length));
-				statusListener.dispose();
 			}
 
-			repository.submodules
+			const submodulePaths = repository.submodules.map(r => path.join(repository.root, r.path));
+			const submodulePathsToCheck = submodulePaths.slice(0, submodulesLimit);
+			for (const openRepository of this.openRepositories) {
+				const submodulePath = submodulePaths.find(submodulePath => pathEquals(submodulePath, openRepository.repository.root));
+				if (submodulePath && !submodulePathsToCheck.some(pathToCheck => pathEquals(pathToCheck, submodulePath))) {
+					submodulePathsToCheck.push(submodulePath);
+				}
+			}
+
+			const initializedSubmodulePaths = (await Promise.all(submodulePathsToCheck.map(submodulePath => submoduleStatLimiter.queue(async () => {
+				try {
+					await fs.promises.stat(path.join(submodulePath, '.git'));
+					return submodulePath;
+				} catch {
+					return undefined;
+				}
+			})))).filter(submodulePath => submodulePath !== undefined);
+			if (sequence !== submoduleCheckSequence) {
+				return;
+			}
+
+			for (const openRepository of [...this.openRepositories]) {
+				if (submodulePathsToCheck.some(submodulePath => pathEquals(submodulePath, openRepository.repository.root))
+					&& !initializedSubmodulePaths.some(submodulePath => pathEquals(submodulePath, openRepository.repository.root))) {
+					this.logger.trace(`[Model][open] Closing deinitialized submodule: '${openRepository.repository.root}'`);
+					openRepository.dispose();
+				}
+			}
+
+			submodulePaths
 				.slice(0, submodulesLimit)
-				.map(r => path.join(repository.root, r.path))
+				.filter(submodulePath => initializedSubmodulePaths.some(initializedPath => pathEquals(initializedPath, submodulePath)))
 				.forEach(p => {
 					this.logger.trace(`[Model][open] Opening submodule: '${p}'`);
 					this.eventuallyScanPossibleGitRepository(p);
@@ -814,9 +849,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return;
 			}
 
-			if (repository.worktrees.length > worktreesLimit) {
+			if (repository.worktrees.length > worktreesLimit && !worktreesLimitWarningShown) {
+				worktreesLimitWarningShown = true;
 				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length));
-				statusListener.dispose();
 			}
 
 			repository.worktrees
@@ -839,12 +874,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		};
 
 		const statusListener = repository.onDidRunGitStatus(() => {
-			checkForSubmodules();
+			void checkForSubmodules();
 			checkForWorktrees();
 			updateMergeChanges();
 			this.onDidChangeActiveTextEditor();
 		});
-		checkForSubmodules();
+		void checkForSubmodules();
 		checkForWorktrees();
 		this.onDidChangeActiveTextEditor();
 
@@ -864,6 +899,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		updateOperationInProgressContext();
 
 		const dispose = () => {
+			submoduleCheckSequence++;
 			disappearListener.dispose();
 			disposeParentListener.dispose();
 			changeListener.dispose();
