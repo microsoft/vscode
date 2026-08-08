@@ -167,6 +167,9 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	Default: defineComponentFixture({ render: context => renderNewChatInput(context, { value: 'What are you building?' }) }),
+	WithScrollbar: defineComponentFixture({
+		render: context => renderNewChatInput(context, { value: 'word '.repeat(500) })
+	}),
 	// Partial multi-line selection so the reverse-rounded selection corners are
 	// rendered. These cut-out pieces use `.monaco-editor-background`, which the
 	// sessions CSS forces transparent — the bug shows here as blocky corners.

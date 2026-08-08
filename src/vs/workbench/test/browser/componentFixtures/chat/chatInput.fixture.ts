@@ -80,6 +80,12 @@ const sampleModels: ILanguageModelChatMetadataAndIdentifier[] = [
 
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
+	InProgressWithScrollbar: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			value: 'word '.repeat(500),
+			working: true,
+		})
+	}),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
 	CompactWithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels, width: 260 }) }),
