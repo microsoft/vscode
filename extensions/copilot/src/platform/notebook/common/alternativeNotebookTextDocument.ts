@@ -388,23 +388,38 @@ function withNotebookChangesAndEdit(cells: readonly AltCellInfo[], blockComment:
 	for (const event of events) {
 		const newCells = event.addedCells.filter(c => excludeMarkdownCells ? c.kind === NotebookCellKind.Code : true).map(cell => ({ altCell: AlternativeNotebookCellSnapshot.fromNotebookCell(cell, blockComment, lineCommentStart), startLine: 0, startOffset: 0 }));
 
-		const removedCells = altCells.slice(event.range.start, event.range.end);
-		let firstUnChangedCellIndex = -1;
-		if (event.range.isEmpty) {
-			firstUnChangedCellIndex = event.range.start === 0 ? -1 : event.range.start - 1;
-		} else {
-			firstUnChangedCellIndex = event.range.start === 0 ? -1 : event.range.start - 1;
+		// `event.range` is expressed in the notebook's full cell index space (including markdown cells),
+		// but `altCells` may exclude markdown cells (`excludeMarkdownCells`). Translate the notebook range
+		// into the `altCells` index space using each cell's notebook index so we never index out of bounds.
+		// `altCells` is ordered by notebook `cell.index`, so both bounds are counted in a single pass
+		// without allocating intermediate arrays.
+		let altRangeStart = 0;
+		let altRangeEnd = 0;
+		for (const c of altCells) {
+			const notebookIndex = c.altCell.cell.index;
+			// `altCells` is ordered ascending by notebook `cell.index`, so once we reach a cell at or
+			// beyond `event.range.end` neither bound can grow further — stop iterating.
+			if (notebookIndex >= event.range.end) {
+				break;
+			}
+			if (notebookIndex < event.range.start) {
+				altRangeStart++;
+			}
+			altRangeEnd++;
 		}
+
+		const removedCells = altCells.slice(altRangeStart, altRangeEnd);
+		const firstUnChangedCellIndex = altRangeStart === 0 ? -1 : altRangeStart - 1;
 		const startOffset = firstUnChangedCellIndex === -1 ? 0 : altCells[firstUnChangedCellIndex].startOffset + altCells[firstUnChangedCellIndex].altCell.altText.length + EOL.length;
 		let offsetLength = removedCells.map((cell) => cell.altCell.altText).join(EOL).length;
 		let newCellsContent = newCells.map((cell) => cell.altCell.altText).join(EOL);
 		if (startOffset !== 0) {
-			if (!(event.range.end < altCells.length)) {
+			if (!(altRangeEnd < altCells.length)) {
 				newCellsContent = `${EOL}${newCellsContent}`;
 			}
 		}
 		// if we have some cells after the insertion, then we need to insert an EOL at the end.
-		if (event.range.end < altCells.length) {
+		if (altRangeEnd < altCells.length) {
 			if (newCellsContent) {
 				newCellsContent += EOL;
 			}
@@ -414,7 +429,7 @@ function withNotebookChangesAndEdit(cells: readonly AltCellInfo[], blockComment:
 		}
 		edit = edit.compose(StringEdit.replace(new OffsetRange(startOffset, startOffset + offsetLength), newCellsContent));
 
-		altCells.splice(event.range.start, event.range.end - event.range.start, ...newCells);
+		altCells.splice(altRangeStart, altRangeEnd - altRangeStart, ...newCells);
 		altCells = buildAlternativeCells(altCells, cell => cell.altCell);
 	}
 
