@@ -21,7 +21,8 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IExtensionService, toExtension } from '../../../services/extensions/common/extensions.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -57,6 +58,7 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this._store.add(this._extensionService.onDidChangeExtensions(this._updateConfigValues, this));
@@ -215,10 +217,29 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		if (!pick || !formatter[pick.index].extensionId) {
 			return undefined;
 		}
+
+		// Ask whether to save in user settings or workspace settings (when a workspace is open)
+		let configTarget = ConfigurationTarget.USER;
+		const workbenchState = this._workspaceContextService.getWorkbenchState();
+		if (workbenchState !== WorkbenchState.EMPTY) {
+			interface ITargetPick extends IQuickPickItem { target: ConfigurationTarget; }
+			const targetPick = await this._quickInputService.pick<ITargetPick>(
+				[
+					{ label: nls.localize('userSettings', "User Settings"), description: nls.localize('userSettingsDescription', "Apply to all VS Code instances"), target: ConfigurationTarget.USER },
+					{ label: nls.localize('workspaceSettings', "Workspace Settings"), description: nls.localize('workspaceSettingsDescription', "Apply only to the current workspace"), target: ConfigurationTarget.WORKSPACE },
+				],
+				{ placeHolder: nls.localize('selectTarget', "Where do you want to save this setting?") }
+			);
+			if (!targetPick) {
+				return undefined;
+			}
+			configTarget = targetPick.target;
+		}
+
 		this._configService.updateValue(DefaultFormatter.configName, formatter[pick.index].extensionId!.value, {
 			resource: document.uri,
 			overrideIdentifier: document.getLanguageId()
-		});
+		}, configTarget);
 		return formatter[pick.index];
 	}
 
