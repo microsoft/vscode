@@ -39,9 +39,10 @@ export class SearchParams {
 			multiline = (this.searchString.indexOf('\n') >= 0);
 		}
 
+		const searchString = multiline && this.isRegex ? normalizeMultilineRegexSource(this.searchString) : this.searchString;
 		let regex: RegExp | null = null;
 		try {
-			regex = strings.createRegExp(this.searchString, this.isRegex, {
+			regex = strings.createRegExp(searchString, this.isRegex, {
 				matchCase: this.matchCase,
 				wholeWord: false,
 				multiline: multiline,
@@ -96,6 +97,82 @@ export function isMultilineRegexSource(searchString: string): boolean {
 	}
 
 	return false;
+}
+
+export function normalizeMultilineRegexSource(searchString: string): string {
+	const result: string[] = [];
+	let lastAppendOffset = 0;
+	let inCharacterClass = false;
+	let escaped = false;
+
+	for (let i = 0; i < searchString.length; i++) {
+		const chCode = searchString.charCodeAt(i);
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+
+		if (chCode === CharCode.Backslash) {
+			escaped = true;
+			continue;
+		}
+
+		if (chCode === CharCode.OpenSquareBracket) {
+			inCharacterClass = true;
+			continue;
+		}
+
+		if (chCode === CharCode.CloseSquareBracket) {
+			inCharacterClass = false;
+			continue;
+		}
+
+		if (inCharacterClass) {
+			continue;
+		}
+
+		const replacement = getMultilineAnyCharGroupReplacement(searchString, i);
+		if (replacement) {
+			result.push(searchString.slice(lastAppendOffset, i), replacement.value);
+			i += replacement.length - 1;
+			lastAppendOffset = i + 1;
+		}
+	}
+
+	if (result.length === 0) {
+		return searchString;
+	}
+
+	result.push(searchString.slice(lastAppendOffset));
+	return result.join('');
+}
+
+function getMultilineAnyCharGroupReplacement(searchString: string, offset: number): { value: string; length: number } | undefined {
+	if (searchString.charCodeAt(offset) !== CharCode.OpenParen) {
+		return undefined;
+	}
+
+	const prefix = searchString.startsWith('(?:', offset) ? '(?:' : '(';
+	const contentOffset = offset + prefix.length;
+	let contentLength: number;
+	if (searchString.startsWith('.|\\n)', contentOffset) || searchString.startsWith('\\n|.)', contentOffset)) {
+		contentLength = 5;
+	} else if (searchString.startsWith('.+|\\n)', contentOffset) || searchString.startsWith('\\n|.+)', contentOffset)) {
+		contentLength = 6;
+	} else {
+		return undefined;
+	}
+
+	const quantifierOffset = contentOffset + contentLength;
+	const quantifier = searchString[quantifierOffset];
+	if (quantifier !== '*' && quantifier !== '+') {
+		return undefined;
+	}
+
+	return {
+		value: `${prefix}[\\s\\S])${quantifier}`,
+		length: prefix.length + contentLength + 1
+	};
 }
 
 export function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
