@@ -583,7 +583,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// local and remote hosts and the standalone Copilot CLI provider.
 		assert.strictEqual(provider.sessionTypes[0].id, 'copilotcli');
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
-		assert.strictEqual(provider.sessionTypes[0].authRequirement, SessionTypeAuthRequirement.None);
+		assert.strictEqual(provider.sessionTypes[0].authRequirement, SessionTypeAuthRequirement.GitHub);
 	});
 
 	test('session types update when the local host advertises additional agents', () => {

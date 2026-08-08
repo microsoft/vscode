@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { getSessionTypeAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -103,6 +103,21 @@ suite('getSessionTypeAvailability', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('local Agent Host targets remain setup-selectable without claiming availability', () => {
+		const pickerAvailability = (type: string, allowSignedOutWhenUsable: boolean) => getSessionTypePickerAvailability(type, SessionTypeAvailability.SignInRequired, allowSignedOutWhenUsable);
+		assert.deepStrictEqual({
+			localCopilot: pickerAvailability(SessionType.AgentHostCopilot, true),
+			localClaude: pickerAvailability(SessionType.AgentHostClaude, true),
+			localDisabled: pickerAvailability(SessionType.AgentHostCopilot, false),
+			legacyCopilot: pickerAvailability(SessionType.CopilotCLI, true),
+		}, {
+			localCopilot: SessionTypeAvailability.Available,
+			localClaude: SessionTypeAvailability.Available,
+			localDisabled: SessionTypeAvailability.SignInRequired,
+			legacyCopilot: SessionTypeAvailability.SignInRequired,
+		});
+	});
+
 	function availability(config: ITypeConfig, entitlement: ChatEntitlement, modelTargets: readonly (string | undefined)[] = [], anonymous = false): SessionTypeAvailability {
 		return getSessionTypeAvailability(
 			createChatSessionsService(config),
@@ -131,7 +146,7 @@ suite('getSessionTypeAvailability', () => {
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
 	});
 
-	test('local Agent Host Copilot and Claude remain selectable while signed out', () => {
+	test('local Agent Host Copilot and Claude require sign-in without a usable BYOK model', () => {
 		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true, requiresCopilotSignIn: true };
 		const getAvailability = (type: string, entitlement: ChatEntitlement) => getSessionTypeAvailability(
 			createChatSessionsService(config, type),
@@ -146,8 +161,8 @@ suite('getSessionTypeAvailability', () => {
 			freeClaude: getAvailability(SessionType.AgentHostClaude, ChatEntitlement.Free),
 			proClaude: getAvailability(SessionType.AgentHostClaude, ChatEntitlement.Pro),
 		}, {
-			signedOutCopilot: SessionTypeAvailability.Available,
-			signedOutClaude: SessionTypeAvailability.Available,
+			signedOutCopilot: SessionTypeAvailability.SignInRequired,
+			signedOutClaude: SessionTypeAvailability.SignInRequired,
 			freeClaude: SessionTypeAvailability.UpgradeRequired,
 			proClaude: SessionTypeAvailability.NoModels,
 		});
