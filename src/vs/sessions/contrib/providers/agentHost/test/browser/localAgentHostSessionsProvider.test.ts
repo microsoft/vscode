@@ -1553,7 +1553,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
-		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [createSession('stale-1', { summary: 'Stale' })]);
 
 		// Fresh launch with an authoritative (empty) list: the hydrated session
