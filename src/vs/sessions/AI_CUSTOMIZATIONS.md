@@ -308,6 +308,8 @@ The first sidebar entry is `Overview`, which opens the AI Customization manageme
 
 `IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name. For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. For skills with UI integrations, the badge reads "UI Integration" with a tooltip describing which UI surface invokes the skill. The badge text is also included in search filtering.
 
+Group, customization, MCP server, and plugin type icons remain in the renderer DOM but are visually suppressed so labels lead the compact list layout. Their role selectors must outrank the shared codicon base rule rather than relying on stylesheet order. The migration shortcut and MCP status codicons similarly keep their role-specific flex display so their centering is deterministic.
+
 ### Embedded Detail Editors
 
 The management editor opens inline detail panes for prompt files, MCP servers, and plugins. Prompt-file details use the standard text editor pane. MCP and plugin details render dedicated compact widgets — `EmbeddedMcpServerDetail` and `EmbeddedAgentPluginDetail` — purpose-built for the narrow split-pane host. They show the icon, name, scope/source, and description. Do **not** embed the full extension-editor panes inside the split-pane host: they assume a wide page-level layout and don't shrink cleanly.
