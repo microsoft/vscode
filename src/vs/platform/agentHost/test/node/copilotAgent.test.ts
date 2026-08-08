@@ -6758,7 +6758,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ first, second, configValues },
-					{ first: true, second: false, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
+					{ first: { adopted: true, eligible: true }, second: { adopted: false, eligible: false }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6787,7 +6787,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, customTitle },
-					{ adopted: true, customTitle: 'My Legacy Session' },
+					{ adopted: { adopted: true, eligible: true }, customTitle: 'My Legacy Session' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6811,7 +6811,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
-					{ adopted: false, getSessionMetadataCalls: [], openedDatabases: [] },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6838,7 +6838,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls },
-					{ adopted: false, getSessionMetadataCalls: [] },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });

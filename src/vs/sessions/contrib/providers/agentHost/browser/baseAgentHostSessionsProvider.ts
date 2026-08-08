@@ -4988,8 +4988,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				didChange = true;
 			}
 
-			if (changes._meta !== undefined && cached.setMeta(changes._meta, tx)) {
-				didChange = true;
+			if (Object.prototype.hasOwnProperty.call(changes, '_meta')) {
+				// Keep the guard map in sync (mirrors `updateAdapter`) so a cleared
+				// adoptable-legacy marker reopens the passive session-state
+				// subscription in `_ensureSessionStateSubscription`. Use `hasOwnProperty`
+				// (like `activity` above) so an explicit clear to `undefined` applies.
+				const storedMeta = this._metaByRawId.get(rawId);
+				if (storedMeta) {
+					this._metaByRawId.set(rawId, { ...storedMeta, _meta: changes._meta });
+				}
+				if (cached.setMeta(changes._meta, tx)) {
+					didChange = true;
+				}
 			}
 
 			if (didChange) {

@@ -22,7 +22,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
 import { type ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -98,6 +98,32 @@ import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+
+type AgentHostLegacyMigrationEvent = {
+	provider: string;
+	outcome: 'migrated' | 'skipped' | 'failed';
+	success: boolean;
+	turnCount: number;
+	durationMs: number;
+	hasProject: boolean;
+	hasWorktree: boolean;
+	workingDirectoryCount: number;
+	errorMessage: string | undefined;
+};
+
+type AgentHostLegacyMigrationClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider id whose legacy session was migrated (e.g. copilotcli).' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated (adoption + restore completed), skipped (eligible legacy session not adopted this pass, e.g. migrate flag not yet applied), or failed (adoption or restore threw).' };
+	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migration completed with at least one restored turn.' };
+	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns restored from the migrated session.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds to adopt and restore the legacy session.' };
+	hasProject: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session resolved to a project/repository.' };
+	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session ran in a pre-existing git worktree that was bridged during adoption.' };
+	workingDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working directories associated with the migrated session.' };
+	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
+	owner: 'vijayupadya';
+	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
+};
 
 const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.Isolation,
@@ -2903,6 +2929,26 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Emits one {@link AgentHostLegacyMigrationEvent} for a legacy-session adoption attempt. */
+	private _reportLegacyMigration(
+		provider: string,
+		outcome: AgentHostLegacyMigrationEvent['outcome'],
+		startTime: number,
+		extra: { turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; errorMessage?: string },
+	): void {
+		this._telemetryService.publicLog2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', {
+			provider,
+			outcome,
+			success: outcome === 'migrated' && (extra.turnCount ?? 0) > 0,
+			turnCount: extra.turnCount ?? 0,
+			durationMs: Date.now() - startTime,
+			hasProject: extra.hasProject ?? false,
+			hasWorktree: extra.hasWorktree ?? false,
+			workingDirectoryCount: extra.workingDirectoryCount ?? 0,
+			errorMessage: extra.errorMessage,
+		});
+	}
+
 	private async _doRestoreSession(session: URI, sessionStr: string): Promise<void> {
 		if (this._stateManager.getSessionState(sessionStr)) {
 			return;
@@ -2918,11 +2964,45 @@ export class AgentService extends Disposable implements IAgentService {
 		// (non-migration) restore path does no extra work; a no-op for native /
 		// already-adopted sessions.
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
-		const adopted = migrateLegacyEnabled ? (await agent.ensureSessionAdopted?.(session) ?? false) : false;
+		const migrationStartTime = Date.now();
+		let adoption: IAgentSessionAdoptionResult = { adopted: false, eligible: false };
+		if (migrateLegacyEnabled && agent.ensureSessionAdopted) {
+			try {
+				adoption = await agent.ensureSessionAdopted(session);
+			} catch (err) {
+				// Adoption itself threw — a genuine migration failure worth surfacing.
+				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
+				throw err;
+			}
+		}
+		const adopted = adoption.adopted;
 
-		const meta = await this._getSessionMetadataForRestore(agent, session);
+		let meta = await this._getSessionMetadataForRestore(agent, session);
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
+		}
+
+		// A freshly-adopted legacy session whose working directory is a
+		// pre-existing git worktree keeps no worktree metadata (adoption seeds
+		// `isolation: folder` in place). Bridge it now so the session groups under
+		// its repository and diffs against the right base, matching native
+		// worktree-isolated sessions. No-op for folder / primary-checkout cwds.
+		let adoptedWorktree = false;
+		if (adopted && this._worktree) {
+			const adoptedWorkingDirectory = meta.workingDirectories?.[0];
+			if (adoptedWorkingDirectory) {
+				try {
+					if (await this._worktree.adoptExistingWorktreeMetadata(session, adoptedWorkingDirectory)) {
+						adoptedWorktree = true;
+						const worktreeProject = await this._worktree.resolveWorktreeProject(session);
+						if (worktreeProject) {
+							meta = { ...meta, project: worktreeProject };
+						}
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentService] adopt: worktree metadata bridge failed for ${sessionStr}`, err);
+				}
+			}
 		}
 
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
@@ -2930,6 +3010,10 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			turns = await this._getChatMessages(agent, defaultChatUri);
 		} catch (err) {
+			// A restore failure after a successful adoption is a migration failure.
+			if (adopted) {
+				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
+			}
 			if (err instanceof ProtocolError) {
 				throw err;
 			}
@@ -3058,6 +3142,23 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: defaultDraft, defaultChatTitle });
+
+		if (adopted) {
+			this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, {
+				turnCount: mergedTurns.length,
+				hasProject: !!meta.project,
+				hasWorktree: adoptedWorktree,
+				workingDirectoryCount: meta.workingDirectories?.length ?? 0,
+			});
+		} else if (adoption.eligible) {
+			// The migrate setting was on and this was a genuine legacy candidate, but
+			// it was not adopted this pass (e.g. its on-disk working directory could
+			// not be resolved) — the "eligible but did not migrate" case.
+			this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, {
+				hasProject: !!meta.project,
+				workingDirectoryCount: meta.workingDirectories?.length ?? 0,
+			});
+		}
 
 		// A freshly-adopted legacy session bridges its git checkpoints into the
 		// agent-host namespace once its turns are restored. Isolated so a failure

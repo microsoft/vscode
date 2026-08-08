@@ -864,6 +864,33 @@ export class WorktreeIsolation extends Disposable {
 	}
 
 	/**
+	 * Bridges worktree metadata for a legacy session adopted in place, whose
+	 * working directory is a pre-existing git worktree the agent host did not
+	 * create. When `workingDirectory` is a linked worktree (its checkout root
+	 * differs from the repository's primary worktree root), persists the worktree
+	 * branch / path / repository-root (and diff base branch) so the adopted
+	 * session groups under its repository and computes diffs against the right
+	 * base — parity with natively worktree-isolated sessions. Deliberately does
+	 * NOT register the worktree as host-created, so disposing the session never
+	 * deletes the user-owned worktree. Returns `true` when metadata was recorded.
+	 */
+	async adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean> {
+		const worktreeRoot = await this._gitService.getRepositoryRoot(workingDirectory).catch(() => undefined);
+		if (!worktreeRoot) {
+			return false;
+		}
+		const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, worktreeRoot).catch(() => undefined);
+		// A primary checkout (not a linked worktree) resolves to itself; nothing to bridge.
+		if (!primaryRoot || primaryRoot.toString() === worktreeRoot.toString()) {
+			return false;
+		}
+		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
+		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
+		await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktreeRoot, repositoryRoot: primaryRoot });
+		return true;
+	}
+
+	/**
 	 * Resolves the repository "project" for a worktree-isolated session from its
 	 * persisted worktree metadata. Worktree sessions run out of a
 	 * `<repo>.worktrees/<name>` directory, but in the sessions UI they must group
