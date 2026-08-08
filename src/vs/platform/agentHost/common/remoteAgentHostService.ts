@@ -192,16 +192,101 @@ export interface IRemoteAgentHostEntry {
 	readonly connection: RemoteAgentHostConnection;
 }
 
+/** Raw shape of persisted remote agent host entries. */
+export interface IRawRemoteAgentHostEntry {
+	readonly address: string;
+	readonly name: string;
+	readonly connectionToken?: string;
+	readonly sshConfigHost?: string;
+	readonly sshHostName?: string;
+	readonly sshUser?: string;
+	readonly sshPort?: number;
+}
+
+/** Where durable copies of a remote agent host entry live. */
+export type RemoteAgentHostEntryStore = 'settings' | 'storage' | 'runtime';
+
+/**
+ * Static, per-connection-type description of how an entry is addressed,
+ * persisted and connected. Collects the behavioural differences between
+ * transports into one table so the service does not branch on
+ * {@link RemoteAgentHostEntryType} in a dozen places.
+ */
+export interface IRemoteAgentHostEntryTypeConfig<TConnection extends RemoteAgentHostConnection = RemoteAgentHostConnection> {
+	readonly type: TConnection['type'];
+	/** Durable home for entries of this type. `runtime` entries are never written to disk. */
+	readonly store: RemoteAgentHostEntryStore;
+	/**
+	 * Whether RemoteAgentHostService dials this entry itself. When `false`,
+	 * an owning transport service establishes the connection and registers
+	 * it via `addManagedConnection`.
+	 */
+	readonly selfConnecting: boolean;
+	/** Whether the address is subject to `normalizeRemoteAgentHostAddress`. */
+	readonly normalizedAddress: boolean;
+	/** Stable identity for the entry. */
+	address(connection: TConnection): string;
+	/** Serialize for persistence. Present iff `store !== 'runtime'`. */
+	toRaw?(entry: IRemoteAgentHostEntry, connection: TConnection): IRawRemoteAgentHostEntry;
+	/** Rehydrate from persisted form. Present iff `store !== 'runtime'`. */
+	fromRaw?(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry;
+}
+
+/** An entry type that has a durable home, and therefore always converts to and from {@link IRawRemoteAgentHostEntry}. */
+type IPersistedEntryTypeConfig<TConnection extends RemoteAgentHostConnection> =
+	IRemoteAgentHostEntryTypeConfig<TConnection> & Required<Pick<IRemoteAgentHostEntryTypeConfig<TConnection>, 'toRaw' | 'fromRaw'>>;
+
+const WEBSOCKET_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostWebSocketConnection> = {
+	type: RemoteAgentHostEntryType.WebSocket,
+	store: 'settings',
+	selfConnecting: true,
+	normalizedAddress: true,
+	address: connection => connection.address,
+	toRaw: (entry, connection) => ({
+		address: connection.address, name: entry.name, connectionToken: entry.connectionToken,
+	}),
+	fromRaw: raw => ({ name: raw.name, connectionToken: raw.connectionToken, connection: { type: RemoteAgentHostEntryType.WebSocket, address: raw.address } }),
+};
+
+const SSH_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostSSHConnection> = {
+	type: RemoteAgentHostEntryType.SSH,
+	store: 'storage',
+	selfConnecting: false,
+	normalizedAddress: true,
+	address: connection => connection.address,
+	toRaw: (entry, connection) => ({
+		address: connection.address, name: entry.name, connectionToken: entry.connectionToken,
+		sshConfigHost: connection.sshConfigHost, sshHostName: connection.hostName, sshUser: connection.user, sshPort: connection.port,
+	}),
+	fromRaw: raw => ({
+		name: raw.name, connectionToken: raw.connectionToken,
+		connection: { type: RemoteAgentHostEntryType.SSH, address: raw.address, sshConfigHost: raw.sshConfigHost, hostName: raw.sshHostName ?? raw.address, user: raw.sshUser, port: raw.sshPort },
+	}),
+};
+
+function runtimeEntryTypeConfig<TConnection extends RemoteAgentHostConnection>(type: TConnection['type'], normalizedAddress: boolean, address: (connection: TConnection) => string): IRemoteAgentHostEntryTypeConfig<TConnection> {
+	return { type, store: 'runtime', selfConnecting: false, normalizedAddress, address };
+}
+
+const WSL_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostWSLConnection>(RemoteAgentHostEntryType.WSL, true, connection => connection.address);
+const TUNNEL_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostTunnelConnection>(RemoteAgentHostEntryType.Tunnel, false, connection => `${TUNNEL_ADDRESS_PREFIX}${connection.tunnelId}`);
+const CLOUD_SANDBOX_ENTRY_TYPE_CONFIG = runtimeEntryTypeConfig<IRemoteAgentHostCloudSandboxConnection>(RemoteAgentHostEntryType.CloudSandbox, true, connection => connection.address);
+
+const ENTRY_TYPE_CONFIGS: { readonly [K in RemoteAgentHostEntryType]: IRemoteAgentHostEntryTypeConfig<Extract<RemoteAgentHostConnection, { type: K }>> } = {
+	[RemoteAgentHostEntryType.WebSocket]: WEBSOCKET_ENTRY_TYPE_CONFIG,
+	[RemoteAgentHostEntryType.SSH]: SSH_ENTRY_TYPE_CONFIG,
+	[RemoteAgentHostEntryType.WSL]: WSL_ENTRY_TYPE_CONFIG,
+	[RemoteAgentHostEntryType.Tunnel]: TUNNEL_ENTRY_TYPE_CONFIG,
+	[RemoteAgentHostEntryType.CloudSandbox]: CLOUD_SANDBOX_ENTRY_TYPE_CONFIG,
+};
+
+/** Gets the static persistence and connection policy for an entry type. */
+export function getEntryTypeConfig(type: RemoteAgentHostEntryType): IRemoteAgentHostEntryTypeConfig {
+	return ENTRY_TYPE_CONFIGS[type] as IRemoteAgentHostEntryTypeConfig;
+}
+
 export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
-	switch (entry.connection.type) {
-		case RemoteAgentHostEntryType.WebSocket:
-		case RemoteAgentHostEntryType.SSH:
-		case RemoteAgentHostEntryType.WSL:
-		case RemoteAgentHostEntryType.CloudSandbox:
-			return entry.connection.address;
-		case RemoteAgentHostEntryType.Tunnel:
-			return `${TUNNEL_ADDRESS_PREFIX}${entry.connection.tunnelId}`;
-	}
+	return getEntryTypeConfig(entry.connection.type).address(entry.connection);
 }
 
 export function remoteAgentHostLogOutputChannelId(address: string): string {
@@ -450,63 +535,15 @@ function formatRemoteAgentHostAddress(url: URL, protocol: 'ws:' | 'wss:' | undef
 	return `${base}${path}${query}`;
 }
 
-/** Raw shape of persisted remote agent host entries. */
-export interface IRawRemoteAgentHostEntry {
-	readonly address: string;
-	readonly name: string;
-	readonly connectionToken?: string;
-	readonly sshConfigHost?: string;
-	readonly sshHostName?: string;
-	readonly sshUser?: string;
-	readonly sshPort?: number;
-}
-
-export function rawEntryToEntry(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry | undefined {
-	if (raw.sshConfigHost || raw.sshHostName || raw.sshUser || raw.sshPort) {
-		return {
-			name: raw.name,
-			connectionToken: raw.connectionToken,
-			connection: {
-				type: RemoteAgentHostEntryType.SSH,
-				address: raw.address,
-				sshConfigHost: raw.sshConfigHost,
-				hostName: raw.sshHostName ?? raw.address,
-				user: raw.sshUser,
-				port: raw.sshPort,
-			},
-		};
+/**
+ * Parses an entry persisted before each store became type-specific, when a
+ * single flat shape held both WebSocket and SSH entries and the variant had
+ * to be inferred from which `ssh*` fields were present. Used only by the
+ * migration path.
+ */
+export function parseLegacyRawEntry(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry {
+	if (raw.sshConfigHost !== undefined || raw.sshHostName !== undefined || raw.sshUser !== undefined || raw.sshPort !== undefined) {
+		return SSH_ENTRY_TYPE_CONFIG.fromRaw(raw);
 	}
-	return {
-		name: raw.name,
-		connectionToken: raw.connectionToken,
-		connection: {
-			type: RemoteAgentHostEntryType.WebSocket,
-			address: raw.address,
-		},
-	};
-}
-
-export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHostEntry | undefined {
-	switch (entry.connection.type) {
-		case RemoteAgentHostEntryType.SSH:
-			return {
-				address: entry.connection.address,
-				name: entry.name,
-				connectionToken: entry.connectionToken,
-				sshConfigHost: entry.connection.sshConfigHost,
-				sshHostName: entry.connection.hostName,
-				sshUser: entry.connection.user,
-				sshPort: entry.connection.port,
-			};
-		case RemoteAgentHostEntryType.WebSocket:
-			return {
-				address: entry.connection.address,
-				name: entry.name,
-				connectionToken: entry.connectionToken,
-			};
-		case RemoteAgentHostEntryType.WSL:
-		case RemoteAgentHostEntryType.Tunnel:
-		case RemoteAgentHostEntryType.CloudSandbox:
-			return undefined;
-	}
+	return WEBSOCKET_ENTRY_TYPE_CONFIG.fromRaw(raw);
 }
