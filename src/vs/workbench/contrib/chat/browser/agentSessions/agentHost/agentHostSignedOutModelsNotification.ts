@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
-import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { hasVisibleByokModelsTargetingSessionType } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
-import { localChatSessionType, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { MANAGE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ILanguageModelsConfigurationService } from '../../../../../workbench/contrib/chat/common/languageModelsConfiguration.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
+import { hasVisibleByokModelsTargetingSessionType } from '../sessionTypeAvailability.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelsConfigurationService } from '../../../common/languageModelsConfiguration.js';
 
 const SIGNED_OUT_MODELS_NOTIFICATION_ID = 'agentHost.signedOutModels.copilot';
 const SIGNED_OUT_LOCAL_MODELS_NOTIFICATION_ID = 'local.signedOutModels';
@@ -43,7 +43,7 @@ export function hasAvailableAgentHostByokModels(clientByokEnabled: boolean, hasT
  */
 export class AgentHostSignedOutModelsNotificationContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'sessions.contrib.agentHostSignedOutModelsNotification';
+	static readonly ID = 'workbench.contrib.agentHostSignedOutModelsNotification';
 
 	private readonly _shown = new Set<string>();
 	/** Startup readiness prevents transient empty catalogs from producing false notifications. */

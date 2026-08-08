@@ -9,7 +9,7 @@ import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../../platform/ag
 import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { resolveAgentAuthRequirement } from '../../browser/baseAgentHostSessionsProvider.js';
-import { areLocalModelsLoaded, hasAvailableAgentHostByokModels, shouldShowSignedOutModelsNotification } from '../../browser/agentHostSignedOutModelsNotification.js';
+import { areLocalModelsLoaded, hasAvailableAgentHostByokModels, shouldShowSignedOutModelsNotification } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import { SessionTypeAuthRequirement } from '../../../../../services/sessions/common/session.js';
 
 function agent(protectedResources: ProtectedResourceMetadata[] | undefined, modelCount: number): AgentInfo {

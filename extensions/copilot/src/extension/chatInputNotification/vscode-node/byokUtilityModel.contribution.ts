@@ -13,6 +13,7 @@ const NOTIFICATION_ID = 'copilot.byokUtilityModelHint';
 const UTILITY_MODEL_SETTING = 'chat.utilityModel';
 const UTILITY_SMALL_MODEL_SETTING = 'chat.utilitySmallModel';
 const BYOK_UTILITY_MODEL_DEFAULT_SETTING = 'chat.byokUtilityModelDefault';
+const ALLOW_SIGNED_OUT_WHEN_USABLE_SETTING = 'chat.agentHost.allowSignedOutWhenUsable';
 const MAIN_AGENT_BYOK_UTILITY_MODEL_DEFAULT = 'mainAgent';
 const LOCAL_CHAT_SESSION_TYPE = 'local';
 
@@ -49,6 +50,7 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 				e.affectsConfiguration(UTILITY_MODEL_SETTING)
 				|| e.affectsConfiguration(UTILITY_SMALL_MODEL_SETTING)
 				|| e.affectsConfiguration(BYOK_UTILITY_MODEL_DEFAULT_SETTING)
+				|| e.affectsConfiguration(ALLOW_SIGNED_OUT_WHEN_USABLE_SETTING)
 			) {
 				this._update();
 			}
@@ -98,7 +100,9 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = false;
-		notification.sessionTypes = [LOCAL_CHAT_SESSION_TYPE];
+		notification.sessionTypes = this._configService.getNonExtensionConfig<boolean>(ALLOW_SIGNED_OUT_WHEN_USABLE_SETTING)
+			? [LOCAL_CHAT_SESSION_TYPE]
+			: undefined;
 
 		if (utilityUnset && utilitySmallUnset) {
 			notification.message = vscode.l10n.t('Set BYOK utility models');
