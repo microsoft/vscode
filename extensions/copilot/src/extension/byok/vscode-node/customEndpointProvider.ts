@@ -156,6 +156,23 @@ function resolveModelApiType(url: string, modelApiType: CustomEndpointApiType | 
 	return modelApiType ?? groupApiType ?? inferApiTypeFromUrl(url);
 }
 
+/**
+ * Replaces the literal token `${apiKey}` in each header value with the configured
+ * API key, mirroring {@link CustomEndpointOAIEndpoint}'s interpolation for the other
+ * three apiTypes. Lets a gateway-specific header pull from the same secret-stored
+ * key instead of requiring a second one.
+ */
+function interpolateApiKeyInHeaders(headers: Record<string, string> | undefined, apiKey: string | undefined): Record<string, string> | undefined {
+	if (!headers || !apiKey) {
+		return headers;
+	}
+	const result: Record<string, string> = {};
+	for (const [key, value] of Object.entries(headers)) {
+		result[key] = value.includes('${apiKey}') ? value.split('${apiKey}').join(apiKey) : value;
+	}
+	return result;
+}
+
 export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMProvider<CustomEndpointModelProviderConfig> {
 
 	public static readonly providerName = 'CustomEndpoint';
@@ -199,7 +216,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 				apiKey: model.configuration?.apiKey,
 				baseUrl,
 				apiVersion,
-				headers: modelConfiguration?.requestHeaders,
+				headers: interpolateApiKeyInHeaders(modelConfiguration?.requestHeaders, model.configuration?.apiKey),
 				modelOptions: modelConfiguration?.modelOptions,
 				streaming: modelConfiguration?.streaming,
 			}
