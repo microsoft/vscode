@@ -659,6 +659,18 @@ export function setupTerminalMenus(): void {
 					},
 					group: TerminalContextMenuGroup.Kill,
 				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.KillGroupsBelow,
+						title: localize('killGroupsBelow', 'Kill Terminals Below')
+					},
+					when: ContextKeyExpr.and(ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1), TerminalContextKeys.activeGroupIsLast.toNegated()),
+					group: TerminalContextMenuGroup.Kill,
+					order: 1
+				}
 			}
 		]
 	);
