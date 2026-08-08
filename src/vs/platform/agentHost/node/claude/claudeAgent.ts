@@ -1499,7 +1499,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	disposeSession(session: URI): Promise<void> {
 		const defaultChat = URI.parse(buildDefaultChatUri(session));
 		return this._disposeSequencer.queue(session.toString(), async () => {
-			const target = this._resolveChatContext(defaultChat, { session, resource: session }).target;
+			const target = this._resolveChatContext(defaultChat, { session, resource: session }).target
+				?? this._findAnySession(AgentSession.id(session));
 			if (target) {
 				await this._disposeLiveSession(target);
 			}
