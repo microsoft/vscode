@@ -224,7 +224,7 @@ Section 4 closes two Rust gaps:
 Important functions and constants:
 
 - `parseCargoLock()` extracts `name`, `version`, and `source` from `[[package]]` blocks.
-- `fetchCratesIoJson()` calls `https://crates.io/api/v1/crates/<name>` with `CRATES_IO_USER_AGENT`.
+- `fetchCratesIoJson()` calls the cargo registry metadata API with `CRATES_IO_USER_AGENT` (local/offline uses crates.io; CI prefers the Monaco feed registry endpoint).
 - `getCrateRepository()` applies legacy repository URL overrides for crates such as `isatty`, `redox_syscall`, `redox_termios`, and `termion`.
 - `crateLicenseRefs()` tries `v<version>`, `<version>`, `<name>-v<version>`, `<name>-<version>`, then `main` and `master`.
 - `isSpdxStub()` detects CG bodies that are only SPDX expressions.

@@ -48,6 +48,14 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - task: NuGetAuthenticate@1
+    displayName: Setup NuGet Authentication
+
+  - template: ./steps/product-build-win32-install-rust.yml@self
+    parameters:
+      targets:
+        - x86_64-pc-windows-msvc
+
   - pwsh: |
       $includes = @'
         {

@@ -9,7 +9,7 @@
  *  Section 1: Built-in extension dependencies (CG skips engines.vscode packages)
  *  Section 2: Root node_modules ClearlyDefined gaps (LICENSE on disk but not in CG output)
  *  Section 3: cgmanifest.json git components CG can't harvest from ClearlyDefined
- *  Section 4: Cargo.lock crates missing or stubbed in CG (crates.io + repo LICENSE)
+ *  Section 4: Cargo.lock crates missing or stubbed in CG (cargo registry API + repo LICENSE)
  *  Section 5: Platform-specific binary packages (arch optionalDependencies)
  *  Section 6: OS-gated whole packages skipped by npm on the build host (lockfile)
  *  Section 7: Pre-built built-in extension deps (disk extensionsCG/<name>/, else
@@ -31,6 +31,9 @@ import { fetchUriText } from './apply-overrides.js';
 import { parseNoticeFile } from './parse-notices.js';
 import { parseArgs } from './utils.js';
 
+const VSCODE_CFS_NPM_REGISTRY = 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/';
+const VSCODE_CFS_CARGO_API_BASE = 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/api/v1/crates/';
+
 interface LicenseEntry {
 	name: string;
 	version: string;
@@ -51,6 +54,18 @@ const COPYRIGHT_PATTERN = /copyright|(\(c\)|©)/i;
 
 /** Minimum length for a license body to be considered real (not a symlink stub or SPDX stub). */
 const MIN_LICENSE_BODY_LENGTH = 40;
+
+function isCI(): boolean {
+	return !!(process.env.TF_BUILD || process.env.BUILD_BUILDID);
+}
+
+function resolveNpmPackumentBaseUrl(): string {
+	return isCI() ? VSCODE_CFS_NPM_REGISTRY : 'https://registry.npmjs.org/';
+}
+
+function resolveCargoApiBaseUrl(): string {
+	return isCI() ? VSCODE_CFS_CARGO_API_BASE : 'https://crates.io/api/v1/crates/';
+}
 
 function validateCopyright(name: string, licenseText: string, source: string): void {
 	if (!COPYRIGHT_PATTERN.test(licenseText)) {
@@ -133,7 +148,7 @@ export async function fetchLicenseFromGitRepo(repositoryUrl: string, commitHash:
 // entry-point guard at the bottom of this file, mirroring parse-notices.ts).
 // =============================================================================
 
-/** The User-Agent crates.io requires -- it rejects requests without a descriptive one. */
+/** The crates metadata API requires a descriptive User-Agent. */
 const CRATES_IO_USER_AGENT = 'vscode-oss-scanner';
 
 export interface CrateInfo {
@@ -191,10 +206,10 @@ export function parseCargoLock(content: string): CargoPackage[] {
 }
 
 /**
- * Resolve a crate's canonical GitHub repo URL. Some crates.io `repository`
+ * Resolve a crate's canonical GitHub repo URL. Some registry `repository`
  * fields are wrong or point at non-GitHub mirrors; this ports the legacy
  * override map (distro-tools/lib/cargo.ts getRepository) verbatim and falls
- * back to the crates.io-reported repository otherwise.
+ * back to the registry-reported repository otherwise.
  */
 export function getCrateRepository(info: CrateInfo): string {
 	switch (info.crate.id) {
@@ -276,19 +291,17 @@ export function isSpdxStub(body: string): boolean {
 }
 
 /**
- * GET https://crates.io/api/v1/crates/<name> with the required User-Agent.
+ * GET crates metadata with the required User-Agent.
  * fetchUriText() can't set headers, so we use a small dedicated fetcher here.
  * Resolves undefined on any failure (caller logs + continues -- never crashes).
  */
 export function fetchCratesIoJson(name: string, timeoutMs = 10_000): Promise<CrateInfo | undefined> {
 	return new Promise(resolve => {
-		const options: https.RequestOptions = {
-			host: 'crates.io',
-			path: `/api/v1/crates/${encodeURIComponent(name)}`,
+		const url = new URL(`${encodeURIComponent(name)}`, resolveCargoApiBaseUrl());
+		const req = https.get(url, {
 			headers: { 'User-Agent': CRATES_IO_USER_AGENT, 'Accept': 'application/json' },
 			timeout: timeoutMs,
-		};
-		const req = https.get(options, res => {
+		}, res => {
 			if (res.statusCode !== 200) {
 				res.resume();
 				resolve(undefined);
@@ -319,7 +332,7 @@ export function fetchCratesIoJson(name: string, timeoutMs = 10_000): Promise<Cra
 }
 
 /**
- * Run async tasks with a small concurrency cap (crates.io asks crawlers to be
+ * Run async tasks with a small concurrency cap (the upstream crates metadata API asks crawlers to be
  * gentle). Order of results is not significant -- each task mutates shared state.
  */
 async function runWithConcurrency(tasks: Array<() => Promise<void>>, limit: number): Promise<void> {
@@ -858,20 +871,19 @@ export interface NpmPackument {
 }
 
 /**
- * Fetch a package's registry packument from registry.npmjs.org. Modeled on
+ * Fetch a package's registry packument. Modeled on
  * fetchCratesIoJson: resolves undefined on any non-200, parse error, network
  * error, or timeout so a registry hiccup never crashes the build. Exported for
  * testing (the unit tests do NOT call it over the network).
  */
 export function fetchNpmRegistryJson(name: string, timeoutMs = 10_000): Promise<NpmPackument | undefined> {
 	return new Promise(resolve => {
-		const options: https.RequestOptions = {
-			host: 'registry.npmjs.org',
-			path: '/' + encodeURIComponent(name),
+		const baseUrl = resolveNpmPackumentBaseUrl();
+		const url = new URL(`${encodeURIComponent(name)}`, baseUrl);
+		const req = https.get(url, {
 			headers: { 'Accept': 'application/json' },
 			timeout: timeoutMs,
-		};
-		const req = https.get(options, res => {
+		}, res => {
 			if (res.statusCode !== 200) {
 				res.resume();
 				resolve(undefined);
@@ -1388,7 +1400,7 @@ async function main(): Promise<void> {
 	//       expression as the license BODY (e.g. "Zlib OR Apache-2.0 OR MIT")
 	//       instead of the real license text.
 	//
-	// Both are closed by the same pipeline: parse Cargo.lock -> crates.io API ->
+	// Both are closed by the same pipeline: parse Cargo.lock -> cargo registry API ->
 	// resolve repo URL -> fetch the REAL license text from the repo (tag-pinned).
 	// CG-coverage gating bounds network calls to ~34 crates, not all ~419.
 	//
@@ -1484,7 +1496,7 @@ async function main(): Promise<void> {
 		}
 	}
 
-	console.log(`  Resolving ${pending.length} crates via crates.io (coverage-gated)`);
+	console.log(`  Resolving ${pending.length} crates via cargo registry API (coverage-gated)`);
 
 	const cargoTasks = pending.map(p => async (): Promise<void> => {
 		try {
@@ -1500,7 +1512,7 @@ async function main(): Promise<void> {
 			// envelope `{errors:[…]}`, schema drift, missing `versions`/`crate`)
 			// would make the dereferences below throw a TypeError, rejecting the
 			// task → Promise.all → main() → process.exit(1), crashing the build.
-			// Spec sec. 6.6: a failed crates.io call must log and continue, never crash.
+			// Spec sec. 6.6: a failed cargo registry API call must log and continue, never crash.
 			if (!Array.isArray(info.versions) || !info.crate || typeof info.crate.id !== 'string') {
 				cargoApiFailed++;
 				unresolved.push({ name: p.name, version: p.version, reason: 'cargo-api-failed' });
@@ -2179,7 +2191,7 @@ async function main(): Promise<void> {
 	console.log(`    Skipped (CG covers w/ text): ${cargoSkippedCgCovered}`);
 	console.log(`    Added (coverage gap):      ${cargoFetched}`);
 	console.log(`    Stub-overridden:           ${cargoStubOverride}`);
-	console.log(`    crates.io API failed:      ${cargoApiFailed}`);
+	console.log(`    Cargo registry API failed: ${cargoApiFailed}`);
 	console.log(`    Fetch failed (no LICENSE): ${cargoFetchFailed}`);
 	console.log(`    AND-license incomplete:    ${cargoAndIncomplete}`);
 	console.log(`  Section 5 - Platform binaries:`);

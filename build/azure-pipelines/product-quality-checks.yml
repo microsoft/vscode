@@ -57,6 +57,31 @@ jobs:
 
       - script: |
           set -e
+          mkdir -p "$HOME/.cargo"
+          cat > "$HOME/.cargo/config.toml" <<EOF
+          [registries]
+          vscode = { index = "$CARGO_REGISTRY" }
+
+          [source.crates-io]
+          replace-with = "vscode"
+
+          [source.vscode]
+          registry = "$CARGO_REGISTRY"
+          EOF
+          echo "##vso[task.setvariable variable=CARGO_CONFIG_PATH]$HOME/.cargo/config.toml"
+        env:
+          CARGO_REGISTRY: "$(CARGO_REGISTRY)"
+        condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], ''), ne(variables['CARGO_REGISTRY'], 'none'))
+        displayName: Setup Cargo Registry Configuration
+
+      - task: CargoAuthenticate@0
+        inputs:
+          configFile: $(CARGO_CONFIG_PATH)
+        condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], ''), ne(variables['CARGO_REGISTRY'], 'none'))
+        displayName: Setup Cargo Authentication
+
+      - script: |
+          set -e
 
           for i in {1..5}; do # try 5 times
             npm ci && break
@@ -137,10 +162,14 @@ jobs:
         displayName: Download component details of built-in extensions
         continueOnError: true
 
+      # Exclude the Java fixtures because the task otherwise
+      # hits the public Maven feed while scanning the pom.xml files,
+      # which are not installed by the test runner.
       - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
         displayName: "Component Detection"
         inputs:
           sourceScanPath: $(Build.SourcesDirectory)
+          ignoreDirectories: '$(Build.SourcesDirectory)/extensions/copilot/test/simulation/fixtures/tests/java-example-project,$(Build.SourcesDirectory)/extensions/copilot/test/simulation/fixtures/tests/java-example-project-with-existing-test-file'
           alertWarningLevel: Medium
         continueOnError: true
 
