@@ -13,9 +13,6 @@ import { CopilotApiError, COPILOT_API_ERROR_STATUS_STREAMING } from './copilotAp
  * see an HTTP/SSE error. The proxy appends `VSCODE_PROXY_ERROR:<base64>` to
  * the error message; the SDK forwards that text back verbatim, and the agent
  * decodes it on the way out.
- *
- * Mirrors the Copilot Chat extension's `PROXY_ERROR_PREFIX`
- * (`extensions/copilot/src/extension/chatSessions/claude/common/claudeMessageDispatch.ts`).
  */
 export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR:';
 

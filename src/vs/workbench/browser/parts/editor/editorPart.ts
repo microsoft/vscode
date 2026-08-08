@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, getFloatingEditorVerticalMargins } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -902,7 +902,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Different groups view: move via groups view API
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
-			sourceView.closeAllEditors();
+			sourceView.closeAllEditors({ force: true });
 			this.removeGroup(sourceView, restoreFocus);
 		}
 
@@ -1424,10 +1424,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.left = left;
 
 		// When the floating panels experiment is enabled, reserve a margin around the
-		// main editor so it floats like the side bar and panel cards. The editor has
-		// no top margin (it stays flush with the title bar). Scope to the main window
-		// (auxiliary editor windows do not apply the matching CSS). The matching
-		// `margin` is applied in CSS (`.floating-panels .part.editor`).
+		// main editor so it floats like the side bar and panel cards. Scope to the main
+		// window (auxiliary editor windows do not apply the matching CSS).
 		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
 
 			// When the editor becomes the outermost card on a side (no floating part
@@ -1442,8 +1440,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
 
 			width = Math.max(0, width - leftMargin - rightMargin);
-			const { topMargin, bottomMargin } = this.getFloatingPanelHeightInsets();
-			height = Math.max(0, height - topMargin - bottomMargin);
+			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
+			height = Math.max(0, height - top - bottom);
 
 			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
 			if (!this.element.classList.contains('modal-editor-part')) {
@@ -1462,26 +1460,6 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Layout editor container
 		this.doLayout(Dimension.lift(contentAreaSize), top, left);
-	}
-
-	/**
-	 * Returns the top and bottom margins (in pixels) to subtract from the editor height
-	 * when the floating panels experiment is active. Accounts for panel position (a top
-	 * panel pushes the editor down) and status bar visibility (hidden status bar means
-	 * the editor is at the window bottom edge and gets a doubled bottom margin).
-	 */
-	private getFloatingPanelHeightInsets(): { topMargin: number; bottomMargin: number } {
-		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
-		// When the panel is positioned above the editor and visible, the editor is no longer
-		// adjacent to the title bar — reserve a top margin to match the inter-card gaps.
-		const panelAtTop = panelVisible && this.layoutService.getPanelPosition() === Position.TOP;
-		// When the status bar is hidden, the editor is at the window bottom edge — double the
-		// margin. Exception: when a bottom panel is visible the editor's bottom faces the panel
-		// card (not the window edge), so keep the normal inter-card gap.
-		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
-		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) && !panelAtBottom
-			? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
-		return { topMargin: panelAtTop ? FLOATING_PANEL_MARGIN : 0, bottomMargin };
 	}
 
 	private doLayout(dimension: Dimension, top = this.top, left = this.left): void {
@@ -1593,7 +1571,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			await group.closeAllEditors({ excludeConfirming: true });
+			await group.closeAllEditors({ excludeConfirming: true, force: true });
 		}
 
 		return groups;

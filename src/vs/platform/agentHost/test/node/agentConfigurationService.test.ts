@@ -235,6 +235,22 @@ suite('AgentConfigurationService', () => {
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 
+	test('publishes transient root values without persisting them', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const localService = disposables.add(new AgentConfigurationService(localManager, new NullLogService(), resource));
+
+		localService.publishRootTransientValues({ 'test.account': { status: 'signedIn' } });
+		localService.updateRootConfig({ level: 'high' });
+		await localService.whenIdle();
+
+		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+		assert.strictEqual(persisted['test.account'], undefined);
+		assert.deepStrictEqual(localManager.rootState.config?.values['test.account'], { status: 'signedIn' });
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
 	test('seeds provider configuration into the initial root snapshot', () => {
 		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		disposables.add(new AgentConfigurationService(localManager, new NullLogService(), undefined, [{

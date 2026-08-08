@@ -679,6 +679,54 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('adoptExistingWorktreeMetadata bridges a linked worktree into worktree metadata', async () => {
+		const worktreeCheckout = URI.joinPath(worktreesRoot, 'adopted');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => worktreeCheckout;
+		gitService.getWorktreeRoots = async () => [repoRoot, worktreeCheckout];
+		gitService.getCurrentBranch = async () => 'agents/adopted';
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		const isolation = createIsolation(disposables, { gitService });
+
+		const recorded = await isolation.adoptExistingWorktreeMetadata(sessionUri, worktreeCheckout);
+		const project = await isolation.resolveWorktreeProject(sessionUri);
+
+		assert.deepStrictEqual({
+			recorded,
+			branchName: await db.getMetadata('copilot.worktree.branchName'),
+			path: await db.getMetadata('copilot.worktree.path'),
+			repositoryRoot: await db.getMetadata('copilot.worktree.repositoryRoot'),
+			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+			project: project && { uri: project.uri.toString(), displayName: project.displayName },
+		}, {
+			recorded: true,
+			branchName: 'agents/adopted',
+			path: worktreeCheckout.toString(),
+			repositoryRoot: repoRoot.toString(),
+			diffBaseBranch: 'main',
+			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
+		});
+	});
+
+	test('adoptExistingWorktreeMetadata is a no-op for a primary checkout', async () => {
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => repoRoot;
+		gitService.getWorktreeRoots = async () => [repoRoot];
+		const isolation = createIsolation(disposables, { gitService });
+
+		const recorded = await isolation.adoptExistingWorktreeMetadata(sessionUri, repoRoot);
+
+		assert.deepStrictEqual({
+			recorded,
+			branchName: await db.getMetadata('copilot.worktree.branchName'),
+			repositoryRoot: await db.getMetadata('copilot.worktree.repositoryRoot'),
+		}, {
+			recorded: false,
+			branchName: undefined,
+			repositoryRoot: undefined,
+		});
+	});
+
 	test('applyRestoreAnnouncement prepends a markdown part when worktree metadata exists', async () => {
 		const isolation = createIsolation(disposables);
 		const turn: Turn = {

@@ -20,6 +20,7 @@ suite('Sessions - Account Title Bar State', () => {
 			entitlement: ChatEntitlement.Pro,
 			sentiment: {},
 			quotas: {},
+			usableWithoutGitHub: false,
 			...overrides,
 		};
 	}
@@ -141,6 +142,25 @@ suite('Sessions - Account Title Bar State', () => {
 			source: 'copilot',
 			label: 'Agents Signed Out',
 			kind: 'prominent',
+		});
+	});
+
+	test('offers a calm opt-in sign-in instead of "Agents Signed Out" when a type is usable without GitHub', () => {
+		const state = getAccountTitleBarState(createState({
+			accountName: undefined,
+			accountProviderLabel: undefined,
+			entitlement: ChatEntitlement.Unknown,
+			usableWithoutGitHub: true,
+		}));
+
+		assert.deepStrictEqual({
+			source: state.source,
+			label: state.label,
+			kind: state.kind,
+		}, {
+			source: 'copilot',
+			label: 'Sign In',
+			kind: 'default',
 		});
 	});
 

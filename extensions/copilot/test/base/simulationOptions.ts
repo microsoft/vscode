@@ -29,6 +29,7 @@ export enum NesDatagenInputFormat {
 }
 
 export const DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP = 100;
+export const DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT = 10;
 
 /**
  * How to choose the pivot in a continuous recording (only meaningful when
@@ -62,6 +63,12 @@ export type NesDatagen = {
 	readonly sameFileJumpMinBelow: number;
 	/** Maximum number of samples selected from one raw workspace recording. */
 	readonly maxSamplesPerRecording?: number;
+	/** Maximum number of composed, non-touching oracle edits in one sample. */
+	readonly maxOracleEdits?: number;
+	/** Whether to emit scoredEdits viewer files for generated samples. */
+	readonly generateScoredEdits: boolean;
+	/** Internal worker-only directory for staging scoredEdits files. */
+	readonly scoredEditsOutputDirectory?: string;
 	/** Internal worker-only subset of selected workspace-recording operation indices. */
 	readonly workspacePivotOperationIndices?: readonly number[];
 };
@@ -243,6 +250,13 @@ export class SimulationOptions {
 					'--max-samples-per-recording',
 					DEFAULT_WORKSPACE_RECORDING_SAMPLE_CAP,
 				),
+				maxOracleEdits: SimulationOptions.validatePositiveInteger(
+					argv['max-oracle-edits'],
+					'--max-oracle-edits',
+					DEFAULT_NES_DATAGEN_ORACLE_EDIT_LIMIT,
+				),
+				generateScoredEdits: boolean(argv['generate-scored-edits'], false),
+				scoredEditsOutputDirectory: argv['scored-edits-output-directory'],
 				workspacePivotOperationIndices: SimulationOptions.parseWorkspacePivotOperationIndices(argv['workspace-pivot-operation-indices']),
 			}
 			: undefined;
@@ -333,6 +347,9 @@ export class SimulationOptions {
 			`                                       random             → pick a single eligible pivot uniformly at random`,
 			`  --seed                             Integer seed for the continuous pivot RNG (default: random, logged for reproducibility)`,
 			`  --max-samples-per-recording        Maximum samples selected from a workspace recording (default: 100)`,
+			`  --max-oracle-edits                 Maximum composed, non-touching oracle edits per sample (default: 10)`,
+			`  --generate-scored-edits            Generate <sample-id>.scoredEdits.w.json files beside the output JSONL`,
+			`                                     Requires --sample-task=xtab`,
 			`  --sample-task                      Which target to generate (default: xtab)`,
 			`                                     Values: xtab, cursor-same-file, cursor-cross-file, cursor-both`,
 			`                                       xtab               → edit-prediction sample (assistant = an edit)`,
@@ -359,6 +376,7 @@ export class SimulationOptions {
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=continuous.jsonl --input-format=continuous --pivot-strategy=random --seed=42`,
 			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording`,
+			`  npm run simulate -- --config-file=config.json nes-datagen --input=current.workspaceRecording.jsonl --input-format=workspace-recording --generate-scored-edits`,
 			``,
 		].join('\n'));
 	}

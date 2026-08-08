@@ -530,6 +530,24 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('strips prompt scaffolding from user message content', async () => {
+		const wrapped = 'hi\n <reminder>\nIMPORTANT: ignore this\n</reminder>\n<attachments>\n<attachment id="microsoft/vscode">repo</attachment>\n</attachments>\n<userRequest>\nhi\n</userRequest>\n';
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'wrapped', data: { interactionId: 'interaction-1', content: wrapped } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'Hello.', toolRequests: [] } },
+			{ type: 'user.message', id: 'wrapper-only', data: { interactionId: 'interaction-2', content: '<userRequest>hi5</userRequest>' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-2', content: 'Hi again.', toolRequests: [] } },
+			{ type: 'user.message', id: 'empty-wrapper', data: { interactionId: 'interaction-3', content: '/remote <reminder>x</reminder><userRequest></userRequest>' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-3', content: 'Ok remote.', toolRequests: [] } },
+			{ type: 'user.message', id: 'plain', data: { interactionId: 'interaction-4', content: 'just text' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-4', content: 'Ok.', toolRequests: [] } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text']);
+	});
+
 	test('terminal empty assistant message completes a tool-only turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Close out the todos' } },
@@ -732,7 +750,7 @@ suite('mapSessionEvents — subagent routing', () => {
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
 			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
-			{ type: 'skill.invoked', agentId: 'agent-1', data: { name: 'research', path: '/skills/research' } },
+			{ type: 'skill.invoked', agentId: 'agent-1', data: { name: 'research', path: '/skills/research', content: '' } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true } },
 			{ type: 'assistant.message', data: { messageId: 'm3', content: 'The subagent finished.' } },
 		];

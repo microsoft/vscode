@@ -130,15 +130,12 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 					log = session => this._logCheckoutPullRequest(session);
 					break;
 				case 'github.copilot.sessions.initializeRepository':
-				case 'github.copilot.claude.sessions.initializeRepository':
 					log = session => this._logInitializeRepository(session);
 					break;
 				case 'github.copilot.sessions.commit':
-				case 'github.copilot.claude.sessions.commit':
 					log = session => this._logCommit(session);
 					break;
 				case 'github.copilot.sessions.commitAndSync':
-				case 'github.copilot.claude.sessions.commitAndSync':
 					log = session => this._logCommitAndSync(session);
 					break;
 				case 'agentSession.restore':
