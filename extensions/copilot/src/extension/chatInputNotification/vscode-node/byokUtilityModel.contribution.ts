@@ -14,6 +14,7 @@ const UTILITY_MODEL_SETTING = 'chat.utilityModel';
 const UTILITY_SMALL_MODEL_SETTING = 'chat.utilitySmallModel';
 const BYOK_UTILITY_MODEL_DEFAULT_SETTING = 'chat.byokUtilityModelDefault';
 const MAIN_AGENT_BYOK_UTILITY_MODEL_DEFAULT = 'mainAgent';
+const LOCAL_CHAT_SESSION_TYPE = 'local';
 
 /**
  * Shows a chat input notification in air-gapped BYOK scenarios (no GitHub
@@ -97,6 +98,7 @@ export class ByokUtilityModelNotificationContribution extends Disposable {
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = false;
+		notification.sessionTypes = [LOCAL_CHAT_SESSION_TYPE];
 
 		if (utilityUnset && utilitySmallUnset) {
 			notification.message = vscode.l10n.t('Set BYOK utility models');

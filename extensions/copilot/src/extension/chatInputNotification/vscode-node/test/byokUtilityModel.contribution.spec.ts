@@ -18,6 +18,7 @@ const mockNotification = {
 	message: '',
 	description: '',
 	actions: [] as { label: string; commandId: string; commandArgs?: unknown[] }[],
+	sessionTypes: undefined as readonly string[] | undefined,
 	show: vi.fn(),
 	hide: vi.fn(),
 	dispose: vi.fn(),
@@ -99,6 +100,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		mockNotification.message = '';
 		mockNotification.description = '';
 		mockNotification.actions = [];
+		mockNotification.sessionTypes = undefined;
 		mockWorkspace.isAgentSessionsWorkspace = false;
 		selectChatModelsMock.mockResolvedValue([{ vendor: 'ollama', id: 'llama3' }]);
 	});
@@ -120,6 +122,7 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		expect(mockNotification.actions).toHaveLength(1);
 		expect(mockNotification.actions[0].commandId).toBe('workbench.action.openSettings');
 		expect(mockNotification.actions[0].commandArgs).toEqual(['chat.byokUtilityModelDefault']);
+		expect(mockNotification.sessionTypes).toEqual(['local']);
 	});
 
 	test('does not show notification in the Agents window', async () => {
