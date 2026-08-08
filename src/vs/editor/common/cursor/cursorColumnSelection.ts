@@ -17,8 +17,6 @@ export class ColumnSelection {
 
 		const result: SingleCursorState[] = [];
 
-		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
-
 		for (let i = 0; i < lineCount; i++) {
 			const lineNumber = fromLineNumber + (reversed ? -i : i);
 
@@ -27,29 +25,30 @@ export class ColumnSelection {
 			const visibleStartColumn = config.visibleColumnFromColumn(model, new Position(lineNumber, startColumn));
 			const visibleEndColumn = config.visibleColumnFromColumn(model, new Position(lineNumber, endColumn));
 
-			// console.log(`lineNumber: ${lineNumber}: visibleStartColumn: ${visibleStartColumn}, visibleEndColumn: ${visibleEndColumn}`);
+			const leftoverStartColumn = Math.max(0, fromVisibleColumn - visibleStartColumn);
+			const leftoverEndColumn = Math.max(0, toVisibleColumn - visibleEndColumn);
 
 			if (isLTR) {
-				if (visibleStartColumn > toVisibleColumn) {
+				if (visibleStartColumn + leftoverStartColumn > toVisibleColumn) {
 					continue;
 				}
-				if (visibleEndColumn < fromVisibleColumn) {
+				if (visibleEndColumn + leftoverEndColumn < fromVisibleColumn) {
 					continue;
 				}
 			}
 
 			if (isRTL) {
-				if (visibleEndColumn > fromVisibleColumn) {
+				if (visibleEndColumn + leftoverEndColumn > fromVisibleColumn) {
 					continue;
 				}
-				if (visibleStartColumn < toVisibleColumn) {
+				if (visibleStartColumn + leftoverStartColumn < toVisibleColumn) {
 					continue;
 				}
 			}
 
 			result.push(new SingleCursorState(
-				new Range(lineNumber, startColumn, lineNumber, startColumn), SelectionStartKind.Simple, 0,
-				new Position(lineNumber, endColumn), 0
+				new Range(lineNumber, startColumn, lineNumber, startColumn), SelectionStartKind.Simple, leftoverStartColumn,
+				new Position(lineNumber, endColumn), leftoverEndColumn
 			));
 		}
 
@@ -58,10 +57,14 @@ export class ColumnSelection {
 			for (let i = 0; i < lineCount; i++) {
 				const lineNumber = fromLineNumber + (reversed ? -i : i);
 				const maxColumn = model.getLineMaxColumn(lineNumber);
+				const maxVisibleColumn = config.visibleColumnFromColumn(model, new Position(lineNumber, maxColumn));
+
+				const leftoverStartColumn = Math.max(0, fromVisibleColumn - maxVisibleColumn);
+				const leftoverEndColumn = Math.max(0, toVisibleColumn - maxVisibleColumn);
 
 				result.push(new SingleCursorState(
-					new Range(lineNumber, maxColumn, lineNumber, maxColumn), SelectionStartKind.Simple, 0,
-					new Position(lineNumber, maxColumn), 0
+					new Range(lineNumber, maxColumn, lineNumber, maxColumn), SelectionStartKind.Simple, leftoverStartColumn,
+					new Position(lineNumber, maxColumn), leftoverEndColumn
 				));
 			}
 		}

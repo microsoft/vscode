@@ -374,6 +374,7 @@ export namespace CoreNavigationCommands {
 	export interface MoveCommandOptions extends BaseCommandOptions {
 		position: IPosition;
 		viewPosition?: IPosition;
+		leftoverVisibleColumns?: number;
 		revealType: NavigationCommandRevealType;
 	}
 
@@ -395,7 +396,7 @@ export namespace CoreNavigationCommands {
 				args.source,
 				CursorChangeReason.Explicit,
 				[
-					CursorMoveCommands.moveTo(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position, args.viewPosition)
+					CursorMoveCommands.moveTo(viewModel, viewModel.getPrimaryCursorState(), this._inSelectionMode, args.position, args.viewPosition, args.leftoverVisibleColumns)
 				]
 			);
 			if (cursorStateChanged && args.revealType !== NavigationCommandRevealType.None) {
