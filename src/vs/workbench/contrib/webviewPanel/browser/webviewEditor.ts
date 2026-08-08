@@ -161,17 +161,21 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private claimWebview(input: WebviewInput): void {
+		// Check if this editor is inside a modal editor
+		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
+		const isModal = isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
+		this._clippingContainer = isModal ? undefined : this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
+
+		// Bind the CSS anchor before claim when the editor element is already connected
+		// so retained webviews size correctly on first paint (#323890).
+		this.setWebviewAnchorElement(input.webview);
+
 		input.claim(this, this.window, this.scopedContextKeyService);
 
 		if (this._element) {
 			this._element.setAttribute('aria-flowto', input.webview.container.id);
 			DOM.setParentFlowTo(input.webview.container, this._element);
 		}
-
-		// Check if this editor is inside a modal editor
-		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
-		const isModal = isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
-		this._clippingContainer = isModal ? undefined : this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 
 		this._webviewVisibleDisposables.clear();
 
