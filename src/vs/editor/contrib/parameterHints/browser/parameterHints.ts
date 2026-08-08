@@ -70,6 +70,42 @@ export class ParameterHintsController extends Disposable implements IEditorContr
 	trigger(context: TriggerContext): void {
 		this.model.trigger(context, 0);
 	}
+
+	focus(): void {
+		this.widget.rawValue?.focus();
+	}
+
+	scrollUp(): void {
+		this.widget.rawValue?.scrollUp();
+	}
+
+	scrollDown(): void {
+		this.widget.rawValue?.scrollDown();
+	}
+
+	scrollLeft(): void {
+		this.widget.rawValue?.scrollLeft();
+	}
+
+	scrollRight(): void {
+		this.widget.rawValue?.scrollRight();
+	}
+
+	pageUp(): void {
+		this.widget.rawValue?.pageUp();
+	}
+
+	pageDown(): void {
+		this.widget.rawValue?.pageDown();
+	}
+
+	goToTop(): void {
+		this.widget.rawValue?.goToTop();
+	}
+
+	goToBottom(): void {
+		this.widget.rawValue?.goToBottom();
+	}
 }
 
 export class TriggerParameterHintsAction extends EditorAction {
@@ -95,8 +131,223 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 }
 
+export class FocusParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.focusParameterHints',
+			label: nls.localize2('parameterHints.focus.label', "Focus Parameter Hints"),
+			precondition: Context.Visible,
+			metadata: {
+				description: nls.localize2('parameterHints.focus.description', 'Move focus to the parameter hints widget so its contents can be scrolled with the keyboard.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.focus();
+	}
+}
+
+export class ScrollUpParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.scrollUpParameterHints',
+			label: nls.localize2('parameterHints.scrollUp.label', "Scroll Up Parameter Hints"),
+			precondition: Context.Focused,
+			kbOpts: {
+				kbExpr: Context.Focused,
+				primary: KeyCode.UpArrow,
+				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('parameterHints.scrollUp.description', 'Scroll up the parameter hints widget.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.scrollUp();
+	}
+}
+
+export class ScrollDownParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.scrollDownParameterHints',
+			label: nls.localize2('parameterHints.scrollDown.label', "Scroll Down Parameter Hints"),
+			precondition: Context.Focused,
+			kbOpts: {
+				kbExpr: Context.Focused,
+				primary: KeyCode.DownArrow,
+				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('parameterHints.scrollDown.description', 'Scroll down the parameter hints widget.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.scrollDown();
+	}
+}
+
+export class ScrollLeftParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.scrollLeftParameterHints',
+			label: nls.localize2('parameterHints.scrollLeft.label', "Scroll Left Parameter Hints"),
+			precondition: Context.Focused,
+			kbOpts: {
+				kbExpr: Context.Focused,
+				primary: KeyCode.LeftArrow,
+				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('parameterHints.scrollLeft.description', 'Scroll left the parameter hints widget.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.scrollLeft();
+	}
+}
+
+export class ScrollRightParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.scrollRightParameterHints',
+			label: nls.localize2('parameterHints.scrollRight.label', "Scroll Right Parameter Hints"),
+			precondition: Context.Focused,
+			kbOpts: {
+				kbExpr: Context.Focused,
+				primary: KeyCode.RightArrow,
+				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('parameterHints.scrollRight.description', 'Scroll right the parameter hints widget.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.scrollRight();
+	}
+}
+
+export class PageUpParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.pageUpParameterHints',
+			label: nls.localize2('parameterHints.pageUp.label', "Page Up Parameter Hints"),
+			precondition: Context.Focused,
+			kbOpts: {
+				kbExpr: Context.Focused,
+				primary: KeyCode.PageUp,
+				secondary: [KeyMod.Alt | KeyCode.UpArrow],
+				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('parameterHints.pageUp.description', 'Page up the parameter hints widget.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.pageUp();
+	}
+}
+
+export class PageDownParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.pageDownParameterHints',
+			label: nls.localize2('parameterHints.pageDown.label', "Page Down Parameter Hints"),
+			precondition: Context.Focused,
+			kbOpts: {
+				kbExpr: Context.Focused,
+				primary: KeyCode.PageDown,
+				secondary: [KeyMod.Alt | KeyCode.DownArrow],
+				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('parameterHints.pageDown.description', 'Page down the parameter hints widget.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.pageDown();
+	}
+}
+
+export class GoToTopParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.goToTopParameterHints',
+			label: nls.localize2('parameterHints.goToTop.label', "Go To Top Parameter Hints"),
+			precondition: Context.Focused,
+			kbOpts: {
+				kbExpr: Context.Focused,
+				primary: KeyCode.Home,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('parameterHints.goToTop.description', 'Go to the top of the parameter hints widget.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.goToTop();
+	}
+}
+
+export class GoToBottomParameterHintsAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.goToBottomParameterHints',
+			label: nls.localize2('parameterHints.goToBottom.label', "Go To Bottom Parameter Hints"),
+			precondition: Context.Focused,
+			kbOpts: {
+				kbExpr: Context.Focused,
+				primary: KeyCode.End,
+				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('parameterHints.goToBottom.description', 'Go to the bottom of the parameter hints widget.')
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		ParameterHintsController.get(editor)?.goToBottom();
+	}
+}
+
 registerEditorContribution(ParameterHintsController.ID, ParameterHintsController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(TriggerParameterHintsAction);
+registerEditorAction(FocusParameterHintsAction);
+registerEditorAction(ScrollUpParameterHintsAction);
+registerEditorAction(ScrollDownParameterHintsAction);
+registerEditorAction(ScrollLeftParameterHintsAction);
+registerEditorAction(ScrollRightParameterHintsAction);
+registerEditorAction(PageUpParameterHintsAction);
+registerEditorAction(PageDownParameterHintsAction);
+registerEditorAction(GoToTopParameterHintsAction);
+registerEditorAction(GoToBottomParameterHintsAction);
 
 const weight = KeybindingWeight.EditorContrib + 75;
 
@@ -116,7 +367,7 @@ registerEditorCommand(new ParameterHintsCommand({
 
 registerEditorCommand(new ParameterHintsCommand({
 	id: 'showPrevParameterHint',
-	precondition: ContextKeyExpr.and(Context.Visible, Context.MultipleSignatures),
+	precondition: ContextKeyExpr.and(Context.Visible, Context.MultipleSignatures, Context.Focused.toNegated()),
 	handler: x => x.previous(),
 	kbOpts: {
 		weight: weight,
@@ -129,7 +380,7 @@ registerEditorCommand(new ParameterHintsCommand({
 
 registerEditorCommand(new ParameterHintsCommand({
 	id: 'showNextParameterHint',
-	precondition: ContextKeyExpr.and(Context.Visible, Context.MultipleSignatures),
+	precondition: ContextKeyExpr.and(Context.Visible, Context.MultipleSignatures, Context.Focused.toNegated()),
 	handler: x => x.next(),
 	kbOpts: {
 		weight: weight,
