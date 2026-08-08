@@ -327,7 +327,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
 		if (stdout) {
 			try {
-				const content = JSON.parse(stdout);
+				let content = JSON.parse(stdout);
+				if (Array.isArray(content)) {
+					content = content[0]; // In npm 12+, 'npm view --json' always returns an array, even for a single package
+				}
 				const version = content['dist-tags.latest'] || content['version'];
 				return {
 					description: content['description'],
