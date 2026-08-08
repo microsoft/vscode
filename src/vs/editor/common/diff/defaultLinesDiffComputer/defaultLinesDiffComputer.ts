@@ -88,8 +88,15 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 
 		let lineAlignments = lineAlignmentResult.diffs;
 		let hitTimeout = lineAlignmentResult.hitTimeout;
+		const rawLineAlignments = lineAlignments;
 		lineAlignments = optimizeSequenceDiffs(sequence1, sequence2, lineAlignments);
 		lineAlignments = removeVeryShortMatchingLinesBetweenDiffs(sequence1, sequence2, lineAlignments);
+
+		// Validate the gap-equality invariant: unchanged segments between diffs must have equal length in both sequences.
+		// If optimization heuristics produce invalid output, fall back to the raw algorithm result.
+		if (!validateLineAlignmentInvariant(lineAlignments)) {
+			lineAlignments = rawLineAlignments;
+		}
 
 		const alignments: RangeMapping[] = [];
 
@@ -268,4 +275,17 @@ function toLineRangeMapping(sequenceDiff: SequenceDiff) {
 		new LineRange(sequenceDiff.seq1Range.start + 1, sequenceDiff.seq1Range.endExclusive + 1),
 		new LineRange(sequenceDiff.seq2Range.start + 1, sequenceDiff.seq2Range.endExclusive + 1),
 	);
+}
+
+function validateLineAlignmentInvariant(diffs: SequenceDiff[]): boolean {
+	let seq1LastStart = 0;
+	let seq2LastStart = 0;
+	for (const diff of diffs) {
+		if (diff.seq1Range.start - seq1LastStart !== diff.seq2Range.start - seq2LastStart) {
+			return false;
+		}
+		seq1LastStart = diff.seq1Range.endExclusive;
+		seq2LastStart = diff.seq2Range.endExclusive;
+	}
+	return true;
 }
