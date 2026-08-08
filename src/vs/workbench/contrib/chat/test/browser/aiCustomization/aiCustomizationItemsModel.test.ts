@@ -769,10 +769,14 @@ suite('AICustomizationItemsModel', () => {
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
 		let providerItems: ICustomizationItem[];
+		let builtinSkills: IPromptPath[];
+		let disabledPromptFiles: ResourceSet;
 
 		setup(() => {
 			disposables = new DisposableStore();
 			providerItems = [];
+			builtinSkills = [];
+			disabledPromptFiles = new ResourceSet();
 
 			const sessionType = 'agent-host-test';
 			const provider: ICustomizationItemProvider = {
@@ -797,12 +801,14 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeInstructions: Event.None,
 				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async () => [],
-				listPromptFilesForStorage: async () => [],
+				listPromptFilesForStorage: async (type: PromptsType, storage: PromptsStorage) => (
+					type === PromptsType.skill && storage === PromptsStorage.builtIn ? builtinSkills.slice() : []
+				),
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
-				getDisabledPromptFiles: () => new ResourceSet(),
+				getDisabledPromptFiles: () => disabledPromptFiles,
 			});
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
@@ -867,6 +873,40 @@ suite('AICustomizationItemsModel', () => {
 					agents: ['coder'],
 					instructions: ['style'],
 				},
+			);
+		});
+
+		// Regression: on agent-host harnesses the Skills list used to render
+		// straight from the provider, which reports the synced *bundle*. A
+		// built-in skill disabled from the Customizations UI is dropped from
+		// that bundle, so the skill vanished from the list instead of showing
+		// as disabled — leaving no way to re-enable it and making the Disable
+		// button look like a no-op. Built-ins are now merged in from the
+		// prompts service, which owns the enable/disable state.
+		test('lists disabled built-in skills as disabled instead of dropping them', async () => {
+			const disabledSkill = URI.file('/builtin/create-pr/SKILL.md');
+			const enabledSkill = URI.file('/builtin/merge/SKILL.md');
+			builtinSkills = [
+				{ uri: disabledSkill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'create-pr' } as IPromptPath,
+				{ uri: enabledSkill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'merge' } as IPromptPath,
+			];
+			disabledPromptFiles = new ResourceSet([disabledSkill]);
+			// The provider only reports the still-bundled skill; the disabled
+			// one is absent because it was excluded from the synced bundle.
+			providerItems = [
+				{ uri: enabledSkill, type: PromptsType.skill, name: 'merge', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, extensionId: undefined, pluginUri: undefined, userInvocable: true },
+			];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const skillItems = model.getItems(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+
+			assert.deepStrictEqual(
+				skillItems.get().map(i => ({ name: i.name, source: i.source, groupKey: i.groupKey, disabled: i.disabled })).sort((a, b) => a.name.localeCompare(b.name)),
+				[
+					{ name: 'create-pr', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, disabled: true },
+					{ name: 'merge', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, disabled: false },
+				],
 			);
 		});
 	});

@@ -14,7 +14,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../common/enablement.js';
@@ -85,6 +85,21 @@ export interface ILocalCustomizationFile {
  * (to render disable affordances) and the agent host wire (to compute the
  * `customizations` set published via `activeClientSet`).
  *
+ * A file counts as opted out when either the per-harness sync provider has it
+ * disabled (the plugin-level auto-sync opt-out) or — for the customizations the
+ * user can toggle from the Customizations UI, see
+ * {@link isUserToggleableCustomization} — the user disabled it there
+ * (`IPromptsService.getDisabledPromptFiles`, the store behind the Enable/Disable
+ * actions on built-in skills). Both stores must be consulted here, otherwise
+ * disabling a built-in skill would leave it on the wire.
+ *
+ * The user-disabled store is deliberately *not* honoured for customizations the
+ * Customizations UI cannot re-enable. Callers drop opted-out files from the
+ * bundle entirely, and the Agents-window lists are derived from that bundle, so
+ * honouring it more widely would make such a file vanish from the UI with no
+ * way to restore it. (`getDisabledPromptFiles(PromptsType.agent)` is written by
+ * the chat view agent picker, which has its own unhide affordance.)
+ *
  * Built-in skills bundled with the Agents app (only present when the
  * sessions-aware prompts service is in play) are also enumerated so that
  * `/create-pr`, `/merge`, etc. are available to every agent host without
@@ -103,11 +118,13 @@ export async function enumerateLocalCustomizationsForHarness(
 		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
 		: SYNCABLE_STORAGE_SOURCES;
 	for (const type of SYNCABLE_PROMPT_TYPES) {
+		const userDisabled = promptsService.getDisabledPromptFiles(type);
 		const lists = await Promise.all(
 			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		for (let i = 0; i < lists.length; i++) {
 			const source = storageSources[i];
+			const honourUserDisabled = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
 				if (matchesSessionType(file.sessionTypes, sessionType)) {
 					result.push({
@@ -116,7 +133,8 @@ export async function enumerateLocalCustomizationsForHarness(
 						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
-						disabled: syncProvider.isDisabled(file.uri),
+						disabled: syncProvider.isDisabled(file.uri)
+							|| (honourUserDisabled && userDisabled.has(file.uri)),
 					});
 				}
 			}

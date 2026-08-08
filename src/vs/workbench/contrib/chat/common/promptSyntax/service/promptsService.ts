@@ -121,6 +121,29 @@ export enum PromptsStorage {
 }
 
 /**
+ * Whether the AI Customizations UI offers Enable/Disable affordances for a
+ * customization with the given type and storage.
+ *
+ * Both the management editor and the sessions tree view register their
+ * Enable/Disable actions solely for built-in skills, so that is the only
+ * combination a user can toggle — and, crucially, the only one they can turn
+ * back on from that UI.
+ *
+ * Use this to gate any behaviour that *hides* a customization because it is in
+ * {@link IPromptsService.getDisabledPromptFiles}. Those lists are derived from
+ * the agent-host bundle, so hiding an entry the UI cannot restore would strand
+ * it: it disappears from the list, and the Enable action that would bring it
+ * back is only shown for entries that are still listed.
+ *
+ * Note that `getDisabledPromptFiles` is also written for {@link PromptsType.agent}
+ * by the chat view agent picker. That surface owns its own unhide affordance and
+ * does not read from the bundle, so it must *not* be gated on this predicate.
+ */
+export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
+	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
+}
+
+/**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
