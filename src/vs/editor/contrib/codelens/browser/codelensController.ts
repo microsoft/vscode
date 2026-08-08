@@ -494,9 +494,25 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			return;
 		}
 
+		// Find the line of the closest code lens at or before the cursor. This helps
+		// screen reader users (and other keyboard users) invoke a code lens without
+		// having to navigate to its exact line.
+		let targetLineNumber = -1;
+		for (const lens of model.lenses) {
+			const lensLine = lens.symbol.range.startLineNumber;
+			if (lens.symbol.command && lensLine <= lineNumber && lensLine > targetLineNumber) {
+				targetLineNumber = lensLine;
+			}
+		}
+
+		if (targetLineNumber === -1) {
+			// No code lens at or before the cursor
+			return;
+		}
+
 		const items: { label: string; command: Command }[] = [];
 		for (const lens of model.lenses) {
-			if (lens.symbol.command && lens.symbol.range.startLineNumber === lineNumber) {
+			if (lens.symbol.command && lens.symbol.range.startLineNumber === targetLineNumber) {
 				items.push({
 					label: lens.symbol.command.title,
 					command: lens.symbol.command
@@ -525,7 +541,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			// this is a best attempt approach which shouldn't be needed because eager model re-creates
 			// shouldn't happen due to focus in/out anymore
 			const newModel = await codelensController.getModel();
-			const newLens = newModel?.lenses.find(lens => lens.symbol.range.startLineNumber === lineNumber && lens.symbol.command?.title === command.title);
+			const newLens = newModel?.lenses.find(lens => lens.symbol.range.startLineNumber === targetLineNumber && lens.symbol.command?.title === command.title);
 			if (!newLens || !newLens.symbol.command) {
 				return;
 			}
