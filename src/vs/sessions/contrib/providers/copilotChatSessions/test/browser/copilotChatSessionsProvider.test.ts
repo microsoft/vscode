@@ -408,12 +408,12 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes.length, 1);
 	});
 
-	test('session types allow signed-out use', () => {
+	test('legacy session types remain GitHub-gated', () => {
 		assert.deepStrictEqual(
 			[CopilotCLISessionType, CopilotCloudSessionType].map(type => type.authRequirement),
 			[
-				SessionTypeAuthRequirement.None,
-				SessionTypeAuthRequirement.None,
+				SessionTypeAuthRequirement.GitHub,
+				SessionTypeAuthRequirement.GitHub,
 			],
 		);
 	});

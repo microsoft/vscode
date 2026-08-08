@@ -963,13 +963,15 @@ suite('modelRequiresAgentAuthentication', () => {
 
 	test('bypasses required agent auth only for an advertised BYOK model', () => {
 		assert.deepStrictEqual({
-			byok: modelRequiresAgentAuthentication(agent, { id: byokModel.id }),
-			copilot: modelRequiresAgentAuthentication(agent, { id: copilotModel.id }),
-			unknown: modelRequiresAgentAuthentication(agent, { id: 'unknown' }),
-			noSelection: modelRequiresAgentAuthentication(agent, undefined),
-			noRequiredResource: modelRequiresAgentAuthentication({ ...agent, protectedResources: [{ ...requiredResource, required: false }] }, { id: copilotModel.id }),
+			byokEnabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, true),
+			byokDisabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, false),
+			copilot: modelRequiresAgentAuthentication(agent, { id: copilotModel.id }, true),
+			unknown: modelRequiresAgentAuthentication(agent, { id: 'unknown' }, true),
+			noSelection: modelRequiresAgentAuthentication(agent, undefined, true),
+			noRequiredResource: modelRequiresAgentAuthentication({ ...agent, protectedResources: [{ ...requiredResource, required: false }] }, { id: copilotModel.id }, true),
 		}, {
-			byok: false,
+			byokEnabled: false,
+			byokDisabled: true,
 			copilot: true,
 			unknown: true,
 			noSelection: true,

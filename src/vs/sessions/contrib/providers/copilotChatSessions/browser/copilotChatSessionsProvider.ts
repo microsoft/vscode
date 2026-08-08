@@ -59,7 +59,7 @@ export const CopilotCloudSessionType: ISessionType = {
 	id: 'copilot-cloud-agent',
 	label: localize('copilotCloud', "Cloud"),
 	icon: Codicon.cloud,
-	authRequirement: SessionTypeAuthRequirement.None,
+	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");

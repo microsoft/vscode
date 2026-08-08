@@ -115,10 +115,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
+					const allowSignedOutWhenUsable = this.configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 					const availability = getSessionTypePickerAvailability(
 						sessionTypeItem.type,
-						getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type),
-						this.configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true,
+						getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type, allowSignedOutWhenUsable),
+						allowSignedOutWhenUsable,
 					);
 					actions.push(createSessionTypePickerAction(
 						action,

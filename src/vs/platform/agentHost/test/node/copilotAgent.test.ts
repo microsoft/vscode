@@ -37,6 +37,7 @@ import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilo
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -2570,6 +2571,44 @@ suite('CopilotAgent', () => {
 				{ id: 'acme/valid-default', thinkingLevel: { enum: ['low', 'medium', 'high'], default: 'medium' } },
 				{ id: 'acme/minimal-only', thinkingLevel: { enum: ['minimal'], default: 'minimal' } },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('BYOK models make Copilot authentication optional only while signed-out operation is enabled', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const { agent, configurationService } = createTestAgentContext(disposables, { byokBridgeRegistry });
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		const connection: IByokLmBridgeConnection = {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		};
+		disposables.add(byokBridgeRegistry.register('renderer', connection));
+		const copilotRequired = () => agent.getProtectedResources()
+			.find(resource => resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource)?.required !== false;
+
+		try {
+			const initiallyRequired = copilotRequired();
+			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+			const requiredWithoutByok = copilotRequired();
+			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
+			await waitForState(agent.models, models => models.length === 1);
+			const optionalWithByok = copilotRequired();
+			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: false });
+			const requiredAfterDisable = copilotRequired();
+
+			assert.deepStrictEqual({
+				initiallyRequired,
+				requiredWithoutByok,
+				optionalWithByok,
+				requiredAfterDisable,
+			}, {
+				initiallyRequired: true,
+				requiredWithoutByok: true,
+				optionalWithByok: false,
+				requiredAfterDisable: true,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
