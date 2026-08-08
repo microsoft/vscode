@@ -5,12 +5,12 @@
 
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { BrowserStorageService } from '../../../../workbench/services/storage/browser/storageService.js';
-import { IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../common/automationStorageService.js';
+import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationCompareAndSwapResult, ILegacyAutomationMigrationStorageService } from '../common/legacyAutomationMigrationStorage.js';
 
 /**
  * Uses an IndexedDB transaction so automation writes remain atomic across browser tabs.
  */
-export class BrowserAutomationStorageService implements IAutomationStorageService {
+export class BrowserLegacyAutomationMigrationStorageService implements ILegacyAutomationMigrationStorageService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -25,11 +25,11 @@ export class BrowserAutomationStorageService implements IAutomationStorageServic
 		this.storageService = storageService;
 	}
 
-	async read(key: string): Promise<string | undefined> {
+	async read(key = AUTOMATION_STORAGE_KEY): Promise<string | undefined> {
 		return this.storageService.getApplicationStorageValue(key);
 	}
 
-	async compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
+	async compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<ILegacyAutomationMigrationCompareAndSwapResult> {
 		return this.storageService.compareAndSwapApplicationStorage(key, expectedValue, newValue);
 	}
 }

@@ -3,808 +3,1071 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Sequencer } from '../../../../base/common/async.js';
+import { Disposable, DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue, autorun, transaction } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { IAgentHostConnectionInfo, IAgentHostConnectionsService, AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { CLAUDE_AGENT_PROVIDER_ID, IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AhpErrorCodes } from '../../../../platform/agentHost/common/state/protocol/common/errors.js';
+import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
+import { AutomationDefinitionPatch } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { AutomationDefinition, AutomationMisfirePolicy, AutomationScheduleKind, AutomationState, AutomationTrigger, AutomationTriggerKind, AutomationWeekday } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunState, AutomationRunStatus, AutomationRunSummary } from '../../../../platform/agentHost/common/state/protocol/channels-automation-run/state.js';
+import { MessageKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { ProtocolError } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
-import {
-	AutomationRunTrigger,
-	AutomationTarget,
-	AutomationWorkspaceIsolation,
-	IAutomationDescriptor,
-	IAutomationRun,
-} from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import {
-	type AutomationMutationGuard,
-	IAutomationRunClaim,
-	IAutomationService,
-	ICreateAutomationOptions,
-	IGuardedAutomationUpdateResult,
-	serializeAutomationEditableState,
-	IUpdateAutomationOptions,
-	IAutomationStore,
-	IUpdateAutomationRunOptions,
-} from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
-import { computeNextRunAt } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
-import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
-import { AUTOMATION_STORAGE_KEY, IAutomationStorageService } from '../common/automationStorageService.js';
+import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationMutationGuard, IAutomationRunStartResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { isAgentHostProviderId, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../common/agentHostSessionsProvider.js';
+import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationStorageService } from '../common/legacyAutomationMigrationStorage.js';
+import { ILegacyAutomationMigrationSnapshot, LegacyAutomationMigration } from './legacyAutomationMigration.js';
 
-const LEGACY_SCHEMA_VERSIONS = new Set([1, 2]);
-const CURRENT_SCHEMA_VERSION = 3;
+const MIGRATION_JOURNAL_KEY = 'chat.automations.ahpMigration.v1';
+const MIGRATION_BACKUP_KEY = 'chat.automations.ahpMigration.backup.v1';
 
-const MAX_RUNS_PER_AUTOMATION = 50;
+type MigrationPhase = 'previewed' | 'imported' | 'localDisabled' | 'localRemoved' | 'hostEnabled' | 'completed';
+const migrationPhases: readonly MigrationPhase[] = ['previewed', 'imported', 'localDisabled', 'localRemoved', 'hostEnabled', 'completed'];
 
-interface ISerializedAutomationBase {
-	readonly id: string;
-	readonly name: string;
-	readonly prompt: string;
-	readonly schedule: IAutomationDescriptor['schedule'];
-	readonly modelId?: string;
-	readonly mode?: string;
-	readonly permissionLevel?: string;
+interface IMigrationItem {
+	readonly automationId: string;
+	readonly authority: string;
+	readonly resource: string;
 	readonly enabled: boolean;
-	readonly createdAt: string;
-	readonly updatedAt: string;
-	readonly lastRunAt?: string;
-	readonly nextRunAt?: string;
+	phase: MigrationPhase;
 }
 
-type ISerializedAutomationTarget =
-	| {
-		readonly kind: 'workspace';
-		readonly folderUri: UriComponents;
-		readonly providerId?: string;
-		readonly sessionTypeId?: string;
-		readonly isolation: AutomationWorkspaceIsolation;
-	}
-	| {
-		readonly kind: 'quickChat';
-		readonly providerId: string;
-		readonly sessionTypeId: string;
-	};
-
-interface ISerializedAutomation extends ISerializedAutomationBase {
-	readonly target: ISerializedAutomationTarget;
+interface IMigrationJournal {
+	readonly version: 1;
+	readonly batchId: string;
+	readonly items: IMigrationItem[];
 }
 
-interface ILegacySerializedAutomation extends ISerializedAutomationBase {
-	readonly isQuickChat?: boolean;
-	readonly folderUri?: UriComponents;
-	readonly providerId?: string;
-	readonly sessionTypeId?: string;
-	readonly isolationMode?: string;
-	readonly branch?: string;
-}
-
-interface ISerializedLedger {
-	readonly schemaVersion: 3;
-	// Optimistic-concurrency counter. 0 for legacy blobs without this field.
-	readonly revision?: number;
-	readonly automations: readonly ISerializedAutomation[];
-	readonly runs: readonly (Omit<IAutomationRun, 'sessionResource'> & { readonly sessionResource?: string })[];
-}
-
-interface ILegacySerializedLedger {
-	readonly schemaVersion: 1 | 2;
-	readonly revision?: number;
-	readonly automations: readonly ILegacySerializedAutomation[];
-	readonly runs: readonly (Omit<IAutomationRun, 'sessionResource'> & { readonly sessionResource?: string })[];
-}
-
-interface ILedger {
-	readonly automations: readonly IAutomationDescriptor[];
+interface IMigrationBackup {
+	readonly automation: IAutomation;
 	readonly runs: readonly IAutomationRun[];
 }
 
-type ILedgerMutation<T> =
-	| { readonly kind: 'commit'; readonly ledger: ILedger; readonly result: T }
-	| { readonly kind: 'noChange'; readonly result: T };
-
-const EMPTY_LEDGER: ILedger = Object.freeze({ automations: [], runs: [] });
-
-type ReadLedgerResult =
-	| { kind: 'ledger'; ledger: ILedger; revision: number }
-	| { kind: 'unsupportedSchema' };
-
-export class AutomationStore extends Disposable implements IAutomationStore {
-
-	private readonly _automations: ISettableObservable<readonly IAutomationDescriptor[]>;
-	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
-	private _now: () => Date;
-	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
-
-	private _lastSeenRevision = 0;
-
-	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
-	readonly runs: IObservable<readonly IAutomationRun[]>;
-
-	constructor(
-		private readonly storageKey: string,
-		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IAutomationStorageService private readonly automationStorageService: IAutomationStorageService,
-	) {
-		super();
-
-		this._now = () => new Date();
-
-		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
-		const initial = result.kind === 'ledger' ? result.ledger : EMPTY_LEDGER;
-		if (result.kind === 'ledger') {
-			this._lastSeenRevision = result.revision;
-		}
-		this._automations = observableValue<readonly IAutomationDescriptor[]>(this, initial.automations);
-		this._runs = observableValue<readonly IAutomationRun[]>(this, initial.runs);
-		this.automations = this._automations;
-		this.runs = this._runs;
-
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._store)(() => {
-			this.refreshFromStorage();
-		}));
-	}
-
-	/** Test-only: swap in a deterministic clock used by create/update. */
-	setClockForTesting(now: () => Date): void {
-		this._now = now;
-	}
-
-	getAutomation(id: string): IAutomationDescriptor | undefined {
-		return this._automations.get().find(a => a.id === id);
-	}
-
-	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
-		let cached = this._runsForCache.get(automationId);
-		if (!cached) {
-			cached = derived(this, reader => this._runs.read(reader).filter(r => r.automationId === automationId));
-			this._runsForCache.set(automationId, cached);
-		}
-		return cached;
-	}
-
-	async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
-		const now = this._now();
-		const nowIso = now.toISOString();
-		const nextRun = computeNextRunAt(options.schedule, now);
-		const automation: IAutomationDescriptor = Object.freeze({
-			id: generateUuid(),
-			name: options.name,
-			prompt: options.prompt,
-			schedule: options.schedule,
-			target: normalizeAutomationTarget(options.target),
-			modelId: options.modelId,
-			mode: options.mode,
-			permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
-			enabled: options.enabled ?? true,
-			createdAt: nowIso,
-			updatedAt: nowIso,
-			lastRunAt: undefined,
-			nextRunAt: nextRun?.toISOString(),
-		});
-		await this.mutateLedger(ledger => ({
-			kind: 'commit',
-			ledger: { automations: [automation, ...ledger.automations], runs: ledger.runs },
-			result: undefined,
-		}), mutationGuard);
-		publishAutomationCreated(this.telemetryService, automation);
-		return automation;
-	}
-
-	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
-		const now = this._now();
-		const result = await this.mutateLedger(ledger => {
-			const current = ledger.automations.find(automation => automation.id === id);
-			if (!current) {
-				throw new Error(`Automation not found: ${id}`);
-			}
-			const updated = updateAutomation(current, patch, now);
-			return {
-				kind: 'commit',
-				ledger: {
-					automations: ledger.automations.map(automation => automation.id === id ? updated : automation),
-					runs: ledger.runs,
-				},
-				result: { current, updated },
-			};
-		});
-		publishAutomationUpdated(this.telemetryService, result.current, result.updated);
-		return result.updated;
-	}
-
-	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
-		const now = this._now();
-		let previous: IAutomationDescriptor | undefined;
-		const result = await this.mutateLedger<IGuardedAutomationUpdateResult>(ledger => {
-			const current = ledger.automations.find(automation => automation.id === id);
-			if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
-				return {
-					kind: 'noChange',
-					result: { kind: 'conflict', current } as const,
-				};
-			}
-
-			const updated = updateAutomation(current, patch, now);
-			previous = current;
-			return {
-				kind: 'commit',
-				ledger: {
-					automations: ledger.automations.map(automation => automation.id === id ? updated : automation),
-					runs: ledger.runs,
-				},
-				result: { kind: 'updated', automation: updated } as const,
-			};
-		}, mutationGuard);
-		if (result.kind === 'conflict' || !previous) {
-			return result;
-		}
-
-		publishAutomationUpdated(this.telemetryService, previous, result.automation);
-		return result;
-	}
-
-	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
-		const existing = await this.mutateLedger(ledger => {
-			const automation = ledger.automations.find(automation => automation.id === id);
-			if (!automation) {
-				return { kind: 'noChange', result: undefined };
-			}
-			return {
-				kind: 'commit',
-				ledger: {
-					automations: ledger.automations.filter(automation => automation.id !== id),
-					runs: ledger.runs.filter(run => run.automationId !== id),
-				},
-				result: automation,
-			};
-		}, mutationGuard);
-		if (!existing) {
-			return;
-		}
-
-		this._runsForCache.delete(id);
-		publishAutomationDeleted(this.telemetryService, existing);
-	}
-
-	async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
-		const { automation, runs } = snapshot;
-		return this.mutateLedger<IAutomationSnapshotImportResult>(ledger => {
-			const existing = ledger.automations.find(candidate => candidate.id === automation.id);
-			if (existing) {
-				const current: IAutomation = {
-					automation: existing,
-					runs: ledger.runs.filter(run => run.automationId === automation.id),
-				};
-				return areAutomationSnapshotsEqual(current, snapshot)
-					? { kind: 'noChange', result: { kind: 'alreadyPresent' } as const }
-					: { kind: 'noChange', result: { kind: 'conflict', current } as const };
-			}
-			return {
-				kind: 'commit',
-				ledger: {
-					automations: [automation, ...ledger.automations],
-					runs: [...runs, ...ledger.runs],
-				},
-				result: { kind: 'inserted' } as const,
-			};
-		});
-	}
-
-	async upsertAutomationSnapshot(snapshot: IAutomation): Promise<void> {
-		const { automation, runs } = snapshot;
-		await this.mutateLedger(ledger => {
-			const existing = ledger.automations.find(candidate => candidate.id === automation.id);
-			const existingRunIds = new Set(ledger.runs.map(run => run.id));
-			const missingRuns = runs.filter(run => !existingRunIds.has(run.id));
-			if (existing && JSON.stringify(serializeAutomation(existing)) === JSON.stringify(serializeAutomation(automation)) && missingRuns.length === 0) {
-				return { kind: 'noChange', result: undefined };
-			}
-			return {
-				kind: 'commit',
-				ledger: {
-					automations: existing
-						? ledger.automations.map(candidate => candidate.id === automation.id ? automation : candidate)
-						: [automation, ...ledger.automations],
-					runs: [...missingRuns, ...ledger.runs],
-				},
-				result: undefined,
-			};
-		});
-	}
-
-	async removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult> {
-		const result = await this.mutateLedger<IGuardedAutomationSnapshotRemovalResult>(ledger => {
-			const current = ledger.automations.find(candidate => candidate.id === expected.automation.id);
-			if (!current) {
-				return { kind: 'noChange', result: { kind: 'missing' } };
-			}
-			const currentRuns = ledger.runs.filter(run => run.automationId === expected.automation.id);
-			const currentSnapshot: IAutomation = { automation: current, runs: currentRuns };
-			if (!areAutomationSnapshotsEqual(currentSnapshot, expected)) {
-				return {
-					kind: 'noChange',
-					result: { kind: 'conflict', current: currentSnapshot },
-				};
-			}
-			return {
-				kind: 'commit',
-				ledger: {
-					automations: ledger.automations.filter(candidate => candidate.id !== expected.automation.id),
-					runs: ledger.runs.filter(run => run.automationId !== expected.automation.id),
-				},
-				result: { kind: 'removed' },
-			};
-		});
-		if (result.kind === 'removed') {
-			this._runsForCache.delete(expected.automation.id);
-		}
-		return result;
-	}
-
-	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim> {
-		const now = this._now();
-		const startedAt = now.toISOString();
-		const run: IAutomationRun = Object.freeze({
-			id: generateUuid(),
-			automationId,
-			status: 'pending',
-			trigger,
-			startedAt,
-			leaderWindowId,
-		});
-		return this.mutateLedger<IAutomationRunClaim>(ledger => {
-			const automation = ledger.automations.find(automation => automation.id === automationId);
-			if (!automation) {
-				throw new Error(`Automation not found: ${automationId}`);
-			}
-			// Claiming inside the compare-and-swap keeps at most one active run per
-			// automation even when windows or agents race to start the same one.
-			const activeRun = findActiveRun(ledger.runs, automationId);
-			if (activeRun) {
-				return { kind: 'noChange', result: { claimed: false, run: activeRun } };
-			}
-			let automations = ledger.automations;
-			if (trigger !== 'manual') {
-				const updatedAutomation: IAutomationDescriptor = Object.freeze({
-					...automation,
-					lastRunAt: startedAt,
-					nextRunAt: computeNextRunAt(automation.schedule, now)?.toISOString(),
-					updatedAt: startedAt,
-				});
-				automations = automations.map(automation => automation.id === automationId ? updatedAutomation : automation);
-			}
-			return {
-				kind: 'commit',
-				ledger: { automations, runs: [run, ...ledger.runs] },
-				result: { claimed: true, run },
-			};
-		});
-	}
-
-	async updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
-		return this.mutateLedger(ledger => {
-			const current = ledger.runs.find(run => run.id === runId);
-			if (!current) {
-				return { kind: 'noChange', result: undefined };
-			}
-			const updated: IAutomationRun = Object.freeze({
-				...current,
-				status: patch.status ?? current.status,
-				sessionResource: patch.sessionResource ?? current.sessionResource,
-				completedAt: patch.completedAt ?? current.completedAt,
-				errorMessage: patch.errorMessage ?? current.errorMessage,
-			});
-			return {
-				kind: 'commit',
-				ledger: {
-					automations: ledger.automations,
-					runs: ledger.runs.map(run => run.id === runId ? updated : run),
-				},
-				result: updated,
-			};
-		});
-	}
-
-	async deleteRun(runId: string): Promise<void> {
-		await this.mutateLedger(ledger => {
-			if (!ledger.runs.some(run => run.id === runId)) {
-				return { kind: 'noChange', result: undefined };
-			}
-			return {
-				kind: 'commit',
-				ledger: {
-					automations: ledger.automations,
-					runs: ledger.runs.filter(run => run.id !== runId),
-				},
-				result: undefined,
-			};
-		});
-	}
-
-	getActiveRunFor(automationId: string): IAutomationRun | undefined {
-		return findActiveRun(this._runs.get(), automationId);
-	}
-
-	async markStaleRunsFailed(reason: string): Promise<void> {
-		const completedAt = this._now().toISOString();
-		await this.mutateLedger(ledger => {
-			let changed = false;
-			const runs = ledger.runs.map(run => {
-				if (run.status === 'pending' || run.status === 'running') {
-					changed = true;
-					return Object.freeze({ ...run, status: 'failed' as const, completedAt, errorMessage: reason });
-				}
-				return run;
-			});
-			if (!changed) {
-				return { kind: 'noChange', result: undefined };
-			}
-			return {
-				kind: 'commit',
-				ledger: { automations: ledger.automations, runs },
-				result: undefined,
-			};
-		});
-	}
-
-	//#region Persistence
-
-	private async mutateLedger<T>(mutate: (ledger: ILedger) => ILedgerMutation<T>, mutationGuard?: AutomationMutationGuard): Promise<T> {
-		let raw = await this.automationStorageService.read(this.storageKey);
-		while (true) {
-			const readResult = this.readLedger(raw);
-			if (readResult.kind === 'unsupportedSchema') {
-				throw new Error('Cannot modify automations: storage was written by a newer version');
-			}
-
-			this.acceptLedger(readResult.ledger, readResult.revision);
-			const mutation = mutate(readResult.ledger);
-			if (mutation.kind === 'noChange') {
-				return mutation.result;
-			}
-
-			const ledger: ILedger = {
-				automations: mutation.ledger.automations,
-				runs: trimRunsPerAutomation(mutation.ledger.runs, MAX_RUNS_PER_AUTOMATION),
-			};
-			const revision = readResult.revision + 1;
-			const serialized: ISerializedLedger = {
-				schemaVersion: CURRENT_SCHEMA_VERSION,
-				revision,
-				automations: ledger.automations.map(serializeAutomation),
-				runs: ledger.runs.map(run => ({ ...run, sessionResource: run.sessionResource?.toString() })),
-			};
-			const newValue = JSON.stringify(serialized);
-			mutationGuard?.();
-			const writeResult = await this.automationStorageService.compareAndSwap(this.storageKey, raw, newValue);
-			if (writeResult.swapped) {
-				this.setLedger(ledger, revision);
-				return mutation.result;
-			}
-			if (writeResult.currentValue === raw) {
-				throw new Error('Automation storage rejected an unchanged compare-and-swap value.');
-			}
-			raw = writeResult.currentValue;
-		}
-	}
-
-	private acceptLedger(ledger: ILedger, revision: number): void {
-		if (revision < this._lastSeenRevision) {
-			return;
-		}
-		this.setLedger(ledger, revision);
-	}
-
-	private setLedger(ledger: ILedger, revision: number): void {
-		this._lastSeenRevision = revision;
-		transaction(tx => {
-			this._automations.set(ledger.automations, tx);
-			this._runs.set(ledger.runs, tx);
-		});
-	}
-
-	private refreshFromStorage(): void {
-		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
-		if (result.kind === 'unsupportedSchema') {
-			return;
-		}
-
-		this.acceptLedger(result.ledger, result.revision);
-	}
-
-	private readLedger(raw: string | undefined): ReadLedgerResult {
-		if (!raw) {
-			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
-		}
-		try {
-			const parsed = JSON.parse(raw) as ISerializedLedger | ILegacySerializedLedger;
-			if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
-				this.logService.warn(`[AutomationService] Ledger has schema v${parsed.schemaVersion}; this build only supports v${CURRENT_SCHEMA_VERSION}. Entering read-only mode.`);
-				return { kind: 'unsupportedSchema' };
-			}
-			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION && !LEGACY_SCHEMA_VERSIONS.has(parsed?.schemaVersion)) {
-				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
-				return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
-			}
-			const automations: IAutomationDescriptor[] = [];
-			if (parsed.schemaVersion === CURRENT_SCHEMA_VERSION) {
-				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
-				for (const entry of entries) {
-					try {
-						const automation = deserializeAutomation(entry);
-						if (automation) {
-							automations.push(automation);
-						} else {
-							this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} with an invalid target.`);
-						}
-					} catch (err) {
-						this.logService.warn(`[AutomationService] Dropping malformed persisted automation ${entry?.id}.`, err);
-					}
-				}
-			} else {
-				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
-				for (const entry of entries) {
-					try {
-						const automation = deserializeLegacyAutomation(entry);
-						if (automation) {
-							automations.push(automation);
-						} else {
-							this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} with an invalid legacy target.`);
-						}
-					} catch (err) {
-						this.logService.warn(`[AutomationService] Dropping malformed persisted automation ${entry?.id}.`, err);
-					}
-				}
-			}
-			const validIds = new Set(automations.map(a => a.id));
-			const serializedRuns = Array.isArray(parsed.runs) ? parsed.runs : [];
-			const runs = serializedRuns
-				.filter(r => !!r && typeof r === 'object' && validIds.has(r.automationId))
-				.map(r => Object.freeze({ ...r, sessionResource: r.sessionResource ? URI.parse(r.sessionResource) : undefined }));
-			const revision = typeof parsed.revision === 'number' ? parsed.revision : 0;
-			return { kind: 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
-		} catch (err) {
-			this.logService.error('[AutomationService] Failed to parse automations ledger; resetting.', err);
-			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
-		}
-	}
-
-	//#endregion
+interface IHostAutomation {
+	readonly authority: string;
+	readonly resource: string;
+	readonly connection: IAgentConnection | undefined;
+	readonly state: AutomationState;
 }
 
-export class AutomationService extends AutomationStore implements IAutomationService {
+interface IHostRun {
+	readonly authority: string;
+	readonly connection: IAgentConnection | undefined;
+	readonly state: AutomationRunState;
+}
+
+interface IHostSource {
+	readonly authority: string;
+	connection: IAgentConnection | undefined;
+	readonly store: DisposableStore;
+	readonly automationReferences: Map<string, IReference<IAgentSubscription<AutomationState>>>;
+	readonly runReferences: Map<string, IReference<IAgentSubscription<AutomationRunState>>>;
+}
+
+export class AutomationService extends Disposable implements IAutomationService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _legacyMigration: LegacyAutomationMigration;
+	private _legacySnapshot: ILegacyAutomationMigrationSnapshot;
+	private _migrationJournal: IMigrationJournal | undefined;
+	private readonly _pendingMigrationAutomations = new Map<string, IAutomation>();
+	private readonly _pendingMigrationRuns = new Map<string, readonly IAutomationRun[]>();
+	private readonly _automations: ISettableObservable<readonly IAutomation[]>;
+	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
+	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
+	private readonly _hostAutomations = new Map<string, IHostAutomation>();
+	private readonly _hostRuns = new Map<string, IHostRun>();
+	private readonly _sources = new Map<string, IHostSource>();
+	private readonly _syncSequencer = new Sequencer();
+
+	readonly automations: IObservable<readonly IAutomation[]>;
+	readonly runs: IObservable<readonly IAutomationRun[]>;
+
 	constructor(
-		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IAutomationStorageService automationStorageService: IAutomationStorageService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
+		@ILegacyAutomationMigrationStorageService private readonly legacyMigrationStorageService: ILegacyAutomationMigrationStorageService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
-		super(AUTOMATION_STORAGE_KEY, storageService, logService, telemetryService, automationStorageService);
-	}
-
-	startStaleRunRecovery(reason: string): Promise<void> {
-		return this.markStaleRunsFailed(reason);
-	}
-
-	stopStaleRunRecovery(): void { }
-}
-
-function serializeAutomation(a: IAutomationDescriptor): ISerializedAutomation {
-	return {
-		id: a.id,
-		name: a.name,
-		prompt: a.prompt,
-		schedule: a.schedule,
-		target: serializeAutomationTarget(a.target),
-		modelId: a.modelId,
-		mode: a.mode,
-		permissionLevel: a.permissionLevel,
-		enabled: a.enabled,
-		createdAt: a.createdAt,
-		updatedAt: a.updatedAt,
-		lastRunAt: a.lastRunAt,
-		nextRunAt: a.nextRunAt,
-	};
-}
-
-function areAutomationSnapshotsEqual(first: IAutomation, second: IAutomation): boolean {
-	const normalizeRuns = (runs: readonly IAutomationRun[]) => runs.map(run => ({ ...run, sessionResource: run.sessionResource?.toString() }));
-	return JSON.stringify(serializeAutomation(first.automation)) === JSON.stringify(serializeAutomation(second.automation))
-		&& JSON.stringify(normalizeRuns(first.runs)) === JSON.stringify(normalizeRuns(second.runs));
-}
-
-function deserializeAutomation(s: ISerializedAutomation): IAutomationDescriptor | undefined {
-	const target = deserializeAutomationTarget(s.target);
-	return target ? createAutomationFromSerialized(s, target) : undefined;
-}
-
-function deserializeLegacyAutomation(s: ILegacySerializedAutomation): IAutomationDescriptor | undefined {
-	let target: AutomationTarget;
-	if (s.isQuickChat === true) {
-		if (!s.providerId || !s.sessionTypeId) {
-			return undefined;
+		super();
+		this._legacyMigration = new LegacyAutomationMigration(legacyMigrationStorageService, logService);
+		this._legacySnapshot = this._legacyMigration.readCached(storageService.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION));
+		this._migrationJournal = readMigrationJournalValue(storageService.get(MIGRATION_JOURNAL_KEY, StorageScope.APPLICATION));
+		for (const automation of this._legacySnapshot.automations) {
+			this._pendingMigrationAutomations.set(automation.id, automation);
+			this._pendingMigrationRuns.set(automation.id, this._legacySnapshot.runs.filter(run => run.automationId === automation.id));
 		}
-		target = createQuickChatAutomationTarget(s.providerId, s.sessionTypeId);
-	} else {
-		if (!s.folderUri) {
-			return undefined;
-		}
-		target = createWorkspaceAutomationTarget(
-			URI.revive(s.folderUri),
-			s.providerId,
-			s.sessionTypeId,
-			deserializeLegacyIsolation(s.isolationMode, s.branch),
-		);
-	}
-	return createAutomationFromSerialized(s, target);
-}
+		this._automations = observableValue<readonly IAutomation[]>(this, []);
+		this._runs = observableValue<readonly IAutomationRun[]>(this, []);
+		this.automations = this._automations;
+		this.runs = this._runs;
+		this._refreshProjection();
 
-function createAutomationFromSerialized(s: ISerializedAutomationBase, target: AutomationTarget): IAutomationDescriptor {
-	// Default to most restrictive if the persisted value is invalid.
-	const permissionLevel = isChatPermissionLevel(s.permissionLevel)
-		? s.permissionLevel
-		: ChatPermissionLevel.Default;
-
-	return Object.freeze({
-		id: s.id,
-		name: s.name,
-		prompt: s.prompt,
-		schedule: s.schedule,
-		target,
-		modelId: s.modelId,
-		mode: s.mode,
-		permissionLevel,
-		enabled: s.enabled,
-		createdAt: s.createdAt,
-		updatedAt: s.updatedAt,
-		lastRunAt: s.lastRunAt,
-		nextRunAt: s.nextRunAt,
-	});
-}
-
-function updateAutomation(current: IAutomationDescriptor, patch: IUpdateAutomationOptions, now: Date): IAutomationDescriptor {
-	const merged = mergeAutomation(current, patch);
-	const scheduleChanged = patch.schedule !== undefined;
-	const enabledChanged = patch.enabled !== undefined;
-	return Object.freeze({
-		...merged,
-		updatedAt: now.toISOString(),
-		nextRunAt: (scheduleChanged || (enabledChanged && merged.enabled))
-			? computeNextRunAt(merged.schedule, now)?.toISOString()
-			: merged.nextRunAt,
-	});
-}
-
-function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
-	return {
-		...current,
-		name: patch.name ?? current.name,
-		prompt: patch.prompt ?? current.prompt,
-		schedule: patch.schedule ?? current.schedule,
-		target: patch.target ? normalizeAutomationTarget(patch.target) : current.target,
-		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
-		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
-		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel) ? patch.permissionLevel : current.permissionLevel),
-		enabled: patch.enabled ?? current.enabled,
-	};
-}
-
-function normalizeAutomationTarget(target: AutomationTarget): AutomationTarget {
-	if (target.kind === 'quickChat') {
-		if (!target.providerId || !target.sessionTypeId) {
-			throw new Error('Workspace-less automation requires a providerId and sessionTypeId.');
-		}
-		return createQuickChatAutomationTarget(target.providerId, target.sessionTypeId);
-	}
-	if (!target.folderUri) {
-		throw new Error('Workspace-backed automation requires a folderUri.');
-	}
-	return createWorkspaceAutomationTarget(
-		target.folderUri,
-		target.providerId,
-		target.sessionTypeId,
-		target.isolation,
-	);
-}
-
-function serializeAutomationTarget(target: AutomationTarget): ISerializedAutomationTarget {
-	return target.kind === 'quickChat'
-		? { kind: 'quickChat', providerId: target.providerId, sessionTypeId: target.sessionTypeId }
-		: {
-			kind: 'workspace',
-			folderUri: target.folderUri.toJSON(),
-			providerId: target.providerId,
-			sessionTypeId: target.sessionTypeId,
-			isolation: target.isolation,
+		const connectionsChanged = observableSignalFromEvent(this, this.agentHostConnectionsService.onDidChangeConnections);
+		this._register(autorun(reader => {
+			connectionsChanged.read(reader);
+			const connections = this.agentHostConnectionsService.connections.map(info => {
+				const initializeResult = info.connection?.initializeResult.read(reader);
+				return {
+					info,
+					support: initializeResult === undefined ? 'unknown' as const : initializeResult.automations ? 'capable' as const : 'unsupported' as const,
+				};
+			});
+			void this._syncSequencer.queue(async () => {
+				await this._reloadLegacySnapshot();
+				await this._syncSources(connections);
+				await this._migrateAvailableAutomations();
+			}).catch(error => {
+				this.logService.error('[AutomationService] Failed to synchronize host automations.', error);
+			});
+		}));
+		const synchronizeMigration = () => {
+			void this._syncSequencer.queue(async () => {
+				await this._reloadLegacySnapshot();
+				await this._migrateAvailableAutomations();
+			}).catch(error => this.logService.error('[AutomationService] Failed to synchronize legacy automation migration.', error));
 		};
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, AUTOMATION_STORAGE_KEY, this._store)(synchronizeMigration));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, MIGRATION_JOURNAL_KEY, this._store)(synchronizeMigration));
+	}
+
+	getAutomation(id: string): IAutomation | undefined {
+		return this._automations.get().find(automation => automation.id === id);
+	}
+
+	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
+		let result = this._runsForCache.get(automationId);
+		if (!result) {
+			result = derived(this, reader => this._runs.read(reader).filter(run => run.automationId === automationId));
+			this._runsForCache.set(automationId, result);
+		}
+		return result;
+	}
+
+	async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation> {
+		const authority = this._authorityForTarget(options.target);
+		const source = this._sources.get(authority);
+		if (!source) {
+			throw new Error(`Automation host '${authority}' has not reported its capabilities yet.`);
+		}
+		if (!source.connection) {
+			throw new Error(`Automation host '${source.authority}' is disconnected.`);
+		}
+		if (!this._isTargetAvailable(source, options.target)) {
+			throw new Error(`Automation agent '${options.target.sessionTypeId ?? 'default'}' is not available on host '${authority}'.`);
+		}
+
+		mutationGuard?.();
+		const resource = `ahp-automation:/${generateUuid()}`;
+		await source.connection.createAutomation({
+			channel: resource,
+			definition: definitionFromOptions(options),
+		});
+		await this._attachAutomation(source, resource);
+		const automation = this._hostAutomations.get(hostKey(source.authority, resource));
+		if (!automation) {
+			throw new Error(`Automation host '${source.authority}' did not return the created definition.`);
+		}
+		return toAutomation(automation);
+	}
+
+	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+		const host = this._hostAutomations.get(id);
+		if (!host) {
+			throw this._unavailableAutomationError(id);
+		}
+		if (!host.connection) {
+			throw new Error(`Automation host '${host.authority}' is disconnected.`);
+		}
+		if (patch.target) {
+			const authority = this._authorityForTarget(patch.target);
+			if (authority !== host.authority) {
+				throw new Error('An automation cannot be moved between Agent Hosts. Create a new automation on the target host instead.');
+			}
+			const source = this._sources.get(host.authority);
+			if (!source || !this._isTargetAvailable(source, patch.target)) {
+				throw new Error(`Automation agent '${patch.target.sessionTypeId ?? 'default'}' is not available on host '${host.authority}'.`);
+			}
+		}
+		await host.connection.updateAutomation({
+			channel: host.resource,
+			expectedRevision: host.state.revision,
+			changes: definitionPatch(host.state.definition, patch),
+		});
+		return toAutomation(this._hostAutomations.get(id) ?? host);
+	}
+
+	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
+		const host = this._hostAutomations.get(id);
+		if (!host) {
+			return { kind: 'conflict', current: this.getAutomation(id) };
+		}
+		const current = toAutomation(host);
+		if (serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
+			return { kind: 'conflict', current };
+		}
+		try {
+			mutationGuard?.();
+			return { kind: 'updated', automation: await this.updateAutomation(id, patch) };
+		} catch (error) {
+			if (error instanceof ProtocolError && error.code === AhpErrorCodes.Conflict) {
+				return { kind: 'conflict', current: this.getAutomation(id) };
+			}
+			throw error;
+		}
+	}
+
+	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
+		const host = this._hostAutomations.get(id);
+		if (!host) {
+			throw this._unavailableAutomationError(id);
+		}
+		if (!host.connection) {
+			throw new Error(`Automation host '${host.authority}' is disconnected.`);
+		}
+		mutationGuard?.();
+		await host.connection.disposeAutomation({ channel: host.resource });
+	}
+
+	async startRun(automationId: string, requestId: string): Promise<IAutomationRunStartResult> {
+		const host = this._hostAutomations.get(automationId);
+		if (!host) {
+			throw this._unavailableAutomationError(automationId);
+		}
+		if (!host.connection) {
+			throw new Error(`Automation host '${host.authority}' is disconnected.`);
+		}
+		const active = this.getActiveRunFor(automationId);
+		if (active) {
+			return { claimed: false, run: active };
+		}
+		try {
+			const result = await host.connection.runAutomation({ channel: host.resource, requestId });
+			await this._attachRun(this._sources.get(host.authority)!, result.run);
+			const run = this._hostRuns.get(hostKey(host.authority, result.run));
+			if (!run) {
+				throw new Error(`Automation host '${host.authority}' did not return run state.`);
+			}
+			return { claimed: true, run: toRun(run.state, automationId, hostKey(host.authority, run.state.resource)) };
+		} catch (error) {
+			if (error instanceof ProtocolError && error.code === AhpErrorCodes.Conflict) {
+				const concurrent = this.getActiveRunFor(automationId);
+				if (concurrent) {
+					return { claimed: false, run: concurrent };
+				}
+			}
+			throw error;
+		}
+	}
+
+	async cancelRun(runId: string): Promise<void> {
+		const host = this._hostRuns.get(runId);
+		const parsed = parseHostKey(runId);
+		const authority = host?.authority ?? parsed?.authority;
+		const resource = host?.state.resource ?? parsed?.resource;
+		const connection = authority ? this._sources.get(authority)?.connection : undefined;
+		if (!authority || !resource || !connection) {
+			throw new Error(`Automation run is unavailable: ${runId}`);
+		}
+		connection.dispatch(resource, { type: ActionType.AutomationRunCancelRequested });
+	}
+
+	getActiveRunFor(automationId: string): IAutomationRun | undefined {
+		return this._runs.get().find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running' || run.status === 'blocked'));
+	}
+
+	private async _syncSources(connections: readonly { readonly info: IAgentHostConnectionInfo; readonly support: 'unknown' | 'capable' | 'unsupported' }[]): Promise<void> {
+		const knownAuthorities = new Set(connections.map(({ info }) => info.authority));
+		let projectionChanged = false;
+		for (const [authority, source] of this._sources) {
+			const current = connections.find(({ info }) => info.authority === authority);
+			if (current?.support !== 'capable' || !current.info.connection) {
+				projectionChanged = true;
+				source.connection = undefined;
+				source.store.clear();
+				for (const reference of source.automationReferences.values()) {
+					reference.dispose();
+				}
+				for (const reference of source.runReferences.values()) {
+					reference.dispose();
+				}
+				source.automationReferences.clear();
+				source.runReferences.clear();
+				for (const automation of this._hostAutomations.values()) {
+					if (automation.authority === authority) {
+						this._hostAutomations.set(hostKey(authority, automation.resource), { ...automation, connection: undefined });
+					}
+				}
+				for (const run of this._hostRuns.values()) {
+					if (run.authority === authority) {
+						this._hostRuns.delete(hostKey(authority, run.state.resource));
+					}
+				}
+			}
+		}
+
+		for (const { info, support } of connections) {
+			if (support !== 'capable' || !info.connection) {
+				continue;
+			}
+			let source = this._sources.get(info.authority);
+			if (!source) {
+				source = {
+					authority: info.authority,
+					connection: info.connection,
+					store: this._register(new DisposableStore()),
+					automationReferences: new Map(),
+					runReferences: new Map(),
+				};
+				this._sources.set(info.authority, source);
+			} else if (source.connection === info.connection) {
+				continue;
+			} else {
+				source.connection = info.connection;
+			}
+			this._listenToSource(source);
+			await this._loadSource(source);
+		}
+
+		for (const authority of knownAuthorities) {
+			const source = this._sources.get(authority);
+			if (source && !source.connection) {
+				projectionChanged = true;
+			}
+		}
+		if (projectionChanged) {
+			this._refreshProjection();
+		}
+	}
+
+	private _listenToSource(source: IHostSource): void {
+		source.store.clear();
+		const connection = source.connection;
+		if (!connection) {
+			return;
+		}
+		source.store.add(connection.onDidNotification(notification => {
+			if (notification.type === 'root/automationAdded' || notification.type === 'root/automationSummaryChanged') {
+				void this._attachAutomation(source, notification.type === 'root/automationAdded' ? notification.summary.resource : notification.summary.resource);
+			} else if (notification.type === 'root/automationRemoved') {
+				this._removeHostAutomation(source, notification.automation);
+			}
+		}));
+		source.store.add(connection.rootState.onDidChange(() => {
+			void this._syncSequencer.queue(() => this._migrateLegacyAutomations(source)).catch(error => {
+				this.logService.error(`[AutomationService] Failed to resume migrations for host '${source.authority}'.`, error);
+			});
+		}));
+	}
+
+	private async _loadSource(source: IHostSource): Promise<void> {
+		const connection = source.connection;
+		if (!connection) {
+			return;
+		}
+		let cursor: string | undefined;
+		do {
+			const result = await connection.listAutomations(cursor ? { cursor } : undefined);
+			for (const summary of result.items) {
+				await this._attachAutomation(source, summary.resource);
+			}
+			cursor = result.nextCursor;
+		} while (cursor);
+	}
+
+	private async _reloadLegacySnapshot(): Promise<void> {
+		this._legacySnapshot = await this._legacyMigration.read();
+		const journal = await this._readMigrationJournal();
+		const completedIds = new Set(journal?.items.filter(item => item.phase === 'completed').map(item => item.automationId));
+		const pendingIds = new Set(journal?.items.filter(item => item.phase !== 'completed').map(item => item.automationId));
+		const ledgerIds = new Set(this._legacySnapshot.automations.map(automation => automation.id));
+		for (const automationId of this._pendingMigrationAutomations.keys()) {
+			if (completedIds.has(automationId) || (!ledgerIds.has(automationId) && !pendingIds.has(automationId))) {
+				this._pendingMigrationAutomations.delete(automationId);
+				this._pendingMigrationRuns.delete(automationId);
+			}
+		}
+		for (const automation of this._legacySnapshot.automations) {
+			if (!completedIds.has(automation.id)) {
+				this._pendingMigrationAutomations.set(automation.id, automation);
+				this._pendingMigrationRuns.set(automation.id, this._legacySnapshot.runs.filter(run => run.automationId === automation.id));
+			}
+		}
+		this._refreshProjection();
+	}
+
+	private async _migrateAvailableAutomations(): Promise<void> {
+		for (const source of this._sources.values()) {
+			if (source.connection) {
+				await this._migrateLegacyAutomations(source);
+			}
+		}
+	}
+
+	private async _migrateLegacyAutomations(source: IHostSource): Promise<void> {
+		const connection = source.connection;
+		if (!connection) {
+			return;
+		}
+		const journal = await this._readMigrationJournal();
+		for (const item of journal?.items.filter(candidate => candidate.authority === source.authority && candidate.phase !== 'completed') ?? []) {
+			const backup = await this._readMigrationBackup(item.automationId);
+			const automation = this._legacySnapshot.automations.find(candidate => candidate.id === item.automationId) ?? backup?.automation;
+			if (!automation) {
+				throw new Error(`Missing rollback data for automation migration: ${item.automationId}`);
+			}
+			this._pendingMigrationAutomations.set(automation.id, automation);
+			if (backup) {
+				this._pendingMigrationRuns.set(automation.id, backup.runs);
+			}
+			if (!this._isTargetAvailable(source, automation.target)) {
+				continue;
+			}
+			await this._resumeMigrationItem(source, item, automation);
+		}
+
+		const candidates = this._legacySnapshot.automations.filter(automation =>
+			this._authorityForTarget(automation.target) === source.authority
+			&& this._isTargetAvailable(source, automation.target)
+		);
+		for (const automation of candidates) {
+			const item = await this._ensureMigrationItem(automation, source.authority);
+			await this._resumeMigrationItem(source, item, automation);
+		}
+	}
+
+	private async _resumeMigrationItem(source: IHostSource, item: IMigrationItem, automation: IAutomation): Promise<void> {
+		const connection = source.connection;
+		if (!connection || item.phase === 'completed') {
+			return;
+		}
+		if (item.phase === 'previewed') {
+			const batchId = (await this._readMigrationJournal())?.batchId;
+			if (!batchId) {
+				throw new Error(`Missing migration batch for automation: ${item.automationId}`);
+			}
+			try {
+				await connection.createAutomation({
+					channel: item.resource,
+					definition: definitionFromOptions({ ...automation, enabled: false }),
+					import: {
+						source: 'vscode-legacy-automations',
+						batchId,
+						itemId: automation.id,
+					},
+				});
+			} catch (error) {
+				if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.AlreadyExists) {
+					throw error;
+				}
+			}
+			await this._attachAutomation(source, item.resource);
+			item = await this._advanceMigrationItem(item, 'imported');
+		}
+		if (item.phase === 'imported') {
+			const current = this._legacySnapshot.automations.find(candidate => candidate.id === automation.id);
+			if (current?.enabled) {
+				await this._legacyMigration.disable(automation.id);
+				await this._reloadLegacySnapshot();
+			}
+			item = await this._advanceMigrationItem(item, 'localDisabled');
+		}
+		if (item.phase === 'localDisabled') {
+			await this._legacyMigration.remove(automation.id);
+			await this._reloadLegacySnapshot();
+			item = await this._advanceMigrationItem(item, 'localRemoved');
+		}
+		if (item.phase === 'localRemoved') {
+			const imported = this._hostAutomations.get(hostKey(source.authority, item.resource));
+			if (!imported) {
+				throw new Error(`Imported automation is unavailable: ${item.resource}`);
+			}
+			if (imported.state.definition.enabled !== item.enabled) {
+				try {
+					await connection.updateAutomation({
+						channel: item.resource,
+						expectedRevision: imported.state.revision,
+						changes: { enabled: item.enabled },
+					});
+				} catch (error) {
+					const current = this._hostAutomations.get(hostKey(source.authority, item.resource));
+					if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.Conflict || current?.state.definition.enabled !== item.enabled) {
+						throw error;
+					}
+				}
+			}
+			item = await this._advanceMigrationItem(item, 'hostEnabled');
+		}
+		if (item.phase === 'hostEnabled') {
+			await this._advanceMigrationItem(item, 'completed');
+			this._pendingMigrationAutomations.delete(item.automationId);
+			this._pendingMigrationRuns.delete(item.automationId);
+			this._refreshProjection();
+		}
+	}
+
+	private async _readMigrationJournal(): Promise<IMigrationJournal | undefined> {
+		const raw = await this.legacyMigrationStorageService.read(MIGRATION_JOURNAL_KEY);
+		if (!raw) {
+			this._migrationJournal = undefined;
+			return undefined;
+		}
+		const value = readMigrationJournalValue(raw);
+		this._migrationJournal = value;
+		return value;
+	}
+
+	private async _ensureMigrationItem(automation: IAutomation, authority: string): Promise<IMigrationItem> {
+		await this._writeMigrationBackup(automation);
+		while (true) {
+			const raw = await this.legacyMigrationStorageService.read(MIGRATION_JOURNAL_KEY);
+			const journal: IMigrationJournal = raw ? JSON.parse(raw) as IMigrationJournal : { version: 1, batchId: generateUuid(), items: [] };
+			const existing = journal.items.find(item => item.automationId === automation.id && item.authority === authority);
+			if (existing) {
+				this._migrationJournal = journal;
+				return existing;
+			}
+			const item: IMigrationItem = {
+				automationId: automation.id,
+				authority,
+				resource: migrationResource(automation.id),
+				enabled: automation.enabled,
+				phase: 'previewed',
+			};
+			const result = await this.legacyMigrationStorageService.compareAndSwap(
+				MIGRATION_JOURNAL_KEY,
+				raw,
+				JSON.stringify({ ...journal, items: [...journal.items, item] }),
+			);
+			if (result.swapped) {
+				this._migrationJournal = { ...journal, items: [...journal.items, item] };
+				return item;
+			}
+		}
+	}
+
+	private async _advanceMigrationItem(item: IMigrationItem, phase: MigrationPhase): Promise<IMigrationItem> {
+		while (true) {
+			const raw = await this.legacyMigrationStorageService.read(MIGRATION_JOURNAL_KEY);
+			if (!raw) {
+				throw new Error(`Missing migration journal for automation: ${item.automationId}`);
+			}
+			const journal = JSON.parse(raw) as IMigrationJournal;
+			const current = journal.items.find(candidate => candidate.automationId === item.automationId && candidate.authority === item.authority);
+			if (!current) {
+				throw new Error(`Missing migration journal item for automation: ${item.automationId}`);
+			}
+			if (migrationPhaseIndex(current.phase) >= migrationPhaseIndex(phase)) {
+				this._migrationJournal = journal;
+				return current;
+			}
+			const updated: IMigrationItem = { ...current, phase };
+			const result = await this.legacyMigrationStorageService.compareAndSwap(
+				MIGRATION_JOURNAL_KEY,
+				raw,
+				JSON.stringify({
+					...journal,
+					items: journal.items.map(candidate =>
+						candidate.automationId === item.automationId && candidate.authority === item.authority ? updated : candidate
+					),
+				}),
+			);
+			if (result.swapped) {
+				this._migrationJournal = {
+					...journal,
+					items: journal.items.map(candidate =>
+						candidate.automationId === item.automationId && candidate.authority === item.authority ? updated : candidate
+					),
+				};
+				return updated;
+			}
+		}
+	}
+
+	private async _writeMigrationBackup(automation: IAutomation): Promise<void> {
+		while (true) {
+			const raw = await this.legacyMigrationStorageService.read(MIGRATION_BACKUP_KEY);
+			const backups = raw ? JSON.parse(raw) as Record<string, IMigrationBackup> : {};
+			if (backups[automation.id]) {
+				return;
+			}
+			const updated = {
+				automation,
+				runs: this._legacySnapshot.runs.filter(run => run.automationId === automation.id),
+			};
+			const result = await this.legacyMigrationStorageService.compareAndSwap(
+				MIGRATION_BACKUP_KEY,
+				raw,
+				JSON.stringify({ ...backups, [automation.id]: updated }),
+			);
+			if (result.swapped) {
+				return;
+			}
+		}
+	}
+
+	private async _readMigrationBackup(automationId: string): Promise<IMigrationBackup | undefined> {
+		const raw = await this.legacyMigrationStorageService.read(MIGRATION_BACKUP_KEY);
+		if (!raw) {
+			return undefined;
+		}
+		const backups = JSON.parse(raw) as Record<string, IMigrationBackup>;
+		const backup = backups[automationId];
+		if (!backup) {
+			return undefined;
+		}
+		if (backup.automation.target.kind === 'quickChat') {
+			return backup;
+		}
+		return {
+			...backup,
+			automation: {
+				...backup.automation,
+				target: {
+					...backup.automation.target,
+					folderUri: URI.revive(backup.automation.target.folderUri),
+				},
+			},
+		};
+	}
+
+	private _unavailableAutomationError(id: string): Error {
+		const pending = this._pendingMigrationAutomation(id);
+		return pending
+			? new Error(`Automation '${pending.name}' is read-only until agent '${pending.target.sessionTypeId ?? 'default'}' becomes available on its Agent Host.`)
+			: new Error(`Automation not found: ${id}`);
+	}
+
+	private async _attachAutomation(source: IHostSource, resource: string): Promise<void> {
+		const connection = source.connection;
+		if (!connection || source.automationReferences.has(resource)) {
+			return;
+		}
+		const reference = connection.getSubscription(StateComponents.Automation, URI.parse(resource), `automations:${source.authority}`);
+		source.automationReferences.set(resource, reference);
+		const update = () => {
+			const state = reference.object.value;
+			if (!state || state instanceof Error) {
+				return;
+			}
+			this._hostAutomations.set(hostKey(source.authority, resource), {
+				authority: source.authority,
+				resource,
+				connection: source.connection,
+				state,
+			});
+			this._refreshProjection();
+		};
+		source.store.add(reference.object.onDidChange(update));
+		update();
+		if (!reference.object.value) {
+			await new Promise<void>(resolve => {
+				const listener = reference.object.onDidChange(() => {
+					listener.dispose();
+					update();
+					resolve();
+				});
+			});
+		}
+	}
+
+	private async _attachRun(source: IHostSource, resource: string): Promise<void> {
+		const connection = source.connection;
+		if (!connection || source.runReferences.has(resource)) {
+			return;
+		}
+		const reference = connection.getSubscription(StateComponents.AutomationRun, URI.parse(resource), `automation-run:${source.authority}`);
+		source.runReferences.set(resource, reference);
+		const update = () => {
+			const state = reference.object.value;
+			if (!state || state instanceof Error) {
+				return;
+			}
+			this._hostRuns.set(hostKey(source.authority, resource), { authority: source.authority, connection: source.connection, state });
+			this._refreshProjection();
+		};
+		source.store.add(reference.object.onDidChange(update));
+		update();
+		if (!reference.object.value) {
+			await new Promise<void>(resolve => {
+				const listener = reference.object.onDidChange(() => {
+					listener.dispose();
+					update();
+					resolve();
+				});
+			});
+		}
+	}
+
+	private _removeHostAutomation(source: IHostSource, resource: string): void {
+		source.automationReferences.get(resource)?.dispose();
+		source.automationReferences.delete(resource);
+		this._hostAutomations.delete(hostKey(source.authority, resource));
+		for (const [key, run] of this._hostRuns) {
+			if (run.authority === source.authority && run.state.automation === resource) {
+				source.runReferences.get(run.state.resource)?.dispose();
+				source.runReferences.delete(run.state.resource);
+				this._hostRuns.delete(key);
+			}
+		}
+		this._refreshProjection();
+	}
+
+	private _authorityForTarget(target: AutomationTarget): string {
+		const providerId = target.providerId;
+		if (!providerId || !isAgentHostProviderId(providerId)) {
+			return AMBIENT_AGENT_HOST_AUTHORITY;
+		}
+		const authority = providerId === LOCAL_AGENT_HOST_PROVIDER_ID
+			? AMBIENT_AGENT_HOST_AUTHORITY
+			: providerId.slice(REMOTE_AGENT_HOST_PROVIDER_PREFIX.length);
+		return authority;
+	}
+
+	private _isTargetAvailable(source: IHostSource, target: AutomationTarget): boolean {
+		const provider = toAgentHostProvider(target.sessionTypeId);
+		const rootState = source.connection?.rootState.value;
+		if (!rootState || rootState instanceof Error) {
+			return false;
+		}
+		return provider === undefined
+			? rootState.agents.length > 0
+			: rootState.agents.some(agent => agent.provider === provider);
+	}
+
+	private _pendingMigrationAutomation(id: string): IAutomation | undefined {
+		return [...this._pendingMigrationAutomations.values()]
+			.map(automation => toPendingMigrationAutomation(automation, this._authorityForTarget(automation.target)))
+			.find(automation => automation.id === id);
+	}
+
+	private _refreshProjection(): void {
+		const pendingResources = new Set(this._migrationJournal?.items
+			.filter(item => item.phase !== 'completed')
+			.map(item => hostKey(item.authority, item.resource)));
+		const hostAutomations = [...this._hostAutomations.values()]
+			.filter(automation => !pendingResources.has(hostKey(automation.authority, automation.resource)))
+			.map(toAutomation);
+		const hostRuns = [...this._hostRuns.values()].map(run => toRun(run.state, hostKey(run.authority, run.state.automation), hostKey(run.authority, run.state.resource)));
+		for (const host of this._hostAutomations.values()) {
+			for (const summary of host.state.runs) {
+				const key = hostKey(host.authority, summary.resource);
+				if (!this._hostRuns.has(key)) {
+					hostRuns.push(toRun(summary, hostKey(host.authority, host.resource), key));
+				}
+			}
+		}
+		const pendingAutomations = [...this._pendingMigrationAutomations.values()].map(automation =>
+			toPendingMigrationAutomation(automation, this._authorityForTarget(automation.target))
+		);
+		const pendingRuns = [...this._pendingMigrationRuns.values()].flat().map(run => {
+			const automation = this._pendingMigrationAutomations.get(run.automationId);
+			if (!automation) {
+				return undefined;
+			}
+			const authority = this._authorityForTarget(automation.target);
+			return {
+				...run,
+				id: hostKey(authority, `legacy-run:${run.id}`),
+				automationId: hostKey(authority, migrationResource(automation.id)),
+			};
+		}).filter((run): run is IAutomationRun => !!run);
+		transaction(tx => {
+			this._automations.set([...hostAutomations, ...pendingAutomations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), tx);
+			this._runs.set([...hostRuns, ...pendingRuns].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), tx);
+		});
+	}
 }
 
-function deserializeAutomationTarget(target: ISerializedAutomationTarget): AutomationTarget | undefined {
-	if (target?.kind === 'quickChat') {
-		return target.providerId && target.sessionTypeId
-			? createQuickChatAutomationTarget(target.providerId, target.sessionTypeId)
-			: undefined;
-	}
-	if (target?.kind !== 'workspace' || !target.folderUri || !isAutomationWorkspaceIsolation(target.isolation)) {
+function hostKey(authority: string, resource: string): string {
+	return `${authority}\0${resource}`;
+}
+
+function parseHostKey(key: string): { readonly authority: string; readonly resource: string } | undefined {
+	const separator = key.indexOf('\0');
+	return separator >= 0
+		? { authority: key.slice(0, separator), resource: key.slice(separator + 1) }
+		: undefined;
+}
+
+function migrationPhaseIndex(phase: MigrationPhase): number {
+	return migrationPhases.indexOf(phase);
+}
+
+function readMigrationJournalValue(raw: string | undefined): IMigrationJournal | undefined {
+	if (!raw) {
 		return undefined;
 	}
-	return createWorkspaceAutomationTarget(
-		URI.revive(target.folderUri),
-		target.providerId,
-		target.sessionTypeId,
-		target.isolation,
-	);
+	const value = JSON.parse(raw) as IMigrationJournal;
+	if (value.version !== 1 || !Array.isArray(value.items)) {
+		throw new Error('Unsupported automation migration journal.');
+	}
+	return value;
 }
 
-function deserializeLegacyIsolation(isolationMode: string | undefined, branch: string | undefined): AutomationWorkspaceIsolation {
-	if (isolationMode === 'worktree') {
-		return branch ? { kind: 'worktree', branch } : { kind: 'default' };
-	}
-	return isolationMode === 'workspace' ? { kind: 'folder' } : { kind: 'default' };
+function migrationResource(automationId: string): string {
+	return `ahp-automation:/vscode-${automationId}`;
 }
 
-function normalizeAutomationWorkspaceIsolation(isolation: AutomationWorkspaceIsolation): AutomationWorkspaceIsolation {
-	if (isolation?.kind === 'default') {
-		return Object.freeze({ kind: 'default' });
-	}
-	if (isolation?.kind === 'folder') {
-		return Object.freeze({ kind: 'folder' });
-	}
-	if (isolation?.kind === 'worktree' && isolation.branch) {
-		return Object.freeze({ kind: 'worktree', branch: isolation.branch });
-	}
-	if (isolation?.kind === 'worktree') {
-		throw new Error('Worktree automation requires a branch.');
-	}
-	throw new Error('Workspace-backed automation requires a valid isolation mode.');
+function definitionFromOptions(options: ICreateAutomationOptions): AutomationDefinition {
+	return {
+		title: options.name,
+		message: { text: options.prompt, origin: { kind: MessageKind.User } },
+		session: sessionTemplate(options.target, options),
+		enabled: options.enabled ?? true,
+		triggers: triggersFromSchedule(options.schedule),
+	};
 }
 
-function createQuickChatAutomationTarget(providerId: string, sessionTypeId: string): AutomationTarget {
-	return Object.freeze({ kind: 'quickChat', providerId, sessionTypeId });
+function definitionPatch(current: AutomationDefinition, patch: IUpdateAutomationOptions): AutomationDefinitionPatch {
+	const changes: AutomationDefinitionPatch = {};
+	if (patch.name !== undefined) {
+		changes.title = patch.name;
+	}
+	if (patch.prompt !== undefined) {
+		changes.message = { ...current.message, text: patch.prompt };
+	}
+	if (patch.enabled !== undefined) {
+		changes.enabled = patch.enabled;
+	}
+	if (patch.schedule !== undefined) {
+		const eventTriggers = current.triggers.filter(trigger => trigger.kind === AutomationTriggerKind.Event);
+		changes.triggers = [...eventTriggers, ...triggersFromSchedule(patch.schedule)];
+	}
+	if (patch.target !== undefined || patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined) {
+		const target = patch.target ?? targetFromDefinition(current);
+		changes.session = sessionTemplate(target, {
+			modelId: patch.modelId === undefined ? current.session.model?.id : patch.modelId ?? undefined,
+			mode: patch.mode === undefined ? readString(current.session.config?.[SessionConfigKey.Mode]) : patch.mode ?? undefined,
+			permissionLevel: patch.permissionLevel === undefined ? readString(current.session.config?.[SessionConfigKey.AutoApprove]) : patch.permissionLevel ?? undefined,
+		}, current.session.config);
+	}
+	return changes;
 }
 
-function createWorkspaceAutomationTarget(
-	folderUri: URI,
-	providerId: string | undefined,
-	sessionTypeId: string | undefined,
-	isolation: AutomationWorkspaceIsolation,
-): AutomationTarget {
+function sessionTemplate(target: AutomationTarget, options: Pick<ICreateAutomationOptions, 'modelId' | 'mode' | 'permissionLevel'>, currentConfig: Record<string, unknown> = {}) {
+	const config = { ...currentConfig };
+	setOptional(config, SessionConfigKey.Mode, options.mode);
+	setOptional(config, SessionConfigKey.AutoApprove, options.permissionLevel);
+	if (target.kind === 'workspace') {
+		const isolation = target.isolation.kind === 'folder' ? 'folder' : target.isolation.kind === 'worktree' ? 'worktree' : undefined;
+		setOptional(config, SessionConfigKey.Isolation, isolation);
+		setOptional(config, SessionConfigKey.Branch, target.isolation.kind === 'worktree' ? target.isolation.branch : undefined);
+	} else {
+		delete config[SessionConfigKey.Isolation];
+		delete config[SessionConfigKey.Branch];
+	}
+	return {
+		provider: toAgentHostProvider(target.sessionTypeId),
+		...(options.modelId ? { model: { id: options.modelId } } : {}),
+		...(target.kind === 'workspace' ? { workingDirectories: [target.folderUri.toString()] } : {}),
+		...(Object.keys(config).length ? { config } : {}),
+	};
+}
+
+function toAgentHostProvider(sessionTypeId: string | undefined): string | undefined {
+	return sessionTypeId === 'claude-code' ? CLAUDE_AGENT_PROVIDER_ID : sessionTypeId;
+}
+
+function setOptional(target: Record<string, unknown>, key: string, value: string | undefined): void {
+	if (value === undefined) {
+		delete target[key];
+	} else {
+		target[key] = value;
+	}
+}
+
+function triggersFromSchedule(schedule: IAutomationSchedule): AutomationTrigger[] {
+	if (schedule.interval === 'manual') {
+		return [];
+	}
+	const id = 'schedule';
+	if (schedule.interval === 'hourly') {
+		return [{ id, kind: AutomationTriggerKind.Schedule, schedule: { kind: AutomationScheduleKind.Hourly }, misfirePolicy: AutomationMisfirePolicy.RunOnce }];
+	}
+	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const time = { hour: schedule.scheduleHour, minute: schedule.scheduleMinute };
+	if (schedule.interval === 'daily') {
+		return [{ id, kind: AutomationTriggerKind.Schedule, schedule: { kind: AutomationScheduleKind.Daily, time, timeZone }, misfirePolicy: AutomationMisfirePolicy.RunOnce }];
+	}
+	return [{
+		id,
+		kind: AutomationTriggerKind.Schedule,
+		schedule: {
+			kind: AutomationScheduleKind.Weekly,
+			weekday: weekdays[schedule.scheduleDay],
+			time,
+			timeZone,
+		},
+		misfirePolicy: AutomationMisfirePolicy.RunOnce,
+	}];
+}
+
+const weekdays = [
+	AutomationWeekday.Sunday,
+	AutomationWeekday.Monday,
+	AutomationWeekday.Tuesday,
+	AutomationWeekday.Wednesday,
+	AutomationWeekday.Thursday,
+	AutomationWeekday.Friday,
+	AutomationWeekday.Saturday,
+] as const;
+
+function toAutomation(host: IHostAutomation): IAutomation {
+	const { state } = host;
+	const definition = state.definition;
+	const scheduleTrigger = definition.triggers.find(trigger => trigger.kind === AutomationTriggerKind.Schedule);
+	const target = targetFromDefinition(definition, host.authority);
+	const lastRun = state.runs[0];
 	return Object.freeze({
-		kind: 'workspace',
-		folderUri,
-		...(providerId !== undefined ? { providerId } : {}),
-		...(sessionTypeId !== undefined ? { sessionTypeId } : {}),
-		isolation: normalizeAutomationWorkspaceIsolation(isolation),
+		id: hostKey(host.authority, host.resource),
+		name: definition.title,
+		prompt: definition.message.text,
+		schedule: scheduleTrigger ? scheduleFromTrigger(scheduleTrigger) : manualSchedule(),
+		target,
+		modelId: definition.session.model?.id,
+		mode: readString(definition.session.config?.[SessionConfigKey.Mode]),
+		permissionLevel: readString(definition.session.config?.[SessionConfigKey.AutoApprove]),
+		enabled: definition.enabled,
+		createdAt: state.createdAt,
+		updatedAt: state.modifiedAt,
+		lastRunAt: lastRun ? lifecycleStartedAt(lastRun.lifecycle) : undefined,
+		nextRunAt: state.nextRunAt,
+		host: {
+			authority: host.authority,
+			resource: host.resource,
+			revision: state.revision,
+			connected: !!host.connection,
+			hasUnsupportedTriggers: definition.triggers.length > 1 || definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.Event || trigger.schedule.kind === AutomationScheduleKind.Cron),
+		},
 	});
 }
 
-function isAutomationWorkspaceIsolation(value: AutomationWorkspaceIsolation | undefined): value is AutomationWorkspaceIsolation {
-	return value?.kind === 'default'
-		|| value?.kind === 'folder'
-		|| (value?.kind === 'worktree' && typeof value.branch === 'string' && value.branch.length > 0);
+function toPendingMigrationAutomation(automation: IAutomation, authority: string): IAutomation {
+	return Object.freeze({
+		...automation,
+		id: hostKey(authority, migrationResource(automation.id)),
+		host: {
+			authority,
+			resource: migrationResource(automation.id),
+			revision: 0,
+			connected: false,
+			hasUnsupportedTriggers: false,
+			migrationPending: true,
+		},
+	});
 }
 
-function findActiveRun(runs: readonly IAutomationRun[], automationId: string): IAutomationRun | undefined {
-	return runs.find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running' || run.status === 'blocked'));
-}
-
-function trimRunsPerAutomation(runs: readonly IAutomationRun[], max: number): readonly IAutomationRun[] {
-	const counts = new Map<string, number>();
-	const out: IAutomationRun[] = [];
-	for (const run of runs) {
-		const count = counts.get(run.automationId) ?? 0;
-		if (count >= max) {
-			continue;
-		}
-		counts.set(run.automationId, count + 1);
-		out.push(run);
+function targetFromDefinition(definition: AutomationDefinition, authority = AMBIENT_AGENT_HOST_AUTHORITY): AutomationTarget {
+	const providerId = authority === AMBIENT_AGENT_HOST_AUTHORITY ? LOCAL_AGENT_HOST_PROVIDER_ID : `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}${authority}`;
+	const sessionTypeId = definition.session.provider ?? '';
+	const folder = definition.session.workingDirectories?.[0];
+	if (!folder) {
+		return { kind: 'quickChat', providerId, sessionTypeId };
 	}
-	return out.length === runs.length ? runs : out;
+	const isolationValue = readString(definition.session.config?.[SessionConfigKey.Isolation]);
+	const branch = readString(definition.session.config?.[SessionConfigKey.Branch]);
+	const isolation = isolationValue === 'folder'
+		? { kind: 'folder' as const }
+		: isolationValue === 'worktree' && branch
+			? { kind: 'worktree' as const, branch }
+			: { kind: 'default' as const };
+	return { kind: 'workspace', folderUri: URI.parse(folder), providerId, sessionTypeId, isolation };
+}
+
+function scheduleFromTrigger(trigger: Extract<AutomationTrigger, { kind: AutomationTriggerKind.Schedule }>): IAutomationSchedule {
+	switch (trigger.schedule.kind) {
+		case AutomationScheduleKind.Hourly:
+			return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		case AutomationScheduleKind.Daily:
+			return { interval: 'daily', scheduleHour: trigger.schedule.time.hour, scheduleMinute: trigger.schedule.time.minute, scheduleDay: 0 };
+		case AutomationScheduleKind.Weekly:
+			return {
+				interval: 'weekly',
+				scheduleHour: trigger.schedule.time.hour,
+				scheduleMinute: trigger.schedule.time.minute,
+				scheduleDay: weekdays.indexOf(trigger.schedule.weekday),
+			};
+		case AutomationScheduleKind.Cron:
+			return manualSchedule();
+	}
+}
+
+function manualSchedule(): IAutomationSchedule {
+	return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+}
+
+function toRun(run: AutomationRunState | AutomationRunSummary, automationId: string, id: string): IAutomationRun {
+	const lifecycle = run.lifecycle;
+	const fullRun = isFullAutomationRun(run);
+	const sessions = fullRun ? run.sessions : run.primarySession ? [run.primarySession] : [];
+	return Object.freeze({
+		id,
+		automationId,
+		status: lifecycle.status,
+		trigger: triggerFromRun(run),
+		sessionResource: run.primarySession,
+		sessionResources: sessions,
+		artifactCount: fullRun ? run.artifacts.length : run.artifactCount,
+		blocker: lifecycle.status === AutomationRunStatus.Blocked ? lifecycle.blocker.kind : undefined,
+		startedAt: lifecycleStartedAt(lifecycle),
+		completedAt: lifecycleCompletedAt(lifecycle),
+		errorMessage: lifecycle.status === AutomationRunStatus.Failed ? lifecycle.error.message : undefined,
+	});
+}
+
+function triggerFromRun(run: AutomationRunState | AutomationRunSummary): AutomationRunTrigger {
+	if (run.cause.kind === AutomationRunCauseKind.Manual) {
+		return 'manual';
+	}
+	if (run.cause.event) {
+		return 'event';
+	}
+	return run.cause.catchUp ? 'catch_up' : 'schedule';
+}
+
+function lifecycleStartedAt(lifecycle: AutomationRunLifecycle): string {
+	switch (lifecycle.status) {
+		case AutomationRunStatus.Pending:
+			return lifecycle.createdAt;
+		case AutomationRunStatus.Running:
+		case AutomationRunStatus.Blocked:
+		case AutomationRunStatus.Completed:
+		case AutomationRunStatus.Failed:
+		case AutomationRunStatus.Cancelled:
+			return lifecycle.startedAt ?? lifecycle.createdAt;
+	}
+}
+
+function lifecycleCompletedAt(lifecycle: AutomationRunLifecycle): string | undefined {
+	switch (lifecycle.status) {
+		case AutomationRunStatus.Pending:
+		case AutomationRunStatus.Running:
+		case AutomationRunStatus.Blocked:
+			return undefined;
+		case AutomationRunStatus.Completed:
+		case AutomationRunStatus.Failed:
+		case AutomationRunStatus.Cancelled:
+			return lifecycle.completedAt;
+	}
+}
+
+function isFullAutomationRun(run: AutomationRunState | AutomationRunSummary): run is AutomationRunState {
+	return hasKey(run, { sessions: true }) && hasKey(run, { artifacts: true });
+}
+
+function readString(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
 }

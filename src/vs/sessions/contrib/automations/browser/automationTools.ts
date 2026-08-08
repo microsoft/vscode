@@ -32,7 +32,6 @@ export const DeleteAutomationToolId = 'vscode_deleteAutomation';
 
 const automationToolWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext);
 const deleteAutomationConfirmationId = 'delete';
-const manualRunLeaderWindowId = 0;
 const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekly'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
 const chatModes: readonly ChatModeKind[] = [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit];
@@ -216,7 +215,7 @@ export class RunAutomationTool implements IToolImpl {
 		}
 
 		const dispatchCancellation = new CancellationTokenSource(token);
-		const operation = this.automationRunner.runOnce(automation, 'manual', manualRunLeaderWindowId, dispatchCancellation.token);
+		const operation = this.automationRunner.runOnce(automation, dispatchCancellation.token);
 		let dispatch: IAutomationRunDispatch;
 		try {
 			dispatch = await operation.whenDispatched;

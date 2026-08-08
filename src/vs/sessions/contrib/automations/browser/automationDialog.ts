@@ -54,6 +54,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 
 const $ = DOM.$;
 
@@ -900,7 +901,12 @@ export function renderForm(
 	// The picker is authoritative for the session type
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader));
-	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker', showChevron: false }));
+	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), {
+		persistSelection: false,
+		telemetrySource: 'AutomationSessionTypePicker',
+		showChevron: false,
+		providerFilter: isAgentHostProviderId,
+	}));
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
 		initialPick: state.sessionTypeId

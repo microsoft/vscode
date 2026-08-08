@@ -22,12 +22,12 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationMutationGuard, IAutomationRunStartResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -50,11 +50,7 @@ function workspaceTarget(): AutomationTarget {
 	return { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
 }
 
-function quickChatTarget(): AutomationTarget {
-	return { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' };
-}
-
-function automation(overrides: Partial<IAutomationDescriptor> = {}): IAutomationDescriptor {
+function automation(overrides: Partial<IAutomation> = {}): IAutomation {
 	return {
 		id: AUTOMATION_ID,
 		name: 'Daily review',
@@ -75,8 +71,7 @@ function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
 		status: 'completed',
 		trigger: 'manual',
 		startedAt: new Date().toISOString(),
-		leaderWindowId: 0,
-		sessionResource: SESSION_RESOURCE,
+		sessionResource: SESSION_RESOURCE.toString(),
 		...overrides,
 	};
 }
@@ -88,15 +83,15 @@ function dispatchKeydown(element: HTMLElement, init: KeyboardEventInit & { keyCo
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
-	private readonly automationValue = observableValue<readonly IAutomationDescriptor[]>(this, []);
+	private readonly automationValue = observableValue<readonly IAutomation[]>(this, []);
 	private readonly runValue = observableValue<readonly IAutomationRun[]>(this, []);
-	override readonly automations: IObservable<readonly IAutomationDescriptor[]> = this.automationValue;
+	override readonly automations: IObservable<readonly IAutomation[]> = this.automationValue;
 	override readonly runs: IObservable<readonly IAutomationRun[]> = this.runValue;
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
 	deleteRunCalls = 0;
 
-	setAutomations(value: readonly IAutomationDescriptor[]): void {
+	setAutomations(value: readonly IAutomation[]): void {
 		this.automationValue.set(value, undefined);
 	}
 
@@ -104,7 +99,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		this.runValue.set(value, undefined);
 	}
 
-	override getAutomation(id: string): IAutomationDescriptor | undefined {
+	override getAutomation(id: string): IAutomation | undefined {
 		return this.automationValue.get().find(item => item.id === id);
 	}
 
@@ -112,7 +107,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return constObservable(this.runValue.get().filter(item => item.automationId === automationId));
 	}
 
-	override async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
+	override async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation> {
 		mutationGuard?.();
 		const created = automation({
 			id: AUTOMATION_ID,
@@ -129,12 +124,12 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return created;
 	}
 
-	override async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
+	override async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
 		const current = this.getAutomation(id);
 		if (!current) {
 			throw new Error('missing automation');
 		}
-		const updated: IAutomationDescriptor = {
+		const updated: IAutomation = {
 			...current,
 			name: patch.name ?? current.name,
 			prompt: patch.prompt ?? current.prompt,
@@ -150,7 +145,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return updated;
 	}
 
-	override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, _expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
+	override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, _expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		this.updateCalls++;
 		mutationGuard?.();
 		return this.updateResult ?? { kind: 'updated', automation: await this.updateAutomation(id, patch) };
@@ -161,13 +156,11 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		this.setAutomations(this.automationValue.get().filter(item => item.id !== id));
 	}
 
-	override async recordRunStart(): Promise<IAutomationRunClaim> {
+	override async startRun(): Promise<IAutomationRunStartResult> {
 		return { claimed: true, run: run() };
 	}
 
-	override async updateRun(_runId: string, _patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
-		return undefined;
-	}
+	override async cancelRun(): Promise<void> { }
 
 	override async deleteRun(runId: string): Promise<void> {
 		this.deleteRunCalls++;
@@ -217,7 +210,7 @@ class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
 	runCalls = 0;
 
-	override runOnce(_automation: IAutomationDescriptor, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
+	override runOnce(_automation: IAutomation, _token?: CancellationToken): IAutomationRunOperation {
 		this.runCalls++;
 		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
 	}
@@ -249,21 +242,18 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	sessionExists = true;
 	readonly isRead = observableValue<boolean>(this, false);
 	readonly secondIsRead = observableValue<boolean>(this, false);
-	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.InProgress);
 	readonly capabilities = observableValue(this, { supportsMultipleChats: false, supportsDelete: true });
 	readonly session = upcastPartial<ISession>({
 		resource: SESSION_RESOURCE,
 		sessionId: 'test/session-1',
 		isRead: this.isRead,
 		capabilities: this.capabilities,
-		status: this.sessionStatus,
 	});
 	readonly secondSession = upcastPartial<ISession>({
 		resource: SECOND_SESSION_RESOURCE,
 		sessionId: 'test/session-2',
 		isRead: this.secondIsRead,
 		capabilities: this.capabilities,
-		status: this.sessionStatus,
 	});
 	markAllReadCalls = 0;
 	markAllReadSessionCount = 0;
@@ -380,22 +370,6 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			schedule: `Daily at ${scheduleTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })}`,
 			runLabel: `Daily review, workspace, Completed, ${runTime}, Unread`,
-		});
-	});
-
-	test('labels quick chat runs in history', () => {
-		const { automationService, widget } = setup();
-		const completedRun = run();
-		automationService.setAutomations([automation({ target: quickChatTarget() })]);
-		automationService.setRuns([completedRun]);
-		const runTime = new Date(completedRun.startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-
-		assert.deepStrictEqual({
-			target: widget.element.querySelector('.automations-run-card-name-workspace')?.textContent,
-			runLabel: widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label'),
-		}, {
-			target: ' · Quick Chat',
-			runLabel: `Daily review, Quick Chat, Completed, ${runTime}, Unread`,
 		});
 	});
 
@@ -611,7 +585,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([
 			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
 		]);
 
 		widget.element.querySelector<HTMLButtonElement>('.automations-mark-all-read')?.click();
@@ -779,7 +753,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([
 			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
 		]);
 		dialogService.confirmResult = { confirmed: true };
 
@@ -903,43 +877,6 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })]).includes('Daily review, Failed'),
 			true,
 		);
-	});
-
-	test('running run shows needs-input indicator when session status transitions to NeedsInput', () => {
-		const { automationService, sessionsManagementService, widget } = setup();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run({ status: 'running' })]);
-
-		const card = widget.element.querySelector<HTMLElement>('.automations-run-card');
-		assert.ok(card);
-		assert.strictEqual(card.classList.contains('needs-input'), false);
-		assert.ok(card.querySelector('.monaco-pixel-spinner'));
-		assert.strictEqual(card.querySelector('.monaco-pixel-spinner-ring'), null);
-
-		sessionsManagementService.sessionStatus.set(SessionStatus.NeedsInput, undefined);
-
-		const updatedCard = widget.element.querySelector<HTMLElement>('.automations-run-card');
-		assert.ok(updatedCard);
-		assert.strictEqual(updatedCard.classList.contains('needs-input'), true);
-		assert.ok(updatedCard.querySelector('.monaco-pixel-spinner-ring'));
-		assert.ok(updatedCard.querySelector('.automations-run-card-main')?.getAttribute('aria-label')?.includes('Needs input'));
-	});
-
-	test('needs-input indicator reverts when session status returns to InProgress', () => {
-		const { automationService, sessionsManagementService, widget } = setup();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run({ status: 'running' })]);
-		sessionsManagementService.sessionStatus.set(SessionStatus.NeedsInput, undefined);
-
-		assert.strictEqual(widget.element.querySelector('.automations-run-card')?.classList.contains('needs-input'), true);
-
-		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
-
-		const card = widget.element.querySelector<HTMLElement>('.automations-run-card');
-		assert.ok(card);
-		assert.strictEqual(card.classList.contains('needs-input'), false);
-		assert.ok(card.querySelector('.monaco-pixel-spinner'));
-		assert.strictEqual(card.querySelector('.monaco-pixel-spinner-ring'), null);
 	});
 });
 
