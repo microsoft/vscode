@@ -33,11 +33,7 @@ suite('Extension Identifier Pattern', () => {
 	});
 
 	test('extension identifier pattern and publisher identifier pattern are mutually exclusive (#327194)', () => {
-		// A key like `ms-vscode.cpptools` must match exactly one of the two
-		// `extensions.allowed` patternProperties patterns, otherwise the JSON
-		// schema validator requires the value to satisfy both patterns' schemas,
-		// incorrectly rejecting an array value (e.g. `["1.31.4"]`) that's only
-		// valid under the extension identifier pattern.
+		// Unanchored patterns let a compound key match both, failing array values against the publisher-only schema.
 		const extensionIdRegEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 		const publisherRegEx = new RegExp(EXTENSION_PUBLISHER_IDENTIFIER_PATTERN);
 
