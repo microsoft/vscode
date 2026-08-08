@@ -132,6 +132,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 	private readonly _delegateFn: TASClientDelegateFn;
 	private readonly _globalState: vscode.Memento;
+	private _delegateGeneration = 0;
 
 	protected _onDidTreatmentsChange = this._register(new Emitter<TreatmentsChangeEvent>());
 	readonly onDidTreatmentsChange = this._onDidTreatmentsChange.event;
@@ -167,10 +168,17 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	}
 
 	private _createDelegate(): ITASExperimentationService {
+		const generation = ++this._delegateGeneration;
 		const delegate = this._delegateFn(this._globalState, this._userInfoStore);
-		this._delegateDisposable.value = toDisposable(() => (delegate as unknown as { dispose?(): void }).dispose?.());
+		this._delegateDisposable.value = toDisposable(() => delegate.dispose());
 		delegate.initialFetch.then(() => {
+			if (generation !== this._delegateGeneration || this._store.isDisposed) {
+				return; // superseded by a newer delegate, or the service was disposed
+			}
 			this._logService.trace(`[BaseExperimentationService] Initial fetch completed`);
+			// A replacement delegate (e.g. once the assignments endpoint arrives) may carry
+			// different assignments; announce any changes so experiment-based config updates.
+			this._signalTreatmentsChangeEvent();
 		});
 		return delegate;
 	}
