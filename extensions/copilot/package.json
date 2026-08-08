@@ -2035,6 +2035,18 @@
               "title": "API Type",
               "markdownDescription": "Default request/response format for models in this group. Individual models can override this with their own `apiType` property; when both are unset the type is inferred from the URL path."
             },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Base URL for the endpoint provider. Used for model discovery when auto-fetching is enabled.",
+              "title": "Base URL"
+            },
+            "autoFetch": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether to automatically fetch models from the base URL.",
+              "title": "Auto Fetch Models"
+            },
             "models": {
               "type": "array",
               "defaultSnippets": [
