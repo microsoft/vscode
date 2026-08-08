@@ -4,13 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .sticky-widget {
-	overflow: hidden;
-	border-bottom: 1px solid var(--vscode-editorStickyScroll-border);
 	width: 100%;
-	box-shadow: var(--vscode-editorStickyScroll-shadow) 0 4px 2px -2px;
 	z-index: 4;
 	right: initial !important;
 	margin-left: '0px';
+}
+
+.monaco-editor .sticky-widget .sticky-widget-content {
+	overflow: hidden;
+	border-bottom: 1px solid var(--vscode-editorStickyScroll-border);
+}
+
+.monaco-editor .sticky-widget .sticky-widget-shadow {
+	position: absolute;
+	bottom: -3px;
+	left: 0;
+	height: 3px;
+	width: 100%;
+	box-shadow: var(--vscode-editorStickyScroll-shadow) 0 6px 6px -6px inset;
 }
 
 .monaco-editor .sticky-widget .sticky-widget-line-numbers {
