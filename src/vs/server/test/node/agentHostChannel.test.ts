@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -22,6 +23,7 @@ class FakeUpstream extends Disposable implements IUpstreamConnection {
 	connectResult: Promise<void> = Promise.resolve();
 	connectCount = 0;
 	disposed = false;
+	private closeFired = false;
 
 	async connect(): Promise<void> {
 		this.connectCount++;
@@ -37,12 +39,16 @@ class FakeUpstream extends Disposable implements IUpstreamConnection {
 	}
 
 	fireClose(): void {
+		if (this.closeFired) {
+			return;
+		}
+		this.closeFired = true;
 		this._onClose.fire();
 	}
 
 	override dispose(): void {
 		this.disposed = true;
-		this._onClose.fire();
+		this.fireClose();
 		super.dispose();
 	}
 }
@@ -126,6 +132,148 @@ suite('AgentHostChannel', () => {
 
 		assert.strictEqual(upA.disposed, true);
 		assert.strictEqual(closed, 1);
+	});
+
+	test('resolves the endpoint only when connect is called', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		const resolvedEndpoints: IAgentHostUpstreamEndpoint[] = [];
+		let resolveCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => {
+				resolveCount++;
+				return { host: '127.0.0.1', port: '23456', connectionToken: 'token' };
+			},
+			new NullLogService(),
+			endpoint => {
+				resolvedEndpoints.push(endpoint);
+				return ds.add(new FakeUpstream());
+			},
+		));
+
+		ds.add(channel.listen<string>('a', 'frame')(() => undefined));
+		assert.strictEqual(resolveCount, 0);
+
+		await channel.call('a', 'connect');
+
+		assert.deepStrictEqual({ resolveCount, resolvedEndpoints }, {
+			resolveCount: 1,
+			resolvedEndpoints: [{ host: '127.0.0.1', port: '23456', connectionToken: 'token' }],
+		});
+	});
+
+	test('resolves a fresh endpoint after the upstream closes', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		const endpoints = [
+			{ host: '127.0.0.1', port: '11111' },
+			{ host: '127.0.0.1', port: '22222' },
+		];
+		const resolvedEndpoints: IAgentHostUpstreamEndpoint[] = [];
+		const upstreams: FakeUpstream[] = [];
+		let resolveCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => endpoints[resolveCount++],
+			new NullLogService(),
+			endpoint => {
+				resolvedEndpoints.push(endpoint);
+				const upstream = ds.add(new FakeUpstream());
+				upstreams.push(upstream);
+				return upstream;
+			},
+		));
+
+		ds.add(channel.listen<string>('a', 'frame')(() => undefined));
+		await channel.call('a', 'connect');
+		upstreams[0].fireClose();
+
+		ds.add(channel.listen<string>('a', 'frame')(() => undefined));
+		await channel.call('a', 'connect');
+
+		assert.deepStrictEqual({ resolveCount, resolvedEndpoints }, {
+			resolveCount: 2,
+			resolvedEndpoints: endpoints,
+		});
+	});
+
+	test('retries endpoint resolution after a failure', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		let resolveCount = 0;
+		let factoryCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => {
+				if (resolveCount++ === 0) {
+					throw new Error('no registered endpoint');
+				}
+				return { host: '127.0.0.1', port: '23456' };
+			},
+			new NullLogService(),
+			() => {
+				factoryCount++;
+				return ds.add(new FakeUpstream());
+			},
+		));
+
+		ds.add(channel.listen<string>('a', 'frame')(() => undefined));
+		await assert.rejects(() => channel.call('a', 'connect'), /no registered endpoint/);
+
+		ds.add(channel.listen<string>('a', 'frame')(() => undefined));
+		await channel.call('a', 'connect');
+
+		assert.deepStrictEqual({ resolveCount, factoryCount }, { resolveCount: 2, factoryCount: 1 });
+	});
+
+	test('does not create an upstream when disconnected during endpoint resolution', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		const endpoint = new DeferredPromise<IAgentHostUpstreamEndpoint>();
+		let factoryCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			() => endpoint.p,
+			new NullLogService(),
+			() => {
+				factoryCount++;
+				return ds.add(new FakeUpstream());
+			},
+		));
+
+		ds.add(channel.listen<string>('a', 'frame')(() => undefined));
+		const connecting = channel.call('a', 'connect');
+		ipc.fireRemove('a');
+		endpoint.complete({ host: '127.0.0.1', port: '23456' });
+
+		await assert.rejects(() => connecting, /disposed/);
+		assert.strictEqual(factoryCount, 0);
+	});
+
+	test('accepts IPv6 loopback URLs and redacts tokens from connection errors', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		const token = 'secret-registry-token';
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			{ host: '::1', port: '0', connectionToken: token },
+			new NullLogService(),
+		));
+		ds.add(channel.listen<string>('a', 'frame')(() => undefined));
+
+		let error: unknown;
+		try {
+			await channel.call('a', 'connect');
+		} catch (caught) {
+			error = caught;
+		}
+
+		const message = error instanceof Error ? error.message : String(error);
+		assert.deepStrictEqual({
+			rejected: error !== undefined,
+			invalidUrl: message.includes('Invalid URL'),
+			containsToken: message.includes(token),
+		}, {
+			rejected: true,
+			invalidUrl: false,
+			containsToken: false,
+		});
 	});
 });
 

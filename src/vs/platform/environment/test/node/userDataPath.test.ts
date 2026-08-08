@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { OPTIONS, parseArgs } from '../../node/argv.js';
-import { getUserDataPath } from '../../node/userDataPath.js';
+import { getUserDataPath, getUserDataPathForProduct } from '../../node/userDataPath.js';
 import product from '../../../product/common/product.js';
 
 suite('User data path', () => {
@@ -55,6 +55,50 @@ suite('User data path', () => {
 				process.env['VSCODE_APPDATA'] = origAppData;
 			} else {
 				delete process.env['VSCODE_APPDATA'];
+			}
+		}
+	});
+
+	test('getUserDataPathForProduct - preserves the product name in development', () => {
+		const originalDev = process.env['VSCODE_DEV'];
+		const originalPortable = process.env['VSCODE_PORTABLE'];
+		const originalAppData = process.env['VSCODE_APPDATA'];
+		try {
+			process.env['VSCODE_DEV'] = '1';
+			delete process.env['VSCODE_PORTABLE'];
+			process.env['VSCODE_APPDATA'] = 'shared-appdata';
+			const path = getUserDataPathForProduct({}, 'shared-product-name');
+			assert.strictEqual(path.endsWith('shared-product-name'), true);
+		} finally {
+			if (originalDev === undefined) {
+				delete process.env['VSCODE_DEV'];
+			} else {
+				process.env['VSCODE_DEV'] = originalDev;
+			}
+			if (originalPortable === undefined) {
+				delete process.env['VSCODE_PORTABLE'];
+			} else {
+				process.env['VSCODE_PORTABLE'] = originalPortable;
+			}
+			if (originalAppData === undefined) {
+				delete process.env['VSCODE_APPDATA'];
+			} else {
+				process.env['VSCODE_APPDATA'] = originalAppData;
+			}
+		}
+	});
+
+	test('getUserDataPathForProduct - explicit path wins over environment', () => {
+		const originalAppData = process.env['VSCODE_APPDATA'];
+		try {
+			process.env['VSCODE_APPDATA'] = 'shared-appdata';
+			const path = getUserDataPathForProduct({ 'user-data-dir': 'explicit-data' }, 'shared-product-name');
+			assert.strictEqual(path.endsWith('explicit-data'), true);
+		} finally {
+			if (originalAppData === undefined) {
+				delete process.env['VSCODE_APPDATA'];
+			} else {
+				process.env['VSCODE_APPDATA'] = originalAppData;
 			}
 		}
 	});

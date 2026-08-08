@@ -77,6 +77,15 @@ const PING_INTERVAL_MS = 5_000;
  */
 const LIVENESS_TIMEOUT_MS = 20_000;
 
+/**
+ * `createSession` can synchronously initialize an agent SDK and materialize
+ * synced customizations on the host. During that work the host's event loop
+ * may be unable to answer the liveness ping even though the transport is
+ * healthy. Keep the normal dead-transport timeout for all other traffic, but
+ * give this bounded operation enough time to finish before reconnecting.
+ */
+const CREATE_SESSION_LIVENESS_TIMEOUT_MS = 120_000;
+
 function connectionTimeoutError(address: string, silenceMs: number): ProtocolError {
 	return new ProtocolError(
 		AHP_CLIENT_CONNECTION_CLOSED,
@@ -105,6 +114,7 @@ interface IRemoteAgentHostExtensionCommandMap {
 
 interface IPendingRequest {
 	readonly deferred: DeferredPromise<unknown>;
+	readonly method: string;
 	readonly suppressNotFoundWarning: boolean;
 	readonly sentAt: number;
 }
@@ -475,6 +485,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
 				throw error;
 			}
+			if (this._state.kind === AgentHostClientState.Reconnecting) {
+				throw error;
+			}
+			if (!(error instanceof ProtocolError) && this._beginReconnectFromConnecting(protocolError)) {
+				throw error;
+			}
 			this._handleClose(protocolError);
 			throw error;
 		}
@@ -509,9 +525,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case AgentHostClientState.Closed:
 				return;
 			case AgentHostClientState.Connecting:
-				// No handshake yet; we can't resume so always treat as fatal
-				// regardless of whether a factory is configured.
-				this._handleClose(connectionClosedError(this._address));
+				if (!this._beginReconnectFromConnecting(connectionClosedError(this._address))) {
+					this._handleClose(connectionClosedError(this._address));
+				}
 				return;
 			case AgentHostClientState.Incompatible:
 				this._handleClose(connectionClosedError(this._address));
@@ -546,6 +562,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._rejectPendingRequests(transportLostError(this._address));
 				return;
 		}
+	}
+
+	private _beginReconnectFromConnecting(error: ProtocolError): boolean {
+		if (this._state.kind !== AgentHostClientState.Connecting || !this._transportFactory) {
+			return false;
+		}
+		const reconnect = this._newReconnectState();
+		reconnect.outbox.push(...this._state.outbox);
+		this._state.outbox.length = 0;
+		this._transitionTo({ kind: AgentHostClientState.Reconnecting, reconnect });
+		this._cancelLivenessTimers();
+		this._rejectPendingRequests(error);
+		this._scheduleReconnect();
+		return true;
 	}
 
 	private _scheduleReconnect(): void {
@@ -1568,7 +1598,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _createRequest<TResult>(method: string, params: unknown): { request: JsonRpcRequest; result: Promise<TResult> } {
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, { deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
+		this._pendingRequests.set(id, { deferred, method, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
 		return {
 			request: { jsonrpc: '2.0', id, method, params },
 			result: deferred.p as Promise<TResult>,
@@ -1665,7 +1695,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS);
 			return;
 		}
-		const silence = Date.now() - this._lastReadTime;
+		const now = Date.now();
+		const pendingCreateSession = Array.from(this._pendingRequests.values())
+			.find(request => request.method === 'createSession');
+		if (pendingCreateSession) {
+			const requestAge = now - pendingCreateSession.sentAt;
+			if (requestAge < CREATE_SESSION_LIVENESS_TIMEOUT_MS) {
+				this._closeTimer.cancelAndSet(
+					() => this._onCloseTimer(),
+					Math.min(PING_INTERVAL_MS, CREATE_SESSION_LIVENESS_TIMEOUT_MS - requestAge),
+				);
+				return;
+			}
+		}
+		const silence = now - this._lastReadTime;
 		this._logService.info(
 			`[RemoteAgentHostProtocol] Liveness: no message from ${this._address} for ${silence}ms; forcing close to trigger reconnect.`,
 		);

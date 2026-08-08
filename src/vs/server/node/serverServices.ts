@@ -81,6 +81,8 @@ import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHos
 import { ServerAgentHostManager } from './serverAgentHostManager.js';
 import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
 import { AgentHostIpcChannels } from '../../platform/agentHost/common/agentService.js';
+import { readLocalAgentHostEndpointRegistry, selectLocalStandaloneAgentHostEndpoint } from '../../platform/agentHost/node/localAgentHostMetadata.js';
+import { dialAgentHostHost } from '../../platform/agentHost/node/sshRemoteAgentHostHelpers.js';
 import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
@@ -103,6 +105,7 @@ import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGallery
 import { McpGalleryManifestIPCService } from '../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannel } from '../../platform/sandbox/common/sandboxHelperIpc.js';
 import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
+import { getUserDataPathForProduct } from '../../platform/environment/node/userDataPath.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -280,15 +283,37 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	// AH's readiness line and pass it back as `--agent-host-bridge-port`
 	// on the renderer-serving servers. Explicit `--agent-host-bridge-*`
 	// always wins over the spawn fallback.
-	const spawnPortNumber = spawnPort ? parseInt(spawnPort, 10) : NaN;
-	const hasUsableSpawnPort = Number.isFinite(spawnPortNumber) && spawnPortNumber > 0;
-	const bridgePort = args['agent-host-bridge-port'] ?? (hasUsableSpawnPort ? spawnPort : undefined);
-	const bridgePath = args['agent-host-bridge-path'] ?? spawnPath;
-	const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
+	const spawnPortNumber = spawnPort ? Number(spawnPort) : NaN;
+	const hasUsableSpawnPort = Number.isSafeInteger(spawnPortNumber) && spawnPortNumber > 0 && spawnPortNumber <= 65535;
+	const explicitBridgePort = args['agent-host-bridge-port'];
+	const explicitBridgePath = args['agent-host-bridge-path'];
+	const hasExplicitBridgeConfiguration = [
+		explicitBridgePort,
+		explicitBridgePath,
+		args['agent-host-bridge-host'],
+		args['agent-host-bridge-connection-token'],
+	].some(value => value !== undefined);
+	const explicitBridgePortNumber = explicitBridgePort ? Number(explicitBridgePort) : NaN;
+	const hasUsableExplicitBridgePort = Number.isSafeInteger(explicitBridgePortNumber) && explicitBridgePortNumber > 0 && explicitBridgePortNumber <= 65535;
+	const bridgePort = hasExplicitBridgeConfiguration
+		? (!explicitBridgePath && hasUsableExplicitBridgePort ? String(explicitBridgePortNumber) : undefined)
+		: (hasUsableSpawnPort ? String(spawnPortNumber) : undefined);
+	const bridgePath = hasExplicitBridgeConfiguration ? explicitBridgePath : spawnPath;
+	const bridgeHost = hasExplicitBridgeConfiguration
+		? (args['agent-host-bridge-host'] ?? 'localhost')
+		: (args.host ?? 'localhost');
 	const bridgeToken = args['agent-host-bridge-connection-token']
-		?? ((bridgePort || bridgePath) && spawnAgentHost && connectionToken.type === ServerConnectionTokenType.Mandatory
+		?? (!hasExplicitBridgeConfiguration && (bridgePort || bridgePath) && spawnAgentHost && connectionToken.type === ServerConnectionTokenType.Mandatory
 			? connectionToken.value
 			: undefined);
+	const hasExplicitAgentHostConfiguration = [
+		args['agent-host-port'],
+		args['agent-host-path'],
+		args['agent-host-bridge-port'],
+		args['agent-host-bridge-path'],
+		args['agent-host-bridge-host'],
+		args['agent-host-bridge-connection-token'],
+	].some(value => value !== undefined);
 	if (bridgePort || bridgePath) {
 		const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 			socketServer,
@@ -302,9 +327,32 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		));
 		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
 		logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);
+	} else if (!hasExplicitAgentHostConfiguration) {
+		const agentHostRegistryUserDataPath = getUserDataPathForProduct({ 'user-data-dir': args['agent-host-registry-user-data-dir'] }, productService.nameShort);
+		const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
+			socketServer,
+			async () => {
+				const entries = await readLocalAgentHostEndpointRegistry(agentHostRegistryUserDataPath, logService);
+				const selected = selectLocalStandaloneAgentHostEndpoint(entries, logService);
+				if (!selected || selected.endpoint.type !== 'tcp') {
+					throw new Error('Agent host proxy is not available because no live standalone agent host endpoint is registered.');
+				}
+				if (!isLocalAgentHostRegistryHost(selected.endpoint.host)) {
+					throw new Error('Agent host proxy cannot automatically connect to a non-local registered endpoint. Use explicit agent host bridge arguments instead.');
+				}
+				return {
+					host: dialAgentHostHost(selected.endpoint.host),
+					port: String(selected.endpoint.port),
+					connectionToken: selected.connectionToken || undefined,
+				};
+			},
+			logService,
+		));
+		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
+		logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' with lazy standalone endpoint discovery under ${agentHostRegistryUserDataPath}.`);
 	} else {
 		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
-		logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
+		logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': explicit agent host configuration did not provide a dialable bridge endpoint.`);
 	}
 
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
@@ -355,6 +403,16 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	});
 
 	return { socketServer, instantiationService };
+}
+
+function isLocalAgentHostRegistryHost(host: string): boolean {
+	return host === 'localhost'
+		|| host === '127.0.0.1'
+		|| host === '::1'
+		|| host === '[::1]'
+		|| host === '0.0.0.0'
+		|| host === '::'
+		|| host === '[::]';
 }
 
 const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);

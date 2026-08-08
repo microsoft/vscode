@@ -24,8 +24,19 @@ const cwd = process.env['VSCODE_CWD'] || process.cwd();
  * - respect VSCODE_APPDATA environment variable
  * - respect --user-data-dir CLI argument
  */
-export function getUserDataPath(cliArgs: NativeParsedArgs, productName: string): string {
-	const userDataPath = doGetUserDataPath(cliArgs, productName);
+export function getUserDataPath(cliArgs: Pick<NativeParsedArgs, 'user-data-dir'>, productName: string): string {
+	if (process.env['VSCODE_DEV']) {
+		productName = 'code-oss-dev';
+	}
+	return resolveUserDataPath(doGetUserDataPath(cliArgs, productName));
+}
+
+/** Resolves user data without the development product-name override, for cross-process paths keyed by the compiled product name. */
+export function getUserDataPathForProduct(cliArgs: Pick<NativeParsedArgs, 'user-data-dir'>, productName: string): string {
+	return resolveUserDataPath(cliArgs['user-data-dir'] ?? doGetUserDataPath({}, productName));
+}
+
+function resolveUserDataPath(userDataPath: string): string {
 	const pathsToResolve = [userDataPath];
 
 	// If the user-data-path is not absolute, make
@@ -41,13 +52,7 @@ export function getUserDataPath(cliArgs: NativeParsedArgs, productName: string):
 	return resolve(...pathsToResolve);
 }
 
-function doGetUserDataPath(cliArgs: NativeParsedArgs, productName: string): string {
-
-	// 0. Running out of sources has a fixed productName
-	if (process.env['VSCODE_DEV']) {
-		productName = 'code-oss-dev';
-	}
-
+function doGetUserDataPath(cliArgs: Pick<NativeParsedArgs, 'user-data-dir'>, productName: string): string {
 	// 1. Support portable mode
 	const portablePath = process.env['VSCODE_PORTABLE'];
 	if (portablePath) {

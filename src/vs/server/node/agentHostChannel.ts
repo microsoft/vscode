@@ -62,6 +62,8 @@ export interface IUpstreamConnection extends IDisposable {
 
 export type UpstreamConnectionFactory = (endpoint: IAgentHostUpstreamEndpoint) => IUpstreamConnection;
 
+export type AgentHostUpstreamEndpointResolver = () => Promise<IAgentHostUpstreamEndpoint>;
+
 /**
  * IPC channel registered when the remote server has no agent host upstream.
  * Keeping the channel present lets renderers fail explicitly without making
@@ -96,6 +98,70 @@ export class UnavailableAgentHostChannel<TContext> implements IServerChannel<TCo
 const defaultUpstreamFactory = (logService: ILogService): UpstreamConnectionFactory =>
 	(endpoint) => new WebSocketUpstreamConnection(endpoint, logService);
 
+class ResolvingUpstreamConnection extends Disposable implements IUpstreamConnection {
+	private readonly _onFrame = this._register(new Emitter<string>());
+	readonly onFrame: Event<string> = this._onFrame.event;
+
+	private readonly _onClose = this._register(new Emitter<void>());
+	readonly onClose: Event<void> = this._onClose.event;
+
+	private _upstream: IUpstreamConnection | undefined;
+	private _connectPromise: Promise<void> | undefined;
+	private _closeFired = false;
+
+	constructor(
+		private readonly _endpointResolver: AgentHostUpstreamEndpointResolver,
+		private readonly _upstreamFactory: UpstreamConnectionFactory,
+	) {
+		super();
+	}
+
+	connect(): Promise<void> {
+		if (this._store.isDisposed) {
+			return Promise.reject(new Error('UpstreamConnection is disposed'));
+		}
+		return this._connectPromise ??= this._doConnect();
+	}
+
+	private async _doConnect(): Promise<void> {
+		try {
+			const endpoint = await this._endpointResolver();
+			if (this._store.isDisposed) {
+				throw new Error('UpstreamConnection is disposed');
+			}
+
+			const upstream = this._register(this._upstreamFactory(endpoint));
+			this._upstream = upstream;
+			this._register(upstream.onFrame(frame => this._onFrame.fire(frame)));
+			this._register(upstream.onClose(() => this._fireClose()));
+			await upstream.connect();
+		} catch (error) {
+			this._fireClose();
+			throw error;
+		}
+	}
+
+	send(frame: string): void {
+		if (!this._upstream) {
+			throw new Error('Upstream is not connected');
+		}
+		this._upstream.send(frame);
+	}
+
+	override dispose(): void {
+		this._fireClose();
+		super.dispose();
+	}
+
+	private _fireClose(): void {
+		if (this._closeFired) {
+			return;
+		}
+		this._closeFired = true;
+		this._onClose.fire();
+	}
+}
+
 class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnection {
 	private readonly _onFrame = this._register(new Emitter<string>());
 	readonly onFrame: Event<string> = this._onFrame.event;
@@ -126,8 +192,17 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 		const url = this._buildUrl();
 		const wsOptions = await this._buildWsOptions();
 
-		this._logService.info(`[AgentHostChannel] Opening upstream to ${this._endpoint.socketPath ?? url}`);
-		const socket = new ws.WebSocket(url, wsOptions);
+		const endpointLabel = this._endpoint.socketPath ?? `${this._endpoint.host ?? 'localhost'}:${this._endpoint.port ?? '0'}`;
+		this._logService.info(`[AgentHostChannel] Opening upstream to ${endpointLabel}`);
+		let socket: wsTypes.WebSocket;
+		try {
+			socket = new ws.WebSocket(url, wsOptions);
+		} catch (error) {
+			const redactedError = this._redactError(error);
+			this._logService.warn('[AgentHostChannel] Upstream connection failed', redactedError);
+			this._fireClose();
+			throw redactedError;
+		}
 		this._ws = socket;
 
 		return new Promise<void>((resolve, reject) => {
@@ -140,7 +215,7 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 				});
 				socket.on('close', () => this._fireClose());
 				socket.on('error', err => {
-					this._logService.warn('[AgentHostChannel] Upstream error', err);
+					this._logService.warn('[AgentHostChannel] Upstream error', this._redactError(err));
 					this._fireClose();
 				});
 				resolve();
@@ -148,9 +223,10 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 
 			const onError = (err: Error) => {
 				cleanup();
-				this._logService.warn('[AgentHostChannel] Upstream connection failed', err);
+				const redactedError = this._redactError(err);
+				this._logService.warn('[AgentHostChannel] Upstream connection failed', redactedError);
 				this._fireClose();
-				reject(err);
+				reject(redactedError);
 			};
 
 			const onClose = () => {
@@ -196,13 +272,23 @@ class WebSocketUpstreamConnection extends Disposable implements IUpstreamConnect
 	}
 
 	private _buildUrl(): string {
-		const host = this._endpoint.host ?? 'localhost';
+		const endpointHost = this._endpoint.host ?? 'localhost';
+		const host = endpointHost.includes(':') && !endpointHost.startsWith('[') ? `[${endpointHost}]` : endpointHost;
 		const port = this._endpoint.port ?? '0';
 		let url = `ws://${host}:${port}`;
 		if (this._endpoint.connectionToken) {
 			url += `?${connectionTokenQueryName}=${encodeURIComponent(this._endpoint.connectionToken)}`;
 		}
 		return url;
+	}
+
+	private _redactError(error: unknown): Error {
+		const message = error instanceof Error ? error.message : String(error);
+		const token = this._endpoint.connectionToken;
+		const redactedMessage = token ? message.replaceAll(token, '<redacted>') : message;
+		const redactedError = new Error(redactedMessage);
+		redactedError.name = error instanceof Error ? error.name : 'Error';
+		return redactedError;
 	}
 
 	private async _buildWsOptions(): Promise<wsTypes.ClientOptions | undefined> {
@@ -229,7 +315,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 
 	constructor(
 		ipcServer: IPCServer<TContext>,
-		private readonly _endpoint: IAgentHostUpstreamEndpoint,
+		private readonly _endpoint: IAgentHostUpstreamEndpoint | AgentHostUpstreamEndpointResolver,
 		private readonly _logService: ILogService,
 		upstreamFactory?: UpstreamConnectionFactory,
 	) {
@@ -278,16 +364,20 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 	private _getOrCreate(ctx: TContext): IUpstreamConnection {
 		let conn = this._perCtx.get(ctx);
 		if (!conn) {
-			conn = this._upstreamFactory(this._endpoint);
-			this._perCtx.set(ctx, conn);
+			conn = typeof this._endpoint === 'function'
+				? new ResolvingUpstreamConnection(this._endpoint, this._upstreamFactory)
+				: this._upstreamFactory(this._endpoint);
+			const createdConn = conn;
+			this._perCtx.set(ctx, createdConn);
 			// If the upstream closes on its own (e.g. agent host restart or
 			// connection drop), evict it from the cache so the next
 			// `connect()` call creates a fresh upstream rather than
 			// returning the stuck-closed one.
-			const sub = conn.onClose(() => {
+			const sub = createdConn.onClose(() => {
 				sub.dispose();
-				if (this._perCtx.get(ctx) === conn) {
+				if (this._perCtx.get(ctx) === createdConn) {
 					this._perCtx.delete(ctx);
+					createdConn.dispose();
 				}
 			});
 		}
