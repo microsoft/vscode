@@ -631,6 +631,11 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		// An open socket is not a live session: a rejected connect is accepted
+		// before it is closed so the close frame can carry a reason, so the
+		// controller waits for the backend's ack before reporting connected.
+		// Without this the omni inbox stays inactive and nothing narrates.
+		voiceClientService.fireSessionInit();
 		controller.setOmniInputOpen(true);
 	}
 
@@ -4501,6 +4506,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		(Reflect.get(controller, '_deferredNarrations') as Map<string, unknown>).set(staleSession, {
 			narrationId: 'stale-panel-narration',
 			kind: 'confirmation',
@@ -4855,6 +4861,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setTargetSession(focusedSession);
 
 		handleStateChange.call(controller, focusedSession.toString(), 'idle', undefined, 'Focused response.', focusedSession.toString());
@@ -4883,6 +4890,7 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		voiceClientService.fireConnectionState(true);
 		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
 		controller.setTargetSession(untitledSession);
 
 		widget.materialize(materializedSession);
