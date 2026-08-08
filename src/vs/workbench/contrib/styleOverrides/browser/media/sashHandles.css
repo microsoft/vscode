@@ -13,9 +13,7 @@
  * low-contrast grip — three small dots — so users can see where parts meet and
  * where to grab to resize. The grip is suppressed for sashes within a part
  * (editor splits, tree/view resizers) so only the boundaries between top-level
- * parts are marked. On hover/active the grip fades out in favour of the
- * existing full-length highlight (see base sash.css), so behaviour while
- * dragging is unchanged.
+ * parts are marked.
  *
  * All rules are gated behind the `.style-override` class, which the
  * StyleOverridesContribution toggles onto the workbench container(s) when the
@@ -33,10 +31,6 @@
 	border-radius: 50%;
 	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 	opacity: 0.5;
-}
-
-.monaco-enable-motion .style-override .monaco-sash:not(.disabled)::after {
-	transition: opacity 0.1s ease-out;
 }
 
 /* Vertical sash: three dots stacked vertically, centered. */
@@ -57,25 +51,20 @@
 	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 }
 
-/* While hovering/dragging, defer to the base full-length highlight. */
-.style-override .monaco-sash.hover:not(.disabled)::after,
-.style-override .monaco-sash.active:not(.disabled)::after {
-	opacity: 0;
-}
-
 /* Only mark boundaries between top-level parts. Sashes inside a part (editor
  * splits, tree/view resizers) live within `.part`, so suppress their grip. */
 .style-override .part .monaco-sash::after {
 	content: none;
 }
 
-/* Hide grips for collapsed parts so a flush boundary isn't marked (and the
- * panel grip can't be clipped by the status bar). The workbench container
- * carries `nopanel`/`nosidebar` when those parts are hidden: the panel sash is
- * horizontal, the primary side bar sash is vertical. */
-.style-override.nopanel .monaco-sash.horizontal::after,
-.style-override.nosidebar .monaco-sash.vertical::after {
+/* Hide the grip for a collapsed panel so it cannot be clipped by the status bar. */
+.style-override.nopanel .monaco-sash.horizontal::after {
 	content: none;
+}
+
+/* Modal editors already separate panes with a gap, so their hover highlight is redundant. */
+.style-override .modal-editor-part > .content .monaco-sash:is(.hover, .active)::before {
+	background: transparent;
 }
 
 @media (forced-colors: active) {
