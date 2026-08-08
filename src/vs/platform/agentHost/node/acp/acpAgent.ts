@@ -29,6 +29,10 @@ type AcpPromptResponse = import('@agentclientprotocol/sdk').PromptResponse;
 type AcpRequestPermissionRequest = import('@agentclientprotocol/sdk').RequestPermissionRequest;
 type AcpRequestPermissionResponse = import('@agentclientprotocol/sdk').RequestPermissionResponse;
 type AcpSessionId = import('@agentclientprotocol/sdk').SessionId;
+type AcpSessionConfigOption = import('@agentclientprotocol/sdk').SessionConfigOption;
+type AcpSessionConfigSelect = import('@agentclientprotocol/sdk').SessionConfigSelect;
+type AcpSessionConfigSelectGroup = import('@agentclientprotocol/sdk').SessionConfigSelectGroup;
+type AcpSessionConfigSelectOption = import('@agentclientprotocol/sdk').SessionConfigSelectOption;
 type AcpSessionInfoUpdate = import('@agentclientprotocol/sdk').SessionInfoUpdate;
 type AcpSessionUpdate = import('@agentclientprotocol/sdk').SessionUpdate;
 type AcpStopReason = import('@agentclientprotocol/sdk').StopReason;
@@ -80,6 +84,7 @@ interface AcpSessionState {
 	readonly createdAt: number;
 	modifiedAt: number;
 	summary: string | undefined;
+	configOptions: readonly AcpSessionConfigOption[];
 	chat: URI | undefined;
 	activeTurn: AcpActiveTurn | undefined;
 	readonly turns: Turn[];
@@ -138,6 +143,7 @@ export class AcpAgent extends Disposable implements IAgent {
 	private readonly _sessionsByAcpId = new Map<AcpSessionId, AcpSessionState>();
 	private readonly _pendingPermissions = new Map<string, PendingPermission>();
 	private readonly _activeClients = new Map<string, Map<string, IActiveClient>>();
+	private _lastKnownModels = new Map<string, IAgentModelInfo>();
 
 	constructor(
 		private readonly _configuration: IAgentHostAcpAgentConfiguration,
@@ -197,12 +203,26 @@ export class AcpAgent extends Disposable implements IAgent {
 			createdAt: now,
 			modifiedAt: now,
 			summary: undefined,
+			configOptions: activeSession.newSessionResponse.configOptions ?? [],
 			chat: undefined,
 			activeTurn: undefined,
 			turns: [],
 		};
 		this._sessions.set(sessionKey, state);
 		this._sessionsByAcpId.set(activeSession.sessionId, state);
+		this._refreshModelCatalog();
+		try {
+			if (config?.model && config.model.id !== 'default') {
+				await this._changeModel(state, config.model);
+			}
+		} catch (error) {
+			try {
+				await this.disposeSession(session);
+			} catch (disposeError) {
+				this._logService.error(`[Agent Rosetta:${this._configuration.id}] Failed to dispose ACP session after model selection failed.`, disposeError);
+			}
+			throw error;
+		}
 		this._logService.info(`[Agent Rosetta:${this._configuration.id}] Created ACP session ${activeSession.sessionId}.`);
 		return {
 			session,
@@ -248,7 +268,7 @@ export class AcpAgent extends Disposable implements IAgent {
 			if (model.id === 'default') {
 				return Promise.resolve();
 			}
-			throw new Error(localize('acp.model.changeUnsupported', "This ACP agent does not support changing models."));
+			return this._changeModel(this._requireSession(_chat), model);
 		},
 		changeAgent: (_chat: URI, agent: AgentSelection | undefined): Promise<void> => {
 			if (agent) {
@@ -323,15 +343,108 @@ export class AcpAgent extends Disposable implements IAgent {
 			case 'session_info_update':
 				this._handleSessionInfo(state, update);
 				break;
+			case 'config_option_update':
+				this._applyConfigOptions(state, update.configOptions);
+				break;
 			case 'user_message_chunk':
 			case 'plan_update':
 			case 'plan_removed':
 			case 'available_commands_update':
 			case 'current_mode_update':
-			case 'config_option_update':
 			case 'usage_update':
 				break;
 		}
+	}
+
+	private async _changeModel(state: AcpSessionState, model: ModelSelection): Promise<void> {
+		const option = this._findModelOption(state.configOptions);
+		if (!option) {
+			throw new Error(localize('acp.model.changeUnsupported', "This ACP agent does not expose a model configuration option."));
+		}
+		if (!this._flattenSelectOptions(option.options).some(candidate => candidate.value === model.id)) {
+			throw new Error(localize('acp.model.unavailable', "ACP model '{0}' is not available in this session.", model.id));
+		}
+		if (option.currentValue === model.id) {
+			return;
+		}
+		const configOptions = await this._connection.setSessionConfigOption(state.activeSession.sessionId, option.id, model.id);
+		this._applyConfigOptions(state, configOptions);
+	}
+
+	private _applyConfigOptions(state: AcpSessionState, configOptions: readonly AcpSessionConfigOption[]): void {
+		state.configOptions = configOptions;
+		this._refreshModelCatalog();
+	}
+
+	private _refreshModelCatalog(): void {
+		const sessionModels: Map<string, IAgentModelInfo>[] = [];
+		for (const state of this._sessions.values()) {
+			const option = this._findModelOption(state.configOptions);
+			if (!option) {
+				sessionModels.push(new Map());
+				continue;
+			}
+			const models = new Map<string, IAgentModelInfo>();
+			for (const value of this._flattenSelectOptions(option.options)) {
+				models.set(value.value, {
+					provider: this.id,
+					id: value.value,
+					name: value.name,
+					supportsVision: false,
+					_meta: value.description ? { description: value.description } : undefined,
+				});
+			}
+			sessionModels.push(models);
+		}
+
+		let models: Map<string, IAgentModelInfo>;
+		if (sessionModels.length > 0) {
+			models = new Map(sessionModels[0]);
+			for (const id of [...models.keys()]) {
+				if (!sessionModels.every(catalog => catalog.has(id))) {
+					models.delete(id);
+				}
+			}
+			if (models.size > 0) {
+				this._lastKnownModels = new Map(models);
+			}
+		} else {
+			models = new Map(this._lastKnownModels);
+		}
+
+		const next = models.size > 0 ? [...models.values()] : [{
+			provider: this.id,
+			id: 'default',
+			name: localize('acp.model.default', "Default"),
+			supportsVision: false,
+		}];
+		const current = this._models.get();
+		if (current.length === next.length && current.every((model, index) => model.id === next[index].id && model.name === next[index].name)) {
+			return;
+		}
+		this._models.set(next, undefined);
+	}
+
+	private _findModelOption(configOptions: readonly AcpSessionConfigOption[]): (AcpSessionConfigOption & AcpSessionConfigSelect & { type: 'select' }) | undefined {
+		const selectOptions = configOptions.filter((option): option is AcpSessionConfigOption & AcpSessionConfigSelect & { type: 'select' } => option.type === 'select');
+		return selectOptions.find(option => option.category === 'model')
+			?? selectOptions.find(option => option.id.toLowerCase() === 'model');
+	}
+
+	private _flattenSelectOptions(options: AcpSessionConfigSelect['options']): readonly AcpSessionConfigSelectOption[] {
+		const result: AcpSessionConfigSelectOption[] = [];
+		for (const option of options) {
+			if (this._isSelectGroup(option)) {
+				result.push(...option.options);
+			} else {
+				result.push(option);
+			}
+		}
+		return result;
+	}
+
+	private _isSelectGroup(option: AcpSessionConfigSelectOption | AcpSessionConfigSelectGroup): option is AcpSessionConfigSelectGroup {
+		return 'group' in option;
 	}
 
 	private _handleContentChunk(state: AcpSessionState, update: AcpContentChunk, kind: ResponsePartKind.Markdown | ResponsePartKind.Reasoning): void {
@@ -708,13 +821,17 @@ export class AcpAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._cancelPermissionsForSession(state.activeSession.sessionId);
-		if (this._connection.initializeResult?.agentCapabilities?.sessionCapabilities?.close) {
-			await this._connection.closeSession(state.activeSession.sessionId);
+		try {
+			if (this._connection.initializeResult?.agentCapabilities?.sessionCapabilities?.close) {
+				await this._connection.closeSession(state.activeSession.sessionId);
+			}
+		} finally {
+			state.activeSession.dispose();
+			this._sessions.delete(state.session.toString());
+			this._sessionsByAcpId.delete(state.activeSession.sessionId);
+			this._activeClients.delete(state.session.toString());
+			this._refreshModelCatalog();
 		}
-		state.activeSession.dispose();
-		this._sessions.delete(state.session.toString());
-		this._sessionsByAcpId.delete(state.activeSession.sessionId);
-		this._activeClients.delete(state.session.toString());
 	}
 
 	async authenticate(_resource: string, _token: string): Promise<boolean> {

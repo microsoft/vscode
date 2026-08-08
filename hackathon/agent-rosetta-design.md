@@ -447,6 +447,7 @@ Protocol traffic logging may be added behind a development-only flag, with clear
 - Interactive permission approval and denial.
 - Turn cancellation.
 - Minimal in-memory transcript for the active Agent Host lifetime.
+- ACP v1 select model options discovered from `session/new`, updated by `config_option_update`, and changed through `session/set_config_option`.
 - Native provider discovery through existing AHP root state.
 - A demo using at least three ACP agents and one end-to-end coding task.
 
@@ -463,7 +464,7 @@ Protocol traffic logging may be added behind a development-only flag, with clear
 - Additional chats, chat fork, and chat disposal.
 - Checkpoints and changeset-specific integration.
 - Prompt attachments, images, and embedded resources.
-- Dynamic model/mode/configuration UI.
+- Non-model ACP session configuration options, including modes, reasoning levels, and boolean options.
 - Reliable restoration after Agent Host or ACP process restart.
 - Automatic ACP process restart and turn replay.
 - Hot configuration reload.
