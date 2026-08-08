@@ -79,4 +79,27 @@ suite('HTML Hover', () => {
 		assert.match(value, /```typescript[\s\S]*sayHello[\s\S]*```/, `signature missing in hover: ${value}`);
 		assert.ok(value.includes('Returns a friendly greeting.'), `JSDoc description missing in hover: ${value}`);
 	});
+
+	test('JavaScript hover in <script> preserves JSDoc links', async () => {
+		const html = [
+			'<html><head><script>',
+			'/**',
+			' * See {@link https://example.com/docs API documentation}.',
+			' * See {@link https://example.com/bare}.',
+			' * See {@linkcode https://example.com/code API code}.',
+			' * @see {@link https://example.com/reference API reference}',
+			' */',
+			'class LinkedClass {}',
+			'new Linked|Class();',
+			'</script></head></html>'
+		].join('\n');
+		const value = await getHoverValue(html);
+
+		assert.deepStrictEqual([
+			value.includes('[API documentation](https://example.com/docs)'),
+			value.includes('<https://example.com/bare>'),
+			value.includes('[`API code`](https://example.com/code)'),
+			value.includes('*@see* — [API reference](https://example.com/reference)')
+		], [true, true, true, true], `JSDoc links missing in hover: ${value}`);
+	});
 });
