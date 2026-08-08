@@ -60,7 +60,6 @@ export const ClaudeCodeSessionType: ISessionType = {
 	id: 'claude-code',
 	label: localize('claudeCode', "Claude"),
 	icon: Codicon.claude,
-	// Extension-contributed (legacy) generation: no native mode, always Copilot-backed.
 	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
 

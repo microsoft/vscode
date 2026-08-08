@@ -665,6 +665,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// startup changes, disposing any active sessions. These values are applied in
 		// `_ensureClient`, so they only take effect on the next client start.
 		this._register(this._configurationService.onDidRootConfigChange(() => {
+			// Protected-resource optionality depends on the signed-out opt-in.
+			this._publishModels();
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to apply root config change', err)
 			);
@@ -993,8 +995,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
+		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
+		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			this._gitHubEndpointService.getCopilotResource(),
+			allowSignedOutWhenUsable && this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
