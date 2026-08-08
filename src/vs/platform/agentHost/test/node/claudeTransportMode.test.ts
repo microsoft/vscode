@@ -63,15 +63,21 @@ suite('claudeTransportMode', () => {
 			assert.deepStrictEqual({
 				none: detectExistingClaudeSetup(homeDir, {}),
 				apiKey: detectExistingClaudeSetup(homeDir, { ANTHROPIC_API_KEY: 'sk-ant-api-x' }),
+				authToken: detectExistingClaudeSetup(homeDir, { ANTHROPIC_AUTH_TOKEN: 'sk-ant-auth-x' }),
+				baseUrl: detectExistingClaudeSetup(homeDir, { ANTHROPIC_BASE_URL: 'https://gateway.example/v1' }),
 				oauthToken: detectExistingClaudeSetup(homeDir, { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat-x' }),
 				emptyValue: detectExistingClaudeSetup(homeDir, { ANTHROPIC_API_KEY: '' }),
-			}, { none: false, apiKey: true, oauthToken: true, emptyValue: false });
+			}, { none: false, apiKey: true, authToken: true, baseUrl: true, oauthToken: true, emptyValue: false });
 		});
 
 		test('detects a credential in the settings.json env block (empty env injected)', () => {
 			const results: Record<string, boolean> = {};
 			writeSettings(JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-api-x' } }));
 			results.apiKey = detectExistingClaudeSetup(homeDir, {});
+			writeSettings(JSON.stringify({ env: { ANTHROPIC_AUTH_TOKEN: 'sk-ant-auth-x' } }));
+			results.authToken = detectExistingClaudeSetup(homeDir, {});
+			writeSettings(JSON.stringify({ env: { ANTHROPIC_BASE_URL: 'https://gateway.example/v1' } }));
+			results.baseUrl = detectExistingClaudeSetup(homeDir, {});
 			writeSettings(JSON.stringify({ env: { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat-x' } }));
 			results.oauthToken = detectExistingClaudeSetup(homeDir, {});
 			writeSettings(JSON.stringify({ env: { ANTHROPIC_API_KEY: '' } }));
@@ -81,7 +87,23 @@ suite('claudeTransportMode', () => {
 			writeSettings('not json');
 			results.malformed = detectExistingClaudeSetup(homeDir, {});
 
-			assert.deepStrictEqual(results, { apiKey: true, oauthToken: true, emptyValue: false, noEnvBlock: false, malformed: false });
+			assert.deepStrictEqual(results, { apiKey: true, authToken: true, baseUrl: true, oauthToken: true, emptyValue: false, noEnvBlock: false, malformed: false });
+		});
+
+		test('detects the top-level apiKeyHelper alongside unrecognized settings', () => {
+			const results: Record<string, boolean> = {};
+			writeSettings(JSON.stringify({ apiKeyHelper: '/bin/mint-key.sh' }));
+			results.helper = detectExistingClaudeSetup(homeDir, {});
+			// A real settings file carries keys the validator doesn't declare; they
+			// must be ignored rather than fail validation for the whole file.
+			writeSettings(JSON.stringify({ apiKeyHelper: '/bin/mint-key.sh', model: 'claude-sonnet-4-5', permissions: { allow: [] } }));
+			results.helperAmongOthers = detectExistingClaudeSetup(homeDir, {});
+			writeSettings(JSON.stringify({ apiKeyHelper: '' }));
+			results.emptyValue = detectExistingClaudeSetup(homeDir, {});
+			writeSettings(JSON.stringify({ apiKeyHelper: 42 }));
+			results.wrongType = detectExistingClaudeSetup(homeDir, {});
+
+			assert.deepStrictEqual(results, { helper: true, helperAmongOthers: true, emptyValue: false, wrongType: false });
 		});
 	});
 });

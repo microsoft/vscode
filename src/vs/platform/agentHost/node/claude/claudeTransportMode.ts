@@ -78,66 +78,96 @@ export function resolveClaudeTransportMode(inputs: IClaudeTransportModeInputs): 
 }
 
 /**
- * Validator for the slice of `~/.claude/settings.json` we care about: an
- * optional `env` block that may carry either recognized Anthropic credential.
- * Reuses the shared combinators in `base/common/validation.ts` so parsing the
- * untrusted file is type-safe without hand-rolled shape checks. This validator
- * is the single source of truth for the credential-key set — {@link
- * ClaudeCredentialEnv} is derived from it rather than hand-authored.
+ * Validator for the slice of `~/.claude/settings.json` we care about: the
+ * top-level `apiKeyHelper`, plus an optional `env` block that may carry any
+ * recognized Anthropic credential or endpoint override. Reuses the shared
+ * combinators in `base/common/validation.ts` so parsing the untrusted file is
+ * type-safe without hand-rolled shape checks. Unknown properties (`model`,
+ * `permissions`, …) are ignored rather than rejected, so a real settings file
+ * still validates. This validator is the single source of truth for the key
+ * set — {@link ClaudeNativeEnv} is derived from it rather than hand-authored.
  */
 const claudeSettingsValidator = vObj({
+	// A command the CLI runs to mint an API key. File-only: it has no
+	// environment-variable counterpart, hence its place outside `env`.
+	apiKeyHelper: vOptionalProp(vString()),
 	env: vOptionalProp(vObj({
 		ANTHROPIC_API_KEY: vOptionalProp(vString()),
+		ANTHROPIC_AUTH_TOKEN: vOptionalProp(vString()),
+		ANTHROPIC_BASE_URL: vOptionalProp(vString()),
 		CLAUDE_CODE_OAUTH_TOKEN: vOptionalProp(vString()),
 	})),
 });
 
+type ClaudeSettings = ValidatorType<typeof claudeSettingsValidator>;
+
 /**
  * The `env` block shape both `process.env` and `~/.claude/settings.json` are
  * probed for, derived from {@link claudeSettingsValidator} so the two never
- * drift. A non-empty value under either key is a usable native credential.
+ * drift. A non-empty value under any key means Claude can reach Anthropic
+ * without Copilot: a credential of its own, or a base-URL override pointing at
+ * a gateway that supplies one.
  */
-type ClaudeCredentialEnv = NonNullable<ValidatorType<typeof claudeSettingsValidator>['env']>;
+type ClaudeNativeEnv = NonNullable<ClaudeSettings['env']>;
 
 /**
  * Detects whether a local Claude configuration exists that lets Claude run
- * natively (without GitHub). Returns `true` when either:
+ * natively (without GitHub). Returns `true` when any of the following is set to
+ * a non-empty value:
  *
- *  - an `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` is set in the
- *    environment, or
- *  - either of those keys appears in the `env` block of
- *    `<homeDir>/.claude/settings.json`.
+ *  - `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, or
+ *    `CLAUDE_CODE_OAUTH_TOKEN` in the environment,
+ *  - any of those keys in the `env` block of `<homeDir>/.claude/settings.json`,
+ *  - the top-level `apiKeyHelper` in that same file — a command the CLI runs to
+ *    mint a key, so a setup can be complete with no credential stored anywhere.
  *
- * These are the same credential sources the SDK subprocess env is built from
- * (see `buildSubprocessEnv`), so detecting them here means "asking for what we
- * actually need": when a native credential is present the provider advertises
- * the GitHub Copilot resource as `required: false`, so no sign-in is forced —
- * while still letting the host silently forward a token to a user who is signed
- * in anyway.
+ * The first two are the credential sources the SDK subprocess env is built from
+ * (`buildSubprocessEnv` spreads the real `process.env` in native mode); the
+ * third is honored by the CLI itself, which reads the same user settings file
+ * (`settingSources` includes `'user'`). A base URL counts on its own because it
+ * points Claude at a gateway that supplies the credential. The proxy transport
+ * also injects `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`, but into the
+ * subprocess *settings* env rather than this process's, so its own plumbing
+ * can't read back as a native setup.
  *
- * Detection is deliberately conservative — an empty-string value does not count
- * — so it neither misses a real login nor misfires on a leftover blank entry.
+ * Detecting what the SDK will actually go on to use means "asking for what we
+ * really need": when a native setup is present the provider advertises the
+ * GitHub Copilot resource as `required: false`, so no sign-in is forced — while
+ * still letting the host silently forward a token to a user who is signed in
+ * anyway.
+ *
+ * Only presence is tested, never the value: nothing here reads a credential
+ * beyond asking whether it is a non-empty string. Detection is deliberately
+ * conservative — an empty-string value does not count — so it neither misses a
+ * real login nor misfires on a leftover blank entry.
  *
  * `env` and the settings-file path are the only external inputs, so both are
  * injectable: `env` defaults to `process.env` and the file is located under
  * `homeDir`, letting tests exercise real detection without stubbing globals.
  */
 export function detectExistingClaudeSetup(homeDir: string, env: NodeJS.ProcessEnv = process.env): boolean {
-	return hasClaudeCredential(env)
-		|| hasClaudeCredential(readClaudeSettingsEnv(join(homeDir, '.claude', 'settings.json')));
+	if (hasNativeClaudeEnv(env)) {
+		return true;
+	}
+	const settings = readClaudeSettings(join(homeDir, '.claude', 'settings.json'));
+	return hasNativeClaudeEnv(settings?.env) || !!settings?.apiKeyHelper;
 }
 
-/** True when either recognized Anthropic credential is present and non-empty. */
-function hasClaudeCredential(env: ClaudeCredentialEnv | undefined): boolean {
-	return !!(env?.ANTHROPIC_API_KEY || env?.CLAUDE_CODE_OAUTH_TOKEN);
+/** True when any recognized native-Claude key is present and non-empty. */
+function hasNativeClaudeEnv(env: ClaudeNativeEnv | undefined): boolean {
+	return !!(env?.ANTHROPIC_API_KEY
+		|| env?.ANTHROPIC_AUTH_TOKEN
+		|| env?.ANTHROPIC_BASE_URL
+		|| env?.CLAUDE_CODE_OAUTH_TOKEN);
 }
 
 /**
- * Reads and validates the `env` block of `~/.claude/settings.json`. Returns
- * `undefined` when the file is missing, unreadable, not valid JSON, or does not
- * match the expected shape.
+ * Reads and validates `~/.claude/settings.json`. Returns `undefined` when the
+ * file is missing, unreadable, not valid JSON, or does not match the expected
+ * shape — unknown properties are ignored, so only a wrong *type* on a
+ * recognized key fails validation.
  */
-function readClaudeSettingsEnv(path: string): ClaudeCredentialEnv | undefined {
+function readClaudeSettings(path: string): ClaudeSettings | undefined {
 	let text: string;
 	try {
 		text = readFileSync(path, 'utf8');
@@ -150,5 +180,5 @@ function readClaudeSettingsEnv(path: string): ClaudeCredentialEnv | undefined {
 	} catch {
 		return undefined;
 	}
-	return claudeSettingsValidator.validate(parsed).content?.env;
+	return claudeSettingsValidator.validate(parsed).content;
 }
