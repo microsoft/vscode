@@ -203,7 +203,12 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				? Object.values(ThinkingLevel).find(level => level.toLowerCase() === rawEffort)
 				: undefined;
 
+			// Per-request values (Custom Endpoint's `modelOptions` request option) take priority over the
+			// model's configured defaults; an explicit null on either side means "no override here", not
+			// "send null to the SDK", so it falls through to the next source instead of being forwarded.
 			const modelOptions = model.configuration?.modelOptions;
+			const temperature = options.modelOptions?.temperature ?? modelOptions?.temperature;
+			const topP = options.modelOptions?.top_p ?? modelOptions?.top_p;
 			const params: GenerateContentParameters = {
 				model: model.id,
 				contents: contents,
@@ -216,8 +221,8 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						thinkingLevel,
 					},
 					abortSignal: abortController.signal,
-					...(modelOptions?.temperature != null ? { temperature: modelOptions.temperature } : {}),
-					...(modelOptions?.top_p != null ? { topP: modelOptions.top_p } : {}),
+					...(temperature != null ? { temperature } : {}),
+					...(topP != null ? { topP } : {}),
 				}
 			};
 
