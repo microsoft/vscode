@@ -10,7 +10,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { SimpleFindWidget } from '../../codeEditor/browser/find/simpleFindWidget.js';
+import { SimpleWebFindWidget } from '../../codeEditor/browser/find/simpleWebFindWidget.js';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from './webview.js';
 
 export interface WebviewFindDelegate {
@@ -23,7 +23,7 @@ export interface WebviewFindDelegate {
 	focus(): void;
 }
 
-export class WebviewFindWidget extends SimpleFindWidget {
+export class WebviewFindWidget extends SimpleWebFindWidget {
 	protected async _getResultCount(dataChanged?: boolean): Promise<{ resultIndex: number; resultCount: number } | undefined> {
 		return undefined;
 	}
@@ -62,6 +62,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 			this._delegate.find(val, previous);
 		}
 	}
+
 
 	public override hide(animated = true) {
 		super.hide(animated);
