@@ -2955,21 +2955,49 @@ async function webviewPreloads(ctx: PreloadContext) {
 				e.dataTransfer.setData('notebook-cell-output', JSON.stringify(outputData));
 			});
 
-			// Add alt key handlers
+			// Add alt key handlers - only make draggable on actual drag intent, not just Alt keydown
+			// This prevents interference with Alt-based keyboard shortcuts for copying
+			let isAltPressed = false;
+
 			window.addEventListener('keydown', (e) => {
 				if (e.altKey) {
-					this.element.draggable = true;
+					isAltPressed = true;
+					// Don't immediately set draggable=true to avoid interfering with text selection
+					// and keyboard shortcuts. Only set it when we detect actual drag intent.
 				}
 			});
 
 			window.addEventListener('keyup', (e) => {
 				if (!e.altKey) {
+					isAltPressed = false;
+					this.element.draggable = this.isImageOutput;
+				}
+			});
+
+			// Only make draggable when Alt is held AND user starts a mouse interaction
+			// that could indicate drag intent
+			this.element.addEventListener('mousedown', (e) => {
+				if (isAltPressed) {
+					// Check if there's an active text selection - if so, don't interfere with it
+					const selection = window.getSelection();
+					const hasTextSelection = selection && !selection.isCollapsed;
+					
+					if (!hasTextSelection) {
+						this.element.draggable = true;
+					}
+				}
+			});
+
+			// Reset draggable state on mouse up
+			this.element.addEventListener('mouseup', () => {
+				if (!isAltPressed) {
 					this.element.draggable = this.isImageOutput;
 				}
 			});
 
 			// Handle window blur to reset draggable state
 			window.addEventListener('blur', () => {
+				isAltPressed = false;
 				this.element.draggable = this.isImageOutput;
 			});
 		}
