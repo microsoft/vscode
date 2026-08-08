@@ -191,6 +191,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 	 * pointing it at the user's endpoint instead of the official Gemini Developer API.
 	 */
 	private _toGeminiModel(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): ExtendedLanguageModelChatInformation<GeminiModelConfiguration> {
+		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
 		const { baseUrl, apiVersion } = resolveGeminiBaseUrl(model.url);
 		return {
 			...model,
@@ -198,6 +199,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 				apiKey: model.configuration?.apiKey,
 				baseUrl,
 				apiVersion,
+				headers: modelConfiguration?.requestHeaders,
+				modelOptions: modelConfiguration?.modelOptions,
 			}
 		};
 	}

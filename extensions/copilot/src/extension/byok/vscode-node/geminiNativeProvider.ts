@@ -10,6 +10,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
+import { IChatModelRequestOptions } from '../../../platform/endpoint/common/endpointProvider';
 import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, stringifyToolDefinitionsForOTel, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
@@ -30,6 +31,8 @@ import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 export interface GeminiModelConfiguration extends LanguageModelChatConfiguration {
 	readonly baseUrl?: string;
 	readonly apiVersion?: string;
+	readonly headers?: Record<string, string>;
+	readonly modelOptions?: IChatModelRequestOptions;
 }
 
 /** OTel server-address host: the custom base URL's host, or the default Gemini API host. */
@@ -118,9 +121,15 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 
 			// Set only when delegated to by Custom Endpoint; otherwise matches prior behavior exactly.
 			const baseUrl = model.configuration?.baseUrl;
+			const headers = model.configuration?.headers;
 			const client = new GoogleGenAI({
 				apiKey,
-				...(baseUrl ? { httpOptions: { baseUrl, apiVersion: model.configuration?.apiVersion } } : {})
+				...(baseUrl || headers ? {
+					httpOptions: {
+						...(baseUrl ? { baseUrl, apiVersion: model.configuration?.apiVersion } : {}),
+						...(headers ? { headers } : {}),
+					}
+				} : {})
 			});
 			// Convert the messages from the API format into messages that we can use against Gemini
 			const { contents, systemInstruction } = apiMessageToGeminiMessage(messages as LanguageModelChatMessage[]);
@@ -185,6 +194,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				? Object.values(ThinkingLevel).find(level => level.toLowerCase() === rawEffort)
 				: undefined;
 
+			const modelOptions = model.configuration?.modelOptions;
 			const params: GenerateContentParameters = {
 				model: model.id,
 				contents: contents,
@@ -196,7 +206,9 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						includeThoughts: true,
 						thinkingLevel,
 					},
-					abortSignal: abortController.signal
+					abortSignal: abortController.signal,
+					...(modelOptions?.temperature != null ? { temperature: modelOptions.temperature } : {}),
+					...(modelOptions?.top_p != null ? { topP: modelOptions.top_p } : {}),
 				}
 			};
 
