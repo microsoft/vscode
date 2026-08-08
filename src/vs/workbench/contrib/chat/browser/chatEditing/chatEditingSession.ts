@@ -1052,6 +1052,24 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 				return undefined;
 			}
+
+			// The fields above are getters on the prototype, so they are NOT own enumerable
+			// properties and would be dropped by `JSON.stringify` when this object is persisted
+			// as part of the checkpoint timeline. Snapshot the current values into a plain object
+			// so `sessionResource` (and the other fields) survive serialization and revival.
+			toJSON(): IModifiedEntryTelemetryInfo {
+				return {
+					agentId: this.agentId,
+					modelId: this.modelId,
+					modeId: this.modeId,
+					command: this.command,
+					sessionResource: this.sessionResource,
+					requestId: this.requestId,
+					result: undefined,
+					applyCodeBlockSuggestionId: this.applyCodeBlockSuggestionId,
+					feature: this.feature,
+				};
+			}
 		};
 	}
 
