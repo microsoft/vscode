@@ -414,12 +414,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}));
 
-		// Close empty editor group via middle mouse click
+		// Open new terminal via middle mouse click on empty container
 		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
 			if (this.isEmpty && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);
 
-				this.groupsView.removeGroup(this);
+				this.commandService.executeCommand('workbench.action.createTerminalEditor');
 			}
 		}));
 	}
