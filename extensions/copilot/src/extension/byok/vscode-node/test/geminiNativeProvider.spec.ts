@@ -346,8 +346,8 @@ describe('GeminiNativeBYOKLMProvider', () => {
 
 		const provider = new GeminiNativeBYOKLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
 		const model = {
-			id: 'gemini-2.0-flash',
-			name: 'Gemini 2.0 Flash',
+			id: 'gemini-3.6-flash',
+			name: 'Gemini 3.6 Flash',
 			family: 'Gemini',
 			version: '1.0.0',
 			maxInputTokens: 1000,
@@ -404,8 +404,8 @@ describe('GeminiNativeBYOKLMProvider', () => {
 
 		const provider = new GeminiNativeBYOKLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
 		const model = {
-			id: 'gemini-2.0-flash',
-			name: 'Gemini 2.0 Flash',
+			id: 'gemini-3.6-flash',
+			name: 'Gemini 3.6 Flash',
 			family: 'Gemini',
 			version: '1.0.0',
 			maxInputTokens: 1000,

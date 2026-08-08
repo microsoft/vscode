@@ -198,18 +198,18 @@ describe('CustomEndpointBYOKModelProvider', () => {
 
 			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, createStorageService());
 			const model = {
-				id: 'gemini-2.5-flash',
+				id: 'gemini-3.6-flash',
 				name: 'Gemini via gateway',
 				maxInputTokens: 1000,
 				maxOutputTokens: 1000,
 				capabilities: { toolCalling: false, imageInput: false },
-				url: 'https://gateway.example.com/v1beta/models/gemini-2.5-flash:generateContent',
+				url: 'https://gateway.example.com/v1beta/models/gemini-3.6-flash:generateContent',
 				configuration: {
 					apiKey: 'k_gateway',
 					models: [{
-						id: 'gemini-2.5-flash',
+						id: 'gemini-3.6-flash',
 						name: 'Gemini via gateway',
-						url: 'https://gateway.example.com/v1beta/models/gemini-2.5-flash:generateContent',
+						url: 'https://gateway.example.com/v1beta/models/gemini-3.6-flash:generateContent',
 						apiType: 'gemini',
 						toolCalling: false,
 						vision: false,
@@ -252,7 +252,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 
 			const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, createStorageService());
 			const model = {
-				id: 'gemini-2.5-flash',
+				id: 'gemini-3.6-flash',
 				name: 'Gemini via gateway',
 				maxInputTokens: 1000,
 				maxOutputTokens: 1000,
@@ -261,7 +261,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				configuration: {
 					apiKey: 'k_gateway',
 					models: [{
-						id: 'gemini-2.5-flash',
+						id: 'gemini-3.6-flash',
 						name: 'Gemini via gateway',
 						url: 'https://gateway.example.com',
 						apiType: 'gemini',
