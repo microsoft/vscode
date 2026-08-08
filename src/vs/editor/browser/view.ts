@@ -39,6 +39,7 @@ import { Rulers } from './viewParts/rulers/rulers.js';
 import { ScrollDecorationViewPart } from './viewParts/scrollDecoration/scrollDecoration.js';
 import { SelectionsOverlay } from './viewParts/selections/selections.js';
 import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
+import { ViewZoneBackgrounds } from './viewParts/viewZoneBackgrounds/viewZoneBackgrounds.js';
 import { ViewZones } from './viewParts/viewZones/viewZones.js';
 import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
 import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
@@ -205,6 +206,12 @@ export class View extends ViewEventHandler {
 		this._viewZones = new ViewZones(this._context);
 		this._viewParts.push(this._viewZones);
 
+		// View Zone Backgrounds (selection / whole-line decoration backgrounds
+		// painted across view zones whose surrounding lines are within the same
+		// selection or decoration range).
+		const viewZoneBackgrounds = new ViewZoneBackgrounds(this._context);
+		this._viewParts.push(viewZoneBackgrounds);
+
 		// Decorations overview ruler
 		const decorationsOverviewRuler = new DecorationsOverviewRuler(this._context);
 		this._viewParts.push(decorationsOverviewRuler);
@@ -275,6 +282,7 @@ export class View extends ViewEventHandler {
 			this._linesContent.appendChild(rulers.domNode);
 		}
 		this._linesContent.appendChild(this._viewZones.domNode);
+		this._linesContent.appendChild(viewZoneBackgrounds.domNode);
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
