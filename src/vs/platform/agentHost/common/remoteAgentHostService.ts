@@ -212,10 +212,8 @@ export type RemoteAgentHostEntryStore = 'settings' | 'storage' | 'runtime';
  * transports into one table so the service does not branch on
  * {@link RemoteAgentHostEntryType} in a dozen places.
  */
-export interface IRemoteAgentHostEntryTypeConfig<TConnection extends RemoteAgentHostConnection = RemoteAgentHostConnection> {
+interface IRemoteAgentHostEntryTypeConfigBase<TConnection extends RemoteAgentHostConnection> {
 	readonly type: TConnection['type'];
-	/** Durable home for entries of this type. `runtime` entries are never written to disk. */
-	readonly store: RemoteAgentHostEntryStore;
 	/**
 	 * Whether RemoteAgentHostService dials this entry itself. When `false`,
 	 * an owning transport service establishes the connection and registers
@@ -226,17 +224,31 @@ export interface IRemoteAgentHostEntryTypeConfig<TConnection extends RemoteAgent
 	readonly normalizedAddress: boolean;
 	/** Stable identity for the entry. */
 	address(connection: TConnection): string;
-	/** Serialize for persistence. Present iff `store !== 'runtime'`. */
-	toRaw?(entry: IRemoteAgentHostEntry, connection: TConnection): IRawRemoteAgentHostEntry;
-	/** Rehydrate from persisted form. Present iff `store !== 'runtime'`. */
-	fromRaw?(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry;
 }
 
-/** An entry type that has a durable home, and therefore always converts to and from {@link IRawRemoteAgentHostEntry}. */
-type IPersistedEntryTypeConfig<TConnection extends RemoteAgentHostConnection> =
-	IRemoteAgentHostEntryTypeConfig<TConnection> & Required<Pick<IRemoteAgentHostEntryTypeConfig<TConnection>, 'toRaw' | 'fromRaw'>>;
+/**
+ * An entry type with a durable home. Narrowing a config on
+ * `store !== 'runtime'` guarantees both converters are present.
+ */
+export interface IPersistedEntryTypeConfig<TConnection extends RemoteAgentHostConnection = RemoteAgentHostConnection> extends IRemoteAgentHostEntryTypeConfigBase<TConnection> {
+	readonly store: 'settings' | 'storage';
+	/** Serialize for persistence. */
+	toRaw(entry: IRemoteAgentHostEntry, connection: TConnection): IRawRemoteAgentHostEntry;
+	/** Rehydrate from persisted form. */
+	fromRaw(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry;
+}
 
-const WEBSOCKET_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostWebSocketConnection> = {
+/** An entry type that lives only for the lifetime of its connection and is never written to disk. */
+interface IRuntimeEntryTypeConfig<TConnection extends RemoteAgentHostConnection = RemoteAgentHostConnection> extends IRemoteAgentHostEntryTypeConfigBase<TConnection> {
+	readonly store: 'runtime';
+	readonly toRaw?: never;
+	readonly fromRaw?: never;
+}
+
+export type IRemoteAgentHostEntryTypeConfig<TConnection extends RemoteAgentHostConnection = RemoteAgentHostConnection> =
+	IPersistedEntryTypeConfig<TConnection> | IRuntimeEntryTypeConfig<TConnection>;
+
+export const WEBSOCKET_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostWebSocketConnection> = {
 	type: RemoteAgentHostEntryType.WebSocket,
 	store: 'settings',
 	selfConnecting: true,
@@ -248,7 +260,7 @@ const WEBSOCKET_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostWeb
 	fromRaw: raw => ({ name: raw.name, connectionToken: raw.connectionToken, connection: { type: RemoteAgentHostEntryType.WebSocket, address: raw.address } }),
 };
 
-const SSH_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostSSHConnection> = {
+export const SSH_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostSSHConnection> = {
 	type: RemoteAgentHostEntryType.SSH,
 	store: 'storage',
 	selfConnecting: false,
@@ -264,7 +276,7 @@ const SSH_ENTRY_TYPE_CONFIG: IPersistedEntryTypeConfig<IRemoteAgentHostSSHConnec
 	}),
 };
 
-function runtimeEntryTypeConfig<TConnection extends RemoteAgentHostConnection>(type: TConnection['type'], normalizedAddress: boolean, address: (connection: TConnection) => string): IRemoteAgentHostEntryTypeConfig<TConnection> {
+function runtimeEntryTypeConfig<TConnection extends RemoteAgentHostConnection>(type: TConnection['type'], normalizedAddress: boolean, address: (connection: TConnection) => string): IRuntimeEntryTypeConfig<TConnection> {
 	return { type, store: 'runtime', selfConnecting: false, normalizedAddress, address };
 }
 

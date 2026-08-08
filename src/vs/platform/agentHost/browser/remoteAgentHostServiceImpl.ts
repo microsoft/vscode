@@ -22,9 +22,10 @@ import { AgentHostAhpJsonlLoggingSettingId, type IAgentConnection } from '../com
 import {
 	IRemoteAgentHostService,
 	RemoteAgentHostConnectionStatus,
-	RemoteAgentHostEntryType,
 	RemoteAgentHostsEnabledSettingId,
 	RemoteAgentHostsSettingId,
+	SSH_ENTRY_TYPE_CONFIG,
+	WEBSOCKET_ENTRY_TYPE_CONFIG,
 	getEntryTypeConfig,
 	parseLegacyRawEntry,
 	type IRawRemoteAgentHostEntry,
@@ -279,7 +280,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const existingConnection = this._getConnectionInfo(address);
 		const config = getEntryTypeConfig(entry.connection.type);
 		if (config.store !== 'runtime') {
-			await this._storeConfiguredEntries(this._upsertEntry(this._getConfiguredEntries(true), entry), config.store);
+			await this._storeConfiguredEntries(this._upsertEntry(this._getConfiguredEntries(true), entry));
 		}
 
 		if (existingConnection) {
@@ -360,7 +361,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		const config = getEntryTypeConfig(entry.connection.type);
 		if (config.store !== 'runtime') {
-			await this._storeConfiguredEntries(this._upsertEntry(this._getConfiguredEntries(true), entry), config.store);
+			await this._storeConfiguredEntries(this._upsertEntry(this._getConfiguredEntries(true), entry));
 		}
 
 		this._onDidChangeConnections.fire();
@@ -381,7 +382,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			const config = getEntryTypeConfig(entry.connection.type);
 			if (config.store !== 'runtime') {
 				const entries = this._getConfiguredEntries(true).filter(entry => this._entryAddress(entry) !== normalized);
-				await this._storeConfiguredEntries(entries, config.store);
+				await this._storeConfiguredEntries(entries);
 			}
 		}
 
@@ -451,6 +452,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const oldNames = new Map(this._names);
 		this._names.clear();
 		this._tokens.clear();
+		// Runtime-registered connections are not part of the persisted set, so
+		// seed their metadata first; without this a live tunnel/WSL/cloud
+		// connection survives reconcile but reports its address as its name,
+		// which downstream provider reconciliation treats as a rename.
+		for (const [address, entry] of this._registeredEntries) {
+			this._names.set(address, entry.name);
+			this._tokens.set(address, entry.connectionToken);
+		}
 		for (const { entry, address } of entriesWithAddress) {
 			this._names.set(address, entry.name);
 			this._tokens.set(address, entry.connectionToken);
@@ -656,11 +665,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _getConfiguredEntries(targetSettings = false): IRemoteAgentHostEntry[] {
-		const config = getEntryTypeConfig(RemoteAgentHostEntryType.WebSocket);
 		let entries = this._getSettings(targetSettings).entries
 			.filter(isRawRemoteAgentHostEntry)
 			.filter(entry => !isLegacySshRawEntry(entry))
-			.map(entry => config.fromRaw!(entry));
+			.map(entry => WEBSOCKET_ENTRY_TYPE_CONFIG.fromRaw(entry));
 		for (const entry of this._getStoredSSHEntries()) {
 			entries = this._upsertEntry(entries, entry);
 		}
@@ -694,21 +702,30 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		};
 	}
 
-	private async _storeConfiguredEntries(entries: readonly IRemoteAgentHostEntry[], store: 'settings' | 'storage'): Promise<void> {
-		const raw = entries
-			.filter(entry => getEntryTypeConfig(entry.connection.type).store === store)
-			.map(entry => {
-				const config = getEntryTypeConfig(entry.connection.type);
-				return config.toRaw!(entry, entry.connection);
-			});
-		if (store === 'storage') {
-			this._storeStoredSSHEntries(raw);
-			return;
+	/**
+	 * Writes both durable projections of `entries`, which must be the full
+	 * merged set. Entries are keyed globally by normalized address, so a
+	 * replacement can move an address between stores; writing only the
+	 * destination would leave the source row behind for
+	 * {@link _getConfiguredEntries} to resurrect. Each store is left
+	 * untouched when its projection is unchanged.
+	 */
+	private async _storeConfiguredEntries(entries: readonly IRemoteAgentHostEntry[]): Promise<void> {
+		const settingsRaw: IRawRemoteAgentHostEntry[] = [];
+		const storageRaw: IRawRemoteAgentHostEntry[] = [];
+		for (const entry of entries) {
+			const config = getEntryTypeConfig(entry.connection.type);
+			if (config.store === 'runtime') {
+				continue;
+			}
+			(config.store === 'storage' ? storageRaw : settingsRaw).push(config.toRaw(entry, entry.connection));
 		}
 
+		this._storeStoredSSHEntries(storageRaw);
+
 		const settings = this._getSettings(true);
-		if (JSON.stringify(settings.entries) !== JSON.stringify(raw)) {
-			await this._configurationService.updateValue(RemoteAgentHostsSettingId, raw, settings.target);
+		if (JSON.stringify(settings.entries) !== JSON.stringify(settingsRaw)) {
+			await this._configurationService.updateValue(RemoteAgentHostsSettingId, settingsRaw, settings.target);
 		}
 	}
 
@@ -719,9 +736,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		try {
 			const parsed: unknown = JSON.parse(raw);
-			const config = getEntryTypeConfig(RemoteAgentHostEntryType.SSH);
 			return Array.isArray(parsed)
-				? parsed.filter(isRawRemoteAgentHostEntry).filter(isLegacySshRawEntry).map(entry => config.fromRaw!(entry))
+				? parsed.filter(isRawRemoteAgentHostEntry).filter(isLegacySshRawEntry).map(entry => SSH_ENTRY_TYPE_CONFIG.fromRaw(entry))
 				: [];
 		} catch {
 			return [];
@@ -757,9 +773,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		for (const entry of sshEntries) {
 			migratedEntries = this._upsertEntry(migratedEntries, entry);
 		}
-		void this._storeConfiguredEntries(migratedEntries, 'storage');
 		const settingsEntries = legacyEntries.filter(entry => getEntryTypeConfig(entry.connection.type).store === 'settings');
-		this._storeConfiguredEntries(settingsEntries, 'settings').catch(err => {
+		// One write of the whole merged set: SSH entries land in storage and
+		// are dropped from settings in the same pass.
+		this._storeConfiguredEntries([...migratedEntries, ...settingsEntries]).catch(err => {
 			this._logService.error('[RemoteAgentHost] Failed to migrate SSH connection details from settings to storage', err);
 		});
 	}

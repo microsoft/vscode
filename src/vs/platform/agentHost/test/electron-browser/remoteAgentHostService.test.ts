@@ -816,6 +816,41 @@ suite('RemoteAgentHostService', () => {
 				configured: [],
 			});
 		});
+
+		test('replacing a stored SSH entry with a WebSocket entry clears the storage row', async () => {
+			service.dispose();
+			configService.setRawEntries([{
+				address: 'host1:8080',
+				name: 'SSH Host',
+				sshConfigHost: 'legacy',
+				sshHostName: 'legacy.example',
+			}]);
+			service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+
+			const added = service.addRemoteAgentHost({ name: 'WebSocket Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } });
+			createdClients[createdClients.length - 1].connectDeferred.complete();
+			await added;
+
+			// The stale SSH row must not survive in storage, or _getConfiguredEntries
+			// overlays it back on top of the new WebSocket entry.
+			assert.deepStrictEqual(service.configuredEntries, [{
+				name: 'WebSocket Host',
+				connectionToken: undefined,
+				connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' },
+			}]);
+		});
+
+		test('keeps runtime connection names across reconciliation', async () => {
+			const tunnel: IRemoteAgentHostEntry = { name: 'My Tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'tunnel', clusterId: 'cluster' } };
+			const client = disposables.add(new MockProtocolClient('tunnel:tunnel'));
+			await service.addManagedConnection(tunnel, client as unknown as Parameters<typeof service.addManagedConnection>[1]);
+
+			configService.setEntries([{ name: 'WebSocket', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
+
+			assert.deepStrictEqual(
+				service.connections.find(connection => connection.address === 'tunnel:tunnel')?.name,
+				'My Tunnel');
+		});
 	});
 
 	suite('host label formatter', () => {
