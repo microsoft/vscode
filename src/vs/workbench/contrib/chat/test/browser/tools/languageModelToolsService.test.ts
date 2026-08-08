@@ -491,6 +491,36 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.content[0].value, 'result');
 	});
 
+	test('invokeTool uses re-registered implementation after prepareToolInvocation', async () => {
+		const toolData: IToolData = {
+			id: 'reRegisteredTool',
+			modelDescription: 'Re-registered Tool',
+			displayName: 'Re-registered Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const registration = store.add(service.registerTool(toolData, {
+			prepareToolInvocation: async () => {
+				registration.dispose();
+				store.add(service.registerTool(toolData, {
+					invoke: async () => ({ content: [{ kind: 'text', value: 'replacement result' }] }),
+				}));
+				return undefined;
+			},
+			invoke: async () => ({ content: [{ kind: 'text', value: 'stale result' }] }),
+		}));
+
+		const result = await service.invokeTool({
+			callId: '1',
+			toolId: toolData.id,
+			tokenBudget: 100,
+			parameters: {},
+			context: undefined,
+		}, async () => 0, CancellationToken.None);
+
+		assert.strictEqual(result.content[0].value, 'replacement result');
+	});
+
 	test('invocation parameters are overridden by input toolSpecificData', async () => {
 		const rawInput = { b: 2 };
 		const tool = registerToolForTest(service, store, 'testToolInputOverride', {
