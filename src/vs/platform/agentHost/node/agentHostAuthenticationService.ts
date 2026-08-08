@@ -71,7 +71,12 @@ export class AgentHostAuthenticationService {
 			authenticated = this._tokens.get(this._key(params.resource, scopes))?.token === params.token;
 		}
 		if (authenticated) {
-			this._tokens.set(this._key(params.resource, scopes), { resource: params.resource, scopes, token: params.token });
+			const key = this._key(params.resource, scopes);
+			if (params.token) {
+				this._tokens.set(key, { resource: params.resource, scopes, token: params.token });
+			} else {
+				this._tokens.delete(key);
+			}
 		}
 		return { authenticated };
 	}

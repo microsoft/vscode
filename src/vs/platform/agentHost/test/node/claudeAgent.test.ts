@@ -1114,6 +1114,25 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('sign-out revokes the Copilot proxy and refreshes the model catalog', async () => {
+		const { agent, proxy } = createTestContext(disposables);
+		await agent.authenticate('https://api.github.com', 'gh-token');
+		await tick();
+
+		await agent.authenticate('https://api.github.com', '');
+		await tick();
+
+		assert.deepStrictEqual({
+			proxyStarts: proxy.startCalls.length,
+			disposeCount: proxy.disposeCount,
+			models: agent.models.get(),
+		}, {
+			proxyStarts: 1,
+			disposeCount: 1,
+			models: [],
+		});
+	});
+
 	test('coalesces concurrent refreshModels calls onto one CAPI models request', async () => {
 		const { agent, api } = createTestContext(disposables);
 		// Block the first request in flight so the second caller has something

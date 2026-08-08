@@ -276,6 +276,8 @@ export async function authenticateProtectedResources(
 			);
 			if (!token) {
 				logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
+				// An empty token revokes the credential previously forwarded for this resource.
+				await forwardAuthenticationToken(options, resource.resource, scopes, '');
 				continue;
 			}
 

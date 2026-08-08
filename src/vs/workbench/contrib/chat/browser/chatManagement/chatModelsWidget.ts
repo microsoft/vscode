@@ -1177,11 +1177,13 @@ export class ChatModelsWidget extends Disposable {
 		this.create(this.element);
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
 			this.defaultAccountResolved = true;
+			void this.viewModel.refresh();
 			this.updateAddModelsButton();
 		}));
 		this.defaultAccountService.getDefaultAccount().then(() => {
 			if (!this._store.isDisposed) {
 				this.defaultAccountResolved = true;
+				void this.viewModel.refresh();
 				this.updateAddModelsButton();
 			}
 		});
