@@ -2977,6 +2977,33 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const adopted = adoption.adopted;
 
+		// From here the whole restore is wrapped so `migrated` is reported only
+		// after every required step succeeds, and any failure after a successful
+		// adoption is surfaced as a migration failure.
+		try {
+			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted);
+			if (adopted) {
+				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, facts);
+			} else if (adoption.eligible) {
+				// Migrate setting on and a genuine legacy candidate, but not adopted
+				// this pass (e.g. its on-disk working directory could not be resolved).
+				this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, { hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount });
+			}
+		} catch (err) {
+			if (adopted) {
+				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
+			}
+			throw err;
+		}
+	}
+
+	/**
+	 * Hydrates a restored (or freshly-adopted) session into the state manager and
+	 * completes all required restore work (turns, metadata, peer chats, config).
+	 * Returns the facts used for migration telemetry; throws if any required step
+	 * fails so the caller can report the outcome accurately.
+	 */
+	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
 		let meta = await this._getSessionMetadataForRestore(agent, session);
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
@@ -3010,10 +3037,6 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			turns = await this._getChatMessages(agent, defaultChatUri);
 		} catch (err) {
-			// A restore failure after a successful adoption is a migration failure.
-			if (adopted) {
-				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
-			}
 			if (err instanceof ProtocolError) {
 				throw err;
 			}
@@ -3143,23 +3166,6 @@ export class AgentService extends Disposable implements IAgentService {
 		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: defaultDraft, defaultChatTitle });
 
-		if (adopted) {
-			this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, {
-				turnCount: mergedTurns.length,
-				hasProject: !!meta.project,
-				hasWorktree: adoptedWorktree,
-				workingDirectoryCount: meta.workingDirectories?.length ?? 0,
-			});
-		} else if (adoption.eligible) {
-			// The migrate setting was on and this was a genuine legacy candidate, but
-			// it was not adopted this pass (e.g. its on-disk working directory could
-			// not be resolved) — the "eligible but did not migrate" case.
-			this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, {
-				hasProject: !!meta.project,
-				workingDirectoryCount: meta.workingDirectories?.length ?? 0,
-			});
-		}
-
 		// A freshly-adopted legacy session bridges its git checkpoints into the
 		// agent-host namespace once its turns are restored. Isolated so a failure
 		// here cannot break the restore.
@@ -3247,6 +3253,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 
 		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr, meta.workingDirectories?.[0]);
+
+		return {
+			turnCount: mergedTurns.length,
+			hasProject: !!meta.project,
+			hasWorktree: adoptedWorktree,
+			workingDirectoryCount: meta.workingDirectories?.length ?? 0,
+		};
 	}
 
 	/**

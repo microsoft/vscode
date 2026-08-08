@@ -2358,9 +2358,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * has an on-disk SDK event log (`~/.copilot/session-state/<id>/`) but no
 	 * agent-host VS Code-layer metadata yet, seed that metadata in place — reusing
 	 * the event log verbatim — so the normal restore flow can resume it as editable
-	 * turns. Returns `true` iff it newly adopted the session (so the caller can run
-	 * the one-time checkpoint bridge); `false` when already migrated / native or
-	 * not an adoptable on-disk session.
+	 * turns. Reports `adopted: true` iff it newly adopted the session (so the caller
+	 * can run the one-time checkpoint bridge), and `eligible` whether the session
+	 * was a genuine legacy candidate at all (vs already migrated / native / not an
+	 * adoptable on-disk session).
 	 */
 	async ensureSessionAdopted(session: URI): Promise<IAgentSessionAdoptionResult> {
 		const sessionId = AgentSession.id(session);

@@ -4942,6 +4942,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _handleSessionSummaryChanged(session: string, changes: Partial<SessionSummary>): void {
+		// Set when a delta clears the adoptable-legacy marker so we can reopen the
+		// passive state subscription after the transaction commits (the observable
+		// updates in `_ensureSessionStateSubscription` must not run nested in `tx`).
+		let reopenStateSubscriptionFor: string | undefined;
 		transaction((tx) => {
 			const rawId = AgentSession.id(session);
 			const cached = this._sessionCache.get(rawId);
@@ -4994,11 +4998,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// subscription in `_ensureSessionStateSubscription`. Use `hasOwnProperty`
 				// (like `activity` above) so an explicit clear to `undefined` applies.
 				const storedMeta = this._metaByRawId.get(rawId);
+				const wasAdoptable = readSessionEhcliAdoptable(storedMeta?._meta);
 				if (storedMeta) {
 					this._metaByRawId.set(rawId, { ...storedMeta, _meta: changes._meta });
 				}
 				if (cached.setMeta(changes._meta, tx)) {
 					didChange = true;
+				}
+				// A cleared adoptable-legacy marker means the session is now a real
+				// session; the guard in `_ensureSessionStateSubscription` skipped it
+				// while it was adoptable, so reopen the subscription explicitly.
+				if (wasAdoptable && !readSessionEhcliAdoptable(changes._meta)) {
+					reopenStateSubscriptionFor = cached.sessionId;
 				}
 			}
 
@@ -5006,6 +5017,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			}
 		});
+
+		if (reopenStateSubscriptionFor !== undefined) {
+			this._ensureSessionStateSubscription(reopenStateSubscriptionFor);
+		}
 	}
 
 	private _handleConfigChanged(session: string, config: Record<string, unknown>, replace: boolean): void {

@@ -9,6 +9,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlCon
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -881,7 +882,7 @@ export class WorktreeIsolation extends Disposable {
 		}
 		const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, worktreeRoot).catch(() => undefined);
 		// A primary checkout (not a linked worktree) resolves to itself; nothing to bridge.
-		if (!primaryRoot || primaryRoot.toString() === worktreeRoot.toString()) {
+		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
 			return false;
 		}
 		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
