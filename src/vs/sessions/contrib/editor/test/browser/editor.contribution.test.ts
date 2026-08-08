@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -29,7 +30,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
-import { EditorTabsVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
@@ -86,32 +87,6 @@ suite('Sessions - Editor Contribution', () => {
 			} as IActiveSession);
 		});
 
-		test('single-title Add Tab menu keeps supported managed editors visible', () => {
-			const getWhen = (action: NewFileTabAction | NewChangesTabAction): string => {
-				const menu = action.desc.menu;
-				const item = Array.isArray(menu) ? menu[0] : menu;
-				return item?.when?.serialize() ?? '';
-			};
-
-			const fileWhen = getWhen(new NewFileTabAction());
-			const changesWhen = getWhen(new NewChangesTabAction());
-
-			assert.deepStrictEqual({
-				file: {
-					hasAvailability: fileWhen.includes(SinglePaneFilesTabAvailableContext.key),
-					hasMissing: fileWhen.includes(SinglePaneFilesTabMissingContext.key),
-					hasHiddenTabs: fileWhen.includes(EditorTabsVisibleContext.key)
-				},
-				changes: {
-					hasAvailability: changesWhen.includes(SinglePaneChangesTabAvailableContext.key),
-					hasMissing: changesWhen.includes(SinglePaneChangesTabMissingContext.key),
-					hasHiddenTabs: changesWhen.includes(EditorTabsVisibleContext.key)
-				}
-			}, {
-				file: { hasAvailability: true, hasMissing: true, hasHiddenTabs: true },
-				changes: { hasAvailability: true, hasMissing: true, hasHiddenTabs: true }
-			});
-		});
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const editor = args[0];
@@ -130,6 +105,43 @@ suite('Sessions - Editor Contribution', () => {
 			pinned: options?.pinned,
 			index: options?.index
 		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
+	});
+
+	test('single-title Add Tab menu keeps supported managed editors visible', () => {
+		const getWhen = (action: NewFileTabAction | NewChangesTabAction): ContextKeyExpression => {
+			const menu = action.desc.menu;
+			const item = Array.isArray(menu) ? menu[0] : menu;
+			assert.ok(item?.when);
+			return item.when;
+		};
+		const evaluate = (expression: ContextKeyExpression, values: Record<string, ContextKeyValue>): boolean => expression.evaluate({
+			getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined
+		} satisfies IContext);
+		const baseContext: Record<string, ContextKeyValue> = {
+			[IsSessionsWindowContext.key]: true,
+			[IsAuxiliaryWindowContext.key]: false,
+			[IsTopRightEditorGroupContext.key]: true,
+			[MainEditorAreaVisibleContext.key]: true,
+		};
+		const scenarios = (availableKey: string, missingKey: string) => {
+			const when = availableKey === SinglePaneFilesTabAvailableContext.key
+				? getWhen(new NewFileTabAction())
+				: getWhen(new NewChangesTabAction());
+			return {
+				singleTabAlreadyOpen: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: false, [availableKey]: true, [missingKey]: false }),
+				multipleTabsAlreadyOpen: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: false }),
+				multipleTabsMissing: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: true }),
+				unsupported: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: false, [availableKey]: false, [missingKey]: true }),
+			};
+		};
+
+		assert.deepStrictEqual({
+			files: scenarios(SinglePaneFilesTabAvailableContext.key, SinglePaneFilesTabMissingContext.key),
+			changes: scenarios(SinglePaneChangesTabAvailableContext.key, SinglePaneChangesTabMissingContext.key),
+		}, {
+			files: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, unsupported: false },
+			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, unsupported: false },
+		});
 	});
 
 	test('empty file editor updates its workspace', () => {
