@@ -10,6 +10,27 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
 
+export function normalizeAgentsVoiceId(value: unknown): string {
+	const voiceId = typeof value === 'string' ? value.trim() : '';
+	switch (voiceId) {
+		case 'harper_neutral':
+		case 'birch_neutral':
+		case 'junho_neutral':
+		case 'oak_neutral':
+			return voiceId;
+		case 'victoria_neutral':
+			return 'harper_neutral';
+		case 'maya_neutral':
+			return 'birch_neutral';
+		case 'daniel_neutral':
+			return 'junho_neutral';
+		case 'kevin_neutral':
+			return 'oak_neutral';
+		default:
+			return 'birch_neutral';
+	}
+}
+
 /**
  * One selectable option on a pending question, positioned in *displayed* order.
  *
@@ -80,9 +101,11 @@ interface IActivePendingToolOccurrence {
 }
 
 const activePendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
+const resolvedPendingToolOccurrences = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceByPart = new WeakMap<IChatToolInvocation, IActivePendingToolOccurrence>();
 const pendingToolOccurrenceById = new Map<string, IActivePendingToolOccurrence>();
 const pendingToolResolutionVersion = observableValue('pendingToolResolutionVersion', 0);
+const MAX_RESOLVED_PENDING_TOOL_OCCURRENCES = 256;
 
 function isPendingToolState(state: IChatToolInvocation.State): boolean {
 	return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
@@ -143,6 +166,19 @@ function resolvePendingToolOccurrence(occurrence: IActivePendingToolOccurrence):
 	if (activePendingToolOccurrences.get(occurrence.semanticKey) === occurrence) {
 		activePendingToolOccurrences.delete(occurrence.semanticKey);
 	}
+	resolvedPendingToolOccurrences.delete(occurrence.semanticKey);
+	resolvedPendingToolOccurrences.set(occurrence.semanticKey, occurrence);
+	while (resolvedPendingToolOccurrences.size > MAX_RESOLVED_PENDING_TOOL_OCCURRENCES) {
+		const oldestKey = resolvedPendingToolOccurrences.keys().next().value;
+		if (oldestKey === undefined) {
+			break;
+		}
+		const oldest = resolvedPendingToolOccurrences.get(oldestKey);
+		resolvedPendingToolOccurrences.delete(oldestKey);
+		if (oldest && pendingToolOccurrenceById.get(pendingToolOccurrenceId(oldest)) === oldest) {
+			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(oldest));
+		}
+	}
 	pendingToolResolutionVersion.set(pendingToolResolutionVersion.get() + 1, undefined);
 }
 
@@ -165,7 +201,8 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		releasePendingToolParticipant(invocation, current);
 	}
 
-	let occurrence = activePendingToolOccurrences.get(semanticKey);
+	let occurrence = activePendingToolOccurrences.get(semanticKey)
+		?? resolvedPendingToolOccurrences.get(semanticKey);
 	if (!occurrence) {
 		if (!mint) {
 			return undefined;
@@ -195,7 +232,9 @@ function pendingToolOccurrence(requestId: string, invocation: IChatToolInvocatio
 		if (trackedOccurrence.participants.size === 0 && activePendingToolOccurrences.get(trackedOccurrence.semanticKey) === trackedOccurrence) {
 			activePendingToolOccurrences.delete(trackedOccurrence.semanticKey);
 		}
-		if (trackedOccurrence.participants.size === 0 && pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
+		if (!trackedOccurrence.resolved
+			&& trackedOccurrence.participants.size === 0
+			&& pendingToolOccurrenceById.get(pendingToolOccurrenceId(trackedOccurrence)) === trackedOccurrence) {
 			pendingToolOccurrenceById.delete(pendingToolOccurrenceId(trackedOccurrence));
 		}
 		observer.dispose();
@@ -309,6 +348,8 @@ export interface IVoiceSessionContext {
 		/** Which frontend session surface owns this conversation. */
 		session_type?: 'agent' | 'chat';
 		is_active: boolean;
+		/** Omni routing decision for backend narration of the selected target. */
+		omni_route?: 'existing_session' | 'new_session';
 		agent_state: string;
 		agent_state_detail?: string;
 		confirmation_type?: VoiceConfirmationType;

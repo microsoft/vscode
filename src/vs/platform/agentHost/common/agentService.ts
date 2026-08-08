@@ -108,12 +108,7 @@ export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowS
  * the agent host process. When `false`, the agent host skips registering the
  * Claude provider regardless of SDK availability. Defaults to `true`.
  *
- * Independent of {@link ClaudePreferAgentHostAgentsSettingId} /
- * {@link ClaudePreferAgentHostEditorSettingId}, which control whether the
- * workbench surfaces the agent host's Claude provider (vs. the GitHub Copilot
- * Chat extension's). This setting is strictly about whether the agent host
- * advertises Claude at all. The agent host process must be restarted for
- * changes to take effect.
+ * The agent host process must be restarted for changes to take effect.
  */
 export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
 
@@ -222,50 +217,19 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
 
 /**
- * Selects which Claude integration fulfills Claude sessions opened from the
- * **Agents Window**:
- *  - `true` (default) — Claude is provided by the agent host process.
- *  - `false` — Claude is provided by the GitHub Copilot Chat extension.
- *
- * When Agent Host is enabled, this controls whether the per-window bridge in
- * `AgentHostContribution` surfaces the AH provider in the Agents Window. The
- * extension's `chatSessions` contribution mirrors the rule declaratively and
- * remains visible when Agent Host is unavailable.
- *
- * Paired with {@link ClaudePreferAgentHostEditorSettingId} which governs the
- * regular workbench (sidebar). EXP-backed (`experiment: { mode: 'startup' }`).
- */
-export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAgentHost';
-
-/**
- * Sibling of {@link ClaudePreferAgentHostAgentsSettingId} that selects the
- * Claude implementation for the **regular workbench** (sidebar chat in a
- * non-Agents-Window window). Same shape, same semantics — just a different
- * surface scope.
- */
-export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
-
-/**
  * Selects whether the regular workbench surfaces Codex from the agent host
  * instead of the OpenAI extension.
  */
 export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
 
-export function claudePreferAgentHostSettingId(isSessionsWindow: boolean): string {
-	return isSessionsWindow
-		? ClaudePreferAgentHostAgentsSettingId
-		: ClaudePreferAgentHostEditorSettingId;
-}
-
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
-	return event.affectsConfiguration(claudePreferAgentHostSettingId(isSessionsWindow))
-		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+	return event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
 	switch (provider) {
 		case CLAUDE_AGENT_PROVIDER_ID:
-			return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
+			return true;
 		case CODEX_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
 		default:

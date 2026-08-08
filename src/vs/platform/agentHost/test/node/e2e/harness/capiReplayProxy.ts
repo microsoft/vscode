@@ -60,6 +60,8 @@ const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/message
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
+const COPIED_PLUGIN_DIR_PLACEHOLDER = '${plugin_copy}';
+const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\\\)user-data(?:\/|\\\\)agentPlugins(?:\/|\\\\)[^\/\\"]+/g;
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
@@ -887,6 +889,7 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = scrubUserName(result, this._options.userName);
 		}
+		result = result.replace(COPIED_PLUGIN_DIR_RE, `${HOMEDIR_PLACEHOLDER}/user-data/agentPlugins/${COPIED_PLUGIN_DIR_PLACEHOLDER}`);
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);
 		result = result.replace(FILE_LISTING_DATE_RE, '${timestamp}');

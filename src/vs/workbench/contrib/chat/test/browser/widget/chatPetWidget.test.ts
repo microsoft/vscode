@@ -122,31 +122,34 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('includes button press among click interactions with a rare spin easter egg', () => {
+	test('cycles through click interactions without repeating and keeps the rare spin easter egg', () => {
+		const interactionInterval = 0.99 / 7;
 		assert.deepStrictEqual([
 			getChatPetClickInteraction(0),
-			getChatPetClickInteraction(0.000_999),
-			getChatPetClickInteraction(0.001),
-			getChatPetClickInteraction(0.201),
-			getChatPetClickInteraction(0.401),
-			getChatPetClickInteraction(0.601),
-			getChatPetClickInteraction(0.801),
-			getChatPetClickInteraction(0.5),
+			getChatPetClickInteraction(0.009_999),
+			getChatPetClickInteraction(0.01),
+			getChatPetClickInteraction(0.01 + interactionInterval * 1.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 2.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 3.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 4.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 5.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 6.5),
 			getChatPetClickInteraction(0.99),
-			getChatPetClickInteraction(0.001, 'buttonPress'),
-			getChatPetClickInteraction(0.99, 'yapping'),
+			getChatPetClickInteraction(0.01, 'buttonPress'),
+			getChatPetClickInteraction(0.99, 'worry'),
 		], [
 			'complete',
 			'complete',
 			'buttonPress',
 			'love',
-			'jump',
 			'cool',
 			'yapping',
-			'jump',
-			'yapping',
+			'sing',
+			'speechless',
+			'worry',
+			'worry',
 			'love',
-			'cool',
+			'speechless',
 		]);
 	});
 
@@ -163,6 +166,9 @@ suite('ChatPetWidget', () => {
 			doesChatPetStateTrackCursor('cool'),
 			doesChatPetStateTrackCursor('yapping'),
 			doesChatPetStateTrackCursor('yappingMouthOpen'),
+			doesChatPetStateTrackCursor('sing'),
+			doesChatPetStateTrackCursor('speechless'),
+			doesChatPetStateTrackCursor('worry'),
 			doesChatPetStateTrackCursor('falling'),
 			doesChatPetStateTrackCursor('splat'),
 			doesChatPetStateTrackCursor('onTheRun'),
@@ -183,6 +189,9 @@ suite('ChatPetWidget', () => {
 			false,
 			false,
 			false,
+			false,
+			false,
+			false,
 		]);
 	});
 
@@ -197,6 +206,12 @@ suite('ChatPetWidget', () => {
 			getChatPetSpriteName('cool', 'stable'),
 			getChatPetSpriteName('searching', 'stable'),
 			getChatPetSpriteName('yappingMouthOpen', 'insider'),
+			getChatPetSpriteName('sing', 'stable'),
+			getChatPetSpriteName('sing', 'insider'),
+			getChatPetSpriteName('speechless', 'stable'),
+			getChatPetSpriteName('speechless', 'insider'),
+			getChatPetSpriteName('worry', 'stable'),
+			getChatPetSpriteName('worry', 'insider'),
 			getChatPetSpriteName('falling', 'stable'),
 			getChatPetSpriteName('splat', 'insider'),
 		], [
@@ -209,6 +224,12 @@ suite('ChatPetWidget', () => {
 			'buddy-cool-stable',
 			'buddy-search-stable',
 			'buddy-yapping-insiders',
+			'buddy-sing-stable',
+			'buddy-sing-insiders',
+			'buddy-speechless-stable',
+			'buddy-speechless-insiders',
+			'buddy-worry-stable',
+			'buddy-worry-insiders',
 			'buddy-falling-stable',
 			'buddy-splat-insiders',
 		]);
@@ -225,6 +246,9 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('clapping'),
 			getChatPetFrameDurations('love'),
 			getChatPetFrameDurations('cool'),
+			getChatPetFrameDurations('sing'),
+			getChatPetFrameDurations('speechless'),
+			getChatPetFrameDurations('worry'),
 			getChatPetFrameDurations('searching'),
 			getChatPetFrameDurations('yapping'),
 			getChatPetFrameDurations('yappingMouthOpen'),
@@ -242,6 +266,9 @@ suite('ChatPetWidget', () => {
 			[80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80],
 			[200, 200, 380, 100, 80, 1_980],
 			[600, 120, 120, 120, 160, 80, 80, 80, 1_640],
+			[180, 180, 180, 180],
+			[400, 120, 1_000, 120, 1_080],
+			[600, 600],
 			[500, 500, 500, 500],
 			[],
 			[],
@@ -451,8 +478,12 @@ suite('ChatPetWidget', () => {
 			shouldFlipChatPetWideSprite('typing', 965, 1000),
 			shouldFlipChatPetWideSprite('buttonPress', 967, 1000),
 			shouldFlipChatPetWideSprite('buttonPress', 969, 1000),
+			shouldFlipChatPetWideSprite('sing', 966, 1000),
+			shouldFlipChatPetWideSprite('sing', 967, 1000),
 			shouldFlipChatPetWideSprite('idle', 1000, 1000),
 		], [
+			false,
+			true,
 			false,
 			true,
 			false,

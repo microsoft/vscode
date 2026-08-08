@@ -14,6 +14,7 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
+import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
@@ -105,6 +106,9 @@ export class ModelPickerWidget extends Disposable {
 	private _workspaceTrustInitialized = false;
 	private _activatingAfterTrust = false;
 	private readonly _activatingTimer = this._register(new MutableDisposable());
+	private readonly _pendingAuxiliaryRelayout = this._register(new MutableDisposable());
+	private readonly _activeShowDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private _showRequestId = 0;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -149,6 +153,10 @@ export class ModelPickerWidget extends Disposable {
 			shouldShowCacheBreakHint: () => this.shouldShowCacheBreakHint(/* excludeAutoModel */ false),
 			getCacheBreakLearnMoreLink: () => this.getCacheBreakLearnMoreLink(),
 			dismissCacheBreakHint: () => this.dismissCacheBreakHint(),
+			onDidChangeVisibility: visible => this._delegate.onDidChangeVisibility?.(visible),
+			getActionWidgetContainer: () => this._delegate.actionWidgetContainer,
+			getActionWidgetAnchor: anchor => this._delegate.getActionWidgetAnchor?.(anchor) ?? anchor,
+			getAnchorPosition: () => this._delegate.anchorPosition,
 		});
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._activatingAfterTrust && this._delegate.getModels().length > 0) {
@@ -350,13 +358,30 @@ export class ModelPickerWidget extends Disposable {
 	 * Registers mouse-down and Enter/Space key handlers on a button element.
 	 */
 	private _registerButtonAction(element: HTMLElement, action: () => void): void {
-		this._register(dom.addDisposableGenericMouseDownListener(element, e => {
+		let expandedOnMouseDown = false;
+		if (this._delegate.openOnMouseUp) {
+			this._register(dom.addDisposableGenericMouseDownListener(element, e => {
+				// Focusing this window can dismiss a picker in another window before mouse-up.
+				if (e.button === 0) {
+					expandedOnMouseDown = element.getAttribute('aria-expanded') === 'true';
+				}
+			}));
+		}
+		const runAction = (e: MouseEvent) => {
 			if (e.button !== 0) {
 				return;
 			}
 			dom.EventHelper.stop(e, true);
+			if (this._delegate.openOnMouseUp && expandedOnMouseDown && element.getAttribute('aria-expanded') !== 'true') {
+				expandedOnMouseDown = false;
+				return;
+			}
+			expandedOnMouseDown = false;
 			action();
-		}));
+		};
+		this._register(this._delegate.openOnMouseUp
+			? dom.addDisposableGenericMouseUpListener(element, runAction)
+			: dom.addDisposableGenericMouseDownListener(element, runAction));
 		this._register(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -411,6 +436,13 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
+			this._showRequestId++;
+			this._activeShowDisposables.clear();
+			this._nameButton.setAttribute('aria-expanded', 'false');
+			const visibilityChange = this._delegate.onDidChangeVisibility?.(false);
+			if (visibilityChange) {
+				void visibilityChange.catch(() => { });
+			}
 			this._actionWidgetService.hide(true);
 			return;
 		}
@@ -490,6 +522,9 @@ export class ModelPickerWidget extends Disposable {
 		// picker is hidden. The ActionListWidget only tracks the disposable for the
 		// currently-shown hover; all other items' hover disposables would leak.
 		const hoverDisposables = new DisposableStore();
+		const showDisposables = new DisposableStore();
+		showDisposables.add(hoverDisposables);
+		this._activeShowDisposables.value = showDisposables;
 		for (const item of items) {
 			if (item.hover?.disposable) {
 				hoverDisposables.add(item.hover.disposable);
@@ -527,6 +562,7 @@ export class ModelPickerWidget extends Disposable {
 				void this._openerService.open(uri, { allowCommands: true });
 			},
 			minWidth: 200,
+			anchorPosition: this._delegate.anchorPosition ?? AnchorPosition.ABOVE,
 		});
 		const previouslyFocusedElement = dom.getActiveElement();
 
@@ -536,8 +572,17 @@ export class ModelPickerWidget extends Disposable {
 				action.run();
 			},
 			onHide: () => {
-				hoverDisposables.dispose();
+				this._showRequestId++;
+				if (this._activeShowDisposables.value === showDisposables) {
+					this._activeShowDisposables.clear();
+				} else {
+					showDisposables.dispose();
+				}
 				this._nameButton?.setAttribute('aria-expanded', 'false');
+				const visibilityChange = this._delegate.onDidChangeVisibility?.(false);
+				if (visibilityChange) {
+					void visibilityChange.catch(() => { });
+				}
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -545,18 +590,63 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		this._nameButton?.setAttribute('aria-expanded', 'true');
+		const showRequestId = ++this._showRequestId;
+		const showActionWidget = () => {
+			if (showRequestId !== this._showRequestId || this._nameButton?.getAttribute('aria-expanded') !== 'true') {
+				if (this._activeShowDisposables.value === showDisposables) {
+					this._activeShowDisposables.clear();
+				}
+				return;
+			}
+			this._actionWidgetService.show(
+				'ChatModelPicker',
+				false,
+				items,
+				delegate,
+				this._delegate.getActionWidgetAnchor?.(anchorElement) ?? anchorElement,
+				this._delegate.actionWidgetContainer,
+				[],
+				getModelPickerAccessibilityProvider(),
+				listOptions
+			);
+			if (this._delegate.onDidChangeVisibility) {
+				this._pendingAuxiliaryRelayout.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(anchorElement), () => {
+					this._actionWidgetService.updateItems(items);
+				});
+			}
+		};
+		const visibilityChange = this._delegate.onDidChangeVisibility?.(true);
+		if (visibilityChange) {
+			void visibilityChange.then(showActionWidget, () => {
+				if (showRequestId !== this._showRequestId) {
+					return;
+				}
+				this._showRequestId++;
+				if (this._activeShowDisposables.value === showDisposables) {
+					this._activeShowDisposables.clear();
+				}
+				this._nameButton?.setAttribute('aria-expanded', 'false');
+				const hideVisibilityChange = this._delegate.onDidChangeVisibility?.(false);
+				if (hideVisibilityChange) {
+					void hideVisibilityChange.catch(() => { });
+				}
+				if (dom.isHTMLElement(previouslyFocusedElement)) {
+					previouslyFocusedElement.focus();
+				}
+			});
+		} else {
+			showActionWidget();
+		}
+	}
 
-		this._actionWidgetService.show(
-			'ChatModelPicker',
-			false,
-			items,
-			delegate,
-			anchorElement,
-			undefined,
-			[],
-			getModelPickerAccessibilityProvider(),
-			listOptions
-		);
+	override dispose(): void {
+		this._showRequestId++;
+		this._activeShowDisposables.clear();
+		this._configuration.dispose();
+		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
+			this._actionWidgetService.hide(true);
+		}
+		super.dispose();
 	}
 
 	private _updateBadge(): void {

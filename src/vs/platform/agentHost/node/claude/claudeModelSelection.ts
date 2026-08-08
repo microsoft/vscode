@@ -144,11 +144,18 @@ export function resolveClaudeSessionTransport(inputs: {
  * so re-stamping it to a transport token would misroute a model-selected
  * `create_session`. The transport/group token lives only in `_meta`.
  *
- * Proxy models come first to preserve the picker's `models[0]`-is-default
- * convention for the common (Copilot) case. Every other field is passed through
- * untouched. Either list may be empty — one source failing to fetch contributes
- * nothing but must never blank the other — so merging an empty side just yields
- * the other side's qualified models.
+ * Array order is *not* what picks the session default. The picker re-buckets the
+ * flat list by the `_meta` vendor token and renders group-by-group, so which
+ * model is pre-selected follows the group ordering — verified end-to-end: with
+ * both halves populated the Anthropic group sorts first and
+ * `@provider=anthropic:default` is pre-selected, i.e. the default routes native
+ * and bills the user's own Anthropic account. Do not reason about the default
+ * from the order here. (Making that choice explicit rather than emergent needs a
+ * default/sticky model preference, which does not exist yet.)
+ *
+ * Every other field is passed through untouched. Either list may be empty — one
+ * source failing to fetch contributes nothing but must never blank the other —
+ * so merging an empty side just yields the other side's qualified models.
  */
 export function mergeClaudeModelCatalogs(proxy: readonly IAgentModelInfo[], native: readonly IAgentModelInfo[]): IAgentModelInfo[] {
 	return [
