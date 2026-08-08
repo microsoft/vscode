@@ -432,17 +432,24 @@ class ExtHostTreeView<T> extends Disposable {
 					return this._refresh(elements).then(() => {
 						this._debugLogRefresh('done', elements, childrenToClear);
 						this._clearNodes(childrenToClear);
+						// Apply the message update together with the refresh so the
+						// transition between old and new contents is in sync.
+						if (message) {
+							this._proxy.$setMessage(this._viewId, MarkdownString.fromStrict(this._message) ?? '');
+						}
 						return _promiseCallback();
 					}).catch(e => {
-						const message = e instanceof Error ? e.message : JSON.stringify(e);
+						const errMessage = e instanceof Error ? e.message : JSON.stringify(e);
 						this._debugLogRefresh('error', elements, childrenToClear);
 						this._clearNodes(childrenToClear);
-						this._logService.error(`Unable to refresh tree view ${this._viewId}: ${message}`);
+						if (message) {
+							this._proxy.$setMessage(this._viewId, MarkdownString.fromStrict(this._message) ?? '');
+						}
+						this._logService.error(`Unable to refresh tree view ${this._viewId}: ${errMessage}`);
 						return _promiseCallback();
 					});
 				});
-			}
-			if (message) {
+			} else if (message) {
 				this._proxy.$setMessage(this._viewId, MarkdownString.fromStrict(this._message) ?? '');
 			}
 		}));
