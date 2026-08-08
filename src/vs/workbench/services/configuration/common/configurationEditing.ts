@@ -13,7 +13,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
 import { IConfigurationUpdateOptions, IConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from './configuration.js';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY, resolveConfigurationResource } from './configuration.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -164,15 +164,28 @@ export class ConfigurationEditing {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 		// queue up writes to prevent race conditions
 		return this.queue.queue(async () => {
+			let resolvedOperation = operation;
 			try {
-				await this.doWriteConfiguration(operation, options);
+				resolvedOperation = await this.resolveConfigurationEditOperation(operation);
+				await this.doWriteConfiguration(resolvedOperation, options);
 			} catch (error) {
 				if (options.donotNotifyError) {
 					throw error;
 				}
-				await this.onError(error, operation, options.scopes);
+				await this.onError(error, resolvedOperation, options.scopes);
 			}
 		});
+	}
+
+	private async resolveConfigurationEditOperation(operation: IConfigurationEditOperation): Promise<IConfigurationEditOperation> {
+		if (!operation.resource || (operation.target !== EditableConfigurationTarget.WORKSPACE && operation.target !== EditableConfigurationTarget.WORKSPACE_FOLDER)) {
+			return operation;
+		}
+
+		return {
+			...operation,
+			resource: await resolveConfigurationResource(operation.resource, this.fileService)
+		};
 	}
 
 	private async doWriteConfiguration(operation: IConfigurationEditOperation, options: IConfigurationEditingOptions): Promise<void> {

@@ -286,6 +286,35 @@ suite('ConfigurationEditing', () => {
 		assert.deepStrictEqual(parsed[key], value);
 	});
 
+	test('write workspace setting to existing JSONC configuration', async () => {
+		const jsonResource = joinPath(workspaceService.getWorkspace().folders[0].uri, FOLDER_SETTINGS_PATH);
+		const jsoncResource = jsonResource.with({ path: `${jsonResource.path}c` });
+		await fileService.writeFile(jsoncResource, VSBuffer.fromString('{ "existing": true }'));
+
+		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' });
+
+		const contents = await fileService.readFile(jsoncResource);
+		assert.deepStrictEqual(json.parse(contents.value.toString()), {
+			existing: true,
+			'configurationEditing.service.testSetting': 'value'
+		});
+		assert.strictEqual(await fileService.exists(jsonResource), false);
+	});
+
+	test('prefer workspace JSON configuration over JSONC when writing', async () => {
+		const jsonResource = joinPath(workspaceService.getWorkspace().folders[0].uri, FOLDER_SETTINGS_PATH);
+		const jsoncResource = jsonResource.with({ path: `${jsonResource.path}c` });
+		await fileService.writeFile(jsonResource, VSBuffer.fromString('{}'));
+		await fileService.writeFile(jsoncResource, VSBuffer.fromString('{ "existing": true }'));
+
+		await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' });
+
+		const jsonContents = await fileService.readFile(jsonResource);
+		const jsoncContents = await fileService.readFile(jsoncResource);
+		assert.deepStrictEqual(json.parse(jsonContents.value.toString()), { 'configurationEditing.service.testSetting': 'value' });
+		assert.deepStrictEqual(json.parse(jsoncContents.value.toString()), { existing: true });
+	});
+
 	test('write overridable settings to workspace folder settings', async () => {
 		const key = '[language]';
 		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
@@ -296,6 +325,23 @@ suite('ConfigurationEditing', () => {
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(parsed[key], value);
 	});
+
+	for (const key of ['tasks', 'launch', 'mcp']) {
+		test(`write workspace ${key} configuration to existing JSONC configuration`, async () => {
+			const jsonResource = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS[key]);
+			const jsoncResource = jsonResource.with({ path: `${jsonResource.path}c` });
+			await fileService.writeFile(jsoncResource, VSBuffer.fromString('{ "existing": true }'));
+
+			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: `${key}.service.testSetting`, value: 'value' });
+
+			const contents = await fileService.readFile(jsoncResource);
+			assert.deepStrictEqual(json.parse(contents.value.toString()), {
+				existing: true,
+				'service.testSetting': 'value'
+			});
+			assert.strictEqual(await fileService.exists(jsonResource), false);
+		});
+	}
 
 	test('write workspace standalone setting - empty file', async () => {
 		const target = joinPath(workspaceService.getWorkspace().folders[0].uri, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);

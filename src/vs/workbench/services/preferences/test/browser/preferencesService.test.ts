@@ -10,7 +10,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
-import { DEFAULT_EDITOR_ASSOCIATION, isEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, isEditorInput, isResourceEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IJSONEditingService } from '../../../configuration/common/jsonEditing.js';
 import { TestJSONEditingService } from '../../../configuration/test/common/testServices.js';
@@ -19,28 +19,33 @@ import { IEditorGroupsService, IModalEditorPart } from '../../../editor/common/e
 import { PreferencesService } from '../../browser/preferencesService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../common/preferences.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
-import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorService, TestEditorGroupsService, TestEditorGroupView } from '../../../../test/browser/workbenchTestServices.js';
+import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorService, TestEditorGroupsService, TestEditorGroupView, TestFileService } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 suite('PreferencesService', () => {
 	let lastOpenEditorOptions: IEditorOptions | undefined;
 	let lastOpenEditorGroup: PreferredGroup | undefined;
+	let lastOpenEditorResource: URI | undefined;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService): PreferencesService {
+	function createTestObject(editorGroupsService?: IEditorGroupsService, configurationService?: TestConfigurationService): { service: PreferencesService; fileService: TestFileService } {
 		lastOpenEditorOptions = undefined;
 		lastOpenEditorGroup = undefined;
+		lastOpenEditorResource = undefined;
 
-		const testInstantiationService: ITestInstantiationService = workbenchInstantiationService(
-			configurationService ? { configurationService: () => configurationService } : {},
-			disposables
-		);
+		const fileService = new TestFileService();
+		const testInstantiationService: ITestInstantiationService = workbenchInstantiationService({
+			...(configurationService ? { configurationService: () => configurationService } : {}),
+			fileService: () => fileService
+		}, disposables);
 
 		class TestPreferencesEditorService extends TestEditorService {
 			override async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<undefined> {
 				lastOpenEditorOptions = optionsOrGroup as IEditorOptions;
 				lastOpenEditorGroup = group;
+				lastOpenEditorResource = isResourceEditorInput(editor) ? editor.resource : undefined;
 				// openEditor takes ownership of the input
 				if (isEditorInput(editor)) {
 					editor.dispose();
@@ -62,12 +67,12 @@ suite('PreferencesService', () => {
 		const collection = new ServiceCollection();
 		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
 		const instantiationService = disposables.add(testInstantiationService.createChild(collection));
-		return disposables.add(instantiationService.createInstance(PreferencesService));
+		return { service: disposables.add(instantiationService.createInstance(PreferencesService)), fileService };
 	}
 
 	test('options are preserved when calling openEditor', async () => {
-		const testObject = createTestObject();
-		await testObject.openSettings({ jsonEditor: false, query: 'test query' });
+		const { service } = createTestObject();
+		await service.openSettings({ jsonEditor: false, query: 'test query' });
 		const options = lastOpenEditorOptions as ISettingsEditorOptions;
 		assert.strictEqual(options.focusSearch, true);
 		assert.strictEqual(options.override, DEFAULT_EDITOR_ASSOCIATION.id);
@@ -76,9 +81,9 @@ suite('PreferencesService', () => {
 
 	test('opens in the source group when it lives in the main editor part (even with modal editors enabled)', async () => {
 		const mainGroup = new TestEditorGroupView(1);
-		const testObject = createTestObject(new TestEditorGroupsService([mainGroup]));
+		const { service } = createTestObject(new TestEditorGroupsService([mainGroup]));
 
-		await testObject.openUserSettings({ jsonEditor: false, groupId: mainGroup.id });
+		await service.openUserSettings({ jsonEditor: false, groupId: mainGroup.id });
 
 		assert.strictEqual(lastOpenEditorGroup, mainGroup);
 	});
@@ -93,10 +98,23 @@ suite('PreferencesService', () => {
 		// Modal editors are turned off in settings to prove the routing comes from the
 		// active modal editor part the action was invoked from and not from the modal default.
 		const configurationService = new TestConfigurationService({ workbench: { editor: { useModal: 'off' } } });
-		const testObject = createTestObject(editorGroupsService, configurationService);
+		const { service } = createTestObject(editorGroupsService, configurationService);
 
-		await testObject.openUserSettings({ jsonEditor: false, groupId: modalGroup.id });
+		await service.openUserSettings({ jsonEditor: false, groupId: modalGroup.id });
 
 		assert.strictEqual(lastOpenEditorGroup, MODAL_GROUP);
+	});
+
+	test('opens existing workspace settings.jsonc instead of creating settings.json', async () => {
+		const { service, fileService } = createTestObject();
+
+		// Simulate a workspace where only settings.jsonc exists: settings.json is "missing".
+		const jsonResource = service.workspaceSettingsResource!;
+		fileService.notExistsSet.set(jsonResource, true);
+
+		await service.openWorkspaceSettings({ jsonEditor: true });
+
+		assert.ok(lastOpenEditorResource);
+		assert.strictEqual(lastOpenEditorResource.path.endsWith('settings.jsonc'), true);
 	});
 });
