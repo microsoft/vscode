@@ -290,12 +290,29 @@ export const CopilotCLISessionType: ISessionType = {
 
 /**
  * Resolve what an agent needs before it can serve a request, from what it
- * advertises. An agent that still requires the GitHub Copilot protected
- * resource needs sign-in; one that has dropped the requirement is running on
- * its own credentials — but only counts as usable if it actually has models,
- * since an agent with an empty catalog cannot produce a request no matter who
- * is signed in. Absent resources mean the host has not resolved the agent yet,
- * so assume GitHub until it does.
+ * advertises — rather than from a static per-type flag, which cannot track
+ * credentials that come and go. The advertised protected-resource set already
+ * crosses the agent-host IPC boundary and already updates reactively, so it is
+ * the signal rather than a parallel field providers would have to keep in sync.
+ *
+ * An agent that still requires the GitHub Copilot protected resource needs
+ * sign-in; one that has dropped the requirement is running on its own
+ * credentials. Note both Claude and Codex encode "not required" by *keeping* the
+ * Copilot resource and marking it `required: false` rather than omitting it —
+ * that lets the host silently forward a token to an already-signed-in user
+ * without forcing sign-in on anyone else. This treats the two identically.
+ *
+ * The model count is the second, load-bearing half. `required: false` alone
+ * would read as "usable without GitHub" even for an agent that cannot serve
+ * anything, because an agent may advertise a *static* model catalog that answers
+ * regardless of credentials (the Claude SDK's `supportedModels()` does exactly
+ * this). Providers are therefore expected to publish an empty catalog when they
+ * genuinely cannot run, and an empty catalog is what distinguishes
+ * {@link SessionTypeAuthRequirement.Unusable} from
+ * {@link SessionTypeAuthRequirement.None} here.
+ *
+ * Absent resources mean the host has not resolved the agent yet, so assume
+ * GitHub until it does.
  */
 export function resolveAgentAuthRequirement(agent: AgentInfo): SessionTypeAuthRequirement {
 	if (!agent.protectedResources || protectedResourcesRequireGitHubCopilotSignIn(agent.protectedResources)) {
@@ -458,6 +475,7 @@ class AdditionalChat extends Disposable {
 			origin: summary.origin ? {
 				kind: toSessionChatOriginKind(summary.origin.kind),
 				parentChat,
+				...((summary.origin.kind === ProtocolChatOriginKind.Fork || summary.origin.kind === ProtocolChatOriginKind.SideChat) ? { turnId: summary.origin.turnId } : {}),
 				...(summary.origin.kind === ProtocolChatOriginKind.SideChat && summary.origin.selection ? { selection: toSessionSideChatSelection(summary.origin.selection) } : {}),
 			} : undefined,
 			// Subagent (tool-origin) worker chats are transient children and can be

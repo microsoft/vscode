@@ -478,8 +478,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// waiting for `authenticate()`. Without this a signed-out window with a local
 		// Claude setup would show an empty picker. `queueMicrotask` runs it off the
 		// ctor stack. The per-session transport is derived on demand at materialize
-		// (see {@link _defaultTransportMode}), so a `claudeUseCopilotProxy` change
-		// needs no reactive re-resolve — the next session simply reads it live.
+		// (see {@link _defaultTransportMode}), so a sign-in state change needs no
+		// reactive re-resolve — the next session simply reads it live.
 		queueMicrotask(() => { void this._startModelRefresh(); });
 	}
 
@@ -487,18 +487,24 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * The fallback transport for a session whose model names no provider (model-less
 	 * or a bare/legacy id). Read on demand at materialize — never cached — from live
 	 * availability: a started {@link _proxyHandle} means Copilot is serveable now, a
-	 * local Claude setup means native is. The precedence (explicit
-	 * `claudeUseCopilotProxy` override; else sign-in state and local setup) is
-	 * delegated to the pure {@link resolveClaudeTransportMode}. A provider-qualified
-	 * model bypasses this and routes on its own provider.
+	 * local Claude setup means native is. The precedence (sign-in state, then local
+	 * setup) is delegated to the pure {@link resolveClaudeTransportMode}. A
+	 * provider-qualified model bypasses this and routes on its own provider.
 	 */
 	private _defaultTransportMode(): ClaudeTransportMode {
-		// An absent `claudeUseCopilotProxy` stays `undefined` so the pure function
-		// can tell an explicit override from "fall through to the sign-in rules".
-		const explicitProxy = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.ClaudeUseCopilotProxy);
 		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		const hasExistingSetup = allowSignedOutWhenUsable && detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
-		return resolveClaudeTransportMode({ explicitProxy, allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup });
+		return resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup: this._hasUsableNativeSetup() });
+	}
+
+	/**
+	 * Whether Claude can run without GitHub right now: the signed-out opt-in is on
+	 * AND a BYO-Anthropic credential is discoverable (see
+	 * {@link detectExistingClaudeSetup}). Backs both the advertised requirement and
+	 * the model-less transport default so the two cannot disagree.
+	 */
+	private _hasUsableNativeSetup(): boolean {
+		return this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true
+			&& detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
 	}
 
 	// #region Descriptor + auth
@@ -520,25 +526,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
-		// The transport is chosen per session from the picked model, so no
-		// host-global mode can make Copilot strictly required: advertise the
-		// Copilot resource as optional (`required: false`, mirroring Codex's
-		// always-optional Copilot resource). Two effects, both wanted:
-		//   1. The host silently forwards a GitHub token IFF the user is already
-		//      signed in (no prompt when signed out) — the sign-in probe that lets
-		//      `authenticate()` acquire a proxy handle for Copilot-routed models
-		//      (after which model-less sessions default to proxy; see
-		//      {@link _defaultTransportMode}).
-		//   2. `required: false` still tells the window gate the type is usable
-		//      without GitHub when signed out (see
-		//      `protectedResourcesRequireGitHubCopilotSignIn`, which checks
-		//      `required !== false`), so no sign-in is forced.
-		// `_ensureAuthenticated(model)` raises `AHP_AUTH_REQUIRED` only for the
-		// sessions that actually pick a Copilot-routed model without a proxy
-		// handle. The optional repo resource is kept for git operations either way.
+		// Kept in the list even when optional, never dropped:
+		// `authenticateProtectedResources` matches on `resource` and ignores
+		// `required`, so advertising it is what lets the host silently forward a
+		// token to an already-signed-in user — and acquire the proxy handle
+		// Copilot-routed models need — without forcing sign-in on anyone else.
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			{ ...copilotResource, required: false },
+			this._hasUsableNativeSetup() ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
@@ -680,6 +675,17 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * one source erroring; only when *every* source we attempted fails do we keep
 	 * the last known-good catalog instead of blanking, so a transient double
 	 * failure never wipes the picker.
+	 *
+	 * Gating the native half on {@link detectExistingClaudeSetup} is deliberate and
+	 * load-bearing, not just an optimization. `supportedModels()` returns a *static*
+	 * list of models the SDK understands — it is not an entitlement or credential
+	 * check, and it answers even with no `ANTHROPIC_API_KEY`, no
+	 * `CLAUDE_CODE_OAUTH_TOKEN` and an empty `HOME`. Publishing it unconditionally
+	 * would advertise models for an agent that cannot serve a single request, which
+	 * reads downstream as "usable without GitHub" and would hold the Agents window
+	 * open on an agent that fails on its first turn. An empty catalog is the honest
+	 * signal: it surfaces as "no models" (`SessionTypeAuthRequirement.Unusable`)
+	 * rather than a sign-in prompt that would not help.
 	 */
 	private async _refreshModels(): Promise<void> {
 		const tokenAtStart = this._githubToken;
