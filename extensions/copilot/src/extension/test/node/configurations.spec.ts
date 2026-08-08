@@ -124,6 +124,14 @@ describe('Configurations', () => {
 		expect(Object.keys(advancedSection.properties)).toContain(promptOverrideStringKey.fullyQualifiedId);
 	});
 
+	it('ADO code search endpoint override is application-scoped and restricted', () => {
+		const advancedSection = packageJson.contributes.configuration.find(section => section.id === 'advanced')!;
+		const setting = advancedSection.properties[ConfigKey.Advanced.WorkspacePrototypeAdoCodeSearchEndpointOverride.fullyQualifiedId] as { readonly scope?: string; readonly restricted?: boolean };
+
+		expect(setting.scope).toBe('application');
+		expect(setting.restricted).toBe(true);
+	});
+
 	it('all localization strings in package.json are present in package.nls.json', async () => {
 		// Get all keys from package.nls.json
 		const packageJsonPath = path.join(__dirname, '../../../../package.json');
