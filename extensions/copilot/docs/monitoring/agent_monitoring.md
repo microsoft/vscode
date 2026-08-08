@@ -386,6 +386,15 @@ Emitted when a tool invocation completes.
 | `success` | `true` or `false` |
 | `error.type` | Error class (if failed) |
 
+#### `copilot_chat.tool.call.started`
+
+Emitted when a tool invocation starts, before the tool executes.
+
+| Attribute | Description |
+|---|---|
+| `gen_ai.tool.name` | Tool name |
+| `gen_ai.tool.call.id` | Tool call identifier |
+
 #### `copilot_chat.agent.turn`
 
 Emitted for each LLM round-trip within an agent invocation.

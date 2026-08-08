@@ -134,7 +134,7 @@ src/extension/trajectory/vscode-node/
 | `anthropicProvider.ts`, `geminiNativeProvider.ts` | `chat` spans — BYOK provider requests |
 | `toolCallingLoop.ts` | `invoke_agent` spans — foreground agent orchestration |
 | `inlineChatIntent.ts` | `invoke_agent Inline Chat` spans — inline chat orchestration |
-| `toolsService.ts` | `execute_tool` spans — foreground tool invocations |
+| `toolsService.ts` | `execute_tool` spans and `copilot_chat.tool.call.started` events — foreground tool invocations |
 | `chatHookService.ts` | `execute_hook` spans — foreground agent hooks |
 | `copilotcliSession.ts` | `invoke_agent copilotcli` wrapper span + traceparent propagation + hook event stash |
 | `copilotCliBridgeSpanProcessor.ts` | Bridge: SDK `ReadableSpan` → `ICompletedSpanData` (with hook-span enrichment) |
