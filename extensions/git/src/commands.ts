@@ -3112,7 +3112,31 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.branch(branchName, true, target);
+		try {
+			await repository.branch(branchName, true, target);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
+				throw err;
+			}
+
+			const stash = l10n.t('Stash & Checkout');
+			const migrate = l10n.t('Migrate Changes');
+			const force = l10n.t('Force Checkout');
+			const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
+
+			if (choice === force) {
+				await this.cleanAll(repository);
+				await repository.branch(branchName, true, target);
+			} else if (choice === stash || choice === migrate) {
+				if (await this._stash(repository, true)) {
+					await repository.branch(branchName, true, target);
+
+					if (choice === migrate) {
+						await this.stashPopLatest(repository);
+					}
+				}
+			}
+		}
 	}
 
 	private async pickRef<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
