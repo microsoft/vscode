@@ -11,13 +11,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalog, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
-import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
+import { IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationContribution } from '../../common/agentHostChangesetOperationService.js';
+import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -48,13 +49,32 @@ suite('ChangesetSessionCoordinator', () => {
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
-	function createEnvironment(root: URI = URI.file('/repo')): {
+	/** Creates a ready `copilotcli` session with the given working directories, for operation-suppression tests. */
+	function createCopilotSession(stateManager: AgentHostStateManager, session: string, workingDirectories: readonly string[]): void {
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilotcli',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: [...workingDirectories],
+		});
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+	}
+
+	function createEnvironment(root: URI = URI.file('/repo'), operationOptions?: {
+		readonly contributions?: readonly IChangesetOperationContribution[];
+		readonly autoFireGitStateRefresh?: boolean;
+	}): {
 		stateManager: AgentHostStateManager;
 		changesets: TestChangesetService;
 		subscriptions: IAgentHostChangesetSubscriptionService;
 		monitor: TestFileMonitorService;
 		gitService: IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> };
 		gitStateService: TestGitStateService;
+		operationService: IAgentHostChangesetOperationService;
 		coordinator: AgentHostChangesetCoordinator;
 	} {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -64,15 +84,27 @@ suite('ChangesetSessionCoordinator', () => {
 		const changesets = new TestChangesetService(subscriptions);
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = createGitService(root);
-		const gitStateService = disposables.add(new TestGitStateService());
-		const operationContributionService: IAgentHostChangesetOperationService = {
-			_serviceBrand: undefined,
-			registerContribution: () => Disposable.None,
-			getOperations: () => [],
-			updateOperations: () => { },
-			invokeChangesetOperation: async () => ({}),
-			dispose: () => { },
-		};
+		const gitStateService = disposables.add(new TestGitStateService(operationOptions?.autoFireGitStateRefresh ?? true));
+		let operationContributionService: IAgentHostChangesetOperationService;
+		if (operationOptions) {
+			// A handful of tests need the *real* suppression/publication logic
+			// (not just a recording stub) to exercise the coordinator's
+			// root-transition wiring end-to-end.
+			const realOperationService = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions));
+			for (const contribution of operationOptions.contributions ?? []) {
+				disposables.add(realOperationService.registerContribution(contribution));
+			}
+			operationContributionService = realOperationService;
+		} else {
+			operationContributionService = {
+				_serviceBrand: undefined,
+				registerContribution: () => Disposable.None,
+				getOperations: () => [],
+				updateOperations: () => { },
+				invokeChangesetOperation: async () => ({}),
+				dispose: () => { },
+			};
+		}
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -85,7 +117,7 @@ suite('ChangesetSessionCoordinator', () => {
 			[IAgentHostGitStateService, gitStateService],
 		), /*strict*/ true));
 		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
-		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator };
+		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, operationService: operationContributionService, coordinator };
 	}
 
 	test('shares root watchers across sessions and fans out root changes to static refreshes', async () => {
@@ -327,6 +359,180 @@ suite('ChangesetSessionCoordinator', () => {
 			disposals: ['file:///repo'],
 		});
 	});
+
+	// ---- onWorkingDirectoriesChanged (operation-suppression boundary) ------
+
+	test('clears subscribed Turn/Compare operations on a one-root -> multi-root transition, even without cached Git state', () => {
+		const session = AgentSession.uri('copilotcli', 'session-1').toString();
+		const environment = createEnvironment(URI.file('/repo'), { contributions: [new AlwaysIdleOperationContribution()] });
+		createCopilotSession(environment.stateManager, session, ['file:///repoA']);
+		// Seed Git state so the *initial* (single-root) publication below can
+		// actually populate an operation to later observe getting cleared.
+		environment.stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main' }));
+
+		const turnUri = buildTurnChangesetUri(session, 'turn-1');
+		const compareUri = buildCompareTurnsChangesetUri(session, 'turn-1', 'turn-2');
+		environment.stateManager.registerChangeset(turnUri);
+		environment.stateManager.registerChangeset(compareUri);
+		environment.coordinator.onFirstSubscriber(URI.parse(turnUri));
+		environment.coordinator.onFirstSubscriber(URI.parse(compareUri));
+		environment.operationService.updateOperations(session);
+		const before = {
+			turn: environment.stateManager.getChangesetState(turnUri)?.operations?.map(o => o.id),
+			compare: environment.stateManager.getChangesetState(compareUri)?.operations?.map(o => o.id),
+		};
+
+		const previousWorkingDirectories = environment.stateManager.getSessionState(session)?.workingDirectories;
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+		const currentWorkingDirectories = environment.stateManager.getSessionState(session)?.workingDirectories;
+		environment.coordinator.onWorkingDirectoriesChanged(session, previousWorkingDirectories, currentWorkingDirectories);
+
+		assert.deepStrictEqual({
+			before,
+			after: {
+				turn: environment.stateManager.getChangesetState(turnUri)?.operations,
+				compare: environment.stateManager.getChangesetState(compareUri)?.operations,
+			},
+			// Clearing must not depend on (and must not itself request) Git state.
+			gitStateRefreshRequests: environment.gitStateService.refreshed,
+		}, {
+			before: { turn: ['op'], compare: ['op'] },
+			after: { turn: [], compare: [] },
+			gitStateRefreshRequests: [],
+		});
+	});
+
+	test('does not redispatch or reset Branch/Uncommitted operation status on a working-directory transition', () => {
+		const session = AgentSession.uri('copilotcli', 'session-1').toString();
+		const environment = createEnvironment(URI.file('/repo'), { contributions: [new AlwaysIdleOperationContribution()] });
+		createCopilotSession(environment.stateManager, session, ['file:///repoA']);
+		environment.stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main' }));
+
+		// Deliberately not subscribed via `onFirstSubscriber`: the root-transition
+		// hook only ever refreshes Turn/Compare *kinds*, so Branch/Uncommitted
+		// must stay untouched whether or not they are currently subscribed.
+		const branchUri = buildBranchChangesetUri(session);
+		const uncommittedUri = buildUncommittedChangesetUri(session);
+		environment.stateManager.registerChangeset(branchUri);
+		environment.stateManager.registerChangeset(uncommittedUri);
+
+		// Simulate a Session-catalogue operation actively running and an
+		// Uncommitted operation that ended in error -- both unrelated to
+		// Turn/Compare and must be left completely untouched by the transition.
+		environment.stateManager.dispatchServerAction(branchUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: 'op', label: 'Op', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Running }],
+		});
+		environment.stateManager.dispatchServerAction(uncommittedUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: 'op', label: 'Op', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Error, error: { errorType: 'Error', message: 'boom' } }],
+		});
+		const before = {
+			branch: environment.stateManager.getChangesetState(branchUri)?.operations,
+			uncommitted: environment.stateManager.getChangesetState(uncommittedUri)?.operations,
+		};
+
+		const previousWorkingDirectories = environment.stateManager.getSessionState(session)?.workingDirectories;
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+		const currentWorkingDirectories = environment.stateManager.getSessionState(session)?.workingDirectories;
+		environment.coordinator.onWorkingDirectoriesChanged(session, previousWorkingDirectories, currentWorkingDirectories);
+
+		assert.deepStrictEqual({
+			branch: environment.stateManager.getChangesetState(branchUri)?.operations,
+			uncommitted: environment.stateManager.getChangesetState(uncommittedUri)?.operations,
+		}, before);
+	});
+
+	test('removing a working directory back to one root recomputes and restores operations when Git state is already known', () => {
+		const session = AgentSession.uri('copilotcli', 'session-1').toString();
+		const environment = createEnvironment(URI.file('/repo'), { contributions: [new AlwaysIdleOperationContribution()] });
+		createCopilotSession(environment.stateManager, session, ['file:///repoA', 'file:///repoB']);
+		environment.stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main' }));
+
+		const turnUri = buildTurnChangesetUri(session, 'turn-1');
+		environment.stateManager.registerChangeset(turnUri);
+		environment.coordinator.onFirstSubscriber(URI.parse(turnUri));
+		environment.operationService.updateOperations(session);
+		const suppressed = environment.stateManager.getChangesetState(turnUri)?.operations;
+
+		const previousWorkingDirectories = environment.stateManager.getSessionState(session)?.workingDirectories;
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///repoB' });
+		const currentWorkingDirectories = environment.stateManager.getSessionState(session)?.workingDirectories;
+		environment.coordinator.onWorkingDirectoriesChanged(session, previousWorkingDirectories, currentWorkingDirectories);
+
+		assert.deepStrictEqual({
+			suppressed,
+			restored: environment.stateManager.getChangesetState(turnUri)?.operations?.map(o => o.id),
+			gitStateRefreshRequests: environment.gitStateService.refreshed,
+		}, {
+			suppressed: [],
+			restored: ['op'],
+			gitStateRefreshRequests: [],
+		});
+	});
+
+	test('removing a working directory back to one root without cached Git state leaves operations empty until the refresh event arrives', () => {
+		const session = AgentSession.uri('copilotcli', 'session-1').toString();
+		const environment = createEnvironment(URI.file('/repo'), {
+			contributions: [new AlwaysIdleOperationContribution()],
+			autoFireGitStateRefresh: false,
+		});
+		createCopilotSession(environment.stateManager, session, ['file:///repoA', 'file:///repoB']);
+		// No Git state is ever set for this session up front.
+
+		const turnUri = buildTurnChangesetUri(session, 'turn-1');
+		environment.stateManager.registerChangeset(turnUri);
+		environment.coordinator.onFirstSubscriber(URI.parse(turnUri));
+		// Seed as already-suppressed (as it would be, having been multi-root).
+		environment.stateManager.dispatchServerAction(turnUri, { type: ActionType.ChangesetOperationsChanged, operations: [] });
+
+		const previousWorkingDirectories = environment.stateManager.getSessionState(session)?.workingDirectories;
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///repoB' });
+		const currentWorkingDirectories = environment.stateManager.getSessionState(session)?.workingDirectories;
+		environment.coordinator.onWorkingDirectoriesChanged(session, previousWorkingDirectories, currentWorkingDirectories);
+
+		const immediatelyAfterTransition = environment.stateManager.getChangesetState(turnUri)?.operations;
+		const refreshRequestedFor = [...environment.gitStateService.refreshed];
+
+		// Git state becomes available and the requested refresh completes.
+		environment.stateManager.setSessionMeta(session, withSessionGitState(undefined, { branchName: 'main' }));
+		environment.gitStateService.fireGitStateRefreshed(session);
+
+		assert.deepStrictEqual({
+			immediatelyAfterTransition,
+			refreshRequestedFor,
+			restoredAfterRefresh: environment.stateManager.getChangesetState(turnUri)?.operations?.map(o => o.id),
+		}, {
+			immediatelyAfterTransition: [],
+			refreshRequestedFor: [session],
+			restoredAfterRefresh: ['op'],
+		});
+	});
+
+	test('does not refresh operations when working directories stay on the same side of the boundary (idempotent or same-side changes)', () => {
+		const session = AgentSession.uri('copilotcli', 'session-1').toString();
+		const environment = createEnvironment(URI.file('/repo'), { contributions: [new AlwaysIdleOperationContribution()] });
+		createCopilotSession(environment.stateManager, session, ['file:///repoA', 'file:///repoB']);
+		// No Git state: if this incorrectly attempted an unsuppression refresh
+		// it would request one.
+
+		const turnUri = buildTurnChangesetUri(session, 'turn-1');
+		environment.stateManager.registerChangeset(turnUri);
+		environment.coordinator.onFirstSubscriber(URI.parse(turnUri));
+
+		// Idempotent (accepted) add: 2 roots -> 2 roots, directory already present.
+		environment.coordinator.onWorkingDirectoriesChanged(session, ['file:///repoA', 'file:///repoB'], ['file:///repoA', 'file:///repoB']);
+		// Non-idempotent but same-side mutation: 2 roots -> 3 roots.
+		environment.coordinator.onWorkingDirectoriesChanged(session, ['file:///repoA', 'file:///repoB'], ['file:///repoA', 'file:///repoB', 'file:///repoC']);
+
+		assert.deepStrictEqual({
+			operations: environment.stateManager.getChangesetState(turnUri)?.operations,
+			gitStateRefreshRequests: environment.gitStateService.refreshed,
+		}, {
+			operations: undefined, // never dispatched at all
+			gitStateRefreshRequests: [],
+		});
+	});
 });
 
 function createGitService(root: URI): IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> } {
@@ -367,15 +573,43 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 
 	readonly refreshed: string[] = [];
 
+	/**
+	 * @param autoFireRefresh Mirrors the production service by default: records
+	 * the refresh and immediately notifies listeners so the coordinator
+	 * recomputes the subscribed changesets. Tests that need to observe the
+	 * interval between the request and its eventual completion (e.g. Turn/
+	 * Compare operations staying empty until Git state actually arrives)
+	 * construct this with `autoFireRefresh: false` and call
+	 * {@link fireGitStateRefreshed} explicitly once ready.
+	 */
+	constructor(private readonly _autoFireRefresh = true) {
+		super();
+	}
+
 	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<void> {
-		// Mirror the production service: record the refresh and notify
-		// listeners so the coordinator recomputes the subscribed changesets.
 		this.refreshed.push(sessionKey);
+		if (this._autoFireRefresh) {
+			this._onDidRefreshSessionGitState.fire(sessionKey);
+		}
+	}
+
+	/** Manually completes a previously requested refresh; see {@link _autoFireRefresh}. */
+	fireGitStateRefreshed(sessionKey: string): void {
 		this._onDidRefreshSessionGitState.fire(sessionKey);
 	}
+
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 	async attachSessionGitHubIssues(_sessionKey: string, _text: string): Promise<void> { }
+}
+
+/** Contribution that advertises one always-idle changeset-scoped operation regardless of context. */
+class AlwaysIdleOperationContribution implements IChangesetOperationContribution {
+	registerHandlers(): IDisposable { return { dispose() { } }; }
+	getOperations(_context: IChangesetOperationContext): readonly ChangesetOperation[] {
+		return [{ id: 'op', label: 'Op', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }];
+	}
+	dispose(): void { }
 }
 
 class TestFileMonitorService extends Disposable implements IAgentHostFileMonitorService {

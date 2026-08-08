@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { parseChangesetUri, ChangesetKind } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
@@ -15,6 +15,7 @@ import type { IChangesetOperationContribution, IAgentHostChangesetOperationServi
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { AgentSession } from '../common/agentService.js';
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -67,6 +68,11 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			return [];
 		}
 
+		// Turn spans repositories; Compare stays primary-only but intentionally also exposes no operations in multi-root sessions.
+		if (this._shouldSuppressOperations(sessionKey, parsed.kind)) {
+			return [];
+		}
+
 		return this._getOperations({
 			sessionKey,
 			changesetUri: changeset,
@@ -74,6 +80,18 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			gitState,
 			gitHubState
 		});
+	}
+
+	/** Returns whether Turn/Compare operations are suppressed for the session's current roots. */
+	private _shouldSuppressOperations(sessionKey: string, changesetKind: ChangesetKind): boolean {
+		if (changesetKind !== ChangesetKind.Turn && changesetKind !== ChangesetKind.Compare) {
+			return false;
+		}
+		if (AgentSession.provider(sessionKey) !== 'copilotcli') {
+			return false;
+		}
+		const dirs = this._stateManager.getSessionState(sessionKey)?.workingDirectories;
+		return !!dirs && dirs.length > 1;
 	}
 
 	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
@@ -98,6 +116,28 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
+		const changesets = changeset
+			? [changeset]
+			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
+
+		// Clear suppressed operations before resolving Git state so root changes cannot leave stale actions.
+		const unsuppressed: string[] = [];
+		for (const candidate of changesets) {
+			const parsed = parseChangesetUri(candidate);
+			if (parsed && this._shouldSuppressOperations(sessionKey, parsed.kind)) {
+				this._stateManager.dispatchServerAction(candidate, {
+					type: ActionType.ChangesetOperationsChanged,
+					operations: [],
+				});
+				continue;
+			}
+			unsuppressed.push(candidate);
+		}
+
+		if (unsuppressed.length === 0) {
+			return;
+		}
+
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
@@ -111,14 +151,10 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			gitHubState = readSessionGitHubState(sessionState?._meta);
 		}
 
-		const changesets = changeset
-			? [changeset]
-			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
+		for (const candidate of unsuppressed) {
+			const operations = this.getOperations(sessionKey, candidate, gitState, gitHubState);
 
-		for (const changeset of changesets) {
-			const operations = this.getOperations(sessionKey, changeset, gitState, gitHubState);
-
-			this._stateManager.dispatchServerAction(changeset, {
+			this._stateManager.dispatchServerAction(candidate, {
 				type: ActionType.ChangesetOperationsChanged,
 				operations: [...operations],
 			});
@@ -147,6 +183,11 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const parsed = parseChangesetUri(params.channel);
 		if (parsed && this._stateManager.hasActiveTurn(parsed.sessionUri)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled while a turn is active on changeset ${params.channel}`);
+		}
+
+		// Re-check dynamic root policy before joining in-flight work or invoking a handler.
+		if (parsed && this._shouldSuppressOperations(parsed.sessionUri, parsed.kind)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled while the session has multiple working directories on changeset ${params.channel}`);
 		}
 
 		const targetKind: ChangesetOperationScope = params.target?.kind === ChangesetOperationTargetKind.Resource

@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IAgentSessionMetadata } from '../common/agentService.js';
+import { AgentSession, IAgentSessionMetadata } from '../common/agentService.js';
 import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -14,7 +14,7 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isAhpChatChannel } from '../common/state/sessionState.js';
+import { isAhpChatChannel, readSessionGitState } from '../common/state/sessionState.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -48,13 +48,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
-		@IAgentHostGitStateService gitStateService: IAgentHostGitStateService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator));
-		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -122,6 +122,40 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetOperationService.updateOperations(sessionStr);
 	}
 
+	/** Refreshes subscribed Turn/Compare operations when Copilot crosses the single-/multi-root boundary. */
+	onWorkingDirectoriesChanged(
+		session: string,
+		previousWorkingDirectories: readonly string[] | undefined,
+		currentWorkingDirectories: readonly string[] | undefined,
+	): void {
+		if (AgentSession.provider(session) !== 'copilotcli') {
+			return;
+		}
+
+		const wasMultiRoot = (previousWorkingDirectories?.length ?? 0) > 1;
+		const isMultiRoot = (currentWorkingDirectories?.length ?? 0) > 1;
+		if (wasMultiRoot === isMultiRoot) {
+			return;
+		}
+
+		this._refreshSubscribedTurnAndCompareOperations(session);
+
+		if (wasMultiRoot && !isMultiRoot && !readSessionGitState(this._stateManager.getSessionState(session)?._meta)) {
+			// Compare is compute-once, so the Git refresh hook must restore its operations.
+			void this._gitStateService.refreshSessionGitState(session);
+		}
+	}
+
+	/** Refreshes operation lists only for subscribed Turn and Compare changesets. */
+	private _refreshSubscribedTurnAndCompareOperations(session: string): void {
+		for (const changeset of this._changesetSubscriptions.getSessionSubscriptions(session)) {
+			const parsed = parseChangesetUri(changeset);
+			if (parsed?.kind === ChangesetKind.Turn || parsed?.kind === ChangesetKind.Compare) {
+				this._changesetOperationService.updateOperations(session, changeset);
+			}
+		}
+	}
+
 	// ---- Subscription hooks -------------------------------------------------
 
 	/**
@@ -180,6 +214,12 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			return;
 		}
+
+		if (parsed?.kind === ChangesetKind.Compare && parsed.originalTurnId !== undefined && parsed.modifiedTurnId !== undefined) {
+			// Compare data remains compute-once; tracking is only for operation refresh.
+			this._addSubscription(parsed.sessionUri, resourceStr);
+			return;
+		}
 	}
 
 	/**
@@ -208,6 +248,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+			this._removeSubscription(parsed.sessionUri, resourceStr);
+			return;
+		}
+		if (parsed?.kind === ChangesetKind.Compare && parsed.originalTurnId !== undefined && parsed.modifiedTurnId !== undefined) {
 			this._removeSubscription(parsed.sessionUri, resourceStr);
 			return;
 		}
@@ -329,5 +373,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		// changeset currently subscribed for the session (the service
 		// reads the exposed subscription list).
 		this._changesets.recomputeSubscribedChangesets(sessionStr);
+
+		// Compare is not recomputed above, so refresh its operations explicitly.
+		this._refreshSubscribedTurnAndCompareOperations(sessionStr);
 	}
 }

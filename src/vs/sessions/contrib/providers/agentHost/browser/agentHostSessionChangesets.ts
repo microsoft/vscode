@@ -5,21 +5,38 @@
 
 import { arrayEqualsC, structuralEquals } from '../../../../../base/common/equals.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { format } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
+
+/** Filters multi-folder changes to the primary repository checkout represented by the single-root Agents Window Changes panel. */
+export function filterChangesToPrimaryRepoRoot(changes: readonly ISessionFileChange[], workspace: ISessionWorkspace | undefined): readonly ISessionFileChange[] {
+	if (!workspace || workspace.folders.length <= 1) {
+		return changes;
+	}
+	const primaryFolder = workspace.folders[0];
+	const workTreeUri = primaryFolder.gitRepository?.workTreeUri;
+	const primaryRoot = workTreeUri && !extUriBiasedIgnorePathCase.isEqualOrParent(workTreeUri, primaryFolder.root)
+		? workTreeUri
+		: primaryFolder.root;
+	return changes.filter(change => {
+		const resource = isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
+		return extUriBiasedIgnorePathCase.isEqualOrParent(resource, primaryRoot);
+	});
+}
 
 const enum ChangesetKind {
 	Branch = 'branch',
@@ -33,7 +50,8 @@ export function createChangesets(
 	sessionUri: URI,
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
-	changesets: readonly Changeset[] | undefined
+	changesets: readonly Changeset[] | undefined,
+	workspaceObs: IObservable<ISessionWorkspace | undefined>
 ): readonly ISessionChangeset[] {
 	if (!changesets) {
 		return [];
@@ -60,7 +78,7 @@ export function createChangesets(
 			// Last Turn Changes
 			sessionChangesets.push(options.instantiationService.createInstance(AgentHostLastTurnChangeset, sessionUri, options, isActiveSessionObs, {
 				...changeset, isDefault
-			}));
+			}, workspaceObs));
 		}
 	}
 
@@ -248,7 +266,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		});
 
 		this.changes = derivedOpts({ equalsFn: sessionFileChangesEqual }, reader => {
-			return changesObs.read(reader) ?? [];
+			return this._mapChanges(changesObs.read(reader) ?? [], reader);
 		});
 
 		const operationsObs = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
@@ -267,6 +285,11 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
 			return operationsObs.read(reader) ?? [];
 		});
+	}
+
+	/** Maps file changes before exposing them to consumers. */
+	protected _mapChanges(changes: readonly ISessionFileChange[], _reader: IReader): readonly ISessionFileChange[] {
+		return changes;
 	}
 
 	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
@@ -394,15 +417,19 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	protected override readonly channelUriObs: IObservable<URI | undefined>;
 	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
+	private readonly _workspaceObs: IObservable<ISessionWorkspace | undefined>;
+
 	constructor(
 		sessionUri: URI,
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
 		changesetSummary: Changeset & { isDefault: boolean },
+		workspaceObs: IObservable<ISessionWorkspace | undefined>,
 		@IDialogService dialogService: IDialogService,
 	) {
 		super(changesetSummary, options, dialogService);
 
+		this._workspaceObs = workspaceObs;
 		this.id = changesetSummary.changeKind;
 
 		// Turns moved off the session and onto a per-chat channel with the
@@ -460,5 +487,9 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		);
 
 		this.isEnabled = derived(reader => this.channelUriObs.read(reader) !== undefined);
+	}
+
+	protected override _mapChanges(changes: readonly ISessionFileChange[], reader: IReader): readonly ISessionFileChange[] {
+		return filterChangesToPrimaryRepoRoot(changes, this._workspaceObs.read(reader));
 	}
 }

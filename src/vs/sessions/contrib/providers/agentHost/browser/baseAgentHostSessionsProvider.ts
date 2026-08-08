@@ -1395,7 +1395,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return;
 		}
 
-		const changesets = createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata, this.workspace);
 
 		this.changesets.set(changesets, undefined);
 	}
@@ -1993,7 +1993,7 @@ class NewSession extends Disposable {
 			return;
 		}
 
-		const changesets = createChangesets(this._backendSessionUri, this._options, this._isActiveSessionObs, changesetsMetadata);
+		const changesets = createChangesets(this._backendSessionUri, this._options, this._isActiveSessionObs, changesetsMetadata, this.session.workspace);
 
 		this._changesets.set(changesets, undefined);
 	}

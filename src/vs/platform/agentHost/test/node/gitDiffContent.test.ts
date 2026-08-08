@@ -18,7 +18,7 @@ suite('gitDiffContent', () => {
 		const absolutePath = '/Users/me/repo/src/foo/bar.ts';
 		const built = buildGitBlobUri(sessionUri, sha, repoRelativePath, absolutePath);
 		const parsed = parseGitBlobUri(built);
-		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath });
+		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath, absolutePath });
 		assert.strictEqual(URI.parse(built).path, absolutePath);
 	});
 
@@ -29,7 +29,7 @@ suite('gitDiffContent', () => {
 		const absolutePath = '/Users/me/a repo/a folder/файл.txt';
 		const built = buildGitBlobUri(sessionUri, sha, repoRelativePath, absolutePath);
 		const parsed = parseGitBlobUri(built);
-		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath });
+		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath, absolutePath });
 		assert.strictEqual(URI.parse(built).path, absolutePath);
 	});
 
@@ -41,7 +41,7 @@ suite('gitDiffContent', () => {
 			parsed: parseGitBlobUri(built),
 		}, {
 			path: '/work/repo/src/app.ts',
-			parsed: { sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts' },
+			parsed: { sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts', absolutePath: '/work/repo/src/app.ts' },
 		});
 	});
 
