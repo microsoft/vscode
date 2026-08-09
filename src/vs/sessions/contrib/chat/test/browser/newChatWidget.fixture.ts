@@ -427,14 +427,6 @@ function createStandardPromptOptions(): readonly INewSessionPromptOption[] {
 			placeholder: '[describe the CI failure or paste a link]',
 			icon: Codicon.runErrors,
 		},
-		{
-			id: 'standard:addressComments',
-			title: 'Address PR comments',
-			description: 'Describe the feedback or paste a PR link',
-			prompt: 'Help me address the pull request comments for [describe the review feedback or paste a pull request link] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution and run the most relevant checks.',
-			placeholder: '[describe the review feedback or paste a pull request link]',
-			icon: Codicon.commentDiscussion,
-		},
 	];
 }
 
@@ -464,6 +456,5 @@ function createMixedPromptOptions(): readonly INewSessionPromptOption[] {
 			placeholder: '',
 			icon: computePullRequestIcon(GitHubPullRequestState.Open, { hasFailingChecks: true }),
 		},
-		createStandardPromptOptions()[0],
 	];
 }

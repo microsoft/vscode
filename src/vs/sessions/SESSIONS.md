@@ -373,13 +373,13 @@ workspace is preselected. Once that step completes (or is skipped because a
 workspace was preselected), the sequence advances to a non-visual `run` step
 that finds the mounted editable new-session composer through
 `INewSessionComposerService`. The `prompt` and `githubPrompt` variations fill the
-input over 2.5 seconds. The `options` variation first shows four loading
+input over 2.5 seconds. The `options` variation first shows three loading
 skeletons, then resolves up to two assigned, unlinked GitHub issues followed by
 up to two authored pull requests with failing CI or unaddressed review comments.
 `options` is the default when no variation treatment is assigned; `prompt` and
 `githubPrompt` remain available as explicit treatments and developer overrides.
 Any remaining slots are filled, in order, by the standard Implement a feature,
-Fix a bug, Fix CI, and Address PR comments options. GitHub work is resolved
+Fix a bug, and Fix CI options. GitHub work is resolved
 silently with bounded cancellable lookups and shared issue/pull-request state
 icons; failures and timeouts leave every candidate completed by that point in
 place and fill the rest with standard options. Changing the selected workspace

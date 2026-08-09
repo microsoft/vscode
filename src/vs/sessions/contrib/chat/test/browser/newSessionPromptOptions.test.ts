@@ -116,7 +116,7 @@ suite('NewSessionPromptOptionsWidget', () => {
 			restored,
 			empty,
 		}, {
-			loading: { busy: 'true', skeletons: 4 },
+			loading: { busy: 'true', skeletons: 3 },
 			hoverContents: [
 				'**Implement a feature**\n\nDescription for Implement a feature',
 				'**Fix a bug**\n\nDescription for Fix a bug',

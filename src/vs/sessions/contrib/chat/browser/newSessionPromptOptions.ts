@@ -96,7 +96,7 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 	private _renderLoading(): void {
 		const store = new DisposableStore();
 		this._renderDisposables.value = store;
-		for (let index = 0; index < 4; index++) {
+		for (let index = 0; index < 3; index++) {
 			const skeleton = dom.append(this._optionsContainer, dom.$('.new-session-prompt-option.new-session-prompt-option-skeleton'));
 			skeleton.ariaHidden = 'true';
 			dom.append(skeleton, dom.$('.new-session-prompt-option-skeleton-icon'));

@@ -42,7 +42,7 @@ const PROMPT_TEMPLATE_TREATMENT = 'onb.newSessionViewV3.promptTemplate';
 const PLACEHOLDER_TREATMENT = 'onb.newSessionViewV3.placeholder';
 const DEFAULT_TASK_PLACEHOLDER = localize('sessions.onboarding.newSessionViewV3.prompt.taskPlaceholder', "[describe the coding task]");
 const DEFAULT_PROMPT_TEMPLATE = localize('sessions.onboarding.newSessionViewV3.prompt.text', "Help me complete {0} in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks. If anything is unclear, make a reasonable assumption and state it. When finished, summarize what changed and mention any remaining issues.");
-const PROMPT_OPTION_COUNT = 4;
+const PROMPT_OPTION_COUNT = 3;
 
 export type NewSessionViewV3ConfiguredVariation = 'prompt' | 'githubPrompt' | 'options' | 'unknown';
 export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
@@ -861,7 +861,6 @@ export class NewSessionViewV3PromptRunner {
 		const implementFeaturePlaceholder = localize('sessions.onboarding.newSessionViewV3.options.implementFeature.placeholder', "[describe the feature]");
 		const fixBugPlaceholder = localize('sessions.onboarding.newSessionViewV3.options.fixBug.placeholder', "[describe the bug]");
 		const fixCiPlaceholder = localize('sessions.onboarding.newSessionViewV3.options.fixCi.placeholder', "[describe the CI failure or paste a link]");
-		const addressCommentsPlaceholder = localize('sessions.onboarding.newSessionViewV3.options.addressComments.placeholder', "[describe the review feedback or paste a pull request link]");
 		return [
 			{
 				id: 'standard:implementFeature',
@@ -886,14 +885,6 @@ export class NewSessionViewV3PromptRunner {
 				prompt: localize('sessions.onboarding.newSessionViewV3.options.fixCi.prompt', "Help me fix the failing CI for {0} in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks. If anything is unclear, make a reasonable assumption and state it. When finished, summarize what changed and mention any remaining issues.", fixCiPlaceholder),
 				placeholder: fixCiPlaceholder,
 				icon: Codicon.runErrors,
-			},
-			{
-				id: 'standard:addressComments',
-				title: localize('sessions.onboarding.newSessionViewV3.options.addressComments.title', "Address PR comments"),
-				description: localize('sessions.onboarding.newSessionViewV3.options.addressComments.description', "Describe the feedback or paste a PR link"),
-				prompt: localize('sessions.onboarding.newSessionViewV3.options.addressComments.prompt', "Help me address the pull request comments for {0} in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks. If anything is unclear, make a reasonable assumption and state it. When finished, summarize what changed and mention any remaining issues.", addressCommentsPlaceholder),
-				placeholder: addressCommentsPlaceholder,
-				icon: Codicon.commentDiscussion,
 			},
 		];
 	}
