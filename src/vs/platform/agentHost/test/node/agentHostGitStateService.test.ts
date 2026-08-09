@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -90,11 +91,13 @@ suite('AgentHostGitStateService', () => {
 		const gitCalls: string[] = [];
 		let gitResult: ISessionGitState | undefined;
 		let gitError: Error | undefined;
+		let onGitStateLookup: (() => Promise<void>) | undefined;
 		let headSha: string | undefined;
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
 			getSessionGitState: async (workingDirectory: URI) => {
 				gitCalls.push(workingDirectory.toString());
+				await onGitStateLookup?.();
 				if (gitError) {
 					throw gitError;
 				}
@@ -144,6 +147,7 @@ suite('AgentHostGitStateService', () => {
 			pullRequestShaCalls,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitError: (error: Error) => { gitError = error; },
+			setOnGitStateLookup: (fn: () => Promise<void>) => { onGitStateLookup = fn; },
 			setHeadSha: (sha: string | undefined) => { headSha = sha; },
 			setPullRequest: (branch: string, pullRequest: CreatedPullRequest) => { pullRequestsByBranch.set(branch, pullRequest); },
 			setPullRequestForSha: (sha: string, pullRequest: CreatedPullRequest) => { pullRequestsBySha.set(sha, pullRequest); },
@@ -184,6 +188,42 @@ suite('AgentHostGitStateService', () => {
 		}, {
 			gitCalls: [],
 			runEvents: []
+		});
+
+	});
+
+	test('session disposal drains an in-flight refresh and blocks new refreshes', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.setGitResult({ branchName: 'feature' });
+		const refreshStarted = new DeferredPromise<void>();
+		const releaseRefresh = new DeferredPromise<void>();
+		h.setOnGitStateLookup(async () => {
+			refreshStarted.complete(undefined);
+			await releaseRefresh.p;
+		});
+
+		const refresh = h.service.refreshSessionGitState(SESSION, undefined);
+		await refreshStarted.p;
+		let disposalCompleted = false;
+		const disposal = h.service.onSessionDisposed(SESSION).then(() => {
+			disposalCompleted = true;
+		});
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({ disposalCompleted, gitCalls: h.gitCalls.length }, { disposalCompleted: false, gitCalls: 1 });
+
+		releaseRefresh.complete(undefined);
+		await Promise.all([refresh, disposal]);
+
+		assert.deepStrictEqual({
+			disposalCompleted,
+			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+			persistedGitState: await h.db.getMetadata(META_GIT_STATE),
+		}, {
+			disposalCompleted: true,
+			gitState: undefined,
+			persistedGitState: undefined,
 		});
 	});
 

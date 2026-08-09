@@ -226,10 +226,16 @@ export interface IAgentHostChangesetService {
 	recomputeSubscribedChangesets(session: ProtocolURI): void;
 
 	/**
-	 * Forgets any deferred static changeset refreshes queued for a session
-	 * that is being disposed.
+	 * Stops accepting changeset work for a session and waits for queued or
+	 * in-flight computations to finish.
 	 */
-	onSessionDisposed(session: ProtocolURI): void;
+	onSessionDisposed(session: ProtocolURI): Promise<void>;
+
+	/**
+	 * Releases disposal bookkeeping after the session has been removed from
+	 * live state.
+	 */
+	onSessionDeleted(session: ProtocolURI): void;
 
 	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.

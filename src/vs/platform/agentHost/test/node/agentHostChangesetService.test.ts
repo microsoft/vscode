@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -690,7 +690,7 @@ suite.skip('AgentHostChangesetService', () => {
 			service.refreshBranchChangeset(sessionStr);
 			service.refreshSessionChangeset(sessionStr);
 			await service.computeUncommittedChangeset(sessionStr);
-			service.onSessionDisposed(sessionStr);
+			await service.onSessionDisposed(sessionStr);
 
 			const summary = localStateManager.getSessionSummary(sessionStr)!;
 			localStateManager.markSessionPersisted(sessionStr, { ...summary, workingDirectories: ['file:///wd'] });
@@ -1219,5 +1219,124 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.strictEqual(state?.status, 'error');
 			assert.ok(state?.error?.message.includes('git'), `expected git-failure error message, got ${state?.error?.message}`);
 		});
+	});
+});
+
+suite('AgentHostChangesetService disposal', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('waits for in-flight git computations and rejects new work', async () => {
+		const session = AgentSession.uri('mock', 'disposing-session').toString();
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: session,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///wd'],
+		});
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
+
+		const computationStarted = new DeferredPromise<void>();
+		const releaseComputation = new DeferredPromise<void>();
+		let computationCount = 0;
+		let directGitCallCount = 0;
+		const gitService = createNoopGitService();
+		gitService.computeSessionFileDiffs = async () => {
+			computationCount++;
+			computationStarted.complete(undefined);
+			await releaseComputation.p;
+			return [];
+		};
+		gitService.computeFileDiffsBetweenRefs = async () => {
+			directGitCallCount++;
+			return [];
+		};
+		const service = disposables.add(new AgentHostChangesetService(
+			stateManager,
+			new NullLogService(),
+			createSessionDataService(new TestSessionDatabase()),
+			gitService,
+			{
+				...NULL_CHECKPOINT_SERVICE,
+				getTurnCheckpointPair: async (_session, turnId) => turnId === 'original'
+					? { parent: 'base', current: 'original-ref' }
+					: { parent: 'original-ref', current: 'modified-ref' },
+			},
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(),
+			NULL_REVIEW_SERVICE,
+		));
+
+		service.onTurnComplete(session, undefined);
+		await computationStarted.p;
+		let disposalCompleted = false;
+		const disposal = service.onSessionDisposed(session).then(() => {
+			disposalCompleted = true;
+		});
+		service.registerStaticChangesets(session);
+		service.refreshBranchChangeset(session);
+		await service.computeCompareTurnsChangeset(session, 'original', 'modified');
+		await timeout(0);
+
+		assert.deepStrictEqual({ disposalCompleted, computationCount, directGitCallCount }, { disposalCompleted: false, computationCount: 1, directGitCallCount: 0 });
+
+		releaseComputation.complete(undefined);
+		await disposal;
+
+		assert.deepStrictEqual({ disposalCompleted, computationCount, directGitCallCount }, { disposalCompleted: true, computationCount: 1, directGitCallCount: 0 });
+	});
+
+	test('waits for in-flight metadata persistence', async () => {
+		const session = AgentSession.uri('mock', 'persisting-session').toString();
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: session,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: ['file:///wd'],
+		});
+		const persistenceStarted = new DeferredPromise<void>();
+		const releasePersistence = new DeferredPromise<void>();
+		const database = new class extends TestSessionDatabase {
+			override async setMetadata(key: string, value: string): Promise<void> {
+				persistenceStarted.complete(undefined);
+				await releasePersistence.p;
+				await super.setMetadata(key, value);
+			}
+		}();
+		const service = disposables.add(new AgentHostChangesetService(
+			stateManager,
+			new NullLogService(),
+			createSessionDataService(database),
+			createNoopGitService(),
+			NULL_CHECKPOINT_SERVICE,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(),
+			NULL_REVIEW_SERVICE,
+		));
+
+		service.persistChangesSummary(session, { additions: 1, deletions: 2, files: 3 });
+		await persistenceStarted.p;
+		let disposalCompleted = false;
+		const disposal = service.onSessionDisposed(session).then(() => {
+			disposalCompleted = true;
+		});
+		await timeout(0);
+
+		assert.strictEqual(disposalCompleted, false);
+
+		releasePersistence.complete(undefined);
+		await disposal;
+
+		assert.strictEqual(disposalCompleted, true);
 	});
 });

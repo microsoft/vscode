@@ -42,19 +42,20 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  */
 export class AgentHostChangesetCoordinator extends Disposable {
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
+	private readonly _disposingSessions = new Set<string>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
-		@IAgentHostGitStateService gitStateService: IAgentHostGitStateService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator));
-		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -76,6 +77,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * keys.
 	 */
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+		if (this._disposingSessions.has(sessionStr)) {
+			return;
+		}
 		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
@@ -96,6 +100,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * because the working directory was not yet known.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
+		if (this._disposingSessions.has(sessionStr)) {
+			return;
+		}
 		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
 
@@ -103,17 +110,28 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	/**
-	 * Called when a session is disposed. Forgets any pending refresh
-	 * queued for that session.
+	 * Called when a session is disposed. Stops file monitoring and drains
+	 * changeset work before the session's storage is removed.
 	 */
-	onSessionDisposed(sessionStr: string): void {
-		this._changesets.onSessionDisposed(sessionStr);
+	async onSessionDisposed(sessionStr: string): Promise<void> {
+		this._disposingSessions.add(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
-
 		this._changesetSubscriptions.clearSessionSubscriptions(sessionStr);
+		await this._gitStateService.onSessionDisposed(sessionStr);
+		await this._changesets.onSessionDisposed(sessionStr);
+	}
+
+	onSessionDeleted(sessionStr: string): void {
+		this._disposingSessions.delete(sessionStr);
+		this._changesetFileMonitor.onSessionDeleted(sessionStr);
+		this._gitStateService.onSessionDeleted(sessionStr);
+		this._changesets.onSessionDeleted(sessionStr);
 	}
 
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
+		if (this._disposingSessions.has(sessionStr)) {
+			return;
+		}
 		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
 
 		// Advertised operations are disabled while a turn is active so the
@@ -137,6 +155,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onFirstSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		const sessionStr = parsed?.sessionUri ?? resourceStr;
+		if (this._disposingSessions.has(sessionStr)) {
+			return;
+		}
 
 		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
 			// For the session URI, we add a subscription for the branch
@@ -236,6 +258,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed.kind === ChangesetKind.Unknown) {
 			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
 		}
+		if (this._disposingSessions.has(parsed.sessionUri)) {
+			return;
+		}
 		if (!this._stateManager.getSessionState(parsed.sessionUri)) {
 			await restoreSession(URI.parse(parsed.sessionUri));
 		}
@@ -264,6 +289,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 		if (parsed.kind === ChangesetKind.Unknown) {
 			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
+		}
+		if (this._disposingSessions.has(parsed.sessionUri)) {
+			return true;
 		}
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {

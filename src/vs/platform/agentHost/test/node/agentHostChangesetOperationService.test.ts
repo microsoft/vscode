@@ -67,6 +67,8 @@ class TestGitStateService implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async onSessionDisposed(_sessionKey: string): Promise<void> { }
+	onSessionDeleted(_sessionKey: string): void { }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		return undefined;

@@ -318,7 +318,8 @@ suite('ChangesetSessionCoordinator', () => {
 		await environment.gitService.waitForRootLookups(2);
 		await tick();
 		environment.coordinator.onLastSubscriber(URI.parse(session));
-		environment.coordinator.onSessionDisposed(session);
+		await environment.coordinator.onSessionDisposed(session);
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
 		environment.coordinator.onSessionTurnActiveChanged(session, false);
 		await tick();
 
@@ -373,6 +374,8 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 		this.refreshed.push(sessionKey);
 		this._onDidRefreshSessionGitState.fire(sessionKey);
 	}
+	async onSessionDisposed(_sessionKey: string): Promise<void> { }
+	onSessionDeleted(_sessionKey: string): void { }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 	async attachSessionGitHubIssues(_sessionKey: string, _text: string): Promise<void> { }
@@ -484,9 +487,10 @@ class TestChangesetService implements IAgentHostChangesetService {
 			}
 		}
 	}
-	onSessionDisposed(session: string): void {
+	async onSessionDisposed(session: string): Promise<void> {
 		this.disposed.push(session);
 	}
+	onSessionDeleted(_session: string): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> {
 		if (this._subscriptions.getSessionSubscriptions(session).has(URI.parse(buildUncommittedChangesetUri(session)).toString())) {
 			this.uncommittedRefreshes.push(session);

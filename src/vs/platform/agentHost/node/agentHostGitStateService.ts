@@ -16,7 +16,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentService } from '../common/agentService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
@@ -28,7 +28,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	readonly onDidRefreshSessionGitState = this._onDidRefreshSessionGitState.event;
 
 	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
-	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
+	private readonly _gitStateRefreshCancellationTokenSources = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _disposingSessions = new Set<string>();
+	private readonly _pendingRefreshes = new Map<string, Set<Promise<unknown>>>();
+	private readonly _pendingPersistence = new Map<string, Set<Promise<unknown>>>();
 
 	/**
 	 * Serializes pull request lookups per session so overlapping triggers (turn
@@ -49,7 +52,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	) {
 		super();
 
-		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
 		this._register(toDisposable(() => this._pullRequestAbortController.abort()));
 	}
 
@@ -194,10 +196,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		} satisfies ISessionGitHubState);
 	}
 
-	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+	refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		const sessionState = this._stateManager.getSessionState(sessionKey);
-		if (sessionState?.lifecycle === SessionLifecycle.CreationFailed) {
-			return;
+		if (this._disposingSessions.has(sessionKey) || sessionState?.lifecycle === SessionLifecycle.CreationFailed) {
+			return Promise.resolve();
 		}
 
 		if (!workingDirectory) {
@@ -208,14 +210,20 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		if (!workingDirectory) {
-			return;
+			return Promise.resolve();
 		}
 
-		await this._gitStateRefreshThrottler.queue(sessionKey, async () => {
+		const refresh = this._gitStateRefreshThrottler.queue(sessionKey, async () => {
+			if (this._disposingSessions.has(sessionKey)) {
+				return;
+			}
 			try {
 				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
 
 				const gitState = await this._gitService.getSessionGitState(workingDirectory);
+				if (this._disposingSessions.has(sessionKey)) {
+					return;
+				}
 				if (gitState) {
 					const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 					const previousGitState = readSessionGitState(currentMeta);
@@ -244,13 +252,18 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					}
 				}
 
-				this._onDidRefreshSessionGitState.fire(sessionKey);
+				if (!this._disposingSessions.has(sessionKey)) {
+					this._onDidRefreshSessionGitState.fire(sessionKey);
+				}
 
 				// We want to ensure that we refresh the git state at
 				// most every 5 seconds in order to avoid excessive git
 				// operations and excessive traffic between the server
 				// and the client(s).
-				await timeout(5_000, this._gitStateRefreshCancellationTokenSource.token);
+				if (this._disposingSessions.has(sessionKey)) {
+					return;
+				}
+				await timeout(5_000, this._getRefreshCancellationTokenSource(sessionKey).token);
 			} catch (error) {
 				if (isCancellationError(error)) {
 					return;
@@ -259,9 +272,31 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}:`, error);
 			}
 		});
+		return this._trackPending(this._pendingRefreshes, sessionKey, refresh);
+	}
+
+	async onSessionDisposed(sessionKey: string): Promise<void> {
+		this._disposingSessions.add(sessionKey);
+		this._gitStateRefreshCancellationTokenSources.deleteAndLeak(sessionKey)?.dispose(true);
+		const pendingRefreshes = this._pendingRefreshes.get(sessionKey);
+		if (pendingRefreshes) {
+			await Promise.allSettled([...pendingRefreshes]);
+		}
+		const pendingPersistence = this._pendingPersistence.get(sessionKey);
+		if (pendingPersistence) {
+			await Promise.allSettled([...pendingPersistence]);
+		}
+	}
+
+	onSessionDeleted(sessionKey: string): void {
+		this._disposingSessions.delete(sessionKey);
+		this._gitStateRefreshCancellationTokenSources.deleteAndLeak(sessionKey)?.dispose(true);
 	}
 
 	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
+		if (this._disposingSessions.has(sessionKey) || !this._stateManager.getSessionState(sessionKey)) {
+			return;
+		}
 		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 
 		const currentState = readSessionGitHubState(currentMeta);
@@ -280,6 +315,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	private async _setSessionGitState(sessionKey: string, gitState: ISessionGitState): Promise<void> {
+		if (this._disposingSessions.has(sessionKey) || !this._stateManager.getSessionState(sessionKey)) {
+			return;
+		}
 		// Update session state manager
 		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const nextMeta = withSessionGitState(currentMeta, gitState);
@@ -289,7 +327,15 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		await this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
 	}
 
-	private async _saveSessionState(sessionKey: string, key: string, value: string): Promise<void> {
+	private _saveSessionState(sessionKey: string, key: string, value: string): Promise<void> {
+		if (this._disposingSessions.has(sessionKey) || !this._stateManager.getSessionState(sessionKey)) {
+			return Promise.resolve();
+		}
+		const persistence = this._doSaveSessionState(sessionKey, key, value);
+		return this._trackPending(this._pendingPersistence, sessionKey, persistence);
+	}
+
+	private async _doSaveSessionState(sessionKey: string, key: string, value: string): Promise<void> {
 		// Skip saving session state if the session is not materialized
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (state?.lifecycle === SessionLifecycle.Creating) {
@@ -311,5 +357,31 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		} finally {
 			databaseRef.dispose();
 		}
+	}
+
+	private _trackPending<T>(pendingBySession: Map<string, Set<Promise<unknown>>>, sessionKey: string, operation: Promise<T>): Promise<T> {
+		let pending = pendingBySession.get(sessionKey);
+		if (!pending) {
+			pending = new Set();
+			pendingBySession.set(sessionKey, pending);
+		}
+		pending.add(operation);
+		const removePending = () => {
+			pending.delete(operation);
+			if (pending.size === 0 && pendingBySession.get(sessionKey) === pending) {
+				pendingBySession.delete(sessionKey);
+			}
+		};
+		void operation.then(removePending, removePending);
+		return operation;
+	}
+
+	private _getRefreshCancellationTokenSource(sessionKey: string): CancellationTokenSource {
+		let source = this._gitStateRefreshCancellationTokenSources.get(sessionKey);
+		if (!source) {
+			source = new CancellationTokenSource();
+			this._gitStateRefreshCancellationTokenSources.set(sessionKey, source);
+		}
+		return source;
 	}
 }

@@ -34,6 +34,18 @@ export interface IAgentHostGitStateService {
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
 
 	/**
+	 * Stops accepting Git-state work for a session and drains queued or
+	 * in-flight refreshes and persistence.
+	 */
+	onSessionDisposed(sessionKey: string): Promise<void>;
+
+	/**
+	 * Releases disposal bookkeeping after the session has been removed from
+	 * live state.
+	 */
+	onSessionDeleted(sessionKey: string): void;
+
+	/**
 	 * Sets the GitHub state for a given session.
 	 * @param sessionKey The key of the session for which to set the GitHub state.
 	 * @param state The GitHub state to set.
