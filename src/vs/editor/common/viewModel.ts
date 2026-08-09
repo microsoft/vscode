@@ -177,7 +177,7 @@ export interface ILineHeightChangeAccessor {
 
 export interface IPartialViewLinesViewportData {
 	/**
-	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
+	 * Value to be subtracted from `scrollTop` (in order to vertical offset numbers < 1MM)
 	 */
 	readonly bigNumbersDelta: number;
 	/**

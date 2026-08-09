@@ -381,7 +381,7 @@ export async function saveAllBeforeDebugStart(configurationService: IConfigurati
 		if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
 			const activeEditor = editorService.activeEditorPane;
 			if (activeEditor && activeEditor.input.resource?.scheme === Schemas.untitled) {
-				// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
+				// Make sure to save the active editor in case it is in untitled file it won't be saved as part of saveAll #111850
 				await editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
 			}
 		}

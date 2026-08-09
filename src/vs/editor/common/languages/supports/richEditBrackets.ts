@@ -71,7 +71,7 @@ export class RichEditBracket {
 	 * This regular expression is built in a way that it is aware of the other bracket
 	 * pairs defined for the language, so it might match brackets from other groups.
 	 *
-	 * See the fine defails in `getReversedRegexForBracketPair`.
+	 * See the fine details in `getReversedRegexForBracketPair`.
 	 */
 	readonly reversedRegex: RegExp;
 	private readonly _openSet: Set<string>;
@@ -300,7 +300,7 @@ function unique(arr: string[]): string[] {
  * The two bracket pairs do not collide because no open or close brackets are equal.
  * So the function getRegexForBracketPair is called twice, once with
  * the ['begin'], ['end'] group consisting of one bracket pair, and once with
- * the ['if'], ['end if'] group consiting of the other bracket pair.
+ * the ['if'], ['end if'] group consisting of the other bracket pair.
  *
  * But there could be a situation where an occurrence of 'end if' is mistaken
  * for an occurrence of 'end'.
