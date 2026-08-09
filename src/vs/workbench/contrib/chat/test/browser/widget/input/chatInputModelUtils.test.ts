@@ -27,7 +27,6 @@ import {
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
 	shouldRestorePerTypeModelOnSessionSwitch,
-	shouldWaitForSessionModel,
 } from '../../../../browser/widget/input/chatInputModelUtils.js';
 
 /**
@@ -1636,24 +1635,6 @@ suite('ChatInputModelUtils', () => {
 				shouldDropAgnosticDraftModel(agentHostOpus, allMerged, undefined),
 				shouldDropAgnosticDraftModel(agentHostOpus, allMerged, sessionType),
 			], [true, true, false]);
-		});
-
-		suite('shouldWaitForSessionModel (cold-restore wait)', () => {
-			test('waits when the session model targets this pool but is not loaded yet', () => {
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, []), true);
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, [agnosticAuto, agentHostHaiku]), true);
-			});
-
-			test('does NOT wait once the session model is available (normal apply path handles it)', () => {
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, allMerged), false);
-			});
-
-			test('does NOT wait for a model that does not belong to this session pool (would wait forever)', () => {
-				assert.strictEqual(shouldWaitForSessionModel(agnosticAuto, sessionType, [agentHostHaiku]), false);
-				const otherType = { ...agentHostOpus, metadata: { ...agentHostOpus.metadata, targetChatSessionType: 'agent-host-copilotcli' } };
-				assert.strictEqual(shouldWaitForSessionModel(otherType, sessionType, []), false);
-				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, undefined, []), false);
-			});
 		});
 	});
 

@@ -140,7 +140,7 @@ suite('Agent Summarization', () => {
 				}
 			}
 		}
-		addCacheBreakpoints(r.messages);
+		addCacheBreakpoints(r.messages, 'chatCompletions');
 		return r.messages
 			.filter(message => message.role !== Raw.ChatRole.System)
 			.map(m => messageToMarkdown(m))

@@ -1272,7 +1272,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				? localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
 				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
 		} else if (requiresAllowNetworkConfirmation) {
-			confirmationTitle = localize('runInTerminal.allowNetwork', "Allow the sandbox to run `{0}` command with unrestricted network access.", shellType);
+			confirmationTitle = localize('runInTerminal.allowNetwork', "Allow {0} command to access the network?", shellType);
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
@@ -2416,7 +2416,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return altBufferResult;
 		}
 
-		if (didSandboxWrapCommand && exitCode !== 0 && outputLooksBubblewrapHostRestricted(terminalResult)) {
+		if (didSandboxWrapCommand && outputLooksBubblewrapHostRestricted(terminalResult)) {
 			return this._getBubblewrapHostRestrictedResult();
 		}
 
@@ -2582,7 +2582,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
 		const message = localize(
 			'runInTerminal.bubblewrap.hostRestriction',
-			"Sandbox creation failed due to host restrictions. Disable sandboxing (`{0}`).",
+			"Sandbox creation failed due to host restrictions. Sandboxing can be disabled by setting `{0}` to `off`.",
 			settingId,
 		);
 		return {

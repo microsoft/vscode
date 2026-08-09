@@ -24,13 +24,11 @@ import semver from 'semver';
  * build: boolean;
  * run: string | string[];
  * runGlob: string;
- * includeGlob: string | string[];
  * grep: string;
  * reporter: string;
  * 'reporter-options': string | string[];
  * timeout: string;
  * tfs: string;
- * testSplit: string;
  * integration: boolean;
  * coverage: boolean;
  * help: boolean;
@@ -40,10 +38,9 @@ import semver from 'semver';
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help', 'integration'],
-	string: ['run', 'runGlob', 'includeGlob', 'grep', 'reporter', 'reporter-options', 'timeout', 'tfs', 'testSplit', 'coveragePath', 'coverageFormats'],
+	string: ['run', 'grep', 'reporter', 'reporter-options', 'timeout', 'tfs', 'coveragePath', 'coverageFormats'],
 	alias: {
 		grep: ['g', 'f'],
-		runGlob: ['glob', 'runGrep'],
 		h: 'help'
 	},
 	default: {
@@ -69,8 +66,6 @@ if (args.help) {
 Options:
 --build          Run from out-build
 --run <file>     Run a single file
---runGlob <file_pattern> Run tests matching a file pattern
---includeGlob <file_pattern> Include only matching test files
 --grep <pattern> Run tests with titles matching a pattern
 --coverage       Generate a coverage report
 --help           Show help`);
@@ -174,35 +169,29 @@ function main() {
 	const runner = new Mocha({ ui: 'tdd' });
 	if (args.integration) {
 		const { importMochaReporter } = _require('../reporter.js');
+		let Reporter;
+		try {
+			Reporter = importMochaReporter(args.reporter);
+		} catch {
+			try {
+				Reporter = _require(args.reporter);
+			} catch {
+				Reporter = process.platform === 'win32' ? Mocha.reporters.List : Mocha.reporters.Spec;
+				console.warn(`could not load reporter: ${args.reporter}, using ${Reporter.name}`);
+			}
+		}
 		const reporterOptions = (typeof args['reporter-options'] === 'string' ? [args['reporter-options']] : args['reporter-options'])
 			.reduce((result, option) => {
 				const match = /^([^=]+)=(.*)$/.exec(option);
 				return match ? Object.assign(result, { [match[1]]: match[2] }) : result;
 			}, {});
-		runner.reporter(importMochaReporter(args.reporter), reporterOptions);
+		runner.reporter(Reporter, reporterOptions);
 		runner.timeout(args.timeout ? Number(args.timeout) : (IS_CI ? 30000 : 5000));
 		runner.forbidOnly(IS_CI);
 		if (args.grep) {
 			runner.grep(new RegExp(args.grep));
 		}
 	}
-
-	const matchesIncludeGlob = (file) => {
-		const normalizedFile = file.replace(/\\/g, '/');
-		const includeGlobs = typeof args.includeGlob === 'string' ? [args.includeGlob] : args.includeGlob ?? [];
-		return !includeGlobs.length || includeGlobs.some(pattern => minimatch(normalizedFile, pattern.replace(/\\/g, '/')));
-	};
-
-	const applyTestSplit = (modules) => {
-		if (!args.testSplit) {
-			return modules;
-		}
-		const [index, count] = args.testSplit.split('/').map(Number);
-		const chunkSize = Math.floor(modules.length / count);
-		const start = (index - 1) * chunkSize;
-		const end = index === count ? modules.length : index * chunkSize;
-		return modules.slice(start, end);
-	};
 
 	/**
 	 * @param modules
@@ -222,13 +211,13 @@ function main() {
 	if (args.runGlob) {
 		loadFunc = (cb) => {
 			const doRun = /** @param tests */(tests) => {
-				const modulesToLoad = applyTestSplit(tests.filter(matchesIncludeGlob).map(test => {
+				const modulesToLoad = tests.map(test => {
 					if (path.isAbsolute(test)) {
 						test = path.relative(src, path.resolve(test));
 					}
 
 					return test.replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
-				}));
+				});
 				loadModules(modulesToLoad).then(() => cb(null), cb);
 			};
 

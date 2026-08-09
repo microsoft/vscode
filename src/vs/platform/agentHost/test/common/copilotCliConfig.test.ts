@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { applyModelFamilyAlias } from '../../common/copilotCliConfig.js';
+import { applyModelFamilyAlias, normalizeToolSearchDeferThreshold } from '../../common/copilotCliConfig.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 
 suite('copilotCliConfig', () => {
@@ -34,6 +34,13 @@ suite('copilotCliConfig', () => {
 				model,
 				undefined,
 			]
+		);
+	});
+
+	test('normalizeToolSearchDeferThreshold floors valid values and defaults invalid values', () => {
+		assert.deepStrictEqual(
+			[5.9, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeToolSearchDeferThreshold),
+			[5, 0, 1, 1, 1, 1]
 		);
 	});
 });

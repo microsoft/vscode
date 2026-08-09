@@ -23,7 +23,6 @@ import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
-import { ISession } from '../../../services/sessions/common/session.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -137,7 +136,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _visible = false;
 	private _mouseDown = false;
 	private _suppressSelectionChangeOnce = false;
-	private _session: ISession | undefined;
+	private _sessionResource: URI | undefined;
 	private _pinnedRange: Range | undefined;
 	private _anchorPosition: Position | undefined;
 	private _preferBelow = true;
@@ -217,6 +216,17 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			}, 0);
 		}));
 		this._store.add(this._editor.onDidFocusEditorText(() => this._onSelectionChanged()));
+		this._store.add(this._agentFeedbackService.onDidChangeFeedbackScope(() => {
+			this._clearHoverGlyph();
+			this._sessionResource = this._getSessionForModel();
+			if (this._visible && this._widget) {
+				if (!this._sessionResource) {
+					this._autoHide();
+				} else {
+					this._widget.setPlaceholder(this._getPlaceholder());
+				}
+			}
+		}));
 		this._getSessionForModel();
 	}
 
@@ -242,7 +252,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._hide();
 		this._clearHoverGlyph();
 		this._suppressSelectionChangeOnce = false;
-		this._session = undefined;
+		this._sessionResource = undefined;
 		this._getSessionForModel();
 	}
 
@@ -271,8 +281,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const session = this._getSessionForModel();
-		if (!session) {
+		const sessionResource = this._getSessionForModel();
+		if (!sessionResource) {
 			this._clearHoverGlyph();
 			return;
 		}
@@ -280,7 +290,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// Don't render the add glyph on lines that already have a feedback
 		// comment, otherwise the add affordance overlaps the existing comment's
 		// gutter decoration and both become clickable on the same spot.
-		if (this._lineHasExistingFeedback(session, model.uri, lineNumber)) {
+		if (this._lineHasExistingFeedback(sessionResource, model.uri, lineNumber)) {
 			this._clearHoverGlyph();
 			return;
 		}
@@ -296,8 +306,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}]);
 	}
 
-	private _lineHasExistingFeedback(session: ISession, resourceUri: URI, lineNumber: number): boolean {
-		return this._agentFeedbackService.getFeedback(session.resource).some(feedback =>
+	private _lineHasExistingFeedback(sessionResource: URI, resourceUri: URI, lineNumber: number): boolean {
+		return this._agentFeedbackService.getFeedback(sessionResource).some(feedback =>
 			isEqual(feedback.resourceUri, resourceUri)
 			&& lineNumber >= feedback.range.startLineNumber
 			&& lineNumber <= feedback.range.endLineNumber);
@@ -340,13 +350,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const session = this._getSessionForModel();
-		if (!session) {
+		const sessionResource = this._getSessionForModel();
+		if (!sessionResource) {
 			this._autoHide();
 			return;
 		}
 
-		this._session = session;
+		this._sessionResource = sessionResource;
 		const preferBelow = selection.getDirection() === SelectionDirection.LTR;
 		const anchorPosition = preferBelow ? selection.getEndPosition() : selection.getStartPosition();
 		this._show(Range.lift(selection), anchorPosition, preferBelow);
@@ -374,7 +384,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	}
 
 	private _getPlaceholder(): string {
-		const hasChanges = !!this._session && this._session.changes.get().length > 0;
+		const model = this._editor.getModel();
+		const hasChanges = !!model && (this._agentFeedbackService.getSessionForFile(model.uri)?.changes.get().length ?? 0) > 0;
 		return hasChanges
 			? localize('agentFeedback.addFeedback', "Add Feedback")
 			: localize('agentFeedback.addComment', "Add Comment");
@@ -421,13 +432,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const session = this._getSessionForModel();
-		if (!session) {
+		const sessionResource = this._getSessionForModel();
+		if (!sessionResource) {
 			this._autoHide();
 			return;
 		}
 
-		this._session = session;
+		this._sessionResource = sessionResource;
 		this._show(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)), new Position(lineNumber, 1), true, focusInput);
 	}
 
@@ -465,15 +476,17 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this.focusInput();
 	}
 
-	private _getSessionForModel(): ISession | undefined {
+	private _getSessionForModel(): URI | undefined {
 		const model = this._editor.getModel();
 		if (!model || !this._contextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
 			this._hasAgentFeedbackSessionContext.set(false);
+			this._sessionResource = undefined;
 			return undefined;
 		}
-		const session = this._agentFeedbackService.getSessionForFile(model.uri);
-		this._hasAgentFeedbackSessionContext.set(!!session);
-		return session;
+		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(model.uri);
+		this._hasAgentFeedbackSessionContext.set(!!sessionResource);
+		this._sessionResource = sessionResource;
+		return sessionResource;
 	}
 
 	/**
@@ -629,11 +642,11 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 		const range = this._pinnedRange ?? this._editor.getSelection();
 		const model = this._editor.getModel();
-		if (!range || !model || !this._session) {
+		if (!range || !model || !this._sessionResource) {
 			return false;
 		}
 
-		this._agentFeedbackService.addFeedback(this._session.resource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
+		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
 		this._hideAndRefocusEditor();
 		return true;
 	}
@@ -650,11 +663,11 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 		const range = this._pinnedRange ?? this._editor.getSelection();
 		const model = this._editor.getModel();
-		if (!range || !model || !this._session) {
+		if (!range || !model || !this._sessionResource) {
 			return;
 		}
 
-		const sessionResource = this._session.resource;
+		const sessionResource = this._sessionResource;
 		this._hideAndRefocusEditor();
 		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
 	}

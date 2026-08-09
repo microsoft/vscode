@@ -5,6 +5,7 @@
 
 import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -948,7 +949,7 @@ suite('RunInTerminalTool', () => {
 			const message = (result.content[0] as { value?: string }).value;
 
 			ok(message?.includes(AgentSandboxSettingId.AgentSandboxEnabled));
-			ok(message?.includes('Disable sandboxing'));
+			ok(message?.includes('Sandboxing can be disabled by setting'));
 			strictEqual(result.toolResultMessage, message);
 		});
 
@@ -1160,6 +1161,8 @@ suite('RunInTerminalTool', () => {
 			'git status',
 			'git log --oneline',
 			'git show HEAD',
+			'git show --format=%B HEAD',
+			'git show --output-format=text HEAD',
 			'git diff main',
 			'git grep "TODO"',
 
@@ -1176,7 +1179,7 @@ suite('RunInTerminalTool', () => {
 			'Join-Path C:\\Users test',
 			'Start-Sleep 2',
 
-			// PowerShell safe verbs (regex patterns)
+			// Explicit PowerShell cmdlets
 			'Select-Object Name',
 			'Measure-Object Length',
 			'Compare-Object $a $b',
@@ -1252,6 +1255,10 @@ suite('RunInTerminalTool', () => {
 			// git log file output
 			'git log --output=log.txt',
 
+			// git show file output
+			'git show --format=%B --output=message.txt HEAD',
+			'git show --output message.txt HEAD',
+
 			// Dangerous file operations
 			'rm README.md',
 			'rmdir folder',
@@ -1292,6 +1299,13 @@ suite('RunInTerminalTool', () => {
 			'eval "echo hello"',
 			'Invoke-Expression "Get-Date"',
 			'iex "Write-Host test"',
+
+			// Arbitrary PowerShell cmdlets must not be approved by verb alone
+			'Select-Custom',
+			'Measure-Command',
+			'Compare-Custom',
+			'Format-Hex',
+			'Sort-Custom',
 
 			// Commands with dangerous arguments
 			'column -c 10000 file.txt',
@@ -1400,7 +1414,7 @@ suite('RunInTerminalTool', () => {
 				requestAllowNetworkReason: 'Needs registry access while remaining sandboxed',
 			});
 
-			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			assertConfirmationRequired(result, 'Allow bash command to access the network?');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestAllowNetworkReason, 'Needs registry access while remaining sandboxed');
@@ -1431,7 +1445,7 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({ command: 'curl https://evil.com' });
 
-			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			assertConfirmationRequired(result, 'Allow bash command to access the network?');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestUnsandboxedExecution, false);
@@ -3191,7 +3205,7 @@ suite('RunInTerminalTool', () => {
 		suite('getCopilotProfile', () => {
 			(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
 				runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
+				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\cmd.exe', args: ['/V:ON'] });
 				setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
 				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();
@@ -3406,12 +3420,14 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let registeredToolData: Map<string, IToolData>;
+	let pendingToolDataRegistration: DeferredPromise<void> | undefined;
 	let sandboxEnabled: boolean;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		registeredToolData = new Map();
+		pendingToolDataRegistration = undefined;
 		sandboxEnabled = false;
 
 		const logService = new NullLogService();
@@ -3486,6 +3502,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			onDidChangeTools: Event.None,
 			registerToolData(toolData: IToolData) {
 				registeredToolData.set(toolData.id, toolData);
+				pendingToolDataRegistration?.complete();
 				return toDisposable(() => registeredToolData.delete(toolData.id));
 			},
 			registerToolImplementation(id: string, tool: IToolImpl) {
@@ -3519,16 +3536,23 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		});
 	});
 
-	async function flushAsync(): Promise<void> {
-		// Multiple microtask cycles to let async _registerRunInTerminalTool complete
-		for (let i = 0; i < 10; i++) {
-			await new Promise<void>(resolve => setTimeout(resolve, 0));
+	async function waitForToolDataRegistration(trigger: () => void): Promise<void> {
+		const registration = new DeferredPromise<void>();
+		pendingToolDataRegistration = registration;
+		try {
+			trigger();
+			await registration.p;
+		} finally {
+			pendingToolDataRegistration = undefined;
 		}
 	}
 
 	async function createContribution(): Promise<ChatAgentToolsContribution> {
-		const contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
-		await flushAsync();
+		let contribution: ChatAgentToolsContribution | undefined;
+		await waitForToolDataRegistration(() => {
+			contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
+		});
+		ok(contribution);
 		return contribution;
 	}
 
@@ -3545,18 +3569,17 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
 		ok(!propertiesBefore?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution before enabling sandbox');
 
-		// Enable sandbox and fire config change
-		sandboxEnabled = true;
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
-			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			// Enable sandbox and fire config change
+			sandboxEnabled = true;
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		// Wait for async registration
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3573,15 +3596,15 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
 		ok(propertiesBefore?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution before disabling unsandboxed commands');
 
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
-			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3596,16 +3619,15 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const toolDataBefore = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataBefore, 'Expected run_in_terminal tool to be registered');
 
-		// Fire network config change
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentNetworkDomainSettingId.AllowedNetworkDomains,
-			affectedKeys: new Set([AgentNetworkDomainSettingId.AllowedNetworkDomains]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			// Fire network config change
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentNetworkDomainSettingId.AllowedNetworkDomains,
+				affectedKeys: new Set([AgentNetworkDomainSettingId.AllowedNetworkDomains]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		// Wait for async registration
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered after network setting change');

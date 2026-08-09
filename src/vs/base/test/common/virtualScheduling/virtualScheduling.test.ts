@@ -344,14 +344,39 @@ suite('virtualScheduling - runWithFakedTimers', () => {
 suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('virtual Date.now() returns clock time', () => {
+	test('virtual wall and monotonic clocks stay consistent', () => {
 		const clock = new VirtualClock(12345);
-		const api = createVirtualTimeApi(clock);
+		const api = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
+		const originalPerformanceNow = performance.now;
+		const originalPerformanceTimeOrigin = performance.timeOrigin;
 		const restore = pushGlobalTimeApi(api);
+		let animationFrameTime: number | undefined;
+		let actual: object;
 		try {
-			assert.strictEqual(Date.now(), 12345);
+			requestAnimationFrame(time => animationFrameTime = time);
+			clock.runNext();
+			actual = {
+				dateNow: Date.now(),
+				performanceNow: performance.now(),
+				performanceTimeOrigin: performance.timeOrigin,
+				animationFrameTime,
+			};
 		} finally {
 			restore.dispose();
 		}
+		assert.deepStrictEqual({
+			actual,
+			restoredPerformanceNow: performance.now === originalPerformanceNow,
+			restoredPerformanceTimeOrigin: performance.timeOrigin,
+		}, {
+			actual: {
+				dateNow: 12361,
+				performanceNow: 16,
+				performanceTimeOrigin: 12345,
+				animationFrameTime: 16,
+			},
+			restoredPerformanceNow: true,
+			restoredPerformanceTimeOrigin: originalPerformanceTimeOrigin,
+		});
 	});
 });

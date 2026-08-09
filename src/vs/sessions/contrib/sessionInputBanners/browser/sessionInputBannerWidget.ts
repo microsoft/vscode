@@ -43,8 +43,8 @@ export interface ISessionInputBanner {
 	readonly text: string;
 	readonly ariaLabel: string;
 	readonly actions: readonly ISessionInputBannerAction[];
-	readonly dismissTooltip: string;
-	dismiss(): void;
+	readonly dismissTooltip?: string;
+	dismiss?(): void;
 }
 
 /**
@@ -110,15 +110,17 @@ export class SessionInputBannerWidget extends Disposable {
 			this._register(button.onDidClick(() => { void this._runAction(action); }));
 		}
 
-		const dismiss = dom.append(this.domNode, dom.$('button.session-input-banner-dismiss')) as HTMLButtonElement;
-		dismiss.type = 'button';
-		dismiss.setAttribute('aria-label', banner.dismissTooltip);
-		dismiss.appendChild(renderIcon(Codicon.close));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dismiss, banner.dismissTooltip));
-		this._register(dom.addDisposableListener(dismiss, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e, true);
-			banner.dismiss();
-		}));
+		if (banner.dismiss && banner.dismissTooltip) {
+			const dismiss = dom.append(this.domNode, dom.$('button.session-input-banner-dismiss')) as HTMLButtonElement;
+			dismiss.type = 'button';
+			dismiss.setAttribute('aria-label', banner.dismissTooltip);
+			dismiss.appendChild(renderIcon(Codicon.close));
+			this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dismiss, banner.dismissTooltip));
+			this._register(dom.addDisposableListener(dismiss, dom.EventType.CLICK, e => {
+				dom.EventHelper.stop(e, true);
+				banner.dismiss?.();
+			}));
+		}
 	}
 
 	/**

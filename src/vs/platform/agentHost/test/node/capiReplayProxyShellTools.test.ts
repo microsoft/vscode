@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { expandShellToolName, normalizeShellToolNameForCapture } from './e2e/harness/capiReplayProxy.js';
+import { expandShellToolName, normalizeShellToolNameForCapture } from './e2e/harness/shellToolNames.js';
 
 /**
  * The Copilot CLI names its shell tools after the shell it runs, so a capture

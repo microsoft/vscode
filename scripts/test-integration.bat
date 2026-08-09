@@ -13,12 +13,22 @@ set "RUN_GLOB="
 set "GREP_PATTERN="
 set "SUITE_FILTER="
 set "SHOW_HELP="
+set "RUN_HAS_AGENT_HOST_E2E="
+set "RUN_HAS_OTHER="
 
 :parse_args
 if "%~1"=="" goto done_parsing
 if /i "%~1"=="--help" (set SHOW_HELP=1& shift & goto parse_args)
 if /i "%~1"=="-h" (set SHOW_HELP=1& shift & goto parse_args)
-if /i "%~1"=="--run" (set "RUN_FILE=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
+if /i "%~1"=="--run" (
+	set "RUN_FILE=%~2"
+	set HAS_FILTER=1
+	echo %~2 | findstr /I /C:"/agentHost/test/node/e2e/" /C:"\agentHost\test\node\e2e\" >nul
+	if errorlevel 1 (set "RUN_HAS_OTHER=1") else (set "RUN_HAS_AGENT_HOST_E2E=1")
+	shift
+	shift
+	goto parse_args
+)
 if /i "%~1"=="--grep" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
 if /i "%~1"=="-g" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
 if /i "%~1"=="-f" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
@@ -30,27 +40,20 @@ shift
 goto parse_args
 :done_parsing
 
-set "AGENT_HOST_E2E_GLOB=**/platform/agentHost/test/node/e2e/**/*.integrationTest.js"
-set "RUN_AGENT_HOST_E2E=1"
-set "RUN_ELECTRON_INTEGRATION=1"
-if not defined RUN_FILE goto routing_done
-set "RUN_AGENT_HOST_E2E="
-echo %RUN_FILE% | findstr /I /C:"/agentHost/test/node/e2e/" /C:"\agentHost\test\node\e2e\" >nul
-if errorlevel 1 goto routing_done
-set "RUN_AGENT_HOST_E2E=1"
-set "RUN_ELECTRON_INTEGRATION="
-:routing_done
-if not defined RUN_GLOB goto glob_routing_done
-if /I "%RUN_GLOB:~0,36%"=="**/platform/agentHost/test/node/e2e/" set "RUN_ELECTRON_INTEGRATION="
-if /I "%RUN_GLOB:~0,27%"=="**/agentHost/test/node/e2e/" set "RUN_ELECTRON_INTEGRATION="
-if /I "%RUN_GLOB:~0,40%"=="src/vs/platform/agentHost/test/node/e2e/" set "RUN_ELECTRON_INTEGRATION="
-:glob_routing_done
+set "RUN_FOCUSED_AGENT_HOST_E2E="
+if defined RUN_HAS_AGENT_HOST_E2E if defined RUN_HAS_OTHER (
+	echo Error: --run cannot mix Agent Host E2E files with other integration tests.
+	exit /b 1
+)
+if defined RUN_HAS_AGENT_HOST_E2E set "RUN_FOCUSED_AGENT_HOST_E2E=1"
+:focused_e2e_routing_done
 
 if defined SHOW_HELP (
 	echo Usage: %~nx0 [options]
 	echo.
 	echo Runs integration tests. When no filters are given, all integration tests
 	echo ^(node.js integration tests + extension host tests^) are run.
+	echo Agent Host E2E entrypoints run in parallel before the remaining node.js tests.
 	echo.
 	echo --run and --runGlob select which node.js integration test files to load.
 	echo Extension host tests are skipped when these options are used.
@@ -134,30 +137,23 @@ if defined SUITE_FILTER (
 )
 
 
-:: Integration tests
+:: Node.js integration tests
 
 if defined SUITE_FILTER goto skip_nodejs_tests
-if not defined RUN_AGENT_HOST_E2E goto skip_agent_host_e2e
 echo.
-echo ### Agent Host E2E integration tests ^(Node.js^)
+echo ### node.js integration tests
 if defined RUN_GLOB (
-	call node .\test\unit\node\index.js --integration %* --includeGlob "%AGENT_HOST_E2E_GLOB%"
-) else if defined RUN_FILE (
-	call node .\test\unit\node\index.js --integration %*
-) else (
-	call node .\test\unit\node\index.js --integration --runGlob "%AGENT_HOST_E2E_GLOB%" %*
-)
-if %errorlevel% neq 0 exit /b %errorlevel%
-:skip_agent_host_e2e
-if not defined RUN_ELECTRON_INTEGRATION goto skip_nodejs_tests
-echo.
-echo ### Electron integration tests
-if defined RUN_GLOB (
-	call .\scripts\test.bat %* --excludeGlob "%AGENT_HOST_E2E_GLOB%"
-) else if defined RUN_FILE (
 	call .\scripts\test.bat %*
+) else if defined RUN_FILE (
+	if defined RUN_FOCUSED_AGENT_HOST_E2E (
+		call node .\test\unit\node\index.js --integration %*
+	) else (
+		call .\scripts\test.bat %*
+	)
 ) else (
-	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeGlob "%AGENT_HOST_E2E_GLOB%" %*
+	call node .\scripts\test-agent-host-e2e.ts %*
+	if errorlevel 1 exit /b 1
+	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js" %*
 )
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests

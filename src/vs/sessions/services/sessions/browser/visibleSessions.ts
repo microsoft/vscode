@@ -238,6 +238,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
 	get hasGitRepository() { return this._session.hasGitRepository; }
+	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
@@ -280,6 +281,7 @@ class ResourceOverrideSession implements ISession {
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
 	get hasGitRepository() { return this._session.hasGitRepository; }
+	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
@@ -398,8 +400,9 @@ export class VisibleSessions extends Disposable {
 	 */
 	setActive(session: ISession | undefined, preserveFocus: boolean = false): VisibleSession | undefined {
 		const targetId: string | undefined = session?.sessionId;
+		const targetHasVisibleSlot = this._visibleList.includes(targetId);
 
-		if (!this._visibleList.includes(targetId)) {
+		if (!targetHasVisibleSlot) {
 			const activeSlot = this._currentActiveSlot();
 			const activeIsNonSticky = activeSlot !== NO_RECENT && !this._isStickySlot(activeSlot);
 
@@ -429,7 +432,9 @@ export class VisibleSessions extends Disposable {
 		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
 		transaction((tsx) => {
 			this._setActiveSession(visibleSession, preserveFocus, tsx);
-			this._refresh(tsx);
+			if (!targetHasVisibleSlot) {
+				this._refresh(tsx);
+			}
 		});
 		return visibleSession;
 	}

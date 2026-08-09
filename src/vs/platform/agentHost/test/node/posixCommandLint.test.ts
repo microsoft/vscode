@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { findPosixOnlyCommands, type IRecordedCommand } from './e2e/harness/posixCommandLint.js';
+import { findPosixOnlyCommands, getRecordedShellCommand, type IRecordedCommand } from './e2e/harness/posixCommandLint.js';
 
 function check(commands: readonly string[]): string[] {
 	const recorded: IRecordedCommand[] = commands.map(command => ({ command, toolName: 'bash' }));
@@ -30,11 +30,24 @@ suite('posixCommandLint', () => {
 			`mkdir -p output && printf 'NESTED' > output/report.txt`,
 			`find / -maxdepth 6 -iname "edit.txt" 2>/dev/null`,
 			`xxd \${workdir}/after.txt`,
-			`pwd`,
 			`test -f peer-edit.txt && echo EXISTS || echo MISSING`,
 			`echo "$HOME"`,
 		];
 		assert.deepStrictEqual(check(flagged), flagged);
+	});
+
+	test('extracts provider shell command fields', () => {
+		assert.deepStrictEqual([
+			getRecordedShellCommand({ command: 'cat command.txt' }),
+			getRecordedShellCommand({ cmd: 'cat cmd.txt' }),
+			getRecordedShellCommand({ command: 1, cmd: 'cat fallback.txt' }),
+			getRecordedShellCommand(undefined),
+		], [
+			'cat command.txt',
+			'cat cmd.txt',
+			'cat fallback.txt',
+			undefined,
+		]);
 	});
 
 	test('accepts the portable forms the suite standardizes on', () => {
@@ -50,6 +63,8 @@ suite('posixCommandLint', () => {
 			`node -e "console.log(require('fs').readdirSync('.').join(' '))"`,
 			`node -e "const fs=require('fs');fs.mkdirSync('output',{recursive:true});fs.writeFileSync('output/report.txt','X')"`,
 			`node script.js`,
+			// PowerShell defines `pwd` as an alias for `Get-Location`.
+			`pwd`,
 		]), []);
 	});
 
@@ -81,8 +96,8 @@ suite('posixCommandLint', () => {
 			{ command: `echo ok`, toolName: 'bash' },
 			{ command: `cat x 2>/dev/null`, toolName: 'powershell' },
 		]), [
-			{ command: `wc -l lines.txt`, toolName: 'bash', reason: 'uses a POSIX coreutil or shell builtin that cmd does not provide' },
-			{ command: `cat x 2>/dev/null`, toolName: 'powershell', reason: 'uses a POSIX coreutil or shell builtin that cmd does not provide' },
+			{ command: `wc -l lines.txt`, toolName: 'bash', reason: 'uses a POSIX coreutil or shell builtin that is not portable to Windows shells' },
+			{ command: `cat x 2>/dev/null`, toolName: 'powershell', reason: 'uses a POSIX coreutil or shell builtin that is not portable to Windows shells' },
 		]);
 	});
 });

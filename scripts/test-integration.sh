@@ -17,6 +17,9 @@ RUN_GLOB=""
 GREP_PATTERN=""
 SUITE_FILTER=""
 HELP=false
+AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
+RUN_HAS_AGENT_HOST_E2E=false
+RUN_HAS_OTHER=false
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -27,6 +30,11 @@ while [[ $# -gt 0 ]]; do
 		--run)
 			RUN_FILE="$2"
 			EXTRA_ARGS+=("$1" "$2")
+			if [[ "${2//\\//}" == *"/agentHost/test/node/e2e/"* ]]; then
+				RUN_HAS_AGENT_HOST_E2E=true
+			else
+				RUN_HAS_OTHER=true
+			fi
 			shift 2
 			;;
 		--grep|-g|-f)
@@ -58,6 +66,7 @@ if $HELP; then
 	echo ""
 	echo "Runs integration tests. When no filters are given, all integration tests"
 	echo "(node.js integration tests + extension host tests) are run."
+	echo "Agent Host E2E entrypoints run in parallel before the remaining node.js tests."
 	echo ""
 	echo "--run and --runGlob select which node.js integration test files to load."
 	echo "Extension host tests are skipped when these options are used."
@@ -99,22 +108,12 @@ if [[ -n "$RUN_FILE" || -n "$RUN_GLOB" ]]; then
 	HAS_FILTER=true
 fi
 
-AGENT_HOST_E2E_GLOB="**/platform/agentHost/test/node/e2e/**/*.integrationTest.js"
-RUN_AGENT_HOST_E2E=true
-RUN_ELECTRON_INTEGRATION=true
-if [[ -n "$RUN_FILE" ]]; then
-	RUN_AGENT_HOST_E2E=false
-	if [[ "${RUN_FILE//\\//}" == *"/agentHost/test/node/e2e/"* ]]; then
-		RUN_AGENT_HOST_E2E=true
-		RUN_ELECTRON_INTEGRATION=false
-	fi
-elif [[ -n "$RUN_GLOB" ]]; then
-	NORMALIZED_RUN_GLOB="${RUN_GLOB//\\//}"
-	if [[ "$NORMALIZED_RUN_GLOB" == \*\*/platform/agentHost/test/node/e2e/* ||
-		"$NORMALIZED_RUN_GLOB" == \*\*/agentHost/test/node/e2e/* ||
-		"$NORMALIZED_RUN_GLOB" == src/vs/platform/agentHost/test/node/e2e/* ]]; then
-		RUN_ELECTRON_INTEGRATION=false
-	fi
+RUN_FOCUSED_AGENT_HOST_E2E=false
+if $RUN_HAS_AGENT_HOST_E2E && $RUN_HAS_OTHER; then
+	echo "Error: --run cannot mix Agent Host E2E files with other integration tests."
+	exit 1
+elif $RUN_HAS_AGENT_HOST_E2E; then
+	RUN_FOCUSED_AGENT_HOST_E2E=true
 fi
 
 # Check whether a given suite name matches the --suite filter.
@@ -182,33 +181,19 @@ if [[ -n "$SUITE_FILTER" ]]; then
 fi
 
 
-# Integration tests
+# Unit tests
 
 if [[ -z "$SUITE_FILTER" ]]; then
-	if $RUN_AGENT_HOST_E2E; then
-		echo
-		echo "### Agent Host E2E integration tests (Node.js)"
-		echo
-		if [[ -n "$RUN_GLOB" ]]; then
-			node ./test/unit/node/index.js --integration "${EXTRA_ARGS[@]}" --includeGlob "$AGENT_HOST_E2E_GLOB"
-		elif [[ -n "$RUN_FILE" ]]; then
-			node ./test/unit/node/index.js --integration "${EXTRA_ARGS[@]}"
-		else
-			node ./test/unit/node/index.js --integration --runGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
-		fi
-	fi
-
-	if $RUN_ELECTRON_INTEGRATION; then
-		echo
-		echo "### Electron integration tests"
-		echo
-		if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-			./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
-		elif [[ -n "$RUN_GLOB" ]]; then
-			./scripts/test.sh "${EXTRA_ARGS[@]}" --excludeGlob "$AGENT_HOST_E2E_GLOB"
-		else
-			./scripts/test.sh "${EXTRA_ARGS[@]}"
-		fi
+	echo
+	echo "### node.js integration tests"
+	echo
+	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
+		node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
+		./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
+	elif $RUN_FOCUSED_AGENT_HOST_E2E; then
+		node ./test/unit/node/index.js --integration "${EXTRA_ARGS[@]}"
+	else
+		./scripts/test.sh "${EXTRA_ARGS[@]}"
 	fi
 fi
 

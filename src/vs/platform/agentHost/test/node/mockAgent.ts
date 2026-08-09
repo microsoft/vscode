@@ -87,6 +87,8 @@ export class MockAgent implements IAgent {
 	 * subagent turns via {@link buildSubagentTurnsFromHistory}.
 	 */
 	sessionMessages: IHistoryRecord[] = [];
+	/** Usage stamped onto every reconstructed turn (e.g. an Auto-model stub). */
+	turnUsageOverride: UsageInfo | undefined = undefined;
 
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
@@ -176,7 +178,11 @@ export class MockAgent implements IAgent {
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this.sessionMessages, subagentInfo.toolCallId, session.toString());
 		}
-		return buildTurnsFromHistory(this.sessionMessages);
+		const turns = buildTurnsFromHistory(this.sessionMessages);
+		if (this.turnUsageOverride) {
+			return turns.map(turn => ({ ...turn, usage: this.turnUsageOverride }));
+		}
+		return turns;
 	}
 
 	async disposeSession(session: URI): Promise<void> {

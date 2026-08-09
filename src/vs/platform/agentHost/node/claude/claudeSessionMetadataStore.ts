@@ -21,6 +21,15 @@ export interface IClaudeSessionOverlay {
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection;
 	/**
+	 * The full ordered working-directory set granted to this session (index 0 =
+	 * the SDK process root / `cwd`, index 1..N = additional directories). Owned
+	 * here because the SDK session catalog exposes only `cwd`, so a cold resume /
+	 * remove-all / fork must recover the tail from this overlay. Absent for
+	 * single-root sessions and external Claude CLI sessions (which have no
+	 * overlay DB), so callers treat absence as single-root.
+	 */
+	readonly workingDirectories?: readonly URI[];
+	/**
 	 * Transport the session most recently materialized under (Phase 19).
 	 * Forward-compat only — written at materialize time but NOT read for
 	 * transport resolution in v1 (transport is resolved host-level). Lets a
@@ -39,6 +48,7 @@ export interface IClaudeSessionOverlayUpdate {
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection | null;
+	readonly workingDirectories?: readonly URI[];
 	readonly transport?: 'proxy' | 'native';
 }
 
@@ -67,6 +77,7 @@ export class ClaudeSessionMetadataStore {
 	private static readonly KEY_PERMISSION_MODE = 'claude.permissionMode';
 	private static readonly KEY_AGENT = 'claude.agent';
 	private static readonly KEY_TRANSPORT = 'claude.transport';
+	private static readonly KEY_WORKING_DIRECTORIES = 'claude.workingDirectories';
 
 	constructor(
 		private readonly _provider: AgentProvider,
@@ -102,6 +113,12 @@ export class ClaudeSessionMetadataStore {
 			if (fields.transport) {
 				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT, fields.transport));
 			}
+			if (fields.workingDirectories) {
+				work.push(db.setMetadata(
+					ClaudeSessionMetadataStore.KEY_WORKING_DIRECTORIES,
+					JSON.stringify(fields.workingDirectories.map(d => d.toString())),
+				));
+			}
 			await Promise.all(work);
 		} finally {
 			dbRef.dispose();
@@ -121,12 +138,13 @@ export class ClaudeSessionMetadataStore {
 			return {};
 		}
 		try {
-			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw] = await Promise.all([
+			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw, workingDirectoriesRaw] = await Promise.all([
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_MODEL),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_PERMISSION_MODE),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_AGENT),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT),
+				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_WORKING_DIRECTORIES),
 			]);
 			return {
 				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,
@@ -134,6 +152,7 @@ export class ClaudeSessionMetadataStore {
 				permissionMode: narrowClaudePermissionMode(permissionModeRaw),
 				agent: parseAgentSelection(agentRaw),
 				transport: transportRaw === 'proxy' || transportRaw === 'native' ? transportRaw : undefined,
+				workingDirectories: parseWorkingDirectories(workingDirectoriesRaw),
 			};
 		} finally {
 			ref.dispose();
@@ -166,6 +185,22 @@ function parseAgentSelection(raw: string | undefined): AgentSelection | undefine
 		const value: { uri?: unknown } = JSON.parse(raw);
 		if (value && typeof value === 'object' && typeof value.uri === 'string') {
 			return { uri: value.uri };
+		}
+	} catch {
+		// fall through
+	}
+	return undefined;
+}
+
+function parseWorkingDirectories(raw: string | undefined): readonly URI[] | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const value: unknown = JSON.parse(raw);
+		if (Array.isArray(value)) {
+			const dirs = value.filter((d): d is string => typeof d === 'string').map(d => URI.parse(d));
+			return dirs.length > 0 ? dirs : undefined;
 		}
 	} catch {
 		// fall through

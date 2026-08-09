@@ -40,6 +40,7 @@ import { assertType, Mutable } from '../../../util/vs/base/common/types';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseMarkdownPart, ChatResponseProgressPart, ChatResponseTextEditPart, LanguageModelToolResult2 } from '../../../vscodeTypes';
 import { CodeBlocksMetadata, CodeBlockTrackingChatResponseStream } from '../../codeBlocks/node/codeBlockProcessor';
+import { Intent } from '../../common/constants';
 import { CopilotInteractiveEditorResponse, InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { formatHookErrorMessage, HookAbortError, isHookAbortError, processHookResults } from '../../intents/node/hookResultProcessor';
 import { EmptyPromptError, IToolCallingBuiltPromptEvent, IToolCallingLoopOptions, IToolCallingResponseEvent, IToolCallLoopResult, ToolCallingLoop, ToolCallingLoopFetchOptions, ToolCallLimitBehavior } from '../../intents/node/toolCallingLoop';
@@ -332,6 +333,7 @@ export class DefaultIntentRequestHandler {
 				onHitToolCallLimit: this.handlerOptions.confirmOnMaxToolIterations !== false
 					? ToolCallLimitBehavior.Confirm : ToolCallLimitBehavior.Stop,
 				request: this.request,
+				enableVoiceProgress: this.intent.id === Intent.Agent,
 				documentContext: this.documentContext,
 				streamParticipants: this.makeResponseStreamParticipants(intentInvocation),
 				temperature: this.handlerOptions.temperature ?? this.options.temperature,

@@ -9,6 +9,7 @@ import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
+import { escape as escapeXml } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -373,10 +374,10 @@ export class ComputeAutomaticInstructions {
 				entries.push('<instruction>');
 				entries.push(`<file>${filePath(instruction.uri)}</file>`);
 				if (instruction.description) {
-					entries.push(`<description>${instruction.description}</description>`);
+					entries.push(`<description>${escapeXml(instruction.description)}</description>`);
 				}
 				if (instruction.pattern) {
-					entries.push(`<applyTo>${instruction.pattern}</applyTo>`);
+					entries.push(`<applyTo>${escapeXml(instruction.pattern)}</applyTo>`);
 				}
 				entries.push('</instruction>');
 				hasContent = true;
@@ -388,7 +389,7 @@ export class ComputeAutomaticInstructions {
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push('<instruction>');
 				entries.push(`<file>${filePath(uri)}</file>`);
-				entries.push(`<description>${description}</description>`);
+				entries.push(`<description>${escapeXml(description)}</description>`);
 				entries.push('</instruction>');
 				hasContent = true;
 
@@ -471,9 +472,9 @@ export class ComputeAutomaticInstructions {
 				let truncatedAtIndex = modelInvocableSkills.length;
 				for (let i = 0; i < modelInvocableSkills.length; i++) {
 					const skill = modelInvocableSkills[i];
-					const skillEntry = [`<skill>`, `<name>${skill.name}</name>`];
+					const skillEntry = [`<skill>`, `<name>${escapeXml(skill.name)}</name>`];
 					if (skill.description) {
-						skillEntry.push(`<description>${skill.description}</description>`);
+						skillEntry.push(`<description>${escapeXml(skill.description)}</description>`);
 					}
 					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
 					skillEntry.push(`</skill>`);
@@ -492,12 +493,13 @@ export class ComputeAutomaticInstructions {
 					const names: string[] = [];
 					let nameListLength = 0;
 					for (const skill of truncatedSkills) {
-						const addition = (names.length > 0 ? 2 : 0) + skill.name.length;
+						const escapedName = escapeXml(skill.name);
+						const addition = (names.length > 0 ? 2 : 0) + escapedName.length;
 						if (nameListLength + addition > TRUNCATED_NAMES_CHAR_BUDGET) {
 							break;
 						}
 						nameListLength += addition;
-						names.push(skill.name);
+						names.push(escapedName);
 					}
 					const remaining = truncatedSkills.length - names.length;
 					const nameList = names.join(', ');
@@ -528,12 +530,12 @@ export class ComputeAutomaticInstructions {
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {
 						entries.push('<agent>');
-						entries.push(`<name>${agent.name}</name>`);
+						entries.push(`<name>${escapeXml(agent.name)}</name>`);
 						if (agent.description) {
-							entries.push(`<description>${agent.description}</description>`);
+							entries.push(`<description>${escapeXml(agent.description)}</description>`);
 						}
 						if (agent.argumentHint) {
-							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+							entries.push(`<argumentHint>${escapeXml(agent.argumentHint)}</argumentHint>`);
 						}
 						entries.push('</agent>');
 						debugInfo.debugDetails.push({ category: 'custom-agent', name: agent.name, uri: agent.uri });

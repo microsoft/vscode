@@ -5,17 +5,28 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { posix, win32 } from '../../../../../base/common/path.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
-import { IChatService, IChatSendRequestOptions, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IChatPlanReviewResult, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/voiceClient/voiceQuestionAnswers.js';
+import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatModel } from '../../common/model/chatModel.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, markPendingIdResolved, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
+import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -27,7 +38,15 @@ export interface IVoiceToolDispatchDelegate {
 	/** Get the resource URI of the currently active session. */
 	getCurrentSessionResource(): Promise<URI | undefined>;
 	/** Switch the view to a different session by resource URI. */
-	switchToSession(resource: URI): void;
+	switchToSession(resource: URI): Promise<boolean>;
+	/** Set the session all subsequent voice turns and actions belong to. */
+	setTargetSession(resource: URI): void;
+	/** The explicit voice target, or the currently shown session when unpinned. */
+	getTargetSessionResource(): URI | undefined;
+	/** Select a model in the currently shown voice input. */
+	selectModel(requestedModel: string): Promise<IVoiceModelSelectionResult>;
+	/** Attach files to the currently shown voice input. */
+	attachFiles(resources: readonly URI[]): Promise<IVoiceAttachmentResult>;
 	/** Get the set of auto-approved session resource strings. */
 	getAutoApprovedSessions(): Set<string>;
 	/** Mark all current sessions as auto-approved. */
@@ -36,6 +55,62 @@ export interface IVoiceToolDispatchDelegate {
 	removeAutoApprovedSession(resource: string): void;
 	/** Trigger an auto-approve check cycle. */
 	triggerAutoApproveCheck(): void;
+}
+
+export interface IVoiceModelSelectionResult {
+	readonly ok: boolean;
+	readonly reason?: 'no_input' | 'model_not_found' | 'ambiguous_model' | 'selection_failed';
+	readonly selected_model?: IVoiceModelReference;
+	readonly available_models?: readonly IVoiceModelReference[];
+}
+
+export interface IVoiceAttachmentResult {
+	readonly ok: boolean;
+	readonly reason?: 'no_input' | 'no_file' | 'file_not_found' | 'ambiguous_file' | 'attachment_failed';
+	readonly attached?: readonly string[];
+	readonly candidates?: readonly string[];
+}
+
+function voiceModelReference(model: ILanguageModelChatMetadataAndIdentifier): IVoiceModelReference {
+	return {
+		identifier: model.identifier,
+		name: model.metadata.name,
+		vendor: model.metadata.vendor,
+	};
+}
+
+function normalizeModelName(value: string): string {
+	return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Resolve only exact identifiers or unique normalized names; never guess among similar models. */
+export function resolveVoiceModel(models: readonly ILanguageModelChatMetadataAndIdentifier[], requestedModel: string): IVoiceModelSelectionResult & { readonly identifier?: string } {
+	const exactIdentifier = models.find(model => model.identifier === requestedModel);
+	if (exactIdentifier) {
+		return { ok: true, identifier: exactIdentifier.identifier, selected_model: voiceModelReference(exactIdentifier) };
+	}
+
+	const normalized = normalizeModelName(requestedModel);
+	const exactMatches = models.filter(model => [
+		model.metadata.name,
+		model.metadata.id,
+		model.metadata.family,
+		`${model.metadata.name} ${model.metadata.vendor}`,
+	].some(candidate => normalizeModelName(candidate) === normalized));
+	if (exactMatches.length === 1) {
+		return { ok: true, identifier: exactMatches[0].identifier, selected_model: voiceModelReference(exactMatches[0]) };
+	}
+	if (exactMatches.length > 1) {
+		return { ok: false, reason: 'ambiguous_model', available_models: exactMatches.map(voiceModelReference) };
+	}
+
+	const related = normalized ? models.filter(model => [model.metadata.name, model.metadata.id, model.metadata.family]
+		.some(candidate => normalizeModelName(candidate).includes(normalized) || normalized.includes(normalizeModelName(candidate)))) : [];
+	return {
+		ok: false,
+		reason: related.length > 1 ? 'ambiguous_model' : 'model_not_found',
+		available_models: (related.length > 0 ? related : models).slice(0, 10).map(voiceModelReference),
+	};
 }
 
 export interface IVoiceToolDispatchService {
@@ -51,6 +126,16 @@ export interface IVoiceToolDispatchService {
 	 * Dispatch a tool call and return the result string.
 	 */
 	dispatchToolCall(toolCall: IVoiceToolCall): Promise<string>;
+
+	/**
+	 * Apply a backend-resolved response to whatever a session is waiting on.
+	 *
+	 * Separate from `dispatchToolCall` because it answers with a structured
+	 * outcome rather than a string: the backend only speaks an acknowledgement
+	 * for something it has actually observed, so "it landed" and "it didn't"
+	 * have to be distinguishable.
+	 */
+	respondToSession(toolCall: IVoiceToolCall): Promise<IVoiceDispatchResult>;
 }
 
 export const IVoiceToolDispatchService = createDecorator<IVoiceToolDispatchService>('voiceToolDispatchService');
@@ -62,9 +147,11 @@ const ACTION_LABELS: Record<string, string> = {
 	get_session_info: localize('agentsVoice.action.getSessionInfo', "Checking sessions..."),
 	get_session_changes: localize('agentsVoice.action.getSessionChanges', "Checking changes..."),
 	get_session_thread: localize('agentsVoice.action.getSessionThread', "Checking conversation..."),
-	approve_confirmation: localize('agentsVoice.action.approve', "Approving..."),
-	reject_confirmation: localize('agentsVoice.action.reject', "Rejecting..."),
+	respond_to_session: localize('agentsVoice.action.respond', "Responding..."),
 	focus_session: localize('agentsVoice.action.focusSession', "Focusing session..."),
+	set_model: localize('agentsVoice.action.setModel', "Changing model..."),
+	attach_file: localize('agentsVoice.action.attachFile', "Attaching file..."),
+	attach_files: localize('agentsVoice.action.attachFiles', "Attaching files..."),
 	auto_approve_session: localize('agentsVoice.action.autoApprove', "Auto-approving session..."),
 	revoke_auto_approve: localize('agentsVoice.action.revokeAutoApprove', "Revoking auto-approve..."),
 };
@@ -79,6 +166,9 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IFileService private readonly fileService: IFileService,
 	) { }
 
 	setDelegate(delegate: IVoiceToolDispatchDelegate): void {
@@ -157,91 +247,48 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 					}
 				}
 				if (firstResource) {
-					delegate.switchToSession(firstResource);
+					if (await delegate.switchToSession(firstResource)) {
+						delegate.setTargetSession(firstResource);
+					}
 				}
 				break;
 			}
 			case 'focus_session': {
 				const targetSessionId = argString('coding_session_id');
-				let targetResource: URI | undefined;
-				if (targetSessionId) {
-					// Try agent sessions first
-					const agentSession = this.agentSessionsService.model.sessions
-						.find(s => !s.isArchived() && s.resource.toString() === targetSessionId);
-					targetResource = agentSession?.resource;
-					// Fall back to regular chat sessions
-					if (!targetResource) {
-						for (const chatModel of this.chatService.chatModels.get()) {
-							if (chatModel.sessionResource.toString() === targetSessionId) {
-								targetResource = chatModel.sessionResource;
-								break;
-							}
-						}
-					}
-				}
+				const targetResource = this._findSessionResource(targetSessionId);
 				if (targetResource) {
 					const currentResource = await delegate.getCurrentSessionResource();
-					if (targetResource.toString() !== currentResource?.toString()) {
-						delegate.switchToSession(targetResource);
+					const switched = targetResource.toString() === currentResource?.toString()
+						|| await delegate.switchToSession(targetResource);
+					if (switched) {
+						delegate.setTargetSession(targetResource);
+						return JSON.stringify({ ok: true, session_id: targetResource.toString() });
 					}
 				}
-				break;
+				return JSON.stringify({ ok: false, reason: targetResource ? 'switch_failed' : 'session_not_found' });
 			}
-			case 'approve_confirmation':
-			case 'reject_confirmation': {
-				const targetSessionId = argString('coding_session_id');
-				// Look up the model from agent sessions first, then regular chat sessions
-				let model: IChatModel | undefined;
-				if (targetSessionId) {
-					const agentSession = this.agentSessionsService.model.sessions
-						.find(s => !s.isArchived() && s.resource.toString() === targetSessionId);
-					model = agentSession
-						? this.chatService.getSession(agentSession.resource)
-						: undefined;
-					// Fall back to regular chat sessions
-					if (!model) {
-						for (const chatModel of this.chatService.chatModels.get()) {
-							if (chatModel.sessionResource.toString() === targetSessionId) {
-								model = chatModel;
-								break;
-							}
-						}
-					}
-					// Session not loaded — acquire it so we can confirm the tool invocation
-					if (!model && agentSession) {
-						const cts = new CancellationTokenSource();
-						const ref = await this.chatService.acquireOrLoadSession(agentSession.resource, ChatAgentLocation.Chat, cts.token, 'voice-confirm').catch(() => undefined);
-						cts.dispose();
-						if (ref) {
-							model = this.chatService.getSession(agentSession.resource);
-							ref.dispose();
-						}
-					}
+			case 'set_model': {
+				const requestedModel = argString('model_id') || argString('model');
+				if (!requestedModel) {
+					return JSON.stringify({ ok: false, reason: 'model_not_found' });
 				}
-				if (!model) {
-					// Last resort: use the currently focused session
-					const res = await delegate.getCurrentSessionResource();
-					model = res ? this.chatService.getSession(res) : undefined;
+				const target = await this._showActionTarget(argString('coding_session_id'));
+				if (!target.ok) {
+					return JSON.stringify(target);
 				}
-				if (model) {
-					const lastReq = model.getRequests().at(-1);
-					if (lastReq?.response) {
-						for (const part of lastReq.response.response.value) {
-							if (part.kind === 'toolInvocation') {
-								const confirmed = toolCall.name === 'approve_confirmation'
-									? IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })
-									: IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
-								if (confirmed) {
-									return toolCall.name === 'approve_confirmation' ? 'approved' : 'rejected';
-								}
-							}
-						}
-					}
-					// Found a model but no tool invocation was awaiting confirmation.
-					return 'no pending confirmation';
+				return JSON.stringify(await delegate.selectModel(requestedModel));
+			}
+			case 'attach_file':
+			case 'attach_files': {
+				const target = await this._showActionTarget(argString('coding_session_id'));
+				if (!target.ok) {
+					return JSON.stringify(target);
 				}
-				// No target session could be resolved for the confirmation.
-				return 'no session';
+				const resolved = await this._resolveAttachmentResources(args);
+				if (!resolved.ok) {
+					return JSON.stringify(resolved);
+				}
+				return JSON.stringify(await delegate.attachFiles(resolved.resources));
 			}
 			case 'auto_approve_session': {
 				delegate.addAllAutoApprovedSessions();
@@ -275,72 +322,413 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		return 'ok';
 	}
 
-	private async _gatherSessionInfo(): Promise<string> {
-		const allSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
+	private _findSessionResource(sessionId: string): URI | undefined {
+		if (!sessionId) {
+			return undefined;
+		}
+		const agentSession = this.agentSessionsService.model.sessions
+			.find(session => !session.isArchived() && session.resource.toString() === sessionId);
+		if (agentSession) {
+			return agentSession.resource;
+		}
+		for (const model of this.chatService.chatModels.get()) {
+			if (model.sessionResource.toString() === sessionId) {
+				return model.sessionResource;
+			}
+		}
+		return undefined;
+	}
+
+	private async _showActionTarget(sessionId: string): Promise<{ ok: true; resource: URI } | { ok: false; reason: 'no_session' | 'session_not_found' | 'switch_failed' }> {
 		const delegate = this._delegate;
-		const currentResource = await delegate?.getCurrentSessionResource();
+		if (!delegate) {
+			return { ok: false, reason: 'no_session' };
+		}
+		const resource = sessionId
+			? this._findSessionResource(sessionId)
+			: delegate.getTargetSessionResource() ?? await delegate.getCurrentSessionResource();
+		if (!resource) {
+			return { ok: false, reason: sessionId ? 'session_not_found' : 'no_session' };
+		}
+		const current = await delegate.getCurrentSessionResource();
+		if (current?.toString() !== resource.toString() && !await delegate.switchToSession(resource)) {
+			return { ok: false, reason: 'switch_failed' };
+		}
+		if (sessionId) {
+			delegate.setTargetSession(resource);
+		}
+		return { ok: true, resource };
+	}
 
-		// Per-session lastActivity (ms epoch). 0 means "no timing info" — treat as oldest.
-		const lastActivityOf = (s: typeof allSessions[number]): number =>
-			s.timing.lastRequestEnded ?? s.timing.lastRequestStarted ?? s.timing.created ?? 0;
-
-		// Calendar-day key (local time) for an epoch ms timestamp.
-		const dayKey = (ms: number): string => {
-			const d = new Date(ms);
-			return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-		};
-
-		// Filter to "active today, or if none today, the most-recent active day".
-		const todayKey = dayKey(Date.now());
-		const withTiming = allSessions
-			.map(s => ({ s, t: lastActivityOf(s) }))
-			.filter(x => x.t > 0); // drop sessions with no activity timestamp at all
-
-		let filtered: typeof allSessions;
-		const todays = withTiming.filter(x => dayKey(x.t) === todayKey);
-		if (todays.length > 0) {
-			filtered = todays.map(x => x.s);
-		} else if (withTiming.length > 0) {
-			// Fall back to the most recent active day.
-			const mostRecent = withTiming.reduce((a, b) => (a.t >= b.t ? a : b));
-			const mostRecentKey = dayKey(mostRecent.t);
-			filtered = withTiming.filter(x => dayKey(x.t) === mostRecentKey).map(x => x.s);
-		} else {
-			filtered = [];
+	private async _resolveAttachmentResources(args: Record<string, unknown>): Promise<
+		{ ok: true; resources: readonly URI[] }
+		| { ok: false; reason: NonNullable<IVoiceAttachmentResult['reason']>; candidates?: readonly string[] }
+	> {
+		const uriValues = [args['uri'], ...(Array.isArray(args['uris']) ? args['uris'] : [])]
+			.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+		const pathValues = [args['path'], ...(Array.isArray(args['paths']) ? args['paths'] : [])]
+			.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+		if (uriValues.length === 0 && pathValues.length === 0) {
+			const activeResource = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			return activeResource ? { ok: true, resources: [activeResource] } : { ok: false, reason: 'no_file' };
 		}
 
-		const sessionData = filtered.map(session => {
+		const resources: URI[] = [];
+		for (const rawValue of uriValues) {
+			const value = rawValue.trim();
+			let resource: URI;
+			try {
+				resource = URI.parse(value, true);
+			} catch {
+				return { ok: false, reason: 'file_not_found', candidates: [value] };
+			}
+			if (!await this.fileService.exists(resource)) {
+				return { ok: false, reason: 'file_not_found', candidates: [value] };
+			}
+			resources.push(resource);
+		}
+
+		for (const rawValue of pathValues) {
+			const value = rawValue.trim();
+			const isWindowsPath = win32.isAbsolute(value);
+			if (isWindowsPath || posix.isAbsolute(value)) {
+				const resource = URI.file(isWindowsPath ? value.replaceAll('\\', '/') : value);
+				if (!await this.fileService.exists(resource)) {
+					return { ok: false, reason: 'file_not_found', candidates: [value] };
+				}
+				resources.push(resource);
+				continue;
+			}
+
+			const relativePath = value.replace(/^\.[\\/]/, '').replaceAll('\\', '/');
+			const candidates = this.workspaceContextService.getWorkspace().folders
+				.map(folder => URI.joinPath(folder.uri, relativePath));
+			const exists = await Promise.all(candidates.map(candidate => this.fileService.exists(candidate)));
+			const matches = candidates.filter((_candidate, index) => exists[index]);
+			if (matches.length === 0) {
+				return { ok: false, reason: 'file_not_found', candidates: [value] };
+			}
+			if (matches.length > 1) {
+				return { ok: false, reason: 'ambiguous_file', candidates: matches.map(match => match.toString()) };
+			}
+			resources.push(matches[0]);
+		}
+		return { ok: true, resources };
+	}
+
+	/**
+	 * Apply a backend-resolved response to the exact pending part it names.
+	 *
+	 * Routing is by `pending_id` + `request_id` with no fallback: the path this
+	 * replaces fell back to the focused session, so a spoken "yes" could approve
+	 * a prompt the user was not looking at. A response that cannot find its part
+	 * is reported as stale instead. Answer values are matched exactly; see
+	 * `resolveQuestionAnswers`.
+	 */
+	async respondToSession(toolCall: IVoiceToolCall): Promise<IVoiceDispatchResult> {
+		const args = toolCall.args;
+		const argString = (key: string): string => {
+			const value = args[key];
+			return typeof value === 'string' ? value : '';
+		};
+		const response = args['response'];
+		if (!response || typeof response !== 'object' || Array.isArray(response)) {
+			return { ok: false, reason: 'unsupported' };
+		}
+		const responseType = (response as Record<string, unknown>)['type'];
+		if (responseType !== 'approve' && responseType !== 'reject' && responseType !== 'answer' && responseType !== 'skip') {
+			return { ok: false, reason: 'unsupported' };
+		}
+
+		const resolved = await this._resolveModelForResponse(argString('coding_session_id'));
+		if (!resolved) {
+			return { ok: false, reason: 'no_session' };
+		}
+		// A freshly loaded session holds its only reference here, so everything
+		// that reads the model, including the awaited confirmation send, has to
+		// happen before it is released.
+		try {
+			return await this._applyResponse(
+				resolved.model,
+				argString('request_id'),
+				argString('pending_id'),
+				responseType,
+				response as Record<string, unknown>,
+			);
+		} finally {
+			resolved.dispose();
+		}
+	}
+
+	private async _applyResponse(
+		model: IChatModel,
+		requestId: string,
+		pendingId: string,
+		responseType: 'approve' | 'reject' | 'answer' | 'skip',
+		response: Record<string, unknown>,
+	): Promise<IVoiceDispatchResult> {
+		const request = model.getRequests().find(candidate => candidate.id === requestId);
+		const parts = request?.response?.response.value;
+		if (!request || !parts) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		const index = parts.findIndex(candidate => peekPendingId(request.id, candidate) === pendingId);
+		if (index < 0) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		const part = parts[index];
+
+		if (part.kind === 'questionCarousel') {
+			if (responseType !== 'answer' && responseType !== 'skip') {
+				return { ok: false, reason: 'unsupported' };
+			}
+			return this._answerCarousel(request.id, part as IChatQuestionCarousel, response, responseType === 'skip');
+		}
+
+		if (responseType === 'answer' || responseType === 'skip') {
+			return { ok: false, reason: 'unsupported' };
+		}
+		const approve = responseType === 'approve';
+
+		if (part.kind === 'planReview' && part instanceof ChatPlanReviewData) {
+			return this._resolvePlanReview(part, approve) ? { ok: true } : { ok: false, reason: 'stale_pending' };
+		}
+
+		if (part.kind === 'toolInvocation') {
+			if (getVoiceConfirmationType([part]) !== 'tool') {
+				return { ok: false, reason: 'unsupported' };
+			}
+			// A provider may keep multiple rehydrated copies pending while it sends
+			// this response. Retire the shared occurrence before invoking the callback
+			// so none of those copies can submit the same approval a second time.
+			markPendingIdResolved(pendingId);
+			const confirmed = IChatToolInvocation.confirmWith(
+				part as IChatToolInvocation,
+				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied },
+			);
+			return confirmed ? { ok: true } : { ok: false, reason: 'stale_pending' };
+		}
+
+		return { ok: false, reason: 'unsupported' };
+	}
+
+	private _resolvePlanReview(plan: ChatPlanReviewData, approve: boolean): boolean {
+		if (plan.isUsed) {
+			return false;
+		}
+		let result: IChatPlanReviewResult;
+		if (approve) {
+			const action = plan.actions.find(candidate => candidate.default) ?? plan.actions[0];
+			if (!action) {
+				return false;
+			}
+			result = {
+				action: action.label,
+				actionId: action.id,
+				rejected: false,
+			};
+		} else {
+			result = { rejected: true };
+		}
+		plan.data = result;
+		plan.isUsed = true;
+		void plan.completion.complete(result);
+		return true;
+	}
+
+	/** Resolve a coding session id to its chat model, never falling back to the focused session. */
+	private async _resolveModelForResponse(codingSessionId: string): Promise<{ model: IChatModel; dispose(): void } | undefined> {
+		if (!codingSessionId) {
+			return undefined;
+		}
+		const agentSession = this.agentSessionsService.model.sessions
+			.find(session => !session.isArchived() && session.resource.toString() === codingSessionId);
+		if (agentSession) {
+			const loaded = this.chatService.getSession(agentSession.resource);
+			if (loaded) {
+				return { model: loaded, dispose: () => { } };
+			}
+		}
+		for (const chatModel of this.chatService.chatModels.get()) {
+			if (chatModel.sessionResource.toString() === codingSessionId) {
+				return { model: chatModel, dispose: () => { } };
+			}
+		}
+		if (!agentSession) {
+			return undefined;
+		}
+		const cts = new CancellationTokenSource();
+		const ref = await this.chatService
+			.acquireOrLoadSession(agentSession.resource, ChatAgentLocation.Chat, cts.token, 'voice-respond')
+			.catch(() => undefined);
+		cts.dispose();
+		if (!ref) {
+			return undefined;
+		}
+		const model = this.chatService.getSession(agentSession.resource);
+		if (!model) {
+			ref.dispose();
+			return undefined;
+		}
+		// This reference is the only thing keeping the just-loaded session alive;
+		// releasing it here would let the model be disposed out from under the
+		// caller, potentially mid-`sendRequest`.
+		return { model, dispose: () => ref.dispose() };
+	}
+
+	/**
+	 * Fill in a question carousel exactly as the widget's own submit path does.
+	 *
+	 * A `skip` carries whatever the user answered before saying "skip", which on
+	 * an untouched form is nothing at all. That empty case is why skipping is its
+	 * own response type: an `answer` with zero answers is indistinguishable from
+	 * a backend that resolved nothing, and is correctly refused below.
+	 */
+	private _answerCarousel(
+		requestId: string,
+		carousel: IChatQuestionCarousel,
+		response: Record<string, unknown>,
+		skip: boolean,
+	): IVoiceDispatchResult {
+		if (carousel.isUsed || carousel.answeredExternally) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		if (skip && !carousel.allowSkip) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		const raw = response['answers'];
+		// Only an absent `answers` means "none". A present non-array is a
+		// malformed call, and coercing it to empty would let a skip succeed while
+		// discarding whatever was actually meant.
+		if (raw !== undefined && !Array.isArray(raw)) {
+			return { ok: false, reason: 'invalid_answer' };
+		}
+		const rawAnswers = (raw ?? []) as IBackendQuestionAnswer[];
+		let answers: IChatQuestionAnswers | undefined;
+		if (rawAnswers.length > 0) {
+			answers = resolveQuestionAnswers(carousel.questions, rawAnswers);
+			if (!answers) {
+				return { ok: false, reason: 'invalid_answer' };
+			}
+		} else if (!skip) {
+			return { ok: false, reason: 'invalid_answer' };
+		}
+		// The widget refuses to submit while a required question is blank, so a
+		// spoken answer must not be able to submit what a click cannot. Absence is
+		// the only blank possible: `resolveQuestionAnswers` rejects rather than
+		// emitting an empty value. The backend only dispatches a fully answered
+		// form, so this is a backstop.
+		if (!skip && carousel.questions.some(question => question.required && answers?.[question.id] === undefined)) {
+			return { ok: false, reason: 'invalid_answer' };
+		}
+		// Checked before mutating: a form with neither a deferred completion nor
+		// an id to notify cannot be resolved, and marking it used would leave it
+		// answered on screen while the assistant reports that it did not land.
+		if (!(carousel instanceof ChatQuestionCarouselData) && !carousel.resolveId) {
+			return { ok: false, reason: 'unsupported' };
+		}
+		// `dismiss` also completes the deferred promise an agent-hosted carousel
+		// is blocked on; marking it used without that leaves the agent waiting.
+		if (carousel instanceof ChatQuestionCarouselData) {
+			carousel.dismiss(answers);
+		} else {
+			carousel.data = answers;
+			carousel.isUsed = true;
+		}
+		if (carousel.resolveId) {
+			this.chatService.notifyQuestionCarouselAnswer(requestId, carousel.resolveId, answers);
+		}
+		return { ok: true };
+	}
+
+
+	private async _gatherSessionInfo(): Promise<string> {
+		const agentSessions = this.agentSessionsService.model.sessions.filter(session => !session.isArchived());
+		const currentResource = await this._delegate?.getCurrentSessionResource();
+		const activeResource = this._delegate?.getTargetSessionResource() ?? currentResource;
+		const agentResources = new Set(agentSessions.map(session => session.resource.toString()));
+		const inputDetails = (model: IChatModel | undefined) => {
+			const state = model?.inputModel?.state?.get();
+			const selected = state?.selectedModel;
+			const attachments = state?.attachments.filter(isExplicitFileOrImageVariableEntry) ?? [];
+			return {
+				...(selected ? { selected_model: voiceModelReference(selected) } : {}),
+				...(attachments.length ? {
+					attachment_names: attachments.map(attachment => attachment.name).slice(0, 10),
+					attachment_count: attachments.length,
+				} : {}),
+			};
+		};
+		const lastResponseSummary = (model: IChatModel | undefined): string | undefined => {
+			const summary = model?.getRequests().at(-1)?.response?.response.value
+				.filter(part => part.kind === 'markdownContent')
+				.map(part => (part as { content: { value: string } }).content.value)
+				.join(' ')
+				.slice(0, 500);
+			return summary || undefined;
+		};
+
+		const sessionData: Array<Record<string, unknown> & { state: string; is_active: boolean; last_activity: number }> = agentSessions.map(session => {
 			const model = this.chatService.getSession(session.resource);
 			const changes = getAgentChangesSummary(session.changes);
-			const lastReq = model?.getRequests().at(-1);
-			const lastResponseSummary = lastReq?.response?.response.value
-				.filter(p => p.kind === 'markdownContent')
-				.map(p => (p as { content: { value: string } }).content.value)
-				.join(' ')
-				.slice(0, 500) || '';
-
-			const statusLabel =
-				session.status === AgentSessionStatus.InProgress ? 'working'
-					: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
-						: session.status === AgentSessionStatus.Completed ? 'idle'
-							: 'unknown';
-
-			const isActive = currentResource?.toString() === session.resource.toString();
-			const lastActivity = lastActivityOf(session);
-			const minutesAgo = lastActivity ? Math.round((Date.now() - lastActivity) / 60000) : undefined;
-
+			const state = session.status === AgentSessionStatus.InProgress ? 'working'
+				: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
+					: session.status === AgentSessionStatus.Completed ? 'idle'
+						: 'unknown';
+			const lastActivity = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created ?? 0;
 			return {
 				id: session.resource.toString(),
-				state: statusLabel,
-				is_active: isActive,
+				label: session.label || undefined,
+				session_type: 'agent' as const,
+				state,
+				is_active: activeResource?.toString() === session.resource.toString(),
 				insertions: changes?.insertions ?? 0,
 				deletions: changes?.deletions ?? 0,
-				last_activity_minutes_ago: minutesAgo,
-				last_response_summary: lastResponseSummary,
+				last_activity: lastActivity,
+				last_activity_minutes_ago: lastActivity ? Math.max(0, Math.round((Date.now() - lastActivity) / 60000)) : undefined,
+				last_response_summary: lastResponseSummary(model),
+				...inputDetails(model),
 			};
 		});
 
-		return JSON.stringify({ sessions: sessionData });
+		for (const model of this.chatService.chatModels.get()) {
+			const sessionId = model.sessionResource.toString();
+			const isActive = activeResource?.toString() === sessionId;
+			if (agentResources.has(sessionId) || (model.getRequests().length === 0 && !isActive)) {
+				continue;
+			}
+			const needsInput = model.requestNeedsInput?.get();
+			const inProgress = model.hasActiveRequest?.get();
+			const lastActivity = model.lastMessageDate || 0;
+			sessionData.push({
+				id: sessionId,
+				label: model.title || undefined,
+				session_type: 'chat',
+				state: needsInput ? 'waiting_for_input' : inProgress ? 'working' : 'idle',
+				is_active: isActive,
+				insertions: 0,
+				deletions: 0,
+				last_activity: lastActivity,
+				last_activity_minutes_ago: lastActivity ? Math.max(0, Math.round((Date.now() - lastActivity) / 60000)) : undefined,
+				last_response_summary: lastResponseSummary(model),
+				...inputDetails(model),
+			});
+		}
+
+		sessionData.sort((a, b) => Number(b.is_active) - Number(a.is_active) || b.last_activity - a.last_activity);
+		const counts = sessionData.reduce((result, session) => {
+			if (session.state === 'working') { result.working++; }
+			else if (session.state === 'waiting_for_input') { result.waiting_for_input++; }
+			else if (session.state === 'idle') { result.idle++; }
+			return result;
+		}, { working: 0, waiting_for_input: 0, idle: 0 });
+		const visibleSessions = sessionData.slice(0, 20).map(({ last_activity, ...session }) => session);
+		return JSON.stringify({
+			total_sessions: sessionData.length,
+			counts,
+			sessions: visibleSessions,
+			truncated: visibleSessions.length < sessionData.length,
+		});
 	}
 
 	/**

@@ -921,6 +921,12 @@ For each SessionMessage in order:
       'tool_use'  → push ToolCallResponsePart (open; awaits tool_result);
                     record tool_use_id → Turn.id in the attribution map
       empty       → skip
+      NOTE: with no Turn open, the assistant envelope STARTS one, keyed on
+        its own uuid. Two cases: a subagent transcript (no spawning prompt
+        exists, userMessage.text = '') and a parent transcript the SDK
+        truncated mid-turn (userMessage.text = a placeholder). Dropping
+        instead would empty the whole chat when the slice holds no user
+        message at all — see "Truncated transcripts" below.
   ('system', subtype === 'compact_boundary'):
       → push SystemNotificationResponsePart (compact metadata)
   ('system', other allowlisted subtypes):
@@ -928,6 +934,15 @@ For each SessionMessage in order:
   ('system', other):
       → drop
 ```
+
+**Truncated transcripts.** For transcripts over ~5 MB the SDK's
+`getSessionMessages` returns only the bytes AFTER the last compact
+boundary, so the slice can begin mid-turn or contain no `user` envelope
+at all. The host opts out via `CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP=1`
+(set in [claudeAgentSdkService.ts](./claudeAgentSdkService.ts)), and the
+mapper additionally recovers promptless leading turns so a slice that
+still arrives truncated degrades to a placeholder prompt rather than an
+empty chat.
 
 **Turn-level fields on replay.**
 - `state` is `'completed'` for any Turn that's followed by a later

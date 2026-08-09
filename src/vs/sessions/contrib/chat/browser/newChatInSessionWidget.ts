@@ -145,10 +145,10 @@ export class NewChatInSessionWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<void> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<boolean> {
 		const activeSession = this._session.get();
 		if (!activeSession) {
-			return;
+			return false;
 		}
 		const activeChat = activeSession.activeChat.get();
 		try {
@@ -160,8 +160,10 @@ export class NewChatInSessionWidget extends Disposable {
 			}
 
 			await this.sessionsManagementService.sendRequest(activeSession, activeChat, { query, attachedContext, background });
+			return true;
 		} catch (e) {
 			this.logService.error('Failed to send secondary chat request:', e);
+			return false;
 		}
 	}
 
