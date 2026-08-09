@@ -421,7 +421,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork inherits provider history through the selected source turn', async function () {
+	test('session fork inherits provider history through the selected source turn', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('session-fork-history');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-alpha', 'Remember FORK_ALPHA. Reply exactly "ready".', 1);
@@ -432,7 +432,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		assert.ok(result.responseText.includes('FORK_ALPHA'));
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork excludes provider history after the selected source turn', async function () {
+	test('session fork excludes provider history after the selected source turn', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('session-fork-bounded');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-first', 'Remember FORK_FIRST. Reply exactly "ready".', 1);
