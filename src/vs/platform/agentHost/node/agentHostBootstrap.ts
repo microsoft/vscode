@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ConfigurationService } from '../../configuration/common/configurationService.js';
@@ -50,7 +51,7 @@ export async function registerAgentHostNetworkServices(
 ): Promise<IAgentHostNetworkServices> {
 	const policyService = new NullPolicyService();
 	diServices.set(IPolicyService, policyService);
-	const settingsResource = joinPath(environmentService.userRoamingDataHome, 'settings.json');
+	const settingsResource = joinPath(environmentService.userRoamingDataHome.with({ scheme: Schemas.file }), 'settings.json');
 	const configurationService = disposables.add(new ConfigurationService(settingsResource, fileService, policyService, logService));
 	await configurationService.initialize();
 	diServices.set(IConfigurationService, configurationService);
