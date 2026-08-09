@@ -469,6 +469,18 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
+	test('getSessions does not emit session changes while reading the initial cache', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session' });
+		model.addSession(createMockAgentSession(resource));
+		const provider = createProvider(disposables, model, { agentHostEnabled: false });
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		const sessions = provider.getSessions();
+
+		assert.deepStrictEqual({ sessionCount: sessions.length, changes }, { sessionCount: 1, changes: [] });
+	});
+
 	test('getSessions excludes Local sessions', () => {
 		const bgResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/bg-session' });
 		const localResource = URI.from({ scheme: AgentSessionProviders.Local, path: '/local-session' });

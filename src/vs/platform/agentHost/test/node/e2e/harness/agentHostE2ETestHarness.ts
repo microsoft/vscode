@@ -31,7 +31,7 @@ import {
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
-import { CapiReplayMode } from './capiReplayProxy.js';
+import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
@@ -945,6 +945,14 @@ export class AgentHostE2EServerLease {
 		await client.connect();
 		this._client = client;
 		return client;
+	}
+
+	setRecordingModelResponse(response: ICapiReplayResponse): void {
+		const proxy = this._server?.capiReplay;
+		if (!proxy) {
+			throw new Error('[agent-host-e2e] no replay-backed server');
+		}
+		proxy.setRecordingModelResponse(response);
 	}
 
 	/**

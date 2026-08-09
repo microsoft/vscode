@@ -9,6 +9,8 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { categorizeSSHConnectError } from '../../../../../common/sessionsTelemetry.js';
 import { disconnectSSHEntry, shouldPauseSSHReconnectAfterFailure, sshConnectionKey, SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
 
 suite('SSHReconnectState', () => {
@@ -89,15 +91,61 @@ suite('SSHReconnectState', () => {
 			let fired = 0;
 			state.attempts = 7;
 			state.paused = true;
+			state.requiresUserInitiatedResume = true;
 			state.scheduleRetry(1000, () => fired++);
 
 			state.resetForResume();
-			assert.strictEqual(state.attempts, 0);
-			assert.strictEqual(state.paused, false);
-			assert.strictEqual(state.hasPendingTimer, false);
+			assert.deepStrictEqual({
+				attempts: state.attempts,
+				paused: state.paused,
+				requiresUserInitiatedResume: state.requiresUserInitiatedResume,
+				hasPendingTimer: state.hasPendingTimer,
+			}, {
+				attempts: 0,
+				paused: false,
+				requiresUserInitiatedResume: false,
+				hasPendingTimer: false,
+			});
 
 			await timeout(2000);
 			assert.strictEqual(fired, 0, 'pending retry must be cancelled by resetForResume');
+		});
+	});
+
+	test('host key denial requires an explicit resume', () => {
+		const state = store.add(new SSHReconnectState());
+		state.attempts = 1;
+		state.paused = true;
+		state.requiresUserInitiatedResume = true;
+
+		const automaticResume = state.resumeAutomatically();
+		const afterAutomaticResume = {
+			attempts: state.attempts,
+			paused: state.paused,
+			requiresUserInitiatedResume: state.requiresUserInitiatedResume,
+		};
+		state.resetForResume();
+
+		assert.deepStrictEqual({
+			automaticResume,
+			afterAutomaticResume,
+			afterExplicitResume: {
+				attempts: state.attempts,
+				paused: state.paused,
+				requiresUserInitiatedResume: state.requiresUserInitiatedResume,
+			},
+		}, {
+			automaticResume: false,
+			afterAutomaticResume: {
+				attempts: 1,
+				paused: true,
+				requiresUserInitiatedResume: true,
+			},
+			afterExplicitResume: {
+				attempts: 0,
+				paused: false,
+				requiresUserInitiatedResume: false,
+			},
 		});
 	});
 });
@@ -105,13 +153,35 @@ suite('SSHReconnectState', () => {
 suite('shouldPauseSSHReconnectAfterFailure', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('pauses reconnect after cancellation but not after regular failures', () => {
+	test('pauses reconnect after cancellation or host key denial but not after regular failures', () => {
 		assert.deepStrictEqual({
 			cancellation: shouldPauseSSHReconnectAfterFailure(new CancellationError()),
+			hostKeyDenial: shouldPauseSSHReconnectAfterFailure(new SSHHostKeyDeniedError('test-host')),
 			regularError: shouldPauseSSHReconnectAfterFailure(new Error('boom')),
 		}, {
 			cancellation: true,
+			hostKeyDenial: true,
 			regularError: false,
+		});
+	});
+});
+
+suite('categorizeSSHConnectError', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns bounded categories without logging error messages', () => {
+		assert.deepStrictEqual({
+			cancellation: categorizeSSHConnectError(new CancellationError()),
+			hostKeyDenial: categorizeSSHConnectError(new SSHHostKeyDeniedError('test-host')),
+			authentication: categorizeSSHConnectError(new Error('All configured authentication methods failed')),
+			network: categorizeSSHConnectError(new Error('connect ETIMEDOUT')),
+			other: categorizeSSHConnectError(new Error('remote setup failed')),
+		}, {
+			cancellation: 'cancelled',
+			hostKeyDenial: 'hostKeyDenied',
+			authentication: 'authentication',
+			network: 'network',
+			other: 'other',
 		});
 	});
 });
