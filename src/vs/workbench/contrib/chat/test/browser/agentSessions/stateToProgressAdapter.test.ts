@@ -2256,6 +2256,24 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('leaves parameters undefined for referenced tool input so risk assessment is suppressed', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-referenced',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write large file',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Write file?',
+				toolInput: { uri: 'content-ref://session/tc-referenced/input', sizeHint: 100000 },
+			});
+			const state = invocation.state.get();
+
+			assert.strictEqual(
+				state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.parameters : 'wrong-state',
+				undefined,
+			);
+		});
+
 		test('creates loading confirmation invocations while judgement is pending', () => {
 			const invocation = toolCallStateToInvocation({
 				toolCallId: 'tc-judging',

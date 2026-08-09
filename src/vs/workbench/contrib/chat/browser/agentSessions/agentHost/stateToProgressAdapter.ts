@@ -404,9 +404,16 @@ function getToolRawInput(tc: ToolCallState): unknown {
 }
 
 /**
- * Returns the complete Agent Host tool arguments used by confirmations and risk assessment.
+ * Returns the Agent Host tool arguments used by confirmations and risk
+ * assessment, or `undefined` when the arguments are stored by reference (a
+ * protocol {@link ContentRef}) and not yet available inline. `undefined` lets
+ * consumers tell "arguments not available yet" apart from "no arguments" (`{}`)
+ * so they can suppress assessment rather than judge an empty argument set.
  */
 export function toolCallStateToParameters(tc: ToolCallState): unknown {
+	if (tc.status !== ToolCallStatus.Streaming && tc.toolInput !== undefined && getInlineToolInput(tc.toolInput) === undefined) {
+		return undefined;
+	}
 	return isTerminalToolCall(tc)
 		? { command: getTerminalInput(tc) }
 		: getToolRawInput(tc);

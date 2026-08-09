@@ -44,8 +44,10 @@ export function createApprovalReasonBadge(
 
 /**
  * Creates a {@link ToolRiskBadgeWidget} for a tool confirmation surface, or `undefined` when the
- * feature is disabled or the tool is unknown. Callers can provide complete tool data for tools that
- * are not registered locally, such as Agent Host tools.
+ * feature is disabled, the tool is unknown, or the arguments are unavailable. Callers can provide
+ * complete tool data for tools that are not registered locally, such as Agent Host tools. Pass
+ * `undefined` parameters to signal the arguments are not yet available (e.g. large inputs stored by
+ * reference); assessment is skipped so it does not judge an empty argument set.
  *
  * The widget and its assessment token are registered on `store`, so disposing the store cancels
  * any in-flight assessment. The widget is returned so terminal confirmations can attach
@@ -64,6 +66,11 @@ export function createToolRiskBadge(
 ): ToolRiskBadgeWidget | undefined {
 	// Check the feature flag before the tool lookup so it is skipped when disabled.
 	if (!riskAssessmentService.isEnabled()) {
+		return undefined;
+	}
+
+	// Without the arguments an assessment would judge an empty argument set and mislead.
+	if (parameters === undefined) {
 		return undefined;
 	}
 
