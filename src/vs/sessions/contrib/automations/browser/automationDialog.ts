@@ -333,12 +333,13 @@ export function resolveAutomationModelIdentifier(
 		return identifier;
 	}
 	const sourceModel = languageModelsService.lookupLanguageModel(identifier);
-	if (sourceModel?.targetChatSessionType !== logicalSessionType) {
+	if (sourceModel?.targetChatSessionType === modelTarget) {
 		return identifier;
 	}
+	const modelId = sourceModel?.targetChatSessionType === logicalSessionType ? sourceModel.id : identifier;
 	return languageModelsService.getLanguageModelIds().find(candidateIdentifier => {
 		const candidate = languageModelsService.lookupLanguageModel(candidateIdentifier);
-		return candidate?.targetChatSessionType === modelTarget && candidate.id === sourceModel.id;
+		return candidate?.targetChatSessionType === modelTarget && candidate.id === modelId;
 	}) ?? identifier;
 }
 
@@ -1203,7 +1204,7 @@ export function renderForm(
 		getPrompt: () => chatInput.inputEditor.getValue(),
 		getMode: () => chatInput.currentModeObs.get().id,
 		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
-		getModelId: () => chatInput.selectedLanguageModel.get()?.identifier,
+		getModelId: () => chatInput.selectedLanguageModel.get()?.metadata.id,
 		getBranch: () => isolationModel.persistedBranch,
 		waitForAutomationSessionSync: () => {
 			updateAutomationSessionTarget();
