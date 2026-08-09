@@ -99,6 +99,24 @@ if [[ -n "$RUN_FILE" || -n "$RUN_GLOB" ]]; then
 	HAS_FILTER=true
 fi
 
+AGENT_HOST_E2E_GLOB="**/platform/agentHost/test/node/e2e/**/*.integrationTest.js"
+RUN_AGENT_HOST_E2E=true
+RUN_ELECTRON_INTEGRATION=true
+if [[ -n "$RUN_FILE" ]]; then
+	RUN_AGENT_HOST_E2E=false
+	if [[ "${RUN_FILE//\\//}" == *"/agentHost/test/node/e2e/"* ]]; then
+		RUN_AGENT_HOST_E2E=true
+		RUN_ELECTRON_INTEGRATION=false
+	fi
+elif [[ -n "$RUN_GLOB" ]]; then
+	NORMALIZED_RUN_GLOB="${RUN_GLOB//\\//}"
+	if [[ "$NORMALIZED_RUN_GLOB" == \*\*/platform/agentHost/test/node/e2e/* ||
+		"$NORMALIZED_RUN_GLOB" == \*\*/agentHost/test/node/e2e/* ||
+		"$NORMALIZED_RUN_GLOB" == src/vs/platform/agentHost/test/node/e2e/* ]]; then
+		RUN_ELECTRON_INTEGRATION=false
+	fi
+fi
+
 # Check whether a given suite name matches the --suite filter.
 # Supports comma-separated patterns with shell globbing (e.g. "git*,api*").
 should_run_suite() {
@@ -164,16 +182,33 @@ if [[ -n "$SUITE_FILTER" ]]; then
 fi
 
 
-# Unit tests
+# Integration tests
 
 if [[ -z "$SUITE_FILTER" ]]; then
-	echo
-	echo "### node.js integration tests"
-	echo
-	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-		./scripts/test.sh --runGlob "**/*.integrationTest.js" "${EXTRA_ARGS[@]}"
-	else
-		./scripts/test.sh "${EXTRA_ARGS[@]}"
+	if $RUN_AGENT_HOST_E2E; then
+		echo
+		echo "### Agent Host E2E integration tests (Node.js)"
+		echo
+		if [[ -n "$RUN_GLOB" ]]; then
+			node ./test/unit/node/index.js --integration "${EXTRA_ARGS[@]}" --includeGlob "$AGENT_HOST_E2E_GLOB"
+		elif [[ -n "$RUN_FILE" ]]; then
+			node ./test/unit/node/index.js --integration "${EXTRA_ARGS[@]}"
+		else
+			node ./test/unit/node/index.js --integration --runGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
+		fi
+	fi
+
+	if $RUN_ELECTRON_INTEGRATION; then
+		echo
+		echo "### Electron integration tests"
+		echo
+		if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
+			./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
+		elif [[ -n "$RUN_GLOB" ]]; then
+			./scripts/test.sh "${EXTRA_ARGS[@]}" --excludeGlob "$AGENT_HOST_E2E_GLOB"
+		else
+			./scripts/test.sh "${EXTRA_ARGS[@]}"
+		fi
 	fi
 fi
 

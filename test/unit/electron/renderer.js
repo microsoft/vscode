@@ -66,6 +66,7 @@ const { ipcRenderer } = require('electron');
 const assert = require('assert');
 const path = require('path');
 const glob = require('glob');
+const minimatch = require('minimatch');
 const util = require('util');
 const coverage = require('../coverage');
 const { pathToFileURL } = require('url');
@@ -158,6 +159,11 @@ async function loadModules(modules) {
 
 const globAsync = util.promisify(glob);
 
+function filterExcludedFiles(files, opts) {
+	const excludeGlobs = typeof opts.excludeGlob === 'string' ? [opts.excludeGlob] : opts.excludeGlob ?? [];
+	return files.filter(file => !excludeGlobs.some(pattern => minimatch(file.replace(/\\/g, '/'), pattern.replace(/\\/g, '/'))));
+}
+
 async function loadTestModules(opts) {
 
 	if (opts.run) {
@@ -171,7 +177,7 @@ async function loadTestModules(opts) {
 
 	const pattern = opts.runGlob || _tests_glob;
 	const files = await globAsync(pattern, { cwd: loadFn._out });
-	let modules = files.map(file => file.replace(/\.js$/, ''));
+	let modules = filterExcludedFiles(files, opts).map(file => file.replace(/\.js$/, ''));
 	if (opts.testSplit) {
 		const [i, n] = opts.testSplit.split('/').map(Number);
 		const chunkSize = Math.floor(modules.length / n);

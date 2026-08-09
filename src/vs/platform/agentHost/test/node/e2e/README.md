@@ -6,7 +6,7 @@ They do this by recording the model traffic once (against real CAPI) into commit
 
 > **New here?** Read [Mental model](#mental-model), then [Running the tests](#running-the-tests). Writing a test? Jump to [Writing a new test](#writing-a-new-test). CI is red? Jump to [Troubleshooting](#troubleshooting).
 
-> These are **e2e tests**. The `*.integrationTest.ts` file suffix and `test-integration.sh` script are just the VS Code test-runner conventions they hook into.
+> These are **e2e tests**. The `*.integrationTest.ts` file suffix and `test-integration.sh` script are just the VS Code test-runner conventions they hook into. Unlike other source integration tests, the script runs this Node-only suite directly in Node instead of Electron.
 
 ---
 
@@ -159,6 +159,8 @@ Replay is the default — no setup, no token:
 ```bash
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
+
+`test-integration.sh` recognizes this directory and routes it through the Node.js Mocha runner. The test process only hosts the replay proxy and AHP client; the implementation under test is still the separately forked Agent Host server with its real provider SDK/CLI subprocess. Electron provides no additional coverage for this boundary and adds renderer startup and IPC overhead, so the general integration runner excludes these files from its Electron pass.
 
 Provider availability:
 
@@ -445,7 +447,7 @@ This system is a lighter-weight adaptation of the `copilot-agent-runtime` CLI e2
 | **Providers** | Multi-provider (Claude / Copilot / Codex) via one shared parameterized suite | Copilot CLI only |
 | **Response matching** | Sequence-based per `(method, path)` — no body matching | Normalized **request-body** matching (canonicalized to chat-completions), reports a `mismatchReason` on miss |
 | **Fixtures** | One minimal YAML per `(provider, test)` | A directory of named YAML snapshots per scenario |
-| **Runner / record** | Mocha (Electron) via `test-integration.sh`; record with `AGENT_HOST_REPLAY_RECORD=1` | vitest; `SKIP_CACHE` / `STRICT_CAPTURES`, plus asciinema session recording |
+| **Runner / record** | Mocha (Node.js) via `test-integration.sh`; record with `AGENT_HOST_REPLAY_RECORD=1` | vitest; `SKIP_CACHE` / `STRICT_CAPTURES`, plus asciinema session recording |
 | **Scope** | A focused set of protocol behaviors | Broad: MCP, plugins, permissions, resume, auto-mode, TUI, … |
 
 Practical upshot: the CLI harness matches on request *content* (tolerant of call-order changes, but more setup), while this one matches on call *sequence* (simpler, but sensitive to non-deterministic ordering — see the subagent notes in [Troubleshooting](#troubleshooting)).

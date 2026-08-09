@@ -30,6 +30,22 @@ shift
 goto parse_args
 :done_parsing
 
+set "AGENT_HOST_E2E_GLOB=**/platform/agentHost/test/node/e2e/**/*.integrationTest.js"
+set "RUN_AGENT_HOST_E2E=1"
+set "RUN_ELECTRON_INTEGRATION=1"
+if not defined RUN_FILE goto routing_done
+set "RUN_AGENT_HOST_E2E="
+echo %RUN_FILE% | findstr /I /C:"/agentHost/test/node/e2e/" /C:"\agentHost\test\node\e2e\" >nul
+if errorlevel 1 goto routing_done
+set "RUN_AGENT_HOST_E2E=1"
+set "RUN_ELECTRON_INTEGRATION="
+:routing_done
+if not defined RUN_GLOB goto glob_routing_done
+if /I "%RUN_GLOB:~0,36%"=="**/platform/agentHost/test/node/e2e/" set "RUN_ELECTRON_INTEGRATION="
+if /I "%RUN_GLOB:~0,27%"=="**/agentHost/test/node/e2e/" set "RUN_ELECTRON_INTEGRATION="
+if /I "%RUN_GLOB:~0,40%"=="src/vs/platform/agentHost/test/node/e2e/" set "RUN_ELECTRON_INTEGRATION="
+:glob_routing_done
+
 if defined SHOW_HELP (
 	echo Usage: %~nx0 [options]
 	echo.
@@ -118,17 +134,30 @@ if defined SUITE_FILTER (
 )
 
 
-:: Node.js integration tests
+:: Integration tests
 
 if defined SUITE_FILTER goto skip_nodejs_tests
+if not defined RUN_AGENT_HOST_E2E goto skip_agent_host_e2e
 echo.
-echo ### node.js integration tests
+echo ### Agent Host E2E integration tests ^(Node.js^)
 if defined RUN_GLOB (
-	call .\scripts\test.bat %*
+	call node .\test\unit\node\index.js --integration %* --includeGlob "%AGENT_HOST_E2E_GLOB%"
+) else if defined RUN_FILE (
+	call node .\test\unit\node\index.js --integration %*
+) else (
+	call node .\test\unit\node\index.js --integration --runGlob "%AGENT_HOST_E2E_GLOB%" %*
+)
+if %errorlevel% neq 0 exit /b %errorlevel%
+:skip_agent_host_e2e
+if not defined RUN_ELECTRON_INTEGRATION goto skip_nodejs_tests
+echo.
+echo ### Electron integration tests
+if defined RUN_GLOB (
+	call .\scripts\test.bat %* --excludeGlob "%AGENT_HOST_E2E_GLOB%"
 ) else if defined RUN_FILE (
 	call .\scripts\test.bat %*
 ) else (
-	call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
+	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeGlob "%AGENT_HOST_E2E_GLOB%" %*
 )
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests
