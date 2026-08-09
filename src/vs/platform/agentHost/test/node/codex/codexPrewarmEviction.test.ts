@@ -27,7 +27,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession } from '../../../common/agentService.js';
-import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -410,6 +410,73 @@ suite('CodexAgent prewarm eviction', () => {
 		);
 
 		assert.deepStrictEqual(agent['_sessions'].get('restored-empty-catalog')?.model, selectedModel);
+	});
+
+	test('cold chat history resumes its backing thread before reading turns', async () => {
+		const database = new TestSessionDatabase();
+		await database.setMetadata('codex.threadId', 'restored-history-thread');
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const chat = URI.parse('agent-chat://peer/restored-history');
+		const parent = AgentSession.uri('codex', 'parent');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored-history' }));
+
+		const reading = agent.getSessionMessages(chat, { session: parent, resource: chat });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'restored-history', turns: [] }, runtimeWorkspaceRoots: [] } });
+		const read = await readNextRequest(peer.outbound);
+		peer.push({
+			id: read.id,
+			result: {
+				thread: {
+					id: 'restored-history',
+					turns: [{
+						id: 'turn-1',
+						items: [
+							{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'hello', text_elements: [] }] },
+							{ type: 'agentMessage', id: 'agent-1', text: 'restored', phase: null, memoryCitation: null },
+						],
+						status: 'completed',
+					}],
+				},
+			},
+		});
+
+		const turns = await reading;
+		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-2');
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+		assert.deepStrictEqual({
+			requests: [
+				{ method: resume.method, threadId: resume.params.threadId },
+				{ method: read.method, threadId: read.params.threadId },
+				{ method: turn.method, threadId: turn.params.threadId },
+			],
+			turns: turns.map(turn => ({
+				id: turn.id,
+				prompt: turn.message.text,
+				response: turn.responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : undefined),
+			})),
+		}, {
+			requests: [
+				{ method: 'thread/resume', threadId: 'restored-history-thread' },
+				{ method: 'thread/read', threadId: 'restored-history-thread' },
+				{ method: 'turn/start', threadId: 'restored-history-thread' },
+			],
+			turns: [{
+				id: 'turn-1',
+				prompt: 'hello',
+				response: ['restored'],
+			}],
+		});
+		peer.exit();
 	});
 
 	test('disposing a released workspace-less peer removes its managed directory', async () => {

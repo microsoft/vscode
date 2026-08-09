@@ -583,6 +583,8 @@ interface ICodexSession {
 	readonly codexTurnIdByHostTurnId: Map<string, string>;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
 	needsResume: boolean;
+	/** In-flight resume shared by history loading and the first send. */
+	resumePromise: Promise<void> | undefined;
 	/** Most recent user prompt sent on this session — used as fallback userMessage text in `turn/started`. */
 	lastPromptText: string;
 	/** True once the workbench has disposed this session. Guards background prewarm continuations. */
@@ -1680,7 +1682,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._register(client.onNotification('item/reasoning/summaryPartAdded', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryPartAdded(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/reasoning/summaryTextDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningSummaryTextDelta(s.mapState, this._withHostTurnId(s, params)))));
 		this._register(client.onNotification('item/reasoning/textDelta', params => this._dispatchByThread(params.threadId, s => mapReasoningTextDelta(s.mapState, this._withHostTurnId(s, params)))));
-		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchByThread(params.threadId, s => mapTokenUsageUpdated(this._withHostTurnId(s, params)))));
+		this._register(client.onNotification('thread/tokenUsage/updated', params => this._dispatchByThread(params.threadId, s => s.currentTurnId ? mapTokenUsageUpdated(this._withHostTurnId(s, params)) : [])));
 		this._register(client.onNotification('item/completed', params => this._dispatchItemCompleted(params)));
 		this._register(client.onNotification('turn/completed', params => this._dispatchTurnCompleted(params)));
 		// Auto-review (guardian) surfacing. The guardian warning is shown as a
@@ -2438,6 +2440,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
+			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
 			materializePromise: undefined,
@@ -3048,6 +3051,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
+			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
 			materializePromise: undefined,
@@ -3281,6 +3285,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const overlay = await this._metadataStore.read(sessionUri);
+		const threadId = overlay.threadId ?? sessionId;
 		const releasedManagedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId);
 		const workingDirectory = overlay.cwd ?? releasedManagedWorkingDirectory;
 		if (this._models.get().length === 0) {
@@ -3289,13 +3294,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		const model = this._supportedModelOrUndefined(decoded.model);
 		// Codex's session id == thread id convention: the backing thread already
 		// exists on the app-server, so the entry resumes on first send.
-		const session = this._createResumedSessionEntry(sessionId, sessionId, sessionUri, workingDirectory, model, chat, undefined, undefined, overlay.agent);
+		const session = this._createResumedSessionEntry(sessionId, threadId, sessionUri, workingDirectory, model, chat, undefined, undefined, overlay.agent);
 		if (decoded.ownsManagedWorkingDirectory || overlay.ownsManagedWorkingDirectory || releasedManagedWorkingDirectory) {
 			session.managedWorkingDirectory = workingDirectory;
 		}
 		this._releasedManagedWorkingDirectories.delete(sessionId);
 		this._sessions.set(sessionId, session);
-		this._sessionIdByThreadId.set(sessionId, sessionId);
+		this._sessionIdByThreadId.set(threadId, sessionId);
 		this._sessionIdByChatUri.set(chat.toString(), sessionId);
 		if (!session.serverToolsAdvertised && this._serverToolHost) {
 			session.serverToolsAdvertised = true;
@@ -3362,6 +3367,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: true,
+			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
 			materializePromise: undefined,
@@ -3998,35 +4004,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 		}
-		const threadId = session.threadId!;
 		if (session.needsResume) {
 			try {
-				// Carry the current MCP servers (with any injected auth token)
-				// so a resumed thread reconnects auth-gated servers, matching
-				// the config a fresh `thread/start` would apply.
-				const mcpServers = this._buildSessionMcpServers(session);
-				const customizationLaunch = await this._buildCustomizationLaunch(session);
-				const multiRootActive = this._isMultiRootActive(session);
-				const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
-				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
-					'thread/resume',
-					buildCodexResumeParams(
-						parseCodexModelSelection(await this._resolveModel(session)).modelProvider,
-						threadId,
-						mcpServers,
-						runtimeWorkspaceRoots,
-						customizationLaunch.config,
-						customizationLaunch.developerInstructions,
-					),
-					this._traceContext(session),
-				);
-				if (multiRootActive && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
-					session.workingDirectories = resumeResult.runtimeWorkspaceRoots.map(path => URI.file(path));
-					session.workingDirectory = session.workingDirectories[0];
-				}
-				session.materializedMcpSig = mcpServersSignature(mcpServers);
-				session.materializedCustomizationsSig = customizationLaunch.signature;
-				session.needsResume = false;
+				await this._resumeSession(session, conn);
 			} catch (err) {
 				const duration = this._clearTurnStopWatch(session);
 				this._fire(sessionUri, {
@@ -4043,6 +4023,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 
+		const threadId = session.threadId!;
 		// Buffer the prompt text for `turn/started`'s userMessage fallback.
 		session.lastPromptText = prompt;
 		session.currentTurnId = effectiveTurnId;
@@ -4483,12 +4464,59 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex] respondToUserInputRequest: unknown requestId=${requestId}`);
 	}
 
-	getSessionMessages(address: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> {
+	async getSessionMessages(address: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> {
 		const sessionUri = this._resolveConversationSession(address, context);
 		if (!sessionUri) {
-			return Promise.resolve([]);
+			return [];
 		}
-		return this._readSession(sessionUri).then(read => read ? replayThreadToTurns(read.thread) : []);
+		const session = this._sessions.get(AgentSession.id(sessionUri));
+		if (session?.needsResume) {
+			await this._resumeSession(session);
+		}
+		const read = await this._readSession(sessionUri);
+		return read ? replayThreadToTurns(read.thread) : [];
+	}
+
+	private async _resumeSession(session: ICodexSession, connection?: IConnectionReady): Promise<void> {
+		if (!session.needsResume) {
+			await session.resumePromise;
+			return;
+		}
+		if (!session.resumePromise) {
+			session.resumePromise = (async () => {
+				const threadId = session.threadId;
+				if (!threadId) {
+					throw new Error(`Cannot resume Codex session ${session.sessionId}: no backing thread`);
+				}
+				const conn = connection ?? await this._ensureConnection();
+				const mcpServers = this._buildSessionMcpServers(session);
+				const customizationLaunch = await this._buildCustomizationLaunch(session);
+				const multiRootActive = this._isMultiRootActive(session);
+				const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
+				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
+					'thread/resume',
+					buildCodexResumeParams(
+						parseCodexModelSelection(await this._resolveModel(session)).modelProvider,
+						threadId,
+						mcpServers,
+						runtimeWorkspaceRoots,
+						customizationLaunch.config,
+						customizationLaunch.developerInstructions,
+					),
+					this._traceContext(session),
+				);
+				if (multiRootActive && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
+					session.workingDirectories = resumeResult.runtimeWorkspaceRoots.map(path => URI.file(path));
+					session.workingDirectory = session.workingDirectories[0];
+				}
+				session.materializedMcpSig = mcpServersSignature(mcpServers);
+				session.materializedCustomizationsSig = customizationLaunch.signature;
+				session.needsResume = false;
+			})().finally(() => {
+				session.resumePromise = undefined;
+			});
+		}
+		await session.resumePromise;
 	}
 
 	async getSessionMetadata(session: URI, providerData?: string): Promise<IAgentSessionMetadata | undefined> {
