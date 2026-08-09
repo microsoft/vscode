@@ -452,9 +452,8 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 			// the confirmation, the client flags exactly the comments they chose
 			// to reveal with `pendingAgentReveal` on the shared annotations
 			// channel. Return those comments and clear the flag after delivery;
-			// comments the user left
-			// unchecked (and review comments accepted by other means) are not
-			// flagged and so are excluded.
+			// comments the user left unchecked (and review comments accepted by
+			// other means) are not flagged and so are excluded.
 			const comments = pending.map(serializeComment);
 			const actions: AnnotationsAction[] = pending.map(annotation => ({
 				type: ActionType.AnnotationsSet,

@@ -460,7 +460,10 @@ otherwise, including when confirmation is automatically approved, it returns eve
 created PR and code-review comment and transitions them directly to `submitted`.
 The picker disables **Reveal Selected** when no comments are selected. When there
 are no created comments or pending selections to reveal, providers execute the
-empty tool call without presenting a confirmation, regardless of permission mode.
+empty tool call without presenting a confirmation, regardless of permission mode:
+Copilot and Claude gate their confirmation on
+`IAgentServerToolHost.requiresConfirmationForSession`, while Codex runs server
+tools as dynamic tool calls, which never round-trip for approval.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
