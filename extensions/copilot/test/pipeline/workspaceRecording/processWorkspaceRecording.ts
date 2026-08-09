@@ -50,6 +50,7 @@ export function processWorkspaceRecordingSample(
 			pivotEntryIndex: sample.pivotEntryIndex,
 			proposedEdits: [],
 			isAccepted: false,
+			oracleEdits: descriptor.oracleEdits,
 			workspaceRecording: sample.provenance,
 		});
 		if (result.isError()) {

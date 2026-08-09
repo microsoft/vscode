@@ -85,6 +85,51 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
 }
 
 /**
+ * Returns the localized, title-cased picker label for an Auto routing tier.
+ * Falls back to capitalizing an unknown value.
+ */
+export function getAutoModeTierLabel(tier: string): string {
+	switch (tier) {
+		case 'eco': return l10n.t('Eco');
+		case 'balanced': return l10n.t('Balanced');
+		case 'max': return l10n.t('Max');
+		case 'fast': return l10n.t('Fast');
+		default: return tier.charAt(0).toUpperCase() + tier.slice(1);
+	}
+}
+
+/**
+ * Returns the localized description shown in the picker hover for an Auto
+ * routing tier. Falls back to the raw tier for unknown values.
+ */
+export function getAutoModeTierDescription(tier: string): string {
+	switch (tier) {
+		case 'eco': return l10n.t('Cheaper models for everyday tasks');
+		case 'balanced': return l10n.t('Balances capability and cost');
+		case 'max': return l10n.t('Most capable models, higher cost');
+		case 'fast': return l10n.t('Lowest latency models');
+		default: return tier;
+	}
+}
+
+/**
+ * Builds the `tier` property descriptor for the Auto model's
+ * {@link LanguageModelConfigurationSchema}. Rendered by the model picker the
+ * same way thinking effort is, but labelled "Tier".
+ */
+export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaultTier: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+	return {
+		type: 'string',
+		title: l10n.t('Tier'),
+		enum: [...tiers],
+		enumItemLabels: tiers.map(getAutoModeTierLabel),
+		enumDescriptions: tiers.map(getAutoModeTierDescription),
+		default: defaultTier,
+		group: 'navigation',
+	};
+}
+
+/**
  * Returns a description of the model's capabilities and intended use cases.
  * This is shown in the rich hover when selecting models.
  */

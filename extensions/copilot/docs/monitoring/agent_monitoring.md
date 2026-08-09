@@ -637,9 +637,8 @@ In your trace viewer, filter by `service.name` to see traces from specific agent
 
 | `service.name` | Source |
 |---|---|
-| `copilot-chat` | Foreground agent, CLI wrapper, and Claude agent spans (extension-emitted) |
+| `copilot-chat` | Foreground agent and CLI wrapper spans (extension-emitted) |
 | `github-copilot` | CLI SDK native spans + CLI terminal |
-| `claude-code` | Claude Code subprocess SDK telemetry (when `CLAUDE_CODE_ENABLE_TELEMETRY` is forwarded) |
 
 Within the `copilot-chat` service, distinguish agent types by `gen_ai.agent.name`:
 
@@ -647,92 +646,12 @@ Within the `copilot-chat` service, distinguish agent types by `gen_ai.agent.name
 |---|---|
 | `GitHub Copilot Chat` | Foreground agent (agent mode) |
 | `copilotcli` | CLI wrapper span |
-| `claude` | Claude agent |
-
----
-
-## Claude Agent
-
-When OTel is enabled, Claude agent sessions produce extension-level spans (service `copilot-chat`) following GenAI semantic conventions.
-
-The extension creates spans by intercepting Claude SDK messages and proxying LLM calls through a local HTTP server to CAPI:
-
-```
-copilot-chat invoke_agent claude               [~33s]
-  ├── chat claude-haiku-4.5                    [~5s]   (LLM call via CAPI proxy)
-  ├── execute_tool Agent                       [~11s]  (subagent invocation)
-  │   ├── chat claude-haiku-4.5                [~4s]   (subagent LLM call)
-  │   ├── execute_tool Grep                    [~20ms] (subagent tool)
-  │   └── chat claude-haiku-4.5                [~7s]   (subagent LLM call)
-  ├── chat claude-haiku-4.5                    [~3s]
-  ├── execute_tool Write                       [~40ms]
-  ├── chat claude-haiku-4.5                    [~3s]
-  └── execute_hook Stop                        [~10ms] (hook execution)
-```
-
-**`invoke_agent claude`** — root span per user request.
-
-| Attribute | Example |
-|---|---|
-| `gen_ai.operation.name` | `invoke_agent` |
-| `gen_ai.agent.name` | `claude` |
-| `gen_ai.provider.name` | `github` |
-| `gen_ai.request.model` | `claude-haiku-4.5` |
-| `gen_ai.response.model` | `claude-haiku-4.5` |
-| `gen_ai.usage.input_tokens` | `103739` (parent-only, excludes subagent tokens) |
-| `gen_ai.usage.output_tokens` | `1100` |
-| `gen_ai.usage.cache_read.input_tokens` | `64062` |
-| `gen_ai.usage.cache_creation.input_tokens` | `39629` |
-| `github.copilot.agent.type` | `builtin` |
-| `github.copilot.git.repository` | `https://github.com/microsoft/vscode.git` |
-| `github.copilot.git.branch` | `main` |
-| `github.copilot.git.commit_sha` | `deadbeef...` |
-| `github.copilot.github.org` | `microsoft` |
-| `copilot_chat.turn_count` | `8` |
-| `copilot_chat.total_cost_usd` | `0.067` (session-wide, includes subagents) |
-| `copilot_chat.chat_session_id` | VS Code session ID |
-
-**`chat`** — one span per LLM API call, created by `chatMLFetcher` via the Claude language model proxy server. Same attributes as foreground agent `chat` spans (token usage, TTFT, response model, cache breakdown).
-
-**`execute_tool`** — one span per tool invocation. When the tool is `Agent` (subagent), child `chat` and `execute_tool` spans are nested underneath, giving full subagent visibility.
-
-| Attribute | Requirement | Example |
-|---|---|---|
-| `gen_ai.operation.name` | Required | `execute_tool` |
-| `gen_ai.tool.name` | Required | `Edit` |
-| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
-| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
-| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
-| `github.copilot.tool.parameters.edit_type` | Edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) | `create` \| `str_replace` \| `update` |
-| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
-| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
-| `github.copilot.tool.parameters.command` | Shell tools (`Bash`), opt-in (captureContent) | `npm test` (truncated to 256 chars) |
-| `github.copilot.tool.parameters.file_path` | File tools (`Read`, `Edit`, `MultiEdit`, `Write`, `NotebookEdit`), opt-in (captureContent) | `/src/app.ts` |
-| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
-| `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"file_path":"/src/app.ts",...}` |
-
-**`execute_hook`** — one span per Claude hook execution (e.g., `Stop` hooks).
-
-| Attribute | Requirement | Example |
-|---|---|---|
-| `gen_ai.operation.name` | Required | `execute_hook` |
-| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
-| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
-| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
-| `copilot_chat.hook_type` | Required | `PreToolUse` |
-| `copilot_chat.hook_result_kind` | Always | `success` \| `error` \| `non_blocking_error` |
-| `github.copilot.hook.decision` | Always | `pass` \| `block` \| `non_blocking_error` |
-| `github.copilot.hook.duration` | Always | `0.142` (seconds) |
-| `github.copilot.hook.tool_names` | When tool-scoped | `["bash"]` (JSON array) |
-| `copilot_chat.hook_input` | Always | hook input payload (truncated) |
-| `copilot_chat.hook_output` | On success | hook stdout (truncated) |
-| `error.type` | On error | `Error` |
 
 ---
 
 ## Interpreting the Data
 
-**Traces** — Visualize the full agent execution in Jaeger or Grafana Tempo. Each `invoke_agent` span contains child `chat` and `execute_tool` spans, making it easy to identify bottlenecks and debug failures. Subagent invocations appear as nested `invoke_agent` spans under `execute_tool runSubagent` (foreground agent) or under `execute_tool Agent` (Claude agent).
+**Traces** — Visualize the full agent execution in Jaeger or Grafana Tempo. Each `invoke_agent` span contains child `chat` and `execute_tool` spans, making it easy to identify bottlenecks and debug failures. Foreground subagent invocations appear as nested `invoke_agent` spans under `execute_tool runSubagent`.
 
 **Metrics** — Track token usage trends by model and provider, monitor tool success rates via `copilot_chat.tool.call.count`, and watch perceived latency with `copilot_chat.time_to_first_token`. Agent activity metrics (`copilot_chat.edit.acceptance.count`, `copilot_chat.edit.survival.four_gram`, `copilot_chat.lines_of_code.count`) power accept rate and edit survival dashboards. All metrics carry the same resource attributes (`service.name`, `service.version`, `session.id`) for consistent filtering.
 

@@ -417,7 +417,13 @@ suite('SessionsManagementService', () => {
 		// (mimicking an agent host provider whose cache has not loaded yet).
 		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
-		assert.deepStrictEqual(view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId), []);
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId),
+			restoreComplete: view.initialRestoreComplete.get(),
+		}, {
+			visible: [],
+			restoreComplete: false,
+		});
 
 		// Now the provider learns about the session and fires its change event.
 		// `onDidChangeProviders` does NOT fire here — only the per-provider
@@ -426,7 +432,13 @@ suite('SessionsManagementService', () => {
 		onDidChangeSessions.fire({ added: [targetSession], removed: [], changed: [] });
 
 		await restorePromise;
-		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId), [targetSession.sessionId]);
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(s => s?.sessionId),
+			restoreComplete: view.initialRestoreComplete.get(),
+		}, {
+			visible: [targetSession.sessionId],
+			restoreComplete: true,
+		});
 	});
 
 	test('ROUNDTRIP: opened session is retained across save + restore', async () => {
@@ -1112,9 +1124,7 @@ suite('SessionsManagementService', () => {
 	test('inheritableSessionTarget drops a harness the folder no longer offers', () => {
 		const folderUri = URI.parse('test:///folder');
 		// The provider still resolves the folder (its existing sessions stay
-		// usable) but no longer advertises the type they were created with —
-		// e.g. the extension-host Copilot CLI once
-		// `chat.agents.copilotCli.hideExtensionHost` is on.
+		// usable) but no longer advertises the type they were created with.
 		const hiddenHarnessSession = stubSession({ sessionId: 's1', providerId: 'test', sessionType: 'copilotcli' });
 		const provider = new class extends TestSessionsProvider {
 			override resolveWorkspace(_folderUri: URI): ISessionWorkspace {
@@ -1161,7 +1171,7 @@ suite('SessionsManagementService', () => {
 			override getSessions(): ISession[] { return [extHostSession]; }
 		}(extHostSession);
 
-		// The agent host sorts first (`chat.agentHost.defaultSessionsProvider`).
+		// The agent host sorts first.
 		const agentHostSession = stubSession({ sessionId: 'ah-draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilotcli' });
 		const agentHost = new class extends TestSessionsProvider {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;

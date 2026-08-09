@@ -13,6 +13,7 @@ import { raceTimeout } from '../../../base/common/async.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import {
+	createTunnelGatewaySelectionRejectedError,
 	ITunnelAgentHostMainService,
 	parseTunnelGatewayInventory,
 	parseTunnelGatewaySelectionResponse,
@@ -467,8 +468,10 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		const response = parseTunnelGatewaySelectionResponse(responseText);
 		if (!response.ok) {
 			// The selected entry disappeared, or the CLI otherwise rejected
-			// the selection (e.g. raced with another client). Close
-			// everything rather than silently substituting another target.
+			// the selection (e.g. its socket was already gone). Close
+			// everything rather than silently substituting another target —
+			// but tag the error so the caller can tell this apart from an
+			// unreachable tunnel and pick a different endpoint itself.
 			try {
 				ws.close();
 			} catch {
@@ -479,7 +482,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			} catch {
 				// ignore — best-effort cleanup
 			}
-			throw new Error(`${LOG_PREFIX} ${response.error}`);
+			throw createTunnelGatewaySelectionRejectedError(`${LOG_PREFIX} ${response.error}`);
 		}
 
 		const connectionId = generateUuid();

@@ -73,7 +73,7 @@ export class EditorTitleControl extends Themable {
 				break;
 		}
 
-		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model, this.menuIds);
+		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model, this.menuIds, this.showHeader);
 		return this.editorTabsControlDisposable.add(control);
 	}
 
@@ -151,6 +151,10 @@ export class EditorTitleControl extends Themable {
 			// An active input may change its effective resource without being reopened.
 			this.headerControl.handleEditorsChange(true);
 		}
+	}
+
+	updateEditorCapabilities(editor: EditorInput): void {
+		this.editorTabsControl.updateEditorCapabilities(editor);
 	}
 
 	updateEditorDirty(editor: EditorInput): void {
