@@ -25,6 +25,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationGuard, IAutomationRunStartResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { isAgentHostProviderId, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../common/agentHostSessionsProvider.js';
 import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationStorageService } from '../common/legacyAutomationMigrationStorage.js';
 import { ILegacyAutomationMigrationSnapshot, LegacyAutomationMigration } from './legacyAutomationMigration.js';
@@ -100,6 +101,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		@ILogService private readonly logService: ILogService,
 		@ILegacyAutomationMigrationStorageService private readonly legacyMigrationStorageService: ILegacyAutomationMigrationStorageService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._legacyMigration = new LegacyAutomationMigration(legacyMigrationStorageService, logService);
@@ -129,8 +131,14 @@ export class AutomationService extends Disposable implements IAutomationService 
 				await this._reloadLegacySnapshot();
 				await this._syncSources(connections);
 				await this._migrateAvailableAutomations();
+				await this._normalizeHostAutomationModels();
 			}).catch(error => {
 				this.logService.error('[AutomationService] Failed to synchronize host automations.', error);
+			});
+		}));
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
+			void this._syncSequencer.queue(() => this._normalizeHostAutomationModels()).catch(error => {
+				this.logService.error('[AutomationService] Failed to normalize automation models.', error);
 			});
 		}));
 		const synchronizeMigration = () => {
@@ -173,7 +181,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		const resource = `ahp-automation:/${generateUuid()}`;
 		await source.connection.createAutomation({
 			channel: resource,
-			definition: definitionFromOptions(options),
+			definition: definitionFromOptions(options, (modelId, provider) => this._normalizeModelId(source, provider, modelId)),
 		});
 		await this._attachAutomation(source, resource);
 		const automation = this._hostAutomations.get(hostKey(source.authority, resource));
@@ -196,15 +204,18 @@ export class AutomationService extends Disposable implements IAutomationService 
 			if (authority !== host.authority) {
 				throw new Error('An automation cannot be moved between Agent Hosts. Create a new automation on the target host instead.');
 			}
-			const source = this._sources.get(host.authority);
-			if (!source || !this._isTargetAvailable(source, patch.target)) {
-				throw new Error(`Automation agent '${patch.target.sessionTypeId ?? 'default'}' is not available on host '${host.authority}'.`);
-			}
+		}
+		const source = this._sources.get(host.authority);
+		if (!source) {
+			throw new Error(`Automation host '${host.authority}' is unavailable.`);
+		}
+		if (patch.target && !this._isTargetAvailable(source, patch.target)) {
+			throw new Error(`Automation agent '${patch.target.sessionTypeId ?? 'default'}' is not available on host '${host.authority}'.`);
 		}
 		await host.connection.updateAutomation({
 			channel: host.resource,
 			expectedRevision: host.state.revision,
-			changes: definitionPatch(host.state.definition, patch),
+			changes: definitionPatch(host.state.definition, patch, (modelId, provider) => this._normalizeModelId(source, provider, modelId)),
 		});
 		return toAutomation(this._hostAutomations.get(id) ?? host);
 	}
@@ -366,7 +377,10 @@ export class AutomationService extends Disposable implements IAutomationService 
 			}
 		}));
 		source.store.add(connection.rootState.onDidChange(() => {
-			void this._syncSequencer.queue(() => this._migrateLegacyAutomations(source)).catch(error => {
+			void this._syncSequencer.queue(async () => {
+				await this._migrateLegacyAutomations(source);
+				await this._normalizeHostAutomationModels();
+			}).catch(error => {
 				this.logService.error(`[AutomationService] Failed to resume migrations for host '${source.authority}'.`, error);
 			});
 		}));
@@ -461,7 +475,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			try {
 				await connection.createAutomation({
 					channel: item.resource,
-					definition: definitionFromOptions({ ...automation, enabled: false }),
+					definition: definitionFromOptions({ ...automation, enabled: false }, (modelId, provider) => this._normalizeModelId(source, provider, modelId)),
 					import: {
 						source: 'vscode-legacy-automations',
 						batchId,
@@ -669,6 +683,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 				state,
 			});
 			this._refreshProjection();
+			this._queueHostAutomationModelNormalization(hostKey(source.authority, resource));
 		};
 		source.store.add(reference.object.onDidChange(update));
 		update();
@@ -709,6 +724,67 @@ export class AutomationService extends Disposable implements IAutomationService 
 				});
 			});
 		}
+	}
+
+	private async _normalizeHostAutomationModels(): Promise<void> {
+		for (const key of this._hostAutomations.keys()) {
+			await this._normalizeHostAutomationModel(key);
+		}
+	}
+
+	private _queueHostAutomationModelNormalization(key: string): void {
+		void this._syncSequencer.queue(() => this._normalizeHostAutomationModel(key)).catch(error => {
+			this.logService.error('[AutomationService] Failed to normalize an automation model.', error);
+		});
+	}
+
+	private async _normalizeHostAutomationModel(key: string): Promise<void> {
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const host = this._hostAutomations.get(key);
+			const connection = host?.connection;
+			const model = host?.state.definition.session.model;
+			const source = host ? this._sources.get(host.authority) : undefined;
+			if (!host || !connection || !model || !source) {
+				return;
+			}
+			const modelId = this._normalizeModelId(source, host.state.definition.session.provider, model.id);
+			if (modelId === model.id) {
+				return;
+			}
+			try {
+				await connection.updateAutomation({
+					channel: host.resource,
+					expectedRevision: host.state.revision,
+					changes: {
+						session: {
+							...host.state.definition.session,
+							model: { ...model, id: modelId },
+						},
+					},
+				});
+				return;
+			} catch (error) {
+				if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.Conflict) {
+					throw error;
+				}
+			}
+		}
+		throw new Error(`Automation model normalization conflicted repeatedly: ${key}`);
+	}
+
+	private _normalizeModelId(source: IHostSource, provider: string | undefined, modelId: string): string {
+		const rootState = source.connection?.rootState.value;
+		if (!rootState || rootState instanceof Error) {
+			return modelId;
+		}
+		const agents = provider ? rootState.agents.filter(agent => agent.provider === provider) : rootState.agents;
+		if (agents.some(agent => agent.models.some(model => model.id === modelId))) {
+			return modelId;
+		}
+		const nativeModelId = this.languageModelsService.lookupLanguageModel(modelId)?.id;
+		return nativeModelId && agents.some(agent => agent.models.some(model => model.id === nativeModelId))
+			? nativeModelId
+			: modelId;
 	}
 
 	private _removeHostAutomation(source: IHostSource, resource: string): void {
@@ -821,17 +897,17 @@ function migrationResource(automationId: string): string {
 	return `ahp-automation:/vscode-${automationId}`;
 }
 
-function definitionFromOptions(options: ICreateAutomationOptions): AutomationDefinition {
+function definitionFromOptions(options: ICreateAutomationOptions, normalizeModelId: (modelId: string, provider: string | undefined) => string): AutomationDefinition {
 	return {
 		title: options.name,
 		message: { text: options.prompt, origin: { kind: MessageKind.User } },
-		session: sessionTemplate(options.target, options),
+		session: sessionTemplate(options.target, options, normalizeModelId),
 		enabled: options.enabled ?? true,
 		triggers: triggersFromSchedule(options.schedule),
 	};
 }
 
-function definitionPatch(current: AutomationDefinition, patch: IUpdateAutomationOptions): AutomationDefinitionPatch {
+function definitionPatch(current: AutomationDefinition, patch: IUpdateAutomationOptions, normalizeModelId: (modelId: string, provider: string | undefined) => string): AutomationDefinitionPatch {
 	const changes: AutomationDefinitionPatch = {};
 	if (patch.name !== undefined) {
 		changes.title = patch.name;
@@ -852,12 +928,17 @@ function definitionPatch(current: AutomationDefinition, patch: IUpdateAutomation
 			modelId: patch.modelId === undefined ? current.session.model?.id : patch.modelId ?? undefined,
 			mode: patch.mode === undefined ? readString(current.session.config?.[SessionConfigKey.Mode]) : patch.mode ?? undefined,
 			permissionLevel: patch.permissionLevel === undefined ? readString(current.session.config?.[SessionConfigKey.AutoApprove]) : patch.permissionLevel ?? undefined,
-		}, current.session.config);
+		}, normalizeModelId, current.session.config);
 	}
 	return changes;
 }
 
-function sessionTemplate(target: AutomationTarget, options: Pick<ICreateAutomationOptions, 'modelId' | 'mode' | 'permissionLevel'>, currentConfig: Record<string, unknown> = {}) {
+function sessionTemplate(
+	target: AutomationTarget,
+	options: Pick<ICreateAutomationOptions, 'modelId' | 'mode' | 'permissionLevel'>,
+	normalizeModelId: (modelId: string, provider: string | undefined) => string,
+	currentConfig: Record<string, unknown> = {},
+) {
 	const config = { ...currentConfig };
 	setOptional(config, SessionConfigKey.Mode, options.mode);
 	setOptional(config, SessionConfigKey.AutoApprove, options.permissionLevel);
@@ -869,9 +950,10 @@ function sessionTemplate(target: AutomationTarget, options: Pick<ICreateAutomati
 		delete config[SessionConfigKey.Isolation];
 		delete config[SessionConfigKey.Branch];
 	}
+	const provider = toAgentHostProvider(target.sessionTypeId);
 	return {
-		provider: toAgentHostProvider(target.sessionTypeId),
-		...(options.modelId ? { model: { id: options.modelId } } : {}),
+		provider,
+		...(options.modelId ? { model: { id: normalizeModelId(options.modelId, provider) } } : {}),
 		...(target.kind === 'workspace' ? { workingDirectories: [target.folderUri.toString()] } : {}),
 		...(Object.keys(config).length ? { config } : {}),
 	};

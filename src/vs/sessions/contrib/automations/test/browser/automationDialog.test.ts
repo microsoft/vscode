@@ -897,11 +897,15 @@ suite('Automation branch picker', () => {
 		const legacyIdentifier = 'copilotcli/gpt-5.6-sol';
 		const concreteIdentifier = 'agent-host-copilotcli:gpt-5.6-sol';
 		const unrelatedIdentifier = 'other/gpt-5.6-sol';
-		const modelIds = [legacyIdentifier, unrelatedIdentifier];
+		const byokModelId = 'openrouter/group/model';
+		const byokConcreteIdentifier = `agent-host-copilotcli:${byokModelId}`;
+		const modelIds = [legacyIdentifier, unrelatedIdentifier, byokModelId, byokConcreteIdentifier];
 		const models = new Map<string, ILanguageModelChatMetadata>([
 			[legacyIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'copilotcli' })],
 			[concreteIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'agent-host-copilotcli' })],
 			[unrelatedIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'other' })],
+			[byokModelId, upcastPartial<ILanguageModelChatMetadata>({ id: 'model' })],
+			[byokConcreteIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: byokModelId, targetChatSessionType: 'agent-host-copilotcli' })],
 		]);
 		const languageModelsService = upcastPartial<ILanguageModelsService>({
 			getLanguageModelIds: () => modelIds,
@@ -915,11 +919,15 @@ suite('Automation branch picker', () => {
 			beforeConcreteTargetArrives,
 			afterConcreteTargetArrives: resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli'),
 			alreadyConcrete: resolveAutomationModelIdentifier(languageModelsService, concreteIdentifier, 'copilotcli', 'agent-host-copilotcli'),
+			hostModelId: resolveAutomationModelIdentifier(languageModelsService, 'gpt-5.6-sol', 'copilotcli', 'agent-host-copilotcli'),
+			byokModelId: resolveAutomationModelIdentifier(languageModelsService, byokModelId, 'copilotcli', 'agent-host-copilotcli'),
 			unrelated: resolveAutomationModelIdentifier(languageModelsService, unrelatedIdentifier, 'copilotcli', 'agent-host-copilotcli'),
 		}, {
 			beforeConcreteTargetArrives: legacyIdentifier,
 			afterConcreteTargetArrives: concreteIdentifier,
 			alreadyConcrete: concreteIdentifier,
+			hostModelId: concreteIdentifier,
+			byokModelId: byokConcreteIdentifier,
 			unrelated: unrelatedIdentifier,
 		});
 	});

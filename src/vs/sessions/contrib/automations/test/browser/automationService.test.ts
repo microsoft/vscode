@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -19,12 +20,14 @@ import { INotification } from '../../../../../platform/agentHost/common/state/se
 import { ComponentToState, RootState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { LegacyAutomationMigration } from '../../browser/legacyAutomationMigration.js';
 import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationCompareAndSwapResult, ILegacyAutomationMigrationStorageService } from '../../common/legacyAutomationMigrationStorage.js';
 
 suite('AutomationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const languageModelsService = testLanguageModelsService();
 
 	test('keeps an unsupported legacy target read-only until its agent is advertised', async () => {
 		const raw = serializeLegacyLedger([serializedAutomation('cloud', 'copilot-cloud-agent')]);
@@ -37,6 +40,7 @@ suite('AutomationService', () => {
 			new NullLogService(),
 			migrationStorage,
 			new TestConnectionsService(connection),
+			languageModelsService,
 		));
 		await Event.toPromise(connection.onDidListAutomations);
 
@@ -107,7 +111,7 @@ suite('AutomationService', () => {
 	});
 
 	test('migrates a local row without enabling both authorities', async () => {
-		const raw = serializeLegacyLedger([serializedAutomation('tests', 'copilotcli')]);
+		const raw = serializeLegacyLedger([serializedAutomation('tests', 'copilotcli', 'agent-host-copilotcliauto')]);
 		const storage = disposables.add(new InMemoryStorageService());
 		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		const operations: string[] = [];
@@ -118,6 +122,7 @@ suite('AutomationService', () => {
 			new NullLogService(),
 			migrationStorage,
 			new TestConnectionsService(connection),
+			testLanguageModelsService(new Map([['agent-host-copilotcliauto', 'auto']])),
 		));
 		await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true && items[0].enabled === true);
 
@@ -128,6 +133,7 @@ suite('AutomationService', () => {
 				enabled: automation.enabled,
 				providerId: automation.target.providerId,
 				sessionTypeId: automation.target.sessionTypeId,
+				modelId: automation.modelId,
 				migrationPending: automation.host?.migrationPending,
 			})),
 			legacyAutomations: JSON.parse(migrationStorage.value!).automations,
@@ -138,6 +144,7 @@ suite('AutomationService', () => {
 				enabled: true,
 				providerId: 'local-agent-host',
 				sessionTypeId: 'copilotcli',
+				modelId: 'auto',
 				migrationPending: undefined,
 			}],
 			legacyAutomations: [],
@@ -156,6 +163,7 @@ suite('AutomationService', () => {
 			new NullLogService(),
 			migrationStorage,
 			new TestConnectionsService(connection),
+			languageModelsService,
 		));
 		await Event.toPromise(connection.onDidEnableImportedAutomation);
 		const backups = JSON.parse(storage.get('chat.automations.ahpMigration.backup.v1', StorageScope.APPLICATION)!) as Record<string, unknown>;
@@ -179,6 +187,7 @@ suite('AutomationService', () => {
 			new NullLogService(),
 			new RecordingMigrationStorage(storage),
 			new TestConnectionsService(connection),
+			languageModelsService,
 		));
 		await Event.toPromise(connection.onDidListAutomations);
 		const resource = 'ahp-automation:/vscode-cloud';
@@ -216,6 +225,7 @@ suite('AutomationService', () => {
 			new NullLogService(),
 			new RecordingMigrationStorage(storage, operations),
 			new TestConnectionsService(connection),
+			languageModelsService,
 		));
 		await Event.toPromise(connection.onDidListAutomations);
 		connection.setProviders(['copilotcli', 'copilot-cloud-agent']);
@@ -266,6 +276,7 @@ suite('AutomationService', () => {
 			new NullLogService(),
 			new RecordingMigrationStorage(storage, operations),
 			new TestConnectionsService(connection),
+			languageModelsService,
 		));
 
 		await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true && items[0].enabled === true);
@@ -287,6 +298,7 @@ suite('AutomationService', () => {
 			new NullLogService(),
 			new RecordingMigrationStorage(storage),
 			new TestConnectionsService(connection),
+			testLanguageModelsService(new Map([['agent-host-copilotcliauto', 'auto']])),
 		));
 		await Event.toPromise(connection.onDidListAutomations);
 
@@ -295,17 +307,71 @@ suite('AutomationService', () => {
 			prompt: 'Run tests',
 			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			modelId: 'agent-host-copilotcliauto',
 		});
 
 		assert.deepStrictEqual({
 			name: automation.name,
 			host: automation.host?.authority,
+			modelId: automation.modelId,
 			legacyLedger: storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION),
 		}, {
 			name: 'new',
 			host: AMBIENT_AGENT_HOST_AUTHORITY,
+			modelId: 'auto',
 			legacyLedger: undefined,
 		});
+	});
+
+	test('repairs workbench model identifiers in existing host definitions', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/test', true, 'existing', 'agent-host-copilotcliauto');
+		const models = new Map<string, string>();
+		const onDidChangeLanguageModels = disposables.add(new Emitter<void>());
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			testLanguageModelsService(models, onDidChangeLanguageModels.event),
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		models.set('agent-host-copilotcliauto', 'auto');
+		onDidChangeLanguageModels.fire();
+
+		const automations = await waitForState(service.automations, items => items[0]?.modelId === 'auto');
+
+		assert.deepStrictEqual(automations.map(automation => ({
+			name: automation.name,
+			modelId: automation.modelId,
+		})), [{
+			name: 'existing',
+			modelId: 'auto',
+		}]);
+	});
+
+	test('preserves provider-native BYOK model IDs', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			testLanguageModelsService(new Map([['openrouter/group/model', 'model']])),
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+
+		const automation = await service.createAutomation({
+			name: 'BYOK',
+			prompt: 'Run tests',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			modelId: 'openrouter/group/model',
+		});
+
+		assert.strictEqual(automation.modelId, 'openrouter/group/model');
 	});
 
 	test('reconnect drops stale run state and follows fresh summaries', async () => {
@@ -318,6 +384,7 @@ suite('AutomationService', () => {
 			new NullLogService(),
 			new RecordingMigrationStorage(storage),
 			connections,
+			languageModelsService,
 		));
 		await Event.toPromise(connection.onDidListAutomations);
 		const automation = service.automations.get()[0];
@@ -371,12 +438,14 @@ class TestConnection extends NullAgentHostService {
 	readonly onDidEnableImportedAutomation = this._onDidEnableImportedAutomation.event;
 	private readonly automations = new Map<string, TestSubscription<AutomationState>>();
 	private readonly runs = new Map<string, TestSubscription<AutomationRunState>>();
+	private readonly modelIds: readonly string[];
 
-	constructor(providers: readonly string[], operations: string[] = []) {
+	constructor(providers: readonly string[], operations: string[] = [], modelIds: readonly string[] = ['auto', 'openrouter/group/model']) {
 		super();
 		this.operations = operations;
+		this.modelIds = modelIds;
 		this._rootState = new TestSubscription<RootState>({
-			agents: providers.map(provider => ({ provider, displayName: provider, description: provider, models: [], tools: [] })),
+			agents: providers.map(provider => this.toAgentInfo(provider)),
 			activeSessions: 0,
 			terminals: [],
 		});
@@ -388,10 +457,20 @@ class TestConnection extends NullAgentHostService {
 
 	setProviders(providers: readonly string[]): void {
 		this._rootState.set({
-			agents: providers.map(provider => ({ provider, displayName: provider, description: provider, models: [], tools: [] })),
+			agents: providers.map(provider => this.toAgentInfo(provider)),
 			activeSessions: 0,
 			terminals: [],
 		});
+	}
+
+	private toAgentInfo(provider: string) {
+		return {
+			provider,
+			displayName: provider,
+			description: provider,
+			models: this.modelIds.map(id => ({ provider, id, name: id })),
+			tools: [],
+		};
 	}
 
 	override async listAutomations(): Promise<ListAutomationsResult> {
@@ -414,13 +493,13 @@ class TestConnection extends NullAgentHostService {
 		this.automations.set(params.channel, new TestSubscription(state));
 	}
 
-	seedAutomation(resource: string, enabled: boolean, title = 'resume'): void {
+	seedAutomation(resource: string, enabled: boolean, title = 'resume', modelId?: string): void {
 		void this.createAutomation({
 			channel: resource,
 			definition: {
 				title,
 				message: { text: 'Run tests', origin: { kind: MessageKind.User } },
-				session: { provider: 'copilotcli' },
+				session: { provider: 'copilotcli', ...(modelId ? { model: { id: modelId } } : {}) },
 				enabled,
 				triggers: [],
 			},
@@ -595,17 +674,28 @@ class RecordingMigrationStorage implements ILegacyAutomationMigrationStorageServ
 	}
 }
 
-function serializedAutomation(name: string, sessionTypeId: string) {
+function serializedAutomation(name: string, sessionTypeId: string, modelId?: string) {
 	return {
 		id: name,
 		name,
 		prompt: 'Run tests',
 		schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 		target: { kind: 'quickChat', providerId: 'default-copilot', sessionTypeId },
+		...(modelId ? { modelId } : {}),
 		enabled: true,
 		createdAt: '2026-01-01T00:00:00.000Z',
 		updatedAt: '2026-01-01T00:00:00.000Z',
 	};
+}
+
+function testLanguageModelsService(models: ReadonlyMap<string, string> = new Map(), onDidChangeLanguageModels = Event.None): ILanguageModelsService {
+	return upcastPartial<ILanguageModelsService>({
+		onDidChangeLanguageModels,
+		lookupLanguageModel: identifier => {
+			const id = models.get(identifier);
+			return id ? upcastPartial<ILanguageModelChatMetadata>({ id }) : undefined;
+		},
+	});
 }
 
 function serializeLegacyLedger(automations: readonly ReturnType<typeof serializedAutomation>[]): string {
