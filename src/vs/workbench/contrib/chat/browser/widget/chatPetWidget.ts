@@ -22,8 +22,8 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatPetVariant, IChatPetService } from '../chatPetService.js';
 
-export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'falling' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
-export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'jump' | 'cool' | 'yapping'>;
+export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'falling' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
+export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 const TRANSIENT_STATE_DURATION = 2_000;
@@ -32,6 +32,9 @@ const BUTTON_PRESS_STATE_DURATION = 2_850;
 const SPLAT_STATE_DURATION = 520;
 const LOVE_STATE_DURATION = 2_940;
 const COOL_STATE_DURATION = 3_000;
+const SING_STATE_DURATION = 2_880;
+const SPEECHLESS_STATE_DURATION = 2_720;
+const WORRY_STATE_DURATION = 2_400;
 const WAKE_STATE_DURATION = 880;
 const SEARCH_INTERVAL = 10_000;
 const RESPAWN_SIGN_DURATION = 600;
@@ -43,6 +46,8 @@ const POSITION_EPSILON = 0.5;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
 const CHAT_PET_BUTTON_PRESS_SOURCE_WIDTH = 160;
+const CHAT_PET_SING_SOURCE_WIDTH = 164;
+const CHAT_PET_SING_SOURCE_HEIGHT = 124;
 const CHAT_PET_MAX_VERTICAL_OFFSET = 10;
 const CHAT_PET_DEFAULT_RIGHT_INSET = 32;
 const CHAT_PET_MIN_SCALE = 0.4;
@@ -50,6 +55,7 @@ const CHAT_PET_SCALE_STEP = 0.2;
 const CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG = 20;
 const CHAT_PET_TYPING_RIGHT_OVERHANG = (CHAT_PET_TYPING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_BUTTON_PRESS_RIGHT_OVERHANG = (CHAT_PET_BUTTON_PRESS_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
+const CHAT_PET_SING_RIGHT_OVERHANG = (CHAT_PET_SING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 
 const IDLE_FRAME_DURATIONS = Array.from({ length: 50 }, () => 40);
 const SLEEP_FRAME_DURATIONS = Array.from({ length: 8 }, () => 300);
@@ -63,11 +69,15 @@ const SPEECH_FRAME_DURATIONS = [220, 220, 220, 100, 160, 180];
 const CLAPPING_FRAME_DURATIONS = [80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80];
 const LOVE_FRAME_DURATIONS = [200, 200, 380, 100, 80, 1_980];
 const COOL_FRAME_DURATIONS = [600, 120, 120, 120, 160, 80, 80, 80, 1_640];
+const SING_FRAME_DURATIONS = [180, 180, 180, 180];
+const SPEECHLESS_FRAME_DURATIONS = [400, 120, 1_000, 120, 1_080];
+const WORRY_FRAME_DURATIONS = [600, 600];
 const SEARCH_FRAME_DURATIONS = [500, 500, 500, 500];
 
 interface ChatPetSpriteSource {
 	readonly url: string;
 	readonly frameWidth: number;
+	readonly frameHeight?: number;
 	readonly frameDurations: readonly number[];
 	readonly iterations: number;
 }
@@ -92,7 +102,7 @@ const speechSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 const respawnSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 
 export function doesChatPetStateTrackCursor(state: ChatPetState | undefined): boolean {
-	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'buttonPress' && state !== 'complete' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'falling' && state !== 'splat' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
+	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'buttonPress' && state !== 'complete' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'falling' && state !== 'splat' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
 }
 
 export function getChatPetSpriteName(state: ChatPetState, quality: string | undefined): string {
@@ -124,6 +134,10 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 			return `buddy-rendering-${variant}`;
 		case 'yappingMouthOpen':
 			return `buddy-yapping-${variant}`;
+		case 'sing':
+		case 'speechless':
+		case 'worry':
+			return `buddy-${state}-${variant}`;
 		default:
 			return getChatPetBuddyName(quality);
 	}
@@ -151,6 +165,12 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 			return LOVE_FRAME_DURATIONS;
 		case 'cool':
 			return COOL_FRAME_DURATIONS;
+		case 'sing':
+			return SING_FRAME_DURATIONS;
+		case 'speechless':
+			return SPEECHLESS_FRAME_DURATIONS;
+		case 'worry':
+			return WORRY_FRAME_DURATIONS;
 		case 'searching':
 			return SEARCH_FRAME_DURATIONS;
 		case 'onTheRun':
@@ -164,18 +184,19 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 	}
 }
 
-function createSpriteSources(name: string, state: ChatPetState, tracksCursor = true): ChatPetSpriteSources {
+function createSpriteSources(name: string, state: ChatPetState, tracksCursor = true, sourceWidth?: number, sourceHeight = CHAT_PET_SOURCE_SIZE): ChatPetSpriteSources {
 	const root = 'vs/workbench/contrib/chat/browser/widget/media/chatPet';
-	const suffix = tracksCursor ? '-tracking-96' : '-96';
+	const suffix = tracksCursor ? '-tracking-96' : `-${sourceHeight}`;
 	const frameDurations = getChatPetFrameDurations(state);
-	const frameWidth = state === 'typing'
+	const frameWidth = sourceWidth ?? (state === 'typing'
 		? CHAT_PET_TYPING_SOURCE_WIDTH
 		: state === 'buttonPress'
 			? CHAT_PET_BUTTON_PRESS_SOURCE_WIDTH
-			: CHAT_PET_SOURCE_SIZE;
+			: CHAT_PET_SOURCE_SIZE);
 	const staticSource = {
 		url: FileAccess.asBrowserUri(`${root}/${name}${suffix}.png`).toString(true),
 		frameWidth,
+		frameHeight: sourceHeight,
 		frameDurations: [],
 		iterations: 1,
 	};
@@ -183,6 +204,7 @@ function createSpriteSources(name: string, state: ChatPetState, tracksCursor = t
 		animated: frameDurations.length === 0 ? staticSource : {
 			url: FileAccess.asBrowserUri(`${root}/${name}${suffix}.spritesheet.png`).toString(true),
 			frameWidth,
+			frameHeight: sourceHeight,
 			frameDurations,
 			iterations: state === 'waking' || state === 'buttonPress' || state === 'cool' || state === 'splat' || state === 'searching' ? 1 : Infinity,
 		},
@@ -216,6 +238,9 @@ function getSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPet
 			cool: createStateSpriteSources('cool'),
 			yapping: createStateSpriteSources('yapping'),
 			yappingMouthOpen: createStateSpriteSources('yappingMouthOpen'),
+			sing: createSpriteSources(getChatPetSpriteName('sing', variant), 'sing', false, CHAT_PET_SING_SOURCE_WIDTH, CHAT_PET_SING_SOURCE_HEIGHT),
+			speechless: createStateSpriteSources('speechless'),
+			worry: createStateSpriteSources('worry'),
 			falling: createStateSpriteSources('falling'),
 			splat: createStateSpriteSources('splat'),
 			onTheRun: createStateSpriteSources('onTheRun'),
@@ -352,6 +377,12 @@ function getTransientStateDuration(state: ChatPetState): number {
 			return LOVE_STATE_DURATION;
 		case 'cool':
 			return COOL_STATE_DURATION;
+		case 'sing':
+			return SING_STATE_DURATION;
+		case 'speechless':
+			return SPEECHLESS_STATE_DURATION;
+		case 'worry':
+			return WORRY_STATE_DURATION;
 		case 'waking':
 			return WAKE_STATE_DURATION;
 		default:
@@ -360,13 +391,13 @@ function getTransientStateDuration(state: ChatPetState): number {
 }
 
 export function getChatPetClickInteraction(random: number, previousInteraction?: ChatPetClickInteraction): ChatPetClickInteraction {
-	if (random < 0.001) {
+	if (random < 0.01) {
 		return 'complete';
 	}
 
-	const interactions: readonly ChatPetClickInteraction[] = ['buttonPress', 'love', 'jump', 'cool', 'yapping'];
+	const interactions: readonly ChatPetClickInteraction[] = ['buttonPress', 'love', 'cool', 'yapping', 'sing', 'speechless', 'worry'];
 	const availableInteractions = interactions.filter(interaction => interaction !== previousInteraction);
-	const normalizedRandom = (random - 0.001) / 0.999;
+	const normalizedRandom = (random - 0.01) / 0.99;
 	return availableInteractions[Math.min(Math.floor(normalizedRandom * availableInteractions.length), availableInteractions.length - 1)];
 }
 
@@ -436,7 +467,9 @@ export function shouldFlipChatPetWideSprite(state: ChatPetState | undefined, but
 		? CHAT_PET_TYPING_RIGHT_OVERHANG
 		: state === 'buttonPress'
 			? CHAT_PET_BUTTON_PRESS_RIGHT_OVERHANG
-			: 0;
+			: state === 'sing'
+				? CHAT_PET_SING_RIGHT_OVERHANG
+				: 0;
 	return rightOverhang > 0 && buttonRight + rightOverhang * scale > inputRight;
 }
 
@@ -670,14 +703,20 @@ export class ChatPetWidget extends Disposable {
 				case 'love':
 					status(localize('chatPet.loved', "The VS Code pet feels loved"));
 					break;
-				case 'jump':
-					status(localize('chatPet.jumped', "The VS Code pet jumped"));
-					break;
 				case 'cool':
 					status(localize('chatPet.cool', "The VS Code pet put on sunglasses"));
 					break;
 				case 'yapping':
 					status(localize('chatPet.yapping', "The VS Code pet is yapping"));
+					break;
+				case 'sing':
+					status(localize('chatPet.singing', "The VS Code pet is singing"));
+					break;
+				case 'speechless':
+					status(localize('chatPet.speechless', "The VS Code pet is speechless"));
+					break;
+				case 'worry':
+					status(localize('chatPet.worried', "The VS Code pet is worried"));
 					break;
 			}
 		}));
@@ -1472,29 +1511,33 @@ export class ChatPetWidget extends Disposable {
 		const { frameDurations } = source;
 		const { image, canvas } = sprite;
 		const displaySize = sprite === this._speechBubble ? 72 : sprite === this._respawnEffect ? this._getDisplaySize() : 48;
+		const frameHeight = source.frameHeight ?? CHAT_PET_SOURCE_SIZE;
+		const displayScale = displaySize / CHAT_PET_SOURCE_SIZE;
+		const displayWidth = source.frameWidth * displayScale;
+		const displayHeight = frameHeight * displayScale;
+		sprite.container.style.width = `${displayWidth}px`;
+		sprite.container.style.height = `${displayHeight}px`;
 		canvas.width = source.frameWidth;
-		canvas.height = CHAT_PET_SOURCE_SIZE;
-		canvas.style.width = `${source.frameWidth * displaySize / CHAT_PET_SOURCE_SIZE}px`;
-		canvas.style.height = `${displaySize}px`;
-		sprite.container.style.width = `${source.frameWidth * displaySize / CHAT_PET_SOURCE_SIZE}px`;
-		sprite.container.style.height = `${displaySize}px`;
+		canvas.height = frameHeight;
+		canvas.style.width = `${displayWidth}px`;
+		canvas.style.height = `${displayHeight}px`;
 		const context = canvas.getContext('2d');
 		if (!context) {
 			return;
 		}
 		context.imageSmoothingEnabled = false;
 		const drawFrame = (frameIndex: number) => {
-			context.clearRect(0, 0, source.frameWidth, CHAT_PET_SOURCE_SIZE);
+			context.clearRect(0, 0, source.frameWidth, frameHeight);
 			context.drawImage(
 				image,
 				frameIndex * source.frameWidth,
 				0,
 				source.frameWidth,
-				CHAT_PET_SOURCE_SIZE,
+				frameHeight,
 				0,
 				0,
 				source.frameWidth,
-				CHAT_PET_SOURCE_SIZE
+				frameHeight
 			);
 		};
 		drawFrame(0);

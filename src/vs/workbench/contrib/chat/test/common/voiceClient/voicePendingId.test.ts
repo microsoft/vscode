@@ -109,7 +109,7 @@ suite('derivePendingId', () => {
 		}, {
 			presentationUpdateMatches: true,
 			changedCommandDiffers: true,
-			afterInteractionDiffers: true,
+			afterInteractionDiffers: false,
 			currentPartNoLongerResolvesOldId: true,
 		});
 
@@ -184,6 +184,7 @@ suite('derivePendingId', () => {
 	});
 
 	test('rehydrated copies share one active tool occurrence', () => {
+		const requestId = 'req-rehydrated-active';
 		const tool = () => {
 			const state = observableValue<IChatToolInvocation.State>('toolState', {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
@@ -194,9 +195,9 @@ suite('derivePendingId', () => {
 		};
 		const first = tool();
 		const rehydrated = tool();
-		const pendingId = derivePendingId('req-1', first.part);
+		const pendingId = derivePendingId(requestId, first.part);
 
-		assert.strictEqual(peekPendingId('req-1', rehydrated.part), pendingId);
+		assert.strictEqual(peekPendingId(requestId, rehydrated.part), pendingId);
 
 		for (const copy of [first, rehydrated]) {
 			copy.state.set({
@@ -267,12 +268,12 @@ suite('derivePendingId', () => {
 		assert.strictEqual(peekPendingId('req-retire', rehydrated.part), undefined);
 		assert.strictEqual(derivePendingId('req-retire', rehydrated.part), pendingId);
 
-		// A new invocation published after the interaction is a new occurrence,
-		// even when the provider reuses the tool-call id and command.
+		// Rehydrating the same request/tool/command after interaction remains
+		// retired. A genuine retry must use a new request or tool-call id.
 		const rearmed = tool();
 		const rearmedId = derivePendingId('req-retire', rearmed.part);
-		assert.notStrictEqual(rearmedId, pendingId);
-		assert.strictEqual(peekPendingId('req-retire', rearmed.part), rearmedId);
+		assert.strictEqual(rearmedId, pendingId);
+		assert.strictEqual(peekPendingId('req-retire', rearmed.part), undefined);
 
 		for (const copy of [first, rehydrated, rearmed]) {
 			copy.state.set({

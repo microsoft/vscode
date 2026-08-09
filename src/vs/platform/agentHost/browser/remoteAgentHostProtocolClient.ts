@@ -435,6 +435,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			if (isClientTransport(this._transport)) {
 				await this._raceClose(this._transport.connect());
 			}
+			if (this._state.kind !== AgentHostClientState.Connecting) {
+				throw transportLostError(this._address);
+			}
 
 			const result = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
 				channel: ROOT_STATE_URI,
@@ -477,6 +480,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
 				throw error;
 			}
+			if (this._state.kind === AgentHostClientState.Reconnecting && this._transportFactory) {
+				throw error;
+			}
 			this._handleClose(protocolError);
 			throw error;
 		}
@@ -511,9 +517,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case AgentHostClientState.Closed:
 				return;
 			case AgentHostClientState.Connecting:
-				// No handshake yet; we can't resume so always treat as fatal
-				// regardless of whether a factory is configured.
-				this._handleClose(connectionClosedError(this._address));
+				if (!this._transportFactory) {
+					this._handleClose(connectionClosedError(this._address));
+					return;
+				}
+				this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
+				this._transitionTo({
+					kind: AgentHostClientState.Reconnecting,
+					reconnect: { ...this._newReconnectState(), outbox: this._state.outbox },
+				});
+				this._cancelLivenessTimers();
+				this._rejectPendingRequests(transportLostError(this._address));
+				this._scheduleReconnect();
 				return;
 			case AgentHostClientState.Incompatible:
 				this._handleClose(connectionClosedError(this._address));

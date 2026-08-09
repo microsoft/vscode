@@ -657,8 +657,8 @@ export class ProtocolServerHandler extends Disposable {
 	 *   {@link IConnectedClient.subscriptions} map.
 	 *
 	 * Channels with unsupported shapes (e.g. `ahp-otlp://logs/verbose`
-	 * with no recognised level, or a state channel the state manager
-	 * does not know about) are silently dropped.
+	 * with no recognised level) are silently dropped. Valid state channels
+	 * remain subscribed even when their snapshot has not materialized yet.
 	 */
 	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined {
 		const sub = classifyChannel(channel);
@@ -674,9 +674,6 @@ export class ProtocolServerHandler extends Disposable {
 			return undefined;
 		}
 		const snapshot = this._stateManager.getSnapshot(channel);
-		if (!snapshot) {
-			return undefined;
-		}
 		client.subscriptions.set(sub.uri, sub);
 		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
 		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);

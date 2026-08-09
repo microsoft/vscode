@@ -19,7 +19,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { SinglePaneChangesTabMissingContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { DockedEditorInput } from '../../../../common/dockedEditorInput.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -101,6 +101,8 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 	private readonly _changesTabMissingContext: IContextKey<boolean>;
 	private readonly _filesTabMissingContext: IContextKey<boolean>;
+	private readonly _changesTabAvailableContext: IContextKey<boolean>;
+	private readonly _filesTabAvailableContext: IContextKey<boolean>;
 
 	constructor(
 		ctx: ISinglePaneLayoutContext,
@@ -118,6 +120,8 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 		this._changesTabMissingContext = SinglePaneChangesTabMissingContext.bindTo(contextKeyService);
 		this._filesTabMissingContext = SinglePaneFilesTabMissingContext.bindTo(contextKeyService);
+		this._changesTabAvailableContext = SinglePaneChangesTabAvailableContext.bindTo(contextKeyService);
+		this._filesTabAvailableContext = SinglePaneFilesTabAvailableContext.bindTo(contextKeyService);
 
 		// [Trigger A] Session switch / created transition. A submit (uncreated →
 		// created) additionally opens the Changes tab active even though the group
@@ -412,6 +416,8 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		const group = this._editorGroupsService.mainPart.activeGroup;
 		const changesPresent = group.editors.some(editor => this._coordinator.getChangesEditorResource(editor) !== undefined);
 		const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
+		this._changesTabAvailableContext.set(target.wantsChangesTab);
+		this._filesTabAvailableContext.set(target.wantsFilesTab);
 		this._changesTabMissingContext.set(target.wantsChangesTab && !changesPresent);
 		this._filesTabMissingContext.set(target.wantsFilesTab && !filesPresent);
 	}

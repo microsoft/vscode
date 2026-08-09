@@ -12,6 +12,7 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
@@ -565,8 +566,12 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	test('custom terminal tool preserves a nonzero shell exit code', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code');
+		const deterministicShellConfig = context.isWindows ? {} : { [AgentHostConfigKey.DefaultShell]: '/bin/bash' };
 		try {
-			await setRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true }, 100);
+			await setRootConfig({
+				[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
+				...deterministicShellConfig,
+			}, 100);
 			const turnId = 'turn-custom-terminal-exit-code';
 			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Run exactly `node -e "process.exit(9)"` with bash, then reply exactly "failed as expected".', 1);
 			const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
@@ -585,9 +590,20 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			const terminal = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const terminalState = terminal.snapshot!.state as TerminalState;
 			const command = terminalState.content.find((part): part is TerminalCommandPart => part.type === 'command' && part.commandLine.includes('process.exit(9)'));
-			assert.strictEqual(command?.exitCode, 9);
+			assert.deepStrictEqual({
+				supportsCommandDetection: terminalState.supportsCommandDetection,
+				isComplete: command?.isComplete,
+				exitCode: command?.exitCode,
+			}, {
+				supportsCommandDetection: true,
+				isComplete: true,
+				exitCode: 9,
+			});
 		} finally {
-			await setRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: false }, 101);
+			await setRootConfig({
+				[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
+				...(context.isWindows ? {} : { [AgentHostConfigKey.DefaultShell]: '' }),
+			}, 101);
 		}
 	});
 
