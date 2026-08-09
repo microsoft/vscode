@@ -87,6 +87,7 @@ const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const out = args.build ? 'out-build' : 'out';
 const src = path.join(REPO_ROOT, out);
 const baseUrl = pathToFileURL(src);
+const product = module.createRequire(import.meta.url)(`${REPO_ROOT}/product.json`);
 
 //@ts-ignore
 const requiredNodeVersion = semver.parse(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]);
@@ -101,8 +102,13 @@ function main() {
 
 	// VSCODE_GLOBALS: package/product.json
 	const _require = module.createRequire(import.meta.url);
-	globalThis._VSCODE_PRODUCT_JSON = _require(`${REPO_ROOT}/product.json`);
+	globalThis._VSCODE_PRODUCT_JSON = product;
 	globalThis._VSCODE_PACKAGE_JSON = _require(`${REPO_ROOT}/package.json`);
+	if (args.integration) {
+		process.env['VSCODE_AGENT_HOST_E2E_EXEC_PATH'] = process.env['INTEGRATION_TEST_ELECTRON_PATH'] || (process.platform === 'darwin'
+			? path.join(REPO_ROOT, '.build', 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', product.nameShort)
+			: path.join(REPO_ROOT, '.build', 'electron', process.platform === 'win32' ? `${product.nameShort}.exe` : product.applicationName));
+	}
 
 	// VSCODE_GLOBALS: file root
 	globalThis._VSCODE_FILE_ROOT = baseUrl.href;

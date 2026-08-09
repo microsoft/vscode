@@ -146,6 +146,11 @@ if defined RUN_GLOB (
 	call .\scripts\test.bat %*
 ) else if defined RUN_FILE (
 	if defined RUN_FOCUSED_AGENT_HOST_E2E (
+		if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" if "%VSCODE_SKIP_PRELAUNCH%"=="" (
+			call node build\lib\electron.ts
+			if errorlevel 1 call .\node_modules\gulp\bin\gulp.js electron
+			if errorlevel 1 exit /b 1
+		)
 		call node .\test\unit\node\index.js --integration %*
 	) else (
 		call .\scripts\test.bat %*

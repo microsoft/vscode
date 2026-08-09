@@ -199,9 +199,9 @@ npm run test-agent-host-e2e -- --jobs 2
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
 
-The complete-suite runner starts one Node.js test process per entrypoint and runs up to four concurrently. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
+The complete-suite runner starts one Node.js test process per entrypoint and runs up to four concurrently, defaulting to two workers on Windows to avoid provider subprocess stalls under CI resource pressure. `AGENT_HOST_E2E_JOBS` or `--jobs` can override the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
-The test process only hosts the replay proxy and AHP client; the implementation under test remains the separately forked Agent Host server with its real provider SDK/CLI subprocess. Electron provides no additional coverage for this boundary, so both the complete-suite runner and focused provider commands run in Node.js.
+The test process only hosts the replay proxy and AHP client, so both the complete-suite runner and focused provider commands run Mocha in Node.js without a Chromium renderer. The separately forked Agent Host still uses Electron's Node runtime, preserving the runtime under test along with its real provider SDK/CLI subprocess.
 
 Provider availability:
 

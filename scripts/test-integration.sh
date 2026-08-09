@@ -191,6 +191,9 @@ if [[ -z "$SUITE_FILTER" ]]; then
 		node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
 		./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	elif $RUN_FOCUSED_AGENT_HOST_E2E; then
+		if [[ -z "$INTEGRATION_TEST_ELECTRON_PATH" && -z "$VSCODE_SKIP_PRELAUNCH" ]]; then
+			npm run electron
+		fi
 		node ./test/unit/node/index.js --integration "${EXTRA_ARGS[@]}"
 	else
 		./scripts/test.sh "${EXTRA_ARGS[@]}"

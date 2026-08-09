@@ -129,7 +129,8 @@ function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs:
 		throw new Error(`${conflictingArgument} is managed by the Agent Host E2E runner`);
 	}
 
-	const defaultJobs = Math.min(suites.length, availableParallelism?.() ?? cpus().length);
+	const defaultJobLimit = process.platform === 'win32' ? 2 : suites.length;
+	const defaultJobs = Math.min(defaultJobLimit, availableParallelism?.() ?? cpus().length);
 	const jobs = requestedJobs === undefined ? defaultJobs : Number(requestedJobs);
 	if (!Number.isInteger(jobs) || jobs < 1) {
 		throw new Error(`Invalid Agent Host E2E worker count: ${requestedJobs}`);
@@ -144,6 +145,9 @@ function prepareTestRuntime(): void {
 	mkdirSync(join(repoRoot, '.build', 'crashes'), { recursive: true });
 	if (!existsSync(join(repoRoot, 'node_modules'))) {
 		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install'], environment);
+	}
+	if (!process.env['INTEGRATION_TEST_ELECTRON_PATH'] && process.env['VSCODE_SKIP_PRELAUNCH'] !== '1') {
+		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'electron'], environment);
 	}
 }
 

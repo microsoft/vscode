@@ -64,6 +64,7 @@ import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isCI, isWindows } from '../../../../base/common/platform.js';
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
+const AGENT_HOST_E2E_EXEC_PATH = process.env['VSCODE_AGENT_HOST_E2E_EXEC_PATH'];
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -742,7 +743,12 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
 		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-			env: withAgentHostCoverage({ ...process.env, ...options?.env }),
+			env: withAgentHostCoverage({
+				...process.env,
+				...options?.env,
+				...(AGENT_HOST_E2E_EXEC_PATH ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+			}),
+			...(AGENT_HOST_E2E_EXEC_PATH ? { execPath: AGENT_HOST_E2E_EXEC_PATH } : {}),
 		});
 
 		const timer = setTimeout(() => {
@@ -884,7 +890,11 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		try {
 			child = fork(serverPath, args, {
 				stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-				env: childEnv,
+				env: {
+					...childEnv,
+					...(AGENT_HOST_E2E_EXEC_PATH ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+				},
+				...(AGENT_HOST_E2E_EXEC_PATH ? { execPath: AGENT_HOST_E2E_EXEC_PATH } : {}),
 			});
 		} catch (err) {
 			void mockLlmServer?.close();
