@@ -273,6 +273,11 @@ export class ChatView extends AbstractChatView {
 	override setChat(chat: IChat, historyKey?: string): void {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const resource = chat.resource;
+		const previousChatResource = this._currentChatResource;
+		const chatChanged = !isEqual(previousChatResource, resource);
+		if (chatChanged) {
+			this._saveCurrentViewState();
+		}
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
@@ -290,12 +295,10 @@ export class ChatView extends AbstractChatView {
 		});
 
 		// Skip loading if we're already showing this chat
-		if (isEqual(this._currentChatResource, resource)) {
+		if (!chatChanged) {
 			return;
 		}
 
-		const previousChatResource = this._currentChatResource;
-		this._saveCurrentViewState();
 		this._currentChatResource = resource;
 		this._currentChatResourceObs.set(resource, undefined);
 
