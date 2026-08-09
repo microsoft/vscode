@@ -8,7 +8,7 @@ import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRen
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolRiskAssessmentService, ToolRiskLevel, ToolRiskPromptKind } from '../../../tools/chatToolRiskAssessmentService.js';
-import { ILanguageModelToolsService, IToolApprovalReason } from '../../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolApprovalReason, IToolData } from '../../../../common/tools/languageModelToolsService.js';
 import { ToolRiskBadgeWidget } from './toolRiskBadgeWidget.js';
 
 export function toolRiskLevelForSafety(safety: number): ToolRiskLevel {
@@ -44,8 +44,8 @@ export function createApprovalReasonBadge(
 
 /**
  * Creates a {@link ToolRiskBadgeWidget} for a tool confirmation surface, or `undefined` when the
- * feature is disabled or the tool is unknown. A cached assessment renders synchronously; otherwise
- * the badge shows a loading state and assesses asynchronously, hiding itself on failure.
+ * feature is disabled or the tool is unknown. Callers can provide complete tool data for tools that
+ * are not registered locally, such as Agent Host tools.
  *
  * The widget and its assessment token are registered on `store`, so disposing the store cancels
  * any in-flight assessment. The widget is returned so terminal confirmations can attach
@@ -58,7 +58,7 @@ export function createToolRiskBadge(
 	instantiationService: IInstantiationService,
 	riskAssessmentService: IChatToolRiskAssessmentService,
 	languageModelToolsService: ILanguageModelToolsService,
-	toolId: string,
+	toolOrId: IToolData | string,
 	parameters: unknown,
 	kind?: ToolRiskPromptKind,
 ): ToolRiskBadgeWidget | undefined {
@@ -67,7 +67,9 @@ export function createToolRiskBadge(
 		return undefined;
 	}
 
-	const tool = languageModelToolsService.getTool(toolId);
+	const providedTool = typeof toolOrId === 'string' ? undefined : toolOrId;
+	const toolId = typeof toolOrId === 'string' ? toolOrId : toolOrId.id;
+	const tool = languageModelToolsService.getTool(toolId) ?? providedTool;
 	if (!tool) {
 		return undefined;
 	}

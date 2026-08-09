@@ -403,6 +403,15 @@ function getToolRawInput(tc: ToolCallState): unknown {
 	}
 }
 
+/**
+ * Returns the complete Agent Host tool arguments used by confirmations and risk assessment.
+ */
+export function toolCallStateToParameters(tc: ToolCallState): unknown {
+	return isTerminalToolCall(tc)
+		? { command: getTerminalInput(tc) }
+		: getToolRawInput(tc);
+}
+
 function buildMcpAppToolInputData(tc: ToolCallState, sessionResource: URI, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
 	const mcpAppData = getMcpAppData(tc, sessionResource);
 	if (!mcpAppData) {
@@ -2124,6 +2133,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		// mapper auto-emits `tool_ready` with `confirmed: NotNeeded` paired
 		// with `tool_start`. So no special-case for subagents is needed here.)
 		const confirmationMessages = toolCallConfirmationMessages(tc, connectionAuthority);
+		const parameters = toolCallStateToParameters(tc);
 
 		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | undefined;
 		const pendingEdits = tc.edits?.items;
@@ -2166,9 +2176,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		} else {
 			const toolInput = getInlineToolInput(tc.toolInput);
 			if (toolInput) {
-				let rawInput: unknown;
-				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
-				toolSpecificData = { kind: 'input', rawInput };
+				toolSpecificData = { kind: 'input', rawInput: parameters };
 			}
 		}
 
@@ -2182,7 +2190,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			toolData,
 			tc.toolCallId,
 			subAgentInvocationId,
-			undefined,
+			parameters,
 		);
 	}
 

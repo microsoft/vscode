@@ -79,7 +79,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	constructor(
 		preparedInvocation: IPreparedToolInvocation | undefined,
-		toolData: IToolData,
+		public readonly toolData: IToolData,
 		public readonly toolCallId: string,
 		subAgentInvocationId: string | undefined,
 		parameters: unknown,
@@ -301,10 +301,10 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	/** Moves an active invocation into confirmation while preserving the same tool card. */
-	public requestConfirmation(preparedInvocation: IPreparedToolInvocation): void {
+	public requestConfirmation(preparedInvocation: IPreparedToolInvocation, parameters: unknown = this.parameters): void {
 		const currentType = this._state.get().type;
 		if (currentType === IChatToolInvocation.StateKind.Streaming) {
-			this.transitionFromStreaming(preparedInvocation, this.parameters, undefined);
+			this.transitionFromStreaming(preparedInvocation, parameters, undefined);
 			return;
 		}
 		if (currentType === IChatToolInvocation.StateKind.Completed
@@ -313,13 +313,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			return;
 		}
 
-		if (preparedInvocation.invocationMessage) {
-			this.invocationMessage = preparedInvocation.invocationMessage;
-		}
-		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
-		this.confirmationMessages = preparedInvocation.confirmationMessages;
-		this.presentation = preparedInvocation.presentation;
-		this.toolSpecificData = preparedInvocation.toolSpecificData;
+		this._updatePreparedInvocation(preparedInvocation, parameters);
 
 		if (!this.confirmationMessages?.title) {
 			return; // nothing to confirm
