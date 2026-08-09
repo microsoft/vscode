@@ -184,7 +184,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	keys.sticky.set(session?.sticky.read(reader) ?? false);
 
 	// Count committed (non-draft) chats: untitled in-composer drafts are excluded
-	// so the Conversations menu only surfaces once a session has more than one
+	// so the Chats dropdown only surfaces once a session has more than one
 	// real chat. Counts the whole chat list (open or closed) so a committed chat
 	// that was closed still keeps the menu available to reopen it.
 	const committedChatCount = session?.chats.read(reader)
@@ -214,7 +214,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
 
 	// The active chat has subagents when any tool-origin chat names it as its
-	// parent. These are listed as a separate group in the Conversations menu, so
+	// parent. These are listed as a separate group in the Chats dropdown, so
 	// the menu must surface even when the active chat is the only committed chat.
 	const allChats = session?.chats.read(reader) ?? [];
 	keys.activeChatHasSubagents.set(!!activeChat && allChats.some(chat =>

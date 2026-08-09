@@ -53,6 +53,7 @@ import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsN
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
+import { getSessionConversationGroupId } from '../../../browser/sessionConversationGroups.js';
 import './media/newSessionActionViewItem.css';
 
 // -- Show Sessions Picker --
@@ -747,7 +748,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
 	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
 	// searchable palette flow instead skips untitled drafts (no meaningful title,
-	// mirroring the Conversations submenu) and adds the closed chats below.
+	// mirroring the Chats dropdown) and adds the closed chats below.
 	const openItems = (mru
 		? session.visibleChatTabs.get()
 		: session.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
@@ -1177,15 +1178,14 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 	}
 }
 
-// The "Chats" toolbar entry is a submenu: it lists every chat in the session
-// with a checkbox. Checked chats are shown as tabs; unchecked chats are closed
-// (hidden from the tab strip). Toggling an entry closes or reopens the
-// corresponding chat. The main chat is always shown and cannot be closed, so its
-// entry is checked and disabled.
+// The "Chats" toolbar entry is backed by a submenu whose groups are rendered by
+// the Sessions workbench as an Action Widget dropdown. Checked chats are shown
+// as tabs; unchecked chats are closed (hidden from the tab strip). The main chat
+// is always shown and cannot be closed, so its entry is checked and disabled.
 //
 // It is always rendered in the session header meta row, after the pills
 // (workspace folder / changes / pull request) as the meta toolbar's default
-// submenu icon, independent of whether the chat tab strip is shown. It surfaces
+// dropdown icon, independent of whether the chat tab strip is shown. It surfaces
 // once the session has more than one committed chat, or when the active chat has
 // subagents (a separate group at the bottom lists them) even if that is the only
 // committed chat.
@@ -1199,10 +1199,10 @@ MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
 });
 
 /**
- * Populates the {@link Menus.SessionConversations} submenu for every visible
+ * Populates the {@link Menus.SessionConversations} menu for every visible
  * session. {@link Menus.SessionBarToolbar} is rendered once per session view
  * (header/floating toolbar) against that view's scoped context key service, so
- * the submenu items are scoped per session via {@link SessionIdContext}: each
+ * the menu items are scoped per session via {@link SessionIdContext}: each
  * session's per-chat toggle actions only render in (and act on) their own
  * session's toolbar. The actions are (re)registered whenever the set of visible
  * sessions or their chat lists change.
@@ -1230,7 +1230,7 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 		const that = this;
 		const extUri = this._uriIdentityService.extUri;
 
-		// Scope every entry to this session's toolbar: the submenu is rendered once
+		// Scope every entry to this session's toolbar: the menu is rendered once
 		// per session view against its own scoped context key service, where
 		// `sessionId` resolves to that view's session.
 		const scopedToSession = ContextKeyExpr.equals(SessionIdContext.key, session.sessionId);
@@ -1284,23 +1284,11 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
 				return;
 			}
-			// Subagent (tool-origin) chats are surfaced in their own group below,
-			// scoped to the currently-active chat.
-			if (chat.origin?.kind === ChatOriginKind.Tool) {
-				return;
+			const group = getSessionConversationGroupId(chat, activeChatResource, extUri);
+			if (group) {
+				registerToggle(chat, group, index);
 			}
-			registerToggle(chat, '1_chats', index);
 		});
-
-		// Subagents of the currently-active chat, shown as a separate group at the
-		// bottom (a separator divides them from the session's chats). This group
-		// changes as the active chat changes.
-		allChats
-			.filter(chat =>
-				chat.origin?.kind === ChatOriginKind.Tool &&
-				!!chat.origin.parentChat &&
-				extUri.isEqual(chat.origin.parentChat, activeChatResource))
-			.forEach((chat, index) => registerToggle(chat, '2_subagents', index));
 
 		return store;
 	}

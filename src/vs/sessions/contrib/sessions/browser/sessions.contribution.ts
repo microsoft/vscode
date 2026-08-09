@@ -26,6 +26,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID } from '../../../../workbench/contrib/chat/common/chatInputWindow.js';
 import { OmniChatEnabledSettingId } from '../../../../workbench/contrib/chat/common/sessionRouter.js';
 import { Menus } from '../../../browser/menus.js';
+import './sessionConversationGroups.contribution.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
