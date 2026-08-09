@@ -14,7 +14,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { createSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
-import { buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -70,6 +70,14 @@ suite('AgentConfigurationService', () => {
 	teardown(() => disposables.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves session config from an exact peer chat resource', () => {
+		const session = URI.from({ scheme: 'copilot', path: '/chat-owner' }).toString();
+		manager.createSession(makeSummary(session));
+		seedSessionConfig(session, { level: 'high' });
+
+		assert.deepStrictEqual(service.getSessionConfigValues(buildChatUri(session, 'peer')), { level: 'high' });
+	});
 
 	// ---- getEffectiveValue ------------------------------------------------
 

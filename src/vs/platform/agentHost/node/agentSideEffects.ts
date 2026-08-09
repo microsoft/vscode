@@ -680,7 +680,10 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
-		const sessionKey = signal.kind === 'action' ? signal.resource.toString() : signal.chat.toString();
+		const signalResource = signal.kind === 'action' ? signal.resource.toString() : signal.chat.toString();
+		const sessionKey = signal.kind === 'action' && !isChatAction(signal.action) && isAhpChatChannel(signalResource)
+			? parseRequiredSessionUriFromChatUri(signalResource)
+			: signalResource;
 
 		// Route signals with parentToolCallId to the subagent session.
 		// Both action signals and pending_confirmation signals can carry

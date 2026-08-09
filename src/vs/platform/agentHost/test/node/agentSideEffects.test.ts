@@ -2745,6 +2745,38 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
+		test('routes session actions emitted from a peer chat to its owning session', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-customization'));
+			stateManager.addChat(sessionUri.toString(), peerChatUri.toString());
+			const customization: PluginCustomization = {
+				type: CustomizationType.Plugin,
+				id: customizationId('file:///peer-plugin'),
+				uri: 'file:///peer-plugin',
+				name: 'Peer Plugin',
+				enabled: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
+			};
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: peerChatUri,
+				action: { type: ActionType.SessionCustomizationUpdated, customization },
+			});
+
+			const update = envelopes.find(e => e.action.type === ActionType.SessionCustomizationUpdated);
+			assert.deepStrictEqual({
+				channel: update?.channel,
+				customizations: stateManager.getSessionState(sessionUri.toString())?.customizations,
+			}, {
+				channel: sessionUri.toString(),
+				customizations: [customization],
+			});
+		});
+
 		test('clears client customizations when activeClient has no customizations', () => {
 			setupSession();
 

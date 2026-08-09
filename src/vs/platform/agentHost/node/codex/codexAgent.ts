@@ -3181,7 +3181,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			if (!session.serverToolsAdvertised && this._serverToolHost) {
 				session.serverToolsAdvertised = true;
-				this._serverToolHost.advertise(newSessionUri.toString());
+				this._serverToolHost.advertise(parentSession.toString());
 			}
 			this._persistMaterializedSession(session);
 			this._logService.info(`[Codex] created additional chat ${chat.toString()} backed by thread ${newThreadId} (parent ${parentSession.toString()})`);
@@ -3244,6 +3244,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._bindSessionChat(chat, result.session);
 		const newThreadId = AgentSession.id(result.session);
 		const forked = this._sessions.get(newThreadId);
+		if (forked && !forked.serverToolsAdvertised && this._serverToolHost) {
+			forked.serverToolsAdvertised = true;
+			this._serverToolHost.advertise(context.session.toString());
+		}
 		this._logService.info(`[Codex] forked chat ${chat.toString()} from ${source.source.toString()} into thread ${newThreadId} (parent ${context.session.toString()})`);
 		return {
 			backingSession: result.session,
@@ -3262,7 +3266,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * by the backing thread id and bind it to the chat URI before its history is
 	 * read. Its first send issues a `thread/resume`.
 	 */
-	async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
+	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
 		const decoded = decodeCodexChat(providerData);
 		if (!decoded) {
 			this._logService.warn(`[Codex] materializeChat: missing or corrupt providerData for ${chat.toString()}`);
@@ -3295,7 +3299,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessionIdByChatUri.set(chat.toString(), sessionId);
 		if (!session.serverToolsAdvertised && this._serverToolHost) {
 			session.serverToolsAdvertised = true;
-			this._serverToolHost.advertise(sessionUri.toString());
+			this._serverToolHost.advertise(resolveAgentChatContext(context, chat).session.toString());
 		}
 	}
 
@@ -3577,8 +3581,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * if `threadId` is already populated, just returns. Called from
 	 * `sendMessage` before the first `turn/start`.
 	 */
-	private async _materializeIfNeeded(session: ICodexSession, configResourceOrFire: URI | boolean = session.sessionUri, fireMaterializedEvent = true): Promise<void> {
-		const configResource = URI.isUri(configResourceOrFire) ? configResourceOrFire : session.sessionUri;
+	private async _materializeIfNeeded(session: ICodexSession, configResourceOrFire: URI | boolean = session.chatChannel ?? session.sessionUri, fireMaterializedEvent = true): Promise<void> {
+		const configResource = URI.isUri(configResourceOrFire) ? configResourceOrFire : session.chatChannel ?? session.sessionUri;
 		if (typeof configResourceOrFire === 'boolean') {
 			fireMaterializedEvent = configResourceOrFire;
 		}
@@ -3698,7 +3702,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		// them as server-provided. Execution happens in-process via
 		// `_handleDynamicToolCallRpc`; the tools were registered with codex in
 		// the `dynamicTools` of the `thread/start` above.
-		if (!session.serverToolsAdvertised && this._serverToolHost) {
+		const shouldAdvertiseServerTools = !session.chatChannel || isDefaultChatUri(session.chatChannel);
+		if (shouldAdvertiseServerTools && !session.serverToolsAdvertised && this._serverToolHost) {
 			session.serverToolsAdvertised = true;
 			this._serverToolHost.advertise(session.sessionUri.toString());
 		}
@@ -3716,7 +3721,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * session's current client tools are registered as `dynamicTools`.
 	 * Only safe before any turn has committed history on the thread.
 	 */
-	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.sessionUri): Promise<void> {
+	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.chatChannel ?? session.sessionUri): Promise<void> {
 		const conn = this._connection;
 		const oldThreadId = session.threadId;
 		this._logService.info(`[Codex:${session.sessionId}] restarting thread ${oldThreadId} to apply client tools [${session.clientToolSet.merged().map(t => t.name).join(', ') || '(none)'}]`);
@@ -3730,7 +3735,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		session.threadId = undefined;
 		session.materializePromise = undefined;
-		await this._materializeIfNeeded(session, configResource);
+		const fireMaterializedEvent = !session.chatChannel || isDefaultChatUri(session.chatChannel);
+		await this._materializeIfNeeded(session, configResource, fireMaterializedEvent);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
@@ -5281,7 +5287,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (isChatAction(action) && !entry?.chatChannel) {
 			throw new Error(`Codex session ${sessionUri.toString()} has no bound chat channel`);
 		}
-		this._onDidSessionProgress.fire({ kind: 'action', resource: isChatAction(action) ? entry!.chatChannel! : sessionUri, action });
+		const resource = entry?.chatChannel ?? sessionUri;
+		this._onDidSessionProgress.fire({ kind: 'action', resource, action });
 	}
 
 	override dispose(): void {
