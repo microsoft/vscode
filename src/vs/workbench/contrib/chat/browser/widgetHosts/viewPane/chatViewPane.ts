@@ -833,6 +833,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_SNAP_THRESHOLD = this.SESSIONS_SIDEBAR_MIN_WIDTH / 2; // snap to hide when dragged below half of minimum width
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
+	private static readonly SESSIONS_SIDEBAR_BORDER_WIDTH = 1;
 	private static readonly CHAT_WIDGET_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = this.CHAT_WIDGET_DEFAULT_WIDTH + this.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
 
@@ -1673,12 +1674,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return { heightReduction: 0, widthReduction: 0 };
 		}
 
-		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight;
+		const sessionsTitleHeight = this.sessionsTitleContainer.offsetHeight;
+		let availableSessionsHeight = height - sessionsTitleHeight;
+		let reservedChatWidgetHeight = 0;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			availableSessionsHeight -= Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
+			reservedChatWidgetHeight = Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
+			availableSessionsHeight -= reservedChatWidgetHeight;
 		} else {
 			availableSessionsHeight -= this.sessionsNewButtonContainer?.offsetHeight ?? 0;
 		}
+		availableSessionsHeight = Math.max(0, availableSessionsHeight);
 
 		// Show as sidebar
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
@@ -1690,7 +1695,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerSash?.layout();
 
 			heightReduction = 0; // side by side to chat widget
-			widthReduction = this.sessionsContainer.offsetWidth;
+			widthReduction = sessionsViewerSidebarWidth + ChatViewPane.SESSIONS_SIDEBAR_BORDER_WIDTH;
 		}
 
 		// Show stacked
@@ -1699,7 +1704,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsControlContainer.style.width = ``;
 			this.sessionsControl.layout(availableSessionsHeight, width);
 
-			heightReduction = this.sessionsContainer.offsetHeight;
+			heightReduction = sessionsTitleHeight + availableSessionsHeight;
 			widthReduction = 0; // stacked on top of the chat widget
 		}
 
