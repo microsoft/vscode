@@ -482,6 +482,73 @@ export function shouldFlipChatPetWideSprite(state: ChatPetState | undefined, but
 	return rightOverhang > 0 && buttonRight + rightOverhang * scale > inputRight;
 }
 
+export class ChatPetHopController extends Disposable {
+
+	private readonly _stepScheduler = this._register(new RunOnceScheduler(() => this._applyStep(), HOP_APEX_DELAY));
+	private readonly _restScheduler = this._register(new RunOnceScheduler(() => this._beginHop(), HOP_REST_DELAY));
+	private _direction = 0;
+	private _heldUntil = 0;
+	private _active = false;
+
+	constructor(private readonly callbacks: {
+		readonly onDirectionChange: (direction: number) => void;
+		readonly onMove: (delta: number) => void;
+		readonly onStart: () => void;
+		readonly onReducedMotionStart: () => void;
+		readonly onRequest: () => void;
+	}) {
+		super();
+	}
+
+	request(direction: number, motionReduced: boolean): void {
+		this._direction = direction;
+		this.callbacks.onDirectionChange(direction);
+		this.callbacks.onRequest();
+		if (motionReduced) {
+			this.cancel();
+			this.callbacks.onMove(direction * HOP_DISTANCE);
+			this.callbacks.onReducedMotionStart();
+			return;
+		}
+		this._heldUntil = Date.now() + HOP_HOLD_GRACE;
+		if (!this._active) {
+			this._beginHop();
+		}
+	}
+
+	cancel(): void {
+		this._active = false;
+		this._direction = 0;
+		this._heldUntil = 0;
+		this._stepScheduler.cancel();
+		this._restScheduler.cancel();
+	}
+
+	onAnimationComplete(): void {
+		if (!this._active) {
+			return;
+		}
+		if (Date.now() < this._heldUntil) {
+			this._restScheduler.schedule();
+		} else {
+			this._active = false;
+		}
+	}
+
+	private _beginHop(): void {
+		this._active = true;
+		this.callbacks.onStart();
+		this._stepScheduler.schedule();
+	}
+
+	private _applyStep(): void {
+		if (!this._active || this._direction === 0) {
+			return;
+		}
+		this.callbacks.onMove(this._direction * HOP_DISTANCE);
+	}
+}
+
 export class ChatPetWidget extends Disposable {
 
 	private readonly _overlay: HTMLElement;
@@ -509,8 +576,19 @@ export class ChatPetWidget extends Disposable {
 	private readonly _respawnAnimation = this._register(new MutableDisposable());
 	private readonly _respawnEffectScheduler = this._register(new RunOnceScheduler(() => this._showRespawnEffect(), RESPAWN_SIGN_DURATION));
 	private readonly _respawnFallScheduler = this._register(new RunOnceScheduler(() => this._beginRespawnFall(), RESPAWN_EFFECT_DURATION));
-	private readonly _hopStepScheduler = this._register(new RunOnceScheduler(() => this._applyHopStep(), HOP_APEX_DELAY));
-	private readonly _hopRestScheduler = this._register(new RunOnceScheduler(() => this._beginHop(), HOP_REST_DELAY));
+	private readonly _hopController = this._register(new ChatPetHopController({
+		onDirectionChange: direction => this._button.element.dataset.hopDirection = direction < 0 ? 'left' : 'right',
+		onMove: delta => this._setHorizontalPosition(this._getCurrentLeft() + delta),
+		onStart: () => {
+			if (this._transientState.get() === 'jump') {
+				this._renderState('jump', true);
+			} else {
+				this._transientState.set('jump', undefined);
+			}
+		},
+		onReducedMotionStart: () => this._transientState.set('jump', undefined),
+		onRequest: () => this._transientScheduler.schedule(HOP_IDLE_DEBOUNCE),
+	}));
 	private readonly _contextMenuActions = this._register(new MutableDisposable<DisposableStore>());
 	private _cursorPosition: readonly [number, number] | undefined;
 	private _activeSprite: ChatPetSpriteElement | undefined;
@@ -526,9 +604,6 @@ export class ChatPetWidget extends Disposable {
 	private _suppressNextPointerClick = false;
 	private _contextMenuVisible = false;
 	private _lastClickInteraction: ChatPetClickInteraction | undefined;
-	private _hopDirection = 0;
-	private _hopHeldUntil = 0;
-	private _hopActive = false;
 	private _fallLandsOnPlatform = false;
 	private _deathPosition: readonly [number, number] | undefined;
 	private _respawnPhase: 'none' | 'sign' | 'effect' | 'falling' = 'none';
@@ -780,6 +855,7 @@ export class ChatPetWidget extends Disposable {
 			}
 
 			if (!enabled) {
+				this._hopController.cancel();
 				this._idleScheduler.cancel();
 				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
@@ -793,6 +869,7 @@ export class ChatPetWidget extends Disposable {
 			}
 
 			if (isDead) {
+				this._hopController.cancel();
 				this._idleScheduler.cancel();
 				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
@@ -802,6 +879,7 @@ export class ChatPetWidget extends Disposable {
 			this._hideReviveSign();
 
 			if (onTheRun) {
+				this._hopController.cancel();
 				this._idleScheduler.cancel();
 				if (!this._searchScheduler.isScheduled()) {
 					this._searchScheduler.schedule();
@@ -829,10 +907,8 @@ export class ChatPetWidget extends Disposable {
 				this._transientState.set(undefined, undefined);
 			}
 			const renderedState = getChatPetRenderedState(baseState, transientState, isDragging);
-			if (renderedState !== 'jump') {
-				this._hopActive = false;
-				this._hopStepScheduler.cancel();
-				this._hopRestScheduler.cancel();
+			if (renderedState !== 'jump' || this._motionReduced) {
+				this._hopController.cancel();
 			}
 			this._renderState(renderedState, variantChanged, isDragging);
 		}));
@@ -1062,53 +1138,8 @@ export class ChatPetWidget extends Disposable {
 		this._wake();
 		keyboardEvent.preventDefault();
 		keyboardEvent.stopPropagation();
-		this._requestHop(direction);
+		this._hopController.request(direction, this._motionReduced);
 		status(announcement);
-	}
-
-	private _requestHop(direction: number): void {
-		this._hopDirection = direction;
-		this._button.element.dataset.hopDirection = direction < 0 ? 'left' : 'right';
-		if (this._motionReduced) {
-			this._setHorizontalPosition(this._getCurrentLeft() + direction * HOP_DISTANCE);
-			this._transientState.set('jump', undefined);
-			this._transientScheduler.schedule(HOP_IDLE_DEBOUNCE);
-			return;
-		}
-		this._hopHeldUntil = Date.now() + HOP_HOLD_GRACE;
-		this._transientScheduler.schedule(HOP_IDLE_DEBOUNCE);
-		if (!this._hopActive) {
-			this._beginHop();
-		}
-	}
-
-	private _beginHop(): void {
-		this._hopActive = true;
-		if (this._transientState.get() === 'jump') {
-			this._renderState('jump', true);
-		} else {
-			this._transientState.set('jump', undefined);
-		}
-		this._hopStepScheduler.cancel();
-		this._hopStepScheduler.schedule(HOP_APEX_DELAY);
-	}
-
-	private _applyHopStep(): void {
-		if (!this._hopActive || this._hopDirection === 0) {
-			return;
-		}
-		this._setHorizontalPosition(this._getCurrentLeft() + this._hopDirection * HOP_DISTANCE);
-	}
-
-	private _onHopComplete(): void {
-		if (!this._hopActive) {
-			return;
-		}
-		if (Date.now() < this._hopHeldUntil) {
-			this._hopRestScheduler.schedule(HOP_REST_DELAY);
-		} else {
-			this._hopActive = false;
-		}
 	}
 
 	private _getAriaLabel(onTheRun: boolean): string {
@@ -1382,6 +1413,7 @@ export class ChatPetWidget extends Disposable {
 		if (this._button.element.classList.contains('falling')) {
 			this._finishFall(false);
 		}
+		this._hopController.cancel();
 		if (this._isDragging.get()) {
 			this._isDragging.set(false, undefined);
 		}
@@ -1519,7 +1551,7 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		if (state === 'jump') {
-			this._onHopComplete();
+			this._hopController.onAnimationComplete();
 			return;
 		}
 		if (state !== 'searching' || !this.chatPetService.onTheRun.get()) {
