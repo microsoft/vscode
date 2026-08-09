@@ -54,6 +54,18 @@ export interface IAuthenticationCreateSessionOptions {
 	 */
 	authorizationServer?: URI;
 	/**
+	 * When specified, the authentication provider will request a token bound to this resource URI
+	 * (RFC 8707 resource indicator).
+	 */
+	resource?: string;
+	/**
+	 * The audience for the requested access token. Primarily used for OAuth Identity Assertion
+	 * Authorization Grant (ID-JAG, defined in `draft-ietf-oauth-identity-assertion-authz-grant` using RFC 8693 token-exchange semantics) flows where the audience identifies the authorization server of the resource that
+	 * will redeem the assertion (typically the resource's authorization server URL). Providers that do not understand audience-bound tokens should
+	 * ignore this option.
+	 */
+	audience?: string;
+	/**
 	 * Allows the authentication provider to take in additional parameters.
 	 * It is up to the provider to define what these parameters are and handle them.
 	 * This is useful for passing in additional information that is specific to the provider
@@ -107,6 +119,10 @@ export interface IAuthenticationConstraint {
  */
 export interface IAuthenticationGetSessionsOptions {
 	/**
+	 * Whether the provider must avoid user interaction while resolving existing sessions.
+	 */
+	silent?: boolean;
+	/**
 	 * The account that is being asked about. If this is passed in, the provider should
 	 * attempt to return the sessions that are only related to this account.
 	 */
@@ -116,6 +132,18 @@ export interface IAuthenticationGetSessionsOptions {
 	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * When specified, the authentication provider will request a token bound to this resource URI
+	 * (RFC 8707 resource indicator).
+	 */
+	resource?: string;
+	/**
+	 * The audience for the requested access token. Primarily used for OAuth Identity Assertion
+	 * Authorization Grant (ID-JAG, defined in `draft-ietf-oauth-identity-assertion-authz-grant` using RFC 8693 token-exchange semantics) flows where the audience identifies the authorization server of the resource that
+	 * will redeem the assertion (typically the resource's authorization server URL). Providers that do not understand audience-bound tokens should
+	 * ignore this option.
+	 */
+	audience?: string;
 	/**
 	 * Allows the authentication provider to take in additional parameters.
 	 * It is up to the provider to define what these parameters are and handle them.
@@ -142,7 +170,16 @@ export interface AllowedExtension {
 export interface IAuthenticationProviderHostDelegate {
 	/** Priority for this delegate, delegates are tested in descending priority order */
 	readonly priority: number;
-	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string): Promise<string>;
+	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<string>;
+	/**
+	 * Creates an XAA (enterprise-managed, ID-JAG) authentication provider for the given SSO issuer.
+	 * The returned string is the provider id.
+	 */
+	createXaa?(issuer: URI): Promise<string>;
+}
+
+export function getDynamicAuthenticationProviderId(authorizationServer: URI, resource: IAuthorizationProtectedResourceMetadata | undefined): string {
+	return resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -271,7 +308,16 @@ export interface IAuthenticationService {
 	 * Creates a dynamic authentication provider for the given server metadata
 	 * @param serverMetadata The metadata for the server that is being authenticated against
 	 */
-	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string): Promise<IAuthenticationProvider | undefined>;
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined>;
+
+	/**
+	 * Gets or creates a built-in XAA (enterprise-managed, ID-JAG) authentication provider for the given
+	 * SSO issuer. Subsequent calls with the same issuer return the existing provider. The returned id
+	 * can be used with {@link getSessions}/{@link createSession} just like any other provider.
+	 *
+	 * @param issuer The OAuth/OIDC issuer URL (typically read from `mcp.enterpriseManagedAuth.idp`).
+	 */
+	createOrGetXaaProvider(issuer: URI): Promise<string | undefined>;
 }
 
 export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
@@ -367,6 +413,10 @@ export interface IAuthenticationExtensionsService {
  */
 export interface IAuthenticationProviderSessionOptions {
 	/**
+	 * Whether the provider must avoid user interaction while resolving existing sessions.
+	 */
+	silent?: boolean;
+	/**
 	 * The account that is being asked about. If this is passed in, the provider should
 	 * attempt to return the sessions that are only related to this account.
 	 */
@@ -376,6 +426,18 @@ export interface IAuthenticationProviderSessionOptions {
 	 * attempt to return sessions that are only related to this authorization server.
 	 */
 	authorizationServer?: URI;
+	/**
+	 * When specified, the authentication provider will request a token bound to this resource URI
+	 * (RFC 8707 resource indicator).
+	 */
+	resource?: string;
+	/**
+	 * The audience for the requested access token. Primarily used for OAuth Identity Assertion
+	 * Authorization Grant (ID-JAG, defined in `draft-ietf-oauth-identity-assertion-authz-grant` using RFC 8693 token-exchange semantics) flows where the audience identifies the authorization server of the resource that
+	 * will redeem the assertion (typically the resource's authorization server URL). Providers that do not understand audience-bound tokens should
+	 * ignore this option.
+	 */
+	audience?: string;
 	/**
 	 * Allows the authentication provider to take in additional parameters.
 	 * It is up to the provider to define what these parameters are and handle them.

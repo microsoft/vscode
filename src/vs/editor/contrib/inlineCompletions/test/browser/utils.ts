@@ -17,6 +17,7 @@ import { IAccessibilitySignalService } from '../../../../../platform/accessibili
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
 import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
@@ -245,6 +246,7 @@ export interface IWithAsyncTestCodeEditorAndInlineCompletionsModel {
 	context: GhostTextContext;
 	store: DisposableStore;
 	logger: ITraceLogger;
+	instantiationService: TestInstantiationService;
 }
 
 export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
@@ -293,9 +295,13 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					currentDefaultAccount: null,
 					copilotTokenInfo: null,
 					onDidChangeCopilotTokenInfo: Event.None,
+					managedSettingsFetchStatus: null,
+					managedSettingsFetchedAt: null,
+					managedSettingsRawResponse: null,
 					getDefaultAccount: async () => null,
 					setDefaultAccountProvider: () => { },
 					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },
+					resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
 					refresh: async () => { return null; },
 					signIn: async () => { return null; },
 					signOut: async () => { },
@@ -316,7 +322,7 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 				const model = controller.model.get()!;
 				const context = new GhostTextContext(model, editor, logger);
 				try {
-					result = await callback({ editor, editorViewModel, model, context, store: disposableStore, logger });
+					result = await callback({ editor, editorViewModel, model, context, store: disposableStore, logger, instantiationService });
 				} finally {
 					context.dispose();
 					model.dispose();

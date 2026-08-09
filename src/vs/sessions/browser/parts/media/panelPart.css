@@ -13,10 +13,10 @@
 /* Base label: lowercase text + heavier weight + pill padding */
 .agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
 	text-transform: capitalize;
-	font-weight: 500;
-	border-radius: 4px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	border-radius: var(--vscode-cornerRadius-small);
 	padding: 0px 8px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 22px;
 }
 
@@ -47,7 +47,7 @@
 /* Active/checked state: background container instead of underline */
 .agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
 	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent) !important;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Override base workbench panel content background for terminal */

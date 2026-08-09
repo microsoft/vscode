@@ -16,7 +16,24 @@ import {
 	type ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../../node/shared/copilotApiService.js';
+import { PROXY_ERROR_PREFIX, tryParseForwardedChatError } from '../../node/shared/forwardedChatError.js';
 import { ClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+
+/**
+ * Asserts a `/v1/messages` error envelope was re-emitted with all fields
+ * unchanged except `error.message`, which carries the original message plus an
+ * appended `VSCODE_PROXY_ERROR` marker that decodes to a forwarded chat error
+ * of the expected fetch type. (The `/v1/models` path stays verbatim.)
+ */
+function assertEnvelopeWithChatErrorMarker(actual: Anthropic.ErrorResponse, original: Anthropic.ErrorResponse, expectedFetchType: string): void {
+	assert.strictEqual(actual.type, 'error');
+	assert.strictEqual(actual.request_id, original.request_id);
+	assert.strictEqual(actual.error.type, original.error.type);
+	assert.ok(actual.error.message.startsWith(`${original.error.message} ${PROXY_ERROR_PREFIX}`), `expected marker-appended message, got: ${actual.error.message}`);
+	const forwarded = tryParseForwardedChatError(actual.error.message);
+	assert.ok(forwarded, 'embedded marker should decode to a forwarded chat error');
+	assert.strictEqual(forwarded.fetchError.type, expectedFetchType);
+}
 
 // #region Test fakes
 
@@ -38,6 +55,9 @@ type MessagesResult =
 
 class FakeCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
+
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
 
 	messagesResult: MessagesResult = { kind: 'error', error: new Error('not configured') };
 	modelsResult: { kind: 'value'; value: CCAModel[] } | { kind: 'error'; error: Error } = { kind: 'value', value: [] };
@@ -118,6 +138,14 @@ class FakeCopilotApiService implements ICopilotApiService {
 			throw this.modelsResult.error;
 		}
 		return this.modelsResult.value;
+	}
+
+	async responses(): Promise<Response> {
+		throw new Error('responses not used by Claude proxy tests');
+	}
+
+	async utilityChatCompletion(): Promise<never> {
+		throw new Error('utilityChatCompletion not used by Claude proxy tests');
 	}
 }
 
@@ -324,100 +352,14 @@ suite('ClaudeProxyService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// #region Lifecycle
+	// #region Token slot
 
-	suite('Lifecycle', () => {
+	suite('Token slot', () => {
 
-		test('start() returns handle with baseUrl and 256-bit hex nonce', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				assert.match(handle.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
-				assert.match(handle.nonce, /^[0-9a-f]{64}$/);
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
-		});
-
-		test('two concurrent handles share baseUrl and nonce', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			// Issue both starts before the first bind resolves; they
-			// must share the runtime — without this the second caller
-			// will bind a second server and orphan the first.
-			const [h1, h2] = await Promise.all([
-				service.start(TOKEN),
-				service.start('gh-other'),
-			]);
-			try {
-				assert.strictEqual(h1.baseUrl, h2.baseUrl);
-				assert.strictEqual(h1.nonce, h2.nonce);
-			} finally {
-				h1.dispose();
-				h2.dispose();
-				service.dispose();
-			}
-		});
-
-		test('dispose() while start() is awaiting bind rejects the start', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const startPromise = service.start(TOKEN);
-			service.dispose();
-			await assert.rejects(() => startPromise, /disposed/);
-			// A subsequent start() must also reject — the service is
-			// disposed and no orphaned runtime should be reachable.
-			await assert.rejects(() => service.start(TOKEN), /disposed/);
-		});
-
-		test('disposing one handle while another is alive keeps server up', async () => {
-			const fake = new FakeCopilotApiService();
-			fake.modelsResult = { kind: 'value', value: [ANTHROPIC_MODEL] };
-			const service = createProxyService(fake);
-			const h1 = await service.start(TOKEN);
-			const h2 = await service.start(TOKEN);
-			h1.dispose();
-
-			const res = await fetchJson(`${h2.baseUrl}/v1/models`, {
-				headers: { 'Authorization': `Bearer ${h2.nonce}.s1` },
-			});
-			assert.strictEqual(res.status, 200);
-
-			h2.dispose();
-			service.dispose();
-		});
-
-		test('start() after refcount-0 dispose binds a new port and fresh nonce', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const h1 = await service.start(TOKEN);
-			const baseUrl1 = h1.baseUrl;
-			const nonce1 = h1.nonce;
-			h1.dispose();
-
-			const h2 = await service.start(TOKEN);
-			try {
-				assert.notStrictEqual(h2.nonce, nonce1);
-				// port may or may not be different depending on OS reuse,
-				// but baseUrl reflects whatever the new bind chose
-				assert.match(h2.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
-				// also: previous baseUrl is no longer reachable in tests
-				// — verified indirectly via fresh nonce above
-				void baseUrl1;
-			} finally {
-				h2.dispose();
-				service.dispose();
-			}
-		});
-
-		test('dispose() throws on subsequent start()', async () => {
-			const service = createProxyService(new FakeCopilotApiService());
-			service.dispose();
-			await assert.rejects(() => service.start(TOKEN), /disposed/);
-		});
-
+		// Base lifecycle/bind behavior (nonce + loopback bind, refcounted
+		// handles, dispose/rebind, dispose-during-bind) is covered by
+		// loopbackProxyServer.test.ts. This suite only covers Claude's
+		// `start()` override that wires the GitHub token into outbound calls.
 		test('start() updates token slot last-writer-wins', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.modelsResult = { kind: 'value', value: [] };
@@ -438,22 +380,6 @@ suite('ClaudeProxyService', () => {
 	});
 
 	// #endregion
-
-	// #region Bind safety
-
-	suite('Bind safety', () => {
-		test('binds only on 127.0.0.1', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				assert.ok(handle.baseUrl.startsWith('http://127.0.0.1:'));
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
-		});
-	});
 
 	// #endregion
 
@@ -808,6 +734,93 @@ suite('ClaudeProxyService', () => {
 
 	// #endregion
 
+	// #region Credits reporting
+
+	suite('Credits reporting', () => {
+
+		test('streaming: copilot_usage.total_nano_aiu fires onDidReportCredits with the session id', async () => {
+			const fake = new FakeCopilotApiService();
+			const events = makeStreamEvents('claude-opus-4.6');
+			// Attach CAPI billing to the message_delta, mirroring the real
+			// `/v1/messages` SSE shape (the published Anthropic types don't
+			// declare `copilot_usage`).
+			const delta = events.find(e => e.type === 'message_delta')!;
+			(delta as unknown as { copilot_usage: { total_nano_aiu: number } }).copilot_usage = { total_nano_aiu: 750_000_000 };
+			fake.messagesResult = { kind: 'stream', events };
+			const service = createProxyService(fake);
+			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
+			const sub = service.onDidReportCredits(e => reports.push(e));
+			const handle = await service.start(TOKEN);
+			try {
+				await fetchSse(`${handle.baseUrl}/v1/messages`, {
+					method: 'POST',
+					headers: {
+						'Authorization': `Bearer ${handle.nonce}.sess-42`,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
+				});
+				assert.deepStrictEqual(reports, [{ sessionId: 'sess-42', totalNanoAiu: 750_000_000 }]);
+			} finally {
+				sub.dispose();
+				handle.dispose();
+				service.dispose();
+			}
+		});
+
+		test('non-streaming: copilot_usage.total_nano_aiu fires onDidReportCredits', async () => {
+			const fake = new FakeCopilotApiService();
+			const message = makeMessage('claude-opus-4.6', 'hi');
+			(message as unknown as { copilot_usage: { total_nano_aiu: number } }).copilot_usage = { total_nano_aiu: 250_000_000 };
+			fake.messagesResult = { kind: 'message', message };
+			const service = createProxyService(fake);
+			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
+			const sub = service.onDidReportCredits(e => reports.push(e));
+			const handle = await service.start(TOKEN);
+			try {
+				await fetchJson(`${handle.baseUrl}/v1/messages`, {
+					method: 'POST',
+					headers: {
+						'Authorization': `Bearer ${handle.nonce}.sess-7`,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
+				});
+				assert.deepStrictEqual(reports, [{ sessionId: 'sess-7', totalNanoAiu: 250_000_000 }]);
+			} finally {
+				sub.dispose();
+				handle.dispose();
+				service.dispose();
+			}
+		});
+
+		test('no copilot_usage in the response → no credits report', async () => {
+			const fake = new FakeCopilotApiService();
+			fake.messagesResult = { kind: 'message', message: makeMessage('claude-opus-4.6', 'hi') };
+			const service = createProxyService(fake);
+			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
+			const sub = service.onDidReportCredits(e => reports.push(e));
+			const handle = await service.start(TOKEN);
+			try {
+				await fetchJson(`${handle.baseUrl}/v1/messages`, {
+					method: 'POST',
+					headers: {
+						'Authorization': `Bearer ${handle.nonce}.sess-9`,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
+				});
+				assert.deepStrictEqual(reports, []);
+			} finally {
+				sub.dispose();
+				handle.dispose();
+				service.dispose();
+			}
+		});
+	});
+
+	// #endregion
+
 	// #region Body validation
 
 	suite('Body validation', () => {
@@ -1013,7 +1026,7 @@ suite('ClaudeProxyService', () => {
 				const lastEvent = res.events.at(-1);
 				assert.ok(lastEvent);
 				assert.strictEqual(lastEvent.type, 'error');
-				assert.deepStrictEqual(lastEvent.data, upstreamEnvelope);
+				assertEnvelopeWithChatErrorMarker(lastEvent.data as Anthropic.ErrorResponse, upstreamEnvelope, 'failed');
 				const types = res.events.map(e => e.type);
 				assert.ok(!types.includes('message_stop'), 'no message_stop after error frame');
 			} finally {
@@ -1042,7 +1055,7 @@ suite('ClaudeProxyService', () => {
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
 				});
 				assert.strictEqual(res.status, 401);
-				assert.deepStrictEqual(res.parsed, envelope);
+				assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'agent_unauthorized');
 			} finally {
 				handle.dispose();
 				service.dispose();
@@ -1072,7 +1085,7 @@ suite('ClaudeProxyService', () => {
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
 				});
 				assert.strictEqual(res.status, 502);
-				assert.deepStrictEqual(res.parsed, envelope);
+				assertEnvelopeWithChatErrorMarker(res.parsed as Anthropic.ErrorResponse, envelope, 'failed');
 			} finally {
 				handle.dispose();
 				service.dispose();
@@ -1240,6 +1253,10 @@ suite('ClaudeProxyService', () => {
 				}) as ICopilotApiService['messages'],
 				countTokens: () => Promise.reject(new Error('not used')),
 				models: () => Promise.resolve([]),
+				responses: () => Promise.reject(new Error('not used')),
+				utilityChatCompletion: () => Promise.reject(new Error('not used')),
+				resolveRestrictedTelemetryContext: () => Promise.resolve({ restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }),
+				resolveApiEndpoint: () => Promise.resolve(undefined),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
 			const handle = await service.start(TOKEN);
@@ -1307,6 +1324,10 @@ suite('ClaudeProxyService', () => {
 				}) as ICopilotApiService['messages'],
 				countTokens: fake.countTokens.bind(fake),
 				models: fake.models.bind(fake),
+				responses: fake.responses.bind(fake),
+				utilityChatCompletion: fake.utilityChatCompletion.bind(fake),
+				resolveRestrictedTelemetryContext: fake.resolveRestrictedTelemetryContext.bind(fake),
+				resolveApiEndpoint: fake.resolveApiEndpoint.bind(fake),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
 			const handle = await service.start(TOKEN);

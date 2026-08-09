@@ -478,7 +478,7 @@ export class AttachContextAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.attachContext',
 			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
-			icon: Codicon.add,
+			icon: Codicon.addCompact,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
@@ -513,6 +513,8 @@ export class AttachContextAction extends Action2 {
 			}, {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inQuickChat,
+					// Hide the attach-context button in the floating input window.
+					ChatContextKeys.inChatInputWindow.negate(),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.agentSupportsAttachments

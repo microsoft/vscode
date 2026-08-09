@@ -11,11 +11,15 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
+import { IChatSideChatService } from '../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
+import { captureSideChatSelection } from '../chatSideChat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 const editingQueue = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Queue);
@@ -117,7 +121,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 			id: ChatSteerWithMessageAction.ID,
 			title: localize2('chat.steerWithMessage', "Steer with Message"),
 			tooltip: localize('chat.steerWithMessage.tooltip', "Send this message at the next opportunity, signaling the current request to yield"),
-			icon: Codicon.arrowUp,
+			icon: Codicon.newLine,
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.inputHasText,
@@ -159,6 +163,60 @@ export class ChatSteerWithMessageAction extends Action2 {
 		}
 
 		widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Steering });
+	}
+}
+
+export class ChatAskInSideChatAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.askInSideChat';
+
+	constructor() {
+		super({
+			id: ChatAskInSideChatAction.ID,
+			title: localize2('chat.askInSideChat', "Ask in Side Chat"),
+			tooltip: localize('chat.askInSideChat.tooltip', "Ask this question in a side chat without adding it to this conversation"),
+			icon: Codicon.commentDiscussion,
+			f1: false,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.inputHasText,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const sideChatService = accessor.get(IChatSideChatService);
+		const notificationService = accessor.get(INotificationService);
+		const logService = accessor.get(ILogService);
+
+		const widget = widgetService.lastFocusedWidget;
+		const sessionResource = widget?.viewModel?.model.sessionResource;
+		if (!widget || !sessionResource) {
+			return;
+		}
+
+		const query = widget.getInput().trim();
+		if (!query) {
+			return;
+		}
+
+		if (!sideChatService.canAskInSideChat(sessionResource)) {
+			notificationService.warn(localize('chat.askInSideChat.unsupported', "This conversation does not support side chats."));
+			return;
+		}
+
+		const selection = captureSideChatSelection(widget);
+
+		// Clear optimistically so the composer behaves like the queue/steer
+		// actions; the text is restored below if the side chat cannot be created.
+		widget.setInput('');
+		try {
+			await sideChatService.askInSideChat(sessionResource, query, selection);
+		} catch (err) {
+			logService.error('[askInSideChat] Failed to create side chat', err);
+			notificationService.error(localize('chat.askInSideChat.createFailed', "The side chat could not be created."));
+			if (!widget.getInput()) {
+				widget.setInput(query);
+			}
+		}
 	}
 }
 
@@ -245,7 +303,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		super({
 			id: ChatSendPendingImmediatelyAction.ID,
 			title: localize2('chat.sendPendingImmediately', "Send Immediately"),
-			icon: Codicon.arrowUp,
+			icon: Codicon.newLine,
 			f1: false,
 			category: CHAT_CATEGORY,
 			menu: [{
@@ -262,37 +320,13 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
-		const widgetService = accessor.get(IChatWidgetService);
 		const [context] = args;
 
 		if (!isRequestVM(context) || !context.pendingKind) {
 			return;
 		}
 
-		const widget = widgetService.getWidgetBySessionResource(context.sessionResource);
-		const model = widget?.viewModel?.model;
-		if (!model) {
-			return;
-		}
-
-		const pendingRequests = model.getPendingRequests();
-		const targetIndex = pendingRequests.findIndex(r => r.request.id === context.id);
-		if (targetIndex === -1) {
-			return;
-		}
-
-		// Keep the target item's kind (queued vs steering)
-		const targetRequest = pendingRequests[targetIndex];
-
-		// Reorder: move target to front, keep others in their relative order
-		const reordered = [
-			{ requestId: targetRequest.request.id, kind: targetRequest.kind },
-			...pendingRequests.filter((_, i) => i !== targetIndex).map(r => ({ requestId: r.request.id, kind: r.kind }))
-		];
-
-		chatService.setPendingRequests(context.sessionResource, reordered);
-		await chatService.cancelCurrentRequestForSession(context.sessionResource, 'queueRunNext');
-		chatService.processPendingRequests(context.sessionResource);
+		await chatService.sendPendingRequestImmediately(context.sessionResource, context.id);
 	}
 }
 
@@ -335,6 +369,7 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 export function registerChatQueueActions(): void {
 	registerAction2(ChatQueueMessageAction);
 	registerAction2(ChatSteerWithMessageAction);
+	registerAction2(ChatAskInSideChatAction);
 	registerAction2(ChatRemovePendingRequestAction);
 	registerAction2(ChatEditPendingRequestAction);
 	registerAction2(ChatSendPendingImmediatelyAction);
@@ -350,7 +385,7 @@ export function registerChatQueueActions(): void {
 		order: 1,
 	});
 	MenuRegistry.appendMenuItem(MenuId.ChatExecuteQueue, {
-		command: { id: ChatSteerWithMessageAction.ID, title: localize2('chat.steerWithMessage', "Steer with Message"), icon: Codicon.arrowUp },
+		command: { id: ChatSteerWithMessageAction.ID, title: localize2('chat.steerWithMessage', "Steer with Message"), icon: Codicon.newLine },
 		group: 'navigation',
 		order: 2,
 	});

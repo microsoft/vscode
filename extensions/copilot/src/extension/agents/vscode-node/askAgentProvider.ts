@@ -26,7 +26,7 @@ const BASE_ASK_AGENT_CONFIG: AgentConfig = {
 	agents: [],
 	tools: [
 		...DEFAULT_READ_TOOLS,
-		'vscode.mermaid-chat-features/renderMermaidDiagram',
+		'vscode.mermaid-markdown-features/renderMermaidDiagram',
 	],
 	body: '' // Generated dynamically in buildCustomizedConfig
 };

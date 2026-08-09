@@ -321,12 +321,12 @@ The default `VS Code - Build` task now runs three parallel watchers:
 | Task | What it does | Script |
 |------|-------------|--------|
 | **Core - Transpile** | esbuild single-file TS→JS (fast, no type checking) | `watch-client-transpiled` → `node build/next/index.ts transpile --watch` |
-| **Core - Typecheck** | tsgo `noEmit` watch (type errors only, no output) | `watch-clientd` → `gulp watch-client` (uses `watchTypeCheckTask`) |
+| **Core - Typecheck** | tsc `noEmit` watch (type errors only, no output) | `watch-clientd` → `gulp watch-client` (uses `watchTypeCheckTask`) |
 | **Ext - Build** | Extension compilation (unchanged) | `watch-extensionsd` |
 
 ### Key Changes
 
-- **`build/lib/compilation.ts`**: `ICompileTaskOptions` gained `noEmit?: boolean`. `watchTypeCheckTask()` runs the tsgo type-checker in watch mode with `noEmit: true`.
+- **`build/lib/compilation.ts`**: `ICompileTaskOptions` gained `noEmit?: boolean`. `watchTypeCheckTask()` runs the tsc type-checker in watch mode with `noEmit: true`.
 - **`build/gulpfile.ts`**: `watchClientTask` is now `task.parallel(compilation.watchTypeCheckTask('src'), ...)` — no `rimraf('out')` (the transpiler owns that), no JS emit.
 - **`build/next/index.ts`**: Watch mode emits `Starting transpilation...` / `Finished transpilation with N errors after X ms` for VS Code problem matcher.
 - **`.vscode/tasks.json`**: Old "Core - Build" split into "Core - Transpile" + "Core - Typecheck" with separate problem matchers (owners: `esbuild` vs `typescript`).

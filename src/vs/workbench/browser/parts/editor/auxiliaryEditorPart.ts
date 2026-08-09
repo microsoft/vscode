@@ -74,7 +74,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), IsAuxiliaryWindowContext),
-				order: 0
+				order: 0,
+				group: 'navigation'
 			}
 		});
 	}
@@ -94,7 +95,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsCompactTitleBarContext, IsAuxiliaryWindowContext),
-				order: 0
+				order: 0,
+				group: 'navigation'
 			}
 		});
 	}
@@ -448,7 +450,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 			// First close all editors that are non-confirming
 			for (const group of this.groups) {
-				group.closeAllEditors({ excludeConfirming: true });
+				group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
 
 			// Then merge remaining to main part

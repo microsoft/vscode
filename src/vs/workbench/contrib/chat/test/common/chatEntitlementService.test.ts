@@ -5,8 +5,17 @@
 
 import assert from 'assert';
 import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { parseQuotas } from '../../../../services/chat/common/chatEntitlementService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ChatEntitlementService, parseQuotas } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('parseQuotas', () => {
 
@@ -31,6 +40,7 @@ suite('parseQuotas', () => {
 			quota_snapshots: {
 				premium_interactions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: true,
 					percent_remaining: 97.4,
 					unlimited: false,
@@ -48,6 +58,7 @@ suite('parseQuotas', () => {
 			quota_snapshots: {
 				premium_interactions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 80,
 					unlimited: false,
@@ -65,18 +76,21 @@ suite('parseQuotas', () => {
 			quota_snapshots: {
 				chat: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
 				},
 				completions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
 				},
 				premium_interactions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: true,
 					percent_remaining: 97.4,
 					unlimited: false,
@@ -99,6 +113,7 @@ suite('parseQuotas', () => {
 			quota_snapshots: {
 				chat: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
@@ -106,6 +121,7 @@ suite('parseQuotas', () => {
 				},
 				completions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
@@ -113,6 +129,7 @@ suite('parseQuotas', () => {
 				},
 				premium_interactions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: true,
 					percent_remaining: 97.4,
 					unlimited: false,
@@ -126,29 +143,40 @@ suite('parseQuotas', () => {
 			resetDate: '2026-06-01T00:00:00.000Z',
 			resetDateHasTime: true,
 			usageBasedBilling: true,
+			canUpgradePlan: undefined,
 			chat: {
 				percentRemaining: 100,
 				unlimited: true,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
+				quotaRemaining: undefined,
+				creditsUsed: undefined,
 			},
 			completions: {
 				percentRemaining: 100,
 				unlimited: true,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
+				quotaRemaining: undefined,
+				creditsUsed: undefined,
 			},
 			premiumChat: {
 				percentRemaining: 97.4,
 				unlimited: false,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 3900,
+				quotaRemaining: undefined,
+				creditsUsed: undefined,
 			},
 			additionalUsageEnabled: true,
 			additionalUsageCount: 0,
+			additionalUsageEntitlement: 0,
 		});
 	});
 
@@ -160,18 +188,21 @@ suite('parseQuotas', () => {
 			quota_snapshots: {
 				chat: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 98.7,
 					unlimited: false,
 				},
 				completions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: false,
 				},
 				premium_interactions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 0,
 					unlimited: false,
@@ -195,6 +226,7 @@ suite('parseQuotas', () => {
 			quota_snapshots: {
 				chat: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
@@ -203,6 +235,7 @@ suite('parseQuotas', () => {
 				},
 				completions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
@@ -211,6 +244,7 @@ suite('parseQuotas', () => {
 				},
 				premium_interactions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 5.5,
 					unlimited: false,
@@ -237,6 +271,7 @@ suite('parseQuotas', () => {
 			quota_snapshots: {
 				chat: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
@@ -245,6 +280,7 @@ suite('parseQuotas', () => {
 				},
 				completions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
@@ -253,6 +289,7 @@ suite('parseQuotas', () => {
 				},
 				premium_interactions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: true,
@@ -276,6 +313,7 @@ suite('parseQuotas', () => {
 			quota_snapshots: {
 				chat: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 98.7,
 					unlimited: false,
@@ -284,6 +322,7 @@ suite('parseQuotas', () => {
 				},
 				completions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 100,
 					unlimited: false,
@@ -292,6 +331,7 @@ suite('parseQuotas', () => {
 				},
 				premium_interactions: {
 					overage_count: 0,
+					overage_entitlement: 0,
 					overage_permitted: false,
 					percent_remaining: 0,
 					unlimited: false,
@@ -307,5 +347,243 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.completions?.percentRemaining, 100);
 		assert.strictEqual(quotas.completions?.entitlement, 4000);
 		assert.strictEqual(quotas.premiumChat, undefined);
+	});
+
+	test('pooled entitlements exhausted when has_quota is false and overages are disabled', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				chat: {
+					overage_count: 0,
+					overage_entitlement: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				completions: {
+					overage_count: 0,
+					overage_entitlement: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				premium_interactions: {
+					overage_count: 0,
+					overage_entitlement: 0,
+					overage_permitted: false,
+					percent_remaining: 0,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, false);
+		assert.strictEqual(quotas.premiumChat?.unlimited, true);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
+	});
+
+	test('pooled entitlements not exhausted when has_quota is true', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_entitlement: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: true,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, true);
+		assert.strictEqual(quotas.premiumChat?.unlimited, true);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
+	});
+
+	test('parses quota_remaining from snapshot data', () => {
+		const data = makeEntitlementsData({
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_entitlement: 0,
+					overage_permitted: false,
+					credits_used: 499,
+					percent_remaining: 7.5,
+					unlimited: false,
+					entitlement: '20000',
+					quota_remaining: 1501,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, 1501);
+		assert.strictEqual(quotas.premiumChat?.entitlement, 20000);
+		assert.strictEqual(quotas.premiumChat?.creditsUsed, 499);
+	});
+
+	test('quotaRemaining is undefined when not present in snapshot', () => {
+		const data = makeEntitlementsData({
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_entitlement: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: false,
+					entitlement: '1000',
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, undefined);
+	});
+
+	test('pooled entitlements not exhausted when overages are enabled even if has_quota is false', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 5,
+					overage_entitlement: 0,
+					overage_permitted: true,
+					percent_remaining: 0,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, false);
+		assert.strictEqual(quotas.additionalUsageEnabled, true);
+	});
+
+	test('parses overage_entitlement from premium_interactions snapshot', () => {
+		const data = makeEntitlementsData({
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 3,
+					overage_entitlement: 50,
+					overage_permitted: true,
+					percent_remaining: 0,
+					unlimited: false,
+					entitlement: '3900',
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.additionalUsageEntitlement, 50);
+		assert.strictEqual(quotas.additionalUsageCount, 3);
+		assert.strictEqual(quotas.additionalUsageEnabled, true);
+	});
+});
+
+suite('ChatEntitlementService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(): ChatEntitlementService {
+		return store.add(new ChatEntitlementService(
+			store.add(new TestInstantiationService()),
+			new class extends mock<IProductService>() { },
+			new class extends mock<IWorkbenchEnvironmentService>() { },
+			store.add(new MockContextKeyService()),
+			new TestConfigurationService(),
+			NullTelemetryService,
+			new NullLogService(),
+			store.add(new TestStorageService()),
+		));
+	}
+
+	test('merges defined snapshot fields until the snapshot is removed', () => {
+		const service = createService();
+		service.acceptQuotas({
+			premiumChat: {
+				percentRemaining: 90,
+				unlimited: true,
+				hasQuota: true,
+				resetAt: 100,
+				usageBasedBilling: true,
+				entitlement: 1000,
+				quotaRemaining: 900,
+				creditsUsed: 100,
+			},
+		});
+
+		service.acceptQuotas({
+			premiumChat: {
+				percentRemaining: 80,
+				unlimited: true,
+				hasQuota: undefined,
+				resetAt: undefined,
+				usageBasedBilling: undefined,
+				entitlement: undefined,
+				quotaRemaining: undefined,
+				creditsUsed: undefined,
+			},
+		});
+		const merged = service.quotas.premiumChat;
+
+		service.acceptQuotas({
+			premiumChat: {
+				percentRemaining: 70,
+				unlimited: false,
+				hasQuota: false,
+				resetAt: 200,
+				usageBasedBilling: false,
+				entitlement: 2000,
+				quotaRemaining: 1300,
+				creditsUsed: 700,
+			},
+		});
+		const updated = service.quotas.premiumChat;
+
+		service.acceptQuotas({});
+
+		assert.deepStrictEqual({ merged, updated, removed: service.quotas.premiumChat }, {
+			merged: {
+				percentRemaining: 80,
+				unlimited: true,
+				hasQuota: true,
+				resetAt: 100,
+				usageBasedBilling: true,
+				entitlement: 1000,
+				quotaRemaining: 900,
+				creditsUsed: 100,
+			},
+			updated: {
+				percentRemaining: 70,
+				unlimited: false,
+				hasQuota: false,
+				resetAt: 200,
+				usageBasedBilling: false,
+				entitlement: 2000,
+				quotaRemaining: 1300,
+				creditsUsed: 700,
+			},
+			removed: undefined,
+		});
 	});
 });

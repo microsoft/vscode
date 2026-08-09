@@ -18,7 +18,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -60,7 +60,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	}
 }
 
-type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
 
 export const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY = 'chat.accessibleView.includeThinking';
@@ -152,6 +152,10 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 				return revivedUri.fsPath || revivedUri.path;
 			}).join(', '));
 		}
+		case 'automationConfigured':
+			return toolSpecificData.operation === 'created'
+				? localize('automationConfigured.created', "Created an automation: {0}", toolSpecificData.automationName)
+				: localize('automationConfigured.updated', "Edited an automation: {0}", toolSpecificData.automationName);
 		default:
 			return '';
 	}
@@ -353,6 +357,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 							toolContent += `\n${message}`;
 						}
 						contentParts.push(toolContent);
+					} else if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+						contentParts.push(localize('toolAuthenticationA11yView', "MCP authentication required for {0} to continue {1}.", state.server.name, part.toolId));
 					} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 						const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
 							? state.resultDetails.input
@@ -386,6 +392,17 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					);
 					if (description) {
 						contentParts.push(description);
+					}
+					break;
+				}
+				case 'autoModeResolution': {
+					if (part.predictedLabel === 'fallback') {
+						contentParts.push(localize('autoModeResolutionA11yFallback', "Routed to {0}. Unable to resolve.", part.resolvedModelName));
+					} else {
+						const label = part.predictedLabel === 'needs_reasoning'
+							? localize('autoModeResolutionA11yReasoning', "Reasoning")
+							: localize('autoModeResolutionA11yNonReasoning', "Non-reasoning");
+						contentParts.push(localize('autoModeResolutionA11y', "Routed to {0}. {1} - Confidence {2}%", part.resolvedModelName, label, (part.confidence * 100).toFixed(0)));
 					}
 					break;
 				}

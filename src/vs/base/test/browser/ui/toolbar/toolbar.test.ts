@@ -200,4 +200,72 @@ suite('ToolBar', () => {
 		assert.strictEqual(toolbar.getItemAction(2)?.id, ToggleMenuAction.ID);
 		assert.strictEqual(toolbar.getElement().querySelector('.monaco-action-bar')?.classList.contains('has-overflow'), true);
 	});
+
+	test('uses getAvailableWidth override instead of the element width', () => {
+		const widths = new Map<string, number>([
+			['a', 50],
+			['b', 50],
+			['c', 50],
+			[ToggleMenuAction.ID, 22],
+		]);
+
+		let availableWidth = 200;
+
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 1,
+				actionMinWidth: 22,
+				getAvailableWidth: () => availableWidth,
+			},
+			actionViewItemProvider: action => {
+				const width = widths.get(action.id);
+				return typeof width === 'number' ? new FixedWidthActionViewItem(action, width) : undefined;
+			}
+		}));
+		const actionBar = toolbar.actionBarForTest;
+		const originalGetWidth = actionBar.getWidth.bind(actionBar);
+		actionBar.getWidth = (index: number) => {
+			const action = actionBar.getAction(index);
+			return action ? (widths.get(action.id) ?? originalGetWidth(index)) : originalGetWidth(index);
+		};
+
+		// Force the element's bounding rect to a value that would otherwise hide everything
+		// to prove the toolbar uses the override callback instead.
+		const originalGetBoundingClientRect = toolbar.getElement().getBoundingClientRect.bind(toolbar.getElement());
+		(toolbar.getElement() as HTMLElement & { getBoundingClientRect(): DOMRect }).getBoundingClientRect = () => ({
+			...originalGetBoundingClientRect(),
+			width: 0,
+			right: 0,
+			left: 0,
+			x: 0,
+			y: 0,
+			top: 0,
+			bottom: 0,
+			height: 0,
+			toJSON() {
+				return {};
+			}
+		});
+
+		const actions = [
+			store.add(new Action('a', 'A')),
+			store.add(new Action('b', 'B')),
+			store.add(new Action('c', 'C')),
+		];
+
+		toolbar.setActions(actions);
+
+		// availableWidth = 200 is plenty for all 3 actions; the element's 0 width is ignored
+		assert.strictEqual(toolbar.getItemsLength(), 3);
+		assert.strictEqual(toolbar.getElement().querySelector('.monaco-action-bar')?.classList.contains('has-overflow'), false);
+
+		availableWidth = 60;
+		toolbar.relayout();
+
+		// availableWidth shrank — actions overflow into the toggle menu
+		assert.strictEqual(toolbar.getItemAction(toolbar.getItemsLength() - 1)?.id, ToggleMenuAction.ID);
+		assert.strictEqual(toolbar.getElement().querySelector('.monaco-action-bar')?.classList.contains('has-overflow'), true);
+	});
 });

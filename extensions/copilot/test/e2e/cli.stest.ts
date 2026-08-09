@@ -105,7 +105,7 @@ if (!process.env.COPILOT_API_URL) {
 function sessionOptionsFor(workingDirectory: Uri | undefined): ICreateSessionOptions {
 	return {
 		// workingDirectory,
-		model: 'claude-opus-4.7',
+		model: 'gpt-5-mini',
 		workspace: {
 			folder: workingDirectory,
 			repository: undefined,
@@ -131,9 +131,6 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 	}
 
 	class TestCopilotCLISessionService extends CopilotCLISessionService {
-		override async monitorSessionFiles() {
-			// Override to do nothing in tests
-		}
 		protected override async createSessionsOptions(options: { model?: string; workingDirectory?: Uri; workspace: IWorkspaceInfo; mcpServers?: SessionOptions['mcpServers']; sessionId?: string; debugTargetSessionIds?: readonly string[] }) {
 			const sessionOptions = await super.createSessionsOptions({ ...options, agent: undefined });
 			const mutableOptions = sessionOptions as SessionOptions;
@@ -204,9 +201,11 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async getRepositoryProperties() { return undefined; },
 		async setRepositoryProperties() { },
 		async handleRequestCompleted() { },
+		async refreshWorkspaceChanges() { },
 		async getWorkspaceChanges() { return undefined; },
 		async hasCachedChanges() { return false; },
 		clearWorkspaceChanges() { return []; },
+		getAssociatedSessions() { return []; },
 		onDidChangeWorkspaceFolderChanges: () => ({ dispose() { } }),
 	} as IChatSessionWorkspaceFolderService);
 	testingServiceCollection.define(IChatSessionWorktreeService, {
@@ -214,10 +213,12 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async createWorktree() { return undefined; },
 		async getWorktreeProperties() { return undefined; },
 		async setWorktreeProperties() { },
+		async updateWorktreeProperties() { },
 		async getWorktreeRepository() { return undefined; },
 		async getWorktreePath() { return undefined; },
 		async applyWorktreeChanges() { },
 		async getSessionIdForWorktree() { return undefined; },
+		async refreshWorktreeChanges() { },
 		async getWorktreeChanges() { return undefined; },
 		async handleRequestCompleted() { },
 		async getAdditionalWorktreeProperties() { return []; },

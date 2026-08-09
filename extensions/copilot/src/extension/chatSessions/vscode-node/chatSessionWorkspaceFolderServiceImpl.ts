@@ -116,6 +116,14 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 		return !!cachedChanges;
 	}
 
+	async refreshWorkspaceChanges(sessionId: string): Promise<void> {
+		// Clear the cache
+		this.clearWorkspaceChanges(sessionId);
+
+		// Populate the cache
+		await this.getWorkspaceChanges(sessionId);
+	}
+
 	async getWorkspaceChanges(sessionId: string): Promise<readonly ChatSessionWorktreeFile[] | undefined> {
 		return this.workspaceChangesSequencer.queue(sessionId, async () => {
 

@@ -356,9 +356,45 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 	return updatedStack;
 }
 
+const userDataRegexes = [
+	{ label: 'URL', regex: /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]*/ },
+	{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
+	{ label: 'JWT', regex: /eyJ[0eXAiOiJKV1Qi|hbGci|a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/ },
+	{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
+	{ label: 'GitHub Token', regex: /(gh[psuro]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/ },
+	{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
+	{ label: 'CLI Credentials', regex: /((login|psexec|(certutil|psexec)\.exe).{1,50}(\s-u(ser(name)?)?\s+.{3,100})?\s-(admin|user|vm|root)?p(ass(word)?)?\s+["']?[^$\-\/\s]|(^|[\s\r\n\\])net(\.exe)?.{1,5}(user\s+|share\s+\/user:| user -? secrets ? set) \s + [^ $\s \/])/ },
+	{ label: 'Microsoft Entra ID', regex: /eyJ(?:0eXAiOiJKV1Qi|hbGci|[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.)/ },
+	{ label: 'Email', regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ }
+];
+
 /**
- * Attempts to remove commonly leaked PII
- * @param property The property which will be removed if it contains user data
+ * Redacts a value if it contains commonly leaked PII.
+ * @param value The value returned (as-is) when no PII is detected
+ * @param probe The string actually matched against the PII heuristics. Defaults
+ * to `value`; callers may pass a value that includes a trailing delimiter (e.g. a
+ * newline) so that heuristics relying on a non-alphanumeric boundary match the
+ * same way they would against the original whole string.
+ * @returns A `<REDACTED: ...>` marker if the probe matched, otherwise `value`
+ */
+function redactIfPossibleUserInfo(value: string, probe: string = value): string {
+	for (const secretRegex of userDataRegexes) {
+		if (secretRegex.regex.test(probe)) {
+			return `<REDACTED: ${secretRegex.label}>`;
+		}
+	}
+	return value;
+}
+
+/**
+ * Attempts to remove commonly leaked PII.
+ *
+ * When a match is found the check is applied per line so that a single suspicious
+ * frame (e.g. a stack frame containing a function name such as `getStorageKey`
+ * which matches the broad `Generic Secret` heuristic) only redacts that line —
+ * replacing it with a `<REDACTED: ...>` marker — instead of wiping the entire
+ * multi-line value such as a whole callstack.
+ * @param property The property whose offending lines will be replaced with a redaction marker if they contain user data
  * @returns The new value for the property
  */
 function removePropertiesWithPossibleUserInfo(property: string): string {
@@ -367,26 +403,37 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 		return property;
 	}
 
-	const userDataRegexes = [
-		{ label: 'URL', regex: /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]*/ },
-		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
-		{ label: 'JWT', regex: /eyJ[0eXAiOiJKV1Qi|hbGci|a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/ },
-		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
-		{ label: 'GitHub Token', regex: /(gh[psuro]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/ },
-		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
-		{ label: 'CLI Credentials', regex: /((login|psexec|(certutil|psexec)\.exe).{1,50}(\s-u(ser(name)?)?\s+.{3,100})?\s-(admin|user|vm|root)?p(ass(word)?)?\s+["']?[^$\-\/\s]|(^|[\s\r\n\\])net(\.exe)?.{1,5}(user\s+|share\s+\/user:| user -? secrets ? set) \s + [^ $\s \/])/ },
-		{ label: 'Microsoft Entra ID', regex: /eyJ(?:0eXAiOiJKV1Qi|hbGci|[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.)/ },
-		{ label: 'Email', regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ }
-	];
-
-	// Check for common user data in the telemetry events
+	// Fast path: if nothing matches we return the value untouched without
+	// allocating. This keeps the common (no-PII) case as cheap as the previous
+	// implementation and avoids splitting potentially large callstacks.
+	let hasMatch = false;
 	for (const secretRegex of userDataRegexes) {
 		if (secretRegex.regex.test(property)) {
-			return `<REDACTED: ${secretRegex.label}>`;
+			hasMatch = true;
+			break;
 		}
 	}
+	if (!hasMatch) {
+		return property;
+	}
 
-	return property;
+	// Single line values keep the original behavior of redacting the whole value.
+	if (!property.includes('\n')) {
+		return redactIfPossibleUserInfo(property);
+	}
+
+	// Multi-line values (e.g. callstacks) are redacted line-by-line so we only
+	// drop the offending lines and preserve the rest of the information. The
+	// newline delimiter stripped by `split` is re-appended (for every line but
+	// the last) when matching so heuristics that rely on a trailing
+	// non-alphanumeric boundary behave identically to the previous whole-string
+	// check and don't under-redact the last token of a line.
+	const lines = property.split('\n');
+	for (let i = 0; i < lines.length; i++) {
+		const probe = i < lines.length - 1 ? lines[i] + '\n' : lines[i];
+		lines[i] = redactIfPossibleUserInfo(lines[i], probe);
+	}
+	return lines.join('\n');
 }
 
 

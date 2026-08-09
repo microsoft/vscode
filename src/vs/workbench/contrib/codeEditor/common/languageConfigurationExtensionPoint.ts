@@ -747,12 +747,40 @@ const schema: IJSONSchema = {
 					description: nls.localize('schema.folding.markers', 'Language specific folding markers such as \'#region\' and \'#endregion\'. The start and end regexes will be tested against the contents of all lines and must be designed efficiently'),
 					properties: {
 						start: {
-							type: 'string',
-							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.')
+							type: ['string', 'object'],
+							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.'),
+							properties: {
+								pattern: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.start.pattern', 'The RegExp pattern for the start marker.'),
+									default: '',
+								},
+								flags: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.start.flags', 'The RegExp flags for the start marker.'),
+									default: '',
+									pattern: '^([gimuy]+)$',
+									patternErrorMessage: nls.localize('schema.folding.markers.start.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+								}
+							}
 						},
 						end: {
-							type: 'string',
-							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.')
+							type: ['string', 'object'],
+							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.'),
+							properties: {
+								pattern: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.end.pattern', 'The RegExp pattern for the end marker.'),
+									default: '',
+								},
+								flags: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.end.flags', 'The RegExp flags for the end marker.'),
+									default: '',
+									pattern: '^([gimuy]+)$',
+									patternErrorMessage: nls.localize('schema.folding.markers.end.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+								}
+							}
 						},
 					}
 				}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
+use crate::commands::agent_host::{ensure_supervisor_running, ActiveAgentHost};
 use crate::constants::{AGENT_HOST_PORT, CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
@@ -26,6 +27,7 @@ use crate::util::machine::kill_pid;
 use crate::util::os::os_release;
 use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
+use futures::future::{BoxFuture, Shared};
 use futures::stream::FuturesUnordered;
 use futures::FutureExt;
 use std::collections::HashMap;
@@ -41,9 +43,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
-use super::agent_host::{
-	handle_request as handle_agent_host_request, AgentHostConfig, AgentHostManager,
-};
+use super::agent_host::serve_agent_host_tunnel_connection;
 use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
@@ -71,6 +71,29 @@ use super::socket_signal::{
 type HttpRequestsMap = Arc<std::sync::Mutex<HashMap<u32, DelegatedHttpRequest>>>;
 type CodeServerCell = Arc<Mutex<Option<SocketCodeServer>>>;
 
+/// Shared, cloneable future that resolves once the agent host supervisor
+/// is up. We kick it off from `serve()` so the tunnel can start accepting
+/// connections immediately and only block on the supervisor in places
+/// that actually need it (currently `handle_serve` and the agent-host
+/// port forwarder).
+pub type SharedActiveAgentHost =
+	Shared<BoxFuture<'static, Result<Arc<ActiveAgentHost>, Arc<AnyError>>>>;
+
+/// Wraps an already-known [`ActiveAgentHost`] into a [`SharedActiveAgentHost`]
+/// that resolves immediately, for callers that already *are* (or already
+/// know) the running supervisor and must not drive
+/// `ensure_supervisor_running`'s registry lookup/spawn path -- e.g. `code
+/// agent host --tunnel` routing its own tunneled `/agent-host` port back to
+/// itself (see [`super::agent_host::AgentHostSidecar::active_agent_host`]).
+/// Unlike the lazy future built in [`serve`] (which only resolves once a
+/// consumer actually awaits it), this is eagerly ready, since the caller
+/// already has every field it needs.
+pub fn ready_active_agent_host(active: ActiveAgentHost) -> SharedActiveAgentHost {
+	futures::future::ready(Ok(Arc::new(active)))
+		.boxed()
+		.shared()
+}
+
 struct HandlerContext {
 	/// Log handle for the server
 	log: log::Logger,
@@ -96,6 +119,11 @@ struct HandlerContext {
 	http: Arc<FallbackSimpleHttp>,
 	/// requests being served by the client
 	http_requests: HttpRequestsMap,
+	/// Shared handle to the background `ensure_supervisor_running` task,
+	/// awaited in `handle_serve` to mix the bridge info into the spawned
+	/// server's args. `None` for callers (e.g. `command-shell`) that
+	/// already applied the bridge eagerly.
+	active_agent_host: Option<SharedActiveAgentHost>,
 }
 
 /// Handler auth state.
@@ -187,40 +215,37 @@ pub async fn serve(
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
 
-	// Set up the agent host manager for on-demand server start on AGENT_HOST_PORT
-	let agent_host_manager = AgentHostManager::new(
-		log.clone(),
-		platform,
-		launcher_paths.server_cache.clone(),
-		Arc::new(ReqwestSimpleHttp::new()),
-		AgentHostConfig {
-			server_data_dir: code_server_args.server_data_dir.clone(),
-			without_connection_token: true,
-			connection_token: None,
-			connection_token_file: None,
-		},
-	);
+	// The supervisor is the only process that binds the user-facing TCP
+	// listener and publishes the canonical registry entry; we never spawn
+	// an in-process sidecar here. This future is genuinely lazy: nothing
+	// drives it until a consumer that actually needs the legacy (v5)
+	// single-supervisor endpoint awaits a clone of it — currently
+	// `handle_serve`'s `agentHostProxy` bridge, and the root/default route
+	// of the `agent-host` port forwarder below. A tunnel that nobody
+	// connects to must not spawn a standalone supervisor by itself; the
+	// protocol-v6 selection route (also below) consults the registry
+	// directly instead and never touches this future.
+	let active_agent_host: SharedActiveAgentHost = {
+		let launcher_paths = launcher_paths.clone();
+		let log = log.clone();
+		async move {
+			ensure_supervisor_running(&launcher_paths, &log)
+				.await
+				.map(Arc::new)
+				.map_err(Arc::new)
+		}
+		.boxed()
+		.shared()
+	};
+	// `code tunnel` has no `--user-data-dir` of its own -- the registry the
+	// selection gateway consults always lives under the platform default
+	// user data path here. Resolved once and passed explicitly into
+	// `serve_agent_host_tunnel_connection` below so the router never has
+	// to guess which directory to look at (see that function's doc
+	// comment).
+	let agent_host_user_data_path = super::user_data_path::resolve_user_data_path(None);
 
-	// Eagerly resolve the latest version and start background updates
-	if option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH").is_none() {
-		let mgr = agent_host_manager.clone();
-		let log_for_init = log.clone();
-		tokio::spawn(async move {
-			match mgr.get_latest_release().await {
-				Ok(release) => {
-					if let Err(e) = mgr.ensure_downloaded(&release).await {
-						warning!(log_for_init, "Error downloading latest server: {}", e);
-					}
-				}
-				Err(e) => warning!(log_for_init, "Error resolving latest version: {}", e),
-			}
-		});
-
-		let mgr = agent_host_manager.clone();
-		tokio::spawn(async move {
-			mgr.run_update_loop().await;
-		});
-	}
+	let code_server_args = code_server_args.clone();
 
 	if !code_server_args.install_extensions.is_empty() {
 		info!(
@@ -246,7 +271,6 @@ pub async fn serve(
 		tokio::select! {
 			Ok(reason) = shutdown_rx.wait() => {
 				info!(log, "Shutting down: {}", reason);
-				agent_host_manager.kill_running_server().await;
 				drop(signal_exit);
 				return Ok(ServerTermination {
 					next: match reason {
@@ -258,7 +282,6 @@ pub async fn serve(
 			},
 			c = rx.recv() => {
 				if let Some(ServerSignal::Respawn) = c {
-					agent_host_manager.kill_running_server().await;
 					drop(signal_exit);
 					return Ok(ServerTermination {
 						next: Next::Respawn,
@@ -270,22 +293,19 @@ pub async fn serve(
 				forwarding.process(w, &mut tunnel).await;
 			},
 			Some(socket) = agent_host_port.recv() => {
-				let mgr = agent_host_manager.clone();
-				let ah_log = log.clone();
+				let log = log.clone();
+				let active_agent_host = active_agent_host.clone();
+				let launcher_paths = launcher_paths.clone();
+				let user_data_path = agent_host_user_data_path.clone();
 				tokio::spawn(async move {
-					debug!(ah_log, "Serving new agent host connection");
-					let rw = socket.into_rw();
-					let svc = hyper::service::service_fn(move |req| {
-						let mgr = mgr.clone();
-						async move { handle_agent_host_request(mgr, req).await }
-					});
-					if let Err(e) = hyper::server::conn::http1::Builder::new()
-						.serve_connection(hyper_util::rt::TokioIo::new(rw), svc)
-						.with_upgrades()
-						.await
-					{
-						debug!(ah_log, "Agent host connection ended: {:?}", e);
-					}
+					serve_agent_host_tunnel_connection(
+						log,
+						socket.into_rw(),
+						active_agent_host,
+						launcher_paths,
+						user_data_path,
+					)
+					.await;
 				});
 			},
 			l = port.recv() => {
@@ -306,6 +326,7 @@ pub async fn serve(
 				let own_exit = exit_barrier.clone();
 				let own_code_server_args = code_server_args.clone();
 				let own_forwarding = forwarding.handle();
+				let own_active_agent_host = active_agent_host.clone();
 
 				tokio::spawn(async move {
 					debug!(own_log, "Serving new connection");
@@ -318,6 +339,7 @@ pub async fn serve(
 						platform,
 						exit_barrier: own_exit,
 						requires_auth: AuthRequired::None,
+						active_agent_host: Some(own_active_agent_host),
 					}).await;
 				});
 			}
@@ -340,6 +362,7 @@ pub struct ServeStreamParams {
 	pub platform: Platform,
 	pub requires_auth: AuthRequired,
 	pub exit_barrier: Barrier<ShutdownSignal>,
+	pub active_agent_host: Option<SharedActiveAgentHost>,
 }
 
 pub async fn serve_stream(
@@ -371,6 +394,7 @@ fn make_socket_rpc(
 	requires_auth: AuthRequired,
 	platform: Platform,
 	http_requests: HttpRequestsMap,
+	active_agent_host: Option<SharedActiveAgentHost>,
 ) -> RpcDispatcher<MsgPackSerializer, HandlerContext> {
 	let server_bridges = ServerMultiplexer::new();
 	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
@@ -393,6 +417,7 @@ fn make_socket_rpc(
 			http_delegated,
 		)),
 		http_requests,
+		active_agent_host,
 	});
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
@@ -572,6 +597,7 @@ async fn process_socket(
 		code_server_args,
 		platform,
 		requires_auth,
+		active_agent_host,
 	} = params;
 
 	let (http_delegated, mut http_rx) = DelegatedSimpleHttp::new(log.clone());
@@ -590,6 +616,7 @@ async fn process_socket(
 		requires_auth,
 		platform,
 		http_requests.clone(),
+		active_agent_host,
 	);
 
 	{
@@ -774,6 +801,22 @@ async fn handle_serve(
 	csa.connection_token = params.connection_token.or(csa.connection_token);
 	csa.install_extensions.extend(params.extensions);
 
+	// Mix in the agent-host bridge info now that we actually need to spawn
+	// the VS Code server. `active_agent_host` is genuinely lazy (see the
+	// comment in `serve()`), so awaiting it here is what first drives the
+	// supervisor to start. If it failed we still serve — the renderer
+	// just won't see `agentHostProxy`.
+	if let Some(ah_fut) = c.active_agent_host.clone() {
+		match ah_fut.await {
+			Ok(a) => a.apply_to_bridge(&mut csa),
+			Err(e) => warning!(
+				c.log,
+				"Agent host supervisor unavailable; renderer will not see agentHostProxy: {}",
+				e
+			),
+		}
+	}
+
 	let params_raw = ServerParamsRaw {
 		commit_id: params.commit_id,
 		quality: params.quality,
@@ -830,6 +873,8 @@ async fn handle_serve(
 				Ok(s) => s,
 				Err(e) => {
 					// we don't loop to avoid doing so infinitely: allow the client to reconnect in this case.
+					// Permission errors (ServerNotExecutable) are not "corruption" -- re-downloading
+					// will not fix them, so skip eviction and let the user see the real error.
 					if let AnyError::CodeError(CodeError::ServerUnexpectedExit(ref e)) = e {
 						warning!(
 							c.log,

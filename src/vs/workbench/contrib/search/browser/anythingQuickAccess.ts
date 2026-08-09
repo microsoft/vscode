@@ -30,7 +30,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
-import { Range, IRange } from '../../../../editor/common/core/range.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { top } from '../../../../base/common/arrays.js';
 import { FileQueryCacheState } from '../common/cacheState.js';
@@ -1109,7 +1109,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
-			selection: options.range ? Range.collapseToStart(options.range) : undefined
+			selection: options.range
 		};
 
 		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;

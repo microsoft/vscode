@@ -122,6 +122,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			if (e.isOperation(FileOperation.MOVE)) {
 				this.handleMovedFileInOpenedFileEditors(e.resource, this.uriIdentityService.asCanonicalUri(e.target.resource));
 			}
+			if (e.isOperation(FileOperation.DELETE)) {
+				this.handleDeletedFile(e.resource);
+			}
 		}));
 
 		const PRIORITY = 105;
@@ -177,8 +180,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						label: contributedEditor.displayName,
 						detail: contributedEditor.providerDisplayName,
 						priority: contributedEditor.priority,
-						diffEditorPriority: contributedEditor.diffEditorPriority,
-						mergeEditorPriority: contributedEditor.mergeEditorPriority,
 					},
 					{
 						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false)
@@ -400,6 +401,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return activeEditorPane?.input instanceof CustomEditorInput;
 	}
 
+	private handleDeletedFile(resource: URI): void {
+		// Dispose all custom editor models associated with the deleted resource
+		// to prevent stale references that can cause issues when recreating files with the same name
+		this._models.disposeAllModelsForResource(resource);
+	}
+
 	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {
 		if (extname(oldResource).toLowerCase() === extname(newResource).toLowerCase()) {
 			return;
@@ -408,7 +415,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const possibleEditors = this.getAllCustomEditors(newResource);
 
 		// See if we have any non-optional custom editor for this resource
-		if (!possibleEditors.allEditors.some(editor => editor.priority !== RegisteredEditorPriority.option)) {
+		if (!possibleEditors.allEditors.some(editor => editor.priority.editor !== RegisteredEditorPriority.option)) {
 			return;
 		}
 

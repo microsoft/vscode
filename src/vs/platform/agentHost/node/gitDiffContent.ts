@@ -3,26 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeHex, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
-import { basename } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 
 const GIT_BLOB_SCHEME = 'git-blob';
+
+interface IGitBlobUriQuery {
+	readonly sessionUri: string;
+	readonly sha: string;
+	readonly repoRelativePath: string;
+}
 
 /**
  * Builds a `git-blob:` URI that references a file blob at a specific git
  * commit, scoped to a given session. Resolved by reading the session's
  * working directory and shelling out to `git show <sha>:<path>`.
  *
- * The session URI is preserved so the resolver can find the session's
- * working directory; the SHA and repository-relative path identify the
- * blob to fetch.
+ * The URI path is the absolute working-tree path so resource labels show a
+ * recognizable file path and so the "before" side lines up with the
+ * working-tree "after" side in diff editors. The session URI, SHA, and
+ * repository-relative path needed to fetch the blob are carried in the
+ * query.
+ *
+ * @param sessionUri Session the blob belongs to; used to find the working
+ *   directory.
+ * @param sha Git commit/ref the blob is read from.
+ * @param repoRelativePath Repository-relative path passed to `git show`.
+ * @param absolutePath Absolute working-tree path used as the display path.
  */
-export function buildGitBlobUri(sessionUri: string, sha: string, repoRelativePath: string): string {
+export function buildGitBlobUri(sessionUri: string, sha: string, repoRelativePath: string, absolutePath: string): string {
 	return URI.from({
 		scheme: GIT_BLOB_SCHEME,
-		authority: encodeHex(VSBuffer.fromString(sessionUri)).toString(),
-		path: `/${encodeURIComponent(sha)}/${encodeHex(VSBuffer.fromString(repoRelativePath))}/${basename(repoRelativePath)}`,
+		path: absolutePath,
+		query: JSON.stringify({ sessionUri, sha, repoRelativePath } satisfies IGitBlobUriQuery),
 	}).toString();
 }
 
@@ -44,20 +56,20 @@ export function parseGitBlobUri(raw: string): IGitBlobUriFields | undefined {
 	} catch {
 		return undefined;
 	}
-	if (parsed.scheme !== GIT_BLOB_SCHEME) {
-		return undefined;
-	}
-	const [, sha, encodedPath] = parsed.path.split('/');
-	if (!sha || !encodedPath) {
+	if (parsed.scheme !== GIT_BLOB_SCHEME || !parsed.query) {
 		return undefined;
 	}
 	try {
-		return {
-			sessionUri: decodeHex(parsed.authority).toString(),
-			sha: decodeURIComponent(sha),
-			repoRelativePath: decodeHex(encodedPath).toString(),
-		};
+		const query = JSON.parse(parsed.query) as Partial<IGitBlobUriQuery>;
+		if (typeof query.sessionUri === 'string' && typeof query.sha === 'string' && typeof query.repoRelativePath === 'string') {
+			return {
+				sessionUri: query.sessionUri,
+				sha: query.sha,
+				repoRelativePath: query.repoRelativePath,
+			};
+		}
 	} catch {
 		return undefined;
 	}
+	return undefined;
 }

@@ -1,9 +1,8 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"rootDir": "./src",
+		"rootDir": ".",
 		"outDir": "./dist/",
-		"jsx": "react",
 		"module": "es2020",
 		"lib": [
 			"ES2024",
@@ -13,8 +12,6 @@
 		"types": [
 			"node"
 		],
-		"typeRoots": [
-			"../node_modules/@types"
-		]
+		"skipLibCheck": true
 	}
 }

@@ -216,6 +216,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			}
 			if (output === undefined) {
 				try {
+					const startMarkerDisposed = this._startMarker.value?.line === -1;
 					output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 					this._log('Fetched output via markers');
 
@@ -223,6 +224,11 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					// prompt lines. Strip them to isolate the actual command output.
 					if (output !== undefined) {
 						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
+					}
+
+					if (startMarkerDisposed) {
+						this._log('Start marker was disposed (output exceeded scrollback), output may be truncated from the beginning');
+						additionalInformationLines.push('Output exceeded terminal scrollback; beginning of output was lost');
 					}
 				} catch {
 					this._log('Failed to fetch output via markers');

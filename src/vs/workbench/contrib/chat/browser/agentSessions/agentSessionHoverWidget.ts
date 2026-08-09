@@ -15,6 +15,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatModel } from '../../common/model/chatModel.js';
@@ -38,7 +39,6 @@ export class AgentSessionHoverWidget extends Disposable {
 	private readonly contentElement: HTMLElement;
 	private readonly loadingElement: HTMLElement;
 	private readonly renderScheduler: RunOnceScheduler;
-	private hasRendered = false;
 	private readonly cts: CancellationTokenSource;
 
 	constructor(
@@ -73,15 +73,30 @@ export class AgentSessionHoverWidget extends Disposable {
 	onRendered() {
 		this.modelRef ??= this.loadModel();
 
-		if (!this.hasRendered) {
-			this.hasRendered = true;
-			this.renderScheduler.schedule();
-		} else {
-			this.listWidget?.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+		if (this.listWidget) {
+			this.listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+			this.listWidget.refresh();
+			return;
 		}
+
+		this.renderScheduler.schedule();
+	}
+
+	onHidden() {
+		this.renderScheduler.cancel();
 	}
 
 	private async loadModel() {
+		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be loaded here:
+		// loading its model subscribes/restores it on the agent host, which adopts
+		// (migrates) it. Migration must happen only on explicit open, so render the
+		// fallback tooltip from the summary instead of loading the model.
+		if (this.session.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
+			this.loadingElement.remove();
+			const tooltip = this.buildFallbackTooltip(this.session);
+			this.domNode.textContent = typeof tooltip === 'string' ? tooltip : tooltip.value;
+			return;
+		}
 		const modelRef = await this.chatService.acquireOrLoadSession(this.session.resource, ChatAgentLocation.Chat, this.cts.token, 'AgentSessionHoverWidget#loadModel');
 		if (this._store.isDisposed) {
 			modelRef?.dispose();
@@ -103,7 +118,13 @@ export class AgentSessionHoverWidget extends Disposable {
 	private async render() {
 		this.modelRef ??= this.loadModel();
 		const model = await this.modelRef;
-		if (!model || this._store.isDisposed) {
+		if (!model || this._store.isDisposed || !this.domNode.isConnected) {
+			return;
+		}
+
+		if (this.listWidget) {
+			this.listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+			this.listWidget.refresh();
 			return;
 		}
 
@@ -131,15 +152,20 @@ export class AgentSessionHoverWidget extends Disposable {
 				currentChatMode: () => ChatModeKind.Ask,
 			}
 		));
+		this.listWidget = listWidget;
 		listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
 		listWidget.setScrollLock(true);
 		listWidget.setViewModel(viewModel);
 		listWidget.refresh();
 
-		const viewModelScheudler = this._register(new RunOnceScheduler(() => listWidget.refresh(), 500));
+		const viewModelScheduler = this._register(new RunOnceScheduler(() => {
+			if (this.domNode.isConnected) {
+				listWidget.refresh();
+			}
+		}, 500));
 		this._register(viewModel.onDidChange(() => {
-			if (!viewModelScheudler.isScheduled()) {
-				viewModelScheudler.schedule();
+			if (this.domNode.isConnected && !viewModelScheduler.isScheduled()) {
+				viewModelScheduler.schedule();
 			}
 		}));
 
