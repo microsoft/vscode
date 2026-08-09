@@ -123,6 +123,8 @@ export const HasDockedDetailsContext = new RawContextKey<boolean>('agentSessions
 export const SinglePaneDiffEditorInputActiveContext = new RawContextKey<boolean>('agentSessionsSinglePaneDiffEditorInputActive', false, localize('agentSessionsSinglePaneDiffEditorInputActive', "Whether the active single-pane editor input is a diff, independent of the editor used to render it"));
 export const SinglePaneChangesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabMissing', false, localize('agentSessionsSinglePaneChangesTabMissing', "Whether the single-pane session supports a Changes editor but its tab is not currently open"));
 export const SinglePaneFilesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabMissing', false, localize('agentSessionsSinglePaneFilesTabMissing', "Whether the single-pane session supports a Files tab but its tab is not currently open"));
+export const SinglePaneChangesTabAvailableContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabAvailable', false, localize('agentSessionsSinglePaneChangesTabAvailable', "Whether the single-pane session supports a Changes editor"));
+export const SinglePaneFilesTabAvailableContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabAvailable', false, localize('agentSessionsSinglePaneFilesTabAvailable', "Whether the single-pane session supports a Files editor"));
 
 //#endregion
 

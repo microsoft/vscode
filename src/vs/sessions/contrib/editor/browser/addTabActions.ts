@@ -16,8 +16,8 @@ import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/brow
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { SinglePaneChangesTabMissingContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -40,6 +40,8 @@ const addTabLayoutWhen = ContextKeyExpr.and(
 	IsTopRightEditorGroupContext,
 	MainEditorAreaVisibleContext);
 
+const singleEditorTitleWhen = EditorTabsVisibleContext.negate();
+
 export class NewFileTabAction extends Action2 {
 
 	constructor() {
@@ -60,7 +62,10 @@ export class NewFileTabAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				// Only offer when the Files tab is not already shown.
-				when: ContextKeyExpr.and(addTabLayoutWhen, SinglePaneFilesTabMissingContext)
+				when: ContextKeyExpr.and(
+					addTabLayoutWhen,
+					SinglePaneFilesTabAvailableContext,
+					ContextKeyExpr.or(singleEditorTitleWhen, SinglePaneFilesTabMissingContext))
 			}
 		});
 	}
@@ -161,7 +166,10 @@ export class NewChangesTabAction extends Action2 {
 				group: 'navigation',
 				order: 0,
 				// Only offer when the session has a Changes editor but its tab is closed.
-				when: ContextKeyExpr.and(addTabLayoutWhen, SinglePaneChangesTabMissingContext)
+				when: ContextKeyExpr.and(
+					addTabLayoutWhen,
+					SinglePaneChangesTabAvailableContext,
+					ContextKeyExpr.or(singleEditorTitleWhen, SinglePaneChangesTabMissingContext))
 			}
 		});
 	}
