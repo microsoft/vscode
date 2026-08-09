@@ -5179,11 +5179,11 @@ declare module 'vscode' {
 	 *
 	 * Providers can delay the computation of the {@linkcode CompletionItem.detail detail}
 	 * and {@linkcode CompletionItem.documentation documentation} properties by implementing the
-	 * {@linkcode CompletionItemProvider.resolveCompletionItem resolveCompletionItem}-function. However, properties that
+	 * {@linkcode CompletionItemProvider.resolveCompletionItem resolveCompletionItem} function. However, properties that
 	 * are needed for the initial sorting and filtering, like `sortText`, `filterText`, `insertText`, and `range`, must
 	 * not be changed during resolve.
 	 *
-	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
+	 * Providers are asked for completions either explicitly by a user gesture or--depending on the configuration--
 	 * implicitly when typing words or trigger characters.
 	 */
 	export interface CompletionItemProvider<T extends CompletionItem = CompletionItem> {
