@@ -11,38 +11,30 @@
 		"uncovered": []
 	},
 	"notifications": {
-		"covered": 3,
+		"covered": 4,
 		"total": 8,
-		"percentage": 37.5,
+		"percentage": 50,
 		"uncovered": [
 			"auth/required",
-			"otlp/exportLogs",
 			"otlp/exportMetrics",
 			"otlp/exportTraces",
 			"root/progress"
 		]
 	},
 	"actions": {
-		"covered": 68,
+		"covered": 75,
 		"total": 85,
-		"percentage": 80,
+		"percentage": 88.23,
 		"uncovered": [
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"chat/error",
 			"chat/inputAnswerChanged",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
-			"chat/toolCallResultConfirmed",
 			"session/activityChanged",
-			"session/creationFailed",
 			"session/customizationRemoved",
-			"session/customizationToggled",
 			"session/defaultChatChanged",
-			"session/mcpServerStartRequested",
-			"session/mcpServerStateChanged",
-			"session/mcpServerStopRequested",
 			"terminal/commandDetectionAvailable"
 		]
 	}

@@ -8,12 +8,12 @@ import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
-import { ISessionGitHubState, readSessionGitHubState, readSessionGitState, SessionLifecycle, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, SessionLifecycle, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
 import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentService } from '../common/agentService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -110,12 +110,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				return;
 			}
 
-			const pr = await this._octoKitService.findPullRequestByHeadBranch(
-				gitHubState.owner, gitHubState.repo, branchName, authToken, this._pullRequestAbortController.signal, gitState?.githubHeadOwner);
+			const pr = await this._findPullRequestForCheckout(state, gitHubState.owner, gitHubState.repo, gitState, branchName, authToken);
 			if (!pr?.url) {
 				// No pull request for this branch (yet). The previously known
 				// pull request, if any, keeps being reported and the lookup is
 				// retried on the next refresh.
+				this._logService.trace(`[AgentHostGitStateService][attachSessionGitHubPullRequest] No pull request found for ${sessionKey} on branch ${branchName}`);
 				return;
 			}
 
@@ -127,15 +127,41 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				return;
 			}
 
-			await this.setSessionGitHubState(sessionKey, {
-				owner: gitHubState.owner,
-				repo: gitHubState.repo,
-				pullRequestUrl: pr.url,
-				pullRequestBranchName: branchName
-			} satisfies ISessionGitHubState);
+			const currentGitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+			await this.setSessionGitHubState(sessionKey, withMostRecentSessionPullRequest(currentGitHubState, pr.url, branchName));
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
 		}
+	}
+
+	/**
+	 * Resolves the pull request of the branch that is currently checked out,
+	 * preferring the remote head branch and falling back to the commit at HEAD
+	 * for local branches whose name never reached the remote.
+	 */
+	private async _findPullRequestForCheckout(state: ISessionWithDefaultChat, owner: string, repo: string, gitState: ISessionGitState | undefined, branchName: string, authToken: string): Promise<CreatedPullRequest | undefined> {
+		const signal = this._pullRequestAbortController.signal;
+		// An upstream on a non-GitHub remote says nothing about GitHub, so its
+		// branch is ignored here as it is when creating a pull request.
+		const githubHeadOwner = gitState?.githubHeadOwner;
+		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
+		const headBranch = upstreamBranch?.branch ?? branchName;
+		const headOwner = upstreamBranch && githubHeadOwner ? githubHeadOwner : owner;
+
+		const pullRequestByBranch = await this._octoKitService.findPullRequestByHeadBranch(owner, repo, headBranch, authToken, signal, headOwner);
+		if (pullRequestByBranch) {
+			return pullRequestByBranch;
+		}
+
+		const workingDirectory = state.workingDirectories?.[0];
+		if (!workingDirectory) {
+			return undefined;
+		}
+
+		const headSha = await this._gitService.revParse(URI.parse(workingDirectory), 'HEAD');
+		return headSha
+			? this._octoKitService.findPullRequestByHeadSha(owner, repo, headSha, authToken, signal)
+			: undefined;
 	}
 
 	/**

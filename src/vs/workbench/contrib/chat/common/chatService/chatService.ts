@@ -1293,21 +1293,22 @@ export interface IChatAgentFeedbackReviewComment {
  * Command ids the agent feedback review confirmation renderer (workbench/chat)
  * uses to fetch unreviewed comments and apply the user's selection. They are
  * implemented by the agent feedback feature in `vs/sessions`, keeping the chat
- * layer decoupled from the feedback model. Most take the owning session resource
- * (`UriComponents`) as their first argument; {@link AgentFeedbackReviewCommandId.RevealAt}
- * instead resolves the session from the file resource so a rendered tool call
- * can link to a comment without knowing the session URI.
+ * layer decoupled from the feedback model. Most take the rendered session or chat
+ * resource (`UriComponents`) as their first argument and resolve it to the owning
+ * session; {@link AgentFeedbackReviewCommandId.RevealAt} instead resolves the
+ * session from the file resource so a rendered tool call can link to a comment
+ * without knowing the session URI.
  */
 export const enum AgentFeedbackReviewCommandId {
-	/** `(sessionResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
+	/** `(sessionOrChatResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
 	GetComments = '_agentFeedbackReview.getComments',
-	/** `(sessionResource, commentId)` -> opens the file and reveals the comment. */
+	/** `(sessionOrChatResource, commentId)` -> opens the file and reveals the comment. */
 	Reveal = '_agentFeedbackReview.reveal',
 	/** `(resourceUri, range)` -> resolves the owning session and reveals the comment at that file range. */
 	RevealAt = '_agentFeedbackReview.revealAt',
-	/** `(sessionResource, commentId)` -> deletes the comment entirely. */
+	/** `(sessionOrChatResource, commentId)` -> deletes the comment entirely. */
 	Delete = '_agentFeedbackReview.delete',
-	/** `(sessionResource, commentIds)` -> accepts (reveals) the given comments. */
+	/** `(sessionOrChatResource, commentIds)` -> accepts (reveals) the given comments. */
 	Accept = '_agentFeedbackReview.accept',
 }
 
@@ -1751,6 +1752,7 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
+	readonly reasonCode?: 'cancelled' | 'providerRemoved';
 	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
 	readonly newSessionResource?: URI;
 }
@@ -1764,6 +1766,8 @@ export interface ChatSendResultSent {
 
 export interface ChatSendResultQueued {
 	readonly kind: 'queued';
+	/** The id of the request model created for this queued message. */
+	readonly requestId: string;
 	/**
 	 * Promise that resolves when the queued message is actually processed.
 	 * Will resolve to a 'sent' or 'rejected' result.

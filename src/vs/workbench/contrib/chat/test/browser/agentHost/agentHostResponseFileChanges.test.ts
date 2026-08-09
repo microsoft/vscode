@@ -138,6 +138,32 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		], [1, 1]);
 	});
 
+	test('bounds per-request observable caches', () => {
+		const ds = store.add(new DisposableStore());
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(new FakeAgentConnection(), authority, () => backendSession));
+		const firstChanges = provider.getChangesForRequest(chatResource, 'request-0');
+		const firstFileEdits = provider.getFileEditsForRequest(chatResource, 'request-0');
+
+		for (let index = 1; index <= 1100; index++) {
+			provider.getChangesForRequest(chatResource, `request-${index}`);
+			provider.getFileEditsForRequest(chatResource, `request-${index}`);
+		}
+
+		const perRequest = Reflect.get(provider, '_perRequest') as { readonly size: number };
+		const perRequestFileEdits = Reflect.get(provider, '_perRequestFileEdits') as { readonly size: number };
+		assert.deepStrictEqual({
+			perRequestSize: perRequest.size,
+			perRequestFileEditsSize: perRequestFileEdits.size,
+			firstChangesEvicted: provider.getChangesForRequest(chatResource, 'request-0') !== firstChanges,
+			firstFileEditsEvicted: provider.getFileEditsForRequest(chatResource, 'request-0') !== firstFileEdits,
+		}, {
+			perRequestSize: 1000,
+			perRequestFileEditsSize: 1000,
+			firstChangesEvicted: true,
+			firstFileEditsEvicted: true,
+		});
+	});
+
 	test('classifies project files as workspace files without working directories', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();

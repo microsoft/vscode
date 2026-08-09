@@ -49,6 +49,8 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 
 const $ = DOM.$;
 
@@ -168,16 +170,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 /**
  * Pure helper for building the dropdown actions shown by the **Add Models** button.
  *
- * Exposed for unit testing. When `supportsAddingModels` is false, no actions are returned
- * regardless of the other inputs so that the existing entitlement/managed-by-organization
- * restriction is preserved.
+ * Exposed for unit testing. The Copilot sign-in action is independent of whether adding
+ * configurable BYOK vendors is supported.
  */
 export function buildAddModelsDropdownActions(
 	configurableVendors: ILanguageModelProviderDescriptor[],
 	supportsAddingModels: boolean,
 	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => void | Promise<void>,
+	runCopilotSignInAction?: () => void | Promise<void>,
 ): IAction[] {
-	if (!supportsAddingModels) {
+	if (!supportsAddingModels && !runCopilotSignInAction) {
 		return [];
 	}
 
@@ -208,13 +210,28 @@ export function buildAddModelsDropdownActions(
 		}
 	});
 
-	const actions: IAction[] = sortedVendors.map(toVendorAction);
-	if (customEndpointVendor) {
-		if (actions.length > 0) {
-			actions.push(new Separator());
+	const vendorActions: IAction[] = supportsAddingModels ? sortedVendors.map(toVendorAction) : [];
+	if (supportsAddingModels && customEndpointVendor) {
+		if (vendorActions.length > 0) {
+			vendorActions.push(new Separator());
 		}
-		actions.push(toVendorAction(customEndpointVendor));
+		vendorActions.push(toVendorAction(customEndpointVendor));
 	}
+
+	const actions: IAction[] = [];
+	if (runCopilotSignInAction) {
+		actions.push(toAction({
+			id: 'signIn-github-copilot',
+			label: localize('models.signInGitHubCopilot', "GitHub Copilot"),
+			run: async () => {
+				await runCopilotSignInAction();
+			},
+		}));
+	}
+	if (actions.length > 0 && vendorActions.length > 0) {
+		actions.push(new Separator());
+	}
+	actions.push(...vendorActions);
 
 	return actions;
 }
@@ -503,6 +520,7 @@ interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
 	readonly providerIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
+	readonly sourceDescription: HTMLElement;
 	readonly modelStatusIcon: HTMLElement;
 	readonly deprecationLinkContainer: HTMLElement;
 	readonly deprecationLink: Link;
@@ -527,7 +545,10 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const nameContainer = DOM.append(container, $('.model-name-container'));
 		const statusIcon = DOM.append(nameContainer, $('.status-icon'));
 		const providerIcon = DOM.append(nameContainer, $('.model-provider-icon'));
+		providerIcon.setAttribute('aria-hidden', 'true');
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
+		const sourceDescription = DOM.append(nameContainer, $('.model-source-description'));
+		sourceDescription.style.display = 'none';
 		const deprecationLinkContainer = DOM.append(nameContainer, $('.model-deprecation-link'));
 		deprecationLinkContainer.style.display = 'none';
 		const deprecationLink = disposables.add(this.instantiationService.createInstance(Link, deprecationLinkContainer, { label: '', href: '' }, {}));
@@ -537,6 +558,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 			statusIcon,
 			providerIcon,
 			nameLabel,
+			sourceDescription,
 			modelStatusIcon,
 			deprecationLinkContainer,
 			deprecationLink,
@@ -549,6 +571,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		DOM.clearNode(templateData.modelStatusIcon);
 		templateData.providerIcon.className = 'model-provider-icon';
 		templateData.providerIcon.style.display = 'none';
+		templateData.sourceDescription.textContent = '';
+		templateData.sourceDescription.style.display = 'none';
 		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
 		templateData.deprecationLinkContainer.style.display = 'none';
 		super.renderElement(entry, index, templateData);
@@ -556,9 +580,13 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
-		if (entry.chatgptSubscription) {
-			templateData.providerIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.openai));
+		if (entry.sourcePresentation?.icon) {
+			templateData.providerIcon.classList.add(...ThemeIcon.asClassNameArray(entry.sourcePresentation.icon));
 			templateData.providerIcon.style.display = '';
+		}
+		if (entry.sourcePresentation?.description) {
+			templateData.sourceDescription.textContent = entry.sourcePresentation.description;
+			templateData.sourceDescription.style.display = '';
 		}
 
 		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
@@ -1081,9 +1109,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 	}
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IProviderColumnTemplateData): void {
-		templateData.providerElement.textContent = entry.chatgptSubscription
-			? localize('models.chatgptSubscriptionProvider', "Models provided by your ChatGPT subscription")
-			: '';
+		templateData.providerElement.textContent = '';
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IProviderColumnTemplateData): void {
@@ -1119,6 +1145,7 @@ export class ChatModelsWidget extends Disposable {
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
+	private defaultAccountResolved = false;
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
 
@@ -1139,6 +1166,7 @@ export class ChatModelsWidget extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -1147,6 +1175,16 @@ export class ChatModelsWidget extends Disposable {
 		this.viewModel = this._register(this.instantiationService.createInstance(ChatModelsViewModel));
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
+			this.defaultAccountResolved = true;
+			this.updateAddModelsButton();
+		}));
+		this.defaultAccountService.getDefaultAccount().then(() => {
+			if (!this._store.isDisposed) {
+				this.defaultAccountResolved = true;
+				this.updateAddModelsButton();
+			}
+		});
 
 		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => this.viewModel.refresh());
 		this.editorProgressService.showWhile(loadingPromise, 300);
@@ -1620,9 +1658,12 @@ export class ChatModelsWidget extends Disposable {
 			configurableVendors,
 			supportsAddingModels,
 			vendor => this.addModelsForVendor(vendor),
+			this.defaultAccountResolved && this.defaultAccountService.currentDefaultAccount === null
+				? () => this.commandService.executeCommand(CHAT_SETUP_ACTION_ID)
+				: undefined,
 		);
 
-		this.addButton.enabled = supportsAddingModels && this.dropdownActions.length > 0;
+		this.addButton.enabled = this.dropdownActions.length > 0;
 		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
 	}
 
