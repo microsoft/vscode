@@ -934,6 +934,8 @@ creating after its draft was replaced is disposed before activation.
 
 Provider add notifications are authoritative upserts. A provisional `listSessions()` entry may already be cached when the backend publishes its materialized project and working directory, so providers update the existing session adapter in place and report it as changed rather than replacing its identity.
 
+Providers initialize synchronous session caches before registration completes. Read APIs such as `getSessions()` and `getSession()` must not populate a cache and synchronously emit `onDidChangeSessions`, because callers can read them while rendering a session-list tree update.
+
 ### First-Time Window-Open Telemetry
 
 Editor entry points pass an `AgentsWindowOpenSource` through `INativeHostService.openAgentsWindow` and the `vscode:selectAgentsFolder` startup handoff. The source distinguishes command-palette, keyboard, title-bar, chat-title, handoff-tip, discovery-banner, and command-line opens without collecting workspace or session identifiers.
