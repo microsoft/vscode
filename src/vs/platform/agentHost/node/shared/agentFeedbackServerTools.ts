@@ -10,6 +10,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { parseChatUri, type Annotation, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
+import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
 /**
@@ -608,10 +609,10 @@ function getFeedbackToolDisplay(toolName: string, _args: unknown, result?: IServ
  */
 export const feedbackServerToolGroup: IServerToolGroup = {
 	definitions: feedbackServerToolDefinitions,
-	requiresConfirmation(toolName): boolean {
+	canRequireConfirmation(toolName): boolean {
 		return feedbackToolRequiresConfirmation(toolName);
 	},
-	requiresConfirmationForSession(stateManager, chatUri, toolName): boolean {
+	requiresConfirmation(stateManager, chatUri, toolName): boolean {
 		if (!feedbackToolRequiresConfirmation(toolName)) {
 			return false;
 		}

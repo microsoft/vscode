@@ -5976,8 +5976,8 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		confirmationRequiredForSession = false;
 
 		advertise(): void { }
-		requiresConfirmation(): boolean { return true; }
-		requiresConfirmationForSession(): boolean { return this.confirmationRequiredForSession; }
+		canRequireConfirmation(): boolean { return true; }
+		requiresConfirmation(): boolean { return this.confirmationRequiredForSession; }
 		executeTool(): string { return 'ok'; }
 	}
 

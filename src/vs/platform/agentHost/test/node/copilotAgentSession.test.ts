@@ -7792,9 +7792,9 @@ suite('CopilotAgentSession', () => {
 				this.advertised.push(sessionUri);
 			}
 
-			requiresConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
+			canRequireConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
 
-			requiresConfirmationForSession(_sessionUri: string, toolName: string): boolean { return this.sessionConfirmationToolNames.has(toolName); }
+			requiresConfirmation(_sessionUri: string, toolName: string): boolean { return this.sessionConfirmationToolNames.has(toolName); }
 
 			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });

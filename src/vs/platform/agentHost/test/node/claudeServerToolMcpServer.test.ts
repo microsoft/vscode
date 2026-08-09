@@ -50,9 +50,9 @@ class FakeServerToolHost implements IAgentServerToolHost {
 
 	advertise(): void { }
 
-	requiresConfirmation(_toolName: string): boolean { return false; }
+	canRequireConfirmation(_toolName: string): boolean { return false; }
 
-	requiresConfirmationForSession(_sessionUri: string, _toolName: string): boolean { return false; }
+	requiresConfirmation(_sessionUri: string, _toolName: string): boolean { return false; }
 
 	executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 		this.executions.push({ sessionUri, toolName, rawArgs });

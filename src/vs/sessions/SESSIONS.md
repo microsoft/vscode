@@ -462,7 +462,7 @@ The picker disables **Reveal Selected** when no comments are selected. When ther
 are no created comments or pending selections to reveal, providers execute the
 empty tool call without presenting a confirmation, regardless of permission mode:
 Copilot and Claude gate their confirmation on
-`IAgentServerToolHost.requiresConfirmationForSession`, while Codex runs server
+`IAgentServerToolHost.requiresConfirmation`, while Codex runs server
 tools as dynamic tool calls, which never round-trip for approval.
 
 Per-session view state (the last active chat, the set of closed chats, grid

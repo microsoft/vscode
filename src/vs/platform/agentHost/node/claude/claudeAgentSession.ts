@@ -773,12 +773,15 @@ export class ClaudeAgentSession extends Disposable {
 				...(clientServers ?? {}),
 				...(serverToolServer ? { [CLAUDE_SERVER_TOOL_MCP_SERVER_NAME]: serverToolServer } : {}),
 			};
-		// Exclude server tools that require user confirmation from the
+		// Exclude server tools that can require user confirmation from the
 		// auto-approve allow-list so the SDK surfaces them via `canUseTool`
-		// (the host then renders a custom confirmation) instead of running them
-		// silently.
+		// (the host then decides per call whether to render a confirmation)
+		// instead of running them silently. This must use the session-independent
+		// answer: the allow-list is baked into the SDK options here and would go
+		// stale if a tool were allow-listed while it happened to have nothing to
+		// confirm.
 		const autoApproveToolNames = serverToolHost
-			? serverToolHost.toolNames.filter(name => !serverToolHost.requiresConfirmation(name))
+			? serverToolHost.toolNames.filter(name => !serverToolHost.canRequireConfirmation(name))
 			: undefined;
 		return { mcpServers, allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined };
 	}

@@ -341,11 +341,11 @@ suite('AgentFeedbackServerTools', () => {
 			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions);
 		});
 
-		test('requiresConfirmation reflects the owning group', () => {
+		test('canRequireConfirmation reflects the owning group', () => {
 			assert.deepStrictEqual({
-				view: host.requiresConfirmation(viewUnreviewedCommentsToolName),
-				list: host.requiresConfirmation(listCommentsToolName),
-				unknown: host.requiresConfirmation('nope'),
+				view: host.canRequireConfirmation(viewUnreviewedCommentsToolName),
+				list: host.canRequireConfirmation(listCommentsToolName),
+				unknown: host.canRequireConfirmation('nope'),
 			}, {
 				view: true,
 				list: false,
@@ -353,32 +353,32 @@ suite('AgentFeedbackServerTools', () => {
 			});
 		});
 
-		test('requiresConfirmationForSession only prompts when comments can be revealed', async () => {
+		test('requiresConfirmation only prompts when comments can be revealed', async () => {
 			const annotationsUri = buildAnnotationsUri(sessionResource);
 			const chatUri = buildChatUri(sessionResource, 'peer-chat-1');
-			const empty = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+			const empty = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('accepted', 'accepted', false, 'already accepted', 'prReview'),
 			});
-			const acceptedOnly = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+			const acceptedOnly = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('created', 'created', false, 'new comment', 'codeReview'),
 			});
-			const created = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
-			const peerChat = host.requiresConfirmationForSession(chatUri, viewUnreviewedCommentsToolName);
+			const created = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const peerChat = host.requiresConfirmation(chatUri, viewUnreviewedCommentsToolName);
 
 			await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
-			const delivered = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+			const delivered = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('pending', 'accepted', false, 'selected comment', 'prReview', true),
 			});
-			const pendingSelection = host.requiresConfirmationForSession(sessionResource, viewUnreviewedCommentsToolName);
+			const pendingSelection = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
 
 			assert.deepStrictEqual({
 				empty,

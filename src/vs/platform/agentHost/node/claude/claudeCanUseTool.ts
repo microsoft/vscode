@@ -128,7 +128,7 @@ async function dispatchCanUseTool(
 	const serverToolHost = deps.serverToolHost;
 	if (serverToolName
 		&& serverToolHost?.toolNames.includes(serverToolName)
-		&& !serverToolHost.requiresConfirmationForSession(session.chatChannelUri.toString(), serverToolName)
+		&& !serverToolHost.requiresConfirmation(session.chatChannelUri.toString(), serverToolName)
 	) {
 		return { behavior: 'allow', updatedInput: input };
 	}
