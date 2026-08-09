@@ -372,17 +372,44 @@ with a delay. Its workspace step is shared with V2, so it appears only when no
 workspace is preselected. Once that step completes (or is skipped because a
 workspace was preselected), the sequence advances to a non-visual `run` step
 that finds the mounted editable new-session composer through
-`INewSessionComposerService` and fills its input with a task-prompt template over
-2.5 seconds. The run step awaits typing and forwards sequence cancellation;
-cancellation or composer disposal preserves only the text already typed, while
-explicit placeholder activation completes the template before replacement. Run
-steps count in sequence telemetry but not in spotlight progress; V3 therefore
-has two sequence steps while displaying one spotlight step. Reduced-motion and
-screen-reader modes fill the template at once; an existing draft is never
-replaced, and editing during the animation cancels the remaining generated text.
-The task placeholder uses the same themed highlight as slash commands. Clicking
-it, or placing the caret inside and pressing Enter, removes the placeholder,
-focuses the input, and places the caret at the replacement position.
+`INewSessionComposerService`. The `prompt` and `githubPrompt` variations fill the
+input over 2.5 seconds. The `options` variation first shows four loading
+skeletons, then resolves up to two assigned, unlinked GitHub issues followed by
+up to two authored pull requests with failing CI or unaddressed review comments.
+`options` is the default when no variation treatment is assigned; `prompt` and
+`githubPrompt` remain available as explicit treatments and developer overrides.
+Any remaining slots are filled, in order, by the standard Implement a feature,
+Fix a bug, Fix CI, and Address PR comments options. GitHub work is resolved
+silently with bounded cancellable lookups and shared issue/pull-request state
+icons; failures and timeouts leave every candidate completed by that point in
+place and fill the rest with standard options. Changing the selected workspace
+clears the repository-specific option set immediately, shows loading skeletons,
+and starts a fresh lookup for the replacement draft so cards from the previous
+repository cannot be inserted into the new workspace. Clearing the workspace
+cancels the active lookup, removes only untouched/generated option text, and
+hides the widget so stale results cannot reappear.
+
+Selecting the first option focuses the input immediately and animates its prompt
+into an empty input. Later selections replace the generated prompt immediately.
+A different option can replace the input only while it is empty, exactly matches
+the previously selected prompt, or exactly matches that prompt after its editable
+placeholder was activated and removed. Any other edit disables every option but
+preserves the selected presentation; clearing the input or restoring either exact
+generated form enables them again. The option widget remains mounted after
+selection and is disposed with the composer. Standard prompts contain
+action-specific editable placeholders and the same inspect, explain, implement,
+and validate guidance as the prompt variation.
+
+The run step awaits typing or option resolution and forwards sequence
+cancellation; cancellation or composer disposal preserves only text already
+typed and removes unresolved loading UI, while explicit placeholder activation
+completes the template before replacement. Run steps count in sequence telemetry
+but not in spotlight progress; V3 therefore has two sequence steps while
+displaying one spotlight step. Reduced-motion and screen-reader modes fill a
+selected template at once. The task placeholder uses the same themed highlight
+as slash commands. Clicking it, or placing the caret inside and pressing Enter,
+removes the placeholder, focuses the input, and places the caret at the
+replacement position.
 
 Non-visual onboarding behavior must not be attached to a spotlight payload as a
 completion callback. Model heterogeneous tours with the sequence presentation

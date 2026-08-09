@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -46,6 +47,7 @@ const setInputNotificationVisible = Reflect.get(NewChatWidget.prototype, 'setInp
 const isInputOnboardingVisible = Reflect.get(NewChatWidget.prototype, 'isInputOnboardingVisible') as (this: IChatTipVisibilityHarness) => boolean;
 const isChatTipSuppressed = Reflect.get(NewChatWidget.prototype, 'isChatTipSuppressed') as (this: IChatTipVisibilityHarness) => boolean;
 const updateChatTipVisibility = Reflect.get(NewChatWidget.prototype, 'updateChatTipVisibility') as (this: IChatTipVisibilityHarness) => void;
+const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
 
 interface IChatTipVisibilityHarness {
 	_isInputOnboardingVisible: boolean;
@@ -56,6 +58,12 @@ interface IChatTipVisibilityHarness {
 	updateChatTipVisibility(): void;
 	_clearChatTip(): void;
 	_renderChatTip(): void;
+}
+
+interface IPromptOptionsWorkspaceHarness {
+	readonly uriIdentityService: { readonly extUri: typeof extUri };
+	readonly _newChatInput: { clearPromptOptions(): void };
+	_refreshPromptOptions(): Promise<void>;
 }
 
 function createChatTipVisibilityHarness(visibilityChanges: string[], storageValues: Map<string, number> = new Map()): IChatTipVisibilityHarness {
@@ -162,6 +170,24 @@ suite('NewChatWidget', () => {
 		await Promise.all([first, second]);
 
 		assert.deepStrictEqual({ tokenCount: tokens.length, firstCancelledWhenSecondStarted }, { tokenCount: 2, firstCancelledWhenSecondStarted: true });
+	});
+
+	test('refreshes prompt options when the draft workspace changes', () => {
+		const changes: string[] = [];
+		const harness: IPromptOptionsWorkspaceHarness = {
+			uriIdentityService: { extUri },
+			_newChatInput: { clearPromptOptions: () => changes.push('cleared') },
+			_refreshPromptOptions: async () => { changes.push('refreshed'); },
+		};
+		const first = URI.file('/first');
+		const second = URI.file('/second');
+
+		handlePromptOptionsWorkspaceChange.call(harness, first, second);
+		handlePromptOptionsWorkspaceChange.call(harness, second, second);
+		handlePromptOptionsWorkspaceChange.call(harness, second, undefined);
+		handlePromptOptionsWorkspaceChange.call(harness, undefined, first);
+
+		assert.deepStrictEqual(changes, ['refreshed', 'cleared', 'refreshed']);
 	});
 
 	test('hides tips for notifications until all suppressors are inactive', () => {
