@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -13,12 +14,15 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
-import { IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
-import { AutomationRunTrigger, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { createAutomationService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
+const TARGET: AutomationTarget = { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
+const SESSION_RESOURCE = 'vscode-chat-session://copilot/sess-1';
 
 class FakeLeaderElection implements IAutomationLeaderElection {
 	private readonly _isLeader: ISettableObservable<boolean>;
@@ -58,12 +62,16 @@ class RecordingRunner implements IAutomationRunner {
 	): IAutomationRunOperation {
 		this.runs.push({ automationId: automation.id, trigger });
 		const operation = (async () => {
-			const run = await this.service.recordRunStart(automation.id, trigger, leaderWindowId);
-			await this.service.updateRun(run.id, { status: 'completed' });
+			const claim = await this.service.recordRunStart(automation.id, trigger, leaderWindowId);
+			if (!claim.claimed) {
+				return { kind: 'alreadyRunning', activeRun: claim.run } satisfies IAutomationRunDispatch;
+			}
+			const run = await this.service.updateRun(claim.run.id, { status: 'completed' }) ?? claim.run;
+			return { kind: 'started', run, sessionResource: SESSION_RESOURCE } satisfies IAutomationRunDispatch;
 		})();
 		return {
 			whenDispatched: operation,
-			whenCompleted: operation,
+			whenCompleted: operation.then(() => undefined),
 		};
 	}
 }
@@ -76,7 +84,7 @@ class SkippingRunner implements IAutomationRunner {
 	runOnce(automation: IAutomation, trigger: AutomationRunTrigger): IAutomationRunOperation {
 		this.runs.push({ automationId: automation.id, trigger });
 		return {
-			whenDispatched: Promise.resolve(),
+			whenDispatched: Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' }),
 			whenCompleted: Promise.resolve(),
 		};
 	}
@@ -97,7 +105,7 @@ suite('AutomationSchedulerCore', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		const runner = new RecordingRunner(service);
 		// Start as non-leader so individual tests can seed automations
 		// before triggering the leader's catch-up pass.
@@ -128,7 +136,7 @@ suite('AutomationSchedulerCore', () => {
 	test('on becoming leader, runs catch-up for due automations exactly once', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		// nextRunAt is T0+1h; advance the clock past it so the row is due.
 		setNow(T_PAST_DUE);
 		leader.set(true);
@@ -142,7 +150,7 @@ suite('AutomationSchedulerCore', () => {
 	test('delayed scheduled ticks use trigger=schedule', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		setNow(T_PAST_DUE);
 		leader.set(true);
 		await core.waitForPendingRuns();
@@ -158,7 +166,7 @@ suite('AutomationSchedulerCore', () => {
 	test('disabled automations are not dispatched', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		await service.updateAutomation(a.id, { enabled: false });
 		setNow(T_PAST_DUE);
 		leader.set(true);
@@ -170,7 +178,7 @@ suite('AutomationSchedulerCore', () => {
 	test('advances nextRunAt so the same automation is not picked up again on the next tick', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		setNow(T_PAST_DUE);
 		leader.set(true);
 		await core.waitForPendingRuns();
@@ -190,9 +198,9 @@ suite('AutomationSchedulerCore', () => {
 	test('does not report a run until the runner records its claim', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
-		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		const leader = new FakeLeaderElection(false);
 		const runner = new SkippingRunner();
 		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
@@ -217,10 +225,45 @@ suite('AutomationSchedulerCore', () => {
 		});
 	});
 
+	test('retries a still-due automation when target availability changes', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const log = new NullLogService();
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		service.setClockForTesting(() => T0);
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
+		const runner = new SkippingRunner();
+		const leader = new FakeLeaderElection(false);
+		const onDidChangeTargetAvailability = teardown.add(new Emitter<void>());
+		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
+			leaderElection: leader,
+			disableAutoTick: true,
+			now: () => T_PAST_DUE,
+			onDidChangeTargetAvailability: onDidChangeTargetAvailability.event,
+		}));
+
+		leader.set(true);
+		await core.waitForPendingRuns();
+		onDidChangeTargetAvailability.fire();
+		await core.waitForPendingRuns();
+
+		assert.deepStrictEqual({
+			dispatches: runner.runs,
+			lastRunAt: service.getAutomation(automation.id)?.lastRunAt,
+			nextRunAt: service.getAutomation(automation.id)?.nextRunAt,
+		}, {
+			dispatches: [
+				{ automationId: automation.id, trigger: 'catch_up' },
+				{ automationId: automation.id, trigger: 'schedule' },
+			],
+			lastRunAt: undefined,
+			nextRunAt: automation.nextRunAt,
+		});
+	});
+
 	test('does nothing while not leader', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		setNow(T_PAST_DUE);
 		await core.waitForPendingRuns();
 		await core.tickForTesting();
@@ -235,13 +278,13 @@ suite('AutomationSchedulerCore', () => {
 	test('on becoming leader, fails any leftover pending/running runs as crash recovery', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const firstService = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const firstService = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		firstService.setClockForTesting(() => T0);
-		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
-		const run = await firstService.recordRunStart(a.id, 'manual', 1);
+		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
+		const run = (await firstService.recordRunStart(a.id, 'manual', 1)).run;
 		firstService.dispose();
 
-		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
 		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(true);
@@ -260,7 +303,7 @@ suite('AutomationSchedulerCore', () => {
 	test('losing then regaining leadership re-runs catch-up', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		setNow(T_PAST_DUE);
 		leader.set(true);
 		await core.waitForPendingRuns();
@@ -287,10 +330,10 @@ suite('AutomationSchedulerCore', () => {
 		// runs that were active across the toggle.
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
-		const inFlight = await service.recordRunStart(a.id, 'schedule', 1);
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
+		const inFlight = (await service.recordRunStart(a.id, 'schedule', 1)).run;
 
 		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(true);
@@ -326,12 +369,12 @@ suite('AutomationSchedulerCore', () => {
 	test('runOneWithTimeout: a hung run is cancelled, marked failed, and the next due automation still fires', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 
 		let now = T0;
 		service.setClockForTesting(() => now);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
-		const b = await service.createAutomation({ name: 'B', prompt: 'q', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
+		const b = await service.createAutomation({ name: 'B', prompt: 'q', schedule: hourly(), target: TARGET });
 
 		// The first run hangs until cancellation and tries to record `Cancelled`,
 		// matching the real runner's timeout behavior.
@@ -345,7 +388,7 @@ suite('AutomationSchedulerCore', () => {
 				this.calls++;
 				const whenCompleted = this._run(automation, trigger, leaderWindowId, token);
 				return {
-					whenDispatched: Promise.resolve(),
+					whenDispatched: Promise.resolve({ kind: 'notStarted', reason: 'error' }),
 					whenCompleted,
 				};
 			}

@@ -132,6 +132,7 @@ suite('CopilotApiService', () => {
 			if (url.endsWith('/copilot_internal/user')) {
 				return new Response(JSON.stringify({
 					login: 'octocat',
+					copilotignore_enabled: true,
 					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
 				}), { status: 200 });
 			}
@@ -154,6 +155,7 @@ suite('CopilotApiService', () => {
 			isInternal: true,
 			userName: 'octocat',
 			isVscodeTeamMember: true,
+			copilotIgnoreEnabled: true,
 		});
 	});
 
@@ -446,14 +448,25 @@ suite('CopilotApiService', () => {
 
 		suite('CAPI URL override (VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE)', () => {
 			const ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+			const SMOKE_TEST_ENV = 'VSCODE_SMOKE_TEST_PROXY_HEADER';
 			let saved: string | undefined;
+			let savedSmokeTestEnv: string | undefined;
 
-			setup(() => { saved = process.env[ENV]; });
+			setup(() => {
+				saved = process.env[ENV];
+				savedSmokeTestEnv = process.env[SMOKE_TEST_ENV];
+				delete process.env[SMOKE_TEST_ENV];
+			});
 			teardown(() => {
 				if (saved === undefined) {
 					delete process.env[ENV];
 				} else {
 					process.env[ENV] = saved;
+				}
+				if (savedSmokeTestEnv === undefined) {
+					delete process.env[SMOKE_TEST_ENV];
+				} else {
+					process.env[SMOKE_TEST_ENV] = savedSmokeTestEnv;
 				}
 			});
 
@@ -474,8 +487,27 @@ suite('CopilotApiService', () => {
 				assert.strictEqual(discoveryHit, false, 'discovery must be skipped for a loopback override');
 			});
 
+			test('the reserved smoke-test host skips discovery only with the proxy marker', async () => {
+				process.env[ENV] = 'http://vscode-smoke.test:12345';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'the smoke-test override must skip endpoint discovery');
+			});
+
 			test('a non-loopback override is ignored and normal discovery runs (no token leak)', async () => {
 				process.env[ENV] = 'https://evil.example.com';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
 				let discoveryHit = false;
 				const service = createService(async (input) => {
 					const url = getUrl(input);
@@ -533,6 +565,28 @@ suite('CopilotApiService', () => {
 			const body = JSON.parse(captured().init?.body as string);
 
 			assert.strictEqual(body.max_tokens, 8192);
+		});
+
+		test('sends utility maxTokens as max_tokens in the body', async () => {
+			let capturedBody: string | undefined;
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					return tokenResponse();
+				}
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				capturedBody = init?.body as string;
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-tok', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+				maxTokens: 32,
+			});
+
+			assert.strictEqual(JSON.parse(capturedBody ?? '{}').max_tokens, 32);
 		});
 
 		test('non-streaming sends stream=false in the body', async () => {

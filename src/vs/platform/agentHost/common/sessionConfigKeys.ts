@@ -31,6 +31,8 @@ export const enum SessionConfigKey {
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
 	/** `'worktreeIncludeFiles'` — host-owned glob patterns for files copied into a new worktree. */
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
+	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
+	WorktreeBranchTrack = 'worktreeBranchTrack',
 }
 
 /**
@@ -39,12 +41,9 @@ export const enum SessionConfigKey {
  * session's schema is "well-known" (and therefore handled by the dedicated
  * permission picker rather than the generic per-property fallback).
  *
- * `default` is the required baseline level; `autoApprove` is the offered
- * elevated level. `assisted` and `autopilot` are retained here purely for
- * backward/forward compatibility so a session whose schema was resolved by an
- * older or newer agent host (advertising those values) still renders the
- * dedicated picker rather than disappearing. The picker itself only ever
- * *offers* `default` / `autoApprove` (see the delegate's `availableLevels`).
+ * `default` is the required baseline level; `assisted` and `autoApprove` are
+ * offered elevated levels. `autopilot` is retained for backward compatibility
+ * with sessions created before it moved onto the mode axis.
  */
 export const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default', 'assisted', 'autoApprove', 'autopilot']);
 

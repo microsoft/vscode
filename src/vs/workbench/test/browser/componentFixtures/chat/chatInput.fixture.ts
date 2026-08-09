@@ -103,4 +103,15 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 			todos: sampleTodos,
 		})
 	}),
+	// Standalone dictation / Voice Mode controls, shown when the segmented voice
+	// pill isn't active. Each state changes part of the border / color / glow
+	// cascade, so they are covered individually.
+	VoiceDictationIdle: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'dictationIdle' }) }),
+	VoiceDictationRecording: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'dictationRecording' }) }),
+	VoiceDictationPreparing: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'dictationPreparing' }) }),
+	VoiceModeIdle: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceIdle' }) }),
+	VoiceModeConnecting: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceConnecting' }) }),
+	VoiceModeListening: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceListening' }) }),
+	VoiceModeSpeaking: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceSpeaking' }) }),
+	VoiceModeDisconnect: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceDisconnect' }) }),
 });

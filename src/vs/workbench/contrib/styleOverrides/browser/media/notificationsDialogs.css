@@ -9,22 +9,22 @@
  */
 
 .style-override.monaco-workbench .notifications-list-container .notification-list-item {
-	padding: 6px 2px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size20);
 }
 
 .style-override.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon {
 	font-size: var(--vscode-codiconFontSize);
-	margin: 0 8px 0 6px;
+	margin: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60);
 }
 
 .style-override.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container > .monaco-button-dropdown,
 .style-override.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container > .monaco-button {
-	margin: 0 4px 0 0;
+	margin: 0 var(--vscode-spacing-size40) 0 0;
 }
 
 .style-override.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-source {
 	color: var(--vscode-descriptionForeground);
-	margin-left: 24px;
+	margin-left: var(--vscode-spacing-size240);
 }
 
 /*
@@ -39,19 +39,19 @@
  * — so the center tucks directly beneath it.
  */
 .style-override.monaco-workbench > .notifications-center {
-	right: 8px !important;
-	bottom: 34px !important;
+	right: var(--vscode-spacing-size80);
+	bottom: var(--vscode-spacing-size320);
 }
 
 .style-override.monaco-workbench > .notifications-center.bottom-left {
-	right: auto !important;
-	left: 8px !important;
-	bottom: 34px !important;
+	right: auto;
+	left: var(--vscode-spacing-size80);
+	bottom: var(--vscode-spacing-size320);
 }
 
 .style-override.monaco-workbench > .notifications-center.top-right {
-	bottom: auto !important;
-	top: 35px !important;
+	bottom: auto;
+	top: var(--vscode-spacing-size360) !important;
 }
 
 /*
@@ -60,39 +60,39 @@
  * with the center (8px / 34px / 35px once the margin is added back).
  */
 .style-override.monaco-workbench > .notifications-toasts {
-	right: 4px !important;
-	bottom: 30px !important;
+	right: var(--vscode-spacing-size40);
+	bottom: var(--vscode-spacing-size280);
 }
 
 .style-override.monaco-workbench > .notifications-toasts.bottom-left {
-	right: auto !important;
-	left: 4px !important;
-	bottom: 30px !important;
+	right: auto;
+	left: var(--vscode-spacing-size40);
+	bottom: var(--vscode-spacing-size280);
 }
 
 .style-override.monaco-workbench > .notifications-toasts.top-right {
-	bottom: auto !important;
-	top: 31px !important;
+	bottom: auto;
+	top: var(--vscode-spacing-size320) !important;
 }
 
 .style-override.monaco-workbench > .notifications-center > .notifications-center-header {
-	padding-right: 2px;
+	padding-right: var(--vscode-spacing-size20);
 }
 
 .style-override .monaco-dialog-box {
-	padding: 4px;
+	padding: var(--vscode-spacing-size40);
 	min-width: 440px;
 }
 
 .style-override .monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container {
-	padding-left: 8px;
-	padding-right: 20px;
+	padding-left: var(--vscode-spacing-size80);
+	padding-right: var(--vscode-spacing-size200);
 }
 
 .style-override .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
-	margin: 2px 0 12px 0;
+	margin: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size120) 0;
 	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .style-override .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
@@ -101,19 +101,19 @@
 
 .style-override .monaco-dialog-box .dialog-toolbar-row {
 	position: absolute;
-	top: 8px;
-	right: 8px;
+	top: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
 }
 
 .style-override .monaco-dialog-box .dialog-footer-row {
-	padding: 0 8px;
+	padding: 0 var(--vscode-spacing-size80);
 }
 
 .style-override .monaco-dialog-box .dialog-message-row {
-	padding: 16px 8px 0px;
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size80) 0;
 }
 
 .style-override .monaco-dialog-box > .dialog-buttons-row {
-	padding: 16px 0px 0px;
+	padding: var(--vscode-spacing-size160) 0 0;
 }
 

@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
 
 function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>) {
 	const notifications = new Map<string, IChatInputNotification>();
@@ -18,15 +18,6 @@ function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>
 
 	const onDidChange = disposables.add(new Emitter<void>());
 	const onDidDismiss = disposables.add(new Emitter<string>());
-
-	// Mirrors ChatInputNotificationWidget#_matchesSession: a notification with a
-	// `sessionTypes` allow-list only renders in a matching chat session.
-	const matchesSession = (notification: IChatInputNotification, sessionType: string | undefined): boolean => {
-		if (!notification.sessionTypes || notification.sessionTypes.length === 0) {
-			return true;
-		}
-		return !!sessionType && notification.sessionTypes.includes(sessionType);
-	};
 
 	const service: IChatInputNotificationService = {
 		_serviceBrand: undefined,
@@ -74,7 +65,7 @@ function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>
 		},
 		/** The active notification a chat input of the given session type would render. */
 		getNotificationForSession(sessionType: string | undefined): IChatInputNotification | undefined {
-			return service.getActiveNotification(n => matchesSession(n, sessionType));
+			return service.getActiveNotification(n => isChatInputNotificationApplicableToSessionType(n, sessionType));
 		},
 		/** All notifications that are currently set and not dismissed. */
 		getAllNotifications(): IChatInputNotification[] {
@@ -126,20 +117,38 @@ suite('ChatPromoNotificationContribution', () => {
 		const notification = notifService.getNotification();
 		assert.ok(notification, 'Expected a notification to be shown');
 		assert.ok(notification.message.toString().includes('20% off'));
-		assert.strictEqual(notification.actions.length, 0);
+		assert.ok(notification.description?.toString().includes('2026'), 'Expected the end date to be rendered');
+		assert.deepStrictEqual(notification.actions, [{
+			label: 'Try GPT-5.5',
+			kind: ChatInputNotificationActionKind.SwitchToModel,
+			modelIdentifier: 'copilot:gpt-5.5',
+		}]);
 	});
 
-	test('does not show notification for non-positive promo discounts', () => {
+	test('renders the server message for a 0% promo', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:zero-discount',
+			metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		const notification = notifService.getNotification();
+		assert.ok(notification, 'Expected a notification for the 0% promo');
+		assert.strictEqual(notification.message, 'Featured model');
+	});
+
+	test('prefers a discounted promo over a 0% one in the same harness', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
-			{
-				identifier: 'copilot:zero-discount',
-				metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
-			},
-			{
-				identifier: 'copilot:negative-discount',
-				metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
-			},
+			{ identifier: 'copilot:featured', metadata: { name: 'Featured', id: 'featured', promo: { id: 'promo-zero', discountPercent: 0, message: 'Featured model' } } },
+			{ identifier: 'copilot:discounted', metadata: { name: 'Discounted', id: 'discounted', promo: { id: 'promo-discount', discountPercent: 20, message: 'Get 20% off' } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -149,7 +158,49 @@ suite('ChatPromoNotificationContribution', () => {
 			storageService,
 		));
 
+		const notification = notifService.getNotification();
+		assert.ok(notification);
+		assert.strictEqual(notification.message, 'Get 20% off');
+	});
+
+	test('does not show notification for negative promo discounts', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:negative-discount',
+			metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
 		assert.strictEqual(notifService.getNotification(), undefined);
+	});
+
+	test('omits the end date when the promo has none', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{ identifier: 'local:no-end-date', metadata: { name: 'Open Ended', id: 'no-end-date', promo: { id: 'promo-open', discountPercent: 20, message: 'Get 20% off' } } },
+			{ identifier: 'copilot:bad-end-date', metadata: { name: 'Bad Date', id: 'bad-end-date', targetChatSessionType: 'copilotcli', promo: { id: 'promo-bad-date', discountPercent: 20, endsAt: 'not a date', message: 'Get 20% off' } } },
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		assert.deepStrictEqual(
+			notifService.getAllNotifications().map(n => ({ message: n.message, description: n.description })),
+			[
+				{ message: 'Get 20% off', description: undefined },
+				{ message: 'Get 20% off', description: undefined },
+			],
+		);
 	});
 
 	test('does not show notification for already-dismissed promo', () => {
@@ -307,17 +358,17 @@ suite('ChatPromoNotificationContribution', () => {
 		const local = notifService.getNotificationForSession('local');
 		assert.ok(local, 'Expected a local promo');
 		assert.ok(local.message.toString().includes('Local promo'));
-		assert.strictEqual(local.actions.length, 0);
+		assert.deepStrictEqual(local.actions, [{ label: 'Try GPT-5.5', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'local:gpt-5.5' }]);
 
 		const copilot = notifService.getNotificationForSession('copilotcli');
 		assert.ok(copilot, 'Expected a Copilot promo');
 		assert.ok(copilot.message.toString().includes('Copilot promo'));
-		assert.strictEqual(copilot.actions.length, 0);
+		assert.deepStrictEqual(copilot.actions, [{ label: 'Try Claude', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'copilot:claude' }]);
 
 		const codex = notifService.getNotificationForSession('openai-codex');
 		assert.ok(codex, 'Expected a Codex promo');
 		assert.ok(codex.message.toString().includes('Codex promo'));
-		assert.strictEqual(codex.actions.length, 0);
+		assert.deepStrictEqual(codex.actions, [{ label: 'Try o4', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'codex:o4' }]);
 	});
 
 	test('does not leak a harness promo into a different session type', () => {

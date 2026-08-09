@@ -70,7 +70,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			super._showPicker();
 			return;
 		}
-		if (this._folderSessionTypes.length <= 1) {
+		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
 			return;
 		}
 

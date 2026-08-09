@@ -16,7 +16,7 @@ import {
 	win32
 } from '../../../../../base/common/path.js';
 import {
-	basename, isEqualOrParent, joinPath
+	basename, isEqual, isEqualOrParent, joinPath
 } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -35,12 +35,15 @@ import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
-	parseComponentPathConfig,
-	resolveComponentDirs,
-	readSkills,
+	resolvePluginComponentDirs,
+	getPluginManifestComponent,
+	readPluginSkills,
 	readMarkdownComponents,
+	readPluginManifest,
+	readPluginMcpServers,
 	parseMcpServerDefinitionMap,
 	detectPluginFormat,
+	type PluginComponent,
 	type IPluginFormatConfig,
 	type IParsedHookGroup,
 } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -52,7 +55,7 @@ import { ContributionEnablementState, EnablementModel, IEnablementModel } from '
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
+import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
@@ -268,8 +271,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 	protected async _refreshPlugins(): Promise<void> {
 		const version = ++this._discoverVersion;
-		const plugins = await this._discoverAndBuildPlugins();
-		if (version !== this._discoverVersion || this._store.isDisposed) {
+		const plugins = await this._discoverAndBuildPlugins(version);
+		if (!this._isCurrentRefresh(version)) {
 			return;
 		}
 
@@ -279,24 +282,44 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	/** Subclasses return plugin sources to discover. */
 	protected abstract _discoverPluginSources(): Promise<readonly IPluginSource[]>;
 
-	private async _discoverAndBuildPlugins(): Promise<readonly IAgentPlugin[]> {
+	private async _discoverAndBuildPlugins(version: number): Promise<readonly IAgentPlugin[]> {
 		const sources = await this._discoverPluginSources();
+		if (!this._isCurrentRefresh(version)) {
+			return [];
+		}
+
 		const plugins: IAgentPlugin[] = [];
 		const seenPluginUris = new Set<string>();
+		const attemptedPluginUris = new Set<string>();
 
 		for (const source of sources) {
 			const key = source.uri.toString();
-			if (!seenPluginUris.has(key)) {
-				seenPluginUris.add(key);
-				const format = await detectPluginFormat(source.uri, this._fileService);
-				plugins.push(await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove));
+			if (!attemptedPluginUris.has(key)) {
+				attemptedPluginUris.add(key);
+				try {
+					const format = await detectPluginFormat(source.uri, this._fileService);
+					if (!this._isCurrentRefresh(version)) {
+						return [];
+					}
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove, version);
+					seenPluginUris.add(key);
+					plugins.push(plugin);
+				} catch (error) {
+					this._logService.warn(`[AgentPluginDiscovery] Rejected plugin '${source.uri.toString()}': ${error instanceof Error ? error.message : String(error)}`);
+				}
 			}
 		}
 
-		this._disposePluginEntriesExcept(seenPluginUris);
+		if (this._isCurrentRefresh(version)) {
+			this._disposePluginEntriesExcept(seenPluginUris);
+		}
 
 		plugins.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
 		return plugins;
+	}
+
+	private _isCurrentRefresh(version: number): boolean {
+		return version === this._discoverVersion && !this._store.isDisposed;
 	}
 
 	protected async _pathExists(resource: URI): Promise<boolean> {
@@ -308,14 +331,18 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => void) | undefined): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => void) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
+			if (!this._isCurrentRefresh(version)) {
+				return existing.plugin;
+			}
 			if (existing.format.format !== format.format) {
 				existing.store.dispose();
 				this._pluginEntries.delete(key);
 			} else {
+				existing.plugin.remove = removeCallback;
 				return existing.plugin;
 			}
 		}
@@ -332,18 +359,21 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		// plugin label (for direct installs that have no marketplace metadata).
 		// Component directories are tracked via observers downstream and
 		// re-read whenever the manifest changes on disk.
-		const initialManifest = await this._readManifest(uri, format);
+		const initialManifest = await readPluginManifest(uri, format, this._fileService);
 		const manifest = observableValue<IPluginManifest | undefined>('agentPluginManifest', initialManifest);
 
 		const observeComponent = <T>(
-			prop: string,
+			prop: PluginComponent,
 			doRead: (uris: readonly URI[]) => Promise<readonly T[]>,
 			tryReadEmbedded?: (section: unknown) => Promise<T[] | undefined>,
-			defaultPath = prop,
+			defaultPath: string = prop,
 		): IObservable<readonly T[]> => {
-			const secondObs = derivedOpts({ equalsFn: equals }, reader => manifest.read(reader)?.[prop]);
+			const secondObs = derivedOpts({ equalsFn: equals }, reader => getPluginManifestComponent(format, prop, manifest.read(reader)));
 
 			const wrapped = derived(reader => {
+				if (format.requiresManifest && !manifest.read(reader)) {
+					return { kind: 'dirs', dirs: [] } as const;
+				}
 				const section = secondObs.read(reader);
 				if (tryReadEmbedded) {
 					if (section && typeof section === 'object' && !Array.isArray(section) && !(hasKey(section, { paths: true }))) {
@@ -351,8 +381,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					}
 				}
 
-				const paths = parseComponentPathConfig(section);
-				const dirs = resolveComponentDirs(uri, defaultPath, paths, repositoryUri);
+				const dirs = resolvePluginComponentDirs(uri, format, prop, defaultPath, section, repositoryUri);
 				for (const d of dirs) {
 					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
 					reader.store.add(watcher);
@@ -382,7 +411,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 		const manifestUri = joinPath(uri, format.manifestPath);
 		const commands = observeComponent('commands', d => readMarkdownComponents(d, this._fileService));
-		const skills = observeComponent('skills', d => readSkills(uri, d, this._fileService));
+		const skills = observeComponent('skills', d => readPluginSkills(uri, d, format, this._fileService));
 		const agents = observeComponent('agents', d => readMarkdownComponents(d, this._fileService));
 		const instructions = observeComponent('rules', d => this._readRules(d));
 		const hooks = observeComponent(
@@ -398,7 +427,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 		const mcpServerDefinitions = observeComponent(
 			'mcpServers',
-			paths => this._readMcpDefinitionsFromPaths(paths, uri.fsPath, format),
+			paths => readPluginMcpServers(uri, paths, format, this._fileService),
 			async section => parseMcpServerDefinitionMap(manifestUri, { mcpServers: section }, uri.fsPath, format),
 			'.mcp.json',
 		);
@@ -406,15 +435,37 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		// Re-read the manifest whenever it changes on disk. The initial value
 		// was already populated above before constructing the observable.
 		const readManifest = async () => {
-			manifest.set(await this._readManifest(uri, format), undefined);
+			try {
+				const latestFormat = await detectPluginFormat(uri, this._fileService);
+				if (latestFormat.format !== format.format) {
+					await this._refreshPlugins();
+					return;
+				}
+				manifest.set(await readPluginManifest(uri, format, this._fileService), undefined);
+			} catch (error) {
+				manifest.set(undefined, undefined);
+				this._logService.warn(`[AgentPluginDiscovery] Rejected updated plugin '${uri.toString()}': ${error instanceof Error ? error.message : String(error)}`);
+			}
 		};
 
-		const manifestWatcher = this._fileService.createWatcher(
-			manifestUri,
-			{ recursive: false, excludes: [] },
-		);
-		store.add(manifestWatcher);
-		store.add(manifestWatcher.onDidChange(() => readManifest()));
+		const agentManifestUri = joinPath(uri, 'plugin.json');
+		const rootWatcher = this._fileService.createWatcher(uri, { recursive: false, excludes: [] });
+		store.add(rootWatcher);
+		store.add(rootWatcher.onDidChange(change => {
+			if (change.affects(agentManifestUri)) {
+				void readManifest();
+			}
+		}));
+		store.add(this._fileService.onDidRunOperation(event => {
+			if (isEqual(event.resource, agentManifestUri)) {
+				void readManifest();
+			}
+		}));
+		if (!isEqual(manifestUri, agentManifestUri)) {
+			const manifestWatcher = this._fileService.createWatcher(manifestUri, { recursive: false, excludes: [] });
+			store.add(manifestWatcher);
+			store.add(manifestWatcher.onDidChange(() => readManifest()));
+		}
 
 		const manifestName = typeof initialManifest?.name === 'string' && initialManifest.name.trim()
 			? initialManifest.name.trim()
@@ -422,6 +473,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 		const plugin: PluginEntry = {
 			uri,
+			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			enablement,
 			policyBlocked,
@@ -435,17 +487,13 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			fromMarketplace,
 		};
 
-		this._pluginEntries.set(key, { store, plugin, format });
+		if (this._isCurrentRefresh(version)) {
+			this._pluginEntries.set(key, { store, plugin, format });
+		} else {
+			store.dispose();
+		}
 
 		return plugin;
-	}
-
-	private async _readManifest(pluginUri: URI, format: IPluginFormatConfig): Promise<IPluginManifest | undefined> {
-		const json = await this._readJsonFile(joinPath(pluginUri, format.manifestPath));
-		if (json && typeof json === 'object' && !Array.isArray(json)) {
-			return json as IPluginManifest;
-		}
-		return undefined;
 	}
 
 	/**
@@ -467,24 +515,6 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			}
 		}
 		return [];
-	}
-
-	/**
-	 * Reads MCP server definitions from a list of resolved paths (JSON files).
-	 * Definitions from all files are merged; the first definition for a given
-	 * server name wins.
-	 */
-	private async _readMcpDefinitionsFromPaths(paths: readonly URI[], pluginFsPath: string, format: IPluginFormatConfig): Promise<readonly IAgentPluginMcpServerDefinition[]> {
-		const merged = new Map<string, IAgentPluginMcpServerDefinition>();
-		for (const mcpPath of paths) {
-			const json = await this._readJsonFile(mcpPath);
-			for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginFsPath, format)) {
-				if (!merged.has(def.name)) {
-					merged.set(def.name, def);
-				}
-			}
-		}
-		return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	private async _readJsonFile(uri: URI): Promise<unknown | undefined> {

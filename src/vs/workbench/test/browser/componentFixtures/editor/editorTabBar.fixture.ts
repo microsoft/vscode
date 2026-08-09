@@ -15,7 +15,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -30,7 +31,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, IToolbarActions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from '../../../../common/theme.js';
-import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
 import { EditorTitleControl } from '../../../../browser/parts/editor/editorTitleControl.js';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -40,7 +41,7 @@ import { IOutlineService } from '../../../../services/outline/browser/outline.js
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import '../../../../contrib/styleOverrides/browser/media/tabs.css';
 
 // ============================================================================
@@ -232,6 +233,28 @@ function singleDirtyEditorSpecs(): IEditorSpec[] {
 	];
 }
 
+function cannotCloseEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
+		{ resource: file('/project/README.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
+	];
+}
+
+function cannotCloseDirtyEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, dirty: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
+	];
+}
+
+function cannotCloseStickyEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, sticky: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
+	];
+}
+
 // ============================================================================
 // File decorations
 // ============================================================================
@@ -289,7 +312,7 @@ function createFixtureEditorTitleActions(store: DisposableStore, menuId: MenuId)
 // Rendering
 // ============================================================================
 
-interface IRenderOptions {
+export interface IEditorTabBarFixtureOptions {
 	readonly modernUI: boolean;
 	readonly partOptions?: Partial<IEditorPartOptions>;
 	readonly editors?: IEditorSpec[];
@@ -301,6 +324,9 @@ interface IRenderOptions {
 	/** Whether this group is the active group. Inactive groups exercise the
 	 *  `alwaysShowEditorActions` filtering and unfocused tab styling. */
 	readonly active?: boolean;
+	readonly dropTargetBetweenTabs?: boolean;
+	readonly showHeader?: boolean;
+	readonly headerMenuIds?: IEditorGroupMenuIds;
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -337,7 +363,7 @@ function populateModel(model: EditorGroupModel, specs: IEditorSpec[], disposable
 	}
 }
 
-function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): void {
+export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options: IEditorTabBarFixtureOptions): void {
 	const { container, disposableStore, theme } = ctx;
 
 	const width = options.width ?? 820;
@@ -366,6 +392,10 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 
 	const contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IContextKeyService, contextKeyService);
+
+	if (options.headerMenuIds) {
+		instantiationService.stub(IMenuService, disposableStore.add(instantiationService.createInstance(MenuService)));
+	}
 
 	if (options.breadcrumbs) {
 		instantiationService.stub(IBreadcrumbsService, new BreadcrumbsService());
@@ -406,6 +436,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		override isSelected(editorOrIndex: EditorInput | number) { return model.isSelected(editorOrIndex); }
 		override createEditorActions(disposables: DisposableStore, menuId = MenuId.EditorTitle) { return createEditorActions(disposables, menuId); }
 		override relayout() { this.relayoutFn(); }
+		override readonly onDidActiveEditorChange = Event.None;
 	};
 
 	// Separate reference returned as the active group when this group is inactive, so that
@@ -433,7 +464,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	const content = $('.content');
 	const groupContainer = $(isGroupActive ? '.editor-group-container.active' : '.editor-group-container');
 	const titleContainer = $('.title');
-	container.classList.toggle('style-override', options.modernUI);
+	container.classList.toggle('modern-ui-tabs', options.modernUI);
 	titleContainer.classList.toggle('tabs', partOptions.showTabs === 'multiple');
 	titleContainer.classList.toggle('show-file-icons', partOptions.showIcons);
 
@@ -462,7 +493,8 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		groupsView,
 		groupView,
 		model,
-		undefined,
+		options.headerMenuIds,
+		options.showHeader ?? false,
 	));
 
 	const layout = () => {
@@ -475,17 +507,22 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 
 	titleControl.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	titleControl.setActive(isGroupActive);
+	if (options.dropTargetBetweenTabs) {
+		const tabs = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab');
+		tabs[1]?.classList.add('drop-target-left');
+		tabs[2]?.classList.add('drop-target-right');
+	}
 	layout();
 }
 
-function render(modernUI: boolean, options: Omit<IRenderOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
-	return (ctx: ComponentFixtureContext) => renderTabBar(ctx, { ...options, modernUI });
+function render(modernUI: boolean, options: Omit<IEditorTabBarFixtureOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
+	return (ctx: ComponentFixtureContext) => renderEditorTabBarFixture(ctx, { ...options, modernUI });
 }
 
-function createFixtures(modernUI: boolean) {
+function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentFixtureAdditionalTheme[] = []) {
 	return {
 		// Baseline: multiple tabs with mixed sticky / pinned / preview / dirty state.
-		Default: defineComponentFixture({ render: render(modernUI, {}) }),
+		Default: defineComponentFixture({ render: render(modernUI, {}), additionalThemes }),
 
 		// showTabs
 		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }) }),
@@ -494,7 +531,7 @@ function createFixtures(modernUI: boolean) {
 		// pinnedTabsOnSeparateRow
 		PinnedTabsOnSeparateRowAllPinned: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: allStickyEditorSpecs() }) }),
 		PinnedTabsOnSeparateRowAllUnpinned: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: allUnstickyEditorSpecs() }) }),
-		PinnedTabsOnSeparateRowMixed: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }) }),
+		PinnedTabsOnSeparateRowMixed: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }), additionalThemes }),
 
 		// breadcrumbs
 		BreadcrumbsFilePathLast: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { filePath: 'last' }, editors: nestedActiveEditorSpecs() }) }),
@@ -559,16 +596,19 @@ function createFixtures(modernUI: boolean) {
 
 		// Active and inactive group styling.
 		ActiveGroup: defineComponentFixture({ render: render(modernUI, { active: true }) }),
-		InactiveGroup: defineComponentFixture({ render: render(modernUI, { active: false }) }),
+		InactiveGroup: defineComponentFixture({ render: render(modernUI, { active: false }), additionalThemes }),
 
 		// Multi-selection: several tabs in the selected state at once.
-		MultiSelect: defineComponentFixture({ render: render(modernUI, { editors: multiSelectEditorSpecs() }) }),
+		MultiSelect: defineComponentFixture({ render: render(modernUI, { editors: multiSelectEditorSpecs() }), additionalThemes }),
 
 		// Inactive group with dirty editors: exercises the unfocused modified-border color path.
 		InactiveGroupDirty: defineComponentFixture({ render: render(modernUI, { editors: dirtyEditorSpecs(), active: false }) }),
 
 		// Very long labels: tab-label truncation / ellipsis with shrinking tabs.
 		LongLabelsShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'shrink' }, editors: longLabelEditorSpecs(), width: 520 }) }),
+
+		// Drag-and-drop insertion indicator between two tabs.
+		DropTargetBetweenTabs: defineComponentFixture({ render: render(modernUI, { dropTargetBetweenTabs: true }), additionalThemes }),
 
 		// --- Notable setting combinations ---
 
@@ -579,12 +619,21 @@ function createFixtures(modernUI: boolean) {
 		// Single-tab mode with a dirty editor: the single tab control renders the dirty dot.
 		SingleTabDirty: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, editors: singleDirtyEditorSpecs() }) }),
 
+		// Protected editors hide close affordances while ordinary neighboring tabs remain closeable.
+		CannotCloseActive: defineComponentFixture({ render: render(modernUI, { editors: cannotCloseEditorSpecs() }), additionalThemes }),
+
+		// Protected dirty editors retain the modified indicator without exposing a close action.
+		CannotCloseDirty: defineComponentFixture({ render: render(modernUI, { editors: cannotCloseDirtyEditorSpecs() }), additionalThemes }),
+
+		// Sticky protected editors retain the Unpin affordance because unpinning does not close them.
+		CannotCloseSticky: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabSizing: 'normal', tabActionUnpinVisibility: true }, editors: cannotCloseStickyEditorSpecs() }), additionalThemes }),
+
 		// Pinned tabs on a separate row combined with compact pinned sizing.
 		PinnedSeparateRowCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true, pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }) }),
 	};
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
-	ModernUIOff: defineThemedFixtureGroup(createFixtures(false)),
-	ModernUIOn: defineThemedFixtureGroup(createFixtures(true)),
+	ModernUIOff: defineThemedFixtureGroup(createFixtures(false, ['darkHighContrast'])),
+	ModernUIOn: defineThemedFixtureGroup(createFixtures(true, ['darkHighContrast'])),
 });

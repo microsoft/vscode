@@ -21,12 +21,16 @@ export const enum AgentHostConfigKey {
 	 */
 	DefaultShell = 'defaultShell',
 	/**
-	 * When true (the default), the Claude provider routes all Anthropic
-	 * `messages` traffic through the local Copilot-CAPI proxy (Copilot-routed
-	 * Claude). When false, the Claude Agent SDK talks to Anthropic directly on
-	 * the user's own credentials (BYO Anthropic — Phase 19).
+	 * Experimentation flag for conditional agent-window auth. When true, a
+	 * session type that is usable without GitHub (e.g. Claude in native mode with
+	 * an existing local setup) lets the agent window open for a signed-out user
+	 * instead of forcing GitHub sign-in. The workbench forwards it here from the
+	 * `chat.agentHost.allowSignedOutWhenUsable` VS Code setting; when unset the
+	 * feature is dark (today's always-proxy behavior).
 	 */
-	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
+	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
+	/** Controls whether session-scoped file customizations come from local scan or SDK discovery. */
+	SessionCustomizationDiscoveryMode = 'sessionCustomizationDiscoveryMode',
 	/**
 	 * Optional GitHub Enterprise base URI (e.g. `https://ghe.example.com` for a
 	 * GitHub Enterprise Server, or `https://tenant.ghe.com` for GitHub Enterprise
@@ -38,6 +42,10 @@ export const enum AgentHostConfigKey {
 	 */
 	GithubEnterpriseUri = 'githubEnterpriseUri',
 }
+
+export const SESSION_CUSTOMIZATION_DISCOVERY_MODES = ['scan', 'discover'] as const;
+export type SessionCustomizationDiscoveryMode = typeof SESSION_CUSTOMIZATION_DISCOVERY_MODES[number];
+export const DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE: SessionCustomizationDiscoveryMode = 'scan';
 
 /**
  * Persisted on-disk shape for a host-configured plugin. Kept stable across
@@ -83,11 +91,18 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
-	[AgentHostConfigKey.ClaudeUseCopilotProxy]: schemaProperty<boolean>({
+	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
-		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
-		default: true,
+		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Window"),
+		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, the agent window opens without forcing GitHub sign-in as long as at least one agent is usable without GitHub (for example Claude in native mode with your own Anthropic API key). When disabled (the default), GitHub sign-in is required."),
+		default: false,
+	}),
+	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
+		type: 'string',
+		enum: [...SESSION_CUSTOMIZATION_DISCOVERY_MODES],
+		title: localize('agentHost.config.sessionCustomizationDiscoveryMode.title', "Session Customization Discovery Mode"),
+		description: localize('agentHost.config.sessionCustomizationDiscoveryMode.description', "Controls whether session-scoped customizations are populated from local file scanning or from Copilot SDK discovery."),
+		default: DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE,
 	}),
 	[AgentHostConfigKey.GithubEnterpriseUri]: schemaProperty<string>({
 		type: 'string',

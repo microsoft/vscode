@@ -5,7 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorCommandsContext, isEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from '../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from '../../../../platform/window/common/window.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -363,38 +363,67 @@ CommandsRegistry.registerCommand({
 
 // Save / Save As / Save All / Revert
 
-async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
+function expandSideBySideEditor({ groupId, editor }: IEditorIdentifier, options?: ISaveEditorsOptions): IEditorIdentifier[] {
+
+	// Special treatment for side by side editors: if the editor
+	// has 2 sides, we consider both, to support saving both sides.
+	// We only allow this when saving, not for "Save As" and not if any
+	// editor is untitled which would bring up a "Save As" dialog too.
+	// In addition, we require the secondary side to be modified to not
+	// trigger a touch operation unexpectedly.
+	//
+	// See also https://github.com/microsoft/vscode/issues/4180
+	// See also https://github.com/microsoft/vscode/issues/106330
+	// See also https://github.com/microsoft/vscode/issues/190210
+	if (
+		editor instanceof SideBySideEditorInput &&
+		!options?.saveAs && !(editor.primary.hasCapability(EditorInputCapabilities.Untitled) || editor.secondary.hasCapability(EditorInputCapabilities.Untitled)) &&
+		editor.secondary.isModified()
+	) {
+		return [{ groupId, editor: editor.primary }, { groupId, editor: editor.secondary }];
+	}
+
+	return [{ groupId, editor }];
+}
+
+function getEditorsFromCommandArgs(accessor: ServicesAccessor, commandArgs: unknown[] | undefined, options?: ISaveEditorsOptions): IEditorIdentifier[] | undefined {
+	if (!commandArgs?.some(arg => isEditorCommandsContext(arg))) {
+		return undefined; // only respect the arguments if they contain an explicit editor context
+	}
+
+	const resolvedContext = resolveCommandsContext(commandArgs, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+
+	const editors: IEditorIdentifier[] = [];
+	for (const { group, editors: groupEditors } of resolvedContext.groupedEditors) {
+		for (const editor of groupEditors) {
+			editors.push(...expandSideBySideEditor({ groupId: group.id, editor }, options));
+		}
+	}
+
+	// Note: we return the (possibly empty) result even when the explicit context
+	// no longer resolves to any editor to not fall back to other editors which
+	// would end up saving an editor the command was not invoked for
+	return editors;
+}
+
+async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions, commandArgs?: unknown[]): Promise<void> {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const textFileService = accessor.get(ITextFileService);
 
+	// Retrieve the editors from the command arguments if they contain an explicit
+	// editor context (e.g. when invoked from the editor tab context menu) because
+	// the editor the command was triggered for may not be the active editor
+	let editors = getEditorsFromCommandArgs(accessor, commandArgs, options);
+
 	// Retrieve selected or active editor
-	let editors = getOpenEditorsViewMultiSelection(accessor);
+	if (!editors) {
+		editors = getOpenEditorsViewMultiSelection(accessor);
+	}
 	if (!editors) {
 		const activeGroup = editorGroupService.activeGroup;
 		if (activeGroup.activeEditor) {
-			editors = [];
-
-			// Special treatment for side by side editors: if the active editor
-			// has 2 sides, we consider both, to support saving both sides.
-			// We only allow this when saving, not for "Save As" and not if any
-			// editor is untitled which would bring up a "Save As" dialog too.
-			// In addition, we require the secondary side to be modified to not
-			// trigger a touch operation unexpectedly.
-			//
-			// See also https://github.com/microsoft/vscode/issues/4180
-			// See also https://github.com/microsoft/vscode/issues/106330
-			// See also https://github.com/microsoft/vscode/issues/190210
-			if (
-				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled)) &&
-				activeGroup.activeEditor.secondary.isModified()
-			) {
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
-			} else {
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor });
-			}
+			editors = expandSideBySideEditor({ groupId: activeGroup.id, editor: activeGroup.activeEditor }, options);
 		}
 	}
 
@@ -466,8 +495,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyS,
 	id: SAVE_FILE_COMMAND_ID,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
+	handler: (accessor, ...args: unknown[]) => {
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ }, args);
 	}
 });
 
@@ -487,8 +516,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
+	handler: (accessor, ...args: unknown[]) => {
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true }, args);
 	}
 });
 

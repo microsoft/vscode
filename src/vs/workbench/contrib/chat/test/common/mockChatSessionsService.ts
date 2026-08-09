@@ -9,7 +9,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
+import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -136,6 +136,34 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
+	canSetChatSessionItemArchived(sessionResource: URI): boolean {
+		const sessionType = getChatSessionType(sessionResource);
+		return typeof this.sessionItemControllers.get(sessionType)?.controller.setChatSessionItemArchived === 'function';
+	}
+
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void {
+		const sessionType = getChatSessionType(sessionResource);
+		const controller = this.sessionItemControllers.get(sessionType)?.controller;
+		if (!controller?.setChatSessionItemArchived) {
+			throw new Error(`Session ${sessionResource.toString()} does not support archiving`);
+		}
+		controller.setChatSessionItemArchived(sessionResource, archived);
+	}
+
+	canSetChatSessionItemRead(sessionResource: URI): boolean {
+		const sessionType = getChatSessionType(sessionResource);
+		return typeof this.sessionItemControllers.get(sessionType)?.controller.setChatSessionItemRead === 'function';
+	}
+
+	setChatSessionItemRead(sessionResource: URI, isRead: boolean): void {
+		const sessionType = getChatSessionType(sessionResource);
+		const controller = this.sessionItemControllers.get(sessionType)?.controller;
+		if (!controller?.setChatSessionItemRead) {
+			throw new Error(`Session ${sessionResource.toString()} does not own read state`);
+		}
+		controller.setChatSessionItemRead(sessionResource, isRead);
+	}
+
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
 		this.contentProviders.set(chatSessionType, provider);
 		this._onDidChangeContentProviderSchemes.fire({ added: [chatSessionType], removed: [] });
@@ -157,6 +185,15 @@ export class MockChatSessionsService implements IChatSessionsService {
 			throw new Error(`No content provider for ${sessionType}`);
 		}
 		return provider.provideChatSessionContent(sessionResource, token);
+	}
+
+	async getChatSessionHistory(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionHistoryItem[]> {
+		const session = await this.getOrCreateChatSession(sessionResource, token);
+		try {
+			return [...session.history];
+		} finally {
+			session.dispose();
+		}
 	}
 
 	async canResolveChatSession(sessionType: string): Promise<boolean> {
@@ -248,7 +285,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
-		return !!this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
+		const requires = this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
+		return typeof requires === 'function' ? requires() : !!requires;
 	}
 
 	supportsDelegationForSessionType(chatSessionType: string): boolean {

@@ -105,7 +105,10 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		// gate has already been opened (this session or persisted from a previous one).
 		this.assignmentService.addTelemetryAssignmentFilter({
 			id: 'onboarding',
-			exclude: assignment => assignment.startsWith(ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX) && !this._openedAssignmentContextIds.has(assignment),
+			exclude: assignment => {
+				const variant = getAssignmentContextVariant(assignment);
+				return variant.startsWith(ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX) && !this._openedAssignmentContextIds.has(variant);
+			},
 			onDidChange: this._onDidChangeOpenedIds.event
 		});
 
@@ -239,11 +242,12 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			}
 		}
 
-		for (const scenario of onboardingScenarioRegistry.getScenarios()) {
-			if (!this._isAutoEligible(scenario)) {
-				continue;
-			}
+		const eligibleScenarios = onboardingScenarioRegistry.getScenarios()
+			.map((scenario, registrationIndex) => ({ scenario, registrationIndex }))
+			.filter(({ scenario }) => this._isAutoEligible(scenario))
+			.sort((a, b) => (b.scenario.priority ?? 0) - (a.scenario.priority ?? 0) || a.registrationIndex - b.registrationIndex);
 
+		for (const { scenario } of eligibleScenarios) {
 			const seenKey = this._seenKey(scenario);
 			if (!scenario.repeatable && claimedSeenKeys.has(seenKey)) {
 				// A sibling sharing this seen key is already scheduled this pass;
@@ -574,4 +578,9 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	}
 
 	//#endregion
+}
+
+function getAssignmentContextVariant(assignment: string): string {
+	const separatorIndex = assignment.lastIndexOf(':');
+	return separatorIndex === -1 ? assignment : assignment.slice(0, separatorIndex);
 }

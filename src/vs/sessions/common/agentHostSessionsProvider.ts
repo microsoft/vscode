@@ -10,7 +10,7 @@ import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -53,6 +53,18 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
+	/**
+	 * Stable preference key used to persist/read a
+	 * {@link IRemoteAgentHostLocationPreferenceService} choice for this
+	 * host, present on remote providers. Distinct from {@link remoteAddress}
+	 * for SSH hosts, whose live address is a forwarded local endpoint (e.g.
+	 * `localhost:4321`) rather than the stable `ssh:<alias>` (or
+	 * `user@host:port`) key `computeSSHConnectionKey()` and
+	 * `SSHRemoteAgentHostService` key preferences by. Providers with no
+	 * separate stable identity (tunnels, WSL, cloud sandbox) may omit this;
+	 * consumers should fall back to {@link remoteAddress}.
+	 */
+	readonly remoteLocationPreferenceKey?: string;
 	/**
 	 * Establish (or re-establish) the connection for this host on demand.
 	 * Tears down any existing connection first. Present on remote providers
@@ -120,6 +132,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeRootConfig: Event<void>;
 	/** Returns the last-known root (agent host) configuration, or `undefined` if the host has not published any. */
 	getRootConfig(): RootConfigState | undefined;
+	getRootState(): RootState | undefined;
+	mapAgentHostResource(uri: URI): URI;
 	/**
 	 * Sets one root configuration property.
 	 *
@@ -168,6 +182,13 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getWorkingDirectory(sessionId: string): string | undefined;
 
 	/**
+	 * Returns the full ordered set of working-directory roots for the session
+	 * (index 0 = primary), or an empty array when none are known. Used as the
+	 * workspace identity for durable MCP-server enablement.
+	 */
+	getWorkingDirectories(sessionId: string): readonly string[];
+
+	/**
 	 * Returns the MCP servers exposed by the session as rich objects whose
 	 * methods dispatch protocol-level toggle and lifecycle actions.
 	 * Returns an empty array when the session is unknown or exposes no MCP
@@ -193,17 +214,24 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
 
+	/**
+	 * Resolves the sessions-window client chat resource ({@link IChat.resource})
+	 * to the opaque **backend** chat URI the host uses on the wire (the value
+	 * carried on `MessageChatAttachment.resource`). Used to fill the chat-reference
+	 * drag payload with the backend URI a `#chat:` reference must carry.
+	 *
+	 * This is a pure **lookup** of host-supplied data (the authoritative
+	 * `ChatSummary.resource` / `SessionState.defaultChat` the provider already
+	 * receives), not a construction, so callers never derive an AHP chat URI.
+	 * Returns `undefined` when the session's state has not been hydrated (e.g. the
+	 * chat is not currently backed by known state), in which case the caller omits
+	 * the chat-reference payload.
+	 */
+	getBackendChatResource(chatResource: URI): URI | undefined;
+
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
-
-/**
- * Experimental setting id controlling whether the local agent host acts as the
- * default sessions provider. When enabled (and `chat.agentHost.enabled` is
- * true), the local agent host's session types are surfaced before those of
- * other providers. Defaults to `false`.
- */
-export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
 
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;

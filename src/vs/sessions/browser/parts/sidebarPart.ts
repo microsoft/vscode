@@ -40,6 +40,9 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
 import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 
+/** Sessions list minimum width; shared with the docked details panel so both snap closed alike. */
+export const SESSIONS_LIST_MINIMUM_WIDTH = isWeb ? 270 : 170;
+
 /**
  * Sidebar part specifically for agent sessions workbench.
  * This is a simplified version of the SidebarPart for agent session contexts.
@@ -68,10 +71,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	//#region IView
 
-	// On web the titlebar hosts an additional host filter combo alongside the
-	// sidebar toggle; use a wider minimum so those controls always fit within
-	// the sidebar's rendered area (below this the sidebar snaps closed).
-	readonly minimumWidth: number = isWeb ? 270 : 170;
+	readonly minimumWidth: number = SESSIONS_LIST_MINIMUM_WIDTH;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;

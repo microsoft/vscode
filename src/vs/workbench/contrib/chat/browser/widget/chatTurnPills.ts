@@ -16,23 +16,21 @@ import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AnimatedCounterWidget } from '../../../../browser/animatedCounterWidget.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 import '../media/chatTurnPills.css';
 
 const CHANGES_PILL_ACTION_ID = 'chat.turnPills.changes';
 const PREVIEW_PILL_ACTION_ID = 'chat.turnPills.preview';
-const LIVE_BROWSER_PILL_ACTION_ID = 'chat.turnPills.liveBrowser';
 
 /**
  * All-transparent button styles so the inner preview-pill buttons inherit the
@@ -59,7 +57,7 @@ export interface IDiffStats {
 
 export const EMPTY_DIFF_STATS: IDiffStats = { files: 0, insertions: 0, deletions: 0 };
 
-/** A markdown file the preview pill can open. */
+/** A markdown file outside the workspace that the preview pill can open. */
 export interface IPreviewFile {
 	readonly uri: URI;
 	readonly kind: 'markdown';
@@ -92,51 +90,46 @@ export function previewFilesEqual(a: readonly IPreviewFile[], b: readonly IPrevi
 	return true;
 }
 
-/**
- * Open a previewable file: markdown files open as a markdown preview, falling
- * back to the default opener when it is not available (e.g. web).
- */
-export async function openChatPreviewFile(file: IPreviewFile, commandService: ICommandService, openerService: IOpenerService, logService: ILogService): Promise<void> {
-	try {
-		await commandService.executeCommand('markdown.showPreview', file.uri);
-	} catch (err) {
-		logService.trace('[ChatTurnPills] Falling back to default opener for preview', err);
-		await openerService.open(file.uri);
-	}
+/** Opens a turn file with the editor configured for resources opened from chat. */
+export async function openChatTurnFile(file: IPreviewFile, openerService: IOpenerService, configurationService: IConfigurationService): Promise<void> {
+	await openerService.open(file.uri, {
+		fromUserGesture: true,
+		editorOptions: {
+			override: getEditorOverrideForChatResource(file.uri, configurationService),
+		},
+	});
 }
 
 /** The data and interactions a {@link ChatTurnPillsWidget} reflects. */
 export interface IChatTurnPillsModel {
 	readonly stats: IObservable<IDiffStats>;
 	readonly previewFiles: IObservable<readonly IPreviewFile[]>;
-	/**
-	 * The URL of the last browser tool call in the turn, or `undefined` when the
-	 * turn used no URL-carrying browser tool. Drives the "Live Browser" pill.
-	 */
-	readonly browserUrl: IObservable<string | undefined>;
 	/** When `false` the changes pill stays hidden regardless of the data. */
 	readonly changesEnabled: IObservable<boolean>;
 	/** When `false` the preview pill stays hidden regardless of the data. */
 	readonly previewEnabled: IObservable<boolean>;
-	/** When `false` the "Live Browser" pill stays hidden regardless of the data. */
-	readonly browserEnabled: IObservable<boolean>;
 	openChanges(): void;
-	openPreviewFile(file: IPreviewFile): void;
-	openBrowser(url: string): void;
+	openFile(file: IPreviewFile): void;
 }
 
-/** Per-pill visibility for the agent turn status pills ({@link ChatConfiguration.TurnStatusPills}). */
-export interface IChatTurnStatusPillsConfig {
-	readonly changes: boolean;
-	readonly preview: boolean;
-	readonly browser: boolean;
+/** The former per-pill setting shape, retained for existing user settings. */
+export interface IChatTurnStatusPillsLegacyConfig {
+	readonly changes?: boolean;
+	readonly preview?: boolean;
+	readonly browser?: boolean;
 }
 
-const TURN_STATUS_PILLS_DEFAULT: IChatTurnStatusPillsConfig = { changes: false, preview: false, browser: false };
+export type ChatTurnStatusPillsSetting = boolean | IChatTurnStatusPillsLegacyConfig;
 
-/** Observe the per-pill turn status pills visibility setting. */
-export function observeTurnStatusPillsConfig(configurationService: IConfigurationService): IObservable<IChatTurnStatusPillsConfig> {
-	return observableConfigValue(ChatConfiguration.TurnStatusPills, TURN_STATUS_PILLS_DEFAULT, configurationService);
+/** Normalize the boolean setting and its legacy per-pill object form. */
+export function isChatTurnStatusPillsEnabled(value: ChatTurnStatusPillsSetting | undefined): boolean {
+	return typeof value === 'boolean' ? value : !!(value?.changes || value?.preview || value?.browser);
+}
+
+/** Observe whether agent turn status pills are enabled. */
+export function observeTurnStatusPillsEnabled(configurationService: IConfigurationService): IObservable<boolean> {
+	const value = observableConfigValue<ChatTurnStatusPillsSetting>(ChatConfiguration.TurnStatusPills, true, configurationService);
+	return derived(reader => isChatTurnStatusPillsEnabled(value.read(reader)));
 }
 
 /**
@@ -206,58 +199,8 @@ class ChangesPillActionViewItem extends BaseActionViewItem {
 			? localize('chatTurnPills.changes.file', "{0} File", files)
 			: localize('chatTurnPills.changes.files', "{0} Files", files);
 		this._filesLabel.textContent = filesLabel;
-		this._button.setTitle(localize('chatTurnPills.changes.tooltip', "View Changes"));
-		this._button.element.setAttribute('aria-label', localize('chatTurnPills.changes.ariaLabel', "View Changes: {0}, +{1}, -{2}", filesLabel, insertions, deletions));
-	}
-
-	override focus(): void {
-		this._button?.focus();
-	}
-}
-
-/**
- * The "Live Browser" pill: `<browser-icon> Live Browser`, rendered as a compact
- * secondary button. Activating it opens the integrated browser at the turn's
- * last browser URL ({@link _browserUrlObs}); the URL is surfaced in the tooltip.
- */
-class LiveBrowserPillActionViewItem extends BaseActionViewItem {
-
-	private _button: Button | undefined;
-
-	constructor(
-		action: IAction,
-		options: IActionViewItemOptions,
-		private readonly _browserUrlObs: IObservable<string | undefined>,
-	) {
-		super(undefined, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		this.element = container;
-		container.classList.add('chat-turn-pill-browser');
-
-		const button = this._button = this._register(new Button(container, { secondary: true, small: true, ...defaultButtonStyles }));
-		button.element.classList.add('monaco-text-button', 'chat-turn-pill-browser-button');
-		this._register(button.onDidClick(() => {
-			if (this._action.enabled) {
-				this.actionRunner.run(this._action, this._context);
-			}
-		}));
-
-		reset(
-			button.element,
-			$(`span.chat-turn-pill-meta-icon${ThemeIcon.asCSSSelector(Codicon.globe)}`),
-			$('span.chat-turn-pill-browser-label', undefined, localize('chatTurnPills.browser.label', "Live Browser")),
-		);
-
-		this._register(autorun(reader => {
-			const url = this._browserUrlObs.read(reader);
-			const tooltip = url
-				? localize('chatTurnPills.browser.tooltip', "Open Live Browser: {0}", url)
-				: localize('chatTurnPills.browser.label', "Live Browser");
-			this._button?.setTitle(tooltip);
-			this._button?.element.setAttribute('aria-label', tooltip);
-		}));
+		this._button.setTitle(localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"));
+		this._button.element.setAttribute('aria-label', localize('chatTurnPills.changes.ariaLabel', "View Current Turn Changes: {0}, +{1}, -{2}", filesLabel, insertions, deletions));
 	}
 
 	override focus(): void {
@@ -269,7 +212,7 @@ class LiveBrowserPillActionViewItem extends BaseActionViewItem {
  * The preview pill: renders the primary previewable file as a resource label
  * (file icon + name). When more than one previewable file exists, a separator
  * and a dropdown chevron are shown; the chevron lists every previewable file.
- * Activating the label opens the primary file's preview.
+ * Activating the label opens the primary file.
  */
 class PreviewPillActionViewItem extends BaseActionViewItem {
 
@@ -343,13 +286,10 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
  *
  * - **Changes** — `<n> Files +ins -del` for the turn. Activating it opens the
  *   changes.
- * - **Preview** — shown when the turn created or edited a markdown file.
+ * - **Preview** — shown when the turn created or edited a markdown file outside
+ *   the current workspace.
  *   Rendered as a resource label for the primary file. Activating it opens that
- *   file as a markdown preview; when several exist, a dropdown lists them all.
- * - **Live Browser** — shown when the turn made a browser tool call that carries
- *   a URL. Rendered as `<browser-icon> Live Browser`; activating it opens the
- *   integrated browser at the turn's last browser URL.
- *
+ *   file; when several exist, a dropdown lists them all.
  * The data and the open actions are supplied by the {@link IChatTurnPillsModel}
  * so the same widget serves surfaces with different data sources.
  */
@@ -363,7 +303,6 @@ export class ChatTurnPillsWidget extends Disposable {
 	private readonly _toolbar: ToolBar;
 	private readonly _changesAction: Action;
 	private readonly _previewAction: Action;
-	private readonly _browserAction: Action;
 	private readonly _resourceLabels: ResourceLabels;
 
 	/** Ids of the currently mounted pills, so we only rebuild the toolbar when the set changes. */
@@ -382,9 +321,8 @@ export class ChatTurnPillsWidget extends Disposable {
 		this.element = $('.chat-turn-pills.show-file-icons.hidden');
 		this._resourceLabels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
-		this._changesAction = this._register(new Action(CHANGES_PILL_ACTION_ID, localize('chatTurnPills.changes.tooltip', "View Changes"), undefined, true, async () => this._model.openChanges()));
-		this._previewAction = this._register(new Action(PREVIEW_PILL_ACTION_ID, localize('chatTurnPills.preview.label', "Open Preview"), undefined, true, async () => this._openPrimaryPreview()));
-		this._browserAction = this._register(new Action(LIVE_BROWSER_PILL_ACTION_ID, localize('chatTurnPills.browser.label', "Live Browser"), undefined, true, async () => this._openBrowser()));
+		this._changesAction = this._register(new Action(CHANGES_PILL_ACTION_ID, localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"), undefined, true, async () => this._model.openChanges()));
+		this._previewAction = this._register(new Action(PREVIEW_PILL_ACTION_ID, localize('chatTurnPills.preview.label', "Open Preview"), undefined, true, async () => this._openPrimaryFile()));
 
 		this._toolbar = this._register(new ToolBar(this.element, this._contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
@@ -394,19 +332,16 @@ export class ChatTurnPillsWidget extends Disposable {
 					return new ChangesPillActionViewItem(action, options, this._model.stats, this._instantiationService);
 				}
 				if (action.id === PREVIEW_PILL_ACTION_ID) {
-					return new PreviewPillActionViewItem(action, options, this._model.previewFiles, this._resourceLabels, file => this._model.openPreviewFile(file), anchor => this._showAllPreviews(anchor));
-				}
-				if (action.id === LIVE_BROWSER_PILL_ACTION_ID) {
-					return new LiveBrowserPillActionViewItem(action, options, this._model.browserUrl);
+					return new PreviewPillActionViewItem(action, options, this._model.previewFiles, this._resourceLabels, file => this._model.openFile(file), anchor => this._showAllFiles(anchor));
 				}
 				return undefined;
 			},
 		}));
 
-		this.isVisible = derived(this, reader => this._showChanges(reader) || this._showPreview(reader) || this._showBrowser(reader));
+		this.isVisible = derived(this, reader => this._showChanges(reader) || this._showPreview(reader));
 
 		this._register(autorun(reader => {
-			this._updateVisibleActions(this._showChanges(reader), this._showPreview(reader), this._showBrowser(reader));
+			this._updateVisibleActions(this._showChanges(reader), this._showPreview(reader));
 		}));
 	}
 
@@ -418,11 +353,7 @@ export class ChatTurnPillsWidget extends Disposable {
 		return this._model.previewEnabled.read(reader) && this._model.previewFiles.read(reader).length > 0;
 	}
 
-	private _showBrowser(reader: IReader): boolean {
-		return this._model.browserEnabled.read(reader) && this._model.browserUrl.read(reader) !== undefined;
-	}
-
-	private _updateVisibleActions(showChanges: boolean, showPreview: boolean, showBrowser: boolean): void {
+	private _updateVisibleActions(showChanges: boolean, showPreview: boolean): void {
 		const actions: IAction[] = [];
 		if (showChanges) {
 			actions.push(this._changesAction);
@@ -430,10 +361,6 @@ export class ChatTurnPillsWidget extends Disposable {
 		if (showPreview) {
 			actions.push(this._previewAction);
 		}
-		if (showBrowser) {
-			actions.push(this._browserAction);
-		}
-
 		const signature = actions.map(a => a.id).join(',');
 		if (signature !== this._visibleSignature) {
 			this._visibleSignature = signature;
@@ -442,21 +369,14 @@ export class ChatTurnPillsWidget extends Disposable {
 		this.element.classList.toggle('hidden', actions.length === 0);
 	}
 
-	private _openPrimaryPreview(): void {
+	private _openPrimaryFile(): void {
 		const primaryFile = this._model.previewFiles.get().at(0);
 		if (primaryFile) {
-			this._model.openPreviewFile(primaryFile);
+			this._model.openFile(primaryFile);
 		}
 	}
 
-	private _openBrowser(): void {
-		const url = this._model.browserUrl.get();
-		if (url !== undefined) {
-			this._model.openBrowser(url);
-		}
-	}
-
-	private _showAllPreviews(anchor: HTMLElement): void {
+	private _showAllFiles(anchor: HTMLElement): void {
 		const files = this._model.previewFiles.get();
 		if (files.length === 0) {
 			return;
@@ -466,8 +386,8 @@ export class ChatTurnPillsWidget extends Disposable {
 			getActions: () => files.map(file => toAction({
 				id: `${PREVIEW_PILL_ACTION_ID}.${file.uri.toString()}`,
 				label: basename(file.uri),
-				class: ThemeIcon.asClassName(Codicon.openPreview),
-				run: () => this._model.openPreviewFile(file),
+				class: ThemeIcon.asClassName(Codicon.goToFile),
+				run: () => this._model.openFile(file),
 			})),
 		});
 	}

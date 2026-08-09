@@ -107,6 +107,7 @@ export interface IEndpointBody {
 	input?: readonly any[];
 	truncation?: 'auto' | 'disabled';
 	prompt_cache_key?: string;
+	prompt_cache_options?: { mode: 'implicit' | 'explicit' };
 	include?: ['reasoning.encrypted_content'];
 	store?: boolean;
 	text?: {
@@ -206,6 +207,8 @@ export interface IMakeChatRequestOptions {
 	source?: Source;
 	/** Conversation identifier used for request-scoped state (for example WebSocket connection reuse). */
 	conversationId?: string;
+	/** Optional identifier for an independent WebSocket connection within a conversation. */
+	webSocketConnectionId?: string;
 	/** Identifier for a single tool-calling turn within a conversation. */
 	turnId?: string;
 	/** Additional request options */
@@ -339,7 +342,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
 	readonly warningText?: Record<string, string>;
-	readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string };
+	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**

@@ -6,15 +6,17 @@
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
+import { IVoiceAttachmentResult, IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 
 /**
  * Bridges {@link IVoiceSessionController} to Agents window chat surfaces.
@@ -25,6 +27,7 @@ import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVo
  * - `_chat.voice.acceptInput` injects transcribed text into the focused chat widget.
  * - `_chat.voice.getCurrentSession` reports the active session's chat resource.
  * - `_chat.voice.switchToSession` activates the session that owns a chat resource.
+ * - `_chat.voice.activateSession` narrates a session's pending voice item on demand.
  */
 class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchContribution {
 
@@ -38,6 +41,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 
@@ -75,7 +79,8 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
 				} else {
-					widget.acceptInput(text, { preserveFocus: true });
+					// Preserve any text the user already typed in the input.
+					widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
 				}
 			}
 		}));
@@ -92,6 +97,42 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 				return activeChat.toString();
 			}
 			return this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource?.toString();
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
+			const composer = this._activeComposerTarget();
+			const widget = composer ? undefined : this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			const models = composer?.getVoiceModels() ?? widget?.inputPart.availableLanguageModels;
+			if (!models) {
+				return { ok: false, reason: 'no_input' };
+			}
+			const resolved = resolveVoiceModel(models, requestedModel);
+			if (!resolved.ok || !resolved.identifier) {
+				return resolved;
+			}
+			const selected = composer
+				? composer.selectVoiceModel(resolved.identifier)
+				: widget!.inputPart.switchModelByIdentifier(resolved.identifier, true, true);
+			return selected ? resolved : { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.attachFiles', async (_accessor, resourceStrings: readonly string[]): Promise<IVoiceAttachmentResult> => {
+			const composer = this._activeComposerTarget();
+			const widget = composer ? undefined : this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			if (!composer && !widget) {
+				return { ok: false, reason: 'no_input' };
+			}
+			try {
+				const resources = resourceStrings.map(resource => URI.parse(resource));
+				if (composer) {
+					composer.attach(resources);
+				} else {
+					await Promise.all(resources.map(resource => widget!.attachmentModel.addFile(resource)));
+				}
+				return { ok: true, attached: resources.map(resource => basename(resource)) };
+			} catch {
+				return { ok: false, reason: 'attachment_failed' };
+			}
 		}));
 
 		// Reveal the session that owns the given chat resource.
@@ -135,6 +176,25 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			} catch {
 				return false;
 			}
+		}));
+
+		// Explicitly narrate a session's pending voice item (e.g. the user clicked
+		// its pending-voice indicator). Deterministic - activates even when the
+		// session is already the active one, where no focus/view-model change fires.
+		// The resource is passed straight through so it matches the key the pending
+		// indicator was set under (see IVoicePlaybackService.setPendingResponse).
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.activateSession', (_accessor, resourceStr: string): boolean => {
+			if (!resourceStr || resourceStr === NEW_CHAT_VOICE_SENTINEL.toString()) {
+				return false;
+			}
+			let resource: URI;
+			try {
+				resource = URI.parse(resourceStr);
+			} catch {
+				return false;
+			}
+			this.voiceSessionController.activateSession(resource);
+			return true;
 		}));
 	}
 
@@ -190,12 +250,28 @@ class SessionsVoiceActiveSessionContribution extends Disposable implements IWork
 	) {
 		super();
 
+		let voiceDraftSession: IActiveSession | undefined;
 		this._register(autorun(reader => {
 			const active = this.sessionsService.activeSession.read(reader);
-			const resource = active?.isCreated.read(reader)
-				? active.activeChat.read(reader)?.resource
-				: undefined;
-			this.voiceSessionController.setActiveSessionShown(resource);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			if (!hasDraftTarget) {
+				voiceDraftSession = undefined;
+			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
+				voiceDraftSession = active;
+			}
+			if (voiceDraftSession?.isCreated.read(reader)) {
+				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.activeChat.read(reader).resource);
+				voiceDraftSession = undefined;
+			}
+			if (!active) {
+				this.voiceSessionController.setActiveSessionShown(undefined);
+				return;
+			}
+			if (!active.isCreated.read(reader)) {
+				this.voiceSessionController.setActiveSessionShown(null);
+				return;
+			}
+			this.voiceSessionController.setActiveSessionShown(active.activeChat.read(reader)?.resource);
 		}));
 	}
 }
@@ -204,8 +280,9 @@ registerWorkbenchContribution2(SessionsVoiceActiveSessionContribution.ID, Sessio
 
 /**
  * Keeps hands-free listening anchored to the dictation session.
- * If the active session changes mid-dictation, stop to avoid misrouting;
- * otherwise follow the new session, mirroring `ChatViewPane`.
+ * If the active session changes while listening, stop following it: submit
+ * anything already dictated to the original session, or discard an empty turn,
+ * so voice mode doesn't keep recording against a newly focused session.
  */
 class SessionsVoiceListeningContribution extends Disposable implements IWorkbenchContribution {
 
@@ -219,10 +296,10 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 
 		let listeningSession: URI | undefined;
 		this._register(autorun(reader => {
-			const turns = voiceSessionController.transcriptTurns.read(reader);
 			const connected = voiceSessionController.isConnected.read(reader);
 			const voiceState = voiceSessionController.voiceState.read(reader);
 			const targetSession = voiceSessionController.targetSession.read(reader);
+			const turns = voiceSessionController.transcriptTurns.read(reader);
 			const activeSession = sessionsService.activeSession.read(reader);
 			const currentSession = activeSession?.activeChat.read(reader)?.resource;
 
@@ -240,17 +317,59 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 			if (!listeningSession) {
 				listeningSession = targetSession ?? currentSession;
 			} else if (!targetSession && currentSession && !isEqual(currentSession, listeningSession)) {
-				// Stop only mid-dictation; otherwise follow the new session.
+				const dictationSession = listeningSession;
 				const activelyDictating = turns.some(t => t.speaker === 'user' && t.isPartial && t.text.trim().length > 0);
 				if (activelyDictating) {
-					voiceSessionController.stopListening();
-					listeningSession = undefined;
+					// The user already spoke — submit their words to the session
+					// they were dictating into rather than losing them or
+					// misrouting to the newly focused session.
+					voiceSessionController.finishListeningAndSubmitTo(dictationSession);
 				} else {
-					listeningSession = currentSession;
+					// Nothing dictated yet — just stop, discarding the empty turn.
+					voiceSessionController.discardListening();
 				}
+				listeningSession = undefined;
 			}
 		}));
 	}
 }
 
 registerWorkbenchContribution2(SessionsVoiceListeningContribution.ID, SessionsVoiceListeningContribution, WorkbenchPhase.Eventually);
+
+/** Ends voice when a different welcome composer becomes active; routing in-session composers are exempt. */
+export class SessionsVoiceNewComposerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.voiceNewComposer';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
+	) {
+		super();
+
+		// Preserve the owner across the disposal/mount gap so a new surface can be detected.
+		let voiceComposer: INewChatVoiceComposer | undefined;
+		let voiceComposerCaptured = false;
+		this._register(autorun(reader => {
+			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
+			const activeComposer = newChatVoiceTargetService.activeComposer.read(reader);
+			if (!connected) {
+				voiceComposer = activeComposer;
+				voiceComposerCaptured = false;
+				return;
+			}
+			if (!voiceComposerCaptured) {
+				voiceComposer = activeComposer;
+				voiceComposerCaptured = true;
+				return;
+			}
+			// A different welcome composer took over while voice is connected: the
+			// connection is bound to the previous surface and can't route here.
+			if (activeComposer && activeComposer !== voiceComposer && !activeComposer.routesWhileSessionActive) {
+				voiceSessionController.disconnect('internal');
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(SessionsVoiceNewComposerContribution.ID, SessionsVoiceNewComposerContribution, WorkbenchPhase.AfterRestored);

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentHostCodexApprovalsPicker.css';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -11,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { getCodexApprovalsPickerListOptions } from '../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -23,33 +23,6 @@ import { isWellKnownCodexApprovalsSchema } from './agentHostPermissionPickerDele
 
 const CODEX_APPROVALS_LEARN_MORE_URL = 'https://developers.openai.com/codex/concepts/sandboxing#how-you-control-it';
 const LEARN_MORE_VALUE = '__agentHostCodexApprovalsPicker.learnMore__';
-
-/**
- * Class applied to the picker popup so the CSS in
- * `media/agentHostCodexApprovalsPicker.css` can wrap the long preset
- * descriptions within the bounded {@link CODEX_APPROVALS_PICKER_WIDTH}.
- */
-const CODEX_APPROVALS_PICKER_CLASS = 'codex-approvals-picker';
-
-/**
- * Fixed width of the approvals popup, applied as both the min and max width.
- *
- * Once the CSS lets `.detail` wrap, the descriptions no longer contribute their
- * (long) single-line width to the action list's intrinsic-width measurement, so
- * the popup would otherwise collapse to the width of the short labels (~220px)
- * and wrap every description onto 5-6 cramped lines. Pinning a min width floors
- * the popup wide enough that each description wraps to a uniform three lines.
- */
-const CODEX_APPROVALS_PICKER_WIDTH = 340;
-
-/**
- * Row height reserved for a preset's label plus its wrapped description. At
- * {@link CODEX_APPROVALS_PICKER_WIDTH} every description wraps to three lines
- * (~57px incl. the title) on macOS; this is sized for four lines so wider UI
- * fonts on Linux/Windows (Ubuntu/Segoe) can't clip the text (`.detail` overflow
- * is hidden in the fixed-height virtual list).
- */
-const CODEX_APPROVALS_PICKER_DETAIL_ITEM_HEIGHT = 76;
 
 function getCodexApprovalsIcon(value: string | undefined): ThemeIcon | undefined {
 	switch (value) {
@@ -104,12 +77,7 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected override _getListOptions(): IActionListOptions {
-		return {
-			className: CODEX_APPROVALS_PICKER_CLASS,
-			minWidth: CODEX_APPROVALS_PICKER_WIDTH,
-			maxWidth: CODEX_APPROVALS_PICKER_WIDTH,
-			detailItemHeight: CODEX_APPROVALS_PICKER_DETAIL_ITEM_HEIGHT,
-		};
+		return getCodexApprovalsPickerListOptions();
 	}
 
 	protected override _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] {

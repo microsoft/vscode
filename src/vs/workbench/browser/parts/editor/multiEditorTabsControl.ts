@@ -104,7 +104,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		shrink: 80 as const,
 		fit: 120 as const
 	};
-	private static readonly STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH = 32 as const;
+	private static readonly MODERN_UI_COMPACT_PINNED_TAB_WIDTH = 28 as const;
 
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
@@ -188,6 +188,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Container
 		this.tabsContainer = $('.tabs-container', {
 			role: 'tablist',
+			'aria-multiselectable': 'true',
 			draggable: true
 		});
 		this._register(Gesture.addTarget(this.tabsContainer));
@@ -806,6 +807,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar));
 	}
 
+	updateEditorCapabilities(editor: EditorInput): void {
+		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTab(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar));
+	}
+
 	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 		super.updateOptions(oldOptions, newOptions);
 
@@ -900,6 +905,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Gesture Support
 		const gestureDisposable = Gesture.addTarget(tabContainer);
+
+		// Tab Fill (Modern UI pill background). A real element is used because the
+		// tab's ::before/::after pseudo-elements are reserved for drop-target indicators.
+		const tabFillContainer = $('.tab-fill', { 'aria-hidden': true });
+		tabContainer.appendChild(tabFillContainer);
 
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');
@@ -1051,7 +1061,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor) {
-					if (preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
+					if (editor.hasCapability(EditorInputCapabilities.CannotClose) || preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
 						return;
 					}
 
@@ -1610,6 +1620,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private redrawTab(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
+		const isCloseable = !editor.hasCapability(EditorInputCapabilities.CannotClose);
 		const options = this.groupsView.partOptions;
 
 		// Label
@@ -1617,7 +1628,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Action
 		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
-		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
+		const hasCloseAction = isCloseable && !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 
 		let tabAction;
@@ -1638,6 +1649,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);
 		tabContainer.classList.toggle(`close-action-off`, !hasUnpinAction && !hasCloseAction);
+		tabContainer.classList.toggle('cannot-close', !isCloseable);
 
 		for (const option of ['left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, hasAction && options.tabActionLocation === option);
@@ -1741,7 +1753,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		tabContainer.classList.toggle('active', isActive);
 		tabContainer.classList.toggle('selected', isSelected);
-		tabContainer.setAttribute('aria-selected', isActive ? 'true' : 'false');
+		tabContainer.classList.toggle('multi-selected', isSelected && this.groupView.selectedEditors.length > 1);
+		tabContainer.setAttribute('aria-selected', isSelected ? 'true' : 'false');
 		tabContainer.tabIndex = isActive ? 0 : -1; // Only active tab can be focused into
 		tabActionBar.setFocusable(isActive);
 
@@ -2230,11 +2243,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getStickyTabWidth(pinnedTabSizing: IEditorPartOptions['pinnedTabSizing']): number {
-		const hasStyleOverride = Boolean(this.parent.closest('.style-override'));
+		const hasModernUITabs = Boolean(this.parent.closest('.modern-ui-tabs'));
 
 		switch (pinnedTabSizing) {
 			case 'compact':
-				return hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
+				return hasModernUITabs ? MultiEditorTabsControl.MODERN_UI_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
 			case 'shrink':
 				return MultiEditorTabsControl.TAB_WIDTH.shrink;
 			default:
@@ -2436,7 +2449,7 @@ registerThemingParticipant((theme, collector) => {
 			}
 
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
-				outline: 1px dotted;
+				outline: 1px dashed;
 				outline-offset: -5px;
 			}
 
