@@ -713,14 +713,16 @@ suite('ProviderAutomationService', () => {
 			legacy: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!),
 		}, {
 			providerRunIds: ['provider-run'],
-			legacy: { schemaVersion: 3, revision: 1, automations: [automation], runs: [{
-				id: 'legacy-run',
-				automationId: automation.id,
-				status: 'completed',
-				trigger: 'manual',
-				startedAt: '2026-01-02T00:00:00.000Z',
-				leaderWindowId: 1,
-			}] },
+			legacy: {
+				schemaVersion: 3, revision: 1, automations: [automation], runs: [{
+					id: 'legacy-run',
+					automationId: automation.id,
+					status: 'completed',
+					trigger: 'manual',
+					startedAt: '2026-01-02T00:00:00.000Z',
+					leaderWindowId: 1,
+				}]
+			},
 		});
 	});
 
