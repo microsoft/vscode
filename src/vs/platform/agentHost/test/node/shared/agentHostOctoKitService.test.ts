@@ -8,6 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../log/common/log.js';
 import { AgentHostOctoKitService, type FetchFunction } from '../../../node/shared/agentHostOctoKitService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { deriveGitHubEndpoints } from '../../../common/githubEndpoints.js';
+import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 
 type Captured = { url: string; init: RequestInit | undefined };
 
@@ -117,8 +119,7 @@ suite('AgentHostOctoKitService', () => {
 	});
 
 	test('findPullRequestByHeadSha returns the pull request whose head is the commit', async () => {
-		// The endpoint also lists pull requests that merely *contain* the
-		// commit, e.g. those of the branches below a stacked branch.
+		// Pull request 1 only contains the commit; 9 has it as its head.
 		const { fetch, captured } = capturingFetch(jsonResponse([
 			{ html_url: 'https://github.com/o/r/pull/1', number: 1, state: 'open', head: { sha: 'aaa' } },
 			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'open', head: { sha: 'bbb' }, node_id: 'PR_node_9' },
@@ -171,6 +172,34 @@ suite('AgentHostOctoKitService', () => {
 			first: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined },
 			revalidated: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined },
 		});
+	});
+
+	test('findPullRequestByHeadSha reports none when the commit fills a whole page of pull requests', async () => {
+		const page = Array.from({ length: 100 }, (_, index) => ({ html_url: `https://github.com/o/r/pull/${index}`, number: index, state: 'open', head: { sha: index === 0 ? 'bbb' : 'aaa' } }));
+		const service = makeService(capturingFetch(jsonResponse(page)).fetch);
+
+		assert.strictEqual(await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()), undefined);
+	});
+
+	test('scopes the pull request cache to the GitHub host that issued the validator', async () => {
+		let enterpriseUri: string | undefined;
+		const endpointService: IAgentHostGitHubEndpointService = {
+			...createTestGitHubEndpointService(),
+			getApiBaseUri: () => deriveGitHubEndpoints(enterpriseUri).apiBaseUri,
+		};
+		const requests: (string | undefined)[] = [];
+		const service = new AgentHostOctoKitService(async (_input, init) => {
+			requests.push((init?.headers as Record<string, string>)['If-None-Match']);
+			return new Response(JSON.stringify([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]), { status: 200, headers: { 'content-type': 'application/json', etag: 'W/"tag"' } });
+		}, new NullLogService(), endpointService);
+
+		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+		enterpriseUri = 'https://ghe.example.com';
+		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+
+		// The validator is replayed only against the host that issued it.
+		assert.deepStrictEqual(requests, [undefined, 'W/"tag"', undefined]);
 	});
 
 	test('getIssueOrPullRequest fetches the title and body from the issues endpoint', async () => {

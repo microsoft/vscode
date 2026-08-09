@@ -135,21 +135,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	/**
-	 * Resolves the pull request of the branch that is currently checked out.
-	 *
-	 * The local branch name is not a dependable key. A branch checked out from
-	 * a pull request head (`git switch -c <local> FETCH_HEAD`) or pushed with an
-	 * explicit refspec carries a name that never existed on the remote, and a
-	 * name that happens to collide with an unrelated remote branch would resolve
-	 * to that branch's pull request. So the remote head branch is taken from the
-	 * upstream tracking ref when there is one, and the commit at HEAD — which
-	 * identifies the pull request regardless of how the branch is named locally
-	 * — serves as the fallback for branches that track nothing.
+	 * Resolves the pull request of the branch that is currently checked out,
+	 * preferring the remote head branch and falling back to the commit at HEAD
+	 * for local branches whose name never reached the remote.
 	 */
 	private async _findPullRequestForCheckout(state: ISessionWithDefaultChat, owner: string, repo: string, gitState: ISessionGitState | undefined, branchName: string, authToken: string): Promise<CreatedPullRequest | undefined> {
 		const signal = this._pullRequestAbortController.signal;
-		// Mirrors the create-PR handler: an upstream on a non-GitHub remote
-		// says nothing about GitHub, so its branch name is not used there.
+		// An upstream on a non-GitHub remote says nothing about GitHub, so its
+		// branch is ignored here as it is when creating a pull request.
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
 		const headBranch = upstreamBranch?.branch ?? branchName;

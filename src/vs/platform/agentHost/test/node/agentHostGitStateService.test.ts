@@ -378,9 +378,8 @@ suite('AgentHostGitStateService', () => {
 
 	test('falls back to the commit at HEAD when the branch name matches no pull request', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			// A branch checked out from a pull request head (`git switch -c
-			// <local> FETCH_HEAD`) has neither an upstream nor a name that
-			// exists on the remote, so only the commit identifies the PR.
+			// A branch checked out from a pull request head: no upstream, and a
+			// name that does not exist on the remote.
 			const gitState: ISessionGitState = { branchName: 'local-only', baseBranchName: 'main' };
 			const h = createHarness();
 			seedSession(h.stateManager, {

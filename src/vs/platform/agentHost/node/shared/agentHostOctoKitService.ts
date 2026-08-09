@@ -133,6 +133,9 @@ export const IAgentHostOctoKitService = createDecorator<IAgentHostOctoKitService
 const GITHUB_API_VERSION = '2022-11-28';
 const MAX_ERROR_RESPONSE_BODY_LENGTH = 500;
 
+/** Page size, and therefore upper bound, for the pull requests read per commit. */
+const MAX_COMMIT_PULL_REQUESTS = 100;
+
 const ENABLE_AUTO_MERGE_MUTATION = `mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
 	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
 		pullRequest { id }
@@ -196,13 +199,22 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 	}
 
 	async findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
-		const routeSlug = `repos/${owner}/${repo}/commits/${encodeURIComponent(sha)}/pulls?per_page=100`;
+		const routeSlug = `repos/${owner}/${repo}/commits/${encodeURIComponent(sha)}/pulls?per_page=${MAX_COMMIT_PULL_REQUESTS}`;
 		const items = await this._searchPullRequests(routeSlug, token, signal);
 
-		// The endpoint lists every pull request that *contains* the commit,
-		// which for a stacked branch also includes the pull requests of the
-		// branches below it. Only a pull request whose head is exactly this
-		// commit describes the branch that is checked out.
+		// Only the first page is read. A full page means later pages could hold
+		// further candidates, so neither the match nor its uniqueness can be
+		// established — a commit associated with this many pull requests is not
+		// one this lookup can speak for anyway.
+		if (items.length >= MAX_COMMIT_PULL_REQUESTS) {
+			this._logService.warn(`[AgentHostOctoKitService] Not resolving a pull request for ${sha}: more than ${MAX_COMMIT_PULL_REQUESTS} are associated with it`);
+			return undefined;
+		}
+
+		// The endpoint also lists pull requests that merely *contain* the
+		// commit, such as those of the branches below a stacked branch. Only a
+		// pull request whose head is exactly this commit describes the branch
+		// that is checked out.
 		const atHead = items.filter(item => item?.head?.sha === sha);
 		const open = atHead.filter(item => item.state === 'open');
 		const candidates = open.length > 0 ? open : atHead;
@@ -217,7 +229,10 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 	 * previously cached listing when the ETag still validates.
 	 */
 	private async _searchPullRequests(routeSlug: string, token: string, signal: AbortSignal): Promise<readonly GitHubPullRequestResponseItem[]> {
-		const cached = this.pullRequestSearchCache.get(routeSlug);
+		// Validators and bodies are scoped to the host that issued them, which
+		// can change when the endpoint is repointed at another GitHub instance.
+		const cacheKey = `${this._endpoint.getApiBaseUri()}/${routeSlug}`;
+		const cached = this.pullRequestSearchCache.get(cacheKey);
 		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, cached?.etag);
 
 		if (response.statusCode === 304) {
@@ -226,7 +241,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
 		const items = Array.isArray(response.data) ? response.data : [];
 		if (response.etag) {
-			this.pullRequestSearchCache.set(routeSlug, { etag: response.etag, items });
+			this.pullRequestSearchCache.set(cacheKey, { etag: response.etag, items });
 		}
 		return items;
 	}
