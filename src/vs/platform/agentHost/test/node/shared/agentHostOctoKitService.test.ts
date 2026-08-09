@@ -116,6 +116,63 @@ suite('AgentHostOctoKitService', () => {
 		assert.strictEqual(captured().url, 'https://api.github.com/repos/o/r/pulls?head=fork-owner%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1');
 	});
 
+	test('findPullRequestByHeadSha returns the pull request whose head is the commit', async () => {
+		// The endpoint also lists pull requests that merely *contain* the
+		// commit, e.g. those of the branches below a stacked branch.
+		const { fetch, captured } = capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/1', number: 1, state: 'open', head: { sha: 'aaa' } },
+			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'open', head: { sha: 'bbb' }, node_id: 'PR_node_9' },
+		]));
+		const service = makeService(fetch);
+
+		const result = await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal());
+
+		assert.deepStrictEqual({
+			result,
+			url: captured().url,
+			method: captured().init?.method,
+		}, {
+			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9' },
+			url: 'https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100',
+			method: 'GET',
+		});
+	});
+
+	test('findPullRequestByHeadSha ignores pull requests that only contain the commit', async () => {
+		const service = makeService(capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/1', number: 1, state: 'open', head: { sha: 'aaa' } },
+		])).fetch);
+
+		assert.strictEqual(await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()), undefined);
+	});
+
+	test('findPullRequestByHeadSha reports none when several pull requests share the head commit', async () => {
+		const service = makeService(capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/1', number: 1, state: 'open', head: { sha: 'bbb' } },
+			{ html_url: 'https://github.com/o/r/pull/2', number: 2, state: 'open', head: { sha: 'bbb' } },
+		])).fetch);
+
+		assert.strictEqual(await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal()), undefined);
+	});
+
+	test('serves the previously fetched pull request when the ETag still validates', async () => {
+		let call = 0;
+		const service = makeService(async () => {
+			call++;
+			return call === 1
+				? new Response(JSON.stringify([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]), { status: 200, headers: { 'content-type': 'application/json', etag: 'W/"tag"' } })
+				: new Response(null, { status: 304, headers: { etag: 'W/"tag"' } });
+		});
+
+		const first = await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+		const revalidated = await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
+
+		assert.deepStrictEqual({ first, revalidated }, {
+			first: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined },
+			revalidated: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined },
+		});
+	});
+
 	test('getIssueOrPullRequest fetches the title and body from the issues endpoint', async () => {
 		const { fetch, captured } = capturingFetch(jsonResponse({ title: 'Issue title', body: 'Issue body' }));
 		const service = makeService(fetch);

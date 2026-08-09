@@ -33,6 +33,17 @@ interface GitHubPullRequestResponseItem {
 	readonly number?: unknown;
 	readonly html_url?: unknown;
 	readonly node_id?: unknown;
+	readonly state?: unknown;
+	readonly head?: { readonly sha?: unknown };
+}
+
+function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): CreatedPullRequest | undefined {
+	const html_url = item?.html_url;
+	const number = item?.number;
+	const node_id = item?.node_id;
+	return typeof html_url === 'string' && typeof number === 'number'
+		? { number, url: html_url, nodeId: typeof node_id === 'string' ? node_id : undefined }
+		: undefined;
 }
 
 interface GitHubIssueOrPullRequestResponseItem {
@@ -91,6 +102,16 @@ export interface IAgentHostOctoKitService {
 	/** Finds the most recently updated pull request for `headOwner:branch`, if any. */
 	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner?: string): Promise<CreatedPullRequest | undefined>;
 
+	/**
+	 * Finds the pull request whose head commit is exactly `sha`, if any.
+	 *
+	 * Unlike {@link findPullRequestByHeadBranch} this does not depend on the
+	 * local branch carrying the same name as the remote head branch, so it also
+	 * resolves branches checked out from a pull request head under a different
+	 * name or pushed with an explicit refspec.
+	 */
+	findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined>;
+
 	/** Fetches the title and body of an issue or pull request. */
 	getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest>;
 
@@ -125,9 +146,11 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 	private readonly _fetch: FetchFunction;
 
 	/**
-	 * A cache of ETags for pull request search results.
+	 * Cached pull request listings keyed by route, with the ETag that validated
+	 * them. The items are kept alongside the ETag because a `304` response
+	 * carries no body: without them a revalidated route would look empty.
 	 */
-	private readonly pullRequestSearchEtags = new LRUCache<string, string>(100);
+	private readonly pullRequestSearchCache = new LRUCache<string, { readonly etag: string; readonly items: readonly GitHubPullRequestResponseItem[] }>(100);
 
 	constructor(
 		fetchFn: FetchFunction | undefined,
@@ -168,35 +191,44 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
 	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner = owner): Promise<CreatedPullRequest | undefined> {
 		const routeSlug = `repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${headOwner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+		const items = await this._searchPullRequests(routeSlug, token, signal);
+		return toCreatedPullRequest(items[0]);
+	}
 
-		const etag = this.pullRequestSearchEtags.get(routeSlug);
-		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, etag);
+	async findPullRequestByHeadSha(owner: string, repo: string, sha: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
+		const routeSlug = `repos/${owner}/${repo}/commits/${encodeURIComponent(sha)}/pulls?per_page=100`;
+		const items = await this._searchPullRequests(routeSlug, token, signal);
 
+		// The endpoint lists every pull request that *contains* the commit,
+		// which for a stacked branch also includes the pull requests of the
+		// branches below it. Only a pull request whose head is exactly this
+		// commit describes the branch that is checked out.
+		const atHead = items.filter(item => item?.head?.sha === sha);
+		const open = atHead.filter(item => item.state === 'open');
+		const candidates = open.length > 0 ? open : atHead;
+
+		// Branches that point at the same commit are indistinguishable by
+		// commit alone, so report none rather than guess at one of them.
+		return candidates.length === 1 ? toCreatedPullRequest(candidates[0]) : undefined;
+	}
+
+	/**
+	 * Issues a conditional GET for a pull request listing route, serving the
+	 * previously cached listing when the ETag still validates.
+	 */
+	private async _searchPullRequests(routeSlug: string, token: string, signal: AbortSignal): Promise<readonly GitHubPullRequestResponseItem[]> {
+		const cached = this.pullRequestSearchCache.get(routeSlug);
+		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, cached?.etag);
+
+		if (response.statusCode === 304) {
+			return cached?.items ?? [];
+		}
+
+		const items = Array.isArray(response.data) ? response.data : [];
 		if (response.etag) {
-			this.pullRequestSearchEtags.set(routeSlug, response.etag);
+			this.pullRequestSearchCache.set(routeSlug, { etag: response.etag, items });
 		}
-
-		if (
-			response.statusCode === 304 ||
-			!Array.isArray(response.data) ||
-			response.data.length === 0
-		) {
-			return undefined;
-		}
-
-		const first = response.data[0];
-		const html_url = first?.html_url;
-		const number = first?.number;
-		const node_id = first?.node_id;
-		return typeof html_url === 'string' && typeof number === 'number'
-			? {
-				number,
-				url: html_url,
-				nodeId: typeof node_id === 'string'
-					? node_id
-					: undefined
-			}
-			: undefined;
+		return items;
 	}
 
 	async getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest> {

@@ -430,6 +430,22 @@ function getBranchPriority(branch: string, currentBranch: string | undefined, de
 	return 2;
 }
 
+/**
+ * Splits an upstream tracking branch (e.g. `origin/feature`) into its remote
+ * and remote-side branch name. Returns `undefined` when the branch has no
+ * upstream or the value is not of the `<remote>/<branch>` shape.
+ */
+export function parseUpstreamBranchName(upstreamBranchName: string | undefined): { remote: string; branch: string } | undefined {
+	const separatorIndex = upstreamBranchName?.indexOf('/') ?? -1;
+	if (!upstreamBranchName || separatorIndex <= 0 || separatorIndex === upstreamBranchName.length - 1) {
+		return undefined;
+	}
+	return {
+		remote: upstreamBranchName.substring(0, separatorIndex),
+		branch: upstreamBranchName.substring(separatorIndex + 1),
+	};
+}
+
 export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
 	const normalizedQuery = options?.query?.toLowerCase();
 	const filtered = normalizedQuery
