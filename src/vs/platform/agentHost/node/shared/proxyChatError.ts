@@ -10,9 +10,6 @@ import { CopilotApiError, COPILOT_API_ERROR_STATUS_STREAMING } from './copilotAp
  * through the Claude and Codex child-process boundaries. Their model proxies
  * hold the rich {@link CopilotApiError}, while the child processes only see
  * HTTP/SSE error text.
- *
- * Mirrors the Copilot Chat extension's `PROXY_ERROR_PREFIX`
- * (`extensions/copilot/src/extension/chatSessions/claude/common/claudeMessageDispatch.ts`).
  */
 export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR:';
 
