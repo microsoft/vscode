@@ -15,6 +15,7 @@ export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
 export interface INewSessionPromptOption {
 	readonly id: string;
 	readonly title: string;
+	readonly titleDetail?: string;
 	readonly description: string;
 	readonly prompt: string;
 	readonly placeholder: string;

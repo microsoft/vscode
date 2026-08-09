@@ -837,10 +837,10 @@ export class NewSessionViewV3PromptRunner {
 	private _createGitHubPromptOption(candidate: INewSessionViewV3GitHubCandidate): INewSessionPromptOption {
 		const plan = this._createGitHubPrompt(candidate);
 		const title = candidate.strategy === 'githubIssue'
-			? localize('sessions.onboarding.newSessionViewV3.options.githubIssue.title', "Tackle issue #{0}", candidate.number)
+			? localize('sessions.onboarding.newSessionViewV3.options.githubIssue.title', "Tackle issue")
 			: candidate.strategy === 'githubCiFailure'
-				? localize('sessions.onboarding.newSessionViewV3.options.githubCi.title', "Fix CI #{0}", candidate.number)
-				: localize('sessions.onboarding.newSessionViewV3.options.githubReview.title', "Address PR comments #{0}", candidate.number);
+				? localize('sessions.onboarding.newSessionViewV3.options.githubCi.title', "Fix CI")
+				: localize('sessions.onboarding.newSessionViewV3.options.githubReview.title', "Address PR comments");
 		const icon = candidate.strategy === 'githubIssue'
 			? computeIssueIcon(GitHubIssueState.Open, undefined)
 			: computePullRequestIcon(GitHubPullRequestState.Open, {
@@ -850,6 +850,7 @@ export class NewSessionViewV3PromptRunner {
 		return {
 			id: `${candidate.strategy}:${candidate.url}`,
 			title,
+			titleDetail: `#${candidate.number}`,
 			description: candidate.title,
 			prompt: plan.prompt,
 			placeholder: '',
