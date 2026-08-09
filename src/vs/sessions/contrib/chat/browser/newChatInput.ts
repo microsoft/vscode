@@ -651,6 +651,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			wrappingStrategy: 'advanced',
 			stickyScroll: { enabled: false },
 			renderWhitespace: 'none',
+			scrollbar: {
+				horizontal: 'hidden',
+				alwaysConsumeMouseWheel: false,
+				vertical: 'auto',
+				verticalScrollbarSize: 7,
+			},
 			overflowWidgetsDomNode,
 			suggest: {
 				showIcons: true,
