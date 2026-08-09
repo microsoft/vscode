@@ -77,7 +77,7 @@ suite('Agent Host - session type auth requirement', () => {
 			signedOutWithModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, false, true),
 			signedOutWithTargetedByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(true, true, false)),
 			signedOutWithSourceByokNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(true, false, true)),
-			signedOutWithByokDisabledNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(false, true, true)),
+			signedOutWithClientByokDisabledNotification: shouldShowSignedOutModelsNotification(true, true, true, false, hasAvailableAgentHostByokModels(false, true, true)),
 			signedInWithoutModelsNotification: shouldShowSignedOutModelsNotification(true, true, true, true, false),
 		}, {
 			featureDisabled: false,
@@ -87,12 +87,12 @@ suite('Agent Host - session type auth requirement', () => {
 			signedOutWithModelsNotification: false,
 			signedOutWithTargetedByokNotification: false,
 			signedOutWithSourceByokNotification: false,
-			signedOutWithByokDisabledNotification: true,
+			signedOutWithClientByokDisabledNotification: true,
 			signedInWithoutModelsNotification: false,
 		});
 	});
 
-	test('No-model notifications wait for extension, configuration, and provider discovery', () => {
+	test('No-model notification waits for extension, configuration, and provider discovery', () => {
 		const resolvedVendors = new Set(['anthropic']);
 		const hasResolvedVendor = (vendor: string) => resolvedVendors.has(vendor);
 

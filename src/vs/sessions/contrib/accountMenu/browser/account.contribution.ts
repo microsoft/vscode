@@ -35,8 +35,7 @@ import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../wo
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { observeUsableWithoutGitHub } from '../../../browser/sessionsAuthGate.js';
+import { observeAllowSignedOutWhenUsable } from '../../../browser/sessionsAuthGate.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
@@ -197,12 +196,11 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@ICodexAccountService private readonly codexAccountService: ICodexAccountService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(undefined, action, options);
-		this.usableWithoutGitHub = observeUsableWithoutGitHub(sessionsManagementService, configurationService);
+		this.usableWithoutGitHub = observeAllowSignedOutWhenUsable(configurationService);
 		this.lastState = getAccountTitleBarState({
 			isAccountLoading: true,
 			entitlement: this.chatEntitlementService.entitlement,
@@ -227,8 +225,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				this.renderState();
 			}
 		}));
-		// A type becoming usable/unusable without GitHub, or toggling the opt-in,
-		// can flip the signed-out affordance between the calm and alarming states.
+		// Toggling the opt-in flips the signed-out affordance between calm and alarming states.
 		this._register(runOnChange(this.usableWithoutGitHub, () => this.renderState()));
 		this.refreshAccount();
 	}

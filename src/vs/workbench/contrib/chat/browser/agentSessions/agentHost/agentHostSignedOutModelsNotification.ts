@@ -14,16 +14,14 @@ import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../..
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { hasVisibleByokModelsTargetingSessionType } from '../sessionTypeAvailability.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
-import { localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelsConfigurationService } from '../../../common/languageModelsConfiguration.js';
 
 const SIGNED_OUT_MODELS_NOTIFICATION_ID = 'agentHost.signedOutModels.copilot';
-const SIGNED_OUT_LOCAL_MODELS_NOTIFICATION_ID = 'local.signedOutModels';
 const SIGN_IN_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 const COPILOT_AGENT_HOST_PROVIDER_ID = 'copilotcli';
-const COPILOT_MODEL_TARGETS = [SessionType.AgentHostCopilot, SessionType.CopilotCLI];
 const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
 
 export function shouldShowSignedOutModelsNotification(allowSignedOutWhenUsable: boolean, modelsLoaded: boolean, accountResolved: boolean, signedIn: boolean, hasModels: boolean): boolean {
@@ -34,8 +32,8 @@ export function areLocalModelsLoaded(extensionsRegistered: boolean, configuratio
 	return extensionsRegistered && configurationLoaded && configuredByokVendors.every(hasResolvedVendor);
 }
 
-export function hasAvailableAgentHostByokModels(clientByokEnabled: boolean, hasTargetedModels: boolean, hasSourceModels: boolean): boolean {
-	return clientByokEnabled && (hasTargetedModels || hasSourceModels);
+export function hasAvailableAgentHostByokModels(isClientByokEnabled: boolean, hasTargetedModels: boolean, hasSourceModels: boolean): boolean {
+	return isClientByokEnabled && (hasTargetedModels || hasSourceModels);
 }
 
 /**
@@ -132,28 +130,21 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			&& !(rootState instanceof Error)
 			&& rootState.agents.some(agent => agent.provider === COPILOT_AGENT_HOST_PROVIDER_ID)
 			&& this._languageModelsService.hasResolvedVendor(SessionType.AgentHostCopilot);
-		const clientByokEnabled = this._chatEntitlementService.clientByokEnabled;
-		const hasVisibleLocalByokModels = clientByokEnabled && this._languageModelsService.getLanguageModelIds().some(identifier => {
+		const hasVisibleLocalByokModels = this._languageModelsService.getLanguageModelIds().some(identifier => {
 			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
 			return metadata?.isBYOK === true
 				&& !metadata.targetChatSessionType
 				&& !this._languageModelsService.isModelHidden(identifier);
 		});
 		const hasVisibleAgentHostByokModels = hasAvailableAgentHostByokModels(
-			clientByokEnabled,
+			this._chatEntitlementService.clientByokEnabled,
 			hasVisibleByokModelsTargetingSessionType(this._languageModelsService, SessionType.AgentHostCopilot),
 			hasVisibleLocalByokModels,
 		);
 		this._setNotification(
 			SIGNED_OUT_MODELS_NOTIFICATION_ID,
 			shouldShowSignedOutModelsNotification(allowSignedOutWhenUsable, agentHostModelsLoaded, this._accountResolved, signedIn, hasVisibleAgentHostByokModels),
-			COPILOT_MODEL_TARGETS,
-		);
-
-		this._setNotification(
-			SIGNED_OUT_LOCAL_MODELS_NOTIFICATION_ID,
-			shouldShowSignedOutModelsNotification(allowSignedOutWhenUsable, byokModelsLoaded, this._accountResolved, signedIn, hasVisibleLocalByokModels),
-			[localChatSessionType],
+			[SessionType.AgentHostCopilot],
 		);
 	}
 

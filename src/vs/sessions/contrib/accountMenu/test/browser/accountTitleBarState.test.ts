@@ -145,7 +145,7 @@ suite('Sessions - Account Title Bar State', () => {
 		});
 	});
 
-	test('offers a calm opt-in sign-in instead of "Agents Signed Out" when a type is usable without GitHub', () => {
+	test('offers a calm opt-in sign-in when signed-out operation is enabled', () => {
 		const state = getAccountTitleBarState(createState({
 			accountName: undefined,
 			accountProviderLabel: undefined,

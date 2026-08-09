@@ -41,11 +41,11 @@ export function agentHostMcpServerId(authority: string, serverName: string, reso
  * Whether creating a session with the selected model requires the agent's protected-resource authentication.
  */
 export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined, allowSignedOutWhenUsable = false): boolean {
-	if (!agent?.protectedResources?.some(resource => resource.required !== false)) {
+	if (!agent?.protectedResources?.length) {
 		return false;
 	}
 	if (!allowSignedOutWhenUsable) {
-		return true;
+		return agent.protectedResources.some(resource => resource.required !== false);
 	}
 	if (!model) {
 		return true;

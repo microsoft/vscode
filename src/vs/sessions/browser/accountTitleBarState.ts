@@ -65,8 +65,7 @@ export interface IAccountTitleBarStateContext {
 		readonly completions?: IQuotaSnapshot;
 	};
 	/**
-	 * Whether at least one registered session type is usable without GitHub
-	 * right now (the conditional-auth opt-in is on and a usable type exists).
+	 * Whether the conditional-auth opt-in permits signed-out operation.
 	 * When true, a signed-out account shows a calm opt-in sign-in instead of the
 	 * alarming "Agents Signed Out". Defaults to `false`, so the opt-in being off
 	 * keeps today's behavior.
@@ -152,8 +151,7 @@ function getCopilotPresentation(
 
 	if (entitlement === ChatEntitlement.Unknown) {
 		if (usableWithoutGitHub) {
-			// A session type is usable without GitHub, so signing in is optional:
-			// present a calm opt-in affordance rather than alarming the user.
+			// Signing in is optional, so present a calm affordance.
 			return {
 				source: 'copilot',
 				kind: 'default',

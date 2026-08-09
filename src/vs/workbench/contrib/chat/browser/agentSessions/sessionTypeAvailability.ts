@@ -6,7 +6,7 @@
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IChatSessionsService, isLocalAgentHostTarget } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 
 /**
@@ -25,7 +25,7 @@ export enum SessionTypeAvailability {
 }
 
 export function getSessionTypePickerAvailability(type: string, availability: SessionTypeAvailability, allowSignedOutWhenUsable: boolean): SessionTypeAvailability {
-	return allowSignedOutWhenUsable && isLocalAgentHostTarget(type) && availability === SessionTypeAvailability.SignInRequired
+	return allowSignedOutWhenUsable && type === SessionType.AgentHostCopilot && availability === SessionTypeAvailability.SignInRequired
 		? SessionTypeAvailability.Available
 		: availability;
 }
