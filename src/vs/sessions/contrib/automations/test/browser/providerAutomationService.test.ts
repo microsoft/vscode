@@ -83,10 +83,24 @@ class ConcurrentlyMutatingTransferAutomationStore extends AutomationStore {
 	}
 }
 
+class DestinationDeletingTransferAutomationStore extends AutomationStore {
+	destinationStore!: AutomationStore;
+	private didMutate = false;
+
+	override async removeAutomationSnapshotIfUnchanged(expected: IAutomationSnapshot) {
+		if (!this.didMutate) {
+			this.didMutate = true;
+			await this.updateAutomation(expected.automation.id, { name: 'Concurrent source update' });
+			await this.destinationStore.deleteAutomation(expected.automation.id);
+		}
+		return super.removeAutomationSnapshotIfUnchanged(expected);
+	}
+}
+
 suite('ProviderAutomationService', () => {
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun'): {
+	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun' | 'destinationDeleteDuringRollback'): {
 		readonly service: ProviderAutomationService;
 		readonly providerStore: AutomationStore;
 		readonly storage: InMemoryStorageService;
@@ -135,6 +149,12 @@ suite('ProviderAutomationService', () => {
 				const mutatingStore = new ConcurrentlyMutatingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
 				mutatingStore.legacyWriter = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), NullTelemetryService, automationStorage));
 				providerStore = mutatingStore;
+				break;
+			}
+			case 'destinationDeleteDuringRollback': {
+				const deletingStore = new DestinationDeletingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				deletingStore.destinationStore = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), NullTelemetryService, automationStorage));
+				providerStore = deletingStore;
 				break;
 			}
 			default:
@@ -312,6 +332,29 @@ suite('ProviderAutomationService', () => {
 			legacyAutomationIds: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations.map((automation: { id: string }) => automation.id),
 		}, {
 			providerRunAutomationIds: [created.id],
+			legacyAutomationIds: [],
+		});
+	});
+
+	test('does not recreate a destination deleted during rollback', async () => {
+		const { service, providerStore, storage } = createService(undefined, undefined, 'destinationDeleteDuringRollback');
+		const created = await service.createAutomation({
+			name: 'Provider owned',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+		});
+
+		await service.updateAutomation(created.id, {
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: 'provider-without-storage', sessionTypeId: 'other', isolation: { kind: 'default' } },
+		});
+		const legacyLedger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!);
+
+		assert.deepStrictEqual({
+			sourceName: providerStore.getAutomation(created.id)?.name,
+			legacyAutomationIds: legacyLedger.automations.map((automation: { id: string }) => automation.id),
+		}, {
+			sourceName: 'Concurrent source update',
 			legacyAutomationIds: [],
 		});
 	});
@@ -556,7 +599,75 @@ suite('ProviderAutomationService', () => {
 		});
 	});
 
-	test('merges missing runs when the provider already has the Automation', async () => {
+	test('retains legacy data when the provider Automation payload diverges', async () => {
+		const createLedger = (name: string) => JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [{
+				id: 'automation-1',
+				name,
+				prompt: 'prompt',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'workspace', folderUri: FOLDER.toJSON(), providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+				enabled: true,
+				createdAt: '2026-01-01T00:00:00.000Z',
+				updatedAt: '2026-01-01T00:00:00.000Z',
+			}],
+			runs: [],
+		});
+		const { service, providerStore, storage } = createService(createLedger('Legacy'), createLedger('Provider'));
+
+		await service.waitForMigrationForTesting();
+		const legacyLedger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!);
+
+		assert.deepStrictEqual({
+			providerName: providerStore.getAutomation('automation-1')?.name,
+			legacyNames: legacyLedger.automations.map((automation: { name: string }) => automation.name),
+		}, {
+			providerName: 'Provider',
+			legacyNames: ['Legacy'],
+		});
+	});
+
+	test('retains legacy data when a same-ID run payload diverges', async () => {
+		const automation = {
+			id: 'automation-1',
+			name: 'Shared',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER.toJSON(), providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+			enabled: true,
+			createdAt: '2026-01-01T00:00:00.000Z',
+			updatedAt: '2026-01-01T00:00:00.000Z',
+		};
+		const createLedger = (status: 'completed' | 'failed') => JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [automation],
+			runs: [{
+				id: 'run-1',
+				automationId: automation.id,
+				status,
+				trigger: 'manual',
+				startedAt: '2026-01-01T00:00:00.000Z',
+				leaderWindowId: 1,
+			}],
+		});
+		const { service, providerStore, storage } = createService(createLedger('failed'), createLedger('completed'));
+
+		await service.waitForMigrationForTesting();
+		const legacyLedger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!);
+
+		assert.deepStrictEqual({
+			providerStatuses: providerStore.runs.get().map(run => run.status),
+			legacyStatuses: legacyLedger.runs.map((run: { status: string }) => run.status),
+		}, {
+			providerStatuses: ['completed'],
+			legacyStatuses: ['failed'],
+		});
+	});
+
+	test('retains legacy data when provider run history diverges', async () => {
 		const automation = {
 			id: 'automation-1',
 			name: 'Shared',
@@ -601,8 +712,15 @@ suite('ProviderAutomationService', () => {
 			providerRunIds: providerStore.runs.get().map(run => run.id),
 			legacy: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!),
 		}, {
-			providerRunIds: ['legacy-run', 'provider-run'],
-			legacy: { schemaVersion: 3, revision: 2, automations: [], runs: [] },
+			providerRunIds: ['provider-run'],
+			legacy: { schemaVersion: 3, revision: 1, automations: [automation], runs: [{
+				id: 'legacy-run',
+				automationId: automation.id,
+				status: 'completed',
+				trigger: 'manual',
+				startedAt: '2026-01-02T00:00:00.000Z',
+				leaderWindowId: 1,
+			}] },
 		});
 	});
 

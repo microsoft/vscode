@@ -74,7 +74,8 @@ export interface IAutomationSnapshot {
 
 export type IAutomationSnapshotImportResult =
 	| { readonly kind: 'inserted' }
-	| { readonly kind: 'alreadyPresent' };
+	| { readonly kind: 'alreadyPresent' }
+	| { readonly kind: 'conflict'; readonly current: IAutomationSnapshot };
 
 export type IGuardedAutomationSnapshotRemovalResult =
 	| { readonly kind: 'removed' }

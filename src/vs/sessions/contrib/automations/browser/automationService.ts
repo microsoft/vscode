@@ -272,20 +272,24 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 	async importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult> {
 		const { automation, runs } = snapshot;
-		return this.mutateLedger(ledger => {
-			const hasAutomation = ledger.automations.some(candidate => candidate.id === automation.id);
-			const existingRunIds = new Set(ledger.runs.map(run => run.id));
-			const missingRuns = runs.filter(run => !existingRunIds.has(run.id));
-			if (hasAutomation && missingRuns.length === 0) {
-				return { kind: 'noChange', result: { kind: 'alreadyPresent' } as const };
+		return this.mutateLedger<IAutomationSnapshotImportResult>(ledger => {
+			const existing = ledger.automations.find(candidate => candidate.id === automation.id);
+			if (existing) {
+				const current: IAutomationSnapshot = {
+					automation: existing,
+					runs: ledger.runs.filter(run => run.automationId === automation.id),
+				};
+				return areAutomationSnapshotsEqual(current, snapshot)
+					? { kind: 'noChange', result: { kind: 'alreadyPresent' } as const }
+					: { kind: 'noChange', result: { kind: 'conflict', current } as const };
 			}
 			return {
 				kind: 'commit',
 				ledger: {
-					automations: hasAutomation ? ledger.automations : [automation, ...ledger.automations],
-					runs: [...missingRuns, ...ledger.runs],
+					automations: [automation, ...ledger.automations],
+					runs: [...runs, ...ledger.runs],
 				},
-				result: { kind: hasAutomation ? 'alreadyPresent' : 'inserted' } as const,
+				result: { kind: 'inserted' } as const,
 			};
 		});
 	}

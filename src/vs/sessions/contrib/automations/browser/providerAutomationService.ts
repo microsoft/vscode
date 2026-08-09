@@ -286,6 +286,10 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			}
 
 			const importResult = await providerStore.importAutomationSnapshot(snapshot);
+			if (importResult.kind === 'conflict') {
+				this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' conflicts with the destination provider store; leaving the legacy copy in place.`);
+				return;
+			}
 			this.recoveredStores.delete(providerStore);
 			const sourceRemoval = await this.legacyStore.removeAutomationSnapshotIfUnchanged(snapshot);
 			switch (sourceRemoval.kind) {
@@ -309,11 +313,16 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	private async rollbackAutomationSnapshotIfUnchanged(store: ISessionsProviderAutomations, snapshot: IAutomationSnapshot): Promise<boolean> {
 		const result = await store.removeAutomationSnapshotIfUnchanged(snapshot);
-		if (result.kind === 'conflict') {
-			this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' changed in the destination store during rollback; leaving both copies in place.`);
-			return false;
+		switch (result.kind) {
+			case 'removed':
+				return true;
+			case 'conflict':
+				this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' changed in the destination store during rollback; leaving both copies in place.`);
+				return false;
+			case 'missing':
+				this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' was deleted from the destination store during rollback; leaving the source copy in place.`);
+				return false;
 		}
-		return true;
 	}
 
 }
