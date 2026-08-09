@@ -272,6 +272,40 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('does not classify read_bash shell_exit metadata as a terminal completion on replay', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'read_bash' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'read_bash', arguments: { shellId: 'build', delay: 0 } } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: {
+						content: 'Build completed\n',
+						contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n' }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		const part = turns[0].responseParts[0] as ToolCallResponsePart;
+		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
+		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
+		assert.deepStrictEqual({
+			toolKind: readToolCallMeta(part.toolCall).toolKind,
+			pastTenseMessage: part.toolCall.pastTenseMessage,
+			content: part.toolCall.content,
+		}, {
+			toolKind: undefined,
+			pastTenseMessage: 'Read Terminal',
+			content: [{ type: ToolResultContentType.Text, text: 'Build completed\n' }],
+		});
+	});
+
 	test('preserves non-zero terminal completion even when SDK tool completion succeeded', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
