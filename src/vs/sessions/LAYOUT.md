@@ -108,6 +108,8 @@ Which view is shown is owned by `ICustomViewService` ([services/customView/brows
 
 **Chrome.** Each grid leaf is a `CustomViewNode` ([browser/parts/customViewNode.ts](src/vs/sessions/browser/parts/customViewNode.ts)) that owns the shared header — title, optional description and the contributed actions rendered either as an icon toolbar or a button bar — above a scroll container. The header always has a bottom divider, independent of the content's scroll position. The header band and the content are centred and capped to `AGENTS_CENTERED_CONTENT_MAX_WIDTH` (the same measure the session views use); a view may override it with `AbstractCustomView.maxWidth`. Views only fill the content container and are disposed when hidden. On phone-class viewports `CustomViewGridParts` selects `MobileCustomViewGridPart` instead, mirroring `SessionsParts`/`MobileSessionsPart`.
 
+> **Pitfall:** a custom view that implements `focus()` with its own focus target must not also show the host content's fallback outline. The Automations view suppresses that redundant outer outline while its cards and controls retain their keyboard focus indicators; otherwise clicking the content edge paints a focus ring around the entire view.
+
 **Card chrome is shared.** The Sessions Part and the Custom View Grid both carry the `agents-part-card` class (`AGENTS_PART_CARD_CLASS`) and use `agentsPartCard.ts` for their metrics, themed colors and content-box math, so their padding, margins, background, border and corner radius are defined once and are identical.
 
 ---
