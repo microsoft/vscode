@@ -15,6 +15,7 @@ import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { IIterativePager } from '../../../../base/common/paging.js';
 import Severity from '../../../../base/common/severity.js';
+import { Mutable } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
@@ -682,10 +683,41 @@ export namespace McpServerLaunch {
 		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
+	function normalizeOAuth(oauth: McpServerTransportHTTPOAuth): McpServerTransportHTTPOAuth {
+		const result: Mutable<McpServerTransportHTTPOAuth> = {};
+		if (oauth.clientId !== undefined) {
+			result.clientId = oauth.clientId;
+		}
+		if (oauth.enterpriseManaged !== undefined) {
+			result.enterpriseManaged = oauth.enterpriseManaged;
+		}
+		return result;
+	}
+
+	/**
+	 * URI instances cache formatted values in enumerable fields, and callers can
+	 * represent absent optional fields as either missing or explicitly undefined.
+	 */
+	function normalizeHTTP(launch: McpServerTransportHTTP): McpServerTransportHTTP {
+		const result: Mutable<McpServerTransportHTTP> = {
+			type: McpServerTransportType.HTTP,
+			uri: URI.from(launch.uri),
+			headers: launch.headers
+		};
+		if (launch.oauth !== undefined) {
+			result.oauth = normalizeOAuth(launch.oauth);
+		}
+		if (launch.authentication !== undefined) {
+			result.authentication = {
+				providerId: launch.authentication.providerId,
+				scopes: launch.authentication.scopes
+			};
+		}
+		return result;
+	}
+
 	function normalize(launch: McpServerLaunch): McpServerLaunch {
-		return launch.type === McpServerTransportType.HTTP
-			? { ...launch, uri: URI.from(launch.uri) }
-			: launch;
+		return launch.type === McpServerTransportType.HTTP ? normalizeHTTP(launch) : launch;
 	}
 
 	export function equals(a: McpServerLaunch, b: McpServerLaunch): boolean {
@@ -697,13 +729,19 @@ export namespace McpServerLaunch {
 	}
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
-		return launch;
+		return normalize(launch);
 	}
 
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, oauth: launch.oauth, authentication: launch.authentication };
+				return normalizeHTTP({
+					type: launch.type,
+					uri: URI.revive(launch.uri),
+					headers: launch.headers,
+					oauth: launch.oauth,
+					authentication: launch.authentication
+				});
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,

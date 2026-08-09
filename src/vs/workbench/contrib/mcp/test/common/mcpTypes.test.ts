@@ -8,7 +8,7 @@ import { hash as objectHash } from '../../../../../base/common/hash.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
-import { McpResourceURI, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
+import { McpResourceURI, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType } from '../../common/mcpTypes.js';
 
 suite('MCP Types', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -191,6 +191,91 @@ suite('MCP Types', () => {
 				}
 			});
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+	});
+
+	suite('McpServerLaunch identity', () => {
+		const createHttpLaunch = (overrides?: Partial<McpServerTransportHTTP>): McpServerTransportHTTP => ({
+			type: McpServerTransportType.HTTP,
+			uri: URI.parse('https://example.com/mcp'),
+			headers: [],
+			...overrides
+		});
+
+		test('normalizes missing and undefined HTTP properties', async () => {
+			const omitted = createHttpLaunch();
+			const explicitUndefined = createHttpLaunch({
+				oauth: undefined,
+				authentication: undefined
+			});
+
+			assert.strictEqual(McpServerLaunch.equals(omitted, explicitUndefined), true);
+			assert.strictEqual(McpServerLaunch.hashForCache(omitted), McpServerLaunch.hashForCache(explicitUndefined));
+			assert.strictEqual(await McpServerLaunch.hash(omitted), await McpServerLaunch.hash(explicitUndefined));
+		});
+
+		test('normalizes missing and undefined OAuth properties', async () => {
+			const omitted = createHttpLaunch({ oauth: {} });
+			const explicitUndefined = createHttpLaunch({
+				oauth: {
+					clientId: undefined,
+					enterpriseManaged: undefined
+				}
+			});
+
+			assert.strictEqual(McpServerLaunch.equals(omitted, explicitUndefined), true);
+			assert.strictEqual(McpServerLaunch.hashForCache(omitted), McpServerLaunch.hashForCache(explicitUndefined));
+			assert.strictEqual(await McpServerLaunch.hash(omitted), await McpServerLaunch.hash(explicitUndefined));
+		});
+
+		test('round trips canonical HTTP properties without mutating the source', async () => {
+			const launch = createHttpLaunch({
+				oauth: {
+					clientId: undefined,
+					enterpriseManaged: true
+				},
+				authentication: undefined
+			});
+			launch.uri.toString();
+
+			const serialized = McpServerLaunch.toSerialized(launch);
+			const revived = McpServerLaunch.fromSerialized(serialized);
+
+			assert.strictEqual(McpServerLaunch.equals(launch, revived), true);
+			assert.strictEqual(McpServerLaunch.hashForCache(launch), McpServerLaunch.hashForCache(revived));
+			assert.strictEqual(await McpServerLaunch.hash(launch), await McpServerLaunch.hash(revived));
+			assert.strictEqual(serialized.type, McpServerTransportType.HTTP);
+			if (serialized.type !== McpServerTransportType.HTTP) {
+				throw new Error('Expected an HTTP launch');
+			}
+			assert.deepStrictEqual(Object.keys(serialized).sort(), ['headers', 'oauth', 'type', 'uri']);
+			assert.deepStrictEqual(Object.keys(serialized.oauth!).sort(), ['enterpriseManaged']);
+			assert.strictEqual(JSON.stringify(serialized).includes('"external"'), false);
+			assert.strictEqual(Object.hasOwn(launch, 'authentication'), true);
+			assert.strictEqual(Object.hasOwn(launch.oauth!, 'clientId'), true);
+		});
+
+		test('preserves meaningful HTTP authentication identity', async () => {
+			const base = createHttpLaunch();
+			const pairs: [McpServerLaunch, McpServerLaunch][] = [
+				[base, createHttpLaunch({ oauth: {} })],
+				[createHttpLaunch({ oauth: { clientId: 'client-a' } }), createHttpLaunch({ oauth: { clientId: 'client-b' } })],
+				[createHttpLaunch({ oauth: { enterpriseManaged: true } }), createHttpLaunch({ oauth: { enterpriseManaged: false } })],
+				[
+					createHttpLaunch({ authentication: { providerId: 'provider-a', scopes: ['scope'] } }),
+					createHttpLaunch({ authentication: { providerId: 'provider-b', scopes: ['scope'] } })
+				],
+				[
+					createHttpLaunch({ authentication: { providerId: 'provider', scopes: ['scope-a'] } }),
+					createHttpLaunch({ authentication: { providerId: 'provider', scopes: ['scope-b'] } })
+				]
+			];
+
+			for (const [left, right] of pairs) {
+				assert.strictEqual(McpServerLaunch.equals(left, right), false);
+				assert.notStrictEqual(McpServerLaunch.hashForCache(left), McpServerLaunch.hashForCache(right));
+				assert.notStrictEqual(await McpServerLaunch.hash(left), await McpServerLaunch.hash(right));
+			}
 		});
 	});
 
