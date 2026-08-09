@@ -9,7 +9,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError } from '../../node/shared/copilotApiService.js';
 import {
 	buildForwardedChatError,
-	buildForwardedChatErrorFromFields,
 	encodeForwardedChatError,
 	extractForwardedErrorInfo,
 	IForwardedChatError,
@@ -17,7 +16,7 @@ import {
 	toChatErrorMeta,
 	tryBuildChatErrorMeta,
 	tryParseForwardedChatError,
-} from '../../node/shared/forwardedChatError.js';
+} from '../../node/shared/proxyChatError.js';
 
 function makeApiError(status: number, type: string, message: string, requestId: string | null = 'req-1'): CopilotApiError {
 	const envelope: Anthropic.ErrorResponse = {
@@ -28,7 +27,7 @@ function makeApiError(status: number, type: string, message: string, requestId: 
 	return new CopilotApiError(status, envelope);
 }
 
-suite('forwardedChatError', () => {
+suite('proxyChatError', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -119,57 +118,6 @@ suite('forwardedChatError', () => {
 			// large; the parser must reject it before allocating/decoding.
 			const huge = `${PROXY_ERROR_PREFIX}${'A'.repeat(9 * 1024)}`;
 			assert.strictEqual(tryParseForwardedChatError(huge), undefined);
-		});
-	});
-
-	suite('buildForwardedChatErrorFromFields', () => {
-
-		test('maps Copilot SDK error categories to fetch types', () => {
-			const actual = [
-				{ errorType: 'quota', message: 'q' },
-				{ errorType: 'rate_limit', message: 'r' },
-				{ errorType: 'context_limit', message: 'c' },
-				{ errorType: 'authentication', message: 'a' },
-				{ errorType: 'authorization', message: 'a' },
-			].map(data => buildForwardedChatErrorFromFields(data)?.fetchError.type);
-			assert.deepStrictEqual(actual, ['quotaExceeded', 'rateLimited', 'length', 'agent_unauthorized', 'agent_unauthorized']);
-		});
-
-		test('carries code, message, and request ids for a quota error', () => {
-			const forwarded = buildForwardedChatErrorFromFields({
-				errorType: 'quota',
-				errorCode: 'quota_exceeded',
-				message: 'You have exceeded your monthly quota',
-				statusCode: 402,
-				providerCallId: 'gh-1',
-				serviceRequestId: 'svc-2',
-			});
-			assert.deepStrictEqual(forwarded, {
-				fetchError: {
-					type: 'quotaExceeded',
-					reason: 'You have exceeded your monthly quota',
-					requestId: 'gh-1',
-					serverRequestId: 'svc-2',
-					capiError: { code: 'quota_exceeded', message: 'You have exceeded your monthly quota' },
-				},
-			} satisfies IForwardedChatError);
-		});
-
-		test('defaults a quota error without an explicit code to quota_exceeded so the plan message renders', () => {
-			// The Copilot CLI SDK reports quota errors only via `errorType: 'quota'`
-			// (no fine-grained CAPI code). Without the default, the core formatter
-			// would fall through to the generic "Quota Exceeded" title.
-			const fromType = buildForwardedChatErrorFromFields({ errorType: 'quota', message: 'no credits' });
-			const fromStatus = buildForwardedChatErrorFromFields({ errorType: 'unknown', message: 'no credits', statusCode: 402 });
-			assert.deepStrictEqual([fromType?.fetchError.capiError?.code, fromStatus?.fetchError.capiError?.code], ['quota_exceeded', 'quota_exceeded']);
-		});
-
-		test('falls back to status-code mapping for an unknown category', () => {
-			assert.strictEqual(buildForwardedChatErrorFromFields({ errorType: 'something', message: 'm', statusCode: 429 })?.fetchError.type, 'rateLimited');
-		});
-
-		test('returns undefined for an unclassifiable error', () => {
-			assert.strictEqual(buildForwardedChatErrorFromFields({ errorType: 'query', message: 'bad input' }), undefined);
 		});
 	});
 

@@ -29,17 +29,19 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
-	driveTurnWithAttachmentsToCompletion, removeTempDirs, runAhpSnapshotTest,
+	driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, removeTempDirs, resolveGitHubToken, runAhpSnapshotTest,
 } from '../harness/agentHostE2ETestHarness.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const isWindows = process.platform === 'win32';
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
@@ -118,6 +120,58 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			startContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
 			readyContributor: { kind: ToolCallContributorKind.Client, clientId: 'copilot-client-tool' },
 			deltaCount: 0,
+		});
+	});
+
+	test('request error survives a host restart', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-error-restart-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-error-restart';
+		const prompt = 'Reply exactly "unreachable".';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+
+		await driveTurnToCompletion(client, sessionUri, 'turn-error-seed', 'Reply exactly "READY".', 1);
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		if (RECORD) {
+			lease.setRecordingModelResponse({
+				status: 500,
+				headers: {
+					'content-type': 'application/json',
+					'x-request-id': 'agent-host-e2e-error',
+				},
+				body: '{"type":"error","error":{"type":"api_error","message":"deterministic Agent Host E2E failure"}}',
+			});
+		}
+
+		dispatchTurn(client, sessionUri, 'turn-error-restart', prompt, 2);
+		const liveNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, 'chat/error')
+			&& getActionEnvelope(notification).channel === chatUri,
+			90_000,
+		);
+		const liveError = (getActionEnvelope(liveNotification).action as ChatErrorAction).error;
+
+		client = await lease.restart();
+		client.setWorkingDirectory(workingDirectory);
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `${clientId}-reopened` }, 30_000);
+		await client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: COPILOT_CONFIG.githubToken ?? resolveGitHubToken(),
+		}, 30_000);
+
+		const reopened = await fetchSessionWithChat(client, sessionUri);
+		const restoredTurn = reopened.turns.find(turn => turn.message.text === prompt);
+		assert.deepStrictEqual({
+			state: restoredTurn?.state,
+			error: restoredTurn?.error,
+		}, {
+			state: TurnState.Error,
+			error: liveError,
 		});
 	});
 

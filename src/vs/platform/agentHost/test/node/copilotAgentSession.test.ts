@@ -1051,6 +1051,14 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('assistant.turn_end', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_end'>['data']);
 		await session.getMessages();
 		assert.strictEqual(getEventsCalls, 2, 'memo should be invalidated after the event log changes');
+
+		session.resetTurnState('turn-error');
+		mockSession.fire('session.error', {
+			errorType: 'TestError',
+			message: 'something went wrong',
+		} as SessionEventPayload<'session.error'>['data']);
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 3, 'memo should be invalidated after a session error');
 	});
 
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
@@ -5707,8 +5715,25 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatError));
 			if (isAction(signals[0], ActionType.ChatError)) {
 				const action = signals[0].action as ChatErrorAction;
-				assert.strictEqual(action.error.errorType, 'TestError');
-				assert.strictEqual(action.error.message, 'something went wrong');
+				assert.deepStrictEqual(action.error, {
+					errorType: 'TestError',
+					message: 'something went wrong',
+					stack: 'Error: something went wrong',
+					_meta: {
+						chatError: {
+							fetchError: {
+								type: 'failed',
+								reason: 'something went wrong',
+								requestId: 'provider-request-id',
+								serverRequestId: 'service-request-id',
+								capiError: {
+									code: 'test-code',
+									message: 'something went wrong',
+								},
+							},
+						},
+					},
+				});
 			}
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.copilotSdkSessionError'), [{
 				eventName: 'agentHost.copilotSdkSessionError',
