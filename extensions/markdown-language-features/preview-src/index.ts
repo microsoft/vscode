@@ -376,6 +376,16 @@ window.addEventListener('message', async event => {
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
+						// The current DOM wraps <pre> in .code-block-wrapper; new content has a bare <pre>.
+						// Morph the inner <pre> in place so the wrapper (and its scrollLeft) is preserved.
+						if (fromEl.classList.contains('code-block-wrapper') && toEl.tagName === 'PRE') {
+							const innerPre = fromEl.querySelector(':scope > pre');
+							if (innerPre) {
+								morphdom(innerPre, toEl);
+								return false;
+							}
+						}
+
 						if (areNodesEqual(fromEl, toEl)) {
 							// areEqual doesn't look at `data-line` so copy those over manually
 							const fromLines = fromEl.querySelectorAll('[data-line]');
