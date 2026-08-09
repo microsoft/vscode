@@ -10,6 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -33,7 +34,9 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -537,6 +540,8 @@ async function connectWithProgress(
 ): Promise<ISSHAgentHostConnection | undefined> {
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
 	const notificationService = accessor.get(INotificationService);
+	const telemetryService = accessor.get(ITelemetryService);
+	const stopwatch = StopWatch.create(false);
 
 	const handle = notificationService.notify({
 		severity: Severity.Info,
@@ -558,9 +563,26 @@ async function connectWithProgress(
 
 	try {
 		const connection = await sshService.connect(config);
+		logSSHConnectAttempt(telemetryService, {
+			operation: 'connect',
+			userInitiated: config.userInitiated ?? true,
+			attempt: 1,
+			durationMs: stopwatch.elapsed(),
+			success: true,
+			willRetry: false,
+		});
 		handle.close();
 		return connection;
 	} catch (err) {
+		logSSHConnectAttempt(telemetryService, {
+			operation: 'connect',
+			userInitiated: config.userInitiated ?? true,
+			attempt: 1,
+			durationMs: stopwatch.elapsed(),
+			success: false,
+			willRetry: false,
+			errorCategory: categorizeSSHConnectError(err),
+		});
 		handle.close();
 		if (isCancellationError(err) || isSSHHostKeyDeniedError(err)) {
 			// A refused host key needs no generic error on top: either the user
