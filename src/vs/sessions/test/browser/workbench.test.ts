@@ -1309,6 +1309,30 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('single-pane editor part chooses the tab override from the visible composition', () => {
+		const getOverride = Reflect.get(SinglePaneMainEditorPart.prototype, '_getShowTabsOverride') as (
+			configuredShowTabs: 'multiple' | 'single' | 'none',
+			editorVisible: boolean,
+			auxiliaryBarVisible: boolean
+		) => 'multiple' | 'single' | undefined;
+
+		assert.deepStrictEqual({
+			auxiliaryBarOnlyMultiple: getOverride('multiple', false, true),
+			auxiliaryBarOnlySingle: getOverride('single', false, true),
+			auxiliaryBarOnlyNone: getOverride('none', false, true),
+			editorAndAuxiliaryBarSingle: getOverride('single', true, true),
+			editorOnlyNone: getOverride('none', true, false),
+			fullyHiddenMultiple: getOverride('multiple', false, false),
+		}, {
+			auxiliaryBarOnlyMultiple: 'multiple',
+			auxiliaryBarOnlySingle: 'multiple',
+			auxiliaryBarOnlyNone: 'multiple',
+			editorAndAuxiliaryBarSingle: undefined,
+			editorOnlyNone: 'single',
+			fullyHiddenMultiple: undefined,
+		});
+	});
+
 	test('applies an even split when revealing the docked editor with no captured width even after the initial split', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, windowWidth: 1300, hasAppliedInitialEditorSplit: true, dockedWidth: 300, editorWidth: 300, partVisibility: { editor: false, auxiliaryBar: true } });
 
