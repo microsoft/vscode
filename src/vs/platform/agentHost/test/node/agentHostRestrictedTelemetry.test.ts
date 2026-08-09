@@ -95,6 +95,21 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 		});
 	});
 
+	test('oversized enhanced telemetry is not posted', () => {
+		const { sender, posts } = createSender();
+		sender.setRestrictedTelemetryEnabled(true);
+
+		const properties: TelemetryProps = { messagesJson: 'x'.repeat(8192) };
+		properties.messagesJSONChunk = 'x'.repeat(8192);
+		for (let index = 2; index <= 50; index++) {
+			properties[`messagesJSONChunk_${index}`] = 'x'.repeat(8192);
+		}
+
+		sender.sendEnhancedGHTelemetryEvent('engine.messages', properties);
+
+		assert.deepStrictEqual(posts, []);
+	});
+
 	test('internal telemetry is independently gated on internal identity', () => {
 		const internalSink = new TestInternalSink();
 		const sender = new AgentHostRestrictedTelemetrySender(commonProperties, new NullLogService(), 'https://default.example/telemetry', internalSink);
