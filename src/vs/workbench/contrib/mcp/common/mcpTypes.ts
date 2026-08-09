@@ -221,6 +221,16 @@ export interface McpServerStaticMetadata {
 	serverInfo?: MCP.Implementation;
 }
 
+function cloneUriWithoutCaches(uri: URI): URI {
+	return URI.revive({
+		scheme: uri.scheme,
+		authority: uri.authority,
+		path: uri.path,
+		query: uri.query,
+		fragment: uri.fragment,
+	});
+}
+
 export namespace McpServerDefinition {
 	export interface Serialized {
 		readonly id: string;
@@ -233,7 +243,10 @@ export namespace McpServerDefinition {
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
-		return def;
+		return {
+			...def,
+			launch: McpServerLaunch.toSerialized(def.launch),
+		};
 	}
 
 	export function fromSerialized(def: McpServerDefinition.Serialized): McpServerDefinition {
@@ -250,13 +263,13 @@ export namespace McpServerDefinition {
 
 	function normalizePresentation(presentation: McpServerDefinition['presentation']) {
 		return presentation?.origin
-			? { ...presentation, origin: { ...presentation.origin, uri: URI.from(presentation.origin.uri) } }
+			? { ...presentation, origin: { ...presentation.origin, uri: cloneUriWithoutCaches(presentation.origin.uri) } }
 			: presentation;
 	}
 
 	function normalizeVariableReplacement(variableReplacement: McpServerDefinitionVariableReplacement | undefined) {
 		return variableReplacement?.folder
-			? { ...variableReplacement, folder: { ...variableReplacement.folder, uri: URI.from(variableReplacement.folder.uri) } }
+			? { ...variableReplacement, folder: { ...variableReplacement.folder, uri: cloneUriWithoutCaches(variableReplacement.folder.uri) } }
 			: variableReplacement;
 	}
 
@@ -683,13 +696,15 @@ export namespace McpServerLaunch {
 		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
-	function normalizeOAuth(oauth: McpServerTransportHTTPOAuth): McpServerTransportHTTPOAuth {
-		const result: Mutable<McpServerTransportHTTPOAuth> = {};
-		if (oauth.clientId !== undefined) {
-			result.clientId = oauth.clientId;
+	function normalizeDefinedProperties<T extends object>(value: T): T {
+		if (value === null || typeof value !== 'object') {
+			return value;
 		}
-		if (oauth.enterpriseManaged !== undefined) {
-			result.enterpriseManaged = oauth.enterpriseManaged;
+		const result = { ...value };
+		for (const [key, property] of Object.entries(result)) {
+			if (property === undefined) {
+				Reflect.deleteProperty(result, key);
+			}
 		}
 		return result;
 	}
@@ -701,17 +716,14 @@ export namespace McpServerLaunch {
 	function normalizeHTTP(launch: McpServerTransportHTTP): McpServerTransportHTTP {
 		const result: Mutable<McpServerTransportHTTP> = {
 			type: McpServerTransportType.HTTP,
-			uri: URI.from(launch.uri),
+			uri: cloneUriWithoutCaches(launch.uri),
 			headers: launch.headers
 		};
 		if (launch.oauth !== undefined) {
-			result.oauth = normalizeOAuth(launch.oauth);
+			result.oauth = normalizeDefinedProperties(launch.oauth);
 		}
 		if (launch.authentication !== undefined) {
-			result.authentication = {
-				providerId: launch.authentication.providerId,
-				scopes: launch.authentication.scopes
-			};
+			result.authentication = normalizeDefinedProperties(launch.authentication);
 		}
 		return result;
 	}

@@ -192,6 +192,18 @@ suite('MCP Types', () => {
 			});
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
 		});
+
+		test('serializes nested HTTP launches without URI cache state', () => {
+			const uri = URI.parse('https://example.com/mcp');
+			uri.toString();
+			void uri.fsPath;
+
+			const serialized = McpServerDefinition.toSerialized(createHttpDefinition(uri));
+
+			assert.strictEqual(serialized.launch.type, McpServerTransportType.HTTP);
+			assert.strictEqual(JSON.stringify(serialized.launch).includes('"external"'), false);
+			assert.strictEqual(JSON.stringify(serialized.launch).includes('"fsPath"'), false);
+		});
 	});
 
 	suite('McpServerLaunch identity', () => {
@@ -253,6 +265,23 @@ suite('MCP Types', () => {
 			assert.strictEqual(JSON.stringify(serialized).includes('"external"'), false);
 			assert.strictEqual(Object.hasOwn(launch, 'authentication'), true);
 			assert.strictEqual(Object.hasOwn(launch.oauth!, 'clientId'), true);
+		});
+
+		test('does not revalidate trusted URI components during normalization', () => {
+			const uri = URI.revive({
+				scheme: 'https',
+				authority: 'example.com',
+				path: 'relative',
+				query: '',
+				fragment: ''
+			});
+			const launch = createHttpLaunch({ uri });
+
+			const serialized = McpServerLaunch.toSerialized(launch);
+			if (serialized.type !== McpServerTransportType.HTTP) {
+				throw new Error('Expected an HTTP launch');
+			}
+			assert.deepStrictEqual(serialized.uri, uri);
 		});
 
 		test('preserves meaningful HTTP authentication identity', async () => {
