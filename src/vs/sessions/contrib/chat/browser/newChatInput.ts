@@ -504,7 +504,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
 		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer, tipContainer, onDidChangeInputOnboardingVisible));
 
-		this._promptOptionsWidget.value = new NewSessionPromptOptionsWidget(chatInputContainer, async (option, expectedInput, animate) => {
+		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, async (option, expectedInput, animate) => {
 			this.focus();
 			const inserted = animate
 				? await this.animatePrompt(option.prompt, NEW_SESSION_PROMPT_TYPING_DURATION_MS, option.placeholder, CancellationToken.None, expectedInput)

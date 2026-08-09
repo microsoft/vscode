@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { INewSessionPromptOption, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { NewSessionPromptOptionsWidget } from '../../browser/newSessionPromptOptions.js';
@@ -38,11 +42,31 @@ interface IReplacePromptHarness {
 const refreshPromptOptions = Reflect.get(NewChatInputWidget.prototype, 'refreshPromptOptions') as (this: IPromptOptionsRefreshHarness, token?: CancellationToken) => Promise<boolean>;
 const replacePrompt = Reflect.get(NewChatInputWidget.prototype, '_replacePrompt') as (this: IReplacePromptHarness, text: string, placeholder: string, expectedValue: string) => boolean;
 
+class TestHoverService extends mock<IHoverService>() {
+	readonly contents: string[] = [];
+
+	override setupDelayedHover(
+		_target: HTMLElement,
+		hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
+		_lifecycleOptions?: IHoverLifecycleOptions,
+	): IDisposable {
+		const options = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+		const content = options.content;
+		if (typeof content === 'string') {
+			this.contents.push(content);
+		} else if (isMarkdownString(content)) {
+			this.contents.push(content.value.replaceAll('&nbsp;', ' '));
+		}
+		return Disposable.None;
+	}
+}
+
 suite('NewSessionPromptOptionsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('renders loading and preserves selection while user edits disable replacement', async () => {
 		const container = document.createElement('div');
+		const hoverService = new TestHoverService();
 		const selections: { readonly optionId: string; readonly expectedInput: string; readonly animate: boolean }[] = [];
 		let inputValue = '';
 		const widget = disposables.add(new NewSessionPromptOptionsWidget(container, async (option, expectedInput, animate) => {
@@ -50,7 +74,7 @@ suite('NewSessionPromptOptionsWidget', () => {
 			inputValue = option.prompt;
 			widget.setInputValue(inputValue);
 			return true;
-		}));
+		}, hoverService));
 		const options = [option('feature', 'Implement a feature'), option('bug', 'Fix a bug')];
 
 		widget.setState({ kind: 'loading' });
@@ -83,6 +107,7 @@ suite('NewSessionPromptOptionsWidget', () => {
 
 		assert.deepStrictEqual({
 			loading,
+			hoverContents: hoverService.contents,
 			selections,
 			selected,
 			placeholderRemoved,
@@ -92,6 +117,10 @@ suite('NewSessionPromptOptionsWidget', () => {
 			empty,
 		}, {
 			loading: { busy: 'true', skeletons: 4 },
+			hoverContents: [
+				'**Implement a feature**\n\nDescription for Implement a feature',
+				'**Fix a bug**\n\nDescription for Fix a bug',
+			],
 			selections: [
 				{ optionId: 'feature', expectedInput: '', animate: true },
 				{ optionId: 'bug', expectedInput: 'Prompt for Implement a feature: ', animate: false },
