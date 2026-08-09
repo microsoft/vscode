@@ -1656,6 +1656,7 @@ suite('ChatThinkingContentPart', () => {
 			return {
 				kind: 'toolInvocation',
 				toolId,
+				toolData: { id: toolId, source: ToolDataSource.Internal, displayName: toolId, modelDescription: toolId },
 				toolCallId,
 				invocationMessage,
 				originMessage: undefined,
@@ -1678,6 +1679,7 @@ suite('ChatThinkingContentPart', () => {
 			return {
 				kind: 'toolInvocation',
 				toolId,
+				toolData: { id: toolId, source: ToolDataSource.Internal, displayName: toolId, modelDescription: toolId },
 				toolCallId,
 				invocationMessage,
 				originMessage: undefined,
