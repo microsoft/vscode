@@ -4714,6 +4714,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return !existingKeys.has(rawId) && !this._inFlightNewSessionOwnIds.has(rawId);
 		};
 
+		await this._refreshSessions();
 		// Prefer this send's own id; fall back to any acceptable novel session.
 		const scan = (): ISession | undefined => {
 			let fallback: ISession | undefined;
@@ -4729,14 +4730,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			return fallback;
 		};
-		let immediate = scan();
-		if (immediate) {
-			this._committingSessionRawIds.add(immediate.resource.path.substring(1));
-			return immediate;
-		}
-
-		await this._refreshSessions();
-		immediate = scan();
+		const immediate = scan();
 		if (immediate) {
 			this._committingSessionRawIds.add(immediate.resource.path.substring(1));
 			return immediate;
