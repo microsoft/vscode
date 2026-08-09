@@ -1119,7 +1119,7 @@ Mark comments for this session as resolved or unresolved.
 ```
 
 #### viewUnreviewedComments
-View pull request or code review comments that the user has not reviewed yet. Calling this asks the user to choose which of those comments to reveal; only the comments the user reveals are returned.
+View pull request or code review comments that the user has not reviewed yet. The user may be asked to choose which comments to reveal, in which case only the comments they select are returned; otherwise every unreviewed comment is returned.
 ```json
 {
   "type": "object",

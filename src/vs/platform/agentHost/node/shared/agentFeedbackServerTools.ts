@@ -138,7 +138,7 @@ export const feedbackServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: viewUnreviewedCommentsToolName,
 		title: 'View Unreviewed Comments (Agent Feedback)',
-		description: 'View pull request or code review comments that the user has not reviewed yet. If confirmation is required, only the comments selected by the user are returned. When auto-approved, all unreviewed comments are submitted and returned.',
+		description: 'View pull request or code review comments that the user has not reviewed yet. The user may be asked to choose which comments to reveal, in which case only the comments they select are returned; otherwise every unreviewed comment is returned.',
 		inputSchema: viewUnreviewedCommentsInputSchema,
 		annotations: { readOnlyHint: false },
 	},
