@@ -33,13 +33,13 @@ export interface IAutoApprovalCommandParseResult {
  * truncate the surrounding command.
  *
  * See https://github.com/microsoft/vscode/issues/294010
- * TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
+ * TODO: Remove once upstream tree-sitter PowerShell grammar is updated.
  */
 const pwshFlagEqualsRegex = /(^|\s)(-{1,2}[\w-]+)=/g;
 
 const envOptionsWithValue = new Set(['-u', '--unset', '-C', '--chdir', '-a', '--argv0']);
 
-// TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
+// TODO: Remove once upstream tree-sitter PowerShell grammar is updated.
 function maskPwshFlagEquals(commandLine: string): string {
 	return commandLine.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `);
 }

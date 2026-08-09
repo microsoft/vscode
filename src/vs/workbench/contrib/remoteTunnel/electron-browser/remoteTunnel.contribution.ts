@@ -172,7 +172,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				}
 				usedTunnelName = hostName;
 			} catch (_) {
-				// problems parsing the message, likly the old message format
+				// problems parsing the message, likely the old message format
 				return false;
 			}
 			const currentTunnelName = await this.remoteTunnelService.getTunnelName();

@@ -485,7 +485,7 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return true;
 		}
 
-		// Fiter by text. Do not apply negated filters on resources instead use exclude patterns
+		// Filter by text. Do not apply negated filters on resources instead use exclude patterns
 		if (this.options.textFilter.text && !this.options.textFilter.negate) {
 			const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(resourceMarkers.resource));
 			if (uriMatches) {
