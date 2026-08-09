@@ -133,7 +133,10 @@ function getCopilotStartupFailureResource(message: string): CopilotStartupFailur
 	if (normalizedMessage.includes('runtime.node') || normalizedMessage.includes('runtime.win32') || normalizedMessage.includes('native addon "runtime"')) {
 		return 'runtime';
 	}
-	if (normalizedMessage.includes('sandbox') || normalizedMessage.includes('mxc') || normalizedMessage.includes('wxc')) {
+	if (normalizedMessage.includes('sandbox')
+		|| normalizedMessage.includes('lxc-exec')
+		|| normalizedMessage.includes('mxc-exec-mac')
+		|| normalizedMessage.includes('wxc-exec.exe')) {
 		return 'sandbox';
 	}
 	return 'other';

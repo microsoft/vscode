@@ -1411,8 +1411,11 @@ suite('CopilotAgent', () => {
 			message: 'CLI server exited with code 1\nCannot find module cli-native.node',
 			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'cliNative', startupExitCode: 1 },
 		}, {
-			message: 'CLI server exited with code 1\nCannot find module mxc sandbox helper',
+			message: 'CLI server exited with code 1\nCannot find module wxc-exec.exe',
 			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'sandbox', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module /Users/wxc/project/helper.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'other', startupExitCode: 1 },
 		}, {
 			message: 'Timeout waiting for CLI server to start',
 			expected: { startupFailureCause: 'timeout', startupFailureResource: 'other', startupExitCode: undefined },
