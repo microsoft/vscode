@@ -3643,6 +3643,38 @@ suite('AgentService (node dispatcher)', () => {
 				childTurns: 1,
 			});
 		});
+
+		test('restores an evicted subagent before applying a dispatched chat action', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner', result: { success: true, pastTenseMessage: 'Ran ls', content: [{ type: ToolResultContentType.Text, text: 'file1.ts' }] }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found files' }] } },
+			];
+			await service.restoreSession(sessionResource);
+
+			const childSession = URI.parse(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub'));
+			service.stateManager.deleteSession(childSession.toString());
+			const childChat = buildDefaultChatUri(childSession);
+			service.dispatchAction(childChat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'continued-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Continue', origin: { kind: MessageKind.User } },
+			}, 'client-1', 1);
+
+			for (let i = 0; i < 50 && service.stateManager.getChatState(childChat.toString())?.activeTurn?.id !== 'continued-turn'; i++) {
+				await timeout(0);
+			}
+
+			assert.strictEqual(service.stateManager.getChatState(childChat.toString())?.activeTurn?.id, 'continued-turn');
+		});
 	});
 
 	// ---- createChat (multi-chat) ----------------------------------------

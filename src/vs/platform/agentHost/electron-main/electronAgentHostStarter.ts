@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { IpcMainEvent, WebContents } from 'electron';
@@ -31,6 +31,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	private utilityProcess: UtilityProcess | undefined = undefined;
 	private utilityProcessStarted: DeferredPromise<void> | undefined = undefined;
 	private readonly _windowSenders = new Map<number, WebContents>();
+	private readonly _windowSenderCleanup = this._register(new DisposableMap<number>());
 
 	private readonly _onRequestConnection = this._register(new Emitter<void>());
 	readonly onRequestConnection = this._onRequestConnection.event;
@@ -245,9 +246,9 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			return;
 		}
 		this._windowSenders.set(sender.id, sender);
-		const onDestroyed = () => this._windowSenders.delete(sender.id);
+		const onDestroyed = () => this._windowSenderCleanup.deleteAndDispose(sender.id);
 		sender.once('destroyed', onDestroyed);
-		this._register(toDisposable(() => {
+		this._windowSenderCleanup.set(sender.id, toDisposable(() => {
 			sender.removeListener('destroyed', onDestroyed);
 			this._windowSenders.delete(sender.id);
 		}));

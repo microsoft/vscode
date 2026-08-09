@@ -2647,7 +2647,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
 			if (requiresSessionRestore) {
-				await this.restoreSession(URI.parse(sessionChannel));
+				const sessionUri = URI.parse(sessionChannel);
+				const subagent = parseSubagentSessionUri(sessionUri);
+				if (subagent) {
+					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
+				} else {
+					await this.restoreSession(sessionUri);
+				}
 			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);

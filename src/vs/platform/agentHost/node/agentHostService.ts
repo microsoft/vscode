@@ -38,7 +38,7 @@ export class AgentHostProcessManager extends Disposable {
 	private _started = false;
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
-	private readonly _lifecycleQueue = new Queue<void>();
+	private readonly _lifecycleQueue = this._register(new Queue<void>());
 	private readonly _connection = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(

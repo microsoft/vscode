@@ -201,6 +201,13 @@ suite('AgentHostProcessManager', () => {
 		});
 	});
 
+	test('rejects lifecycle work after disposal', async () => {
+		const { manager } = await createManager();
+		manager.dispose();
+
+		assert.throws(() => manager.restart(), /Object has been disposed/);
+	});
+
 	test('stops after the configured number of restarts', async () => {
 		const { starter, telemetryService } = await createManager();
 
