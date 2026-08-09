@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../base/common/errors.js';
+import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
+import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 
 // --- Titlebar button interactions ---
@@ -226,6 +230,26 @@ export type SSHConnectErrorCategory =
 	| 'incompatible'
 	| 'network'
 	| 'other';
+
+export function categorizeSSHConnectError(err: unknown): SSHConnectErrorCategory {
+	if (isCancellationError(err)) {
+		return 'cancelled';
+	}
+	if (isSSHHostKeyDeniedError(err)) {
+		return 'hostKeyDenied';
+	}
+	if (RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION])) {
+		return 'incompatible';
+	}
+	const message = err instanceof Error ? err.message : String(err);
+	if (/authenticat|permission denied|no supported authentication methods|all configured authentication methods failed/i.test(message)) {
+		return 'authentication';
+	}
+	if (/ECONN|ENETUNREACH|EHOSTUNREACH|ENOTFOUND|ETIMEDOUT|network|handshake.*timed out|closed before the handshake completed/i.test(message)) {
+		return 'network';
+	}
+	return 'other';
+}
 
 type SSHConnectAttemptEvent = {
 	operation: string;

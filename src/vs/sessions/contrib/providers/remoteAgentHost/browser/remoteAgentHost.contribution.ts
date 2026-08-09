@@ -51,7 +51,7 @@ import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 import { computeSSHConnectionKey, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { logSSHConnectAttempt, logTerminalRecovery, type SSHConnectErrorCategory } from '../../../../common/sessionsTelemetry.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt, logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
 
 Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 	matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType),
@@ -179,30 +179,18 @@ export class SSHReconnectState extends Disposable {
 		this._timer.clear();
 		this.requiresUserInitiatedResume = false;
 	}
+
+	resumeAutomatically(): boolean {
+		if (!this.paused || this.requiresUserInitiatedResume) {
+			return false;
+		}
+		this.resetForResume();
+		return true;
+	}
 }
 
 export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
 	return isCancellationError(err) || isSSHHostKeyDeniedError(err);
-}
-
-export function categorizeSSHConnectError(err: unknown): SSHConnectErrorCategory {
-	if (isCancellationError(err)) {
-		return 'cancelled';
-	}
-	if (isSSHHostKeyDeniedError(err)) {
-		return 'hostKeyDenied';
-	}
-	if (RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION])) {
-		return 'incompatible';
-	}
-	const message = err instanceof Error ? err.message : String(err);
-	if (/authenticat|permission denied|no supported authentication methods|all configured authentication methods failed/i.test(message)) {
-		return 'authentication';
-	}
-	if (/ECONN|ENETUNREACH|EHOSTUNREACH|ENOTFOUND|ETIMEDOUT|network|handshake.*timed out|closed before the handshake completed/i.test(message)) {
-		return 'network';
-	}
-	return 'other';
 }
 
 /**
@@ -629,8 +617,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _resumeSSHReconnects(): void {
 		let resumed = 0;
 		for (const [, state] of this._sshReconnectStates) {
-			if (state.paused && !state.requiresUserInitiatedResume) {
-				state.resetForResume();
+			if (state.resumeAutomatically()) {
 				resumed++;
 			}
 		}

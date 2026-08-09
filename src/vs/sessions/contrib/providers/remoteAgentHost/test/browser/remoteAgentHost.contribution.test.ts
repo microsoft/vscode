@@ -10,7 +10,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { categorizeSSHConnectError, disconnectSSHEntry, shouldPauseSSHReconnectAfterFailure, sshConnectionKey, SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
+import { categorizeSSHConnectError } from '../../../../../common/sessionsTelemetry.js';
+import { disconnectSSHEntry, shouldPauseSSHReconnectAfterFailure, sshConnectionKey, SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
 
 suite('SSHReconnectState', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -108,6 +109,43 @@ suite('SSHReconnectState', () => {
 
 			await timeout(2000);
 			assert.strictEqual(fired, 0, 'pending retry must be cancelled by resetForResume');
+		});
+	});
+
+	test('host key denial requires an explicit resume', () => {
+		const state = store.add(new SSHReconnectState());
+		state.attempts = 1;
+		state.paused = true;
+		state.requiresUserInitiatedResume = true;
+
+		const automaticResume = state.resumeAutomatically();
+		const afterAutomaticResume = {
+			attempts: state.attempts,
+			paused: state.paused,
+			requiresUserInitiatedResume: state.requiresUserInitiatedResume,
+		};
+		state.resetForResume();
+
+		assert.deepStrictEqual({
+			automaticResume,
+			afterAutomaticResume,
+			afterExplicitResume: {
+				attempts: state.attempts,
+				paused: state.paused,
+				requiresUserInitiatedResume: state.requiresUserInitiatedResume,
+			},
+		}, {
+			automaticResume: false,
+			afterAutomaticResume: {
+				attempts: 1,
+				paused: true,
+				requiresUserInitiatedResume: true,
+			},
+			afterExplicitResume: {
+				attempts: 0,
+				paused: false,
+				requiresUserInitiatedResume: false,
+			},
 		});
 	});
 });
