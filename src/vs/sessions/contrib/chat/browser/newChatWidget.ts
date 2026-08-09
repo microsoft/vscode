@@ -48,7 +48,7 @@ import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constant
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 
 // #region --- New Chat Widget ---
 
@@ -187,6 +187,9 @@ export class NewChatWidget extends Disposable {
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
+			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
+				? NewSessionWorkspacePreselectionSource.None
+				: this._workspacePicker.preselectionSource,
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			canSubmitWithoutSession,

@@ -13,13 +13,14 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
@@ -57,13 +58,17 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileDialogService fileDialogService: IFileDialogService,
+		@IFileService fileService: IFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super(
-			options,
+			{
+				...options,
+				sessionWorkspaceProviderFilter: providerId => providerId === _agentHostFilterService.selectedProviderId,
+			},
 			actionWidgetService,
 			uriIdentityService,
 			sessionsProvidersService,
@@ -75,6 +80,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			contextKeyService,
 			instantiationService,
 			fileDialogService,
+			fileService,
 			telemetryService,
 			notificationService,
 		);
@@ -121,22 +127,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			return;
 		}
 
-		const firstRecent = scopedProviderId !== undefined
-			? this._getRecentWorkspaces().find(w => {
-				const folderUri = w.workspace.folders[0]?.root;
-				return w.providerId === scopedProviderId && !!folderUri && !isWorktreeWorkspaceUri(folderUri);
-			})
-			: undefined;
-		if (firstRecent) {
-			const folderUri = firstRecent.workspace.folders[0]?.root;
-			if (folderUri) {
-				this.setSelectedWorkspace(folderUri);
-				return;
-			}
-		}
-
-		this.clearSelection();
-		this._onDidSelectWorkspace.fire(undefined);
+		this._resetAutomaticSelection();
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
