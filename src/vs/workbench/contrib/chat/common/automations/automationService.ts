@@ -159,4 +159,8 @@ export interface IAutomationStore {
 
 export interface IAutomationService extends IAutomationStore {
 	readonly _serviceBrand: undefined;
+	/** Starts leader-scoped stale-run recovery and includes provider stores added while active. */
+	startStaleRunRecovery(reason: string): Promise<void>;
+	/** Stops leader-scoped stale-run recovery. */
+	stopStaleRunRecovery(): void;
 }

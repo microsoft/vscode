@@ -30,6 +30,9 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	private readonly migrationSequencer = new Sequencer();
 	private migrationPromise: Promise<void> = Promise.resolve();
 	private readonly runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
+	private staleRunRecoveryGeneration = 0;
+	private staleRunRecoveryReason: string | undefined;
+	private readonly recoveredStores = new Set<ISessionsProviderAutomations>();
 
 	readonly automations: IObservable<readonly IAutomation[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -55,6 +58,11 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 		});
 		this._register(sessionsProvidersService.onDidChangeProviders(event => {
+			for (const provider of event.removed) {
+				if (provider.automations) {
+					this.recoveredStores.delete(provider.automations);
+				}
+			}
 			if (event.added.some(provider => provider.automations)) {
 				this.queueMigration();
 			}
@@ -131,6 +139,23 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		}
 	}
 
+	async startStaleRunRecovery(reason: string): Promise<void> {
+		const generation = ++this.staleRunRecoveryGeneration;
+		this.staleRunRecoveryReason = reason;
+		this.recoveredStores.clear();
+		const stores = this.getStores();
+		this.migrationPromise = this.migrationSequencer.queue(() => this.recoverStores(stores, reason, generation)).catch(error => {
+			this.logService.error('[ProviderAutomationService] Failed to start stale Automation run recovery.', error);
+		});
+		await this.migrationPromise;
+	}
+
+	stopStaleRunRecovery(): void {
+		this.staleRunRecoveryGeneration++;
+		this.staleRunRecoveryReason = undefined;
+		this.recoveredStores.clear();
+	}
+
 	waitForMigrationForTesting(): Promise<void> {
 		return this.migrationPromise;
 	}
@@ -204,9 +229,35 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	}
 
 	private queueMigration(): void {
-		this.migrationPromise = this.migrationSequencer.queue(() => this.migrateLegacyAutomations()).catch(error => {
+		this.migrationPromise = this.migrationSequencer.queue(async () => {
+			await this.migrateLegacyAutomations();
+			const reason = this.staleRunRecoveryReason;
+			if (reason) {
+				await this.recoverStores(this.getStores(), reason, this.staleRunRecoveryGeneration);
+			}
+		}).catch(error => {
 			this.logService.error('[ProviderAutomationService] Failed to migrate legacy Automations.', error);
 		});
+	}
+
+	private async recoverStores(entries: readonly IAutomationStoreEntry[], reason: string, generation: number): Promise<void> {
+		for (const entry of entries) {
+			if (generation !== this.staleRunRecoveryGeneration || this.staleRunRecoveryReason !== reason) {
+				return;
+			}
+			if (this.recoveredStores.has(entry.store)) {
+				continue;
+			}
+			try {
+				await entry.store.markStaleRunsFailed(reason);
+				if (generation === this.staleRunRecoveryGeneration && this.staleRunRecoveryReason === reason) {
+					this.recoveredStores.add(entry.store);
+				}
+			} catch (error) {
+				const providerId = entry.providerId ?? 'legacy';
+				this.logService.error(`[ProviderAutomationService] Failed to recover stale Automation runs for '${providerId}'.`, error);
+			}
+		}
 	}
 
 	private async migrateLegacyAutomations(): Promise<void> {
@@ -235,6 +286,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			}
 
 			const importResult = await providerStore.importAutomationSnapshot(snapshot);
+			this.recoveredStores.delete(providerStore);
 			const sourceRemoval = await this.legacyStore.removeAutomationSnapshotIfUnchanged(snapshot);
 			switch (sourceRemoval.kind) {
 				case 'removed':

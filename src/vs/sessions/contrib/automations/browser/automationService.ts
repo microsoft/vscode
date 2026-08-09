@@ -584,6 +584,12 @@ export class AutomationService extends AutomationStore implements IAutomationSer
 	) {
 		super(AUTOMATION_STORAGE_KEY, storageService, logService, telemetryService, automationStorageService);
 	}
+
+	startStaleRunRecovery(reason: string): Promise<void> {
+		return this.markStaleRunsFailed(reason);
+	}
+
+	stopStaleRunRecovery(): void { }
 }
 
 function serializeAutomation(a: IAutomation): ISerializedAutomation {

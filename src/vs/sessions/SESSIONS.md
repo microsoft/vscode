@@ -119,6 +119,7 @@ src/vs/sessions/contrib/providers/
 Providers can expose `automations` to own durable Automation entities and run history. `ProviderAutomationService` aggregates these stores behind `IAutomationService`, routes mutations to the owning store, and keeps the legacy global ledger mounted while entries migrate idempotently by Automation and run ID.
 When an update changes the resolved owning provider, the aggregate service transfers the updated Automation and run history before conditionally removing the matching source snapshot.
 Startup recovery attempts every available store independently, so one unavailable provider does not block stale-run recovery in the remaining stores.
+The scheduler activates stale-run recovery only while its window is leader. Provider stores added during that leadership period are recovered after migration, and leadership loss disables recovery for later registrations.
 Legacy migration also isolates failures by Automation and removes a source copy only when it still matches the imported Automation and run snapshot. Concurrent source changes are retried a bounded number of times, while a concurrent deletion rolls back the unchanged destination copy.
 
 Providers can import from all layers below them (core, services, non-provider contribs). **Non-provider contribs must NOT import from providers.** Shared symbols should be extracted to `services/` or `common/`.

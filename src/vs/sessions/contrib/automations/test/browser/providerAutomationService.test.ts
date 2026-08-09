@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,7 +14,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAutomationSnapshot, IAutomationSnapshotImportResult, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationStore } from '../../browser/automationService.js';
 import { ProviderAutomationService } from '../../browser/providerAutomationService.js';
@@ -90,6 +90,8 @@ suite('ProviderAutomationService', () => {
 		readonly service: ProviderAutomationService;
 		readonly providerStore: AutomationStore;
 		readonly storage: InMemoryStorageService;
+		readonly automationStorage: TestAutomationStorageService;
+		readonly addProvider: (provider: ISessionsProvider) => void;
 	} {
 		const storage = teardown.add(new InMemoryStorageService());
 		if (legacyRaw) {
@@ -144,10 +146,12 @@ suite('ProviderAutomationService', () => {
 			order: 0,
 			automations: providerStore,
 		});
+		const registeredProviders: ISessionsProvider[] = [provider];
+		const providersChanged = teardown.add(new Emitter<ISessionsProvidersChangeEvent>());
 		const providers = upcastPartial<ISessionsProvidersService>({
-			onDidChangeProviders: Event.None,
-			getProviders: () => [provider],
-			getProvider: <T extends ISessionsProvider>(providerId: string) => providerId === PROVIDER_ID ? provider as T : undefined,
+			onDidChangeProviders: providersChanged.event,
+			getProviders: () => [...registeredProviders],
+			getProvider: <T extends ISessionsProvider>(providerId: string) => registeredProviders.find(candidate => candidate.id === providerId) as T | undefined,
 		});
 		const instantiationService = teardown.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storage);
@@ -157,7 +161,16 @@ suite('ProviderAutomationService', () => {
 		instantiationService.stub(ISessionsProvidersService, providers);
 		instantiationService.stub(IInstantiationService, instantiationService);
 		const service = teardown.add(instantiationService.createInstance(ProviderAutomationService));
-		return { service, providerStore, storage };
+		return {
+			service,
+			providerStore,
+			storage,
+			automationStorage,
+			addProvider: addedProvider => {
+				registeredProviders.push(addedProvider);
+				providersChanged.fire({ added: [addedProvider], removed: [] });
+			},
+		};
 	}
 
 	test('routes new Automations to their provider store', async () => {
@@ -621,6 +634,87 @@ suite('ProviderAutomationService', () => {
 		await service.markStaleRunsFailed('Recovered after restart.');
 
 		assert.deepStrictEqual(providerStore.runs.get().map(run => ({
+			id: run.id,
+			status: run.status,
+			errorMessage: run.errorMessage,
+		})), [{
+			id: 'run-1',
+			status: 'failed',
+			errorMessage: 'Recovered after restart.',
+		}]);
+	});
+
+	test('recovers stale runs for providers added only while leader-scoped recovery is active', async () => {
+		const { service, storage, automationStorage, addProvider } = createService();
+		await service.startStaleRunRecovery('Recovered after restart.');
+
+		const activeProviderId = 'late-active-provider';
+		const activeStore = teardown.add(new AutomationStore(providerAutomationStorageKey(activeProviderId), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const activeAutomation = await activeStore.createAutomation({
+			name: 'Active recovery',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: activeProviderId, sessionTypeId: 'late', isolation: { kind: 'default' } },
+		});
+		await activeStore.recordRunStart(activeAutomation.id, 'manual', 1);
+		addProvider(upcastPartial<ISessionsProvider>({ id: activeProviderId, order: 1, automations: activeStore }));
+		await service.waitForMigrationForTesting();
+
+		service.stopStaleRunRecovery();
+		const inactiveProviderId = 'late-inactive-provider';
+		const inactiveStore = teardown.add(new AutomationStore(providerAutomationStorageKey(inactiveProviderId), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const inactiveAutomation = await inactiveStore.createAutomation({
+			name: 'Inactive recovery',
+			prompt: 'prompt',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: inactiveProviderId, sessionTypeId: 'late', isolation: { kind: 'default' } },
+		});
+		await inactiveStore.recordRunStart(inactiveAutomation.id, 'manual', 1);
+		addProvider(upcastPartial<ISessionsProvider>({ id: inactiveProviderId, order: 2, automations: inactiveStore }));
+		await service.waitForMigrationForTesting();
+
+		assert.deepStrictEqual({
+			activeStatuses: activeStore.runs.get().map(run => run.status),
+			inactiveStatuses: inactiveStore.runs.get().map(run => run.status),
+		}, {
+			activeStatuses: ['failed'],
+			inactiveStatuses: ['pending'],
+		});
+	});
+
+	test('migrates before recovering a provider added while initial recovery is queued', async () => {
+		const lateProviderId = 'late-provider';
+		const legacy = JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [{
+				id: 'automation-1',
+				name: 'Late provider',
+				prompt: 'prompt',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'workspace', folderUri: FOLDER.toJSON(), providerId: lateProviderId, sessionTypeId: 'late', isolation: { kind: 'default' } },
+				enabled: true,
+				createdAt: '2026-01-01T00:00:00.000Z',
+				updatedAt: '2026-01-01T00:00:00.000Z',
+			}],
+			runs: [{
+				id: 'run-1',
+				automationId: 'automation-1',
+				status: 'running',
+				trigger: 'manual',
+				startedAt: '2026-01-01T00:00:00.000Z',
+				leaderWindowId: 1,
+			}],
+		});
+		const { service, storage, automationStorage, addProvider } = createService(legacy);
+		const recovery = service.startStaleRunRecovery('Recovered after restart.');
+		const lateStore = teardown.add(new AutomationStore(providerAutomationStorageKey(lateProviderId), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		addProvider(upcastPartial<ISessionsProvider>({ id: lateProviderId, order: 1, automations: lateStore }));
+
+		await recovery;
+		await service.waitForMigrationForTesting();
+
+		assert.deepStrictEqual(lateStore.runs.get().map(run => ({
 			id: run.id,
 			status: run.status,
 			errorMessage: run.errorMessage,
