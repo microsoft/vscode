@@ -236,8 +236,8 @@ function addCodeBlockCopyButtons() {
 	for (const code of codeBlocks) {
 		const pre = code.parentElement!;
 
-		// Inject copy button if not already present
-		if (!pre.querySelector('.code-block-copy-button')) {
+		// Skip if already wrapped
+		if (!pre.parentElement?.classList.contains('code-block-wrapper')) {
 			const button = document.createElement('button');
 			button.className = 'code-block-copy-button';
 			button.setAttribute('aria-label', 'Copy code block');
@@ -266,7 +266,11 @@ function addCodeBlockCopyButtons() {
 					}
 				}
 			});
-			pre.appendChild(button);
+			const wrapper = document.createElement('div');
+			wrapper.className = 'code-block-wrapper';
+			pre.parentNode!.insertBefore(wrapper, pre);
+			wrapper.appendChild(pre);
+			wrapper.appendChild(button);
 		}
 	}
 }
