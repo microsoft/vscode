@@ -3410,6 +3410,22 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('createSession fork', () => {
+		test('rejects a fork targeting its source session', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const session = AgentSession.uri('copilotcli', 'same-session');
+
+			try {
+				await assert.rejects(() => agent.createSession({
+					session,
+					fork: { session, turnIndex: 0, turnId: 'turn-1' },
+				}), /Cannot fork Copilot session same-session onto itself/);
+				assert.strictEqual(client.startCallCount, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('materializes provider history under the client-chosen session ID', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });

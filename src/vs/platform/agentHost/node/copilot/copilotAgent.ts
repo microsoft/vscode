@@ -2112,6 +2112,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
+		if (sessionConfig.fork && AgentSession.id(sessionConfig.fork.session) === sessionId) {
+			throw new Error(`Cannot fork Copilot session ${sessionId} onto itself`);
+		}
 		// Workspace-less is inferred at create from an absent input
 		// `workingDirectory`: such a session is run in a stable scratch dir. The
 		// AH service persists the marker centrally (`agentHost.workspaceless`) and
@@ -2178,7 +2181,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 							if (turnIdMapping) {
 								const targetDbRef = this._sessionDataService.openDatabase(session);
 								try {
-									await targetDbRef.object.remapTurnIds(turnIdMapping);
+									const importedEventIds = new Map(importedTurns.map(turn => [turn.id, turn.id]));
+									await targetDbRef.object.remapTurnIds(turnIdMapping, importedEventIds);
 								} finally {
 									targetDbRef.dispose();
 								}
