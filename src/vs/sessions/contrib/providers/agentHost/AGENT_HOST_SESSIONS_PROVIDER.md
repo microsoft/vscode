@@ -38,7 +38,7 @@ Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contributi
   - `AgentHostTerminalContribution` — terminal integration for agent host sessions.
   - The classic chat sidebar item controller is registered separately in the editor window only; the Agents window does not load or register `AgentHostSessionListController`.
 
-The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only wiring on top.
+The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only Agent Host developer commands, including debugging, profiling, and restarting the local Agent Host process.
 
 ## Identity
 
