@@ -708,6 +708,15 @@ export namespace McpServerLaunch {
 		return prototype === Object.prototype || prototype === null;
 	}
 
+	function defineEnumerableOwnProperty(target: object, key: string, value: unknown): void {
+		Object.defineProperty(target, key, {
+			value,
+			enumerable: true,
+			configurable: true,
+			writable: true
+		});
+	}
+
 	function normalizeRuntimeValue(
 		value: unknown,
 		omittedUndefinedProperties?: ReadonlySet<string>,
@@ -741,7 +750,7 @@ export namespace McpServerLaunch {
 			if (property === undefined && omittedUndefinedProperties?.has(key)) {
 				continue;
 			}
-			result[key] = normalizeRuntimeValue(property, undefined, seen);
+			defineEnumerableOwnProperty(result, key, normalizeRuntimeValue(property, undefined, seen));
 		}
 		return result;
 	}
@@ -765,7 +774,7 @@ export namespace McpServerLaunch {
 		}
 		for (const key of Object.keys(launch).sort()) {
 			if (!knownHTTPProperties.has(key)) {
-				Reflect.set(result, key, normalizeRuntimeValue(Reflect.get(launch, key), undefined, seen));
+				defineEnumerableOwnProperty(result, key, normalizeRuntimeValue(Reflect.get(launch, key), undefined, seen));
 			}
 		}
 		return result;

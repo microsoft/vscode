@@ -324,6 +324,35 @@ suite('MCP Types', () => {
 			assert.deepStrictEqual(Reflect.get(revived, 'futureProperty'), { enabled: true });
 		});
 
+		test('preserves __proto__ HTTP properties without changing prototypes', async () => {
+			const launch = createHttpLaunch();
+			const nestedValue = JSON.parse('{"__proto__":{"nested":true}}');
+			Object.defineProperty(launch, '__proto__', {
+				value: { topLevel: true },
+				enumerable: true,
+				configurable: true,
+				writable: true
+			});
+			Reflect.set(launch, 'futureProperty', nestedValue);
+
+			const serialized = McpServerLaunch.toSerialized(launch);
+			const revived = McpServerLaunch.fromSerialized(serialized);
+			const withoutUnknownProperties = createHttpLaunch();
+
+			assert.strictEqual(Object.getPrototypeOf(serialized), Object.prototype);
+			assert.strictEqual(Object.hasOwn(serialized, '__proto__'), true);
+			assert.deepStrictEqual(Reflect.get(serialized, '__proto__'), { topLevel: true });
+			const serializedNestedValue = Reflect.get(serialized, 'futureProperty');
+			assert.strictEqual(Object.getPrototypeOf(serializedNestedValue), Object.prototype);
+			assert.strictEqual(Object.hasOwn(serializedNestedValue, '__proto__'), true);
+			assert.deepStrictEqual(Reflect.get(serializedNestedValue, '__proto__'), { nested: true });
+			assert.strictEqual(Object.getPrototypeOf(revived), Object.prototype);
+			assert.strictEqual(Object.hasOwn(revived, '__proto__'), true);
+			assert.strictEqual(McpServerLaunch.equals(launch, revived), true);
+			assert.strictEqual(McpServerLaunch.equals(launch, withoutUnknownProperties), false);
+			assert.notStrictEqual(await McpServerLaunch.hash(launch), await McpServerLaunch.hash(withoutUnknownProperties));
+		});
+
 		test('does not revalidate trusted URI components during normalization', () => {
 			const uri = URI.revive({
 				scheme: 'https',
