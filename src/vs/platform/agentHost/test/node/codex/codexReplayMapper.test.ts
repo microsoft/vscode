@@ -90,8 +90,10 @@ suite('codexReplayMapper', () => {
 				startedAt: null, completedAt: null, durationMs: null,
 			}],
 		} as never);
-		assert.strictEqual(turns.length, 1);
-		assert.strictEqual(turns[0].state, TurnState.Error);
+		assert.deepStrictEqual(turns.map(turn => ({ state: turn.state, error: turn.error })), [{
+			state: TurnState.Error,
+			error: { errorType: 'CodexError', message: 'oops' },
+		}]);
 	});
 
 	test('turn with no recognizable items is dropped', () => {

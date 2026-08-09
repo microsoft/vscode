@@ -279,13 +279,30 @@ export class NewChatWidget extends Disposable {
 
 		// Re-sync the picker's displayed selection when the session's workspace
 		// changes externally (e.g. sessionsService.openNewSession({ folderUri })).
+		let previousFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
 			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;
+			this._handlePromptOptionsWorkspaceChange(previousFolderUri, folderUri);
+			previousFolderUri = folderUri;
 			if (folderUri && !this.uriIdentityService.extUri.isEqual(folderUri, this._workspacePicker.selectedFolderUri)) {
 				this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
 			}
 		}));
+	}
+
+	private _handlePromptOptionsWorkspaceChange(previousFolderUri: URI | undefined, folderUri: URI | undefined): void {
+		const workspaceChanged = previousFolderUri
+			? !folderUri || !this.uriIdentityService.extUri.isEqual(previousFolderUri, folderUri)
+			: !!folderUri;
+		if (!workspaceChanged) {
+			return;
+		}
+		if (folderUri) {
+			void this._refreshPromptOptions();
+		} else {
+			this._newChatInput.clearPromptOptions();
+		}
 	}
 
 	// --- Rendering ---
@@ -935,6 +952,10 @@ export class NewChatWidget extends Disposable {
 	private async _onWorkspaceSelected(folderUri: URI | undefined): Promise<void> {
 		// Cancel any in-flight upgrade for a previous selection.
 		this._pendingPreferredUpgrade.clear();
+		const currentFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
+		const refreshingPromptOptions = !!currentFolderUri
+			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))
+			&& this._newChatInput.preparePromptOptionsRefresh();
 
 		if (!folderUri) {
 			this.sessionsService.unsetNewSession();
@@ -946,9 +967,21 @@ export class NewChatWidget extends Disposable {
 		}
 
 		const result = await this._createNewSession(folderUri);
+		if (refreshingPromptOptions && !result.session) {
+			this._newChatInput.showPromptOptions(undefined);
+		}
 		if (result.trustDeclined) {
 			// Don't leave the picker showing the declined folder as selected.
 			this._workspacePicker.removeFromRecents(folderUri);
+		}
+	}
+
+	private async _refreshPromptOptions(): Promise<void> {
+		try {
+			await this._newChatInput.refreshPromptOptions();
+		} catch (error) {
+			this.logService.error('Failed to refresh new-session prompt options:', error);
+			this._newChatInput.showPromptOptions(undefined);
 		}
 	}
 

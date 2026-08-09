@@ -2598,14 +2598,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Subclasses whose `_shouldAdvertiseAgent` can change at runtime MUST
 		// fire `onDidChangeSessions` when it does, so consumers re-query and
 		// re-filter (see the local provider's `preferAgentHost` listener).
+		const pendingSession = this._pendingSession;
 		const sessions: ISession[] = [];
 		for (const cached of this._sessionCache.values()) {
+			if (pendingSession && isEqual(cached.resource, pendingSession.resource)) {
+				continue;
+			}
 			if (this._shouldAdvertiseAgent(cached.agentProvider)) {
 				sessions.push(cached);
 			}
 		}
-		if (this._pendingSession && this._shouldAdvertiseAgent(this._pendingSession.sessionType)) {
-			sessions.push(this._pendingSession);
+		if (pendingSession && this._shouldAdvertiseAgent(pendingSession.sessionType)) {
+			sessions.push(pendingSession);
 		}
 		return sessions;
 	}
@@ -3593,27 +3597,33 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!connection) {
 			return;
 		}
-		const targets: { rawId: string; sessionId: string; cached: AgentHostSessionAdapter }[] = [];
+		const targets: { rawId: string; cached: AgentHostSessionAdapter }[] = [];
 		for (const sessionId of sessionIds) {
 			const rawId = this._rawIdFromChatId(sessionId);
 			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 			if (cached && rawId) {
-				targets.push({ rawId, sessionId, cached });
+				targets.push({ rawId, cached });
 			}
 		}
 		if (targets.length === 0) {
 			return;
 		}
-		for (const { rawId, sessionId, cached } of targets) {
-			await connection.disposeSession(cached.backendUri);
-			this._sessionCache.delete(rawId);
-			this._runningSessionConfigs.delete(sessionId);
-			this._runningSessionConfigResolveSeq.delete(sessionId);
-		}
-		const removed = targets.map(target => target.cached);
-		this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
-		for (const cached of removed) {
-			cached.dispose();
+		const removed: AgentHostSessionAdapter[] = [];
+		try {
+			for (const { rawId, cached } of targets) {
+				await connection.disposeSession(cached.backendUri);
+				const removedSession = this._removeCachedSession(rawId, cached);
+				if (removedSession) {
+					removed.push(removedSession);
+				}
+			}
+		} finally {
+			if (removed.length > 0) {
+				this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
+				for (const cached of removed) {
+					cached.dispose();
+				}
+			}
 		}
 	}
 
@@ -4902,17 +4912,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _handleSessionRemoved(session: URI | string): void {
 		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
+		const cached = this._removeCachedSession(rawId);
 		if (cached) {
-			this._sessionCache.delete(rawId);
-			this._runningSessionConfigs.delete(cached.sessionId);
-			this._runningSessionConfigResolveSeq.delete(cached.sessionId);
-			this._sessionStateIdleTimers.deleteAndDispose(cached.sessionId);
-			this._sessionStateSubscriptions.deleteAndDispose(cached.sessionId);
-			this._lastSessionStates.delete(cached.sessionId);
 			this._onDidChangeSessions.fire({ added: [], removed: [cached], changed: [] });
 			cached.dispose();
 		}
+	}
+
+	private _removeCachedSession(rawId: string, expected?: AgentHostSessionAdapter): AgentHostSessionAdapter | undefined {
+		const cached = this._sessionCache.get(rawId);
+		if (expected && cached && cached !== expected) {
+			return undefined;
+		}
+		this._metaByRawId.delete(rawId);
+		const stateOwner = cached ?? expected;
+		if (!stateOwner) {
+			return undefined;
+		}
+		if (cached) {
+			this._sessionCache.delete(rawId);
+		}
+		this._runningSessionConfigs.delete(stateOwner.sessionId);
+		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);
+		this._sessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
+		this._sessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
+		this._lastSessionStates.delete(stateOwner.sessionId);
+		return cached;
 	}
 
 	private _handleTitleChanged(session: string, title: string): void {

@@ -108,7 +108,7 @@ const GITHUB_API_PREFIXES = ['/copilot_internal', '/telemetry', '/copilot/mcp_re
 
 export type CapiReplayMode = 'record' | 'replay';
 
-interface IRecordedResponse {
+export interface ICapiReplayResponse {
 	readonly status: number;
 	readonly headers: Readonly<Record<string, string>>;
 	readonly body: string;
@@ -119,7 +119,7 @@ interface IRecordedExchange {
 	readonly path: string;
 	/** Normalized request body, stored for human review of fixture diffs. */
 	readonly requestBody: string;
-	readonly response: IRecordedResponse;
+	readonly response: ICapiReplayResponse;
 }
 
 /** Wire dialect the fixture's model turns were captured in. Drives SSE
@@ -164,7 +164,7 @@ interface ITurnExchange {
 interface IRawFixtureExchange {
 	readonly method: string;
 	readonly path: string;
-	readonly response: IRecordedResponse;
+	readonly response: ICapiReplayResponse;
 }
 
 type IFixtureExchange = ITurnExchange | IRawFixtureExchange;
@@ -226,7 +226,7 @@ export interface ICapiReplayProxyOptions {
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
 type IReplayItem =
-	| { readonly kind: 'raw'; readonly response: IRecordedResponse }
+	| { readonly kind: 'raw'; readonly response: ICapiReplayResponse }
 	| { readonly kind: 'turn'; readonly dialect: TurnDialect; readonly message: IAnthropicMessage; readonly request: IReadableAnthropicRequest };
 
 /** Sequence cursor for one `(method, path)` bucket during replay. */
@@ -254,6 +254,7 @@ export class CapiReplayProxy {
 	private readonly _replayPlaceholderValues = new Map<string, string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
+	private _recordingModelResponse: ICapiReplayResponse | undefined;
 
 	/**
 	 * Fixture currently being replayed. Mutable so a single long-lived proxy can
@@ -369,6 +370,13 @@ export class CapiReplayProxy {
 
 	setWorkingDirectory(workingDirectory: string): void {
 		this._workingDirectory = workingDirectory;
+	}
+
+	setRecordingModelResponse(response: ICapiReplayResponse): void {
+		if (this._isReplaying) {
+			throw new Error('[capi-replay] setRecordingModelResponse is only valid in record mode');
+		}
+		this._recordingModelResponse = response;
 	}
 
 	get observedModelRequestBodies(): readonly string[] {
@@ -555,6 +563,21 @@ export class CapiReplayProxy {
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
 		if (MODEL_ENDPOINTS.has(path)) {
 			this._observedModelRequestBodies.push(this._normalize(body));
+		}
+		if (MODEL_ENDPOINTS.has(path) && this._recordingModelResponse) {
+			const response = this._recordingModelResponse;
+			res.writeHead(response.status, response.headers);
+			res.end(response.body);
+			this._recorded.push({
+				method,
+				path,
+				requestBody: this._normalize(body),
+				response: {
+					...response,
+					body: this._normalize(response.body),
+				},
+			});
+			return;
 		}
 		const upstreamBase = this._upstreamFor(path);
 		const upstream = new URL(req.url ?? '/', upstreamBase);

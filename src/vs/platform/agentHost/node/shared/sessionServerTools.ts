@@ -1049,7 +1049,7 @@ function getSessionToolDisplay(toolName: string, _args: unknown, result?: IServe
  *
  * The {@link accessor} is optional so the group can also back the pure display
  * path (`getServerToolDisplay`), which only needs {@link IServerToolGroup.definitions},
- * {@link IServerToolGroup.getDisplay} and {@link IServerToolGroup.requiresConfirmation}
+ * {@link IServerToolGroup.getDisplay} and {@link IServerToolGroup.canRequireConfirmation}
  * and never invokes {@link IServerToolGroup.execute}. `execute` throws when no
  * accessor was provided.
  */
@@ -1059,7 +1059,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 	let sentMessageCount = 0;
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
-		requiresConfirmation(toolName: string): boolean {
+		canRequireConfirmation(toolName: string): boolean {
 			return sessionToolRequiresConfirmation(toolName);
 		},
 		getDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
