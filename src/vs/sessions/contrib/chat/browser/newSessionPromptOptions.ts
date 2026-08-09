@@ -6,9 +6,13 @@
 import './media/newSessionPromptOptions.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button, IButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { INewSessionPromptOption, NewSessionPromptOptionsState } from './newSessionComposerService.js';
 
@@ -42,6 +46,7 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 	constructor(
 		container: HTMLElement,
 		private readonly _selectOption: (option: INewSessionPromptOption, expectedInput: string, animate: boolean) => Promise<boolean>,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -91,7 +96,7 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 	private _renderLoading(): void {
 		const store = new DisposableStore();
 		this._renderDisposables.value = store;
-		for (let index = 0; index < 4; index++) {
+		for (let index = 0; index < 3; index++) {
 			const skeleton = dom.append(this._optionsContainer, dom.$('.new-session-prompt-option.new-session-prompt-option-skeleton'));
 			skeleton.ariaHidden = 'true';
 			dom.append(skeleton, dom.$('.new-session-prompt-option-skeleton-icon'));
@@ -105,11 +110,20 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 		this._renderDisposables.value = store;
 		const buttons: IPromptOptionButton[] = [];
 		for (const option of options) {
-			const hover = localize('newSessionPromptOptions.optionHover', "{0}: {1}", option.title, option.description);
+			const ariaLabel = localize('newSessionPromptOptions.optionAriaLabel', "{0}: {1}", option.title, option.description);
 			const button = store.add(new Button(this._optionsContainer, {
 				...promptOptionButtonStyles,
-				title: hover,
-				ariaLabel: hover,
+				ariaLabel,
+			}));
+			const hoverContent = new MarkdownString()
+				.appendMarkdown('**')
+				.appendText(option.title)
+				.appendMarkdown('**\n\n')
+				.appendText(option.description);
+			store.add(this._hoverService.setupDelayedHover(button.element, {
+				content: hoverContent,
+				style: HoverStyle.Pointer,
+				position: { hoverPosition: HoverPosition.BELOW },
 			}));
 			button.element.classList.add('new-session-prompt-option');
 			button.checked = false;

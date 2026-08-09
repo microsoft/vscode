@@ -36,7 +36,7 @@
 	box-sizing: border-box;
 	color: var(--vscode-agentsChatInput-foreground);
 	display: grid;
-	flex: 0 0 calc((100% - var(--vscode-spacing-size240)) / 4);
+	flex: 1 1 calc((100% - var(--vscode-spacing-size160)) / 3);
 	grid-template-columns: var(--vscode-spacing-size160) minmax(0, 1fr);
 	grid-template-rows: auto auto;
 	column-gap: var(--vscode-spacing-size80);
@@ -149,12 +149,6 @@
 }
 
 @container (max-width: 720px) {
-	.new-session-prompt-options-list > .new-session-prompt-option {
-		flex-basis: calc((100% - var(--vscode-spacing-size160)) / 3);
-	}
-}
-
-@container (max-width: 540px) {
 	.new-session-prompt-options-list > .new-session-prompt-option {
 		flex-basis: calc((100% - var(--vscode-spacing-size80)) / 2);
 	}
