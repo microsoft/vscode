@@ -379,6 +379,7 @@ export async function mapSessionEvents(
 	// at most one turn per invocation).
 	const subagentBuilders = new Map<string, ITurnBuilder>();
 	const subagentTurnStates = new Map<string, TurnState>();
+	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 
@@ -417,7 +418,8 @@ export async function mapSessionEvents(
 		subagentBuilders.delete(parentToolCallId);
 		const state = subagentTurnStates.get(parentToolCallId) ?? TurnState.Complete;
 		subagentTurnStates.delete(parentToolCallId);
-		if (builder.responseParts.length === 0) {
+		terminatedSubagentTurns.delete(parentToolCallId);
+		if (builder.responseParts.length === 0 && !builder.error) {
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
@@ -579,6 +581,18 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'session.error': {
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (e.agentId) {
+					if (!parentToolCallId || terminatedSubagentTurns.has(parentToolCallId)) {
+						break;
+					}
+					const builder = ensureSubagentBuilder(parentToolCallId);
+					subagentTurnStates.set(parentToolCallId, TurnState.Error);
+					terminatedSubagentTurns.add(parentToolCallId);
+					builder.error = buildChatErrorInfoFromCopilotSdkFields(e.data);
+					touch(builder);
+					break;
+				}
 				if (parentBuilder && !parentTurnTerminated) {
 					rootAssistantTurnActive = false;
 					parentTurnState = TurnState.Error;
@@ -672,7 +686,9 @@ export async function mapSessionEvents(
 			case 'abort': {
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				if (parentToolCallId) {
-					subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
+					if (!terminatedSubagentTurns.has(parentToolCallId)) {
+						subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
+					}
 				} else {
 					rootAssistantTurnActive = false;
 					if (parentBuilder && !parentTurnTerminated) {

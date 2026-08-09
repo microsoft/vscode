@@ -909,6 +909,53 @@ suite('mapSessionEvents — subagent routing', () => {
 			],
 		});
 	});
+
+	test('subagent error marks only the subagent turn errored and remains terminal', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'spawn a subagent' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: 'Partial result.' } },
+			{ type: 'session.error', agentId: 'agent-1', data: { errorType: 'rate_limit', message: 'Subagent rate limited.', statusCode: 429 } },
+			{ type: 'abort', agentId: 'agent-1', data: { reason: 'cleanup after failure' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: false } },
+			{ type: 'assistant.message', data: { messageId: 'm4', content: 'The subagent failed.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const subagentTurn = subagentTurnsByToolCallId.get('tc-task')?.[0];
+
+		assert.deepStrictEqual({
+			parentState: turns[0].state,
+			parentError: turns[0].error,
+			subagentState: subagentTurn?.state,
+			subagentError: subagentTurn?.error,
+			subagentParts: partKinds(subagentTurn?.responseParts ?? []),
+		}, {
+			parentState: TurnState.Complete,
+			parentError: undefined,
+			subagentState: TurnState.Error,
+			subagentError: {
+				errorType: 'rate_limit',
+				message: 'Subagent rate limited.',
+				stack: undefined,
+				_meta: {
+					chatError: {
+						fetchError: {
+							type: 'rateLimited',
+							reason: 'Subagent rate limited.',
+							requestId: '',
+							capiError: { code: undefined, message: 'Subagent rate limited.' },
+						},
+					},
+				},
+			},
+			subagentParts: [
+				{ kind: ResponsePartKind.Markdown, content: 'Partial result.' },
+			],
+		});
+	});
 });
 
 suite('appendSdkToolResultContent', () => {
