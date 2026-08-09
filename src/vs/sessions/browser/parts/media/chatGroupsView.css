@@ -47,3 +47,14 @@
 	width: 100%;
 	margin: 0 auto;
 }
+
+/* Keep the read-only banner aligned with the tab strip: with a lone group cap it
+ * to the centered band and center it too (overriding only the banner's own
+ * horizontal margins, so its negative top offset is preserved). With more than
+ * one group it spans the full leaf like the tab strip. */
+.session-view .chat-groups-view.single-group .session-readonly-banner {
+	max-width: var(--session-view-centered-content-max-width);
+	width: 100%;
+	margin-left: auto;
+	margin-right: auto;
+}
