@@ -2598,14 +2598,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Subclasses whose `_shouldAdvertiseAgent` can change at runtime MUST
 		// fire `onDidChangeSessions` when it does, so consumers re-query and
 		// re-filter (see the local provider's `preferAgentHost` listener).
+		const pendingSession = this._pendingSession;
 		const sessions: ISession[] = [];
 		for (const cached of this._sessionCache.values()) {
+			if (pendingSession && isEqual(cached.resource, pendingSession.resource)) {
+				continue;
+			}
 			if (this._shouldAdvertiseAgent(cached.agentProvider)) {
 				sessions.push(cached);
 			}
 		}
-		if (this._pendingSession && this._shouldAdvertiseAgent(this._pendingSession.sessionType)) {
-			sessions.push(this._pendingSession);
+		if (pendingSession && this._shouldAdvertiseAgent(pendingSession.sessionType)) {
+			sessions.push(pendingSession);
 		}
 		return sessions;
 	}

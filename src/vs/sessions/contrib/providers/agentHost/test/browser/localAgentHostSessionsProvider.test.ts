@@ -116,8 +116,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 */
 	public failListSessionsCount = 0;
 	public listSessionsCallCount = 0;
+	public listSessionsBarrier: DeferredPromise<void> | undefined;
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this.listSessionsCallCount++;
+		await this.listSessionsBarrier?.p;
 		if (this.failListSessionsCount > 0) {
 			this.failListSessionsCount--;
 			throw new Error('AHP_AUTH_REQUIRED');
@@ -4348,6 +4350,82 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const committed = await request;
 		assert.strictEqual(committed.title.get(), 'Committed Late');
 	}));
+
+	test('sendRequest does not advertise a cached committed session alongside its draft', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (resource): Promise<ChatSendResult> => {
+				const rawId = AgentSession.id(resource);
+				agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+				fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		await timeout(0);
+
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		await draftAdvertised.p;
+		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+		agentHost.listSessionsBarrier.complete();
+		await request;
+
+		assert.deepStrictEqual({
+			count: advertised.length,
+			isDraft: advertised[0] === session,
+			resources: advertised.map(candidate => candidate.resource.toString()),
+		}, {
+			count: 1,
+			isDraft: true,
+			resources: [session.resource.toString()],
+		});
+	});
+
+	test('sessionAdded does not advertise a committed session alongside its pending draft', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		await timeout(0);
+
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+		agentHost.listSessionsBarrier.complete();
+		await request;
+
+		assert.deepStrictEqual({
+			count: advertised.length,
+			isDraft: advertised[0] === session,
+			resources: advertised.map(candidate => candidate.resource.toString()),
+		}, {
+			count: 1,
+			isDraft: true,
+			resources: [session.resource.toString()],
+		});
+	});
 
 	test('sendRequest rejects when the provisional session is abandoned before commit', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
