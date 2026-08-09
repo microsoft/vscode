@@ -2531,14 +2531,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Subclasses whose `_shouldAdvertiseAgent` can change at runtime MUST
 		// fire `onDidChangeSessions` when it does, so consumers re-query and
 		// re-filter (see the local provider's `preferAgentHost` listener).
+		const pendingSession = this._pendingSession;
 		const sessions: ISession[] = [];
 		for (const cached of this._sessionCache.values()) {
+			if (pendingSession && isEqual(cached.resource, pendingSession.resource)) {
+				continue;
+			}
 			if (this._shouldAdvertiseAgent(cached.agentProvider)) {
 				sessions.push(cached);
 			}
 		}
-		if (this._pendingSession && this._shouldAdvertiseAgent(this._pendingSession.sessionType)) {
-			sessions.push(this._pendingSession);
+		if (pendingSession && this._shouldAdvertiseAgent(pendingSession.sessionType)) {
+			sessions.push(pendingSession);
 		}
 		return sessions;
 	}
@@ -4710,7 +4714,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return !existingKeys.has(rawId) && !this._inFlightNewSessionOwnIds.has(rawId);
 		};
 
-		await this._refreshSessions();
 		// Prefer this send's own id; fall back to any acceptable novel session.
 		const scan = (): ISession | undefined => {
 			let fallback: ISession | undefined;
@@ -4726,7 +4729,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			return fallback;
 		};
-		const immediate = scan();
+		let immediate = scan();
+		if (immediate) {
+			this._committingSessionRawIds.add(immediate.resource.path.substring(1));
+			return immediate;
+		}
+
+		await this._refreshSessions();
+		immediate = scan();
 		if (immediate) {
 			this._committingSessionRawIds.add(immediate.resource.path.substring(1));
 			return immediate;

@@ -4390,6 +4390,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(committed.title.get(), 'Committed Late');
 	}));
 
+	test('sendRequest coalesces a committed session notification without refreshing the session list', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (resource): Promise<ChatSendResult> => {
+				const rawId = AgentSession.id(resource);
+				agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+				fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		await timeout(0);
+
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const listSessionsCallCount = agentHost.listSessionsCallCount;
+		let advertised: ISession[] | undefined;
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+			}
+		}));
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		assert.deepStrictEqual({
+			listSessionsCallsDuringCommit: agentHost.listSessionsCallCount - listSessionsCallCount,
+			count: advertised?.length,
+			isDraft: advertised?.[0] === session,
+			resources: advertised?.map(candidate => candidate.resource.toString()),
+		}, {
+			listSessionsCallsDuringCommit: 0,
+			count: 1,
+			isDraft: true,
+			resources: [session.resource.toString()],
+		});
+	});
+
 	test('sendRequest rejects when the provisional session is abandoned before commit', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
