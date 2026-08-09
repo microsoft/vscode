@@ -16,7 +16,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentService } from '../common/agentService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
@@ -28,7 +28,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	readonly onDidRefreshSessionGitState = this._onDidRefreshSessionGitState.event;
 
 	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
-	private readonly _gitStateRefreshCancellationTokenSources = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _gitStateRefreshCancellationTokenSources = new Map<string, CancellationTokenSource>();
 	private readonly _disposingSessions = new Set<string>();
 	private readonly _pendingRefreshes = new Map<string, Set<Promise<unknown>>>();
 	private readonly _pendingPersistence = new Map<string, Set<Promise<unknown>>>();
@@ -52,6 +52,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	) {
 		super();
 
+		this._register(toDisposable(() => {
+			for (const source of this._gitStateRefreshCancellationTokenSources.values()) {
+				source.dispose(true);
+			}
+			this._gitStateRefreshCancellationTokenSources.clear();
+		}));
 		this._register(toDisposable(() => this._pullRequestAbortController.abort()));
 	}
 
@@ -277,7 +283,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async onSessionDisposed(sessionKey: string): Promise<void> {
 		this._disposingSessions.add(sessionKey);
-		this._gitStateRefreshCancellationTokenSources.deleteAndLeak(sessionKey)?.dispose(true);
+		this._disposeRefreshCancellationTokenSource(sessionKey);
 		const pendingRefreshes = this._pendingRefreshes.get(sessionKey);
 		if (pendingRefreshes) {
 			await Promise.allSettled([...pendingRefreshes]);
@@ -290,7 +296,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	onSessionDeleted(sessionKey: string): void {
 		this._disposingSessions.delete(sessionKey);
-		this._gitStateRefreshCancellationTokenSources.deleteAndLeak(sessionKey)?.dispose(true);
+		this._disposeRefreshCancellationTokenSource(sessionKey);
 	}
 
 	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
@@ -383,5 +389,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._gitStateRefreshCancellationTokenSources.set(sessionKey, source);
 		}
 		return source;
+	}
+
+	private _disposeRefreshCancellationTokenSource(sessionKey: string): void {
+		this._gitStateRefreshCancellationTokenSources.get(sessionKey)?.dispose(true);
+		this._gitStateRefreshCancellationTokenSources.delete(sessionKey);
 	}
 }
