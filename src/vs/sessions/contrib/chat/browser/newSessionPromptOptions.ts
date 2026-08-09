@@ -162,7 +162,8 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 		const enabled = !this._selecting && (this._inputValue.length === 0 || matchesGeneratedPrompt(selectedOption, this._inputValue));
 		for (const { option, button } of this._buttons) {
 			button.checked = option.id === this._selectedOptionId;
-			button.enabled = enabled;
+			button.element.classList.toggle('option-disabled', !enabled);
+			button.element.setAttribute('aria-disabled', String(!enabled));
 			button.element.tabIndex = 0;
 		}
 	}

@@ -38,6 +38,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 - **Repository prompt options follow the draft workspace**: keep a contribution-owned watcher after the onboarding run step completes. A workspace change clears stale cards immediately, shows loading skeletons, cancels the old lookup, and resolves a fresh bounded option set for the replacement draft; completed candidates from a timed-out lookup remain available only when their repository context is still current.
 
+- **Prompt-option disabled presentation must not reuse Button's shared `.disabled` opacity**: the base rule is `!important`, so component-specific selected/disabled opacity cannot win without another forbidden override. Keep cards focusable, expose `aria-disabled`, gate activation in the component, and use a component-owned state class; gate skeleton animation with `.monaco-reduce-motion` so the effective `workbench.reduceMotion` setting wins over the OS media query.
+
 - **Agent-host onboarding readiness comes from advertised session types, not provider registration**: an agent-host provider exists before its root state connects, while its `sessionTypes` stay empty. Gate tours that need a usable host on a context key derived from any `local-agent-host`/`agenthost-*` provider exposing a session type, and update it from `ISessionsManagementService.onDidChangeSessionTypes`.
 
 - **Diagnostic log text is not a unit-test contract**: add consistently prefixed, actionable logs, but do not add tests that assert log messages or levels. Validate the underlying behavior and keep diagnostics free to evolve.

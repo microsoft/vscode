@@ -58,12 +58,12 @@
 	border-color: currentColor;
 }
 
-.new-session-prompt-options-list > .new-session-prompt-option.monaco-button.disabled {
+.new-session-prompt-options-list > .new-session-prompt-option.monaco-button.option-disabled {
 	cursor: default;
 	opacity: 0.5;
 }
 
-.new-session-prompt-options-list > .new-session-prompt-option.monaco-button.checked.disabled {
+.new-session-prompt-options-list > .new-session-prompt-option.monaco-button.checked.option-disabled {
 	opacity: 0.75;
 }
 
@@ -143,11 +143,9 @@
 	}
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.new-session-prompt-option-skeleton-icon,
-	.new-session-prompt-option-skeleton-line {
-		animation: none;
-	}
+.monaco-reduce-motion .new-session-prompt-option-skeleton-icon,
+.monaco-reduce-motion .new-session-prompt-option-skeleton-line {
+	animation: none;
 }
 
 @container (max-width: 720px) {
