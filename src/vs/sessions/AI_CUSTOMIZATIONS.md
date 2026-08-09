@@ -282,6 +282,30 @@ All built-in customizations bundled with the Sessions app are skills, living in 
 - Filtered out when a user/workspace skill shares the same name (override behavior)
 - Skills with UI integrations (e.g. `act-on-feedback`, `generate-run-commands`) display a "UI Integration" badge in the management editor
 
+#### Enabling and Disabling Built-in Skills
+
+The **Enable** / **Disable** actions on a built-in skill persist to `IPromptsService.setDisabledPromptFiles(PromptsType.skill, …)` (profile-scoped storage). This is a distinct store from the per-harness auto-sync opt-out owned by `ICustomizationSyncProvider`, which the Plugins section writes.
+
+The two stores are consulted at different points, and deliberately not identically:
+
+- **The wire** honors *both*. `enumerateLocalCustomizationsForHarness` marks a file disabled when either store opts it out, so a disabled skill is excluded from the synthetic Open Plugin bundle and never reaches the agent host.
+- **The list** derives `enabled` from the prompts-service store *only*. `mergeBuiltinSkills` ignores the sync-provider store because that store holds **plugin** URIs — its sole writer is the Plugins section checkbox, and `isDisabled` matches URIs exactly rather than by containment — so it can never opt out an individual built-in skill. If a per-file sync opt-out is ever added, this derivation must account for it; otherwise a skill dropped from the wire would be re-listed as enabled, and the **Enable** action (which writes only the prompts store) could not correct it.
+
+Two places must consult the prompts-service store for the toggle to take effect on an agent-host harness:
+
+- **The wire.** As above — the skill is excluded from the bundle.
+- **The list.** Because a disabled skill is no longer in the bundle, the agent-host item provider stops reporting it. `PureItemProviderItemSource` therefore merges built-in skills in from `IPromptsService.listPromptFilesForStorage(skill, builtIn)` (via the shared `mergeBuiltinSkills` helper, deduped by URI against provider rows) and derives their `enabled` state from `getDisabledPromptFiles`. This keeps a disabled built-in listed — greyed out, with an **Enable** action — instead of vanishing with no way to restore it. Its `onDidAICustomizationItemsChange` includes `onDidChangeSkills` so the row updates immediately.
+
+`ItemProviderItemSource` (non-agent-host harnesses) uses the same helper, so both paths group, dedupe, and gate built-ins identically.
+
+##### Scope: only built-in skills may be hidden by the user-disabled store
+
+The wire consults `getDisabledPromptFiles` **only** for the `(type, storage)` combination the Customizations UI can re-enable, expressed by `isUserToggleableCustomization` in `chat/common/promptSyntax/service/promptsService.ts`. Both the management editor and the sessions tree view register their Enable/Disable actions solely for built-in skills, so that is the only toggleable combination today.
+
+This gate is load-bearing rather than cosmetic. `getDisabledPromptFiles` is a shared store that the chat view agent picker also writes for `PromptsType.agent` ("hidden from agent picker"). Because callers drop opted-out files from the bundle entirely and the Agents-window lists are derived from that bundle, honoring the store for a customization the Customizations UI cannot re-enable would strand it: the row disappears, and the **Enable** action that would bring it back is only rendered for rows that are still listed. The agent picker is unaffected — it owns its own unhide affordance and does not read from the bundle.
+
+Consequently, the wire gate and `mergeBuiltinSkills` must be kept in sync: anything the wire is allowed to hide must have a corresponding restore path in the list.
+
 ### UI Integration Badges
 
 Skills that are directly invoked by UI elements (toolbar buttons, menu items) are annotated with a "UI Integration" badge in the management editor. The mapping is provided by `IAICustomizationWorkspaceService.getSkillUIIntegrations()`, which the Sessions implementation populates with the relevant skill names and tooltip descriptions. The badge appears on both the built-in skill and any user/workspace override, ensuring users understand that overriding the skill affects a UI surface.
