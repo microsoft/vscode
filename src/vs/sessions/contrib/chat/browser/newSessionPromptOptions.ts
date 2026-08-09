@@ -110,14 +110,15 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 		this._renderDisposables.value = store;
 		const buttons: IPromptOptionButton[] = [];
 		for (const option of options) {
-			const ariaLabel = localize('newSessionPromptOptions.optionAriaLabel', "{0}: {1}", option.title, option.description);
+			const fullTitle = getFullTitle(option);
+			const ariaLabel = localize('newSessionPromptOptions.optionAriaLabel', "{0}: {1}", fullTitle, option.description);
 			const button = store.add(new Button(this._optionsContainer, {
 				...promptOptionButtonStyles,
 				ariaLabel,
 			}));
 			const hoverContent = new MarkdownString()
 				.appendMarkdown('**')
-				.appendText(option.title)
+				.appendText(fullTitle)
 				.appendMarkdown('**\n\n')
 				.appendText(option.description);
 			store.add(this._hoverService.setupDelayedHover(button.element, {
@@ -137,7 +138,11 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 			} else {
 				button.element.classList.add('no-icon');
 			}
-			dom.append(button.element, dom.$('.new-session-prompt-option-title')).textContent = option.title;
+			const title = dom.append(button.element, dom.$('.new-session-prompt-option-title'));
+			dom.append(title, dom.$('.new-session-prompt-option-title-label')).textContent = option.title;
+			if (option.titleDetail) {
+				dom.append(title, dom.$('.new-session-prompt-option-title-detail')).textContent = option.titleDetail;
+			}
 			dom.append(button.element, dom.$('.new-session-prompt-option-description')).textContent = option.description;
 			store.add(button.onDidClick(() => {
 				void this._select(option);
@@ -191,4 +196,8 @@ function matchesGeneratedPrompt(option: INewSessionPromptOption | undefined, val
 		return true;
 	}
 	return !!option.placeholder && option.prompt.includes(option.placeholder) && value === option.prompt.replace(option.placeholder, '');
+}
+
+function getFullTitle(option: INewSessionPromptOption): string {
+	return option.titleDetail ? `${option.title} ${option.titleDetail}` : option.title;
 }

@@ -44,6 +44,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 - **Three prompt options must fill every row**: render three equal growing cards on one row when space allows. At the two-column breakpoint keep `flex-grow` enabled so the third card occupies the full wrapped row instead of leaving an empty column.
 
+- **GitHub prompt-option numbers are secondary title metadata**: model the issue/PR number separately from the action title, render it beside the title using the same muted color as the second line, and combine both only for ARIA and full-content hovers. Do not parse or color substrings inside one title string.
+
 - **Agent-host onboarding readiness comes from advertised session types, not provider registration**: an agent-host provider exists before its root state connects, while its `sessionTypes` stay empty. Gate tours that need a usable host on a context key derived from any `local-agent-host`/`agenthost-*` provider exposing a session type, and update it from `ISessionsManagementService.onDidChangeSessionTypes`.
 
 - **Diagnostic log text is not a unit-test contract**: add consistently prefixed, actionable logs, but do not add tests that assert log messages or levels. Validate the underlying behavior and keep diagnostics free to evolve.

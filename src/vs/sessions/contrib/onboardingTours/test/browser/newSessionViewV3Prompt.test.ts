@@ -688,7 +688,7 @@ function summarizePromptOptionStates(states: readonly NewSessionPromptOptionsSta
 		: {
 			kind: state.kind,
 			options: state.options.map(option => ({
-				title: option.title,
+				title: option.titleDetail ? `${option.title} ${option.titleDetail}` : option.title,
 				description: option.description,
 				icon: option.icon ? { id: option.icon.id, color: option.icon.color?.id } : undefined,
 			})),

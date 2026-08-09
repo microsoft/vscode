@@ -434,7 +434,8 @@ function createMixedPromptOptions(): readonly INewSessionPromptOption[] {
 	return [
 		{
 			id: 'githubIssue:327101',
-			title: 'Tackle issue #327101',
+			title: 'Tackle issue',
+			titleDetail: '#327101',
 			description: 'Improve the accessibility of inline chat controls',
 			prompt: 'Tackle the following issue and create a pull request for it: "Improve the accessibility of inline chat controls" (https://github.com/microsoft/vscode/issues/327101).',
 			placeholder: '',
@@ -442,7 +443,8 @@ function createMixedPromptOptions(): readonly INewSessionPromptOption[] {
 		},
 		{
 			id: 'githubIssue:326842',
-			title: 'Tackle issue #326842',
+			title: 'Tackle issue',
+			titleDetail: '#326842',
 			description: 'Preserve editor state when switching sessions',
 			prompt: 'Tackle the following issue and create a pull request for it: "Preserve editor state when switching sessions" (https://github.com/microsoft/vscode/issues/326842).',
 			placeholder: '',
@@ -450,7 +452,8 @@ function createMixedPromptOptions(): readonly INewSessionPromptOption[] {
 		},
 		{
 			id: 'githubCiFailure:329629',
-			title: 'Fix CI #329629',
+			title: 'Fix CI',
+			titleDetail: '#329629',
 			description: 'Add GitHub prompt variation to onboarding',
 			prompt: 'The following pull request has failing CI checks: "Add GitHub prompt variation to onboarding" (https://github.com/microsoft/vscode/pull/329629). Investigate the failures and resolve them.',
 			placeholder: '',

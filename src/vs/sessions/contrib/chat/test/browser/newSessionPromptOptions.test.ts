@@ -152,6 +152,32 @@ suite('NewSessionPromptOptionsWidget', () => {
 		});
 	});
 
+	test('renders title details separately while preserving full accessible text', () => {
+		const container = document.createElement('div');
+		const hoverService = new TestHoverService();
+		const widget = disposables.add(new NewSessionPromptOptionsWidget(container, async () => true, hoverService));
+		const gitHubOption: INewSessionPromptOption = {
+			...option('issue', 'Tackle issue'),
+			titleDetail: '#123',
+			description: 'A complete issue title',
+		};
+
+		widget.setState({ kind: 'resolved', options: [gitHubOption] });
+		const button = widget.element.querySelector<HTMLElement>('.new-session-prompt-option');
+
+		assert.deepStrictEqual({
+			title: button?.querySelector('.new-session-prompt-option-title-label')?.textContent,
+			detail: button?.querySelector('.new-session-prompt-option-title-detail')?.textContent,
+			ariaLabel: button?.getAttribute('aria-label'),
+			hover: hoverService.contents,
+		}, {
+			title: 'Tackle issue',
+			detail: '#123',
+			ariaLabel: 'Tackle issue #123: A complete issue title',
+			hover: ['**Tackle issue \\#123**\n\nA complete issue title'],
+		});
+	});
+
 	test('cancels stale prompt option refreshes', async () => {
 		const first = new DeferredPromise<NewSessionPromptOptionsState>();
 		const tokens: CancellationToken[] = [];
