@@ -8,6 +8,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { hash as objectHash } from '../../../../base/common/hash.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -246,14 +247,26 @@ export namespace McpServerDefinition {
 		};
 	}
 
+	function normalizePresentation(presentation: McpServerDefinition['presentation']) {
+		return presentation?.origin
+			? { ...presentation, origin: { ...presentation.origin, uri: URI.from(presentation.origin.uri) } }
+			: presentation;
+	}
+
+	function normalizeVariableReplacement(variableReplacement: McpServerDefinitionVariableReplacement | undefined) {
+		return variableReplacement?.folder
+			? { ...variableReplacement, folder: { ...variableReplacement.folder, uri: URI.from(variableReplacement.folder.uri) } }
+			: variableReplacement;
+	}
+
 	export function equals(a: McpServerDefinition, b: McpServerDefinition): boolean {
 		return a.id === b.id
 			&& a.label === b.label
 			&& a.cacheNonce === b.cacheNonce
 			&& arraysEqual(a.roots, b.roots, (a, b) => a.toString() === b.toString())
-			&& objectsEqual(a.launch, b.launch)
-			&& objectsEqual(a.presentation, b.presentation)
-			&& objectsEqual(a.variableReplacement, b.variableReplacement)
+			&& McpServerLaunch.equals(a.launch, b.launch)
+			&& objectsEqual(normalizePresentation(a.presentation), normalizePresentation(b.presentation))
+			&& objectsEqual(normalizeVariableReplacement(a.variableReplacement), normalizeVariableReplacement(b.variableReplacement))
 			&& objectsEqual(a.devMode, b.devMode)
 			&& a.sandboxEnabled === b.sandboxEnabled;
 
@@ -669,6 +682,20 @@ export namespace McpServerLaunch {
 		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
+	function normalize(launch: McpServerLaunch): McpServerLaunch {
+		return launch.type === McpServerTransportType.HTTP
+			? { ...launch, uri: URI.from(launch.uri) }
+			: launch;
+	}
+
+	export function equals(a: McpServerLaunch, b: McpServerLaunch): boolean {
+		return objectsEqual(normalize(a), normalize(b));
+	}
+
+	export function hashForCache(launch: McpServerLaunch): number {
+		return objectHash(normalize(launch));
+	}
+
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return launch;
 	}
@@ -691,7 +718,7 @@ export namespace McpServerLaunch {
 	}
 
 	export async function hash(launch: McpServerLaunch): Promise<string> {
-		const nonce = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(launch)));
+		const nonce = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(normalize(launch))));
 		return encodeHex(VSBuffer.wrap(new Uint8Array(nonce)));
 	}
 }
