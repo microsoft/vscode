@@ -29,12 +29,14 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
 import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
-	driveTurnWithAttachmentsToCompletion, removeTempDirs, runAhpSnapshotTest,
+	driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, removeTempDirs, runAhpSnapshotTest,
 } from '../harness/agentHostE2ETestHarness.js';
+import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
@@ -481,6 +483,77 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const result = await driveTurnWithAttachmentsToCompletion(client, sessionUri, 'turn-blob-attachment', prompt, attachments, 1);
 
 		assert.match(result.responseText, /\bsubtract\b/i, `expected the model to identify the attached blob function; got: ${JSON.stringify(result.responseText)}`);
+	});
+
+	(isWindows ? test.skip : test)('shell read helper remains a non-terminal tool', async function () {
+		this.timeout(180_000);
+
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-read-shell-'));
+		tempDirs.push(workingDirectory);
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-read-shell', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-read-shell';
+		const command = `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"`;
+		const prompt = [
+			`First use the shell tool exactly once to run \`${command}\` in async mode with shellId "read-shell-e2e" and initial_wait 1.`,
+			'After that tool returns, use its matching read tool exactly once with shellId "read-shell-e2e" and delay 5 so the command finishes before the read returns.',
+			'Then reply with exactly "READ_SHELL_E2E_DONE".',
+		].join(' ');
+
+		const result = await driveTurnToCompletion(client, sessionUri, turnId, prompt, 1);
+		assert.match(result.responseText, /READ_SHELL_E2E_DONE/);
+
+		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && /^read_(?:bash|powershell)$/.test(action.toolName));
+		assert.ok(start, 'expected a shell read helper tool call');
+
+		const ready = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallReadyAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.action.toolCallId);
+		const complete = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
+			.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.action.toolCallId);
+		assert.ok(ready, 'expected the shell read helper to become ready');
+		assert.ok(complete, 'expected the shell read helper to complete');
+
+		const toolInput = getInlineToolInput(ready.action.toolInput);
+		assert.deepStrictEqual({
+			displayName: start.action.displayName,
+			toolKinds: [
+				readToolCallMeta(start.action).toolKind,
+				readToolCallMeta(ready.action).toolKind,
+				readToolCallMeta(complete.action).toolKind,
+			],
+			invocationMessage: ready.action.invocationMessage,
+			toolInput: toolInput ? JSON.parse(toolInput) : undefined,
+			success: complete.action.result.success,
+			pastTenseMessage: complete.action.result.pastTenseMessage,
+			contentTypes: complete.action.result.content?.map(content => content.type),
+		}, {
+			displayName: 'Read Terminal',
+			toolKinds: [undefined, undefined, undefined],
+			invocationMessage: 'Reading Terminal',
+			toolInput: { shellId: 'read-shell-e2e', delay: 5 },
+			success: true,
+			pastTenseMessage: 'Read Terminal',
+			contentTypes: [ToolResultContentType.Text],
+		});
+		await assertRecordedAhpSnapshot(this.test!, client, {
+			profile: 'protocol',
+			ignoredActionTypes: [
+				ActionType.ChatUsage,
+				ActionType.ChatToolCallDelta,
+				ActionType.SessionChatUpdated,
+				ActionType.SessionTitleChanged,
+				ActionType.SessionServerToolsChanged,
+				ActionType.SessionReady,
+				ActionType.SessionInputNeededSet,
+				ActionType.SessionInputNeededRemoved,
+				ActionType.SessionChangesetsChanged,
+				ActionType.SessionMetaChanged,
+			],
+		});
 	});
 
 	(isWindows ? test.skip : test)('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {

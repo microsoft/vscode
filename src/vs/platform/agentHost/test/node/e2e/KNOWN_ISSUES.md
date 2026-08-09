@@ -503,6 +503,7 @@ Three rows remain, and they are not about command portability:
 | `resource watch reports changes on its subscribed channel` | Windows | The subscribed filesystem watch does not emit `resourceWatch/changed` after a protocol `resourceWrite` within the test timeout. Descriptor, missing-root, and resource mutation coverage remain enabled. |
 | `worktree session uses the resolved worktree as working directory` | Windows | `os.tmpdir()` yields an 8.3 short path while the shell reports the long path, and Copilot's completed host-terminal call publishes no terminal-content notification. |
 | ``strips redundant `cd <workingDirectory> &&` prefix from shell tool calls`` | Copilot on Windows | The turn completes, but `chat/toolCallReady` omits the `toolInput` needed to assert that the prefix was removed. |
+| `shell read helper remains a non-terminal tool` | Copilot on Windows | The scenario depends on completed ordinary-shell output, which the Copilot provider does not reliably surface on Windows; the read-helper protocol shape remains covered on POSIX. |
 
 Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.preview` on Windows, while its terminal-shaped resource is not backed by the host terminal manager and cannot be subscribed. These tests are skipped for Copilot on Windows because their direct output oracle would otherwise be empty:
 

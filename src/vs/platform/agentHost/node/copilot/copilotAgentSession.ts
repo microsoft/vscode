@@ -4096,7 +4096,8 @@ export class CopilotAgentSession extends Disposable {
 			// SDK result content, so a `shell_exit` lands its completion data on
 			// the terminal block (skip if any terminal block was already added
 			// while the tool was running).
-			const ptyTerminalUri = isShellTool(tracked.toolName) ? this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId) : undefined;
+			const isShellCommandTool = isShellTool(tracked.toolName);
+			const ptyTerminalUri = isShellCommandTool ? this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId) : undefined;
 			let retireNonPtyShellTracking = !!ptyTerminalUri;
 			if (ptyTerminalUri && !content.some(c => c.type === ToolResultContentType.Terminal)) {
 				content.push({
@@ -4106,8 +4107,12 @@ export class CopilotAgentSession extends Disposable {
 				});
 			}
 
-			const shellExit = appendSdkToolResultContent(content, e.data.result?.contents, { session: this.sessionUri, toolCallId: e.data.toolCallId, title: tracked.displayName });
-			if (isShellTool(tracked.toolName) && !ptyTerminalUri) {
+			const shellExit = appendSdkToolResultContent(
+				content,
+				e.data.result?.contents,
+				isShellCommandTool ? { session: this.sessionUri, toolCallId: e.data.toolCallId, title: tracked.displayName } : undefined,
+			);
+			if (isShellCommandTool && !ptyTerminalUri) {
 				const completion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
 				if (completion) {
 					retireNonPtyShellTracking = completion.shouldRetire;
