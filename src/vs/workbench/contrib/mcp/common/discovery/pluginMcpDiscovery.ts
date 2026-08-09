@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -106,7 +107,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			label: name,
 			launch,
 			variableReplacement: { target: ConfigurationTarget.USER },
-			cacheNonce: String(McpServerLaunch.hashForCache(launch)),
+			cacheNonce: String(hash(launch)),
 		};
 	}
 

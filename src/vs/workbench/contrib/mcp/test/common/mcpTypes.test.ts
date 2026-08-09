@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { hash as objectHash } from '../../../../../base/common/hash.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
@@ -204,6 +203,26 @@ suite('MCP Types', () => {
 			assert.strictEqual(JSON.stringify(serialized.launch).includes('"external"'), false);
 			assert.strictEqual(JSON.stringify(serialized.launch).includes('"fsPath"'), false);
 		});
+
+		test('serializes variable replacement folders without URI cache state', () => {
+			const cachedUri = URI.file('/workspace');
+			const freshUri = URI.file('/workspace');
+			cachedUri.toString();
+			void cachedUri.fsPath;
+
+			const createDefinition = (uri: URI) => createBasicDefinition({
+				variableReplacement: {
+					target: ConfigurationTarget.USER,
+					folder: { uri, name: 'workspace', index: 0 }
+				}
+			});
+			const cached = JSON.stringify(McpServerDefinition.toSerialized(createDefinition(cachedUri)).variableReplacement);
+			const fresh = JSON.stringify(McpServerDefinition.toSerialized(createDefinition(freshUri)).variableReplacement);
+
+			assert.strictEqual(cached, fresh);
+			assert.strictEqual(cached.includes('"external"'), false);
+			assert.strictEqual(cached.includes('"fsPath"'), false);
+		});
 	});
 
 	suite('McpServerLaunch identity', () => {
@@ -213,6 +232,11 @@ suite('MCP Types', () => {
 			headers: [],
 			...overrides
 		});
+		const createMalformedHttpLaunch = (property: 'oauth' | 'authentication', value: unknown): McpServerTransportHTTP => {
+			const launch = createHttpLaunch();
+			Reflect.set(launch, property, value);
+			return launch;
+		};
 
 		test('normalizes missing and undefined HTTP properties', async () => {
 			const omitted = createHttpLaunch();
@@ -222,7 +246,6 @@ suite('MCP Types', () => {
 			});
 
 			assert.strictEqual(McpServerLaunch.equals(omitted, explicitUndefined), true);
-			assert.strictEqual(McpServerLaunch.hashForCache(omitted), McpServerLaunch.hashForCache(explicitUndefined));
 			assert.strictEqual(await McpServerLaunch.hash(omitted), await McpServerLaunch.hash(explicitUndefined));
 		});
 
@@ -234,9 +257,7 @@ suite('MCP Types', () => {
 					enterpriseManaged: undefined
 				}
 			});
-
 			assert.strictEqual(McpServerLaunch.equals(omitted, explicitUndefined), true);
-			assert.strictEqual(McpServerLaunch.hashForCache(omitted), McpServerLaunch.hashForCache(explicitUndefined));
 			assert.strictEqual(await McpServerLaunch.hash(omitted), await McpServerLaunch.hash(explicitUndefined));
 		});
 
@@ -252,9 +273,7 @@ suite('MCP Types', () => {
 
 			const serialized = McpServerLaunch.toSerialized(launch);
 			const revived = McpServerLaunch.fromSerialized(serialized);
-
 			assert.strictEqual(McpServerLaunch.equals(launch, revived), true);
-			assert.strictEqual(McpServerLaunch.hashForCache(launch), McpServerLaunch.hashForCache(revived));
 			assert.strictEqual(await McpServerLaunch.hash(launch), await McpServerLaunch.hash(revived));
 			assert.strictEqual(serialized.type, McpServerTransportType.HTTP);
 			if (serialized.type !== McpServerTransportType.HTTP) {
@@ -265,6 +284,44 @@ suite('MCP Types', () => {
 			assert.strictEqual(JSON.stringify(serialized).includes('"external"'), false);
 			assert.strictEqual(Object.hasOwn(launch, 'authentication'), true);
 			assert.strictEqual(Object.hasOwn(launch.oauth!, 'clientId'), true);
+		});
+
+		test('preserves malformed HTTP authentication identity', async () => {
+			const withUndefinedProvider = createMalformedHttpLaunch('authentication', { providerId: undefined, scopes: [] });
+			const withoutProvider = createMalformedHttpLaunch('authentication', { scopes: [] });
+			const serialized = McpServerLaunch.toSerialized(withUndefinedProvider);
+			assert.strictEqual(McpServerLaunch.equals(withUndefinedProvider, withoutProvider), false);
+			assert.notStrictEqual(await McpServerLaunch.hash(withUndefinedProvider), await McpServerLaunch.hash(withoutProvider));
+			if (serialized.type !== McpServerTransportType.HTTP) {
+				throw new Error('Expected an HTTP launch');
+			}
+			assert.strictEqual(Object.hasOwn(serialized.authentication!, 'providerId'), true);
+		});
+
+		test('does not coerce malformed HTTP OAuth arrays into records', async () => {
+			const arrayValue = createMalformedHttpLaunch('oauth', []);
+			const objectValue = createMalformedHttpLaunch('oauth', {});
+			const serialized = McpServerLaunch.toSerialized(arrayValue);
+			assert.strictEqual(McpServerLaunch.equals(arrayValue, objectValue), false);
+			assert.notStrictEqual(await McpServerLaunch.hash(arrayValue), await McpServerLaunch.hash(objectValue));
+			if (serialized.type !== McpServerTransportType.HTTP) {
+				throw new Error('Expected an HTTP launch');
+			}
+			assert.strictEqual(Array.isArray(serialized.oauth), true);
+		});
+
+		test('preserves unknown HTTP properties', async () => {
+			const left = createHttpLaunch();
+			const right = createHttpLaunch();
+			Reflect.set(left, 'futureProperty', { enabled: true });
+			Reflect.set(right, 'futureProperty', { enabled: false });
+			assert.strictEqual(McpServerLaunch.equals(left, right), false);
+			assert.notStrictEqual(await McpServerLaunch.hash(left), await McpServerLaunch.hash(right));
+
+			const serialized = McpServerLaunch.toSerialized(left);
+			const revived = McpServerLaunch.fromSerialized(serialized);
+			assert.deepStrictEqual(Reflect.get(serialized, 'futureProperty'), { enabled: true });
+			assert.deepStrictEqual(Reflect.get(revived, 'futureProperty'), { enabled: true });
 		});
 
 		test('does not revalidate trusted URI components during normalization', () => {
@@ -302,7 +359,6 @@ suite('MCP Types', () => {
 
 			for (const [left, right] of pairs) {
 				assert.strictEqual(McpServerLaunch.equals(left, right), false);
-				assert.notStrictEqual(McpServerLaunch.hashForCache(left), McpServerLaunch.hashForCache(right));
 				assert.notStrictEqual(await McpServerLaunch.hash(left), await McpServerLaunch.hash(right));
 			}
 		});
@@ -324,18 +380,25 @@ suite('MCP Types', () => {
 			assert.strictEqual(await McpServerLaunch.hash(createHttpLaunch(uri1)), await McpServerLaunch.hash(createHttpLaunch(uri2)));
 		});
 
-		test('returns the same synchronous cache hash when HTTP URI cache state differs', () => {
-			const uri1 = URI.parse('https://example.com/mcp');
-			const uri2 = URI.parse('https://example.com/mcp');
-			uri1.toString();
-			void uri1.fsPath;
+		test('returns the same asynchronous hash when authentication property order differs', async () => {
+			const uri = URI.parse('https://example.com/mcp');
+			const left: McpServerTransportHTTP = {
+				type: McpServerTransportType.HTTP,
+				uri,
+				headers: [],
+				oauth: { clientId: 'client', enterpriseManaged: true },
+				authentication: { providerId: 'provider', scopes: ['scope'] }
+			};
+			const right: McpServerTransportHTTP = {
+				type: McpServerTransportType.HTTP,
+				uri,
+				headers: [],
+				oauth: { enterpriseManaged: true, clientId: 'client' },
+				authentication: { scopes: ['scope'], providerId: 'provider' }
+			};
 
-			assert.strictEqual(McpServerLaunch.hashForCache(createHttpLaunch(uri1)), McpServerLaunch.hashForCache(createHttpLaunch(uri2)));
-		});
-
-		test('preserves the existing synchronous hash for a fresh HTTP launch', () => {
-			const launch = createHttpLaunch(URI.parse('https://example.com/mcp'));
-			assert.strictEqual(McpServerLaunch.hashForCache(launch), objectHash(launch));
+			assert.strictEqual(McpServerLaunch.equals(left, right), true);
+			assert.strictEqual(await McpServerLaunch.hash(left), await McpServerLaunch.hash(right));
 		});
 
 		test('preserves the existing asynchronous hash for a fresh HTTP launch', async () => {
@@ -351,7 +414,6 @@ suite('MCP Types', () => {
 			const launch = createHttpLaunch(uri);
 			const initialUriState = JSON.stringify(uri);
 
-			McpServerLaunch.hashForCache(launch);
 			await McpServerLaunch.hash(launch);
 
 			assert.strictEqual(JSON.stringify(uri), initialUriState);

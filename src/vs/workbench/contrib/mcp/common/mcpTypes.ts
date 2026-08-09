@@ -8,7 +8,6 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { hash as objectHash } from '../../../../base/common/hash.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -243,10 +242,10 @@ export namespace McpServerDefinition {
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
-		return {
-			...def,
-			launch: McpServerLaunch.toSerialized(def.launch),
-		};
+		const launch = McpServerLaunch.toSerialized(def.launch);
+		return def.variableReplacement
+			? { ...def, launch, variableReplacement: McpServerDefinitionVariableReplacement.toSerialized(def.variableReplacement) }
+			: { ...def, launch };
 	}
 
 	export function fromSerialized(def: McpServerDefinition.Serialized): McpServerDefinition {
@@ -302,7 +301,9 @@ export namespace McpServerDefinitionVariableReplacement {
 	}
 
 	export function toSerialized(def: McpServerDefinitionVariableReplacement): McpServerDefinitionVariableReplacement.Serialized {
-		return def;
+		return def.folder
+			? { ...def, folder: { ...def.folder, uri: cloneUriWithoutCaches(def.folder.uri) } }
+			: def;
 	}
 
 	export function fromSerialized(def: McpServerDefinitionVariableReplacement.Serialized): McpServerDefinitionVariableReplacement {
@@ -696,15 +697,51 @@ export namespace McpServerLaunch {
 		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; oauth?: McpServerTransportHTTPOAuth; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
-	function normalizeDefinedProperties<T extends object>(value: T): T {
+	const knownHTTPProperties = new Set(['type', 'uri', 'headers', 'oauth', 'authentication']);
+	const optionalOAuthProperties = new Set(['clientId', 'enterpriseManaged']);
+
+	function isPlainRecord(value: unknown): value is Record<string, unknown> {
 		if (value === null || typeof value !== 'object') {
+			return false;
+		}
+		const prototype = Object.getPrototypeOf(value);
+		return prototype === Object.prototype || prototype === null;
+	}
+
+	function normalizeRuntimeValue(
+		value: unknown,
+		omittedUndefinedProperties?: ReadonlySet<string>,
+		seen = new WeakMap<object, unknown>()
+	): unknown {
+		if (Array.isArray(value)) {
+			if (seen.has(value)) {
+				return seen.get(value);
+			}
+			const result = new Array<unknown>(value.length);
+			seen.set(value, result);
+			for (let i = 0; i < value.length; i++) {
+				if (Object.hasOwn(value, i)) {
+					result[i] = normalizeRuntimeValue(value[i], undefined, seen);
+				}
+			}
+			return result;
+		}
+
+		if (!isPlainRecord(value)) {
 			return value;
 		}
-		const result = { ...value };
-		for (const [key, property] of Object.entries(result)) {
-			if (property === undefined) {
-				Reflect.deleteProperty(result, key);
+		if (seen.has(value)) {
+			return seen.get(value);
+		}
+
+		const result: Record<string, unknown> = Object.create(Object.getPrototypeOf(value));
+		seen.set(value, result);
+		for (const key of Object.keys(value).sort()) {
+			const property = value[key];
+			if (property === undefined && omittedUndefinedProperties?.has(key)) {
+				continue;
 			}
+			result[key] = normalizeRuntimeValue(property, undefined, seen);
 		}
 		return result;
 	}
@@ -719,11 +756,17 @@ export namespace McpServerLaunch {
 			uri: cloneUriWithoutCaches(launch.uri),
 			headers: launch.headers
 		};
+		const seen = new WeakMap<object, unknown>([[launch, result]]);
 		if (launch.oauth !== undefined) {
-			result.oauth = normalizeDefinedProperties(launch.oauth);
+			Reflect.set(result, 'oauth', normalizeRuntimeValue(launch.oauth, optionalOAuthProperties, seen));
 		}
 		if (launch.authentication !== undefined) {
-			result.authentication = normalizeDefinedProperties(launch.authentication);
+			Reflect.set(result, 'authentication', normalizeRuntimeValue(launch.authentication, undefined, seen));
+		}
+		for (const key of Object.keys(launch).sort()) {
+			if (!knownHTTPProperties.has(key)) {
+				Reflect.set(result, key, normalizeRuntimeValue(Reflect.get(launch, key), undefined, seen));
+			}
 		}
 		return result;
 	}
@@ -736,10 +779,6 @@ export namespace McpServerLaunch {
 		return objectsEqual(normalize(a), normalize(b));
 	}
 
-	export function hashForCache(launch: McpServerLaunch): number {
-		return objectHash(normalize(launch));
-	}
-
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return normalize(launch);
 	}
@@ -748,11 +787,8 @@ export namespace McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
 				return normalizeHTTP({
-					type: launch.type,
+					...launch,
 					uri: URI.revive(launch.uri),
-					headers: launch.headers,
-					oauth: launch.oauth,
-					authentication: launch.authentication
 				});
 			case McpServerTransportType.Stdio:
 				return {
@@ -767,8 +803,51 @@ export namespace McpServerLaunch {
 		}
 	}
 
+	function collectUndefinedPaths(value: unknown, path: string[], result: string[][], ancestors = new WeakSet<object>()): void {
+		if (value === null || typeof value !== 'object' || ancestors.has(value)) {
+			return;
+		}
+		ancestors.add(value);
+
+		if (Array.isArray(value)) {
+			for (let i = 0; i < value.length; i++) {
+				const propertyPath = [...path, String(i)];
+				if (!Object.hasOwn(value, i) || value[i] === undefined) {
+					result.push(propertyPath);
+				} else {
+					collectUndefinedPaths(value[i], propertyPath, result, ancestors);
+				}
+			}
+		} else {
+			for (const key of Object.keys(value).sort()) {
+				const property = Reflect.get(value, key);
+				const propertyPath = [...path, key];
+				if (property === undefined) {
+					result.push(propertyPath);
+				} else {
+					collectUndefinedPaths(property, propertyPath, result, ancestors);
+				}
+			}
+		}
+
+		ancestors.delete(value);
+	}
+
+	function stringifyHTTPForHash(launch: McpServerTransportHTTP): string {
+		const serialized = JSON.stringify(launch);
+		const undefinedPaths: string[][] = [];
+		collectUndefinedPaths(launch, [], undefinedPaths);
+		return undefinedPaths.length === 0
+			? serialized
+			: `${serialized}\nundefined:${JSON.stringify(undefinedPaths)}`;
+	}
+
 	export async function hash(launch: McpServerLaunch): Promise<string> {
-		const nonce = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(normalize(launch))));
+		const normalized = normalize(launch);
+		const serialized = normalized.type === McpServerTransportType.HTTP
+			? stringifyHTTPForHash(normalized)
+			: JSON.stringify(normalized);
+		const nonce = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(serialized));
 		return encodeHex(VSBuffer.wrap(new Uint8Array(nonce)));
 	}
 }
