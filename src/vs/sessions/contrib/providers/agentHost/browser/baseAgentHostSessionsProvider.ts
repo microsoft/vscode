@@ -3605,19 +3605,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const removed: AgentHostSessionAdapter[] = [];
-		for (const { rawId, cached } of targets) {
-			await connection.disposeSession(cached.backendUri);
-			const removedSession = this._removeCachedSession(rawId, cached);
-			if (removedSession) {
-				removed.push(removedSession);
+		try {
+			for (const { rawId, cached } of targets) {
+				await connection.disposeSession(cached.backendUri);
+				const removedSession = this._removeCachedSession(rawId, cached);
+				if (removedSession) {
+					removed.push(removedSession);
+				}
 			}
-		}
-		if (removed.length === 0) {
-			return;
-		}
-		this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
-		for (const cached of removed) {
-			cached.dispose();
+		} finally {
+			if (removed.length > 0) {
+				this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
+				for (const cached of removed) {
+					cached.dispose();
+				}
+			}
 		}
 	}
 
