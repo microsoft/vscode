@@ -5304,6 +5304,94 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restores an evicted session before applying a dispatched default-chat action', async () => {
+			const restoration = new DeferredPromise<void>();
+			let restoreCalls = 0;
+			class RestoringAgent extends MockAgent {
+				override async getSessionMessages(): Promise<readonly Turn[]> {
+					restoreCalls++;
+					await restoration.p;
+					return [];
+				}
+			}
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new RestoringAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session);
+			localService.stateManager.deleteSession(session.toString());
+
+			localService.dispatchAction(chat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Hello after restart', origin: { kind: MessageKind.User } },
+			}, 'client-1', 1);
+			for (let i = 0; i < 50 && restoreCalls === 0; i++) {
+				await timeout(0);
+			}
+			const stateWhileBlocked = localService.stateManager.getChatState(chat.toString());
+			restoration.complete();
+			for (let i = 0; i < 50 && localService.stateManager.getChatState(chat.toString())?.activeTurn?.id !== 'turn-1'; i++) {
+				await timeout(0);
+			}
+			const stateAfterRestoration = localService.stateManager.getChatState(chat.toString());
+
+			assert.deepStrictEqual({
+				restoreCalls,
+				stateWhileBlocked,
+				activeTurnAfterRestoration: stateAfterRestoration?.activeTurn?.id,
+			}, {
+				restoreCalls: 1,
+				stateWhileBlocked: undefined,
+				activeTurnAfterRestoration: 'turn-1',
+			});
+		});
+
+		test('restores an evicted session before applying a dispatched session action', async () => {
+			const restoration = new DeferredPromise<void>();
+			let restoreCalls = 0;
+			class RestoringAgent extends MockAgent {
+				override async getSessionMessages(): Promise<readonly Turn[]> {
+					restoreCalls++;
+					await restoration.p;
+					return [];
+				}
+			}
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new RestoringAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({
+				provider: 'copilot',
+				config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			localService.stateManager.deleteSession(session.toString());
+
+			localService.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AutoApprove]: 'default' },
+			}, 'client-1', 1);
+			for (let i = 0; i < 50 && restoreCalls === 0; i++) {
+				await timeout(0);
+			}
+			const stateWhileBlocked = localService.stateManager.getSessionState(session.toString());
+			restoration.complete();
+			for (let i = 0; i < 50 && localService.stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.AutoApprove] !== 'default'; i++) {
+				await timeout(0);
+			}
+			const stateAfterRestoration = localService.stateManager.getSessionState(session.toString());
+
+			assert.deepStrictEqual({
+				restoreCalls,
+				stateWhileBlocked,
+				autoApproveAfterRestoration: stateAfterRestoration?.config?.values[SessionConfigKey.AutoApprove],
+			}, {
+				restoreCalls: 1,
+				stateWhileBlocked: undefined,
+				autoApproveAfterRestoration: 'default',
+			});
+		});
+
 		test('invalidates a restored peer resolver when its parent session is disposed', async () => {
 			const firstMaterialization = new DeferredPromise<void>();
 			let materializeCalls = 0;
