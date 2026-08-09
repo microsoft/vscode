@@ -26,16 +26,16 @@ suite('Files', () => {
 		assert.deepStrictEqual({
 			utf8: encodedUtf8,
 			utf8RoundTrip: [...decodeIPCFileData(encodedUtf8)],
-			binaryUsesBuffer: encodedBinary instanceof VSBuffer,
+			binaryUsesUint8Array: encodedBinary instanceof Uint8Array,
 			binaryRoundTrip: [...decodeIPCFileData(encodedBinary)],
-			legacyUsesBuffer: encodedLegacy instanceof VSBuffer,
+			legacyUsesUint8Array: encodedLegacy instanceof Uint8Array,
 			legacyRoundTrip: [...decodeIPCFileData(encodedLegacy)]
 		}, {
 			utf8: 'Hello 🌍',
 			utf8RoundTrip: [...utf8],
-			binaryUsesBuffer: true,
+			binaryUsesUint8Array: true,
 			binaryRoundTrip: [65, 0, 66],
-			legacyUsesBuffer: true,
+			legacyUsesUint8Array: true,
 			legacyRoundTrip: [0x80, 0x41]
 		});
 	});

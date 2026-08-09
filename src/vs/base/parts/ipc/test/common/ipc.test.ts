@@ -286,7 +286,7 @@ suite('Base IPC', function () {
 		assert.strictEqual(b3, b4);
 	});
 
-	test('structured clone protocol sends plain envelopes and preserves supported values', async function () {
+	test('structured clone protocol sends plain envelopes without pre-processing data', async function () {
 		const [clientProtocol, serverProtocol] = createStructuredCloneProtocolPair();
 		const channelDisposables = store.add(new DisposableStore());
 		const server = store.add(new ChannelServer(serverProtocol, 'ctx'));
@@ -295,11 +295,13 @@ suite('Base IPC', function () {
 		}, channelDisposables));
 		const client = store.add(new ChannelClient(clientProtocol));
 		const service = ProxyChannel.toService<{ echo(value: unknown): Promise<unknown> }>(client.getChannel('echo'));
+		const cycle: { value: string; self?: unknown } = { value: 'cycle' };
+		cycle.self = cycle;
 		const input = {
-			uri: URI.file('/structured-clone'),
 			regexp: /structured/gi,
-			buffer: VSBuffer.fromByteArray([1, 2, 3]),
-			validate: () => false
+			bytes: Uint8Array.from([1, 2, 3]),
+			map: new Map([['answer', 42]]),
+			cycle
 		};
 
 		const result = await service.echo(input) as typeof input;
@@ -307,19 +309,19 @@ suite('Base IPC', function () {
 		assert.deepStrictEqual({
 			headerIsArray: Array.isArray(clientProtocol.lastSent?.header),
 			messageIsBuffer: clientProtocol.lastSent instanceof VSBuffer,
-			uri: result.uri.toString(),
 			regexp: result.regexp.toString(),
-			bufferIsVSBuffer: result.buffer instanceof VSBuffer,
-			buffer: [...result.buffer.buffer],
-			hasValidate: Object.hasOwn(result, 'validate')
+			bytesIsUint8Array: result.bytes instanceof Uint8Array,
+			bytes: [...result.bytes],
+			map: result.map.get('answer'),
+			cycle: result.cycle.self === result.cycle
 		}, {
 			headerIsArray: true,
 			messageIsBuffer: false,
-			uri: URI.file('/structured-clone').toString(),
 			regexp: '/structured/gi',
-			bufferIsVSBuffer: true,
-			buffer: [1, 2, 3],
-			hasValidate: false
+			bytesIsUint8Array: true,
+			bytes: [1, 2, 3],
+			map: 42,
+			cycle: true
 		});
 	});
 
@@ -465,6 +467,16 @@ suite('Base IPC', function () {
 			const writer = new BufferWriter();
 			serialize(writer, input);
 			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
+		});
+
+		test('round trips Uint8Array values over buffer protocols', () => {
+			const input = [Uint8Array.from([1, 2, 3])];
+			const writer = new BufferWriter();
+			serialize(writer, input);
+
+			const result = deserialize(new BufferReader(writer.buffer));
+			assert.ok(result[0] instanceof Uint8Array);
+			assert.deepStrictEqual([...result[0]], [1, 2, 3]);
 		});
 
 		test('BufferWriter releases its buffers on dispose', () => {

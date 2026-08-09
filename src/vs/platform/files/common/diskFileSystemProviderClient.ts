@@ -18,30 +18,30 @@ import { reviveFileChanges } from './watcher.js';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
 
-export type IPCFileData = string | VSBuffer;
+export type IPCFileData = string | Uint8Array;
 
 export interface IPCFileStringData {
 	data: string;
 }
 
-export type IPCFileStreamData = IPCFileStringData | VSBuffer;
+export type IPCFileStreamData = IPCFileStringData | Uint8Array;
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 export function encodeIPCFileData(content: Uint8Array): IPCFileData {
 	if (content.includes(0)) {
-		return VSBuffer.wrap(content);
+		return content;
 	}
 
 	try {
 		return utf8Decoder.decode(content);
 	} catch {
-		return VSBuffer.wrap(content);
+		return content;
 	}
 }
 
 export function decodeIPCFileData(content: IPCFileData): Uint8Array {
-	return typeof content === 'string' ? VSBuffer.fromString(content).buffer : content.buffer;
+	return typeof content === 'string' ? VSBuffer.fromString(content).buffer : content;
 }
 
 function isIPCFileStringData(content: unknown): content is IPCFileStringData {
@@ -136,8 +136,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		disposables.add(this.channel.listen<ReadableStreamEventPayload<IPCFileStreamData>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
 
 			// data
-			if (dataOrErrorOrEnd instanceof VSBuffer || isIPCFileStringData(dataOrErrorOrEnd)) {
-				stream.write(decodeIPCFileData(dataOrErrorOrEnd instanceof VSBuffer ? dataOrErrorOrEnd : dataOrErrorOrEnd.data));
+			if (dataOrErrorOrEnd instanceof Uint8Array || isIPCFileStringData(dataOrErrorOrEnd)) {
+				stream.write(decodeIPCFileData(dataOrErrorOrEnd instanceof Uint8Array ? dataOrErrorOrEnd : dataOrErrorOrEnd.data));
 			}
 
 			// end or error

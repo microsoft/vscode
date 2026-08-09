@@ -219,6 +219,22 @@ suite('NativeManagedSettingsService', () => {
 		});
 	});
 
+	test('channel client omits non-cloneable value callbacks', async () => {
+		const channel = disposables.add(new DeferredManagedSettingsChannel());
+		const client = disposables.add(new NativeManagedSettingsChannelClient(channel, new NullLogService()));
+		channel.resolveInitialSnapshot({});
+		await channel.initialSnapshot;
+
+		await client.updatePolicyDefinitions({
+			WithCallback: { type: 'boolean', value: () => false, restrictedValue: false }
+		});
+
+		assert.deepStrictEqual(channel.lastPolicyDefinitions, {
+			WithCallback: { type: 'boolean', managedSettings: undefined, restrictedValue: false }
+		});
+		assert.doesNotThrow(() => structuredClone(channel.lastPolicyDefinitions));
+	});
+
 	test('channel client retries a failed initial snapshot', async () => {
 		const channel = new RetryManagedSettingsChannel();
 		const client = disposables.add(new NativeManagedSettingsChannelClient(channel, new NullLogService()));
@@ -237,11 +253,14 @@ class DeferredManagedSettingsChannel extends Disposable implements IChannel {
 	private resolveInitialSnapshotPromise!: (managedSettings: ManagedSettingsData) => void;
 	readonly initialSnapshot = new Promise<ManagedSettingsData>(resolve => this.resolveInitialSnapshotPromise = resolve);
 	updatePolicyDefinitionsResult: ManagedSettingsData = {};
+	lastPolicyDefinitions: unknown;
 
-	call<T>(command: string): Promise<T> {
+	call<T>(command: string, arg?: unknown): Promise<T> {
 		switch (command) {
 			case 'getManagedSettings': return this.initialSnapshot as Promise<T>;
-			case 'updatePolicyDefinitions': return Promise.resolve(this.updatePolicyDefinitionsResult as T);
+			case 'updatePolicyDefinitions':
+				this.lastPolicyDefinitions = arg;
+				return Promise.resolve(this.updatePolicyDefinitionsResult as T);
 		}
 
 		throw new Error(`Call not found: ${command}`);
