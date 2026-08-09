@@ -182,10 +182,10 @@ suite('AgentHostOctoKitService', () => {
 	});
 
 	test('scopes the pull request cache to the GitHub host that issued the validator', async () => {
-		let enterpriseUri: string | undefined;
+		let apiBaseUri = deriveGitHubEndpoints(undefined).apiBaseUri;
 		const endpointService: IAgentHostGitHubEndpointService = {
 			...createTestGitHubEndpointService(),
-			getApiBaseUri: () => deriveGitHubEndpoints(enterpriseUri).apiBaseUri,
+			getApiBaseUri: () => apiBaseUri,
 		};
 		const requests: (string | undefined)[] = [];
 		const service = new AgentHostOctoKitService(async (_input, init) => {
@@ -195,7 +195,7 @@ suite('AgentHostOctoKitService', () => {
 
 		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
 		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
-		enterpriseUri = 'https://ghe.example.com';
+		apiBaseUri = deriveGitHubEndpoints('https://ghe.example.com').apiBaseUri;
 		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
 
 		// The validator is replayed only against the host that issued it.
