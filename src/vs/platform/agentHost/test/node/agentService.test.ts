@@ -1568,13 +1568,13 @@ suite('AgentService (node dispatcher)', () => {
 					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree') };
 				},
 				removeSessionWorktree: async (_sessionId: string, worktree: { readonly worktree: URI } | undefined) => {
-					order.push(`removeSessionWorktree:${worktree?.worktree.fsPath}`);
+					order.push(`removeSessionWorktree:${worktree?.worktree.toString()}`);
 				},
 			} as unknown as WorktreeIsolation);
 
 			await svc.disposeSession(session);
 
-			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree:/worktree']);
+			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree:file:///worktree']);
 		});
 
 		test('preserves session data when worktree metadata cannot be read', async () => {
