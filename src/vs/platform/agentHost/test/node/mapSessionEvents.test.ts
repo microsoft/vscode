@@ -651,6 +651,89 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
+	test('restores a request error as terminal turn state', async () => {
+		const events: ISessionEvent[] = [
+			{
+				type: 'session.error',
+				data: { errorType: 'unassociated', message: 'Ignore this session diagnostic.' },
+			},
+			{
+				type: 'user.message',
+				id: 'user-event',
+				timestamp: '2026-07-29T10:00:00.000Z',
+				data: { interactionId: 'interaction-1', content: 'Complete this request' },
+			},
+			{
+				type: 'assistant.turn_start',
+				data: { turnId: 'assistant-turn', interactionId: 'interaction-1' },
+			},
+			{
+				type: 'assistant.message',
+				timestamp: '2026-07-29T10:00:01.000Z',
+				data: { interactionId: 'interaction-1', content: 'Working on it.', toolRequests: [] },
+			},
+			{
+				type: 'assistant.turn_end',
+				data: { turnId: 'assistant-turn', interactionId: 'interaction-1' },
+			},
+			{
+				type: 'session.error',
+				id: 'error-event',
+				timestamp: '2026-07-29T10:00:02.000Z',
+				data: {
+					errorType: 'quota',
+					errorCode: 'quota_exceeded',
+					message: 'No premium requests remain.',
+					stack: 'Error: No premium requests remain.',
+					statusCode: 402,
+					providerCallId: 'provider-request-id',
+					serviceRequestId: 'service-request-id',
+				},
+			},
+			{
+				type: 'assistant.message',
+				data: { interactionId: 'interaction-1', content: 'Late completion.', toolRequests: [] },
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			state: turn.state,
+			duration: turn.duration,
+			error: turn.error,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'user-event',
+			state: TurnState.Error,
+			duration: 2000,
+			error: {
+				errorType: 'quota',
+				message: 'No premium requests remain.',
+				stack: 'Error: No premium requests remain.',
+				_meta: {
+					chatError: {
+						fetchError: {
+							type: 'quotaExceeded',
+							reason: 'No premium requests remain.',
+							requestId: 'provider-request-id',
+							serverRequestId: 'service-request-id',
+							capiError: {
+								code: 'quota_exceeded',
+								message: 'No premium requests remain.',
+							},
+						},
+					},
+				},
+			},
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'Working on it.' },
+				{ kind: ResponsePartKind.Markdown, content: 'Late completion.' },
+			],
+		}]);
+	});
+
 	test('restores turn timing from the SDK event envelopes', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'turn-1', timestamp: '2026-07-29T10:00:00.000Z', data: { interactionId: 'm1', content: 'first' } },
@@ -857,6 +940,53 @@ suite('mapSessionEvents — subagent routing', () => {
 			state: TurnState.Cancelled,
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'Late partial result.' },
+			],
+		});
+	});
+
+	test('subagent error marks only the subagent turn errored and remains terminal', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'spawn a subagent' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: 'Partial result.' } },
+			{ type: 'session.error', agentId: 'agent-1', data: { errorType: 'rate_limit', message: 'Subagent rate limited.', statusCode: 429 } },
+			{ type: 'abort', agentId: 'agent-1', data: { reason: 'cleanup after failure' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: false } },
+			{ type: 'assistant.message', data: { messageId: 'm4', content: 'The subagent failed.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const subagentTurn = subagentTurnsByToolCallId.get('tc-task')?.[0];
+
+		assert.deepStrictEqual({
+			parentState: turns[0].state,
+			parentError: turns[0].error,
+			subagentState: subagentTurn?.state,
+			subagentError: subagentTurn?.error,
+			subagentParts: partKinds(subagentTurn?.responseParts ?? []),
+		}, {
+			parentState: TurnState.Complete,
+			parentError: undefined,
+			subagentState: TurnState.Error,
+			subagentError: {
+				errorType: 'rate_limit',
+				message: 'Subagent rate limited.',
+				stack: undefined,
+				_meta: {
+					chatError: {
+						fetchError: {
+							type: 'rateLimited',
+							reason: 'Subagent rate limited.',
+							requestId: '',
+							capiError: { code: undefined, message: 'Subagent rate limited.' },
+						},
+					},
+				},
+			},
+			subagentParts: [
+				{ kind: ResponsePartKind.Markdown, content: 'Partial result.' },
 			],
 		});
 	});

@@ -65,7 +65,7 @@ import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermiss
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
-import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
+import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { getEffectiveMcpServerCustomizations, McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
@@ -4320,19 +4320,11 @@ export class CopilotAgentSession extends Disposable {
 			if (this._currentTurn) {
 				this._reportToolCallDetails(this._currentTurn, 'failed');
 			}
-			// Prefer the structured SDK fields (the Copilot CLI classifies its own
-			// CAPI errors); fall back to decoding a forwarded marker from the message.
-			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
 			this._emitAction({
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: this._currentTurn?.duration ?? 0,
-				error: {
-					errorType: e.data.errorType,
-					message: stripProxyErrorMarker(e.data.message),
-					stack: e.data.stack,
-					...(meta ? { _meta: meta } : {}),
-				},
+				error: buildChatErrorInfoFromCopilotSdkFields(e.data),
 			});
 		}));
 
@@ -5020,6 +5012,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSubagentCompleted(invalidate));
 		this._register(wrapper.onSubagentFailed(invalidate));
 		this._register(wrapper.onTurnEnd(invalidate));
+		this._register(wrapper.onSessionError(invalidate));
 		// In-place rewrites of the persisted log.
 		this._register(wrapper.onSessionCompactionComplete(invalidate));
 		this._register(wrapper.onSessionTruncation(invalidate));
