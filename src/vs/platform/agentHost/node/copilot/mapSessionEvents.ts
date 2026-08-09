@@ -56,6 +56,33 @@ function isSyntheticUserMessage(event: SessionEvent): boolean {
 }
 
 /**
+ * Recovers the text the user actually typed from a persisted `user.message`
+ * `content`. The chat client renders the raw prompt first, then appends
+ * `<reminder>` / `<attachments>` / `<context>` and (for some clients) a
+ * `<userRequest>` echo. Removing those blocks normally leaves the leading raw
+ * prompt (matching the extension-side `stripReminders` sanitizer). When removal
+ * leaves nothing — content that is only a `<userRequest>` wrapper — we fall
+ * back to the wrapper's inner text so the message is not lost.
+ */
+function stripPromptScaffolding(text: string): string {
+	const withoutAux = text
+		.replace(/<reminder>[\s\S]*?<\/reminder>\s*/g, '')
+		.replace(/<attachments>[\s\S]*?<\/attachments>\s*/g, '')
+		.replace(/<context>[\s\S]*?<\/context>\s*/g, '')
+		.replace(/<current_datetime>[\s\S]*?<\/current_datetime>\s*/g, '')
+		.replace(/<pr_metadata[^>]*\/?>\s*/g, '');
+	const withoutRequest = withoutAux
+		.replace(/<userRequest>[\s\S]*?<\/userRequest>\s*/g, '')
+		.replace(/<user_query>[\s\S]*?<\/user_query>\s*/g, '')
+		.trim();
+	if (withoutRequest) {
+		return withoutRequest;
+	}
+	const inner = withoutAux.match(/<userRequest>([\s\S]*?)<\/userRequest>/) ?? withoutAux.match(/<user_query>([\s\S]*?)<\/user_query>/);
+	return inner ? inner[1].trim() : withoutAux.trim();
+}
+
+/**
  * Converts SDK `tool.execution_complete` content blocks into AHP tool result
  * content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
  * the tool call's terminal content block; when no terminal block exists yet
@@ -456,7 +483,7 @@ export async function mapSessionEvents(
 				}
 				const d = e.data;
 				const messageId = d.interactionId ?? '';
-				const content = d.content ?? '';
+				const content = stripPromptScaffolding(d.content ?? '');
 				const attachments = sdkAttachmentsToProtocol(d.attachments);
 				// User messages carry no deprecated `parentToolCallId`; route
 				// sub-agent user messages by the envelope `agentId` only.
