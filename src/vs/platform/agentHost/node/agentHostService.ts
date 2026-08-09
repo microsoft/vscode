@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Queue } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService, ILoggerService } from '../../log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../log/common/logIpc.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -37,6 +38,8 @@ export class AgentHostProcessManager extends Disposable {
 	private _started = false;
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
+	private readonly _lifecycleQueue = this._register(new Queue<void>());
+	private readonly _connection = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		private readonly _starter: IAgentHostStarter,
@@ -53,6 +56,9 @@ export class AgentHostProcessManager extends Disposable {
 		if (this._starter.onRequestConnection) {
 			this._register(Event.once(this._starter.onRequestConnection)(() => this._ensureStarted()));
 		}
+		if (this._starter.onRequestRestart) {
+			this._register(this._starter.onRequestRestart(() => void this.restart()));
+		}
 
 		if (this._starter.onWillShutdown) {
 			this._register(this._starter.onWillShutdown(() => this._wasQuitRequested = true));
@@ -60,12 +66,23 @@ export class AgentHostProcessManager extends Disposable {
 	}
 
 	private _ensureStarted(): void {
-		if (!this._started) {
-			this._start();
-		}
+		void this._lifecycleQueue.queue(() => this._start());
+	}
+
+	restart(): Promise<void> {
+		return this._lifecycleQueue.queue(async () => {
+			this._logService.info('AgentHostProcessManager: explicitly restarting agent host');
+			this._connection.clear();
+			this._started = false;
+			this._restartCount = 0;
+			await this._start();
+		});
 	}
 
 	private async _start(): Promise<void> {
+		if (this._started) {
+			return;
+		}
 		this._started = true;
 		try {
 			const connection = await this._starter.start();
@@ -87,7 +104,9 @@ export class AgentHostProcessManager extends Disposable {
 				}
 				if (isExpectedWindowsShutdownExit(this._platform, e.code)) {
 					this._logService.info(`AgentHostProcessManager: agent host terminated during Windows shutdown with code ${e.code}`);
-					connection.store.dispose();
+					if (this._connection.value === connection.store) {
+						this._connection.clear();
+					}
 					return;
 				}
 
@@ -99,18 +118,20 @@ export class AgentHostProcessManager extends Disposable {
 					restartCount: this._restartCount,
 					willRestart,
 				});
-				connection.store.dispose();
+				if (this._connection.value === connection.store) {
+					this._connection.clear();
+				}
 				if (willRestart) {
 					this._logService.error(`AgentHostProcessManager: agent host terminated unexpectedly with code ${e.code}`);
 					this._restartCount++;
 					this._started = false;
-					this._start();
+					this._ensureStarted();
 				} else {
 					this._logService.error(`AgentHostProcessManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
 				}
 			}));
 
-			this._register(toDisposable(() => connection.store.dispose()));
+			this._connection.value = connection.store;
 		} catch (error) {
 			this._started = false;
 			this._logService.error('AgentHostProcessManager: failed to start agent host', error);

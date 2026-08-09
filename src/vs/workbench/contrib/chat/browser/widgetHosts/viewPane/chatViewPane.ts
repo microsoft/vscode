@@ -13,9 +13,10 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { basename, getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -63,7 +64,7 @@ import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { ChatViewId, IChatWidgetService, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -121,6 +122,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	/** While > 0 the sessions list is suppressed so a session transition's transiently-empty widget does not reveal it (see {@link beginSessionsListSuppression}). */
 	private _sessionsListSuppressionCount = 0;
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	private readonly widgetViewStates = new LRUCache<string, IChatWidgetViewState>(CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT);
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
@@ -499,6 +501,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * this pane plus a chat editor) exactly one lights up.
 	 */
 	private _currentVoiceInputResource(reader?: IReader): URI | undefined {
+		const omniInputActive = reader ? this.voiceSessionController.omniInputActive.read(reader) : this.voiceSessionController.omniInputActive.get();
+		if (omniInputActive) {
+			return undefined;
+		}
 		const target = reader ? this.voiceSessionController.targetSession.read(reader) : this.voiceSessionController.targetSession.get();
 		if (target) {
 			return target;
@@ -560,6 +566,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
 				const { connected, voiceState, simulating } = getEffectiveVoice();
+				const confirmationPending = isConfirmationPending();
+				const effectiveState: VoiceGlowState = confirmationPending ? 'confirmation' : voiceState;
 				// Only glow the input of the session voice is bound to. Mirrors the
 				// transcript overlay's ownership test (see below) so the glow and
 				// the "Listening..."/transcript overlay always render on the same
@@ -569,7 +577,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const currentSession = this._currentSessionResource.get();
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
+				const glowActive = confirmationPending || (connected && isGlowingVoiceState(voiceState) && (simulating || isOwner));
 
 				if (!glowActive) {
 					glowController.clear();
@@ -578,7 +586,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				// Get audio intensity from analyser
 				const analyser = this.ttsPlaybackService.analyserNode
-					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (effectiveState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 				let intensity: number;
 				if (!analyser && simulating) {
@@ -590,7 +598,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
 
-				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced());
+				glowController.render(effectiveState, intensity, this.accessibilityService.isMotionReduced());
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -601,17 +609,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 			glowController.clear();
 		};
+		const isConfirmationPending = (): boolean => {
+			const currentSession = this._currentSessionResource.get();
+			return !!currentSession && this.voiceSessionController.pendingToolConfirmations.get()
+				.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
+		};
 
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const currentSession = this._currentSessionResource.read(reader);
+			const confirmationPending = !!currentSession && this.voiceSessionController.pendingToolConfirmations.read(reader)
+				.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
+			if (confirmationPending || simGlow || (connected && isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -670,6 +686,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = showTranscriptSetting.read(reader);
@@ -677,7 +694,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
-			if (!connected) {
+			if (!connected || omniInputActive) {
 				listeningSession = undefined;
 				ownerSession = undefined;
 				transcriptOverlayNode.style.display = 'none';
@@ -1299,7 +1316,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string): Promise<IChatModel | undefined> {
-		const oldModelResource = this.modelRef.value?.object.sessionResource;
+		const oldModelResource = this._widget.viewModel?.sessionResource;
+		if (oldModelResource) {
+			this.widgetViewStates.set(getComparisonKey(oldModelResource), this._widget.getViewState());
+		}
 		this.modelRef.value = undefined;
 
 		// Baseline draft for preserving text typed during loading. `loadSession`
@@ -1343,6 +1363,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (model) {
 			setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+			const widgetViewState = this.widgetViewStates.get(getComparisonKey(model.sessionResource));
+			if (widgetViewState) {
+				this._widget.restoreViewState(widgetViewState);
+			}
 		} else {
 			this._widget.setModel(model);
 		}
@@ -1761,7 +1785,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private updateViewState(viewState?: IChatModelInputState): void {
-		const newViewState = viewState ?? this._widget.getViewState();
+		const newViewState = viewState ?? this._widget.getInputState();
 		if (newViewState) {
 			for (const [key, value] of Object.entries(newViewState)) {
 				(this.viewState as Record<string, unknown>)[key] = value; // Assign all props to the memento so they get saved

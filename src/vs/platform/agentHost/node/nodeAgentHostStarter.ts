@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
@@ -158,8 +159,9 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			}
 		}
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
+		await this._removeStaleSocket();
 
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		const store = new DisposableStore();
 		store.add(client);
 
@@ -168,6 +170,30 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			store,
 			onDidProcessExit: client.onDidProcessExit
 		};
+	}
+
+	/**
+	 * Unix domain sockets outlive the process that bound them, so an agent host
+	 * that crashed leaves its socket file behind and the replacement's `listen`
+	 * fails with `EADDRINUSE` — which would burn the whole crash-restart budget
+	 * without ever recovering. Windows named pipes are refcounted by the OS and
+	 * disappear with the process, so they need no cleanup.
+	 */
+	private async _removeStaleSocket(): Promise<void> {
+		const socketPath = this._wsConfig?.socketPath;
+		if (!socketPath || process.platform === 'win32') {
+			return;
+		}
+
+		try {
+			await fs.promises.unlink(socketPath);
+		} catch (error) {
+			// Nothing to clean up in the common case; a genuinely undeletable
+			// path surfaces as a bind failure from the child instead.
+			if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+				this._logService.warn(`AgentHostStarter could not remove stale socket at ${socketPath}`, error);
+			}
+		}
 	}
 
 	private async _resolveShellEnv(): Promise<typeof process.env> {

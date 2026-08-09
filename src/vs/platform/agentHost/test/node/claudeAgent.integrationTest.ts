@@ -60,6 +60,7 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
@@ -674,6 +675,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
@@ -807,6 +809,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
@@ -884,6 +887,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));

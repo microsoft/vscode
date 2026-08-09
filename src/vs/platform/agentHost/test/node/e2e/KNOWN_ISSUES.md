@@ -16,6 +16,136 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot cannot create a session-level fork from a materialized source
+
+A user can ask the client to create a new session from an earlier turn of an existing session so they can explore a different path without losing the original conversation. Copilot currently rejects that request even after the source session has completed and remains available, so clients cannot offer session-level branching for Copilot conversations through AHP.
+
+- Tests:
+  - `session fork inherits provider history through the selected source turn`
+  - `session fork excludes provider history after the selected source turn`
+- Scope: Copilot.
+- Expected: `createSession` with a `fork` source creates a new session whose provider history ends at the selected source turn.
+- Observed: the source has completed a model turn and appears in `listSessions`, but `createSession` still fails with `Session not found on backend`.
+- Gate: the Copilot variants require `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "session fork"
+  ```
+
+### Client plugin skill is missing from Copilot slash completions
+
+A user can add a skill through a client-pushed plugin and invoke it by name in a Copilot session. The skill works when named explicitly, but it is absent from slash completions, so users cannot discover or select it through completion UI.
+
+- Tests:
+  - `plugin skill is included in leading slash completions`
+  - `plugin skill is included in whitespace slash completions without runtime commands`
+- Scope: Copilot client-pushed plugins.
+- Expected: the AHP `completions` command returns the enabled plugin skill for both a leading slash token and a whitespace-delimited slash token.
+- Observed: the completions response contains no item for the enabled `probe-skill`, including when the plugin has the canonical space-free name `e2e-probe`. An explicit model-driven invocation of the same skill succeeds.
+- Gate: both variants require `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "plugin skill is included"
+  ```
+
+### Asynchronous Copilot shell lifecycles are record-only
+
+A user can start a shell command in the background, inspect or list the running shell, and stop it. The lifecycle works live, but deterministic replay cannot preserve whether the command-completion system notification reaches the model before its next request, so the captured request history changes with process timing.
+
+- Tests:
+  - `managed shell can be read and stopped after asynchronous execution`
+  - `managed shell sessions can be listed after asynchronous execution`
+  - `custom terminal tool manages an asynchronous shell lifecycle`
+- Scope: Copilot deterministic replay.
+- Expected: the same fixture replays whether the short-lived background command completes just before or just after the model's next request.
+- Observed: focused replay can include the completion system notification while a broad shared-process run omits it, causing strict model-request mismatches.
+- Gate: the scenarios run only when `AGENT_HOST_REPLAY_RECORD=1` through `context.runRecordOnlyTests`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "managed shell|custom terminal tool manages"
+  ```
+
+### Copilot deferred tool search cannot be replayed
+
+A Copilot session can defer client-provided tools, search for the relevant tool on demand, and then execute the selected tool. The live workflow succeeds, but the recorded Responses fixture loses the hosted tool-search output that triggers the AHP client-tool exchange, so replay ends the turn before either tool appears.
+
+- Tests:
+  - `tool search exposes deferred client tools and executes the selected result`
+  - `tool search tolerates a malformed client result without activating a deferred tool`
+- Scope: Copilot deterministic replay with `gpt-5.6-sol`.
+- Expected: replay regenerates the hosted tool-search output and reaches the same `toolSearch` AHP lifecycle as recording.
+- Observed: recording observes `toolSearch` and the deferred tool, while the normalized fixture stores the first response as empty content; replay therefore completes without either tool call.
+- Gate: both scenarios run only when `AGENT_HOST_REPLAY_RECORD=1` through `context.runRecordOnlyTests`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "tool search"
+  ```
+
+### Authenticated Copilot session cannot invoke the commit changeset operation
+
+A signed-in user can ask Agent Host to commit the current session's uncommitted changes, which should generate a commit message and create the local Git commit. The operation currently reports that Copilot authentication is required even though the AHP client has already authenticated the Copilot provider, so the advertised commit action cannot complete.
+
+- Test: `commit changeset operation generates a message and commits mixed changes`.
+- Scope: Copilot.
+- Expected: the authenticated token is reused to generate a commit message, then mixed create, edit, delete, and rename changes are committed.
+- Observed: a normal Copilot model turn succeeds with the session's authenticated token immediately before the operation, but `invokeChangesetOperation` still fails with `Authentication is required to generate a commit message. Please sign in to GitHub Copilot and try again.`
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "commit changeset operation"
+  ```
+
+### Copilot config slash commands are missing from completions
+
+A user can type Copilot configuration commands such as `/autopilot` to change the session mode. The commands work when sent directly, but the AHP completions response does not include their state-aware forms, so users cannot discover `/autopilot on` before entering autopilot mode or `/autopilot off` after entering it.
+
+- Test: `config slash completions reflect the current Copilot session mode`.
+- Scope: Copilot.
+- Expected: completions include `/autopilot ` and the state-changing `on` or `off` form based on the current session mode.
+- Observed: the completions response contains no `/autopilot` items before or after changing the session mode, although sending `/goal <prompt>` directly changes the mode to `plan` and forwards the prompt successfully.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "config slash completions"
+  ```
+
+### Copilot shell and plugin-skill tool rows disappear after a host restart
+
+A user can reopen a Copilot session after restarting Agent Host and expects the completed transcript to retain its tool rows. Ordinary edit tool history is restored, but completed shell and plugin-skill lifecycles disappear entirely, so reopened conversations lose important evidence of what the agent did.
+
+- Tests:
+  - `shell failure metadata is reconstructed after a host restart`
+  - `plugin skill lifecycle is reconstructed after a host restart`
+- Scope: Copilot.
+- Expected: restored turns retain the completed shell tool call and both the skill and nested MCP tool calls that were visible before restart.
+- Observed: the source turn remains, but its restored `responseParts` contain no matching tool calls. A control using an ordinary edit tool retains its tool row across the same restart flow.
+- Gate: both scenarios require `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "shell failure metadata|plugin skill lifecycle is reconstructed"
+  ```
+
 ### Copilot SDK rejects the host's interactive denial result variant
 
 - Test: `declining a file creation tool prevents the mutation and completes the turn`.
@@ -127,7 +257,7 @@ The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnable
 The following tests remain scoped at their call sites:
 
 - `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
-- `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows after CI exposed two blockers unrelated to command portability, described below.
+- `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows because the host terminal tool does not expose a terminal resource there, as described below.
 
 The prompt snapshots in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only — every model, by construction rather than because of an observed failure.
 
@@ -148,9 +278,9 @@ The E2E workspaces come from `os.tmpdir()`, and what that returns is not what a 
 | Windows CI | `C:\Users\CLOUDT~1\AppData\Local\Temp\…` (8.3 short form) | `C:\Users\cloudtest\AppData\Local\Temp\…` |
 | macOS | `/var/folders/…` (logical) | `/private/var/folders/…` (physical) |
 
-Any assertion that a command's output *contains* a path built from `tmpdir()` is therefore comparing two different spellings of the same directory. `normalizeSnapshotText` already strips `/private` for the macOS case, but a test asserting directly on tool output — rather than through a snapshot — has no such help.
+Any assertion that a command's output *contains* a path built from `tmpdir()` is therefore comparing two different spellings of the same directory. `normalizeSnapshotText` strips `/private` for snapshots, while direct worktree assertions accept both the reported path and its `realpathSync` canonical form.
 
-This is why `worktree session uses the resolved worktree as working directory` fails on Windows CI: the assertion never matches, and the test times out waiting for output that will never arrive in the expected form. Reworking it means resolving both sides with `realpathSync.native` before comparing, which also removes the macOS special case.
+This path aliasing previously made `worktree session uses the resolved worktree as working directory` time out after the tool and turn had already completed on macOS, and would have failed the same way on Windows. The test now canonicalizes direct path comparisons; the separate missing Windows terminal resource remains the platform blocker.
 
 ### The host terminal tool surfaces no content on Windows
 
@@ -501,8 +631,9 @@ Three rows remain, and they are not about command portability:
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
 | `resource watch reports changes on its subscribed channel` | Windows | The subscribed filesystem watch does not emit `resourceWatch/changed` after a protocol `resourceWrite` within the test timeout. Descriptor, missing-root, and resource mutation coverage remain enabled. |
-| `worktree session uses the resolved worktree as working directory` | Windows | `os.tmpdir()` yields an 8.3 short path while the shell reports the long path, and Copilot's completed host-terminal call publishes no terminal-content notification. |
+| `worktree session uses the resolved worktree as working directory` | Windows | Copilot's completed host-terminal call publishes no terminal-content notification, so the test cannot subscribe to the terminal and assert its working directory. |
 | ``strips redundant `cd <workingDirectory> &&` prefix from shell tool calls`` | Copilot on Windows | The turn completes, but `chat/toolCallReady` omits the `toolInput` needed to assert that the prefix was removed. |
+| `shell read helper remains a non-terminal tool` | Copilot on Windows | The scenario depends on completed ordinary-shell output, which the Copilot provider does not reliably surface on Windows; the read-helper protocol shape remains covered on POSIX. |
 
 Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.preview` on Windows, while its terminal-shaped resource is not backed by the host terminal manager and cannot be subscribed. These tests are skipped for Copilot on Windows because their direct output oracle would otherwise be empty:
 
@@ -548,14 +679,16 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Tests:
   - `reads a file from a nested directory`
   - `reads a value from JSON`
+  - `counts lines in a file`
 - Scope: Codex.
 - Expected: successful file-read tool completions include the file contents in their result text.
 - Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
-- Gate: these two tests remain enabled for other providers and are skipped for Codex.
+- Gate: these three tests remain enabled for other providers and are skipped for Codex.
 - Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
 - Failing runs:
   - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
   - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
+  - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
 
 ### Claude subagent replay on Windows
 

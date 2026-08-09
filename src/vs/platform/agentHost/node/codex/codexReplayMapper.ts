@@ -21,6 +21,7 @@ import {
 	describeWebSearch,
 	codexCompactionLabels,
 	fileChangeOutput,
+	mapCodexTurnError,
 	turnStateFromStatus,
 } from './codexMapAppServerEvents.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
@@ -154,6 +155,7 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 		responseParts: parts,
 		usage: undefined,
 		state: turnStateFromStatus(codexTurn.status),
+		...(codexTurn.status === 'failed' && codexTurn.error ? { error: mapCodexTurnError(codexTurn.error) } : {}),
 	};
 }
 

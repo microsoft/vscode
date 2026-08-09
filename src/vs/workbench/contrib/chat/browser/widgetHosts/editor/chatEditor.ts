@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import * as nls from '../../../../../../nls.js';
 import { ITextResourceConfigurationService } from '../../../../../../editor/common/services/textResourceConfiguration.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -34,7 +35,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
-import { setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -57,9 +58,7 @@ export interface IChatEditorOptions extends IEditorOptions {
 	};
 }
 
-export interface IChatEditorViewState {
-	scrollTop: number;
-}
+export type IChatEditorViewState = IChatWidgetViewState;
 
 export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState> {
 	private static readonly VIEW_STATE_KEY = 'chatEditorViewState';
@@ -168,6 +167,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override clearInput(): void {
+		super.clearInput();
 		this.widget.setModel(undefined);
 		// Clear the bound-resource attribute while the rebind is in flight so
 		// test automation can wait for the next `updateModel` cycle to finish
@@ -175,7 +175,6 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		if (this._editorContainer) {
 			delete this._editorContainer.dataset.boundChatResource;
 		}
-		super.clearInput();
 	}
 
 	private showLoadingInChatWidget(message: string): void {
@@ -283,7 +282,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 			const viewState = this.loadEditorViewState(input, context);
 			if (viewState) {
-				this._widget.scrollTop = viewState.scrollTop;
+				this._widget.restoreViewState(viewState);
 			}
 
 			if (isContributedChatSession && options?.title?.preferred && input.sessionResource) {
@@ -307,11 +306,11 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		}
 	}
 
-	protected computeEditorViewState(_resource: URI): IChatEditorViewState | undefined {
-		if (!this._widget) {
+	protected computeEditorViewState(resource: URI): IChatEditorViewState | undefined {
+		if (!this._widget || !isEqual(this._widget.viewModel?.sessionResource, resource)) {
 			return undefined;
 		}
-		return { scrollTop: this._widget.scrollTop };
+		return this._widget.getViewState();
 	}
 
 	protected tracksEditorViewState(input: EditorInput): boolean {
