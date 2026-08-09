@@ -854,7 +854,11 @@ function makeCompletedToolCallPart(
 	if (toolOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: toolOutput });
 	}
-	appendSdkToolResultContent(content, d.result?.contents, { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName });
+	appendSdkToolResultContent(
+		content,
+		d.result?.contents,
+		info.toolKind === 'terminal' ? { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName } : undefined,
+	);
 
 	// Restore file edit content references from the database.
 	const edits = storedEdits?.get(d.toolCallId);

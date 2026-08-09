@@ -1373,6 +1373,9 @@ suite('CopilotAgent', () => {
 				clientFailureId: 'string',
 				failureKind: 'startupFailed',
 				operation: 'startClient',
+				startupFailureCause: 'spawnFailed',
+				startupFailureResource: 'other',
+				startupExitCode: undefined,
 				activeTurnCount: 0,
 				recoveryStarted: false,
 				errorName: 'Error',
@@ -1380,6 +1383,68 @@ suite('CopilotAgent', () => {
 				msg: 'Failed to start CLI server: spawn failed',
 				callstack: 'string',
 			});
+		} finally {
+			client.startError = undefined;
+			await disposeAgent(agent);
+		}
+	});
+
+	test('reports bounded Copilot client startup failure details', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		const cases = [{
+			message: 'CLI server exited with code 1\nNative addon "runtime" not found. prebuilds/win32-x64/runtime.node: The specified procedure could not be found. runtime.win32-x64-msvc.node: Cannot find module',
+			expected: { startupFailureCause: 'nativeModuleProcedureNotFound', startupFailureResource: 'runtime', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 3221226505\nprebuilds/win32-x64/runtime.node: A dynamic link library (DLL) initialization routine failed.',
+			expected: { startupFailureCause: 'nativeModuleInitializationFailed', startupFailureResource: 'runtime', startupExitCode: 3221226505 },
+		}, {
+			message: 'CLI server exited with code 1\nPermission denied',
+			expected: { startupFailureCause: 'permissionDenied', startupFailureResource: 'other', startupExitCode: 1 },
+		}, {
+			message: 'Failed to start CLI server: spawn EACCES',
+			expected: { startupFailureCause: 'permissionDenied', startupFailureResource: 'other', startupExitCode: undefined },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module conpty.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'conpty', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module cli-native.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'cliNative', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module wxc-exec.exe',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'sandbox', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module /Users/wxc/project/helper.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'other', startupExitCode: 1 },
+		}, {
+			message: 'Timeout waiting for CLI server to start',
+			expected: { startupFailureCause: 'timeout', startupFailureResource: 'other', startupExitCode: undefined },
+		}, {
+			message: 'CLI server exited unexpectedly with code 3221225477',
+			expected: { startupFailureCause: 'processExitedUnexpectedly', startupFailureResource: 'other', startupExitCode: 3221225477 },
+		}, {
+			message: 'CLI server exited with code 0',
+			expected: { startupFailureCause: 'processExited', startupFailureResource: 'other', startupExitCode: 0 },
+		}, {
+			message: 'CLI server exited with code 9007199254740992',
+			expected: { startupFailureCause: 'processExited', startupFailureResource: 'other', startupExitCode: undefined },
+		}];
+
+		try {
+			for (const testCase of cases) {
+				client.startError = new Error(testCase.message);
+				await assert.rejects(agent.listSessions());
+			}
+
+			assert.deepStrictEqual(telemetryService.errorEvents.map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					startupFailureCause: data.startupFailureCause,
+					startupFailureResource: data.startupFailureResource,
+					startupExitCode: data.startupExitCode,
+				};
+			}), cases.map(testCase => testCase.expected));
 		} finally {
 			client.startError = undefined;
 			await disposeAgent(agent);

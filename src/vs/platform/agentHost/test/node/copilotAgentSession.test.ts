@@ -5235,6 +5235,39 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(terminalManager.disposedTerminals, ['agenthost-terminal://shell/test-session-1/tc-shell-exit']);
 		});
 
+		test('live read_bash completion does not render shell_exit metadata as a terminal command', async () => {
+			const { mockSession, signals, terminalManager } = await createAgentSession(disposables);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-read-bash',
+				toolName: 'read_bash',
+				arguments: { shellId: 'build', delay: 0 },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-read-bash',
+				success: true,
+				result: {
+					content: 'Build completed\n',
+					contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n' }],
+				},
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const completeSignal = signals[2];
+			assert.ok(isAction(completeSignal, ActionType.ChatToolCallComplete));
+			if (isAction(completeSignal, ActionType.ChatToolCallComplete)) {
+				const action = completeSignal.action as ChatToolCallCompleteAction;
+				assert.deepStrictEqual({
+					pastTenseMessage: action.result.pastTenseMessage,
+					content: action.result.content,
+					createdTerminals: terminalManager.outputTerminalsCreated,
+				}, {
+					pastTenseMessage: 'Read Terminal',
+					content: [{ type: ToolResultContentType.Text, text: 'Build completed\n' }],
+					createdTerminals: [],
+				});
+			}
+		});
+
 		test('live task_complete emits root markdown instead of a tool call', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 

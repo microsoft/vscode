@@ -15,8 +15,9 @@ import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep }
 export const NEW_SESSION_VIEW_V3_TOUR_ID = 'sessions.onboarding.newSessionViewV3';
 export const NEW_SESSION_VIEW_V3_PROMPT_VARIATION = 'prompt';
 export const NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION = 'githubPrompt';
+export const NEW_SESSION_VIEW_V3_OPTIONS_VARIATION = 'options';
 export const NEW_SESSION_VIEW_V3_VARIATION_TREATMENT = 'onb.newSessionViewV3.variation';
-export const NEW_SESSION_VIEW_V3_VARIATIONS = [NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION] as const;
+export const NEW_SESSION_VIEW_V3_VARIATIONS = [NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION] as const;
 
 const NEW_SESSION_VIEW_V3_EXPERIMENT = {
 	behaviorFlag: 'onb.newSessionViewV3.show',

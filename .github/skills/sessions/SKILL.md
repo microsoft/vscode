@@ -30,6 +30,14 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 - **Onboarding variations share structural steps and vary only their run step**: keep one scenario for workspace selection, then resolve the experiment/developer variation when the run step executes. Personalized GitHub prompts use existing authentication silently, stay within a bounded cancellable lookup, verify that the selected draft workspace is still current, and fall back to the default prompt without surfacing an error.
 
+- **Prompt-option headings and cards are one visual surface**: group them with one enclosing border on the session surface; filling the entire group with the chat-input background makes it compete with the input, so reserve that fill for the cards. In each card, keep the icon and title on the first row, let supporting text span from the card's leading edge beneath the icon, and balance top/bottom padding so short copy does not leave a hollow corner.
+
+- **GitHub prompt-option numbers belong with the action title**: render labels such as "Tackle issue #123" or "Fix CI #456" on the first row and reserve the second row for the issue/PR title. This preserves the scarce full-width line for descriptive repository content.
+
+- **Prompt-option selection has two generated input forms**: the selected option stays switchable while the input is empty, exactly matches its full prompt, or exactly matches that prompt after its editable placeholder was activated and removed; every other edit disables the cards. Animate only the first insertion, replace later selections immediately, focus the input on activation, and use the card foreground for selected borders rather than conflating selection with the blue focus color.
+
+- **Repository prompt options follow the draft workspace**: keep a contribution-owned watcher after the onboarding run step completes. A workspace change clears stale cards immediately, shows loading skeletons, cancels the old lookup, and resolves a fresh bounded option set for the replacement draft; completed candidates from a timed-out lookup remain available only when their repository context is still current.
+
 - **Agent-host onboarding readiness comes from advertised session types, not provider registration**: an agent-host provider exists before its root state connects, while its `sessionTypes` stay empty. Gate tours that need a usable host on a context key derived from any `local-agent-host`/`agenthost-*` provider exposing a session type, and update it from `ISessionsManagementService.onDidChangeSessionTypes`.
 
 - **Diagnostic log text is not a unit-test contract**: add consistently prefixed, actionable logs, but do not add tests that assert log messages or levels. Validate the underlying behavior and keep diagnostics free to evolve.
