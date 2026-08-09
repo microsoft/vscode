@@ -562,7 +562,8 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	test('custom terminal tool preserves a nonzero shell exit code', async function () {
+	// Live PTY shell-integration metadata is not deterministic in replay; see KNOWN_ISSUES.md.
+	(context.runRecordOnlyTests ? test : test.skip)('custom terminal tool preserves a nonzero shell exit code', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code');
 		try {

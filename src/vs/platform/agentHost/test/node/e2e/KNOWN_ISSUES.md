@@ -74,6 +74,23 @@ A user can start a shell command in the background, inspect or list the running 
     --grep "managed shell|custom terminal tool manages"
   ```
 
+### Copilot terminal command-detection state is record-only
+
+A user runs a shell command through the custom terminal tool and expects the resulting terminal to report shell-integration command detection, completion, and the real exit code. The command succeeds in focused source runs, but clean macOS product builds can expose a terminal without command-detection metadata.
+
+- Test: `custom terminal tool preserves a nonzero shell exit code`.
+- Scope: Copilot deterministic replay.
+- Expected: the terminal reports `supportsCommandDetection: true` with a completed command carrying exit code `9`.
+- Observed: clean macOS product builds report `supportsCommandDetection`, `isComplete`, and `exitCode` as `undefined`, while focused and parallel source-mode replay pass.
+- Gate: the scenario runs only when `AGENT_HOST_REPLAY_RECORD=1` through `context.runRecordOnlyTests`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "custom terminal tool preserves a nonzero shell exit code"
+  ```
+
 ### Copilot deferred tool search cannot be replayed
 
 A Copilot session can defer client-provided tools, search for the relevant tool on demand, and then execute the selected tool. The live workflow succeeds, but the recorded Responses fixture loses the hosted tool-search output that triggers the AHP client-tool exchange, so replay ends the turn before either tool appears.
