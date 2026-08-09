@@ -455,6 +455,15 @@ review-confirmation command bridge resolves the rendered `IChat.resource` throug
 `ISessionsManagementService.getSessionForChatResource` before reading or mutating
 feedback. This keeps the unreviewed count, picker contents, and reveal selection on
 the same parent session even when the tool is invoked from an additional chat.
+`viewUnreviewedComments` returns an explicit picker selection when one exists;
+otherwise, including when confirmation is automatically approved, it returns every
+created PR and code-review comment and transitions them directly to `submitted`.
+The picker disables **Reveal Selected** when no comments are selected. When there
+are no created comments or pending selections to reveal, providers execute the
+empty tool call without presenting a confirmation, regardless of permission mode:
+Copilot and Claude gate their confirmation on
+`IAgentServerToolHost.requiresConfirmation`, while Codex runs server
+tools as dynamic tool calls, which never round-trip for approval.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s

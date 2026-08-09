@@ -2771,17 +2771,29 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
-			// Auto-approve the agent host's server tools. They only read or
-			// mutate the session's own server-held state and never touch the
-			// workspace, shell, or network, so prompting for them is redundant
-			// noise. Tools that explicitly require confirmation (e.g. revealing
-			// unreviewed review comments) are excluded so the user is prompted.
-			if (!managedApprovalRequired && request.kind === 'custom-tool' && typeof request.toolName === 'string'
-				&& this._serverToolHost?.toolNames.includes(request.toolName)
-				&& !this._serverToolHost.requiresConfirmation(request.toolName)
-			) {
-				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${request.toolName}`);
-				return { kind: 'approve-once' };
+			const serverToolHost = this._serverToolHost;
+			const serverToolName = request.kind === 'custom-tool' && typeof request.toolName === 'string'
+				&& serverToolHost?.toolNames.includes(request.toolName)
+				? request.toolName
+				: undefined;
+			if (serverToolHost && serverToolName) {
+				const canRequireConfirmation = serverToolHost.canRequireConfirmation(serverToolName);
+				// A tool that normally confirms but has nothing to confirm right
+				// now poses no question to the user, so it runs without prompting
+				// even under managed approval.
+				if (canRequireConfirmation
+					&& !serverToolHost.requiresConfirmation(this._chatChannelUri.toString(), serverToolName)
+				) {
+					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${serverToolName} because it has nothing to confirm`);
+					return { kind: 'approve-once' };
+				}
+				// Server tools that never confirm only read or mutate the
+				// session's own server-held state and never touch the workspace,
+				// shell, or network, so prompting for them is redundant noise.
+				if (!canRequireConfirmation && !managedApprovalRequired) {
+					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${serverToolName}`);
+					return { kind: 'approve-once' };
+				}
 			}
 
 			// The SDK's built-in terminal reports `kind: 'shell'`. The Agent Host's

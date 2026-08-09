@@ -7785,6 +7785,8 @@ suite('CopilotAgentSession', () => {
 			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
+			readonly confirmationToolNames = new Set<string>();
+			readonly sessionConfirmationToolNames = new Set<string>();
 			result = 'ok';
 			error: Error | undefined;
 
@@ -7792,7 +7794,9 @@ suite('CopilotAgentSession', () => {
 				this.advertised.push(sessionUri);
 			}
 
-			requiresConfirmation(_toolName: string): boolean { return false; }
+			canRequireConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
+
+			requiresConfirmation(_sessionUri: string, toolName: string): boolean { return this.sessionConfirmationToolNames.has(toolName); }
 
 			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });
@@ -7850,7 +7854,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(runtime.createServerSdkTools(), []);
 		});
 
-		test('auto-approves every server tool without prompting for confirmation', async () => {
+		test('auto-approves server tools that do not require confirmation', async () => {
 			const serverToolHost = new FakeServerToolHost();
 			const { runtime, signals } = await createAgentSession(disposables, { serverToolHost });
 
@@ -7866,6 +7870,46 @@ suite('CopilotAgentSession', () => {
 				results: serverToolHost.toolNames.map(() => ({ kind: 'approve-once' })),
 				pendingConfirmations: 0,
 			});
+		});
+
+		test('auto-approves a confirmation server tool when the session has nothing to confirm', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const toolName = serverToolHost.toolNames[0];
+			serverToolHost.confirmationToolNames.add(toolName);
+			const { runtime, signals } = await createAgentSession(disposables, { serverToolHost });
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-empty-server-tool',
+				toolName,
+				managedApprovalRequired: true,
+			});
+
+			assert.deepStrictEqual({
+				result,
+				pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+			}, {
+				result: { kind: 'approve-once' },
+				pendingConfirmations: 0,
+			});
+		});
+
+		test('requests confirmation when a server tool has content to confirm', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const toolName = serverToolHost.toolNames[0];
+			serverToolHost.confirmationToolNames.add(toolName);
+			serverToolHost.sessionConfirmationToolNames.add(toolName);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, { serverToolHost });
+
+			const permission = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-nonempty-server-tool',
+				toolName,
+			});
+			await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === 'tc-nonempty-server-tool');
+			assert.strictEqual(session.respondToPermissionRequest('tc-nonempty-server-tool', false), true);
+
+			assert.deepStrictEqual(await permission, { kind: 'denied-interactively-by-user' });
 		});
 	});
 
