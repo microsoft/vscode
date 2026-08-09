@@ -99,15 +99,35 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 		const { sender, posts } = createSender();
 		sender.setRestrictedTelemetryEnabled(true);
 
-		const properties: TelemetryProps = { messagesJson: 'x'.repeat(8192) };
-		properties.messagesJSONChunk = 'x'.repeat(8192);
+		const maxPropertyLength = 8192;
+		const maxTelemetryItemBodyLength = maxPropertyLength * 50;
+		const totalPropertyCharacterCount = 407_000;
+		const nonAsciiCharacterCount = 1000;
+		const properties: TelemetryProps = {
+			messagesJSONChunk: 'é'.repeat(nonAsciiCharacterCount) + 'x'.repeat(maxPropertyLength - nonAsciiCharacterCount),
+		};
 		for (let index = 2; index <= 50; index++) {
-			properties[`messagesJSONChunk_${index}`] = 'x'.repeat(8192);
+			const chunkLength = index < 50 ? maxPropertyLength : totalPropertyCharacterCount - maxPropertyLength * 49;
+			properties[`messagesJSONChunk_${index}`] = 'x'.repeat(chunkLength);
 		}
 
+		const propertyCharacterCount = Object.values(properties).reduce((total, value) => total + (value?.length ?? 0), 0);
+		const propertyByteCount = Object.values(properties).reduce((total, value) => total + Buffer.byteLength(value ?? '', 'utf8'), 0);
 		sender.sendEnhancedGHTelemetryEvent('engine.messages', properties);
 
-		assert.deepStrictEqual(posts, []);
+		assert.deepStrictEqual({
+			propertyCharacterCount,
+			propertyByteCount,
+			propertyCharacterCountBelowLimit: propertyCharacterCount < maxTelemetryItemBodyLength,
+			propertyByteCountBelowLimit: propertyByteCount < maxTelemetryItemBodyLength,
+			posts,
+		}, {
+			propertyCharacterCount: 407_000,
+			propertyByteCount: 408_000,
+			propertyCharacterCountBelowLimit: true,
+			propertyByteCountBelowLimit: true,
+			posts: [],
+		});
 	});
 
 	test('internal telemetry is independently gated on internal identity', () => {
