@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -77,6 +77,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
+	public onDisposeSession: ((session: URI) => void) | undefined;
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
@@ -129,6 +130,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.disposedSessions.push(session);
 		const rawId = AgentSession.id(session);
 		this._sessions.delete(rawId);
+		this.onDisposeSession?.(session);
 	}
 
 	public disposedChats: URI[] = [];
@@ -837,17 +839,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes[0].added[0].title.get(), 'Notif Session');
 	});
 
-	test('session removed notification removes from cache', () => {
+	test('session removed notification clears cache and metadata', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'to-remove', { title: 'Removed' });
+		const metadata = Reflect.get(provider, '_metaByRawId') as Map<string, IAgentSessionMetadata>;
 
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		fireSessionRemoved(agentHost, 'to-remove');
 
-		assert.strictEqual(changes.length, 1);
-		assert.strictEqual(changes[0].removed.length, 1);
+		assert.deepStrictEqual({
+			removed: changes[0]?.removed.length,
+			session: provider.getSessions().find(s => s.title.get() === 'Removed'),
+			metadata: metadata.get('to-remove'),
+		}, {
+			removed: 1,
+			session: undefined,
+			metadata: undefined,
+		});
 	});
 
 	test('identical session added notification is ignored', () => {
@@ -3301,28 +3311,84 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session actions -------
 
-	test('deleteSession calls disposeSession and removes from cache', async () => {
+	test('deleteSession releases all cached provider state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'del-sess', { title: 'To Delete' });
 
 		const sessions = provider.getSessions();
 		const target = sessions.find(s => s.title.get() === 'To Delete');
 		assert.ok(target);
+		const state: SessionState = {
+			provider: 'copilotcli',
+			title: 'To Delete',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+		};
+		agentHost.setSessionState('del-sess', 'copilotcli', state);
+		provider.getSessionConfig(target.sessionId);
+
 		const metadata = Reflect.get(provider, '_metaByRawId') as Map<string, IAgentSessionMetadata>;
-		assert.strictEqual(metadata.has('del-sess'), true);
-
-		await provider.deleteSession(target!.sessionId);
-
-		assert.strictEqual(agentHost.disposedSessions.length, 1);
-		const disposedUri = agentHost.disposedSessions[0];
-		assert.strictEqual(AgentSession.provider(disposedUri), 'copilotcli');
-		assert.strictEqual(AgentSession.id(disposedUri), 'del-sess');
+		const lastStates = Reflect.get(provider, '_lastSessionStates') as Map<string, SessionState>;
+		const subscriptions = Reflect.get(provider, '_sessionStateSubscriptions') as DisposableMap<string, DisposableStore>;
+		const idleTimers = Reflect.get(provider, '_sessionStateIdleTimers') as DisposableMap<string>;
 		assert.deepStrictEqual({
+			metadata: metadata.has('del-sess'),
+			state: lastStates.has(target.sessionId),
+			subscription: subscriptions.has(target.sessionId),
+			timer: idleTimers.has(target.sessionId),
+		}, {
+			metadata: true,
+			state: true,
+			subscription: true,
+			timer: true,
+		});
+
+		await provider.deleteSession(target.sessionId);
+
+		assert.deepStrictEqual({
+			disposedSessions: agentHost.disposedSessions.map(uri => ({
+				provider: AgentSession.provider(uri),
+				id: AgentSession.id(uri),
+			})),
 			session: provider.getSessions().find(s => s.title.get() === 'To Delete'),
 			metadata: metadata.get('del-sess'),
+			state: lastStates.get(target.sessionId),
+			subscription: subscriptions.has(target.sessionId),
+			timer: idleTimers.has(target.sessionId),
+			unsubscribeCount: agentHost.sessionUnsubscribeCounts.get(AgentSession.uri('copilotcli', 'del-sess').toString()),
 		}, {
+			disposedSessions: [{ provider: 'copilotcli', id: 'del-sess' }],
 			session: undefined,
 			metadata: undefined,
+			state: undefined,
+			subscription: false,
+			timer: false,
+			unsubscribeCount: 1,
+		});
+	}));
+
+	test('deleteSession does not remove a session twice when the host also notifies', async () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'delete-notified', { title: 'Delete Notified' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Delete Notified');
+		assert.ok(target);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+		agentHost.onDisposeSession = session => fireSessionRemoved(agentHost, AgentSession.id(session));
+
+		await provider.deleteSession(target.sessionId);
+
+		assert.deepStrictEqual({
+			disposedSessions: agentHost.disposedSessions.length,
+			removedEvents: changes.filter(change => change.removed.length > 0).length,
+			session: provider.getSessions().find(s => s.title.get() === 'Delete Notified'),
+		}, {
+			disposedSessions: 1,
+			removedEvents: 1,
+			session: undefined,
 		});
 	});
 
