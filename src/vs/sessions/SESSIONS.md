@@ -847,6 +847,10 @@ existing risk-badge position with safety-appropriate visuals. A live
 approval-level change is pushed to every in-memory SDK
 chat immediately, including during an active turn, so leaving Allow all
 cannot leave the SDK in allow-all mode for later tool calls in that turn.
+Client tools preserve this approval when they execute without a live chat
+observer: the Agent Host's `autoApproveBySetting` metadata becomes the tool
+invocation's `preApproved` reason, and the headless invocation path honors it
+unless a pre-tool-use hook explicitly requests confirmation.
 `chat.experimental.autoApprovals.enabled` controls whether Assisted permissions is
 offered in approval pickers and defaults on outside Stable builds. Enterprise
 policy still leaves Approve When Safe and Allow All visible, but disables both with an
