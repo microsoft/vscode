@@ -566,8 +566,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
 				const { connected, voiceState, simulating } = getEffectiveVoice();
-				const confirmationPending = this._isCurrentConfirmationPending();
-				const effectiveState: VoiceGlowState = confirmationPending ? 'confirmation' : voiceState;
 				// Only glow the input of the session voice is bound to. Mirrors the
 				// transcript overlay's ownership test (see below) so the glow and
 				// the "Listening..."/transcript overlay always render on the same
@@ -577,7 +575,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const currentSession = this._currentSessionResource.get();
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const glowActive = connected && (confirmationPending || (isGlowingVoiceState(voiceState) && (simulating || isOwner)));
+				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
 
 				if (!glowActive) {
 					glowController.clear();
@@ -586,7 +584,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				// Get audio intensity from analyser
 				const analyser = this.ttsPlaybackService.analyserNode
-					?? (effectiveState === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 				let intensity: number;
 				if (!analyser && simulating) {
@@ -598,7 +596,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
 
-				glowController.render(effectiveState, intensity, this.accessibilityService.isMotionReduced());
+				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced());
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -612,14 +610,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			const confirmationPending = this._isCurrentConfirmationPending(reader);
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (simGlow || (connected && (confirmationPending || isGlowingVoiceState(voiceState)))) {
+			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -816,19 +813,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			transcriptScrollable.scanDomNode();
 			transcriptScrollable.setScrollPosition({ scrollTop: 0 });
 		}));
-	}
-
-	private _isCurrentConfirmationPending(reader?: IReader): boolean {
-		const response = this._widget.viewModel?.model.lastRequest?.response;
-		if (response && (reader ? response.isPendingConfirmation.read(reader) : response.isPendingConfirmation.get())) {
-			return true;
-		}
-
-		const currentSession = reader ? this._currentSessionResource.read(reader) : this._currentSessionResource.get();
-		const pendingConfirmations = reader
-			? this.voiceSessionController.pendingToolConfirmations.read(reader)
-			: this.voiceSessionController.pendingToolConfirmations.get();
-		return !!currentSession && pendingConfirmations.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
 	}
 
 	//#endregion

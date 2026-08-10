@@ -43,8 +43,6 @@ export interface IVoiceInputDecorationsOptions {
 	readonly isActive: IObservable<boolean>;
 	/** Explicit ownership for surfaces such as omni that do not yet have a resource. */
 	readonly isOwner?: IObservable<boolean>;
-	/** Confirmation or question waiting on this surface. */
-	readonly confirmationPending?: IObservable<boolean>;
 	/** Surface resource, compared with the voice target to avoid misrouting. */
 	readonly getCurrentResource?: () => URI | undefined;
 	/**
@@ -116,14 +114,13 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const animate = () => {
 			animFrameId = win.requestAnimationFrame(animate);
 			const voiceState = voiceSessionController.voiceState.get();
-			const effectiveState = options.confirmationPending?.get() ? 'confirmation' : voiceState;
 
 			const analyser = ttsPlaybackService.analyserNode
-				?? (effectiveState === 'listening' ? micCaptureService.analyserNode : null)
+				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
 				?? null;
 			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
-			glowController.render(effectiveState, intensity, accessibilityService.isMotionReduced());
+			glowController.render(voiceState, intensity, accessibilityService.isMotionReduced());
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -140,8 +137,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const voiceState = voiceSessionController.voiceState.read(reader);
 		const active = isActive.read(reader);
 		const ownsVoice = isSurfaceOwner(reader);
-		const confirmationPending = options.confirmationPending?.read(reader) ?? false;
-		if (shouldRenderVoiceInputGlow(confirmationPending, connected, active, ownsVoice, voiceState)) {
+		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice, voiceState)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();

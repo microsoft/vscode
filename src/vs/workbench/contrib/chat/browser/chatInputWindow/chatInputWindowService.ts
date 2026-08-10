@@ -44,7 +44,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
-import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
@@ -104,7 +104,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _widget: ChatWidget | undefined;
 	private _pendingPromptIndex = 0;
 	private _activePendingSessionResource: URI | undefined;
-	private readonly _voiceConfirmationPending = observableValue(this, false);
 	private _fitWindowToContent: () => void = () => { };
 	/** The single input row; routing results are inserted immediately after it. */
 	private _row: HTMLElement | undefined;
@@ -458,7 +457,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					glowContainer: auxiliaryWindow.container,
 					isActive: this.voiceSessionController.omniInputActive,
 					isOwner: this.voiceSessionController.omniInputActive,
-					confirmationPending: this._voiceConfirmationPending,
 				}));
 			} catch (error) {
 				this.logService.error('[chatInputWindow] Failed to initialize voice decorations', error);
@@ -863,7 +861,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				renderApprovalFallback(undefined);
 				lastActivatedApproval = undefined;
 				this._activePendingSessionResource = undefined;
-				this._voiceConfirmationPending.set(false, undefined);
 				panel.classList.remove('shown', 'question', 'tool-approval-fallback');
 				widget.setModel(undefined);
 				this._fitWindowToContent();
@@ -878,7 +875,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				lastPendingHeight = undefined;
 				confirmationWidgetLayoutHeight = 0;
 			}
-			this._voiceConfirmationPending.set(true, undefined);
 			panel.classList.add('shown');
 			const hasPendingQuestion = this._hasPendingQuestion(model);
 			const pendingApproval = this._getPendingToolApproval(model);
@@ -1173,7 +1169,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._lead = undefined;
 		this._trail = undefined;
 		this._activePendingSessionResource = undefined;
-		this._voiceConfirmationPending.set(false, undefined);
 		this._actionWidgetVisibilityCount = 0;
 		this._actionWidgetOwner = undefined;
 		this._actionWidgetOpenOperation = undefined;

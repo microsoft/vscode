@@ -7,7 +7,6 @@ import assert from 'assert';
 import { Color, HSLA } from '../../../../../../base/common/color.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { chartsOrange } from '../../../../../../platform/theme/common/colors/chartsColors.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
 import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
@@ -18,22 +17,22 @@ import { createVoiceGlowController } from '../../../browser/voiceClient/voiceGlo
 suite('VoiceGlow', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('only talking and confirmation states glow', () => {
-		const states = ['idle', 'listening', 'speaking', 'confirmation', 'processing', 'error'] as const;
+	test('only talking states glow', () => {
+		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
 		assert.deepStrictEqual(
 			states.filter(isGlowingVoiceState),
-			['listening', 'speaking', 'confirmation']
+			['listening', 'speaking']
 		);
 	});
 
 	test('only renders while Voice Mode is connected', () => {
 		assert.deepStrictEqual([
-			shouldRenderVoiceInputGlow(true, false, true, false, 'idle'),
-			shouldRenderVoiceInputGlow(true, true, true, false, 'idle'),
-			shouldRenderVoiceInputGlow(false, false, true, true, 'listening'),
-			shouldRenderVoiceInputGlow(false, true, true, true, 'listening'),
-			shouldRenderVoiceInputGlow(false, true, false, true, 'speaking'),
-		], [false, true, false, true, false]);
+			shouldRenderVoiceInputGlow(false, true, true, 'listening'),
+			shouldRenderVoiceInputGlow(true, true, true, 'listening'),
+			shouldRenderVoiceInputGlow(true, false, true, 'speaking'),
+			shouldRenderVoiceInputGlow(true, true, false, 'speaking'),
+			shouldRenderVoiceInputGlow(true, true, true, 'idle'),
+		], [false, true, false, false, false]);
 	});
 
 	test('renders in an auxiliary owner document', () => {
@@ -87,12 +86,6 @@ suite('VoiceGlow', () => {
 			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF') : id === chatVoiceSpeakingGlow ? pinned : undefined,
 		});
 		assert.strictEqual(colors.speaking.toString(), pinned.toString());
-	});
-
-	test('confirmation uses the theme orange', () => {
-		const orange = Color.fromHex('#F97316');
-		const colors = resolveVoiceGlowColors({ getColor: id => id === chartsOrange ? orange : undefined });
-		assert.strictEqual(colors.confirmation.toString(), orange.toString());
 	});
 
 	test('the dictation microphone paints the listening rim color', () => {
