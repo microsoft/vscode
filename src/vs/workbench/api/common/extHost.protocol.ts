@@ -662,6 +662,7 @@ export interface TerminalLaunchConfig {
 	isExtensionCustomPtyTerminal?: boolean;
 	forceShellIntegration?: boolean;
 	isFeatureTerminal?: boolean;
+	isRemoteResolverTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	location?: TerminalLocation | { viewColumn: number; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
@@ -3857,6 +3858,7 @@ export type ChatInputNotificationDto = {
 	actions: ChatInputNotificationActionDto[];
 	dismissible: boolean;
 	autoDismissOnMessage: boolean;
+	sessionTypes: readonly string[] | undefined;
 };
 
 export interface MainThreadChatInputNotificationShape {

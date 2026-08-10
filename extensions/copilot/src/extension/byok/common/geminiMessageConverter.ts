@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type { Content, FunctionCall, FunctionResponse, Part } from '@google/genai';
 import { Raw } from '@vscode/prompt-tsx';
-import type { LanguageModelChatMessage } from 'vscode';
+import type { LanguageModelChatMessage, LanguageModelChatMessage2 } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { LanguageModelChatMessageRole, LanguageModelDataPart, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart, LanguageModelToolResultPart2 } from '../../../vscodeTypes';
 
@@ -120,7 +120,7 @@ function apiContentToGeminiContent(content: (LanguageModelTextPart | LanguageMod
 	return convertedContent;
 }
 
-export function apiMessageToGeminiMessage(messages: LanguageModelChatMessage[]): { contents: Content[]; systemInstruction?: Content } {
+export function apiMessageToGeminiMessage(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>): { contents: Content[]; systemInstruction?: Content } {
 	const contents: Content[] = [];
 	let systemInstruction: Content | undefined;
 
@@ -131,8 +131,7 @@ export function apiMessageToGeminiMessage(messages: LanguageModelChatMessage[]):
 		if (message.role === LanguageModelChatMessageRole.System) {
 			// Gemini uses system instruction separately
 			const systemText = message.content
-				.filter((p): p is LanguageModelTextPart => p instanceof LanguageModelTextPart)
-				.map(p => p.value)
+				.map(part => part instanceof LanguageModelTextPart ? part.value : '')
 				.join('');
 
 			if (systemText.trim()) {

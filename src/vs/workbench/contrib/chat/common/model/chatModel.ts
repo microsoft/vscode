@@ -9,7 +9,7 @@ import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffe
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
@@ -31,7 +31,7 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsagePromptTokenDetail, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsageModelTotal, IChatUsagePromptTokenDetail, IChatUsedContext, IChatVoiceProgressPart, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
@@ -72,11 +72,13 @@ export interface ISerializableSendOptions {
 	locationData?: IChatLocationData;
 	attempt?: number;
 	noCommandDetection?: boolean;
+	isVoiceModeInput?: boolean;
 	agentId?: string;
 	agentIdSilent?: string;
 	slashCommand?: string;
 	confirmation?: string;
 	isSystemInitiated?: boolean;
+	hideFromTranscript?: boolean;
 	systemInitiatedLabel?: string;
 	terminalExecutionId?: string;
 }
@@ -136,6 +138,7 @@ export interface IChatRequestModel {
 	readonly modelId?: string;
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
+	readonly isHiddenFromTranscript: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly terminalExecutionId?: string;
 }
@@ -228,7 +231,8 @@ export type IChatProgressResponseContent =
 	| IChatMcpServersStartingSerialized
 	| IChatMcpAuthenticationRequired
 	| IChatMcpServersStartingSlow
-	| IChatDisabledClaudeHooksPart;
+	| IChatDisabledClaudeHooksPart
+	| IChatVoiceProgressPart;
 
 export type IChatProgressResponseContentSerialized = Exclude<IChatProgressResponseContent,
 	| IChatToolInvocation
@@ -239,9 +243,10 @@ export type IChatProgressResponseContentSerialized = Exclude<IChatProgressRespon
 	| IChatMcpAuthenticationRequired
 	| IChatMcpServersStartingSlow
 	| IChatDisabledClaudeHooksPart
+	| IChatVoiceProgressPart
 >;
 
-const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop']);
+const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'voiceProgress']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
 	return !nonHistoryKinds.has(content.kind);
 }
@@ -250,7 +255,7 @@ export function toChatHistoryContent(content: ReadonlyArray<IChatProgressRespons
 	return content.filter(isChatProgressHistoryResponseContent);
 }
 
-export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>;
+export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatVoiceProgressPart>;
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IChatProgressResponseContent>;
@@ -305,6 +310,7 @@ export interface IChatResponseModel {
 	 */
 	readonly isIncomplete: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
@@ -381,6 +387,7 @@ export interface IChatRequestModelParameters {
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
+	isHiddenFromTranscript?: boolean;
 	systemInitiatedLabel?: string;
 	terminalExecutionId?: string;
 	/** Whether this request runs as a terminal command (agent host `!` prefix). */
@@ -399,6 +406,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
+	public readonly isHiddenFromTranscript: boolean;
 	public readonly systemInitiatedLabel?: string;
 	public readonly terminalExecutionId?: string;
 	public readonly isTerminalCommand: boolean;
@@ -475,6 +483,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
+		this.isHiddenFromTranscript = params.isHiddenFromTranscript ?? false;
 		this.systemInitiatedLabel = params.systemInitiatedLabel;
 		this.terminalExecutionId = params.terminalExecutionId;
 		this.isTerminalCommand = params.isTerminalCommand ?? false;
@@ -628,6 +637,7 @@ class AbstractResponse implements IResponse {
 				case 'elicitationSerialized':
 				case 'thinking':
 				case 'hook':
+				case 'voiceProgress':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'mcpAuthenticationRequired':
@@ -704,11 +714,11 @@ class AbstractResponse implements IResponse {
 
 	private inlineRefToRepr(part: IChatContentInlineReference) {
 		if ('uri' in part.inlineReference) {
-			return this.uriToRepr(part.inlineReference.uri);
+			return this.uriToRepr(part.inlineReference.uri, part.inlineReference.range);
 		}
 
 		return 'name' in part.inlineReference
-			? '`' + part.inlineReference.name + '`'
+			? appendEscapedMarkdownInlineCode(part.inlineReference.name)
 			: this.uriToRepr(part.inlineReference);
 	}
 
@@ -763,12 +773,19 @@ class AbstractResponse implements IResponse {
 		return { text, isBlock: true };
 	}
 
-	private uriToRepr(uri: URI): string {
+	/**
+	 * Renders a reference the way the response showed it — the file name plus any line suffix —
+	 * as code, so a name containing `*` or `_` survives being pasted into another document.
+	 */
+	private uriToRepr(uri: URI, range?: IRange): string {
 		if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
 			return uri.toString(false);
 		}
 
-		return basename(uri);
+		const suffix = !range ? ''
+			: range.startLineNumber === range.endLineNumber ? `:${range.startLineNumber}`
+				: `:${range.startLineNumber}-${range.endLineNumber}`;
+		return appendEscapedMarkdownInlineCode(basename(uri) + suffix);
 	}
 }
 
@@ -858,10 +875,9 @@ export class Response extends AbstractResponse implements IDisposable {
 			return;
 		} else if (progress.kind === 'markdownContent') {
 
-			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
-			// the MD be chopped up by text edit groups (and likely other non-renderable parts)
+			// Nested subagent parts render inside their parent card and must not split parent markdown.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup')
+				.filter(p => p.kind !== 'textEditGroup' && !isNestedSubagentResponsePart(p))
 				.at(-1);
 
 			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent' || !canMergeMarkdownStrings(lastResponsePart.content, progress.content)) {
@@ -1138,6 +1154,14 @@ export type ResponseModelStateT =
 	| { value: ResponseModelState.NeedsInput }
 	| { value: ResponseModelState.Complete | ResponseModelState.Cancelled | ResponseModelState.Failed; completedAt: number };
 
+/**
+ * Total output tokens across every model a response used, or `undefined` when
+ * the provider reported no whole-turn totals.
+ */
+function sumModelOutputTokens(modelTotals: readonly IChatUsageModelTotal[] | undefined): number | undefined {
+	return modelTotals?.reduce((total, entry) => total + entry.outputTokens, 0);
+}
+
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
 	private readonly _onDidChange = this._register(new Emitter<ChatResponseModelChangeReason>());
 	readonly onDidChange = this._onDidChange.event;
@@ -1178,6 +1202,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	public get shouldBeRemovedOnSend() {
 		return this._shouldBeRemovedOnSend;
+	}
+
+	public get isHiddenFromTranscript(): boolean {
+		return this.request?.isHiddenFromTranscript ?? false;
 	}
 
 	public get isComplete(): boolean {
@@ -1559,7 +1587,15 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			|| currentUsage.outputBuffer !== usage.outputBuffer;
 
 		this._usageObs.set(usage, undefined);
-		if (countCompletionTokens && isNewCall) {
+		// `completionTokens` describes a single model call, so the running count is
+		// built up call by call. That over-counts whenever a report is re-emitted
+		// with unchanged counts — as happens when a subagent's call refreshes the
+		// parent turn's aggregate. When the provider reports whole-turn totals they
+		// are authoritative, so take them instead of adding to the tally.
+		const reportedOutputTokens = sumModelOutputTokens(usage.modelTotals);
+		if (reportedOutputTokens !== undefined) {
+			this._completionTokenCountObs.set(reportedOutputTokens, undefined);
+		} else if (countCompletionTokens && isNewCall) {
 			const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
 			this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
 		}
@@ -1576,7 +1612,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			&& currentUsage.outputBuffer === usage.outputBuffer
 			&& currentUsage.copilotCredits === usage.copilotCredits
 			&& currentUsage.sessionCopilotCredits === usage.sessionCopilotCredits
-			&& equals(currentUsage.promptTokenDetails, usage.promptTokenDetails);
+			&& equals(currentUsage.promptTokenDetails, usage.promptTokenDetails)
+			&& equals(currentUsage.modelTotals, usage.modelTotals);
 	}
 
 	complete(completedAt = Date.now()): void {
@@ -1694,6 +1731,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			outputBuffer: this.usage?.outputBuffer,
 			promptTokenDetails: this.usage?.promptTokenDetails,
 			copilotCredits: this.usage?.copilotCredits,
+			modelTotals: this.usage?.modelTotals,
 			sessionCopilotCredits: this.usage?.sessionCopilotCredits,
 			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp'>>;
@@ -1798,6 +1836,7 @@ interface ISerializableChatResponseData {
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
 	copilotCredits?: number;
+	modelTotals?: readonly IChatUsageModelTotal[];
 	sessionCopilotCredits?: number;
 	elapsedMs?: number;
 }
@@ -1813,6 +1852,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 
 	/**Old, persisted name for shouldBeRemovedOnSend */
 	isHidden?: boolean;
+	hiddenFromTranscript?: boolean;
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
 	agent?: ISerializableChatAgentData;
 	// responseErrorDetails: IChatResponseErrorDetails | undefined;
@@ -2167,6 +2207,14 @@ export function isExportableSessionData(obj: unknown): obj is IExportableChatDat
 	return !!obj &&
 		Array.isArray((obj as IExportableChatData).requests) &&
 		typeof (obj as IExportableChatData).responderUsername === 'string';
+}
+
+export function extractExportableSessionData(data: IExportableChatData): IExportableChatData {
+	return {
+		initialLocation: data.initialLocation,
+		requests: data.requests,
+		responderUsername: data.responderUsername,
+	};
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -2796,6 +2844,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modelId: raw.modelId,
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
+			isHiddenFromTranscript: raw.hiddenFromTranscript,
 			systemInitiatedLabel: raw.systemInitiatedLabel,
 			terminalExecutionId: raw.terminalExecutionId,
 		});
@@ -2854,6 +2903,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
 					copilotCredits: raw.copilotCredits,
+					modelTotals: raw.modelTotals,
 					sessionCopilotCredits: raw.sessionCopilotCredits,
 				});
 			}
@@ -3000,6 +3050,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		terminalExecutionId?: string,
 		isTerminalCommand?: boolean,
 		timestamp?: number | null,
+		hideFromTranscript?: boolean,
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
@@ -3025,6 +3076,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
 			isSystemInitiated,
+			isHiddenFromTranscript: hideFromTranscript,
 			systemInitiatedLabel,
 			terminalExecutionId,
 			isTerminalCommand,
@@ -3038,7 +3090,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
 		});
-
 		this._requests.push(request);
 		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -3168,7 +3219,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					message,
 					variableData: IChatRequestVariableData.toExport(r.variableData),
 					response: r.response ?
-						r.response.entireResponse.value.map(item => {
+						r.response.entireResponse.value.filter(item => item.kind !== 'voiceProgress').map(item => {
 							// Keeping the shape of the persisted data the same for back compat
 							if (item.kind === 'treeData') {
 								return item.treeData;
@@ -3188,6 +3239,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelId: r.modelId,
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
+					hiddenFromTranscript: r.isHiddenFromTranscript || undefined,
 					systemInitiatedLabel: r.systemInitiatedLabel,
 					terminalExecutionId: r.terminalExecutionId,
 					...r.response?.toJSON(),
@@ -3256,6 +3308,10 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 		md1.supportThemeIcons === md2.supportThemeIcons;
 }
 
+function isNestedSubagentResponsePart(part: IChatProgressResponseContent): boolean {
+	return 'subAgentInvocationId' in part && !!part.subAgentInvocationId;
+}
+
 export function appendMarkdownString(md1: IMarkdownString, md2: IMarkdownString | string): IMarkdownString {
 	const appendedValue = typeof md2 === 'string' ? md2 : md2.value;
 	return {
@@ -3293,11 +3349,13 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 		locationData: options.locationData,
 		attempt: options.attempt,
 		noCommandDetection: options.noCommandDetection,
+		isVoiceModeInput: options.isVoiceModeInput,
 		agentId: options.agentId,
 		agentIdSilent: options.agentIdSilent,
 		slashCommand: options.slashCommand,
 		confirmation: options.confirmation,
 		isSystemInitiated: options.isSystemInitiated,
+		hideFromTranscript: options.hideFromTranscript,
 		systemInitiatedLabel: options.systemInitiatedLabel,
 		terminalExecutionId: options.terminalExecutionId,
 	};

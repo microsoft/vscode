@@ -18,6 +18,8 @@ import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { TerminalContribCommandId } from '../../../terminal/terminalContribExports.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID } from '../../common/chatInputWindow.js';
+import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { IChatWidgetService } from '../chat.js';
@@ -43,6 +45,16 @@ export class QuickChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
+export class ChatInputWindowAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly priority = 121;
+	readonly name = 'chatInputWindow';
+	readonly type = AccessibleViewType.Help;
+	readonly when = ChatContextKeys.inChatInputWindow;
+	getProvider(accessor: ServicesAccessor) {
+		return getChatAccessibilityHelpProvider(accessor, undefined, 'chatInputWindow');
+	}
+}
+
 export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 119;
 	readonly name = 'editsView';
@@ -63,8 +75,17 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, inputWindowEnabled: boolean = false): string {
 	const content = [];
+	if (type === 'chatInputWindow') {
+		content.push(localize('chatInputWindow.overview', 'The floating chat input window is an input-only surface. It has no response list; instead each request you submit is routed to the coding session it best matches, and its response appears in that session rather than here.'));
+		content.push(localize('chatInputWindow.routing', 'When no existing session is a confident match, a new session is started for the request. When an existing session matches, a destination picker appears with a countdown before sending. Press Escape from the input box to cancel, or use Tab to reach the picker, the arrow keys to move, Space to select more than one destination, and Enter to send. The picker also offers starting a new session.'));
+		content.push(localize('chatInputWindow.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use Enter or the submit button to route a new request.'));
+		content.push(localize('chatInputWindow.dictate', 'To dictate your request using on-device speech-to-text, invoke the Dictate command{0}. Invoke it again to stop.', '<keybinding:workbench.action.chat.toggleSpeechToText>'));
+		content.push(localize('chatInputWindow.close', 'To close the floating chat input window, invoke the Close Floating Chat Input Window command, or toggle it with the Toggle Floating Chat Input Window command{0}.', '<keybinding:workbench.action.chat.toggleInputWindow>'));
+		content.push(localize('chatInputWindow.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
+		return content.join('\n');
+	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files.'));
 	}
@@ -75,14 +96,16 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		} else {
 			content.push(localize('chat.differencePanel', 'The chat view is a persistent interface that also supports navigating suggested follow-up questions, while the quick chat view is a transient interface for making and viewing requests.'));
 			content.push(localize('workbench.action.chat.newChat', 'To create a new chat session, invoke the New Chat command{0}.', '<keybinding:workbench.action.chat.newChat>'));
-			content.push(localize('workbench.action.chat.history', 'To view all chat sessions, invoke the Show Chats command{0}.', '<keybinding:workbench.action.chat.history>'));
 			content.push(localize('workbench.action.chat.focusAgentSessionsViewer', 'You can focus the agent sessions list by invoking the Focus Agent Sessions command{0}.', `<keybinding:${FocusAgentSessionsAction.id}>`));
 			content.push(localize('workbench.action.openAgentsWindow', 'To open the Agents Window, invoke the Open Agents Window command{0}. In screen reader mode, this keybinding includes Alt to avoid conflicts with screen reader shortcuts.', '<keybinding:workbench.action.openAgentsWindow>'));
 			content.push(localize('workbench.action.chat.openAgentHostFolderPicker', 'When starting an agent session in a multi-root workspace, you can choose which root folder it runs in by invoking the Folder command{0}, then selecting a folder from the list.', '<keybinding:workbench.action.chat.openAgentHostFolderPicker>'));
 			content.push(localize('chat.agentHostApprovalsPicker', 'When an agent session exposes approval presets, use Tab to reach the Approvals picker and choose how it handles workspace access, commands, and the internet.'));
+			if (type === 'panelChat' && inputWindowEnabled) {
+				content.push(localize('chat.toggleInputWindow.help', 'To open the floating chat input window, invoke the Toggle Floating Chat Input Window command{0}.', `<keybinding:${CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID}>`));
+			}
 		}
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
-		content.push(localize('chat.vscodePet', 'Type /vscode-pet to show or hide the VS Code pet above the input. Drag it horizontally to reposition it, or use Tab to focus it and the left and right arrow keys to move it. Press Enter or Space to show it some love. Open its context menu{0} (for example Shift+F10), use the up and down arrow keys to choose Go on the Run, Come Back, Stable Colors, or Insiders Colors, and press Enter to activate the choice.', '<keybinding:editor.action.showContextMenu>'));
+		content.push(localize('chat.vscodePet', 'Type /vscode-pet to show or hide the VS Code pet above the input. Drag it around the chat with the mouse and drop it above the input to land there. If it falls past the input, a sign and respawn effect appear before it automatically returns to the input. With the keyboard, use Tab to focus the pet, then the left and right arrows to make it hop along the input until it reaches an edge. Press Enter or Space while it is resting to interact with it. Open its context menu{0} (for example Shift+F10), use the up and down arrow keys to choose Go on the Run, Come Back, Grow, Shrink, Stable Colors, or Insiders Colors, and press Enter to activate the choice. Grow and Shrink change its size in twenty-percent steps; hiding and showing the pet resets its size.', '<keybinding:editor.action.showContextMenu>'));
 		if (supportsFileReferences) {
 			content.push(localize('chat.attachments.inlineReferences', 'To mention an attached context item at a specific position without removing it from the attached context, type # or @ and select the attachment from the suggestions.'));
 			content.push(localize('chat.attachments.inlineReferenceHover', 'To inspect an inline attachment reference, place the cursor on it and invoke Show or Focus Hover{0}. Image references include a preview, while file and folder references include their path.', '<keybinding:editor.action.showHover>'));
@@ -94,9 +117,13 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.voiceInputMode.segmented', 'When the segmented voice input control is enabled, the input toolbar offers Dictation, Voice Mode, and, in manual Voice Mode, a Start or Stop Listening button. Stopping listening sends the completed turn. Each button can be focused and activated with Enter or Space.'));
 		content.push(localize('chat.voiceInputMode.holdToTalk', 'In manual Voice Mode, the Start or Stop Listening button toggles listening when tapped, or you can press and hold it to talk and release to send. You can also hold the Voice Mode: Hold to Talk keybinding{0} to talk and release to send; this interrupts the assistant to barge in.', '<keybinding:workbench.action.chat.voiceInputMode.holdToTalk>'));
 		content.push(localize('chat.voiceMode.introduction', 'The first time Voice Mode starts, an introduction appears above the input box. Tab to reach it, then use the arrow keys to move between the available voices; Enter or Space plays a voice and keeps it for future conversations. Its description also contains two links: Settings, which opens the Voice Mode settings, and How It Responds, which opens a file for customizing what the agent says back. Voice Mode stays connected but does not listen while the introduction is open. Press Escape, or activate the Close button, to dismiss it and return to the input box.'));
+		if (type === 'agentView') {
+			content.push(localize('chat.voiceInputMode.agentProgress', 'When the experimental agents.voice.agentProgress setting is enabled, Voice Mode Agent requests may speak brief progress updates while investigating, planning, editing, validating, or recovering from a problem.'));
+		}
 		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}. Thinking content is included in order by default.', '<keybinding:editor.action.accessibleView>'));
 		content.push(localize('chat.inspectResponseThinkingToggle', 'To include or exclude thinking content in the accessible view, run the Toggle Thinking Content in Accessible View command from the Command Palette.'));
 		content.push(localize('chat.completedResponseDisclosure', 'When completed response collapsing is enabled, the final response remains visible while earlier work is collapsed. Use Tab to focus the work disclosure and press Enter or Space to show or hide that work.'));
+		content.push(localize('chat.subagentPill', 'When a subagent pill appears in a response, use Tab to focus it and press Enter or Space to open that subagent chat.'));
 		content.push(localize('workbench.action.chat.focus', 'To focus the chat request and response list, invoke the Focus Chat command{0}. This will move focus to the most recent response, which you can then navigate using the up and down arrow keys.', getChatFocusKeybindingLabel(keybindingService, type, 'last')));
 		content.push(localize('workbench.action.chat.focusLastFocusedItem', 'To return to the last chat response you focused, invoke the Focus Last Focused Chat Response command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'lastFocused')));
 		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'input')));
@@ -115,6 +142,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.focusQuestionCarousel', 'When a chat question appears, toggle focus between the question and the chat input{0}.', '<keybinding:workbench.action.chat.focusQuestionCarousel>'));
 		content.push(localize('chat.previousQuestionCarouselQuestion', 'When a chat question is focused, move to the previous question{0}.', '<keybinding:workbench.action.chat.previousQuestion>'));
 		content.push(localize('chat.nextQuestionCarouselQuestion', 'When a chat question is focused, move to the next question{0}.', '<keybinding:workbench.action.chat.nextQuestion>'));
+		content.push(localize('chat.planReviewEditor', 'When a plan is ready for review, open it from the chat response to edit the plan and add line comments. Use the editor toolbar to navigate, clear, or submit feedback. Choose an implementation action from the plan review in Chat.'));
 		content.push(localize('chat.focusTip', 'When a tip appears, toggle focus between the tip and the chat input{0}.', '<keybinding:workbench.action.chat.focusTip>'));
 		if (isSessionsWindow) {
 			content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
@@ -167,7 +195,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	return content.join('\n');
 }
 
-export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView'): AccessibleContentProvider | undefined {
+export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow'): AccessibleContentProvider | undefined {
 	const widgetService = accessor.get(IChatWidgetService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
@@ -185,13 +213,20 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService));
+	const helpText = getAccessibilityHelpText(
+		type,
+		keybindingService,
+		widget.supportsFileReferences,
+		environmentService.isSessionsWindow,
+		isStickyPromptHeaderShown(widget, configurationService),
+		configurationService.getValue<boolean>(OmniChatEnabledSettingId)
+	);
 	return new AccessibleContentProvider(
-		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
+		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : type === 'chatInputWindow' ? AccessibleViewProviderId.ChatInputWindow : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },
 		() => helpText,
 		() => {
-			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat') {
+			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat' || type === 'chatInputWindow') {
 				if (cachedPosition) {
 					inputEditor.setPosition(cachedPosition);
 				}

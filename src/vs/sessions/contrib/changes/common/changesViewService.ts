@@ -28,6 +28,13 @@ export interface ActiveSessionState {
 
 export const IChangesViewService = createDecorator<IChangesViewService>('changesViewService');
 
+export interface IChangesViewSectionCollapseState {
+	readonly otherFiles: boolean;
+	readonly checks: boolean;
+}
+
+export type ChangesViewSection = keyof IChangesViewSectionCollapseState;
+
 export interface IChangesViewService {
 	readonly _serviceBrand: undefined;
 
@@ -45,11 +52,13 @@ export interface IChangesViewService {
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
+	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 
 	setChangesetId(changesetId: string | undefined): void;
 
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;
+	setSectionCollapsed(sessionResource: URI, section: ChangesViewSection, collapsed: boolean): void;
 
 	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void;
 }

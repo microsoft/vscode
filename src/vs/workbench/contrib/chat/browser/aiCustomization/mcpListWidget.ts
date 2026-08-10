@@ -109,6 +109,10 @@ interface IMcpBuiltinItemEntry {
 
 export type AgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
+export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHostMcpServer[]): readonly IMcpSessionServerItemEntry[] {
+	return servers.map(server => ({ type: 'session-server-item', server }));
+}
+
 type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
 
 type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
@@ -1234,9 +1238,7 @@ export class McpListWidget extends Disposable {
 			}
 		}
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
-		for (const server of activeSessionOnlyServers) {
-			groups[0].entries.push({ type: 'session-server-item', server });
-		}
+		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);
 
 		// Show empty state only when there are no servers at all (not when filtered to empty)
 		if (this.filteredServers.length === 0 && builtinServers.length === 0 && activeSessionOnlyServers.length === 0) {
@@ -1323,7 +1325,7 @@ export class McpListWidget extends Disposable {
 			isFirst = false;
 		}
 
-		if (otherBuiltinServers.length > 0) {
+		if (otherBuiltinServers.length > 0 || activeSessionBuiltinEntries.length > 0) {
 			const collapsed = this.collapsedGroups.has('builtin');
 			entries.push({
 				type: 'group-header',
@@ -1331,7 +1333,7 @@ export class McpListWidget extends Disposable {
 				scope: 'builtin',
 				label: localize('builtInGroup', "Built-in"),
 				icon: builtinIcon,
-				count: otherBuiltinServers.length,
+				count: otherBuiltinServers.length + activeSessionBuiltinEntries.length,
 				isFirst,
 				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
 				collapsed,
@@ -1340,6 +1342,7 @@ export class McpListWidget extends Disposable {
 				for (const { server, activeSessionServer } of otherBuiltinServers) {
 					entries.push(createBuiltinEntry(server, activeSessionServer));
 				}
+				entries.push(...activeSessionBuiltinEntries);
 			}
 			isFirst = false;
 		}

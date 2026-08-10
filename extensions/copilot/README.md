@@ -69,10 +69,10 @@ To get the latest security fixes, please use the latest version of the Copilot e
 ### Resources & next steps
 * **[Sign up for GitHub Copilot Free](https://github.com/settings/copilot?utm_source=vscode-chat-readme&utm_medium=third&utm_campaign=2025mar-em-MSFT-signup)**: Explore Copilot's AI capabilities at no cost before upgrading to a paid plan.
    * If you're using Copilot for your business, check out [Copilot Business](https://docs.github.com/en/copilot/copilot-business/about-github-copilot-business) and [Copilot Enterprise](https://docs.github.com/en/copilot/github-copilot-enterprise/overview/about-github-copilot-enterprise).
-* **[Copilot Quickstart](https://code.visualstudio.com/docs/copilot/getting-started)**: Discover the key features of Copilot in VS Code.
-* **[Agents Tutorial](https://code.visualstudio.com/docs/copilot/agents/agents-tutorial)**: Get started with autonomous agents across different environments.
+* **[Copilot Quickstart](https://code.visualstudio.com/docs/agents/overview)**: Discover the key features of Copilot in VS Code.
+* **[Agents Tutorial](https://code.visualstudio.com/docs/agents/agents-tutorial)**: Get started with autonomous agents across different environments.
 * **[VS Code on YouTube](https://www.youtube.com/@code)**: Watch the latest demos and updates on the VS Code channel.
-* **[Frequently Asked Questions](https://code.visualstudio.com/docs/copilot/faq)**: Get answers to commonly asked questions about Copilot in VS Code.
+* **[Frequently Asked Questions](https://code.visualstudio.com/docs/agents/agent-troubleshooting/faq)**: Get answers to commonly asked questions about Copilot in VS Code.
 * **[Provide Feedback](https://github.com/microsoft/vscode/issues)**: Send us your feedback and feature request to help us make GitHub Copilot better!
 
 ## Data and telemetry
