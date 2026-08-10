@@ -61,6 +61,7 @@ const syncTestConfigurationNode = {
 };
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -110,6 +111,10 @@ function findRootConfigValue(messages: readonly ProtocolTransportMessage[], conf
 }
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
+	constructor(readonly clientConnectionKind?: AgentHostClientConnectionKind) {
+		super();
+	}
+
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
@@ -815,7 +820,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 	});
 
 	test('initialize handshake includes protocol version and client info', async () => {
-		const transport = disposables.add(new TestClientProtocolTransport());
+		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));
 		const clientInfo = agentsWindowAgentHostClientInfo;
 		const { client } = createClient(transport, undefined, undefined, undefined, undefined, 'renderer-client-id', clientInfo);
 		const connectPromise = client.connect();
@@ -829,17 +834,19 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const sent = transport.sentMessages[0] as JsonRpcRequest;
 		assert.strictEqual(sent.method, 'initialize');
-		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation };
+		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation; _meta?: Record<string, unknown> };
 		assert.deepStrictEqual({
 			protocolVersions: params.protocolVersions,
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
+			_meta: params._meta,
 		}, {
 			// Every negotiable version is offered so an older host can negotiate down,
 			// newest first so a current host still picks it.
 			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: 'renderer-client-id',
 			clientInfo,
+			_meta: { 'vscode.clientConnectionKind': 'dev_tunnel' },
 		});
 		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
 
@@ -1665,6 +1672,36 @@ suite('RemoteAgentHostProtocolClient', () => {
 				await flushMicrotasks();
 				client.dispose();
 			});
+		});
+
+		test('retries with a fresh initialize when the factory transport closes during initial connect', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = assert.rejects(client.connect());
+
+			client.notifyTransportClosed();
+			await waitForReconnecting(client);
+			transports[0].connectDeferred.error(new Error('Initial transport closed'));
+			await connectPromise;
+
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			await flushMicrotasks();
+
+			assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 		});
 
 		test('falls back to initialize with client info when the server forgot the client', async function () {

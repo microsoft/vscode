@@ -82,6 +82,11 @@ send:           composer → management.sendNewChatRequest()  // model: provider
 focus a slot:   part.onDidFocusSession → view.setActive → updates active visible slot
 ```
 
+Activating a session or empty slot that is already visible updates only `activeSession` and its
+`preserveFocus` intent. It does not republish `visibleSessions`: focus changes are not slot/catalog
+changes, and keeping that observable stable prevents per-session menus and other catalog consumers
+from rebuilding while an anchored picker is opening.
+
 The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
 
 The Agents Window overrides the shared `IWorkspaceFolderLabelService` with a session-aware
@@ -96,7 +101,7 @@ User selections in the Agents-window mode picker report the shared `chat.modeCha
 
 The `sessions.showSessionsPicker` command globally prioritizes non-archived sessions that need input, followed by other unread sessions. Each priority group preserves the picker's existing recent-first order, and sessions in neither group remain in the existing "recently opened" and "other sessions" sections. Archived-session exclusion is owned by the picker grouping helper so archived sessions cannot enter any section regardless of status or read state. The picker initially selects the first session rather than the preceding New Session item or the active session.
 
-The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer also renders the shared chat-tip content above its input; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
+The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer renders the shared chat-tip content above its input only after the cumulative Agents request counter reaches two; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
 
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
@@ -108,7 +113,6 @@ Each provider lives in its own subfolder and implements `ISessionsProvider`:
 src/vs/sessions/contrib/providers/
 ├── agentHost/            # Agent host provider — shared base + local agent host
 ├── copilotChatSessions/  # Copilot chat sessions provider (wraps ChatSessionsService)
-├── localChatSessions/    # Local in-process VS Code chat sessions provider
 └── remoteAgentHost/      # Remote agent host provider (one instance per connection)
 ```
 
@@ -127,7 +131,6 @@ The sessions-layer `AgentHostCustomizationService` adapts the workbench customiz
 ### Provider-Specific Documentation
 
 - [Copilot Chat Sessions Provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) — wraps `ChatSessionsService`, metadata contract, workspace derivation
-- [Local Chat Sessions Provider](contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md) — local in-process VS Code chat, self-managed session list via storage
 - [Agent Host Provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) — shared base + local agent host, dynamic session config, draft/graduate send flow
 - [Remote Agent Host Provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) — remote connections, per-host provider instances
 
@@ -180,6 +183,8 @@ A second producer sits **outside** the protocol: `IAgentHostAdapterOptions.readO
 - `applyChatCatalog` (`baseAgentHostSessionsProvider.ts`) surfaces a non-default chat as a peer when the session supports multiple chats (`copilotcli`) **or** the chat is a subagent (`origin.kind === Tool`). So subagent chats exist in the peer-chat catalog even in single-chat session types (e.g. `claude`), while ordinary user/fork/side-chat peers still require the usual session support.
 - `VisibleSession` keeps tool-origin chats out of `visibleChatTabs` until the user explicitly opens one (for example from the transcript pill or the **Conversations** menu). `chatCompositeBar` renders whatever is in `visibleChatTabs`, so user-created peers such as side chats behave like ordinary tabs while subagents stay hidden/read-only by default. The trailing **New Chat** action remains gated to `capabilities.supportsMultipleChats`, so single-chat sessions that merely host a subagent don't expose chat creation.
 
+Non-main chat tabs close from their close button, the active-chat close keybinding, or a middle click anywhere on the tab. Closing a committed chat hides it until it is reopened from the **Chats** menu; closing an untitled draft deletes it.
+
 Subagent chats **persist** in the session catalog after the subagent completes (completion only marks the chat's turn complete; the chat is removed only when the whole session is disposed), so the read-only tab stays reviewable for the lifetime of the session.
 
 **Opening a subagent chat from the transcript.** `ChatSubagentContentPart` and `OpenSubagentChatActionViewItem` provide one shared rich pill in both windows. The Agents window opens the surfaced peer chat; regular chat editors use the default-enabled `chat.subagents.useRichRendering` setting to open the child in a read-only editor instead of rendering its full activity inline. Editor-hosted children show the shared **This chat is read-only** banner above the transcript.
@@ -226,7 +231,7 @@ Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side o
 
 An **`ISessionType`** identifies an agent backend (e.g., `'copilot-cli'`, `'copilot-cloud'`). Each provider declares which session types it supports and can dynamically update the list via `onDidChangeSessionTypes`. The management service exposes `getAllSessionTypes()` for UI pickers.
 
-Session types are surfaced ordered by each provider's `order` property (lower first; ties keep registration order). The default `order` is `0`, so the Copilot Chat sessions provider keeps precedence by default. The local agent host provider sets its `order` reactively from the experimental `chat.agentHost.defaultSessionsProvider` setting (default `true`): when enabled it returns a negative order so its session types sort before all other providers; otherwise it sorts after the defaults. The provider fires `onDidChangeSessionTypes` when the setting toggles so the management service re-collects and re-sorts. The sort itself lives in `SessionsManagementService._getOrderedProviders()` and applies to both `getAllSessionTypes()` and `getSessionTypesForFolder()` — the orchestration layer stays provider-agnostic (it sorts purely by `order`, with no knowledge of specific provider ids).
+Session types are surfaced ordered by each provider's `order` property (lower first; ties keep registration order). The default `order` is `0`; the local agent host provider uses `-1` so its session types sort before all other providers. The sort lives in `SessionsManagementService._getOrderedProviders()` and applies to both `getAllSessionTypes()` and `getSessionTypesForFolder()` — the orchestration layer stays provider-agnostic (it sorts purely by `order`, with no knowledge of specific provider ids).
 
 The session type picker persists the last selection as `{ providerId, sessionTypeId }` (the `providerId` disambiguates when two providers offer the same `sessionType.id`, e.g. `copilotcli`). Like any picker, it writes storage whenever the value changes — both on a manual dropdown pick and whenever the active session's type changes — so an auto-selected or defaulted type also survives reload (otherwise the stored preference would be empty and the restored draft would fall back to the first provider by `order`).
 
@@ -256,7 +261,7 @@ On the agent host, workspace-less is **inferred from an absent `workingDirectory
 
 Sessions produce file changes organized into **`ISessionChangeset`** groups — named, togglable collections of file modifications that let users review and selectively apply changes.
 
-Review-capable changesets expose `setReviewState(resource, reviewed)`. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
+Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Changes multi-diff editor, the **Viewed** checkbox and a middle-click anywhere on the file-entry header invoke the same review action: marking a file viewed collapses its diff, while marking it not viewed expands it. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
 
 ---
 
@@ -360,6 +365,58 @@ replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
 replacement.
 
+The V3 new-session onboarding tour uses the same first-request, sign-in, view,
+and workspace-picker readiness gates as V2. The trigger also waits for the real
+`restoreVisibleSessions()` operation to settle, rather than guessing readiness
+with a delay. Its workspace step is shared with V2, so it appears only when no
+workspace is preselected. Once that step completes (or is skipped because a
+workspace was preselected), the sequence advances to a non-visual `run` step
+that finds the mounted editable new-session composer through
+`INewSessionComposerService`. The `prompt` and `githubPrompt` variations fill the
+input over 2.5 seconds. The `options` variation first shows three loading
+skeletons, then resolves up to two assigned, unlinked GitHub issues followed by
+up to two authored pull requests with failing CI or unaddressed review comments.
+`options` is the default when no variation treatment is assigned; `prompt` and
+`githubPrompt` remain available as explicit treatments and developer overrides.
+Any remaining slots are filled, in order, by the standard Implement a feature,
+Fix a bug, and Fix CI options. GitHub work is resolved
+silently with bounded cancellable lookups and shared issue/pull-request state
+icons; failures and timeouts leave every candidate completed by that point in
+place and fill the rest with standard options. Changing the selected workspace
+clears the repository-specific option set immediately, shows loading skeletons,
+and starts a fresh lookup for the replacement draft so cards from the previous
+repository cannot be inserted into the new workspace. Clearing the workspace
+cancels the active lookup, removes only untouched/generated option text, and
+hides the widget so stale results cannot reappear.
+
+Selecting the first option focuses the input immediately and animates its prompt
+into an empty input. Later selections replace the generated prompt immediately.
+A different option can replace the input only while it is empty, exactly matches
+the previously selected prompt, or exactly matches that prompt after its editable
+placeholder was activated and removed. Any other edit disables every option but
+preserves the selected presentation; clearing the input or restoring either exact
+generated form enables them again. The option widget remains mounted after
+selection and is disposed with the composer. Standard prompts contain
+action-specific editable placeholders and the same inspect, explain, implement,
+and validate guidance as the prompt variation.
+
+The run step awaits typing or option resolution and forwards sequence
+cancellation; cancellation or composer disposal preserves only text already
+typed and removes unresolved loading UI, while explicit placeholder activation
+completes the template before replacement. Run steps count in sequence telemetry
+but not in spotlight progress; V3 therefore has two sequence steps while
+displaying one spotlight step. Reduced-motion and screen-reader modes fill a
+selected template at once. The task placeholder uses the same themed highlight
+as slash commands. Clicking it, or placing the caret inside and pressing Enter,
+removes the placeholder, focuses the input, and places the caret at the
+replacement position.
+
+Non-visual onboarding behavior must not be attached to a spotlight payload as a
+completion callback. Model heterogeneous tours with the sequence presentation
+and explicit step kinds (`spotlight`, `run`, and future kinds such as `pulse`),
+so spotlight counters include only visual spotlight steps while sequence
+telemetry retains every step.
+
 The new-session view mounts the aquarium action outside
 `.new-chat-widget-content`. Its surrounding surface has checked **Aquarium** and
 **Pet (/vscode-pet)** context-menu items. `AquariumService` owns the
@@ -375,14 +432,21 @@ aquarium-specific lifecycle calls must first narrow the wrapped widget to
 `NewChatWidget`. The pet's sprites are scheduled at their source frame
 boundaries instead of polling at the display refresh rate, and scheduling pauses
 while the document is hidden. In both the shared chat input and new-session
-composer, the pet is anchored above the complete input stack so confirmations,
-notifications, and onboarding tips remain below it. Its optical bottom edge sits
-against the topmost visible input surface rather than the transparent stack
-boundary; the offset follows the bare input's actual top inset and caps at the
-slightly deeper confirmation/question alignment. When the pet approaches the
-input's right edge while rendering, its speech bubble moves to the pet's left
+composer, the pet host spans the complete input stack while its optical bottom
+edge aligns to the topmost visible surface in that stack. Placement follows the
+measured input-to-host inset up to the confirmation alignment, so persistent
+content above the input becomes the active platform. Passive status pills in the
+persistent-content slot are excluded from that calculation; confirmations,
+questions, banners, and other substantive surfaces still become the platform.
+The new-session composer uses its root as the pet's movement bounds rather than
+the nested input area so pickup and falling remain valid across the view. When
+the pet approaches the input's
+right edge while rendering, its speech bubble moves to the pet's left
 so the ellipsis remains visible without changing the pet's direction. Other pet
-states keep their standard presentation.
+states keep their standard presentation. Dragging uses a subtle wiggle while the
+current drop target lands on the input and a stronger wiggle when it will fall
+off. Falls accelerate with distance; revival returns the pet to its default
+position 32px from the active platform's right edge.
 
 Agent feedback created while the active session is undefined or uncreated uses
 one shared new-session feedback scope, so it follows every undefined/uncreated
@@ -411,6 +475,22 @@ active. Only accepted comments created after the active review registration are
 included in plan submission, so pre-existing or already-submitted session feedback
 is not resent or cleared. Ownership snapshots include hidden feedback states so a
 pre-existing comment cannot become plan-owned merely by transitioning to accepted.
+
+Agent-host feedback is session-scoped and shared by every peer chat. The feedback
+server tools normalize chat channels to the parent annotations channel, while the
+review-confirmation command bridge resolves the rendered `IChat.resource` through
+`ISessionsManagementService.getSessionForChatResource` before reading or mutating
+feedback. This keeps the unreviewed count, picker contents, and reveal selection on
+the same parent session even when the tool is invoked from an additional chat.
+`viewUnreviewedComments` returns an explicit picker selection when one exists;
+otherwise, including when confirmation is automatically approved, it returns every
+created PR and code-review comment and transitions them directly to `submitted`.
+The picker disables **Reveal Selected** when no comments are selected. When there
+are no created comments or pending selections to reveal, providers execute the
+empty tool call without presenting a confirmation, regardless of permission mode:
+Copilot and Claude gate their confirmation on
+`IAgentServerToolHost.requiresConfirmation`, while Codex runs server
+tools as dynamic tool calls, which never round-trip for approval.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
@@ -559,7 +639,7 @@ single-chat fork (which mints a new session via `createSession({ fork })`) is
 kept as the fallback for non-multi-chat sessions.
 
 Routing: `ForkConversationAction` exposes a `_tryForkAsChat` hook (default
-no-op). The Agents window override (in `localChatSessions.contribution.ts`)
+no-op). The Agents window override (in `agentHostForkActions.ts`)
 resolves the owning `ISession`, and only for agent-host sessions that
 `supportsMultipleChats`, calls
 `ISessionsManagementService.forkChatInSession(session, sourceChat, turnId)` →
@@ -794,6 +874,10 @@ existing risk-badge position with safety-appropriate visuals. A live
 approval-level change is pushed to every in-memory SDK
 chat immediately, including during an active turn, so leaving Allow all
 cannot leave the SDK in allow-all mode for later tool calls in that turn.
+Client tools preserve this approval when they execute without a live chat
+observer: the Agent Host's `autoApproveBySetting` metadata becomes the tool
+invocation's `preApproved` reason, and the headless invocation path honors it
+unless a pre-tool-use hook explicitly requests confirmation.
 `chat.experimental.autoApprovals.enabled` controls whether Assisted permissions is
 offered in approval pickers and defaults on outside Stable builds. Enterprise
 policy still leaves Approve When Safe and Allow All visible, but disables both with an
@@ -847,8 +931,8 @@ vice-versa. Auto-titling from the first message
 titles the _session_ for the default chat and the _chat itself_ (via
 `updateChatTitle`) for additional chats — see `agentHostSessionTitleController`.
 
-Single-chat providers (`copilotChatSessions`, `localChatSessions`) implement
-`renameSession` by renaming their single main chat. `renameSession` is a mandatory
+Single-chat providers implement `renameSession` by renaming their single main
+chat. `renameSession` is a mandatory
 `ISessionsProvider` method (no optional methods — see the interface guideline).
 
 Whether the rename UI is _offered_ is gated on `capabilities.supportsRename`, not
@@ -859,10 +943,10 @@ session's first state update). The session header inline-rename
 (`SessionHeader._isTitleEditable`) and the sessions-list "Rename..." action (gated on
 the `sessionSupportsRename` context-menu-overlay key, set from
 `element.capabilities.get().supportsRename` in `sessionsList`) both read this flag.
-Providers declare it truthfully: agent-host and `localChatSessions` sessions are
-always renameable; `copilotChatSessions` sets it only for the CopilotCLI and Claude
-session types, since `renameChat` throws for other backends. Omitting the flag means
-the session is not renameable.
+Providers declare it truthfully: agent-host sessions are always renameable;
+`copilotChatSessions` sets it only for the CopilotCLI and Claude session types,
+since `renameChat` throws for other backends. Omitting the flag means the session
+is not renameable.
 
 ### Session Change Propagation
 
@@ -889,6 +973,8 @@ future session matching and visibility management. A terminal that finishes
 creating after its draft was replaced is disposed before activation.
 
 Provider add notifications are authoritative upserts. A provisional `listSessions()` entry may already be cached when the backend publishes its materialized project and working directory, so providers update the existing session adapter in place and report it as changed rather than replacing its identity.
+
+Providers initialize synchronous session caches before registration completes. Read APIs such as `getSessions()` and `getSession()` must not populate a cache and synchronously emit `onDidChangeSessions`, because callers can read them while rendering a session-list tree update.
 
 ### First-Time Window-Open Telemetry
 
@@ -1032,9 +1118,9 @@ Model-picker-aware chat input notifications also stay input-scoped. Each `NewCha
 
 ### Delegate provider-specific decisions to the provider
 
-Core (non-provider) code must **not** branch on a provider's identity or session type to decide provider-specific behavior. Do not write `if (session.sessionType === SessionType.Local)` or `if (providerId === '…')` in the core to special-case a provider. Instead, add a method to `ISessionsProvider` that returns the decision and let each provider answer for itself.
+Core (non-provider) code must **not** branch on a provider's identity or session type to decide provider-specific behavior. Do not inspect `session.sessionType` or `providerId` in the core to special-case a provider. Instead, add a method to `ISessionsProvider` that returns the decision and let each provider answer for itself.
 
-**Example:** the sessions-core model picker presentation (grouping, featured models, the "Manage Models" action) is not decided in core. The core picker asks the active session's provider via `ISessionsProvider.getModelPickerOptions(sessionId)`, which returns an `ISessionModelPickerOptions`. The local provider returns `showManageModelsAction: true`; the others return `false`. Core never inspects the session type to make this choice. When the workbench entitlement still reports signed out but a provider already exposes targeted non-BYOK models, the shared picker promotes the available models that are featured in either control-manifest tier; it does not surface unavailable manifest entries until entitlement resolves.
+**Example:** the sessions-core model picker presentation (grouping, featured models, the "Manage Models" action) is not decided in core. The core picker asks the active session's provider via `ISessionsProvider.getModelPickerOptions(sessionId)`, which returns an `ISessionModelPickerOptions`. Core never inspects the session type to make this choice. When the workbench entitlement still reports signed out but a provider already exposes targeted non-BYOK models, the shared picker promotes the available models that are featured in either control-manifest tier; it does not surface unavailable manifest entries until entitlement resolves.
 
 Every model-picker trigger identifies the selected model's vendor with a leading provider icon derived from the model metadata (for example OpenAI, Claude, Gemini, or Copilot), including editor chat, active sessions, new sessions, and phone-layout pickers. Auto is provider-agnostic and always uses the Copilot icon, regardless of provider metadata or generic-icon presentation. Standard editor and Agents-window chat inputs collapse the trigger to that provider icon below 280px while retaining the full accessible model label.
 

@@ -192,7 +192,11 @@ export class Menu extends ActionBar {
 			}
 		}));
 
-		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_MOVE, e => {
+			if (e.movementX === 0 && e.movementY === 0) {
+				return;
+			}
+
 			let target = e.target as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
 				return;
@@ -204,6 +208,11 @@ export class Menu extends ActionBar {
 
 			if (target.classList.contains('action-item')) {
 				const lastFocusedItem = this.focusedItem;
+				// Moving within the focused item is the common case; skip the item lookup for it
+				if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
+					return;
+				}
+
 				this.setFocusedItem(target);
 
 				if (lastFocusedItem !== this.focusedItem) {
@@ -816,7 +825,11 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			}
 		}));
 
-		this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, e => {
+		this._register(addDisposableListener(this.element, EventType.MOUSE_MOVE, e => {
+			if (e.movementX === 0 && e.movementY === 0) {
+				return;
+			}
+
 			if (!this.mouseOver) {
 				this.mouseOver = true;
 

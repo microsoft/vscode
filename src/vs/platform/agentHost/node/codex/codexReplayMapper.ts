@@ -19,7 +19,9 @@ import {
 import {
 	describeFileChange,
 	describeWebSearch,
+	codexCompactionLabels,
 	fileChangeOutput,
+	mapCodexTurnError,
 	turnStateFromStatus,
 } from './codexMapAppServerEvents.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
@@ -41,6 +43,7 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  *  - `commandExecution` → completed terminal `ToolCallResponsePart`
  *  - `webSearch`        → completed web-search `ToolCallResponsePart`
  *  - `fileChange`       → completed file-edit `ToolCallResponsePart`
+ *  - `contextCompaction` → completed compaction `ToolCallResponsePart`
  *  - everything else    → currently dropped (reasoning/plan/mcp/collab)
  *
  * Mirrors the live mapper's translation kernel — including the sandbox
@@ -129,6 +132,11 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 			parts.push(webSearchToolCallPart(item));
 		} else if (item.type === 'fileChange') {
 			parts.push(fileChangeToolCallPart(item));
+		} else if (item.type === 'contextCompaction') {
+			if (!userText) {
+				userText = '/compact';
+			}
+			parts.push(compactionToolCallPart());
 		}
 		// Other item types (plan/reasoning/mcpToolCall/collabAgentToolCall/…)
 		// are not yet reconstructed in replay.
@@ -147,6 +155,7 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 		responseParts: parts,
 		usage: undefined,
 		state: turnStateFromStatus(codexTurn.status),
+		...(codexTurn.status === 'failed' && codexTurn.error ? { error: mapCodexTurnError(codexTurn.error) } : {}),
 	};
 }
 
@@ -235,6 +244,23 @@ function fileChangeToolCallPart(item: Extract<ThreadItem, { type: 'fileChange' }
 			pastTenseMessage: success ? 'Applied file changes' : 'Failed to apply file changes',
 			content: textContent(output),
 			error: success ? undefined : { message: `Patch ${item.status}` },
+		},
+	};
+}
+
+function compactionToolCallPart(): ToolCallResponsePart {
+	const labels = codexCompactionLabels();
+	return {
+		kind: ResponsePartKind.ToolCall,
+		toolCall: {
+			status: ToolCallStatus.Completed,
+			toolCallId: generateUuid(),
+			toolName: 'compact',
+			displayName: labels.displayName,
+			invocationMessage: labels.invocationMessage,
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			success: true,
+			pastTenseMessage: labels.pastTenseMessage,
 		},
 	};
 }
