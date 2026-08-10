@@ -1336,10 +1336,10 @@ export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
 function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 	const normalizedUrls = urls.map(url => {
-		const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
 		const groups = match?.groups;
 		return groups
-			? `https://github.com/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
+			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
 			: url;
 	});
 	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);

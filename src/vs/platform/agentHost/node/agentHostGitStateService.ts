@@ -201,7 +201,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const currentState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
 		const issueReferences = parseGitHubIssueReferences(text);
 		const repository = currentState?.owner && currentState.repo ? { owner: currentState.owner, repo: currentState.repo } : undefined;
-		const pullRequestReferences = parseGitHubPullRequestReferences(text, repository)
+		const gitHubHost = this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com';
+		const pullRequestReferences = parseGitHubPullRequestReferences(text, repository, gitHubHost)
 			.filter(reference => !repository || reference.owner.toLowerCase() === repository.owner.toLowerCase() && reference.repo.toLowerCase() === repository.repo.toLowerCase());
 		if (issueReferences.length === 0 && pullRequestReferences.length === 0) {
 			return;
@@ -221,7 +222,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			: {};
 		for (let index = pullRequestReferences.length - 1; index >= 0; index--) {
 			const reference = pullRequestReferences[index];
-			const url = toGitHubPullRequestUrl(reference);
+			const url = toGitHubPullRequestUrl(reference, gitHubHost);
 			nextState = {
 				...nextState,
 				...withMostRecentReferencedSessionPullRequest({ ...currentState, ...nextState }, url)

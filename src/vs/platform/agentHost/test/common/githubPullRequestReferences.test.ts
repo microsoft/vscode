@@ -23,4 +23,15 @@ suite('GitHub pull request references', () => {
 	test('ignores shorthand without repository context', () => {
 		assert.deepStrictEqual(parseGitHubPullRequestReferences('Check PR #42, issue #7, and #9.'), []);
 	});
+
+	test('uses the configured GitHub Enterprise host', () => {
+		assert.deepStrictEqual(parseGitHubPullRequestReferences(
+			'Compare https://github.com/o/r/pull/1 with https://ghe.example.com/o/r/pull/2 and PR #3.',
+			{ owner: 'o', repo: 'r' },
+			'ghe.example.com'
+		), [
+			{ owner: 'o', repo: 'r', number: 2 },
+			{ owner: 'o', repo: 'r', number: 3 },
+		]);
+	});
 });

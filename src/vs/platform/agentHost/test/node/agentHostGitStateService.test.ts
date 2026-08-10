@@ -135,7 +135,7 @@ suite('AgentHostGitStateService', () => {
 		]);
 	});
 
-	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; agentService?: IAgentService }) {
+	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; agentService?: IAgentService; enterpriseUri?: string }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
@@ -179,7 +179,7 @@ suite('AgentHostGitStateService', () => {
 			gitService,
 			options?.octoKitService ?? octoKitService,
 			options?.agentService ?? agentService,
-			createTestGitHubEndpointService(),
+			createTestGitHubEndpointService(options?.enterpriseUri),
 			new NullLogService(),
 			sessionDataService,
 		));
@@ -659,6 +659,40 @@ suite('AgentHostGitStateService', () => {
 		});
 
 		await h.service.attachSessionGitHubReferences(SESSION, 'Please unblock PR #1. Ignore https://github.com/octo/repo/pull/9.');
+
+		const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
+		assert.deepStrictEqual({
+			github,
+			related: [...getSessionRelatedPullRequestUrls(github)],
+		}, {
+			github: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: [pullRequestUrl],
+				initialPullRequestUrls: [pullRequestUrl],
+				associatedPullRequestUrls: [pullRequestUrl],
+				pullRequestBranchName: 'feature',
+			},
+			related: [pullRequestUrl],
+		});
+	});
+
+	test('promotes a referenced GitHub Enterprise baseline pull request', async () => {
+		const h = createHarness({ enterpriseUri: 'https://ghe.example.com' });
+		const pullRequestUrl = 'https://ghe.example.com/microsoft/vscode/pull/1';
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitHubState: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: [pullRequestUrl],
+				initialPullRequestUrls: [pullRequestUrl],
+				pullRequestBranchName: 'feature',
+			},
+			isolation: 'folder',
+		});
+
+		await h.service.attachSessionGitHubReferences(SESSION, 'Please unblock PR #1.');
 
 		const github = readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta);
 		assert.deepStrictEqual({

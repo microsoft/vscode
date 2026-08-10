@@ -10,14 +10,15 @@ export interface IGitHubPullRequestReference {
 	readonly number: number;
 }
 
-const PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/pull\/(?<number>\d+)\b/gi;
+const PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/pull\/(?<number>\d+)\b/gi;
 const PULL_REQUEST_SHORTHAND_PATTERN = /\b(?:PR|pull request)\s*#(?<number>\d+)\b/gi;
 
 /** Extracts unambiguous GitHub pull request references without duplicates. */
-export function parseGitHubPullRequestReferences(text: string, defaultRepository?: { readonly owner: string; readonly repo: string }): IGitHubPullRequestReference[] {
+export function parseGitHubPullRequestReferences(text: string, defaultRepository?: { readonly owner: string; readonly repo: string }, gitHubHost = 'github.com'): IGitHubPullRequestReference[] {
 	const candidates: (IGitHubPullRequestReference & { readonly index: number })[] = [];
 	const references: IGitHubPullRequestReference[] = [];
 	const seen = new Set<string>();
+	const normalizedGitHubHost = normalizeGitHubHost(gitHubHost);
 
 	const addCandidate = (index: number, owner: string, repo: string, rawNumber: string): void => {
 		const number = Number(rawNumber);
@@ -28,7 +29,7 @@ export function parseGitHubPullRequestReferences(text: string, defaultRepository
 	};
 
 	for (const match of text.matchAll(PULL_REQUEST_URL_PATTERN)) {
-		if (match.groups) {
+		if (match.groups && normalizeGitHubHost(match.groups.host) === normalizedGitHubHost) {
 			addCandidate(match.index, match.groups.owner, match.groups.repo, match.groups.number);
 		}
 	}
@@ -43,7 +44,7 @@ export function parseGitHubPullRequestReferences(text: string, defaultRepository
 	for (const candidate of candidates.sort((a, b) => a.index - b.index)) {
 		const { owner, repo, number } = candidate;
 		const reference = { owner, repo, number };
-		const url = toGitHubPullRequestUrl(reference).toLowerCase();
+		const url = toGitHubPullRequestUrl(reference, gitHubHost).toLowerCase();
 		if (!seen.has(url)) {
 			seen.add(url);
 			references.push(reference);
@@ -53,7 +54,11 @@ export function parseGitHubPullRequestReferences(text: string, defaultRepository
 	return references;
 }
 
-/** Builds the canonical `github.com` URL for a pull request reference. */
-export function toGitHubPullRequestUrl(reference: IGitHubPullRequestReference): string {
-	return `https://github.com/${reference.owner}/${reference.repo}/pull/${reference.number}`;
+function normalizeGitHubHost(host: string): string {
+	return host.toLowerCase().replace(/^www\./, '');
+}
+
+/** Builds the canonical URL for a pull request reference on the configured GitHub host. */
+export function toGitHubPullRequestUrl(reference: IGitHubPullRequestReference, gitHubHost = 'github.com'): string {
+	return `https://${normalizeGitHubHost(gitHubHost)}/${reference.owner}/${reference.repo}/pull/${reference.number}`;
 }
