@@ -477,7 +477,7 @@ export class ExplorerItem {
 		}
 
 		if (this.isDirectory) {
-			// Ignore separator to more easily deduct the next name to search
+			// Ignore separator to more easily deduce the next name to search
 			while (index < path.length && path[index] === posix.sep) {
 				index++;
 			}
