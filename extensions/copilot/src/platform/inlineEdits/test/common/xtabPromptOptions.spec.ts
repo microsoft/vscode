@@ -129,6 +129,14 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 	it('does not apply unification defaults without a profile', () => {
 		expect(getCompletionsNesUnificationDefaults(baseConfig())).toBeUndefined();
 	});
+
+	it('rejects an invalid unification profile', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({
+			unification: 'invalid' as ModelConfigurationUnification,
+		}));
+
+		expect(result.error).toBeDefined();
+	});
 });
 
 describe('GlobalBudgetOptions', () => {
