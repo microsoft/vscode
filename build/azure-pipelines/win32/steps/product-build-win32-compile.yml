@@ -24,10 +24,6 @@ parameters:
 steps:
   - template: ../../common/checkout.yml@self
 
-  - ${{ if eq(parameters.VSCODE_RUN_TESTS_IN_PARALLEL, true) }}:
-    - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
-      displayName: Ensure test artifact directories exist
-
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
