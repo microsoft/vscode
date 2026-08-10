@@ -491,8 +491,9 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * Reveals the prompt `delta` positions away from the one the header names, aligned to the top of the
-	 * transcript like the rail and the label activation. The header then follows scroll tracking, hiding
-	 * once the target prompt is at the top.
+	 * transcript like the rail and the label activation. Unlike a plain reveal, the header is forced pinned
+	 * afterwards instead of following scroll tracking, so repeated previous/next clicks keep it up rather
+	 * than it flickering away each time the target lands exactly at the top.
 	 */
 	navigate(delta: number): void {
 		const prompts = this._prompts.get();
@@ -507,6 +508,10 @@ export class PromptTimelineModel extends Disposable {
 			return;
 		}
 		this.reveal(prompts[target].requestId);
+		// `reveal` scrolls the target's own row to the viewport top, which `_updateActive` (run
+		// synchronously off that scroll) would otherwise read as "not yet scrolled past" and unpin.
+		// Re-pin afterwards so the header stays up for further clicks instead of hiding on every step.
+		this._scrollPinned.set(true, undefined);
 	}
 
 	/** The changed files for a tick's prompts, aggregated per file (for the hover card / drill-down). */
