@@ -54,7 +54,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	) {
 		super();
 
-		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator));
+		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator, (sessionStr: string) => this._disposingSessions.has(sessionStr)));
 		this._register(this._gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
 	}
 
@@ -126,7 +126,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	onSessionDeleted(sessionStr: string): void {
 		this._disposingSessions.delete(sessionStr);
-		this._changesetFileMonitor.onSessionDeleted(sessionStr);
 		this._gitStateService.onSessionDeleted(sessionStr);
 		this._changesets.onSessionDeleted(sessionStr);
 	}

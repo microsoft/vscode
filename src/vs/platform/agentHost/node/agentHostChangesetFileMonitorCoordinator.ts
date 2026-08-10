@@ -75,11 +75,11 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	private readonly _rootActiveSessions = new Map<string, Set<string>>();
 	/** Active sessions whose repository root cannot yet be resolved. */
 	private readonly _unresolvedActiveSessions = new Set<string>();
-	private readonly _disposingSessions = new Set<string>();
 	private readonly _watchAttachmentSequencer = new SequencerByKey<string>();
 	private readonly _activeTurnSequencer = new SequencerByKey<string>();
 
 	constructor(
+		private readonly _isSessionDisposing: (sessionStr: string) => boolean,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostFileMonitorService private readonly _fileMonitorService: IAgentHostFileMonitorService,
@@ -101,17 +101,14 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	onSessionRestored(sessionStr: string): void {
-		this._disposingSessions.delete(sessionStr);
 		this._retryWatchAttachment(sessionStr);
 	}
 
 	onSessionMaterialized(sessionStr: string): void {
-		this._disposingSessions.delete(sessionStr);
 		this._retryWatchAttachment(sessionStr);
 	}
 
 	async onSessionDisposed(sessionStr: string): Promise<void> {
-		this._disposingSessions.add(sessionStr);
 		this.untrackSessionChanges(buildUncommittedChangesetUri(sessionStr));
 		this.untrackSessionChanges(buildSessionChangesetUri(sessionStr));
 		this.untrackSessionChanges(sessionStr);
@@ -124,12 +121,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		].filter((pending): pending is Promise<unknown> => pending !== undefined));
 	}
 
-	onSessionDeleted(sessionStr: string): void {
-		this._disposingSessions.delete(sessionStr);
-	}
-
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
-		if (this._disposingSessions.has(sessionStr)) {
+		if (this._isSessionDisposing(sessionStr)) {
 			return;
 		}
 		this._activeTurnSequencer.queue(sessionStr, async () => {
@@ -267,7 +260,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	private _shouldAttachSession(sessionStr: string): boolean {
-		return !this._disposingSessions.has(sessionStr)
+		return !this._isSessionDisposing(sessionStr)
 			&& this._hasWatchInterest(sessionStr)
 			&& !this._activeSessionRoots.has(sessionStr)
 			&& !this._unresolvedActiveSessions.has(sessionStr);
@@ -303,13 +296,13 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	private async _markSessionActive(sessionStr: string): Promise<void> {
-		if (this._disposingSessions.has(sessionStr)) {
+		if (this._isSessionDisposing(sessionStr)) {
 			return;
 		}
 		this._removeActiveSession(sessionStr);
 		this._pendingWatchInterest.delete(sessionStr);
 		const repositoryRoot = await this._resolveActivityRepositoryRoot(sessionStr);
-		if (this._disposingSessions.has(sessionStr)) {
+		if (this._isSessionDisposing(sessionStr)) {
 			return;
 		}
 		if (!repositoryRoot) {
@@ -333,7 +326,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	private _markSessionInactive(sessionStr: string): void {
-		if (this._disposingSessions.has(sessionStr)) {
+		if (this._isSessionDisposing(sessionStr)) {
 			return;
 		}
 		const rootStr = this._removeActiveSession(sessionStr);

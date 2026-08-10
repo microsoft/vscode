@@ -128,6 +128,11 @@ function tryParsePersistedDiffs(raw: string | undefined, sessionUri: string, kin
 	}
 }
 
+interface IChangesetSessionWork {
+	disposing: boolean;
+	readonly pending: Set<Promise<unknown>>;
+}
+
 export class AgentHostChangesetService extends Disposable implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
@@ -139,14 +144,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
 	/** Per-`(session, turnId)` debounce timers for mid-turn per-turn changeset recomputation. */
 	private readonly _perTurnDebouncedDiffTimers = this._register(new DisposableMap<string>());
-	/** Queued and in-flight diff computations grouped by owning session. */
-	private readonly _pendingComputations = new Map<ProtocolURI, Set<Promise<unknown>>>();
-	/** Sequencer work grouped by owning session, including callbacks not yet started. */
-	private readonly _pendingScheduledComputations = new Map<ProtocolURI, Set<Promise<void>>>();
-	/** In-flight session metadata writes grouped by owning session. */
-	private readonly _pendingPersistence = new Map<ProtocolURI, Set<Promise<void>>>();
-	/** Sessions being deleted, for which no new diff computation may start. */
-	private readonly _disposingSessions = new Set<ProtocolURI>();
+	private readonly _sessionWork = new Map<ProtocolURI, IChangesetSessionWork>();
 	private readonly _activeStaticComputes = new Set<ProtocolURI>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
@@ -400,7 +398,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * in-flight computations before its database or worktree is removed.
 	 */
 	async onSessionDisposed(session: ProtocolURI): Promise<void> {
-		this._disposingSessions.add(session);
+		const work = this._getSessionWork(session);
+		work.disposing = true;
 		this._pendingMaterialization.delete(session);
 		this._cancelDebouncedDiffComputation(session);
 		const perTurnKeyPrefix = `${session}\u0000`;
@@ -410,22 +409,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 
-		const pendingScheduled = this._pendingScheduledComputations.get(session);
-		if (pendingScheduled) {
-			await Promise.allSettled([...pendingScheduled]);
-		}
-		const pending = this._pendingComputations.get(session);
-		if (pending) {
-			await Promise.allSettled([...pending]);
-		}
-		const pendingPersistence = this._pendingPersistence.get(session);
-		if (pendingPersistence) {
-			await Promise.allSettled([...pendingPersistence]);
-		}
+		await Promise.allSettled([...work.pending]);
 	}
 
 	onSessionDeleted(session: ProtocolURI): void {
-		this._disposingSessions.delete(session);
+		this._sessionWork.delete(session);
 	}
 
 	async computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {
@@ -782,47 +770,49 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _queueDiffComputation(session: ProtocolURI, key: string, task: () => Promise<void>): void {
-		if (this._disposingSessions.has(session)) {
+		const work = this._getSessionWork(session);
+		if (work.disposing) {
 			return;
 		}
 
-		const computation = this._diffComputationSequencer.queue(key, () => this._trackComputation(session, undefined, task));
-		let pending = this._pendingScheduledComputations.get(session);
-		if (!pending) {
-			pending = new Set();
-			this._pendingScheduledComputations.set(session, pending);
-		}
-		pending.add(computation);
-		const removePending = () => {
-			pending.delete(computation);
-			if (pending.size === 0 && this._pendingScheduledComputations.get(session) === pending) {
-				this._pendingScheduledComputations.delete(session);
+		const computation = this._diffComputationSequencer.queue(key, () => {
+			if (work.disposing || !this._stateManager.getSessionState(session)) {
+				return Promise.resolve();
 			}
-		};
-		void computation.then(removePending, removePending);
+			return task();
+		});
+		this._trackSessionOperation(session, work, computation);
 		void computation.catch(error => this._logService.error(`[AgentHostChangesetService] Scheduled changeset computation failed for ${session}`, error));
 	}
 
 	private _trackComputation<T>(session: ProtocolURI, skippedResult: T, task: () => Promise<T>): Promise<T> {
-		if (this._disposingSessions.has(session) || !this._stateManager.getSessionState(session)) {
+		const work = this._getSessionWork(session);
+		if (work.disposing || !this._stateManager.getSessionState(session)) {
 			return Promise.resolve(skippedResult);
 		}
 
-		const computation = task();
-		let pending = this._pendingComputations.get(session);
-		if (!pending) {
-			pending = new Set();
-			this._pendingComputations.set(session, pending);
-		}
-		pending.add(computation);
+		return this._trackSessionOperation(session, work, task());
+	}
+
+	private _trackSessionOperation<T>(session: ProtocolURI, work: IChangesetSessionWork, operation: Promise<T>): Promise<T> {
+		work.pending.add(operation);
 		const removePending = () => {
-			pending.delete(computation);
-			if (pending.size === 0 && this._pendingComputations.get(session) === pending) {
-				this._pendingComputations.delete(session);
+			work.pending.delete(operation);
+			if (!work.disposing && work.pending.size === 0 && this._sessionWork.get(session) === work) {
+				this._sessionWork.delete(session);
 			}
 		};
-		void computation.then(removePending, removePending);
-		return computation;
+		void operation.then(removePending, removePending);
+		return operation;
+	}
+
+	private _getSessionWork(session: ProtocolURI): IChangesetSessionWork {
+		let work = this._sessionWork.get(session);
+		if (!work) {
+			work = { disposing: false, pending: new Set() };
+			this._sessionWork.set(session, work);
+		}
+		return work;
 	}
 
 	private _markStaticChangesetComputing(session: ProtocolURI, kind: StaticChangesetKind): ChangesetStatus | undefined {
@@ -1206,7 +1196,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * configValues there) and a shared util would only have two callers.
 	 */
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): Promise<void> {
-		if (this._disposingSessions.has(session)) {
+		const work = this._getSessionWork(session);
+		if (work.disposing) {
 			return Promise.resolve();
 		}
 		const ref = this._sessionDataService.openDatabase(URI.parse(session));
@@ -1215,19 +1206,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}).finally(() => {
 			ref.dispose();
 		});
-		let pending = this._pendingPersistence.get(session);
-		if (!pending) {
-			pending = new Set();
-			this._pendingPersistence.set(session, pending);
-		}
-		pending.add(persistence);
-		const removePending = () => {
-			pending.delete(persistence);
-			if (pending.size === 0 && this._pendingPersistence.get(session) === pending) {
-				this._pendingPersistence.delete(session);
-			}
-		};
-		void persistence.then(removePending, removePending);
-		return persistence;
+		return this._trackSessionOperation(session, work, persistence);
 	}
 }
