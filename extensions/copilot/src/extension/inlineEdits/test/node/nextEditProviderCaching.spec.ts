@@ -12,6 +12,7 @@ import { NullGitExtensionService } from '../../../../platform/git/common/nullGit
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
+import { DEFAULT_INLINE_EDITS_UNIFICATION_CONFIGURATION } from '../../../../platform/inlineEdits/common/inlineEditsUnification';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
@@ -58,7 +59,7 @@ function createModelService(rejectedEditMemoryEnabled = false, promptingStrategy
 		setCurrentModelId: async _modelId => { },
 		selectedModelConfiguration: () => modelConfiguration,
 		defaultModelConfiguration: () => modelConfiguration,
-		unificationConfiguration: () => undefined,
+		unificationConfiguration: () => DEFAULT_INLINE_EDITS_UNIFICATION_CONFIGURATION,
 	};
 }
 

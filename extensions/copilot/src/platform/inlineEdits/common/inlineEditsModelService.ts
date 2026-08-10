@@ -22,7 +22,7 @@ export interface IInlineEditsModelService {
 
 	defaultModelConfiguration(): ModelConfiguration;
 
-	unificationConfiguration(): InlineEditsUnificationConfiguration | undefined;
+	unificationConfiguration(): InlineEditsUnificationConfiguration;
 }
 
 export const IInlineEditsModelService = createServiceIdentifier<IInlineEditsModelService>('IInlineEditsModelService');

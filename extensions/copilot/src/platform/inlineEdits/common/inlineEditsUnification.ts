@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelConfiguration } from './dataTypes/xtabPromptOptions';
-import type { ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService } from '../../configuration/common/configurationService';
+import { ConfigKey, type ExperimentBasedConfig, type ExperimentBasedConfigType, type IConfigurationService } from '../../configuration/common/configurationService';
 import type { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 
 export enum InlineEditsUnification {
@@ -24,7 +24,17 @@ export interface InlineEditsUnificationConfiguration {
 	readonly cacheDelay: number;
 }
 
-export const COMPLETIONS_NES_UNIFICATION_DEFAULTS: InlineEditsUnificationConfiguration = {
+export const DEFAULT_INLINE_EDITS_UNIFICATION_CONFIGURATION: InlineEditsUnificationConfiguration = {
+	nLinesBelow: 5,
+	nLinesAbove: 2,
+	unification: false,
+	rebasedCacheDelay: 0,
+	extraDebounceEndOfLine: 2000,
+	debounce: 100,
+	cacheDelay: 200,
+};
+
+const COMPLETIONS_NES_UNIFICATION_DEFAULTS: InlineEditsUnificationConfiguration = {
 	nLinesBelow: 7,
 	nLinesAbove: 0,
 	unification: true,
@@ -34,20 +44,34 @@ export const COMPLETIONS_NES_UNIFICATION_DEFAULTS: InlineEditsUnificationConfigu
 	cacheDelay: 200,
 };
 
-export function getInlineEditsUnificationDefaults(config: ModelConfiguration | null | undefined): InlineEditsUnificationConfiguration | undefined {
-	return config?.unification === InlineEditsUnification.CompletionsNes
+export function resolveInlineEditsUnificationConfiguration(
+	modelConfiguration: ModelConfiguration,
+	configurationService: IConfigurationService,
+	experimentationService: IExperimentationService,
+): InlineEditsUnificationConfiguration {
+	const defaults = modelConfiguration.unification === InlineEditsUnification.CompletionsNes
 		? COMPLETIONS_NES_UNIFICATION_DEFAULTS
-		: undefined;
+		: DEFAULT_INLINE_EDITS_UNIFICATION_CONFIGURATION;
+
+	return {
+		nLinesBelow: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, experimentationService, defaults.nLinesBelow),
+		nLinesAbove: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, experimentationService, defaults.nLinesAbove),
+		unification: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsUnification, experimentationService, defaults.unification),
+		rebasedCacheDelay: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, experimentationService, defaults.rebasedCacheDelay),
+		extraDebounceEndOfLine: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, experimentationService, defaults.extraDebounceEndOfLine),
+		debounce: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsDebounce, experimentationService, defaults.debounce),
+		cacheDelay: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsCacheDelay, experimentationService, defaults.cacheDelay),
+	};
 }
 
-export function getInlineEditsConfigWithDefault<T extends ExperimentBasedConfigType>(
+function getConfigWithDefault<T extends boolean | number | string>(
 	configurationService: IConfigurationService,
-	key: ExperimentBasedConfig<T>,
+	key: ExperimentBasedConfig<T | undefined>,
 	experimentationService: IExperimentationService,
 	defaultValue: T,
 ): T {
 	if (configurationService.isConfigured(key)) {
-		return configurationService.getExperimentBasedConfig(key, experimentationService);
+		return configurationService.getExperimentBasedConfig(key, experimentationService) ?? defaultValue;
 	}
 
 	const experimentValue = getExperimentValue(key, experimentationService);
@@ -55,8 +79,7 @@ export function getInlineEditsConfigWithDefault<T extends ExperimentBasedConfigT
 		return experimentValue;
 	}
 
-	const configuredValue = configurationService.getExperimentBasedConfig(key, experimentationService);
-	return configuredValue !== configurationService.getDefaultValue(key) ? configuredValue : defaultValue;
+	return defaultValue;
 }
 
 function getExperimentValue<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T | undefined {

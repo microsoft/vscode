@@ -8,7 +8,7 @@ import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType } from '../
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { AggressivenessLevel, AggressivenessSetting, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, ModelConfiguration, UserHappinessScoreConfiguration } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { getInlineEditsUnificationDefaults, InlineEditsUnification } from '../../../../platform/inlineEdits/common/inlineEditsUnification';
+import { InlineEditsUnification, resolveInlineEditsUnificationConfiguration } from '../../../../platform/inlineEdits/common/inlineEditsUnification';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
@@ -103,7 +103,7 @@ describe('UserInteractionMonitor', () => {
 		setCurrentModelId: async () => { },
 		selectedModelConfiguration: () => modelConfiguration,
 		defaultModelConfiguration: () => modelConfiguration,
-		unificationConfiguration: () => getInlineEditsUnificationDefaults(modelConfiguration),
+		unificationConfiguration: () => resolveInlineEditsUnificationConfiguration(modelConfiguration, configurationService, experimentationService),
 	};
 
 	beforeEach(() => {

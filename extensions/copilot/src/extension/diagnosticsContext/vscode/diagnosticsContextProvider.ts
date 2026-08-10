@@ -17,14 +17,13 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { Position } from '../../../util/vs/editor/common/core/position';
 import { Range } from '../../../util/vs/editor/common/core/range';
 import { Diagnostic, DiagnosticSeverity, Range as ExternalRange } from '../../../vscodeTypes';
-import { N_LINES_ABOVE, N_LINES_BELOW } from '../../xtab/common/promptCrafting';
 
 export class DiagnosticsContextContribution extends Disposable {
 
 	private readonly _enableDiagnosticsContextProvider: IObservable<boolean>;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@ILanguageDiagnosticsService private readonly diagnosticsService: ILanguageDiagnosticsService,
@@ -43,7 +42,7 @@ export class DiagnosticsContextContribution extends Disposable {
 	private register(): IDisposable {
 		const disposables = new DisposableStore();
 		try {
-			const resolver = new ContextResolver(this.diagnosticsService, this.configurationService, this.experimentationService, this.modelService);
+			const resolver = new ContextResolver(this.diagnosticsService, this.experimentationService, this.modelService);
 			const provider: Copilot.ContextProvider<Copilot.SupportedContextItem> = {
 				id: 'diagnostics-context-provider',
 				selector: '*',
@@ -67,7 +66,6 @@ class ContextResolver implements Copilot.ContextResolver<Copilot.SupportedContex
 
 	constructor(
 		private readonly diagnosticsService: ILanguageDiagnosticsService,
-		private readonly configurationService: IConfigurationService,
 		private readonly experimentationService: IExperimentationService,
 		private readonly modelService: IInlineEditsModelService,
 	) { }
@@ -90,12 +88,8 @@ class ContextResolver implements Copilot.ContextResolver<Copilot.SupportedContex
 		const requestedFileResource = URI.parse(request.documentContext.uri);
 		const cursor = new Position(request.documentContext.position.line + 1, request.documentContext.position.character + 1);
 		const unificationConfiguration = this.modelService.unificationConfiguration();
-		const linesAbove = unificationConfiguration?.nLinesAbove
-			?? this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.experimentationService)
-			?? N_LINES_ABOVE;
-		const linesBelow = unificationConfiguration?.nLinesBelow
-			?? this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.experimentationService)
-			?? N_LINES_BELOW;
+		const linesAbove = unificationConfiguration.nLinesAbove;
+		const linesBelow = unificationConfiguration.nLinesBelow;
 		const editWindow = new Range(cursor.lineNumber - linesAbove, 1, cursor.lineNumber + linesBelow, Number.MAX_SAFE_INTEGER);
 
 		return this.getContext(requestedFileResource, cursor, {

@@ -9,19 +9,43 @@ import { DefaultsOnlyConfigurationService } from '../../../configuration/common/
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ModelConfiguration } from '../../common/dataTypes/xtabPromptOptions';
-import { getInlineEditsConfigWithDefault, getInlineEditsUnificationDefaults, InlineEditsUnification } from '../../common/inlineEditsUnification';
+import { InlineEditsUnification, resolveInlineEditsUnificationConfiguration } from '../../common/inlineEditsUnification';
 
 describe('inline edits unification', () => {
+	const defaultModelConfiguration: ModelConfiguration = {
+		modelName: 'test-model',
+		promptingStrategy: undefined,
+		includeTagsInCurrentFile: false,
+		lintOptions: undefined,
+	};
+
+	test('resolves the normal defaults', () => {
+		expect(resolveInlineEditsUnificationConfiguration(
+			defaultModelConfiguration,
+			new DefaultsOnlyConfigurationService(),
+			new NullExperimentationService(),
+		)).toEqual({
+			nLinesBelow: 5,
+			nLinesAbove: 2,
+			unification: false,
+			rebasedCacheDelay: 0,
+			extraDebounceEndOfLine: 2000,
+			debounce: 100,
+			cacheDelay: 200,
+		});
+	});
+
 	test('resolves the completions NES profile', () => {
 		const config: ModelConfiguration = {
-			modelName: 'test-model',
-			promptingStrategy: undefined,
-			includeTagsInCurrentFile: false,
-			lintOptions: undefined,
+			...defaultModelConfiguration,
 			unification: InlineEditsUnification.CompletionsNes,
 		};
 
-		expect(getInlineEditsUnificationDefaults(config)).toEqual({
+		expect(resolveInlineEditsUnificationConfiguration(
+			config,
+			new DefaultsOnlyConfigurationService(),
+			new NullExperimentationService(),
+		)).toEqual({
 			nLinesBelow: 7,
 			nLinesAbove: 0,
 			unification: true,
@@ -36,12 +60,11 @@ describe('inline edits unification', () => {
 		const configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 		configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsDebounce, 25);
 
-		expect(getInlineEditsConfigWithDefault(
+		expect(resolveInlineEditsUnificationConfiguration(
+			{ ...defaultModelConfiguration, unification: InlineEditsUnification.CompletionsNes },
 			configurationService,
-			ConfigKey.TeamInternal.InlineEditsDebounce,
 			new NullExperimentationService(),
-			0,
-		)).toBe(25);
+		).debounce).toBe(25);
 	});
 
 	test('prefers an experiment treatment over the profile default', () => {
@@ -52,11 +75,10 @@ describe('inline edits unification', () => {
 			}
 		}();
 
-		expect(getInlineEditsConfigWithDefault(
+		expect(resolveInlineEditsUnificationConfiguration(
+			{ ...defaultModelConfiguration, unification: InlineEditsUnification.CompletionsNes },
 			new DefaultsOnlyConfigurationService(),
-			key,
 			experimentationService,
-			0,
-		)).toBe(50);
+		).debounce).toBe(50);
 	});
 });

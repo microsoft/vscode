@@ -17,10 +17,12 @@ import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/la
 import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
+import { resolveInlineEditsUnificationConfiguration } from '../../../../platform/inlineEdits/common/inlineEditsUnification';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { ILogger } from '../../../../platform/log/common/logService';
 import { FilterReason } from '../../../../platform/networking/common/openai';
 import { ISimulationTestContext } from '../../../../platform/simulationTestContext/common/simulationTestContext';
+import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
@@ -118,6 +120,8 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 		lintOptions: undefined,
 	};
 
+	constructor(private readonly _configurationService: () => IConfigurationService) { }
+
 	async setCurrentModelId(_modelId: string): Promise<void> { }
 
 	selectedModelConfiguration(): ModelConfiguration {
@@ -129,7 +133,7 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 	}
 
 	unificationConfiguration() {
-		return undefined;
+		return resolveInlineEditsUnificationConfiguration(this._selectedConfig, this._configurationService(), new NullExperimentationService());
 	}
 
 	setSelectedConfig(config: Partial<ModelConfiguration>): void {
@@ -674,7 +678,7 @@ describe('XtabProvider integration', () => {
 	beforeEach(() => {
 		const testingServiceCollection = createExtensionUnitTestingServices(disposables);
 
-		mockModelService = new MockInlineEditsModelService();
+		mockModelService = new MockInlineEditsModelService(() => configService);
 		testingServiceCollection.set(IInlineEditsModelService, mockModelService);
 
 		streamingFetcher = new StreamingMockChatMLFetcher();

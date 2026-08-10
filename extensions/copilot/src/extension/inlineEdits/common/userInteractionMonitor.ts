@@ -219,8 +219,7 @@ export class UserInteractionMonitor {
 	// Creates a DelaySession based on recent user interactions
 
 	public createDelaySession(requestTime: number | undefined): DelaySession {
-		const baseDebounceTime = this._modelService.unificationConfiguration()?.debounce
-			?? this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsDebounce, this._experimentationService);
+		const baseDebounceTime = this._modelService.unificationConfiguration().debounce;
 
 		const backoffDebounceEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsBackoffDebounceEnabled, this._experimentationService);
 		const expectedTotalTime = backoffDebounceEnabled ? this._getExpectedTotalTime(baseDebounceTime) : undefined;

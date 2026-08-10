@@ -12,6 +12,7 @@ import { NullGitExtensionService } from '../../../../platform/git/common/nullGit
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { ModelConfiguration, PromptingStrategy, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsEnablement } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
+import { resolveInlineEditsUnificationConfiguration } from '../../../../platform/inlineEdits/common/inlineEditsUnification';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
@@ -50,16 +51,6 @@ const testModelConfiguration: ModelConfiguration = {
 	promptingStrategy: PromptingStrategy.PatchBased02WithRecentLineNumbers,
 	includeTagsInCurrentFile: false,
 	lintOptions: undefined,
-};
-
-const testModelService: IInlineEditsModelService = {
-	_serviceBrand: undefined,
-	modelInfo: undefined,
-	onModelListUpdated: Event.None,
-	setCurrentModelId: async _modelId => { },
-	selectedModelConfiguration: () => testModelConfiguration,
-	defaultModelConfiguration: () => testModelConfiguration,
-	unificationConfiguration: () => undefined,
 };
 
 interface ICallRecord {
@@ -274,6 +265,15 @@ describe('NextEditProvider speculative requests', () => {
 	});
 
 	function createProviderAndWorkspace(statelessProvider: IStatelessNextEditProvider): { nextEditProvider: NextEditProvider; workspace: MutableObservableWorkspace } {
+		const testModelService: IInlineEditsModelService = {
+			_serviceBrand: undefined,
+			modelInfo: undefined,
+			onModelListUpdated: Event.None,
+			setCurrentModelId: async _modelId => { },
+			selectedModelConfiguration: () => testModelConfiguration,
+			defaultModelConfiguration: () => testModelConfiguration,
+			unificationConfiguration: () => resolveInlineEditsUnificationConfiguration(testModelConfiguration, configService, expService),
+		};
 		const workspace = new MutableObservableWorkspace();
 		const git = new ObservableGit(gitExtensionService);
 		const nextEditProvider = new NextEditProvider(

@@ -63,7 +63,7 @@ import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFilterin
 import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
-import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces, runGlobalBudgetCascade, CascadeResult } from '../common/promptCrafting';
+import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_AS_CONTEXT, PromptPieces, runGlobalBudgetCascade, CascadeResult } from '../common/promptCrafting';
 import { countTokensForLines, toUniquePath } from '../common/promptCraftingUtils';
 import { INeighborFileSnippet, ISimilarFilesContextService } from '../common/similarFilesContextService';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../common/systemMessages';
@@ -610,8 +610,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				delaySession.setExtraDebounce(inlineSuggestionDebounce);
 			} else if (isCursorAtEndOfLine) {
 				tracer.trace('Debouncing for cursor at end of line');
-				const extraDebounceEndOfLine = this.modelService.unificationConfiguration()?.extraDebounceEndOfLine
-					?? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, this.expService);
+				const extraDebounceEndOfLine = this.modelService.unificationConfiguration().extraDebounceEndOfLine;
 				delaySession.setExtraDebounce(extraDebounceEndOfLine);
 			} else {
 				tracer.trace('No extra debounce applied');
@@ -1476,9 +1475,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					}
 				}
 			} else {
-				nLinesAbove = unificationConfiguration?.nLinesAbove
-					?? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.expService)
-					?? N_LINES_ABOVE;
+				nLinesAbove = unificationConfiguration.nLinesAbove;
 			}
 		}
 
@@ -1488,15 +1485,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			tracer.trace(`Using expanded nLinesBelow: ${request.expandedEditWindowNLines}`);
 			nLinesBelow = request.expandedEditWindowNLines;
 		} else {
-			const overriddenNLinesBelow = unificationConfiguration?.nLinesBelow
-				?? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.expService);
-			if (overriddenNLinesBelow !== undefined) {
-				tracer.trace(`Using overridden nLinesBelow: ${overriddenNLinesBelow}`);
-				nLinesBelow = overriddenNLinesBelow;
-			} else {
-				tracer.trace(`Using default nLinesBelow: ${N_LINES_BELOW}`);
-				nLinesBelow = N_LINES_BELOW; // default
-			}
+			nLinesBelow = unificationConfiguration.nLinesBelow;
+			tracer.trace(`Using configured nLinesBelow: ${nLinesBelow}`);
 		}
 
 		let codeToEditStart = Math.max(0, cursorLineOffset - nLinesAbove);
