@@ -127,21 +127,6 @@ A user can reopen a Copilot session after restarting Agent Host and expects the 
     --grep "shell failure metadata|plugin skill lifecycle is reconstructed"
   ```
 
-### Copilot SDK rejects the host's interactive denial result variant
-
-- Test: `declining a file creation tool prevents the mutation and completes the turn`.
-- Scope: Copilot.
-- Expected: declining the create tool returns a valid rejection result to the SDK and the model continues without creating the file.
-- Observed: the host returns `denied-interactively-by-user`, while the bundled SDK accepts `reject`; the SDK reports `permission host returned malformed payload`.
-- Gate: the Copilot variant is disabled at the test declaration in `fileOperationsSuite.ts`.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "declining a file creation tool"
-  ```
-
 ### Claude file-tool denial mutates the workspace during Linux replay
 
 - Test: `declining a file creation tool prevents the mutation and completes the turn`.
