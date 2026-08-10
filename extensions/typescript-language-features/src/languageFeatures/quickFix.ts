@@ -21,7 +21,7 @@ import { CompositeCommand, EditorChatFollowUp, EditorChatFollowUp_Args, Expand }
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 type ApplyCodeActionCommand_args = {
-	readonly documentUri: vscode.Uri;
+	readonly document: vscode.TextDocument;
 	readonly diagnostic: vscode.Diagnostic;
 	readonly action: Proto.CodeFixAction;
 	readonly followupAction?: Command;
@@ -37,7 +37,7 @@ class ApplyCodeActionCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute({ documentUri, action, diagnostic, followupAction }: ApplyCodeActionCommand_args): Promise<boolean> {
+	public async execute({ document, action, diagnostic, followupAction }: ApplyCodeActionCommand_args): Promise<boolean> {
 		/* __GDPR__
 			"quickFix.execute" : {
 				"owner": "mjbvz",
@@ -51,7 +51,7 @@ class ApplyCodeActionCommand implements Command {
 			fixName: action.fixName
 		});
 
-		this.diagnosticManager.deleteDiagnostic(documentUri, diagnostic);
+		this.diagnosticManager.deleteDiagnostic(document.uri, diagnostic);
 		const codeActionResult = await applyCodeActionCommands(this.client, action.commands, nulToken);
 		await followupAction?.execute();
 		return codeActionResult;
@@ -355,7 +355,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		codeAction.ranges = [diagnostic.range];
 		codeAction.command = {
 			command: ApplyCodeActionCommand.ID,
-			arguments: [{ action, diagnostic, documentUri: document.uri } satisfies ApplyCodeActionCommand_args],
+			arguments: [{ action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
 			title: ''
 		};
 		actions.push(codeAction);
@@ -416,7 +416,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 					title: '',
 					arguments: [{
 						command: ApplyCodeActionCommand.ID,
-						arguments: [{ action, diagnostic, documentUri: document.uri } satisfies ApplyCodeActionCommand_args],
+						arguments: [{ action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
 						title: ''
 					}, {
 						command: EditorChatFollowUp.ID,
