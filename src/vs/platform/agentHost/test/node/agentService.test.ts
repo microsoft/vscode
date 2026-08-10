@@ -3706,14 +3706,76 @@ suite('AgentService (node dispatcher)', () => {
 
 			await service.restoreSession(sessionResource);
 
-			// The subagent child state must already exist WITHOUT any client
-			// subscribing to it: parent restore registered it eagerly.
-			const childSessionUri = buildSubagentSessionUri(sessionResource.toString(), 'tc-sub');
-			const childState = service.stateManager.getSessionState(childSessionUri);
-			assert.ok(childState, 'subagent child should be eagerly registered during parent restore');
+			const childChatUri = buildSubagentChatUri(sessionResource.toString(), 'tc-sub');
+			const childState = service.stateManager.getChatState(childChatUri);
+			assert.ok(childState, 'subagent chat should be eagerly registered during parent restore');
 			assert.strictEqual(childState!.turns.length, 1, 'child should have its reconstructed turn');
 			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-1'), 'child should contain the inner tool call');
+			assert.strictEqual(service.stateManager.getSessionState(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub')), undefined);
+		});
+
+		test('a concurrent restore waits for subagent catalog hydration after parent state exists', async () => {
+			class DelayedSubagentRestoreAgent extends MockAgent {
+				readonly subagentsReached = new DeferredPromise<void>();
+				readonly subagentsGate = new DeferredPromise<void>();
+
+				async getSubagentSessions(): Promise<readonly IRestoredSubagentSession[]> {
+					this.subagentsReached.complete();
+					await this.subagentsGate.p;
+					return [];
+				}
+			}
+
+			const agent = disposables.add(new DelayedSubagentRestoreAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			const firstRestore = service.restoreSession(session);
+			await agent.subagentsReached.p;
+			assert.ok(service.stateManager.getSessionState(session.toString()));
+			let secondSettled = false;
+			const secondRestore = service.restoreSession(session).finally(() => { secondSettled = true; });
+			await timeout(0);
+			assert.strictEqual(secondSettled, false);
+
+			agent.subagentsGate.complete();
+			await Promise.all([firstRestore, secondRestore]);
+		});
+
+		test('subscribing to a restored canonical subagent chat reconstructs it on demand', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const parent = session.toString();
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review this code', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner', result: { success: true, pastTenseMessage: 'Ran ls', content: [{ type: ToolResultContentType.Text, text: 'file1.ts' }] }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found files' }] } },
+			];
+
+			const chatUri = buildSubagentChatUri(parent, 'tc-sub');
+			const snapshot = await service.subscribe(URI.parse(chatUri), 'client-restored-subagent');
+
+			assert.deepStrictEqual({
+				resource: snapshot.resource,
+				turnCount: service.stateManager.getChatState(chatUri)?.turns.length,
+				origin: service.stateManager.getChatState(chatUri)?.origin,
+				legacySessionExists: !!service.stateManager.getSessionState(buildSubagentSessionUri(parent, 'tc-sub')),
+			}, {
+				resource: chatUri,
+				turnCount: 1,
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(parent), toolCallId: 'tc-sub' },
+				legacySessionExists: false,
+			});
 		});
 
 		test('inner assistant messages from subagent route via envelope agentId (fixture)', async () => {

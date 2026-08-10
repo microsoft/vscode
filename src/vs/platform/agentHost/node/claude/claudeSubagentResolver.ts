@@ -10,6 +10,7 @@ import { ILogService } from '../../../log/common/log.js';
 import {
 	ResponsePartKind,
 	ToolCallStatus,
+	ToolResultContentType,
 	type Turn,
 } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
@@ -128,6 +129,7 @@ export class PromptMatchStrategy implements ISubagentLookupStrategy {
 		if (!prompt) {
 			return undefined;
 		}
+
 		let agentIds: readonly string[];
 		try {
 			agentIds = await this._sdk.listSubagents(ctx.parentSessionId);
@@ -203,6 +205,92 @@ export function extractSpawningPromptFromTranscript(transcript: readonly Turn[],
 				return undefined;
 			}
 			return vString(bag.prompt);
+		}
+	}
+	return undefined;
+}
+
+export class ResultMatchStrategy implements ISubagentLookupStrategy {
+	readonly name = 'result_match';
+
+	constructor(
+		private readonly _sdk: IClaudeAgentSdkService,
+		private readonly _logService: ILogService,
+	) { }
+
+	async lookup(toolCallId: string, ctx: ISubagentLookupContext): Promise<string | undefined> {
+		const transcript = await fetchParentTurns(this._sdk, this._logService, ctx, 'ResultMatch');
+		const expected = transcript ? extractCompletedResultTextFromTranscript(transcript, toolCallId) : undefined;
+		if (!expected) {
+			return undefined;
+		}
+		let agentIds: readonly string[];
+		try {
+			agentIds = await this._sdk.listSubagents(ctx.parentSessionId);
+		} catch (err) {
+			this._logService.warn(`[claudeSubagentResolver] ResultMatch: listSubagents failed: ${err}`);
+			return undefined;
+		}
+		let matchedAgentId: string | undefined;
+		for (const agentId of agentIds) {
+			if (ctx.token.isCancellationRequested) {
+				return undefined;
+			}
+			try {
+				const messages = await this._sdk.getSubagentMessages(ctx.parentSessionId, agentId);
+				if (extractLastAssistantText(messages)?.trim() === expected.trim()) {
+					if (matchedAgentId) {
+						return undefined;
+					}
+					matchedAgentId = agentId;
+				}
+			} catch (err) {
+				this._logService.warn(`[claudeSubagentResolver] ResultMatch: getSubagentMessages(${agentId}) failed: ${err}`);
+			}
+		}
+		return matchedAgentId;
+	}
+}
+
+export function extractCompletedResultTextFromTranscript(transcript: readonly Turn[], toolCallId: string): string | undefined {
+	for (const turn of transcript) {
+		for (const part of turn.responseParts) {
+			if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.toolCallId !== toolCallId || part.toolCall.status !== ToolCallStatus.Completed) {
+				continue;
+			}
+			const text = (part.toolCall.content ?? [])
+				.filter(item => item.type === ToolResultContentType.Text)
+				.map(item => item.text)
+				.join('\n')
+				.trim();
+			return text || undefined;
+		}
+	}
+	return undefined;
+}
+
+function extractLastAssistantText(messages: readonly { readonly type?: string; readonly message?: unknown }[]): string | undefined {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (message.type !== 'assistant') {
+			continue;
+		}
+		const inner = vObj(message.message);
+		if (!inner) {
+			continue;
+		}
+		if (typeof inner.content === 'string') {
+			return inner.content;
+		}
+		if (Array.isArray(inner.content)) {
+			const text = inner.content.flatMap(block => {
+				const item = vObj(block);
+				const value = item?.type === 'text' ? vString(item.text) : undefined;
+				return value === undefined ? [] : [value];
+			}).join('');
+			if (text) {
+				return text;
+			}
 		}
 	}
 	return undefined;
@@ -302,6 +390,7 @@ function buildDefaultStrategies(sdk: IClaudeAgentSdkService, logService: ILogSer
 	return [
 		new TextSuffixStrategy(sdk, logService),
 		new PromptMatchStrategy(sdk, logService),
+		new ResultMatchStrategy(sdk, logService),
 		new NativeStrategy(),
 	];
 }

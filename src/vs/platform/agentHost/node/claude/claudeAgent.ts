@@ -33,7 +33,7 @@ import { ActionType, type AuthRequiredParams } from '../../common/state/sessionA
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri, isSubagentSession, ChatInputResponseKind, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, isSubagentSession, parseChatUri, ChatInputResponseKind, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -1935,7 +1935,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.info('[Claude] SDK not downloaded yet; deferring session messages until a session triggers the download');
 			return [];
 		}
-		if (isSubagentSession(address)) {
+		const isSubagentChat = parseChatUri(address)?.chatId.startsWith('subagent/') === true;
+		if (isSubagentSession(address) || isSubagentChat) {
 			const origin = context?.origin
 				?? this._stateManager.getChatState(address.toString())?.origin
 				?? (context ? this._stateManager.getSessionState(context.session.toString())?.chats.find(chat => chat.resource === address.toString())?.origin : undefined);

@@ -311,9 +311,23 @@ export function unwrapSessionLoadErrorMessage(err: unknown): string | undefined 
 	if (!message) {
 		return undefined;
 	}
+
 	// The session URI in the prefix contains `scheme:/…` (colon-slash), never
 	// `: ` (colon-space), so the non-greedy match stops at the wrapper separator.
 	return message.replace(/^Failed to restore session .+?: /, '');
+}
+
+export function resolveRestoredSubagentChatResource(parentSession: string, toolCallId: string, catalogResource: string | undefined, persistedResource: string | undefined): string {
+	if (catalogResource) {
+		return catalogResource;
+	}
+	if (persistedResource) {
+		const parsed = parseChatUri(persistedResource);
+		if (parsed?.session === parentSession && parsed.chatId === `subagent/${toolCallId}`) {
+			return persistedResource;
+		}
+	}
+	return buildSubagentChatUri(parentSession, toolCallId);
 }
 
 /**
@@ -4175,9 +4189,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					};
 				}
 				if (part.toolSpecificData?.kind === 'subagent') {
-					const childChatUri = part.toolSpecificData.chatResource
-						?? subagentChat?.resource.toString()
-						?? buildSubagentChatUri(parentSessionStr, part.toolCallId);
+					const childChatUri = resolveRestoredSubagentChatResource(
+						parentSessionStr,
+						part.toolCallId,
+						subagentChat?.resource.toString(),
+						part.toolSpecificData.chatResource,
+					);
 					part.toolSpecificData.chatResource = childChatUri;
 					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId, childChatUri });
 				}

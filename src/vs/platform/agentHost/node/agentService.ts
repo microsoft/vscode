@@ -35,7 +35,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type ChatOrigin, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, resolveChatUri, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, resolveChatUri, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
@@ -2616,8 +2616,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (!snapshot) {
 				if (isSubagentChatUri(resource)) {
-					// May be mid-registration; wait rather than fail immediately.
 					snapshot = await this._awaitPendingSubagentChat(resourceStr);
+					if (!snapshot) {
+						const parsed = parseChatUri(resource);
+						if (parsed?.chatId.startsWith('subagent/')) {
+							await this._restoreSubagentChat(resourceStr, URI.parse(parsed.session), parsed.chatId.slice('subagent/'.length));
+							snapshot = this._stateManager.getSnapshot(resourceStr);
+						}
+					}
 				} else {
 					// Changeset URIs are routed through the coordinator (which
 					// owns its URI shape, the unknown-id early throw, and turn
@@ -3238,14 +3244,14 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionStr = session.toString();
 		await this._releaseSessionInFlight.get(sessionStr);
 
-		// Already in state manager - nothing to do.
-		if (this._stateManager.getSessionState(sessionStr)) {
-			return;
-		}
-
 		const inFlight = this._restoreSessionInFlight.get(sessionStr);
 		if (inFlight) {
 			return inFlight;
+		}
+
+		// Already in state manager - nothing to do.
+		if (this._stateManager.getSessionState(sessionStr)) {
+			return;
 		}
 
 		const restore = this._doRestoreSession(session, sessionStr);
@@ -3532,13 +3538,14 @@ export class AgentService extends Disposable implements IAgentService {
 				try {
 					const children = await agent.getSubagentSessions(session);
 					for (const child of children) {
-						this._registerRestoredSubagent(child, summary, sessionStr);
+						this._registerRestoredSubagent(child, sessionStr);
 					}
 				} catch (err) {
 					this._logService.warn(`[AgentService] restoreSession failed to eagerly register subagents session=${sessionStr}`, err);
 				}
 			}
 		})());
+		promises.push(this._restoreSubagentChatsFromParentHistory(agent, session, mergedTurns));
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
 		// and histories are restored when a peer chat is first requested.
@@ -4699,6 +4706,74 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the subagent (by `parentToolCallId`), and builds the child session's
 	 * turns from those events.
 	 */
+	private async _restoreSubagentChat(chatUri: string, parentSession: URI, toolCallId: string): Promise<void> {
+		if (this._stateManager.getChatState(chatUri)) {
+			return;
+		}
+		const inFlight = this._restoreSubagentInFlight.get(chatUri);
+		if (inFlight) {
+			return inFlight;
+		}
+		const restore = this._doRestoreSubagentChat(chatUri, parentSession, toolCallId);
+		this._restoreSubagentInFlight.set(chatUri, restore);
+		try {
+			await restore;
+		} finally {
+			if (this._restoreSubagentInFlight.get(chatUri) === restore) {
+				this._restoreSubagentInFlight.delete(chatUri);
+			}
+		}
+	}
+
+	private async _doRestoreSubagentChat(chatUri: string, parentSession: URI, toolCallId: string): Promise<void> {
+		const parentSessionKey = parentSession.toString();
+		try {
+			await this._restoreSessionInFlight.get(parentSessionKey);
+			if (!this._stateManager.getSessionState(parentSessionKey)) {
+				await this.restoreSession(parentSession);
+			}
+		} catch {
+			this._logService.warn(`[AgentService] Cannot restore parent session for subagent chat: ${parentSessionKey}`);
+			return;
+		}
+		const parentState = this._stateManager.getSessionState(parentSessionKey);
+		const agent = this._findProviderForSession(parentSession);
+		if (!parentState || !agent) {
+			return;
+		}
+		const origin = {
+			kind: ChatOriginKind.Tool,
+			chat: parentState.defaultChat ?? buildDefaultChatUri(parentSession),
+			toolCallId,
+		} as const;
+		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, origin);
+		if (childTurns.length === 0) {
+			return;
+		}
+		let title = 'Subagent';
+		for (const turn of [...parentState.turns, ...(parentState.activeTurn ? [parentState.activeTurn as Turn] : [])]) {
+			for (const part of turn.responseParts) {
+				if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.toolCallId !== toolCallId) {
+					continue;
+				}
+				const content = part.toolCall.status === ToolCallStatus.Completed || part.toolCall.status === ToolCallStatus.Running
+					? part.toolCall.content
+					: undefined;
+				const subagent = content?.find((item): item is ToolResultSubagentContent => item.type === ToolResultContentType.Subagent);
+				if (subagent?.title) {
+					title = subagent.title;
+				}
+			}
+		}
+		const mergedTurns = await this._interleaveLocalTurns(parentSessionKey, chatUri, childTurns);
+		this._stateManager.addChat(parentSessionKey, chatUri, {
+			title,
+			turns: mergedTurns,
+			origin,
+			interactivity: ChatInteractivity.ReadOnly,
+		});
+	}
+
 	private async _restoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
 		if (this._stateManager.getSessionState(subagentUri)) {
 			return;
@@ -4811,42 +4886,59 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Registers a subagent child session's state up-front from data the agent
-	 * already reconstructed for the parent, so a later subscribe-driven
-	 * {@link _restoreSubagentSession} finds it present and returns early
-	 * instead of re-reading the parent event log. No-op if already registered.
+	 * Registers a reconstructed subagent in its parent's chat catalog.
 	 */
-	private _registerRestoredSubagent(child: IRestoredSubagentSession, parentSummary: SessionSummary, parentSessionStr: string): void {
-		const resourceStr = child.resource.toString();
-		if (this._stateManager.getSessionState(resourceStr)) {
+	private _registerRestoredSubagent(child: IRestoredSubagentSession, parentSessionStr: string): void {
+		const subagentChatUri = buildSubagentChatUri(parentSessionStr, child.toolCallId);
+		if (this._stateManager.getChatState(subagentChatUri)) {
 			return;
 		}
-		const registeredNow = new Date().toISOString();
-		this._stateManager.restoreSession(
-			{
-				resource: resourceStr,
-				provider: 'subagent',
-				title: child.title,
-				status: SessionStatus.Idle,
-				createdAt: registeredNow,
-				modifiedAt: registeredNow,
-				...(parentSummary.project ? { project: parentSummary.project } : {}),
-			},
-			[...child.turns],
-		);
-
-		// Mirror the live `_handleSubagentStarted` flow on restore: surface the
-		// subagent as a read-only peer chat in the PARENT session's catalog so it
-		// reappears as a tab (and the inline "Open Agent" link can reveal it)
-		// after a restart. Uses the same `ahp-chat://subagent/...` chat URI form
-		// as the live path so the sessions provider parses and surfaces it.
-		const subagentChatUri = buildSubagentChatUri(parentSessionStr, child.toolCallId);
 		this._stateManager.addChat(parentSessionStr, subagentChatUri, {
 			title: child.title,
 			turns: [...child.turns],
 			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(parentSessionStr), toolCallId: child.toolCallId },
 			interactivity: ChatInteractivity.ReadOnly,
 		});
+	}
+
+	private async _restoreSubagentChatsFromParentHistory(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> {
+		const parentSessionStr = parentSession.toString();
+		const parentChat = buildDefaultChatUri(parentSession);
+		const discovered = new Map<string, { title: string; toolCallId: string }>();
+		for (const turn of turns) {
+			for (const part of turn.responseParts) {
+				if (part.kind !== ResponsePartKind.ToolCall) {
+					continue;
+				}
+				const content = part.toolCall.status === ToolCallStatus.Completed || part.toolCall.status === ToolCallStatus.Running
+					? part.toolCall.content
+					: undefined;
+				const subagent = content?.find((item): item is ToolResultSubagentContent => item.type === ToolResultContentType.Subagent);
+				if (subagent) {
+					discovered.set(part.toolCall.toolCallId, { title: subagent.title || 'Subagent', toolCallId: part.toolCall.toolCallId });
+				}
+			}
+		}
+		await Promise.all([...discovered.values()].map(async child => {
+			const chatUri = buildSubagentChatUri(parentSessionStr, child.toolCallId);
+			if (this._stateManager.getChatState(chatUri)) {
+				return;
+			}
+			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: child.toolCallId } as const;
+			try {
+				const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, origin);
+				if (childTurns.length > 0) {
+					this._stateManager.addChat(parentSessionStr, chatUri, {
+						title: child.title,
+						turns: [...childTurns],
+						origin,
+						interactivity: ChatInteractivity.ReadOnly,
+					});
+				}
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to restore subagent chat ${chatUri}`, err);
+			}
+		}));
 	}
 
 	private _findProviderForSession(session: URI | string): IAgent | undefined {

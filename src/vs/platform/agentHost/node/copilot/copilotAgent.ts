@@ -2916,9 +2916,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// through the chat surface on the persisted replay/restore path; extract
 		// its filtered turns from the parent's event log rather than resolving it
 		// as a regular chat binding (which has none, so it would return empty).
+		const explicit = sessionOrContext && !URI.isUri(sessionOrContext) ? sessionOrContext : undefined;
 		const subagentInfo = parseSubagentSessionUri(chat);
-		if (subagentInfo) {
-			const explicit = sessionOrContext && !URI.isUri(sessionOrContext) ? sessionOrContext : undefined;
+		const isSubagentChat = parseChatUri(chat)?.chatId.startsWith('subagent/') === true;
+		if (subagentInfo || isSubagentChat) {
 			if (explicit?.origin?.kind === ChatOriginKind.Tool) {
 				const parentChat = URI.parse(explicit.origin.chat);
 				const parentContext = this._resolveChatContext(parentChat, { session: explicit.session, resource: explicit.session });
@@ -2928,7 +2929,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				});
 				return parentEntry?.getSubagentMessages(explicit.origin.toolCallId) ?? [];
 			}
-			return this._getSubagentMessages(subagentInfo);
+			return subagentInfo ? this._getSubagentMessages(subagentInfo) : [];
 		}
 		const context = this._resolveChatContext(chat, sessionOrContext);
 		if (this._provisionalSessions.has(context.sessionId) && isEqual(context.resource, context.session)) {

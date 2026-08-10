@@ -15,12 +15,14 @@ import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.
 import { scanTranscriptForAgentIds, SUBAGENT_ID_SUFFIX_REGEX, SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
 	extractSpawningPromptFromTranscript,
+	extractCompletedResultTextFromTranscript,
 	fetchParentTurns,
 	getSubagentTranscript,
 	type ISubagentLookupContext,
 	type ISubagentLookupStrategy,
 	NativeStrategy,
 	PromptMatchStrategy,
+	ResultMatchStrategy,
 	resolveAgentIdViaChain,
 	TextSuffixStrategy,
 } from '../../node/claude/claudeSubagentResolver.js';
@@ -180,6 +182,61 @@ suite('claudeSubagentResolver — PromptMatchStrategy', () => {
 			matched: 'agenttarget',
 			malformed: undefined,
 			unknownToolCall: undefined,
+		});
+
+		suite('claudeSubagentResolver — ResultMatchStrategy', () => {
+			ensureNoDisposablesAreLeakedInTestSuite();
+
+			test('finds a child whose final assistant result matches the completed parent tool result', async () => {
+				const sdk = new FakeSdkService();
+				sdk.subagentIds.set('parent-sid', ['agentother', 'agenttarget']);
+				sdk.subagentMessages.set('parent-sid::agentother', [{
+					type: 'assistant',
+					message: { content: [{ type: 'text', text: 'different result' }] },
+				} as unknown as SessionMessage]);
+				sdk.subagentMessages.set('parent-sid::agenttarget', [{
+					type: 'assistant',
+					message: { content: [{ type: 'thinking', thinking: 'working' }] },
+				}, {
+					type: 'assistant',
+					message: { content: [{ type: 'text', text: 'matched result' }] },
+				}] as unknown as SessionMessage[]);
+				const transcript = [makeAgentToolCallTurn('toolu_target', { suffixText: 'matched result' })];
+				const strategy = new ResultMatchStrategy(sdk, new NullLogService());
+
+				assert.deepStrictEqual({
+					extracted: extractCompletedResultTextFromTranscript(transcript, 'toolu_target'),
+					matched: await strategy.lookup('toolu_target', {
+						parentUri: URI.parse('claude:/parent-sid'),
+						parentSessionId: 'parent-sid',
+						parentTranscript: transcript,
+						token: CancellationToken.None,
+					}),
+				}, {
+					extracted: 'matched result',
+					matched: 'agenttarget',
+				});
+			});
+
+			test('does not choose between children with the same final assistant result', async () => {
+				const sdk = new FakeSdkService();
+				sdk.subagentIds.set('parent-sid', ['agentone', 'agenttwo']);
+				for (const agentId of ['agentone', 'agenttwo']) {
+					sdk.subagentMessages.set(`parent-sid::${agentId}`, [{
+						type: 'assistant',
+						message: { content: [{ type: 'text', text: 'Done.' }] },
+					} as unknown as SessionMessage]);
+				}
+				const transcript = [makeAgentToolCallTurn('toolu_target', { suffixText: 'Done.' })];
+				const strategy = new ResultMatchStrategy(sdk, new NullLogService());
+
+				assert.strictEqual(await strategy.lookup('toolu_target', {
+					parentUri: URI.parse('claude:/parent-sid'),
+					parentSessionId: 'parent-sid',
+					parentTranscript: transcript,
+					token: CancellationToken.None,
+				}), undefined);
+			});
 		});
 	});
 });

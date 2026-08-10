@@ -187,6 +187,12 @@ Non-main chat tabs close from their close button, the active-chat close keybindi
 
 Subagent chats **persist** in the session catalog after the subagent completes (completion only marks the chat's turn complete; the chat is removed only when the whole session is disposed), so the read-only tab stays reviewable for the lifetime of the session.
 
+On restore, subagents remain chats of the parent rather than synthetic sessions.
+The handler prefers the canonical chat resource from the restored catalog and
+normalizes legacy resources retained in serialized tool history. If eager
+provider discovery has not populated the catalog yet, subscribing to the
+canonical subagent chat reconstructs it from the parent transcript on demand.
+
 **Opening a subagent chat from the transcript.** `ChatSubagentContentPart` and `OpenSubagentChatActionViewItem` provide one shared rich pill in both windows. The Agents window opens the surfaced peer chat; regular chat editors use the default-enabled `chat.subagents.useRichRendering` setting to open the child in a read-only editor instead of rendering its full activity inline. Editor-hosted children show the shared **This chat is read-only** banner above the transcript.
 
 The pill reads live status, timing, title/model metadata, and active-tool data from the parent invocation; history enrichment restores the same data after recreation. Inline model text is hidden only when it matches the parent, while hover/ARIA always include the child model. Streaming tools do not replace the current formed tool; same-tool updates render in place, and only a new `toolCallId` animates. Hover, pointer cursor, and click are scoped to the bordered pill, not its attached tool row.
@@ -199,7 +205,11 @@ A terminal parent response is authoritative for active subagent timing. Stop can
 
 **Subagent terminal progress.** When the last meaningful response part is the parent subagent invocation, its pill is the active progress affordance and `ChatListItemRenderer` must not append a second generic shimmering working-progress phrase below it. Child tool/hook updates can arrive later in the raw response array while still rendering inside an earlier pill, so they must not suppress progress that visually follows normal markdown. Subagent-tagged or regular markdown is supporting output, not the pill itself; if markdown follows the pill, normal working-progress rules apply.
 
-**Restoring subagent chats.** Subagent chats are in-memory only; on restart the agent host restores them as separate sessions but no longer re-adds them to the parent catalog. `AgentService._registerRestoredSubagent` mirrors the live `_handleSubagentStarted` flow on restore — it re-adds the subagent to the parent session's catalog (same `ahp-chat://subagent/...` chat URI, `origin: Tool`, `interactivity: ReadOnly`, restored turns) so it remains available to reopen as a read-only tab.
+**Restoring subagent chats.** Subagent chats are reconstructed as read-only chats
+in the parent catalog, never as separate sessions. Eager provider discovery and
+canonical subagent-chat subscription share the same `ahp-chat://subagent/...`
+identity, so restored children remain available even when discovery completes
+after the parent snapshot.
 
 History restoration must also repair parent tool calls whose persisted `_meta`/subagent result content was lost. `AgentHostSessionHandler._enrichHistoryWithSubagentCalls` treats the session's tool-origin chat catalog as the canonical spawn record: a serialized tool call whose id matches `origin.toolCallId` is upgraded to `toolSpecificData.kind === "subagent"` with the catalog title/resource, so reload renders the pill instead of a generic "Delegating task" row.
 

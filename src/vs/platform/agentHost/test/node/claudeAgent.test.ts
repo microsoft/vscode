@@ -7424,7 +7424,7 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 		const agentId = 'agent1';
 		const ownerSession = AgentSession.uri(agent.id, 'ah-owner');
 		const parentUri = URI.parse(buildChatUri(ownerSession, 'peer'));
-		const subagentUri = buildSubagentSessionUri(ownerSession.toString(), toolCallId);
+		const subagentUri = buildSubagentChatUri(ownerSession.toString(), toolCallId);
 		stateManager.createSession({
 			resource: ownerSession.toString(),
 			provider: agent.id,
@@ -7461,7 +7461,11 @@ suite('ClaudeAgent (Phase 13 — getSessionMessages)', () => {
 			makeAssistantSessionMessage('subagent-assistant', 'subagent response'),
 		]);
 
-		const turns = await agent.chats.getMessages(URI.parse(subagentUri), { session: ownerSession, resource: URI.parse(subagentUri) });
+		const turns = await agent.chats.getMessages(URI.parse(subagentUri), {
+			session: ownerSession,
+			resource: URI.parse(subagentUri),
+			origin: { kind: ChatOriginKind.Tool, chat: parentUri.toString(), toolCallId },
+		});
 
 		assert.deepStrictEqual({
 			turns: turns.map(turn => ({

@@ -39,7 +39,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentCreateChatForkSource, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ChatOriginKind, CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -989,6 +989,7 @@ suite('CopilotAgent', () => {
 					agentDisplayName: 'Researcher',
 					agentDescription: 'Looks things up',
 				});
+
 				// Unrelated signals must not produce spawn events.
 				fireSignal(agent, { kind: 'action', resource: sessionUri, action: { type: ActionType.SessionTitleChanged, title: 'x' } });
 				// A completed subagent chat stays live (removed only on session teardown).
@@ -1009,6 +1010,35 @@ suite('CopilotAgent', () => {
 						title: 'Researcher',
 					}],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getMessages resolves a canonical subagent chat through its exact parent chat', async () => {
+			const agent = createTestAgent(disposables);
+			const session = AgentSession.uri('copilotcli', 'parent-session');
+			const parentChat = defaultChatUri(session);
+			const childChat = URI.parse(buildSubagentChatUri(session.toString(), 'tool-1'));
+			const turn: Turn = {
+				id: 'child-turn',
+				state: TurnState.Complete,
+				message: { text: 'child task', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'part-1', content: 'child result' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(session), {
+				getSubagentMessages: async (toolCallId: string) => toolCallId === 'tool-1' ? [turn] : [],
+				dispose: () => { },
+			}, parentChat);
+
+			try {
+				const turns = await agent.chats.getMessages(childChat, {
+					session,
+					resource: childChat,
+					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
+				});
+				assert.deepStrictEqual(turns, [turn]);
 			} finally {
 				await disposeAgent(agent);
 			}
