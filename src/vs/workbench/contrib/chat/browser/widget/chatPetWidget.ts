@@ -26,6 +26,7 @@ export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' 
 export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
+export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
 const TRANSIENT_STATE_DURATION = 2_000;
 const COMPLETE_STATE_DURATION = 960;
 const BUTTON_PRESS_STATE_DURATION = 2_850;
@@ -318,9 +319,9 @@ export function isChatPetImageSource(image: Pick<HTMLImageElement, 'getAttribute
 	return image.getAttribute('src') === source;
 }
 
-export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, hasInput: boolean, idleExpired: boolean): ChatPetState {
+export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, confirmationAttentionExpired: boolean, hasInput: boolean, idleExpired: boolean): ChatPetState {
 	if (needsInput) {
-		return 'clapping';
+		return confirmationAttentionExpired ? 'idle' : 'clapping';
 	}
 	if (hasActiveRequest) {
 		return 'rendering';
@@ -564,10 +565,12 @@ export class ChatPetWidget extends Disposable {
 	private readonly _gazeScheduler: dom.AnimationFrameScheduler;
 	private readonly _dragMonitor = this._register(new GlobalPointerMoveMonitor());
 	private readonly _idleExpired = observableValue(this, false);
+	private readonly _confirmationAttentionExpired = observableValue(this, false);
 	private readonly _transientState = observableValue<ChatPetState | undefined>(this, undefined);
 	private readonly _isDragging = observableValue(this, false);
 	private readonly _isDead = observableValue(this, false);
 	private readonly _idleScheduler = this._register(new RunOnceScheduler(() => this._idleExpired.set(true, undefined), CHAT_PET_IDLE_SLEEP_DELAY));
+	private readonly _confirmationAttentionScheduler = this._register(new RunOnceScheduler(() => this._confirmationAttentionExpired.set(true, undefined), CHAT_PET_CONFIRMATION_ATTENTION_DURATION));
 	private readonly _transientScheduler = this._register(new RunOnceScheduler(() => this._transientState.set(undefined, undefined), TRANSIENT_STATE_DURATION));
 	private readonly _searchScheduler: RunOnceScheduler;
 	private readonly _clickSuppressionScheduler = this._register(new RunOnceScheduler(() => this._suppressNextPointerClick = false, 0));
@@ -830,6 +833,16 @@ export class ChatPetWidget extends Disposable {
 			const chatModel = model.read(reader);
 			const request = chatModel?.lastRequestObs.read(reader);
 			const needsInput = !!request?.response?.isPendingConfirmation.read(reader);
+			let confirmationAttentionExpired = this._confirmationAttentionExpired.read(reader);
+			if (!needsInput) {
+				this._confirmationAttentionScheduler.cancel();
+				if (confirmationAttentionExpired) {
+					confirmationAttentionExpired = false;
+					this._confirmationAttentionExpired.set(false, undefined);
+				}
+			} else if (!confirmationAttentionExpired && !this._confirmationAttentionScheduler.isScheduled()) {
+				this._confirmationAttentionScheduler.schedule();
+			}
 			const hasActiveRequest = chatModel?.hasActiveRequest.read(reader) ?? false;
 			const inputHasContent = hasInput.read(reader);
 			this._busy = hasActiveRequest || needsInput;
@@ -901,7 +914,7 @@ export class ChatPetWidget extends Disposable {
 				this._idleScheduler.schedule();
 			}
 
-			const baseState = getChatPetBaseState(hasActiveRequest, needsInput, inputHasContent, idleExpired);
+			const baseState = getChatPetBaseState(hasActiveRequest, needsInput, confirmationAttentionExpired, inputHasContent, idleExpired);
 			if (isChatPetYapState(transientState) && baseState !== 'idle') {
 				transientState = undefined;
 				this._transientState.set(undefined, undefined);
