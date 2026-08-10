@@ -2744,6 +2744,26 @@ suite('PromptFilesLocator', () => {
 			);
 		});
 
+		testT('walks past a submodule .git file to the parent repository', async () => {
+			setWorkspaceFoldersForRoots(['/repos/superproject/submodule']);
+			await mockFiles(fileService, [
+				{ path: '/repos/superproject/submodule/.git', contents: ['gitdir: ../.git/modules/submodule'] },
+				{ path: '/repos/superproject/.git/HEAD', contents: ['ref: refs/heads/main'] },
+			]);
+
+			workspaceTrustService.setTrustedUris([URI.file('/repos/superproject')]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.path).sort(),
+				[
+					'/repos/superproject',
+					'/repos/superproject/submodule',
+				].sort(),
+				'Should walk past a submodule .git file and include the parent repository',
+			);
+		});
+
 		testT('walks up to parent with .git when workspace folder has no .git', async () => {
 			setWorkspaceFoldersForRoots(['/repos/monorepo/packages/my-app']);
 			await mockFiles(fileService, [

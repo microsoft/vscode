@@ -135,8 +135,10 @@ export class PromptFilesLocator {
 		let current = folderUri;
 		while (true) {
 			try {
-				const isRepoRoot = await this.fileService.exists(joinPath(current, '.git'));
-				if (isRepoRoot) {
+				const gitPath = joinPath(current, '.git');
+				// A submodule (and a linked worktree) has a `.git` file rather than
+				// a directory. Keep walking in that case to find the containing repo.
+				if (await this.fileService.exists(gitPath) && (await this.fileService.resolve(gitPath)).isDirectory) {
 					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
 						candidates.push(current);
 						return candidates;
