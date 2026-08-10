@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelConfiguration } from './dataTypes/xtabPromptOptions';
-import { ConfigKey, type ExperimentBasedConfig, type ExperimentBasedConfigType, type IConfigurationService } from '../../configuration/common/configurationService';
+import { ConfigKey, type ExperimentBasedConfig, type IConfigurationService } from '../../configuration/common/configurationService';
 import type { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 
 export enum InlineEditsUnification {
@@ -74,31 +74,6 @@ function getConfigWithDefault<T extends boolean | number | string>(
 		return configurationService.getExperimentBasedConfig(key, experimentationService) ?? defaultValue;
 	}
 
-	const experimentValue = getExperimentValue(key, experimentationService);
-	if (experimentValue !== undefined) {
-		return experimentValue;
-	}
-
-	return defaultValue;
-}
-
-function getExperimentValue<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T | undefined {
-	const treatmentNames = [
-		key.experimentName,
-		`copilotchat.config.${key.id}`,
-		`config.${key.fullyQualifiedId}`,
-		key.oldId ? `copilotchat.config.${key.oldId}` : undefined,
-		key.fullyQualifiedOldId ? `config.${key.fullyQualifiedOldId}` : undefined,
-	];
-
-	for (const treatmentName of treatmentNames) {
-		if (treatmentName) {
-			const value = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(treatmentName);
-			if (value !== undefined) {
-				return value;
-			}
-		}
-	}
-
-	return undefined;
+	const value = configurationService.getExperimentBasedConfig(key, experimentationService);
+	return value !== configurationService.getDefaultValue(key) ? value ?? defaultValue : defaultValue;
 }
