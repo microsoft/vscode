@@ -169,6 +169,11 @@ export class NativeWindow extends BaseWindow {
 						args.push(resource);
 					}
 				}
+			} else if (request.from === 'systemWideKeybinding') {
+				// A system-wide (OS global) keybinding runs the command with exactly the arguments
+				// configured in `keybindings.json` (already in `request.args`). We intentionally do
+				// not append a `{ from }` sentinel so that commands taking positional arguments
+				// receive the same payload they would from a regular in-window keybinding.
 			} else {
 				args.push({ from: request.from });
 			}
@@ -1210,7 +1215,7 @@ class ZoomStatusEntry extends Disposable {
 		const zoomOutAction: Action = disposables.add(new Action('workbench.action.zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand(zoomOutAction.id)));
 		const zoomInAction: Action = disposables.add(new Action('workbench.action.zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.plus), true, () => this.commandService.executeCommand(zoomInAction.id)));
 		const zoomResetAction: Action = disposables.add(new Action('workbench.action.zoomReset', localize('zoomReset', "Reset"), undefined, true, () => this.commandService.executeCommand(zoomResetAction.id)));
-		zoomResetAction.tooltip = localize('zoomResetLabel', "{0} ({1})", zoomResetAction.label, this.keybindingService.lookupKeybinding(zoomResetAction.id)?.getLabel());
+		zoomResetAction.tooltip = this.keybindingService.appendKeybinding(zoomResetAction.label, zoomResetAction.id);
 		const zoomSettingsAction: Action = disposables.add(new Action('workbench.action.openSettings', localize('zoomSettings', "Settings"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand(zoomSettingsAction.id, 'window.zoom')));
 		const zoomLevelLabel = disposables.add(new Action('zoomLabel', undefined, undefined, false));
 

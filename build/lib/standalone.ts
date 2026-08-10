@@ -120,7 +120,6 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		copyFile(file);
 	});
 
-	copyFile('vs/loader.js');
 	copyFile('typings/css.d.ts');
 	copyFile('../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter.d.ts', '@vscode/tree-sitter-wasm.d.ts');
 }
@@ -140,9 +139,9 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 
 	function _rewriteOrInlineUrls(contents: string, forceBase64: boolean): string {
 		return _replaceURL(contents, (url) => {
-			const fontMatch = url.match(/^(.*).ttf\?(.*)$/);
+			const fontMatch = url.match(/^(.*)\.ttf(\?.*)?$/);
 			if (fontMatch) {
-				const relativeFontPath = `${fontMatch[1]}.ttf`; // trim the query parameter
+				const relativeFontPath = `${fontMatch[1]}.ttf`; // trim the optional query parameter
 				const fontPath = path.join(path.dirname(module), relativeFontPath);
 				enqueue(fontPath);
 				return relativeFontPath;

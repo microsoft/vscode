@@ -286,7 +286,7 @@ export class StatusbarEntryItem extends Disposable {
 
 class StatusBarCodiconLabel extends SimpleIconLabel {
 
-	private progressCodicon = renderIcon(syncing);
+	private progressCodicon: HTMLElement | undefined;
 
 	private currentText = '';
 	private currentShowProgress: boolean | 'loading' | 'syncing' = false;
@@ -300,7 +300,9 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 	set showProgress(showProgress: boolean | 'loading' | 'syncing') {
 		if (this.currentShowProgress !== showProgress) {
 			this.currentShowProgress = showProgress;
-			this.progressCodicon = renderIcon(showProgress === 'syncing' ? syncing : spinningLoading);
+			if (showProgress) {
+				this.progressCodicon = renderIcon(showProgress === 'syncing' ? syncing : spinningLoading);
+			}
 			this.text = this.currentText;
 		}
 	}
@@ -309,7 +311,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 
 		// Progress: insert progress codicon as first element as needed
 		// but keep it stable so that the animation does not reset
-		if (this.currentShowProgress) {
+		if (this.currentShowProgress && this.progressCodicon) {
 
 			// Append as needed
 			if (this.container.firstChild !== this.progressCodicon) {

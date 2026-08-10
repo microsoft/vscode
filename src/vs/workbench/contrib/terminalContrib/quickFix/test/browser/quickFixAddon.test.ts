@@ -30,6 +30,7 @@ import { getQuickFixesForCommand, TerminalQuickFixAddon } from '../../browser/qu
 import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, gitFastForwardPull, GitFastForwardPullOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilar, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshGeneralError, PwshGeneralErrorOutputRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex } from '../../browser/terminalQuickFixBuiltinActions.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 suite('QuickFixAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,7 +49,8 @@ suite('QuickFixAddon', () => {
 		terminal = store.add(new TerminalCtor({
 			allowProposedApi: true,
 			cols: 80,
-			rows: 30
+			rows: 30,
+			logger: TestXtermLogger
 		}));
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(ITerminalQuickFixService, {

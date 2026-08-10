@@ -4,19 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import es from 'event-stream';
-import gulp from 'gulp';
-import filter from 'gulp-filter';
+import { gulp, filter, sourcemaps, svgmin } from './gulp/facade.ts';
 import path from 'path';
 import fs from 'fs';
 import pump from 'pump';
 import VinylFile from 'vinyl';
 import * as bundle from './bundle.ts';
 import esbuild from 'esbuild';
-import sourcemaps from 'gulp-sourcemaps';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { getTargetStringFromTsConfig } from './tsconfigUtils.ts';
-import svgmin from 'gulp-svgmin';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -152,7 +149,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 					'.sh': 'file',
 				},
 				assetNames: 'media/[name]', // moves media assets into a sub-folder "media"
-				banner: entryPoint.name === 'vs/workbench/workbench.web.main' ? undefined : banner, // TODO@esm remove line when we stop supporting web-amd-esm-bridge
+				banner,
 				entryPoints: [
 					{
 						in: path.join(REPO_ROOT_PATH, opts.src, `${entryPoint.name}.js`),
@@ -209,7 +206,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 		}));
 }
 
-export interface IBundleESMTaskOpts {
+export interface IBundleTaskOpts {
 	/**
 	 * Destination folder for the bundled files.
 	 */
@@ -220,7 +217,7 @@ export interface IBundleESMTaskOpts {
 	esm: IBundleESMTaskOpts;
 }
 
-export function bundleTask(opts: IBundleESMTaskOpts): () => NodeJS.ReadWriteStream {
+export function bundleTask(opts: IBundleTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
 		return bundleESMTask(opts.esm).pipe(gulp.dest(opts.out));
 	};

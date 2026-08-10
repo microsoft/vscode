@@ -27,6 +27,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { IEditorConstructionOptions } from './config/editorConfiguration.js';
+import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -178,6 +179,13 @@ export interface IContentWidget {
 	 * Render this content widget in a location where it could overflow the editor's view dom node.
 	 */
 	allowEditorOverflow?: boolean;
+
+	/**
+	 * If true, this widget doesn't have a visual representation.
+	 * The element will have display set to 'none'.
+	*/
+	useDisplayNone?: boolean;
+
 	/**
 	 * Call preventDefault() on mousedown events that target the content widget.
 	 */
@@ -258,6 +266,8 @@ export interface IOverlayWidgetPositionCoordinates {
 	 */
 	left: number;
 }
+
+
 
 /**
  * A position for rendering overlay widgets.
@@ -718,6 +728,24 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidPaste: Event<IPasteEvent>;
+	/**
+	 * An event emitted before clipboard copy operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillCopy: Event<IClipboardCopyEvent>;
+	/**
+	 * An event emitted before clipboard cut operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillCut: Event<IClipboardCopyEvent>;
+	/**
+	 * An event emitted before clipboard paste operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillPaste: Event<IClipboardPasteEvent>;
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
@@ -1196,10 +1224,23 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	getOffsetForColumn(lineNumber: number, column: number): number;
 
+	getWidthOfLine(lineNumber: number): number;
+
+	/**
+	 * Reset cached line widths. Call this when the editor becomes visible after being hidden.
+	 * @internal
+	 */
+	resetLineWidthCaches(): void;
+
 	/**
 	 * Force an editor render now.
 	 */
 	render(forceRedraw?: boolean): void;
+
+	/**
+	 * Render the editor at the next animation frame.
+	 */
+	renderAsync(forceRedraw?: boolean): void;
 
 	/**
 	 * Get the hit test target at coordinates `clientX` and `clientY`.
@@ -1484,4 +1525,14 @@ export function getIEditor(thing: unknown): editorCommon.IEditor | null {
 	}
 
 	return null;
+}
+
+/**
+ *@internal
+ */
+export function isIOverlayWidgetPositionCoordinates(thing: unknown): thing is IOverlayWidgetPositionCoordinates {
+	return !!thing
+		&& typeof thing === 'object'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).top === 'number'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).left === 'number';
 }

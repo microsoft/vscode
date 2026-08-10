@@ -126,7 +126,7 @@ export interface IResolvedVariables {
 
 export interface ITaskSystemInfo {
 	platform: Platform;
-	context: any;
+	context: unknown;
 	uriProvider: (this: void, path: string) => URI;
 	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: IResolveSet, target: ConfigurationTarget): Promise<IResolvedVariables | undefined>;
 	findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;

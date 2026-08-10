@@ -33,7 +33,7 @@ import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, I
 import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from '../../extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { RemoteNameContext, VirtualWorkspaceContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext, RemoteNameContext, VirtualWorkspaceContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -213,7 +213,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						category,
 						title: nls.localize2('remote.close', "Close Remote Connection"),
 						f1: true,
-						precondition: ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext)
+						precondition: ContextKeyExpr.and(ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext), IsSessionsWindowContext.negate())
 					});
 				}
 				run = () => that.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
@@ -225,6 +225,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
 						title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
 					},
+					when: IsSessionsWindowContext.negate(),
 					order: 3.5
 				});
 			}
@@ -851,7 +852,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		if (!this.remoteMetadataInitialized) {
 			quickPick.busy = true;
-			this._register(this.onDidChangeEntries(() => {
+			disposables.add(this.onDidChangeEntries(() => {
 				// If quick pick is open, update the quick pick items after initialization.
 				quickPick.busy = false;
 				quickPick.items = computeItems();

@@ -18,6 +18,12 @@ export interface IUserFriendlyKeybinding {
 	command: string;
 	args?: any;
 	when?: string;
+	/**
+	 * When `true`, the keybinding is registered as a system-wide (OS global) shortcut that fires
+	 * even when VS Code does not have focus. Desktop only; ignored on web/server. Only honored for
+	 * user `keybindings.json` entries (not extension-contributed keybindings).
+	 */
+	systemWide?: boolean;
 }
 
 export interface IKeyboardEvent {
@@ -105,6 +111,12 @@ export interface IKeybindingService {
 	registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable;
 
 	toggleLogging(): boolean;
+
+	/**
+	 * Given a UI element label and a command ID, appends the keybinding label if any.
+	 * If the command is defined and has a keybinding, returns `${label} (keybinding label)`, otherwise just `label`.
+	 */
+	appendKeybinding(label: string, commandId: string | undefined | null, context?: IContextKeyService, enforceContextCheck?: boolean): string;
 
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;

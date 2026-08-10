@@ -1,0 +1,303 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
+import { MessageKind, ResponsePartKind, ToolCallStatus, TurnState } from '../../../common/state/sessionState.js';
+
+suite('codexReplayMapper', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('empty thread → no turns', () => {
+		const turns = replayThreadToTurns({ id: 'thr', turns: [] } as never);
+		assert.deepStrictEqual(turns, []);
+	});
+
+	test('thread with one user/agent exchange → one Turn', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'hi', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'a1', text: 'hello back', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].id, 'turn_a');
+		assert.strictEqual(turns[0].message.text, 'hi');
+		assert.strictEqual(turns[0].state, TurnState.Complete);
+		assert.strictEqual(turns[0].responseParts.length, 1);
+		const part = turns[0].responseParts[0];
+		assert.strictEqual(part.kind, ResponsePartKind.Markdown);
+		assert.strictEqual((part as { content: string }).content, 'hello back');
+	});
+
+	test('restores turn timing from the persisted codex thread', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'hi', text_elements: [] }] }],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: 1785060000, completedAt: null, durationMs: 4200,
+			}, {
+				id: 'turn_b',
+				items: [{ type: 'userMessage', id: 'u2', content: [{ type: 'text', text: 'again', text_elements: [] }] }],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: 1785060100, completedAt: 1785060103, durationMs: null,
+			}, {
+				id: 'turn_c',
+				items: [{ type: 'userMessage', id: 'u3', content: [{ type: 'text', text: 'legacy', text_elements: [] }] }],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, startedAt: turn.startedAt, duration: turn.duration })), [
+			{ id: 'turn_a', startedAt: '2026-07-26T10:00:00.000Z', duration: 4200 },
+			{ id: 'turn_b', startedAt: '2026-07-26T10:01:40.000Z', duration: 3000 },
+			{ id: 'turn_c', startedAt: undefined, duration: undefined },
+		]);
+	});
+
+	test('failed turn maps to TurnState.Error', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'q', text_elements: [] }] },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'failed' as never,
+				error: { message: 'oops' } as never,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		assert.deepStrictEqual(turns.map(turn => ({ state: turn.state, error: turn.error })), [{
+			state: TurnState.Error,
+			error: { errorType: 'CodexError', message: 'oops' },
+		}]);
+	});
+
+	test('turn with no recognizable items is dropped', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'plan', id: 'p', text: 'planning' } as never,
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		assert.deepStrictEqual(turns, []);
+	});
+
+	test('multi-turn thread preserves order', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [
+				{
+					id: 't1',
+					items: [
+						{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'first', text_elements: [] }] },
+						{ type: 'agentMessage', id: 'a', text: 'one', phase: null, memoryCitation: null },
+					],
+					itemsView: { type: 'full' } as never,
+					status: 'completed' as never,
+					error: null, startedAt: null, completedAt: null, durationMs: null,
+				},
+				{
+					id: 't2',
+					items: [
+						{ type: 'userMessage', id: 'u2', content: [{ type: 'text', text: 'second', text_elements: [] }] },
+						{ type: 'agentMessage', id: 'a2', text: 'two', phase: null, memoryCitation: null },
+					],
+					itemsView: { type: 'full' } as never,
+					status: 'completed' as never,
+					error: null, startedAt: null, completedAt: null, durationMs: null,
+				},
+			],
+		} as never);
+		assert.deepStrictEqual(turns.map(t => t.id), ['t1', 't2']);
+	});
+
+	test('adjacent agentMessages in a turn are separated so a heading keeps its own line', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'go on', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'm1', text: 'Consolidating the recommendation and tradeoffs.', phase: null, memoryCitation: null },
+					{ type: 'agentMessage', id: 'm2', text: '## Conclusion\n\nDone.', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		// History replay emits one markdownContent per Markdown part; the chat
+		// model coalesces adjacent ones by plain concatenation, so the joined
+		// text must keep `## Conclusion` at the start of a line.
+		const joined = turns[0].responseParts
+			.map(part => part.kind === ResponsePartKind.Markdown ? (part as { content: string }).content : '')
+			.join('');
+		assert.strictEqual(joined, 'Consolidating the recommendation and tradeoffs.\n\n## Conclusion\n\nDone.');
+	});
+
+	test('commandExecution renders a completed terminal tool call', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'run it', text_elements: [] }] },
+					{
+						type: 'commandExecution', id: 'c1',
+						command: '/bin/zsh -lc \'ls -la\'', cwd: '/tmp', processId: null,
+						source: 'agent', status: 'completed',
+						commandActions: [], aggregatedOutput: 'total 0', exitCode: 0, durationMs: 5,
+					},
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].responseParts.length, 1);
+		const part = turns[0].responseParts[0] as { kind: ResponsePartKind; toolCall: { toolName: string; invocationMessage: string; pastTenseMessage: string; success: boolean; content?: { text: string }[] } };
+		assert.deepStrictEqual({
+			kind: part.kind,
+			toolName: part.toolCall.toolName,
+			invocationMessage: part.toolCall.invocationMessage,
+			pastTenseMessage: part.toolCall.pastTenseMessage,
+			success: part.toolCall.success,
+			output: part.toolCall.content?.[0].text,
+		}, {
+			kind: ResponsePartKind.ToolCall,
+			toolName: 'shell',
+			invocationMessage: 'ls -la',
+			pastTenseMessage: 'Ran `ls -la`',
+			success: true,
+			output: 'total 0',
+		});
+	});
+
+	test('contextCompaction is restored as a completed /compact turn', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_compact',
+				items: [{ type: 'contextCompaction', id: 'compact_1' }],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		const part = turns[0].responseParts[0];
+
+		assert.deepStrictEqual({
+			message: turns[0].message,
+			kind: part.kind,
+			toolCall: part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+				status: part.toolCall.status,
+				toolName: part.toolCall.toolName,
+				displayName: part.toolCall.displayName,
+				invocationMessage: part.toolCall.invocationMessage,
+				pastTenseMessage: part.toolCall.pastTenseMessage,
+				success: part.toolCall.success,
+			} : undefined,
+		}, {
+			message: { text: '/compact', origin: { kind: MessageKind.User } },
+			kind: ResponsePartKind.ToolCall,
+			toolCall: {
+				status: ToolCallStatus.Completed,
+				toolName: 'compact',
+				displayName: 'Compact conversation',
+				invocationMessage: 'Compacting conversation',
+				pastTenseMessage: 'Compacted conversation',
+				success: true,
+			},
+		});
+	});
+
+	test('automatic contextCompaction remains progress within its existing turn', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_auto_compact',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'continue', text_elements: [] }] },
+					{ type: 'contextCompaction', id: 'compact_1' },
+					{ type: 'agentMessage', id: 'a1', text: 'continued', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].message.text, 'continue');
+		assert.deepStrictEqual(turns[0].responseParts.map(part => part.kind), [
+			ResponsePartKind.ToolCall,
+			ResponsePartKind.Markdown,
+		]);
+	});
+
+	test('commandExecution coalesces a sandbox pre-flight with its re-run into one box', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'curl it', text_elements: [] }] },
+					// Pre-flight: same command, no output, success → deferred.
+					{
+						type: 'commandExecution', id: 'pre',
+						command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+						source: 'agent', status: 'completed',
+						commandActions: [], aggregatedOutput: '', exitCode: 0, durationMs: 3,
+					},
+					// Escalated re-run: same command, real output.
+					{
+						type: 'commandExecution', id: 'esc',
+						command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+						source: 'agent', status: 'completed',
+						commandActions: [], aggregatedOutput: 'Example Domain', exitCode: 0, durationMs: 30,
+					},
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		assert.strictEqual(turns.length, 1);
+		// Exactly one box — the pre-flight is coalesced away.
+		assert.strictEqual(turns[0].responseParts.length, 1);
+		const part = turns[0].responseParts[0] as { toolCall: { content?: { text: string }[] } };
+		assert.strictEqual(part.toolCall.content?.[0].text, 'Example Domain');
+	});
+});

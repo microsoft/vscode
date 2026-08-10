@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hide the top title border because we draw our own */
+.monaco-workbench .part.panel.bottom .composite.title {
+	border-top-width: 0;
+}
+
+.agent-sessions-workbench .part.panel > .title {
+	padding-left: 4px;
+	padding-right: 2px;
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+/* Override base workbench panel content background for terminal */
+.agent-sessions-workbench .part.panel > .content .monaco-editor,
+.agent-sessions-workbench .part.panel > .content .monaco-editor .margin,
+.agent-sessions-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.agent-sessions-workbench .part.panel > .content .pane-body,
+.agent-sessions-workbench .part.panel > .content .chat-debug-editor,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home-content,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview-content {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer {
+	--vscode-panel-background: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer .monaco-list-rows {
+	background: var(--vscode-agentsPanel-background) !important;
+}
+
+/* Terminal body background */
+.agent-sessions-workbench .part.panel .terminal-wrapper {
+	background-color: var(--vscode-agentsPanel-background);
+}

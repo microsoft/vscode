@@ -75,6 +75,9 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/** Scheme used for the image carousel editor. */
+	export const vscodeImageCarousel = 'vscode-image-carousel';
+
 	/** Scheme used for code blocks in chat. */
 	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
 
@@ -99,6 +102,11 @@ export namespace Schemas {
 	 * Scheme used for loading the wrapper html and script in webviews.
 	 */
 	export const vscodeWebview = 'vscode-webview';
+
+	/**
+	 * Scheme used for integrated browser tabs using WebContentsView.
+	 */
+	export const vscodeBrowser = 'vscode-browser';
 
 	/**
 	 * Scheme used for extension pages
@@ -219,7 +227,7 @@ class RemoteAuthoritiesImpl {
 			try {
 				return this._delegate(uri);
 			} catch (err) {
-				errors.onUnexpectedError(err);
+				errors.onUnexpectedExternalError(err);
 				return uri;
 			}
 		}

@@ -46,11 +46,11 @@ export class McpManagementChannel<TContext = RemoteAgentConnectionContext | stri
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 
 	constructor(private service: IMcpManagementService, private getUriTransformer: (requestContext: TContext) => IURITransformer | null) {
-		this.onInstallMcpServer = Event.buffer(service.onInstallMcpServer, true);
-		this.onDidInstallMcpServers = Event.buffer(service.onDidInstallMcpServers, true);
-		this.onDidUpdateMcpServers = Event.buffer(service.onDidUpdateMcpServers, true);
-		this.onUninstallMcpServer = Event.buffer(service.onUninstallMcpServer, true);
-		this.onDidUninstallMcpServer = Event.buffer(service.onDidUninstallMcpServer, true);
+		this.onInstallMcpServer = Event.buffer(service.onInstallMcpServer, 'onInstallMcpServer', true);
+		this.onDidInstallMcpServers = Event.buffer(service.onDidInstallMcpServers, 'onDidInstallMcpServers', true);
+		this.onDidUpdateMcpServers = Event.buffer(service.onDidUpdateMcpServers, 'onDidUpdateMcpServers', true);
+		this.onUninstallMcpServer = Event.buffer(service.onUninstallMcpServer, 'onUninstallMcpServer', true);
+		this.onDidUninstallMcpServer = Event.buffer(service.onDidUninstallMcpServer, 'onDidUninstallMcpServer', true);
 	}
 
 	listen<T>(context: TContext, event: string): Event<T> {

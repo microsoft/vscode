@@ -13,6 +13,7 @@
 	],
 	"ban-trustedtypes-createpolicy": [
 		"vs/code/electron-browser/workbench/workbench.ts",
+		"vs/sessions/electron-browser/sessions.ts",
 		"vs/amdX.ts",
 		"vs/base/browser/trustedTypes.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts"
@@ -27,6 +28,7 @@
 		"vs/workbench/api/worker/extensionHostWorker.ts"
 	],
 	"ban-domparser-parsefromstring": [
+		"vs/base/browser/htmlToMarkdown.ts",
 		"vs/base/browser/markdownRenderer.ts",
 		"vs/base/test/browser/markdownRenderer.test.ts"
 	],
@@ -37,6 +39,7 @@
 		"**/*.ts"
 	],
 	"ban-script-content-assignments": [
-		"vs/code/electron-browser/workbench/workbench.ts"
+		"vs/code/electron-browser/workbench/workbench.ts",
+		"vs/sessions/electron-browser/sessions.ts"
 	]
 }

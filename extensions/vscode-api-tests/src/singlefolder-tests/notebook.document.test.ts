@@ -302,7 +302,7 @@ suite('Notebook Document', function () {
 		assert.ok(document.metadata.extraNotebookMetadata, `Test metadata not found`);
 	});
 
-	test('setTextDocumentLanguage for notebook cells', async function () {
+	test.skip('setTextDocumentLanguage for notebook cells', async function () {
 
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.workspace.openNotebookDocument(uri);

@@ -1,12 +1,18 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./out",
+		"types": [
+			"node",
+			"mocha"
+		],
 		"typeRoots": [
 			"./node_modules/@types"
 		],
 		"lib": [
-			"WebWorker"
+			"WebWorker",
+			"ES2024"
 		]
 	},
 	"include": [

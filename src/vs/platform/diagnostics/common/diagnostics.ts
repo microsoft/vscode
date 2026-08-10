@@ -15,7 +15,7 @@ export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
 export interface IDiagnosticsService {
 	readonly _serviceBrand: undefined;
 
-	getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
+	getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[], options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo>;
 	getSystemInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
 	getDiagnostics(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
 	getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }>;
@@ -101,7 +101,7 @@ export function isRemoteDiagnosticError(x: unknown): x is IRemoteDiagnosticError
 export class NullDiagnosticsService implements IDiagnosticsService {
 	_serviceBrand: undefined;
 
-	async getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo> {
+	async getPerformanceInfo(mainProcessInfo: IMainProcessDiagnostics, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[], options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo> {
 		return {};
 	}
 
@@ -142,6 +142,11 @@ export interface IProcessDiagnostics {
 	readonly name: string;
 }
 
+export interface IGPULogMessage {
+	readonly header: string;
+	readonly message: string;
+}
+
 export interface IMainProcessDiagnostics {
 	readonly mainPID: number;
 	readonly mainArguments: string[]; // All arguments after argv[0], the exec path
@@ -149,4 +154,5 @@ export interface IMainProcessDiagnostics {
 	readonly pidToNames: IProcessDiagnostics[];
 	readonly screenReader: boolean;
 	readonly gpuFeatureStatus: any;
+	readonly gpuLogMessages: IGPULogMessage[];
 }

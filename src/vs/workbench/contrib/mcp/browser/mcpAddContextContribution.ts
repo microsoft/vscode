@@ -10,7 +10,7 @@ import { autorun, derived } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatContextPick, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
+import { ChatContextPick, IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
 import { IMcpService, McpCapability } from '../common/mcpTypes.js';
 import { McpResourcePickHelper } from './mcpResourceQuickAccess.js';
 

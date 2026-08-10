@@ -34,6 +34,8 @@ export namespace AccessibilityHelpNLS {
 	export const showAccessibilityHelpAction = nls.localize("showAccessibilityHelpAction", "Show Accessibility Help");
 	export const listSignalSounds = nls.localize("listSignalSoundsCommand", "Run the command: List Signal Sounds for an overview of all sounds and their current status.");
 	export const listAlerts = nls.localize("listAnnouncementsCommand", "Run the command: List Signal Announcements for an overview of announcements and their current status.");
+	export const announceCursorPosition = nls.localize("announceCursorPosition", "Run the command: Announce Cursor Position{0} to hear the current line and column.", '<keybinding:editor.action.announceCursorPosition>');
+	export const focusNotifications = nls.localize("focusNotifications", "Focus notification toasts{0} to navigate them with the keyboard. Accept the primary action of a focused notification{1}.", '<keybinding:notifications.focusToasts>', '<keybinding:notification.acceptPrimaryAction>');
 	export const quickChat = nls.localize("quickChatCommand", "Toggle quick chat{0} to open or close a chat session.", '<keybinding:workbench.action.quickchat.toggle>');
 	export const startInlineChat = nls.localize("startInlineChatCommand", "Start inline chat{0} to create an in editor chat session.", '<keybinding:inlineChat.start>');
 	export const startDebugging = nls.localize('debug.startDebugging', "The Debug: Start Debugging command{0} will start a debug session.", '<keybinding:workbench.action.debug.start>');
@@ -43,6 +45,7 @@ export namespace AccessibilityHelpNLS {
 	export const chatEditorModification = nls.localize('chatEditorModification', "The editor contains pending modifications that have been made by chat.");
 	export const chatEditorRequestInProgress = nls.localize('chatEditorRequestInProgress', "The editor is currently waiting for modifications to be made by chat.");
 	export const chatEditActions = nls.localize('chatEditing.navigation', 'Navigate between edits in the editor with navigate previous{0} and next{1} and accept{2}, reject{3} or view the diff{4} for the current change. Accept edits across all files{5}.', '<keybinding:chatEditor.action.navigatePrevious>', '<keybinding:chatEditor.action.navigateNext>', '<keybinding:chatEditor.action.acceptHunk>', '<keybinding:chatEditor.action.undoHunk>', '<keybinding:chatEditor.action.toggleDiff>', '<keybinding:chatEditor.action.acceptAllEdits>');
+	export const editorDictation = nls.localize('editorDictation', "Start or stop dictation in the editor{0}.", '<keybinding:workbench.action.editorDictation.start>');
 }
 
 export namespace InspectTokensNLS {

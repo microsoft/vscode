@@ -7,6 +7,7 @@ import { FastDomNode } from '../../../base/browser/fastDomNode.js';
 import { RenderingContext, RestrictedRenderingContext } from './renderingContext.js';
 import { ViewContext } from '../../common/viewModel/viewContext.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 
 export abstract class ViewPart extends ViewEventHandler {
 
@@ -21,6 +22,9 @@ export abstract class ViewPart extends ViewEventHandler {
 	public override dispose(): void {
 		this._context.removeEventHandler(this);
 		super.dispose();
+	}
+
+	public onBeforeRender(viewportData: ViewportData): void {
 	}
 
 	public abstract prepareRender(ctx: RenderingContext): void;

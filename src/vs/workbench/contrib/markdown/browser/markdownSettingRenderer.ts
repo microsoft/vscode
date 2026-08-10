@@ -20,9 +20,9 @@ export class SimpleSettingRenderer {
 	private readonly codeSettingAnchorRegex: RegExp;
 	private readonly codeSettingSimpleRegex: RegExp;
 
-	private _updatedSettings = new Map<string, any>(); // setting ID to user's original setting value
+	private _updatedSettings = new Map<string, unknown>(); // setting ID to user's original setting value
 	private _encounteredSettings = new Map<string, ISetting>(); // setting ID to setting
-	private _featuredSettings = new Map<string, any>(); // setting ID to feature value
+	private _featuredSettings = new Map<string, unknown>(); // setting ID to feature value
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -87,7 +87,7 @@ export class SimpleSettingRenderer {
 		};
 	}
 
-	settingToUriString(settingId: string, value?: any): string {
+	settingToUriString(settingId: string, value?: unknown): string {
 		return `${Schemas.codeSetting}://${settingId}${value ? `/${value}` : ''}`;
 	}
 
@@ -208,7 +208,7 @@ export class SimpleSettingRenderer {
 		return this._configurationService.updateValue(settingId, userOriginalSettingValue, ConfigurationTarget.USER);
 	}
 
-	async setSetting(settingId: string, currentSettingValue: any, newSettingValue: any): Promise<void> {
+	async setSetting(settingId: string, currentSettingValue: unknown, newSettingValue: unknown): Promise<void> {
 		this._updatedSettings.set(settingId, currentSettingValue);
 		return this._configurationService.updateValue(settingId, newSettingValue, ConfigurationTarget.USER);
 	}

@@ -1,4 +1,4 @@
-const enviromentVariables: Fig.Generator = {
+const environmentVariables: Fig.Generator = {
 	custom: async (_tokens, _executeCommand, generatorContext) => {
 		return Object.values(generatorContext.environmentVariables).map(
 			(envVar) => ({
@@ -31,7 +31,7 @@ const completionSpec: Fig.Spec = {
 			description: "Remove variable from the environment",
 			args: {
 				name: "name",
-				generators: enviromentVariables,
+				generators: environmentVariables,
 			},
 		},
 		{

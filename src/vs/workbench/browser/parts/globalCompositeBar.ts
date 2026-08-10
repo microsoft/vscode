@@ -44,6 +44,8 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../common/theme.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { WORKBENCH_MENU_MOTION_CLASS, workbenchMenuCloseAnimation } from '../actions/menuMotion.js';
+import { createCodexAccountMenuActions, ICodexAccountService, shouldShowCodexAccount } from '../../services/agentHost/browser/codexAccountService.js';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -168,7 +170,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService protected override readonly configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IActivityService private readonly activityService: IActivityService,
 	) {
@@ -211,7 +213,9 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => event,
 				getActions: () => actions,
-				onHide: () => disposables.dispose()
+				getMenuClassName: () => WORKBENCH_MENU_MOTION_CLASS,
+				onHide: () => disposables.dispose(),
+				closeAnimation: workbenchMenuCloseAnimation
 			});
 		}));
 
@@ -244,8 +248,10 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 			anchorAlignment,
 			anchorAxisAlignment,
 			getActions: () => actions,
+			getMenuClassName: () => WORKBENCH_MENU_MOTION_CLASS,
 			onHide: () => disposables.dispose(),
 			menuActionOptions: { renderShortTitle: true },
+			closeAnimation: workbenchMenuCloseAnimation
 		});
 
 	}
@@ -285,7 +291,8 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@ILogService private readonly logService: ILogService,
 		@IActivityService activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@ICodexAccountService private readonly codexAccountService: ICodexAccountService,
 	) {
 		const action = instantiationService.createInstance(CompositeBarAction, {
 			id: ACCOUNTS_ACTIVITY_ID,
@@ -481,6 +488,16 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${provider.label})`, providerSubMenuActions);
 					menus.push(providerSubMenu);
 				}
+			}
+		}
+
+		const codexAccountActions = createCodexAccountMenuActions(this.codexAccountService, shouldShowCodexAccount(this.configurationService, false));
+		if (codexAccountActions.length) {
+			if (menus.length) {
+				menus.push(new Separator());
+			}
+			for (const action of codexAccountActions) {
+				menus.push(action instanceof Action ? disposables.add(action) : action);
 			}
 		}
 
@@ -680,7 +697,8 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@ILogService logService: ILogService,
 		@IActivityService activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
+		@ICodexAccountService codexAccountService: ICodexAccountService,
 	) {
 		super(() => simpleActivityContextMenuActions(storageService, true),
 			{
@@ -691,7 +709,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 				}),
 				hoverOptions,
 				compact: true,
-			}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, commandService);
+			}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, commandService, codexAccountService);
 	}
 }
 

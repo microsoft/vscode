@@ -16,10 +16,10 @@ export const Mimes = Object.freeze({
 });
 
 interface MapExtToMediaMimes {
-	[index: string]: string;
+	[index: string]: string | string[];
 }
 
-const mapExtToTextMimes: MapExtToMediaMimes = {
+const mapExtToTextMimes: Record<string, string> = {
 	'.css': 'text/css',
 	'.csv': 'text/csv',
 	'.htm': 'text/html',
@@ -39,9 +39,9 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.flv': 'video/x-flv',
 	'.gif': 'image/gif',
 	'.ico': 'image/x-icon',
-	'.jpe': 'image/jpg',
-	'.jpeg': 'image/jpg',
-	'.jpg': 'image/jpg',
+	'.jpe': ['image/jpg', 'image/jpeg'],
+	'.jpeg': ['image/jpg', 'image/jpeg'],
+	'.jpg': ['image/jpg', 'image/jpeg'],
 	'.m1v': 'video/mpeg',
 	'.m2a': 'audio/mpeg',
 	'.m2v': 'video/mpeg',
@@ -96,12 +96,14 @@ export function getMediaOrTextMime(path: string): string | undefined {
 
 export function getMediaMime(path: string): string | undefined {
 	const ext = extname(path);
-	return mapExtToMediaMimes[ext.toLowerCase()];
+	const mimeType = mapExtToMediaMimes[ext.toLowerCase()];
+	return Array.isArray(mimeType) ? mimeType[0] : mimeType;
 }
 
 export function getExtensionForMimeType(mimeType: string): string | undefined {
 	for (const extension in mapExtToMediaMimes) {
-		if (mapExtToMediaMimes[extension] === mimeType) {
+		const value = mapExtToMediaMimes[extension];
+		if (Array.isArray(value) ? value.includes(mimeType) : value === mimeType) {
 			return extension;
 		}
 	}

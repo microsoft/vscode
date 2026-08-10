@@ -76,6 +76,7 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 		this.isRunningUnificationExperiment = isRunningUnificationExperiment.bindTo(this._contextKeyService);
 
 		this._assignmentService.addTelemetryAssignmentFilter({
+			id: 'inlineCompletionsUnification',
 			exclude: (assignment) => assignment.startsWith(EXTENSION_UNIFICATION_PREFIX) && this._state.extensionUnification !== this._configurationService.getValue<boolean>(ExtensionUnificationSetting),
 			onDidChange: Event.any(this._onDidChangeExtensionUnificationState.event, this._onDidChangeExtensionUnificationSetting.event)
 		});
@@ -153,7 +154,7 @@ export class InlineCompletionsUnificationImpl extends Disposable implements IInl
 		// Extension might be installed on remote and local
 		const completionExtensionInstalled = installedExtensions.filter(ext => ext.identifier.id.toLowerCase() === this._completionsExtensionId);
 		if (completionExtensionInstalled.length === 0) {
-			return false;
+			return true;
 		}
 
 		const completionsExtensionDisabledByUnification = completionExtensionInstalled.some(ext => this._extensionEnablementService.getEnablementState(ext) === EnablementState.DisabledByUnification);

@@ -152,8 +152,8 @@ export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 
 export class NativeDragAndDropData implements IDragAndDropData {
 
-	readonly types: any[];
-	readonly files: any[];
+	readonly types: unknown[];
+	readonly files: unknown[];
 
 	constructor() {
 		this.types = [];
@@ -332,8 +332,8 @@ export class ListView<T> implements IListView<T> {
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 
-	private readonly _onDidChangeContentHeight = new Emitter<number>();
-	private readonly _onDidChangeContentWidth = new Emitter<number>();
+	private readonly _onDidChangeContentHeight = this.disposables.add(new Emitter<number>());
+	private readonly _onDidChangeContentWidth = this.disposables.add(new Emitter<number>());
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event, undefined, this.disposables);
 	readonly onDidChangeContentWidth: Event<number> = Event.latch(this._onDidChangeContentWidth.event, undefined, this.disposables);
 	get contentHeight(): number { return this.rangeMap.size; }
@@ -359,9 +359,7 @@ export class ListView<T> implements IListView<T> {
 		this.domNode.classList.toggle('horizontal-scrolling', this._horizontalScrolling);
 
 		if (this._horizontalScrolling) {
-			for (const item of this.items) {
-				this.measureItemWidth(item);
-			}
+			this.measureItemWidths(this.items);
 
 			this.updateScrollWidth();
 			this.scrollableElement.setScrollDimensions({ width: getContentWidth(this.domNode) });
@@ -370,6 +368,7 @@ export class ListView<T> implements IListView<T> {
 			this.scrollableElementWidthDelayer.cancel();
 			this.scrollableElement.setScrollDimensions({ width: this.renderWidth, scrollWidth: this.renderWidth });
 			this.rowsContainer.style.width = '';
+			this.domNode.style.removeProperty('--list-scroll-right-offset');
 		}
 	}
 
@@ -715,6 +714,7 @@ export class ListView<T> implements IListView<T> {
 		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
 		const elementsRange = { start, end: start + elements.length };
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
+		const insertedItems: IItem<T>[] = [];
 
 		for (const range of insertRanges) {
 			for (let i = range.end - 1; i >= range.start; i--) {
@@ -722,6 +722,7 @@ export class ListView<T> implements IListView<T> {
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
 				this.insertItemInDOM(i, row);
+				insertedItems.push(item);
 			}
 		}
 
@@ -729,6 +730,11 @@ export class ListView<T> implements IListView<T> {
 			for (const row of rows) {
 				this.cache.release(row);
 			}
+		}
+
+		if (this.horizontalScrolling && insertedItems.length > 0) {
+			this.measureItemWidths(insertedItems);
+			this.eventuallyUpdateScrollWidth();
 		}
 
 		this.eventuallyUpdateScrollDimensions();
@@ -786,7 +792,7 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const item = this.items[index];
-		this.measureItemWidth(item);
+		this.measureItemWidths([item]);
 
 		if (typeof item.width !== 'undefined' && item.width > this.scrollWidth) {
 			this.scrollWidth = item.width;
@@ -894,6 +900,11 @@ export class ListView<T> implements IListView<T> {
 			this.scrollableElement.setScrollDimensions({
 				width: typeof width === 'number' ? width : getContentWidth(this.domNode)
 			});
+
+			const scrollPos = this.scrollableElement.getScrollPosition();
+			const scrollDims = this.scrollableElement.getScrollDimensions();
+			const rightOffset = Math.max(0, scrollDims.scrollWidth - scrollPos.scrollLeft - this.renderWidth);
+			this.domNode.style.setProperty('--list-scroll-right-offset', `${Math.max(rightOffset - 12, 0)}px`);
 		}
 	}
 
@@ -913,6 +924,8 @@ export class ListView<T> implements IListView<T> {
 			}
 		}
 
+		const insertedItems: IItem<T>[] = [];
+
 		this.cache.transact(() => {
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
@@ -923,9 +936,15 @@ export class ListView<T> implements IListView<T> {
 			for (const range of rangesToInsert) {
 				for (let i = range.end - 1; i >= range.start; i--) {
 					this.insertItemInDOM(i);
+					insertedItems.push(this.items[i]);
 				}
 			}
 		});
+
+		if (this.horizontalScrolling && insertedItems.length > 0) {
+			this.measureItemWidths(insertedItems);
+			this.eventuallyUpdateScrollWidth();
+		}
 
 		if (renderLeft !== undefined) {
 			this.rowsContainer.style.left = `-${renderLeft}px`;
@@ -935,6 +954,8 @@ export class ListView<T> implements IListView<T> {
 
 		if (this.horizontalScrolling && scrollWidth !== undefined) {
 			this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;
+			const rightOffset = Math.max(0, scrollWidth - (renderLeft ?? 0) - this.renderWidth);
+			this.domNode.style.setProperty('--list-scroll-right-offset', `${Math.max(rightOffset - 12, 0)}px`);
 		}
 
 		this.lastRenderTop = renderTop;
@@ -997,30 +1018,37 @@ export class ListView<T> implements IListView<T> {
 			item.dragStartDisposable = addDisposableListener(item.row.domNode, 'dragstart', event => this.onDragStart(item.element, uri, event));
 		}
 
-		if (this.horizontalScrolling) {
-			this.measureItemWidth(item);
-			this.eventuallyUpdateScrollWidth();
-		}
 	}
 
-	private measureItemWidth(item: IItem<T>): void {
-		if (!item.row || !item.row.domNode) {
-			return;
+	private measureItemWidths(items: readonly IItem<T>[]): void {
+		const itemsWithRows: { item: IItem<T>; domNode: HTMLElement }[] = [];
+
+		for (const item of items) {
+			if (item.row) {
+				itemsWithRows.push({ item, domNode: item.row.domNode });
+			}
 		}
 
-		item.row.domNode.style.width = 'fit-content';
-		item.width = getContentWidth(item.row.domNode);
-		const style = getWindow(item.row.domNode).getComputedStyle(item.row.domNode);
-
-		if (style.paddingLeft) {
-			item.width += parseFloat(style.paddingLeft);
+		for (const { domNode } of itemsWithRows) {
+			domNode.style.width = 'fit-content';
 		}
 
-		if (style.paddingRight) {
-			item.width += parseFloat(style.paddingRight);
+		for (const { item, domNode } of itemsWithRows) {
+			item.width = getContentWidth(domNode);
+			const style = getWindow(domNode).getComputedStyle(domNode);
+
+			if (style.paddingLeft) {
+				item.width += parseFloat(style.paddingLeft);
+			}
+
+			if (style.paddingRight) {
+				item.width += parseFloat(style.paddingRight);
+			}
 		}
 
-		item.row.domNode.style.width = '';
+		for (const { domNode } of itemsWithRows) {
+			domNode.style.width = '';
+		}
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
@@ -1580,11 +1608,18 @@ export class ListView<T> implements IListView<T> {
 				}
 
 				const renderRanges = Range.relativeComplement(renderRange, previousRenderRange).reverse();
+				const insertedItems: IItem<T>[] = [];
 
 				for (const range of renderRanges) {
 					for (let i = range.end - 1; i >= range.start; i--) {
 						this.insertItemInDOM(i);
+						insertedItems.push(this.items[i]);
 					}
+				}
+
+				if (this.horizontalScrolling && insertedItems.length > 0) {
+					this.measureItemWidths(insertedItems);
+					this.eventuallyUpdateScrollWidth();
 				}
 
 				for (let i = renderRange.start; i < renderRange.end; i++) {
@@ -1612,13 +1647,17 @@ export class ListView<T> implements IListView<T> {
 
 	private probeDynamicHeight(index: number): number {
 		const item = this.items[index];
+		return this.probeDynamicHeightForItem(item, index);
+	}
 
+	private probeDynamicHeightForItem(item: IItem<T>, index: number): number {
 		if (!!this.virtualDelegate.getDynamicHeight) {
 			const newSize = this.virtualDelegate.getDynamicHeight(item.element);
 			if (newSize !== null) {
 				const size = item.size;
 				item.size = newSize;
 				item.lastDynamicHeightWidth = this.renderWidth;
+				this.publishDynamicHeight(item);
 				return newSize - size;
 			}
 		}
@@ -1644,6 +1683,7 @@ export class ListView<T> implements IListView<T> {
 				}
 			}
 			item.lastDynamicHeightWidth = this.renderWidth;
+			this.publishDynamicHeight(item);
 			return item.size - size;
 		}
 
@@ -1661,13 +1701,18 @@ export class ListView<T> implements IListView<T> {
 		item.size = row.domNode.offsetHeight;
 		renderer.disposeElement?.(item.element, index, row.templateData);
 
-		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
-
 		item.lastDynamicHeightWidth = this.renderWidth;
+		this.publishDynamicHeight(item);
 		row.domNode.remove();
 		this.cache.release(row);
 
 		return item.size - size;
+	}
+
+	private publishDynamicHeight(item: IItem<T>): void {
+		if (item.size > 0) {
+			this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
+		}
 	}
 
 	getElementDomId(index: number): string {

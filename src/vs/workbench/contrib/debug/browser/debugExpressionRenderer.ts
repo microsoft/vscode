@@ -177,7 +177,7 @@ export class DebugExpressionRenderer {
 
 		const session = options.session ?? ((expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined);
 		// Only use hovers for links if thre's not going to be a hover for the value.
-		const hoverBehavior: DebugLinkHoverBehaviorTypeData = options.hover === false ? { type: DebugLinkHoverBehavior.Rich, store } : { type: DebugLinkHoverBehavior.None };
+		const hoverBehavior: DebugLinkHoverBehaviorTypeData = options.hover === false ? { type: DebugLinkHoverBehavior.Rich, store } : { type: DebugLinkHoverBehavior.None, store };
 		dom.clearNode(container);
 		const locationReference = options.locationReference ?? (expressionOrValue instanceof ExpressionContainer && expressionOrValue.valueLocationReference);
 
@@ -187,9 +187,9 @@ export class DebugExpressionRenderer {
 		}
 
 		if (supportsANSI) {
-			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, options.highlights));
+			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior));
 		} else {
-			container.appendChild(linkDetector.linkify(value, false, session?.root, true, hoverBehavior, options.highlights));
+			container.appendChild(linkDetector.linkify(value, hoverBehavior, false, session?.root, true, options.highlights));
 		}
 
 		if (options.hover !== false) {
@@ -202,7 +202,7 @@ export class DebugExpressionRenderer {
 				if (supportsANSI) {
 					// note: intentionally using `this.linkDetector` so we don't blindly linkify the
 					// entire contents and instead only link file paths that it contains.
-					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, options.highlights));
+					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior));
 				} else {
 					hoverContentsPre.textContent = value;
 				}

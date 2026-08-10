@@ -195,7 +195,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 	) {
 		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, modelService, replaceService, labelService);
 		this._cellMatches = new Map<string, ICellMatch>();
-		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
+		this._notebookUpdateScheduler = this._register(new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250));
 	}
 	private _cellMatches: Map<string, ICellMatch>;
 	public get cellContext(): Map<string, Map<number, string>> {

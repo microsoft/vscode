@@ -18,8 +18,6 @@ import { assertNoRpc, poll } from '../utils';
 		extensionContext = global.testExtensionContext;
 
 		const config = workspace.getConfiguration('terminal.integrated');
-		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
-		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
@@ -70,7 +68,7 @@ import { assertNoRpc, poll } from '../utils';
 						r(terminal);
 					}
 				}));
-				// Use a single character to avoid winpty/conpty issues with injected sequences
+				// Use a single character to avoid conpty issues with injected sequences
 				const terminal = window.createTerminal({
 					env: { TEST: '`' }
 				});
@@ -978,7 +976,7 @@ function sanitizeData(data: string): string {
 	// Strip NL/CR so terminal dimensions don't impact tests
 	data = data.replace(/[\r\n]/g, '');
 
-	// Strip escape sequences so winpty/conpty doesn't cause flakiness, do for all platforms for
+	// Strip escape sequences so conpty doesn't cause flakiness, do for all platforms for
 	// consistency
 	const CSI_SEQUENCE = /(:?(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~])|(:?\x1b\].*?\x07)/g;
 	data = data.replace(CSI_SEQUENCE, '');

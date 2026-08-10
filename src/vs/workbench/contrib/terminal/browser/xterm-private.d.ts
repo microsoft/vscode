@@ -31,3 +31,19 @@ export interface IXtermCore {
 		};
 	};
 }
+
+export interface IBufferLine {
+	readonly length: number;
+	getCell(x: number): { getChars(): string } | undefined;
+	translateToString(trimRight?: boolean): string;
+}
+
+export interface IBufferSet {
+	readonly active: {
+		readonly baseY: number;
+		readonly cursorY: number;
+		readonly cursorX: number;
+		readonly length: number;
+		getLine(y: number): IBufferLine | undefined;
+	};
+}

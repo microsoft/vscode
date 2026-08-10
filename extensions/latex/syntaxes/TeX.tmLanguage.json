@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/f40116471b3b479082937850c822a27208d6b054",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/76dc409348227db00f6779772f7763dc90cdf22e",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
@@ -154,7 +154,7 @@
 			]
 		},
 		"conditionals": {
-			"begin": "(?<=^\\s*)\\\\if[a-z]*",
+			"begin": "(?<=^\\s*)\\\\if(?!f\\b)[a-z]*",
 			"end": "(?<=^\\s*)\\\\fi",
 			"patterns": [
 				{

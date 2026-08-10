@@ -9,7 +9,7 @@ import { AccessibleViewType } from '../../../../platform/accessibility/browser/a
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { getChatAccessibilityHelpProvider } from '../../chat/browser/actions/chatAccessibilityHelp.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CTX_INLINE_CHAT_RESPONSE_FOCUSED } from '../common/inlineChat.js';
 
 export class InlineChatAccessibilityHelp implements IAccessibleViewImplementation {

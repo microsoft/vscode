@@ -184,5 +184,33 @@ suite('Resolving Editor Commands Context', () => {
 		assert.strictEqual(resolvedContext2.preserveFocus, true);
 	});
 
+	test('resolves context from right-clicked editor (not active)', async () => {
+		const accessor = await createServices();
+		const group = accessor.editorGroupService.activeGroup;
+
+		const input1 = input();
+		const input2 = input();
+		await group.openEditor(input1, { pinned: true });
+		await group.openEditor(input2, { pinned: true });
+
+		// input2 is now active (last opened), but we simulate right-click on input1
+		assert.strictEqual(group.activeEditor, input2);
+
+		const editorCommandContext: IEditorCommandsContext = {
+			groupId: group.id,
+			editorIndex: group.getIndexOfEditor(input1),
+			preserveFocus: false
+		};
+		const resolvedContext = resolveCommandsContext([editorCommandContext], accessor.editorService, accessor.editorGroupService, testListService);
+
+		// Should resolve to input1 (right-clicked editor), not input2 (active editor)
+		assert.strictEqual(resolvedContext.groupedEditors.length, 1);
+		assert.strictEqual(resolvedContext.groupedEditors[0].group.id, group.id);
+		assert.strictEqual(resolvedContext.groupedEditors[0].editors.length, 1);
+		assert.strictEqual(resolvedContext.groupedEditors[0].editors[0], input1);
+		assert.notStrictEqual(resolvedContext.groupedEditors[0].editors[0], input2);
+		assert.strictEqual(resolvedContext.preserveFocus, false);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

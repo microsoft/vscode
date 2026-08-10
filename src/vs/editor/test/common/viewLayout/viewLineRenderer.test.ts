@@ -115,7 +115,7 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 	);
 }
 
-suite('viewLineRenderer.renderLine', () => {
+suite('renderViewLine', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -191,6 +191,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assertParts('xyz', 4, [createPart(2, 1), createPart(3, 2)], '<span class="mtk1">xy</span><span class="mtk2">z</span>', [[0, [0, 0]], [1, [0, 1]], [2, [1, 0]], [3, [1, 1]]]);
 	});
 
+	// overflow
 	test('overflow', async () => {
 		const _actual = renderViewLine(createRenderLineInput({
 			lineContent: 'Hello world!',
@@ -217,7 +218,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('typical line', async () => {
+	// typical line
+	test('typical', async () => {
 		const lineContent = '\t    export class Game { // http://test.com     ';
 		const lineTokens = createViewLineTokens([
 			createPart(5, 1),
@@ -244,7 +246,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #2255: Weird line rendering part 1', async () => {
+	// issue #2255: Weird line rendering part 1
+	test('issue-2255-1', async () => {
 		const lineContent = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 		const lineTokens = createViewLineTokens([
 			createPart(3, 1), // 3 chars
@@ -268,7 +271,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #2255: Weird line rendering part 2', async () => {
+	// issue #2255: Weird line rendering part 2
+	test('issue-2255-2', async () => {
 		const lineContent = ' \t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 
 		const lineTokens = createViewLineTokens([
@@ -293,7 +297,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #91178: after decoration type shown before cursor', async () => {
+	// issue #91178: after decoration type shown before cursor
+	test('issue-91178', async () => {
 		const lineContent = '//just a comment';
 		const lineTokens = createViewLineTokens([
 			createPart(16, 1)
@@ -314,7 +319,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', async () => {
+	// issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages
+	test('monaco-280', async () => {
 		const lineContent = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 		const lineTokens = createViewLineTokens([
 			createPart(3, 6),
@@ -334,7 +340,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #137036: Issue in RTL languages in recent versions', async () => {
+	// issue #137036: Issue in RTL languages in recent versions
+	test('issue-137036', async () => {
 		const lineContent = '<option value=\"العربية\">العربية</option>';
 		const lineTokens = createViewLineTokens([
 			createPart(1, 2),
@@ -361,7 +368,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #99589: Rendering whitespace influences bidi layout', async () => {
+	// issue #99589: Rendering whitespace influences bidi layout
+	test('issue-99589', async () => {
 		const lineContent = '    [\"🖨️ چاپ فاکتور\",\"🎨 تنظیمات\"]';
 		const lineTokens = createViewLineTokens([
 			createPart(5, 2),
@@ -384,7 +392,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #260239: HTML containing bidirectional text is rendered incorrectly', async () => {
+	// issue #260239: HTML containing bidirectional text is rendered incorrectly
+	test('issue-260239', async () => {
 		// Simulating HTML like: <p class="myclass" title="العربي">نشاط التدويل!</p>
 		// The line contains both LTR (class="myclass") and RTL (title="العربي") attribute values
 		const lineContent = '<p class="myclass" title="العربي">نشاط التدويل!</p>';
@@ -439,7 +448,50 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #6885: Splits large tokens', async () => {
+	// issue #274604: Mixed LTR and RTL in a single token
+	test('issue-274604', async () => {
+		const lineContent = 'test.com##a:-abp-contains(إ)';
+		const lineTokens = createViewLineTokens([
+			createPart(lineContent.length, 1)
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens
+		}));
+
+		const inflated = inflateRenderLineOutput(actual);
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
+		await assertSnapshot(inflated.mapping);
+	});
+
+	// issue #277693: Mixed LTR and RTL in a single token with template literal
+	test('issue-277693', async () => {
+		const lineContent = 'نام کاربر: ${user.firstName}';
+		const lineTokens = createViewLineTokens([
+			createPart(9, 1),   // نام کاربر (RTL string content)
+			createPart(11, 1),  // : (space)
+			createPart(13, 2),  // ${ (template expression punctuation)
+			createPart(17, 3),  // user (variable)
+			createPart(18, 4),  // . (punctuation)
+			createPart(27, 3),  // firstName (property)
+			createPart(28, 2),  // } (template expression punctuation)
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens
+		}));
+
+		const inflated = inflateRenderLineOutput(actual);
+		await assertSnapshot(inflated.html.join(''), HTML_EXTENSION);
+		await assertSnapshot(inflated.mapping);
+	});
+
+	// issue #6885: Splits large tokens
+	test('issue-6885', async () => {
 		//                                                                                                                  1         1         1
 		//                        1         2         3         4         5         6         7         8         9         0         1         2
 		//               1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
@@ -526,7 +578,8 @@ suite('viewLineRenderer.renderLine', () => {
 		}
 	});
 
-	test('issue #21476: Does not split large tokens when ligatures are on', async () => {
+	// issue #21476: Does not split large tokens when ligatures are on
+	test('issue-21476', async () => {
 		//                                                                                                                  1         1         1
 		//                        1         2         3         4         5         6         7         8         9         0         1         2
 		//               1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
@@ -556,7 +609,8 @@ suite('viewLineRenderer.renderLine', () => {
 		}
 	});
 
-	test('issue #20624: Unaligned surrogate pairs are corrupted at multiples of 50 columns', async () => {
+	// issue #20624: Unaligned surrogate pairs are corrupted at multiples of 50 columns
+	test('issue-20624', async () => {
 		const lineContent = 'a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷';
 		const lineTokens = createViewLineTokens([createPart(lineContent.length, 1)]);
 		const actual = renderViewLine(createRenderLineInput({
@@ -568,7 +622,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflateRenderLineOutput(actual).html.join(''), HTML_EXTENSION);
 	});
 
-	test('issue #6885: Does not split large tokens in RTL text', async () => {
+	// issue #6885: Does not split large tokens in RTL text
+	test('issue-6885-rtl', async () => {
 		const lineContent = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
 		const lineTokens = createViewLineTokens([createPart(lineContent.length, 1)]);
 		const actual = renderViewLine(createRenderLineInput({
@@ -581,7 +636,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(actual.html, HTML_EXTENSION);
 	});
 
-	test('issue #95685: Uses unicode replacement character for Paragraph Separator', async () => {
+	// issue #95685: Uses unicode replacement character for Paragraph Separator
+	test('issue-95685', async () => {
 		const lineContent = 'var ftext = [\u2029"Und", "dann", "eines"];';
 		const lineTokens = createViewLineTokens([createPart(lineContent.length, 1)]);
 		const actual = renderViewLine(createRenderLineInput({
@@ -594,7 +650,8 @@ suite('viewLineRenderer.renderLine', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #19673: Monokai Theme bad-highlighting in line wrap', async () => {
+	// issue #19673: Monokai Theme bad-highlighting in line wrap
+	test('issue-19673', async () => {
 		const lineContent = '    MongoCallback<string>): void {';
 		const lineTokens = createViewLineTokens([
 			createPart(17, 1),
@@ -648,7 +705,7 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 	assert.strictEqual(actual.length, expectedInfo.length, `length mismatch`);
 }
 
-suite('viewLineRenderer.renderLine 2', () => {
+suite('renderViewLine2', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -664,7 +721,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		return inflateRenderLineOutput(actual);
 	}
 
-	test('issue #18616: Inline decorations ending at the text length are no longer rendered', async () => {
+	// issue #18616: Inline decorations ending at the text length are no longer rendered
+	test('issue-18616', async () => {
 		const lineContent = 'https://microsoft.com';
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent,
@@ -677,7 +735,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #19207: Link in Monokai is not rendered correctly', async () => {
+	// issue #19207: Link in Monokai is not rendered correctly
+	test('issue-19207', async () => {
 		const lineContent = '\'let url = `http://***/_api/web/lists/GetByTitle(\\\'Teambuildingaanvragen\\\')/items`;\'';
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -699,7 +758,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('createLineParts simple', async () => {
+	// createLineParts simple
+	test('simple', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'Hello world!',
@@ -714,7 +774,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts simple two tokens', async () => {
+	// createLineParts simple two tokens
+	test('two-tokens', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'Hello world!',
@@ -730,7 +791,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace - 4 leading spaces', async () => {
+	// createLineParts render whitespace - 4 leading spaces
+	test('ws-4-leading', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'    Hello world!    ',
@@ -747,7 +809,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace - 8 leading spaces', async () => {
+	// createLineParts render whitespace - 8 leading spaces
+	test('ws-8-leading', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'        Hello world!        ',
@@ -764,7 +827,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace - 2 leading tabs', async () => {
+	// createLineParts render whitespace - 2 leading tabs
+	test('ws-2-tabs', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'\t\tHello world!\t',
@@ -781,7 +845,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace - mixed leading spaces and tabs', async () => {
+	// createLineParts render whitespace - mixed leading spaces and tabs
+	test('ws-mixed', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'  \t\t  Hello world! \t  \t   \t    ',
@@ -798,7 +863,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace skips faux indent', async () => {
+	// createLineParts render whitespace skips faux indent
+	test('ws-faux-indent', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'\t\t  Hello world! \t  \t   \t    ',
@@ -815,7 +881,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts does not emit width for monospace fonts', async () => {
+	// createLineParts does not emit width for monospace fonts
+	test('ws-monospace', async () => {
 		const actual = testCreateLineParts(
 			true,
 			'\t\t  Hello world! \t  \t   \t    ',
@@ -832,7 +899,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace in middle but not for one space', async () => {
+	// createLineParts render whitespace in middle but not for one space
+	test('ws-middle', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'it  it it  it',
@@ -849,7 +917,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for all in middle', async () => {
+	// createLineParts render whitespace for all in middle
+	test('ws-all-middle', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' Hello world!\t',
@@ -866,7 +935,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for selection with no selections', async () => {
+	// createLineParts render whitespace for selection with no selections
+	test('ws-sel-none', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' Hello world!\t',
@@ -883,7 +953,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for selection with whole line selection', async () => {
+	// createLineParts render whitespace for selection with whole line selection
+	test('ws-sel-whole', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' Hello world!\t',
@@ -900,7 +971,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for selection with selection spanning part of whitespace', async () => {
+	// createLineParts render whitespace for selection with selection spanning part of whitespace
+	test('ws-sel-partial', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' Hello world!\t',
@@ -917,7 +989,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for selection with multiple selections', async () => {
+	// createLineParts render whitespace for selection with multiple selections
+	test('ws-sel-multiple', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' Hello world!\t',
@@ -934,7 +1007,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for selection with multiple, initially unsorted selections', async () => {
+	// createLineParts render whitespace for selection with multiple, initially unsorted selections
+	test('ws-sel-unsorted', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' Hello world!\t',
@@ -951,7 +1025,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for selection with selections next to each other', async () => {
+	// createLineParts render whitespace for selection with selections next to each other
+	test('ws-sel-adjacent', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' * S',
@@ -966,7 +1041,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for trailing with leading, inner, and without trailing whitespace', async () => {
+	// createLineParts render whitespace for trailing with leading, inner, and without trailing whitespace
+	test('ws-trail-no-trail', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' Hello world!',
@@ -983,7 +1059,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for trailing with leading, inner, and trailing whitespace', async () => {
+	// createLineParts render whitespace for trailing with leading, inner, and trailing whitespace
+	test('ws-trail-with-trail', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' Hello world! \t',
@@ -1000,7 +1077,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for trailing with 8 leading and 8 trailing whitespaces', async () => {
+	// createLineParts render whitespace for trailing with 8 leading and 8 trailing whitespaces
+	test('ws-trail-8-8', async () => {
 		const actual = testCreateLineParts(
 			false,
 			'        Hello world!        ',
@@ -1017,7 +1095,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts render whitespace for trailing with line containing only whitespaces', async () => {
+	// createLineParts render whitespace for trailing with line containing only whitespaces
+	test('ws-trail-only', async () => {
 		const actual = testCreateLineParts(
 			false,
 			' \t ',
@@ -1033,7 +1112,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(actual.mapping);
 	});
 
-	test('createLineParts can handle unsorted inline decorations', async () => {
+	// createLineParts can handle unsorted inline decorations
+	test('unsorted-deco', async () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: 'Hello world',
 			lineTokens: createViewLineTokens([createPart(11, 0)]),
@@ -1055,7 +1135,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #11485: Visible whitespace conflicts with before decorator attachment', async () => {
+	// issue #11485: Visible whitespace conflicts with before decorator attachment
+	test('issue-11485', async () => {
 
 		const lineContent = '\tbla';
 
@@ -1072,7 +1153,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #32436: Non-monospace font + visible whitespace + After decorator causes line to "jump"', async () => {
+	// issue #32436: Non-monospace font + visible whitespace + After decorator causes line to "jump"
+	test('issue-32436', async () => {
 
 		const lineContent = '\tbla';
 
@@ -1089,7 +1171,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #30133: Empty lines don\'t render inline decorations', async () => {
+	// issue #30133: Empty lines don't render inline decorations
+	test('issue-30133', async () => {
 
 		const lineContent = '';
 
@@ -1106,7 +1189,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', async () => {
+	// issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character
+	test('issue-37208', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1123,7 +1207,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #37401 #40127: Allow both before and after decorations on empty line', async () => {
+	// issue #37401 #40127: Allow both before and after decorations on empty line
+	test('issue-37401', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1142,7 +1227,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #118759: enable multiple text editor decorations in empty lines', async () => {
+	// issue #118759: enable multiple text editor decorations in empty lines
+	test('issue-118759', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1163,7 +1249,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #38935: GitLens end-of-line blame no longer rendering', async () => {
+	// issue #38935: GitLens end-of-line blame no longer rendering
+	test('issue-38935', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1181,7 +1268,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #136622: Inline decorations are not rendering on non-ASCII lines when renderControlCharacters is on', async () => {
+	// issue #136622: Inline decorations are not rendering on non-ASCII lines when renderControlCharacters is on
+	test('issue-136622', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1201,7 +1289,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #22832: Consider fullwidth characters when rendering tabs', async () => {
+	// issue #22832: Consider fullwidth characters when rendering tabs
+	test('issue-22832-1', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1216,7 +1305,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #22832: Consider fullwidth characters when rendering tabs (render whitespace)', async () => {
+	// issue #22832: Consider fullwidth characters when rendering tabs (render whitespace)
+	test('issue-22832-2', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1232,7 +1322,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #22352: COMBINING ACUTE ACCENT (U+0301)', async () => {
+	// issue #22352: COMBINING ACUTE ACCENT (U+0301)
+	test('issue-22352-1', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1247,7 +1338,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #22352: Partially Broken Complex Script Rendering of Tamil', async () => {
+	// issue #22352: Partially Broken Complex Script Rendering of Tamil
+	test('issue-22352-2', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1262,7 +1354,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #42700: Hindi characters are not being rendered properly', async () => {
+	// issue #42700: Hindi characters are not being rendered properly
+	test('issue-42700', async () => {
 
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
@@ -1277,7 +1370,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #38123: editor.renderWhitespace: "boundary" renders whitespace at line wrap point when line is wrapped', async () => {
+	// issue #38123: editor.renderWhitespace: "boundary" renders whitespace at line wrap point when line is wrapped
+	test('issue-38123', async () => {
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
 			lineContent: 'This is a long line which never uses more than two spaces. ',
@@ -1292,7 +1386,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #33525: Long line with ligatures takes a long time to paint decorations', async () => {
+	// issue #33525: Long line with ligatures takes a long time to paint decorations
+	test('issue-33525-1', async () => {
 		const actual = renderViewLine(createRenderLineInput({
 			canUseHalfwidthRightwardsArrow: false,
 			lineContent: 'append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to',
@@ -1306,7 +1401,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #33525: Long line with ligatures takes a long time to paint decorations - not possible', async () => {
+	// issue #33525: Long line with ligatures takes a long time to paint decorations - not possible
+	test('issue-33525-2', async () => {
 		const actual = renderViewLine(createRenderLineInput({
 			canUseHalfwidthRightwardsArrow: false,
 			lineContent: 'appenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatato',
@@ -1320,7 +1416,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #91936: Semantic token color highlighting fails on line with selected text', async () => {
+	// issue #91936: Semantic token color highlighting fails on line with selected text
+	test('issue-91936', async () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: '                    else if ($s = 08) then \'\\b\'',
 			lineTokens: createViewLineTokens([
@@ -1355,7 +1452,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #119416: Delete Control Character (U+007F / &#127;) displayed as space', async () => {
+	// issue #119416: Delete Control Character (U+007F / &#127;) displayed as space
+	test('issue-119416', async () => {
 		const actual = renderViewLine(createRenderLineInput({
 			canUseHalfwidthRightwardsArrow: false,
 			lineContent: '[' + String.fromCharCode(127) + '] [' + String.fromCharCode(0) + ']',
@@ -1370,7 +1468,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #116939: Important control characters aren\'t rendered', async () => {
+	// issue #116939: Important control characters aren't rendered
+	test('issue-116939', async () => {
 		const actual = renderViewLine(createRenderLineInput({
 			canUseHalfwidthRightwardsArrow: false,
 			lineContent: `transferBalance(5678,${String.fromCharCode(0x202E)}6776,4321${String.fromCharCode(0x202C)},"USD");`,
@@ -1385,7 +1484,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		await assertSnapshot(inflated.mapping);
 	});
 
-	test('issue #124038: Multiple end-of-line text decorations get merged', async () => {
+	// issue #124038: Multiple end-of-line text decorations get merged
+	test('issue-124038', async () => {
 		const actual = renderViewLine(createRenderLineInput({
 			useMonospaceOptimizations: true,
 			canUseHalfwidthRightwardsArrow: false,

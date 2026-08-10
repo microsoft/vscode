@@ -371,7 +371,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			value: buffer,
 			encoding: preferredEncoding.encoding,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from buffer) */, options);
 	}
 
@@ -419,7 +420,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			value: await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, backup.value, { encoding: UTF8 })),
 			encoding,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from backup) */, options);
 
 		// Restore orphaned flag based on state
@@ -517,6 +519,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: content.etag,
 			readonly: content.readonly,
 			locked: content.locked,
+			executable: false,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,

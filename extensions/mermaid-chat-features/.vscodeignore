@@ -1,8 +1,0 @@
-src/**
-extension.webpack.config.js
-esbuild.*
-cgmanifest.json
-package-lock.json
-webpack.config.js
-tsconfig*.json
-.gitignore

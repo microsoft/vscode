@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { deepStrictEqual, ok } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
@@ -66,7 +67,7 @@ suite('CommandDetectionCapability', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, logger: TestXtermLogger }));
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		capability = store.add(instantiationService.createInstance(TestCommandDetectionCapability, xterm));
 		addEvents = [];
@@ -131,5 +132,59 @@ suite('CommandDetectionCapability', () => {
 				{ command: 'echo bar', exitCode: 0, cwd: '/home', marker: { line: 2 } }
 			]);
 		});
+	});
+
+	test('should not inherit the previous exit code when a duplicate command is interrupted', async () => {
+		await printStandardCommand('$ ', 'echo test', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo test');
+		xterm.input('\x03');
+		await writeP(xterm, '^C');
+		capability.setCommandLine('echo test', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo test', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo test', exitCode: undefined, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
+	test('should inherit the previous exit code for duplicate commands without interruption', async () => {
+		await printStandardCommand('$ ', 'echo ^C', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo ^C');
+		capability.setCommandLine('echo ^C', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\ntest\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
+	test('should preserve explicit newlines at 80-column wrap boundaries in command output', async () => {
+		const boundaryWidthLine = 'A'.repeat(80);
+		await printStandardCommand('$ ', 'cat content.txt', `${boundaryWidthLine}\r\nafter`, undefined, 0);
+		await printCommandStart('$ ');
+
+		strictEqual(capability.commands.length, 1);
+		const output = capability.commands[0].getOutput();
+		ok(!!output);
+		ok(output.includes(`${boundaryWidthLine}\nafter\n`));
+		ok(!output.includes(`${boundaryWidthLine}after`));
 	});
 });

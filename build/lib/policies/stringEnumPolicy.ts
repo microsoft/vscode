@@ -58,7 +58,7 @@ export class StringEnumPolicy extends BasePolicy {
 	protected renderADMXElements(): string[] {
 		return [
 			`<enum id="${this.name}" valueName="${this.name}">`,
-			...this.enum_.map((value, index) => `	<item displayName="$(string.${this.name}_${this.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`),
+			...this.enum_.map((value, index) => `	<item displayName="$(string.${this.name}_${this.enumDescriptions[index].nlsKey.replace(/\./g, '_')})"><value><string>${value}</string></value></item>`),
 			`</enum>`
 		];
 	}

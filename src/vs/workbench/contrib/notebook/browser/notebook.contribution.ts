@@ -316,7 +316,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}));
 
 		// register comment decoration
-		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
+		this._register(this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {}));
 	}
 
 	// Add or remove the cell undo redo comparison key based on the user setting
@@ -978,7 +978,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
 			type: 'object',
 			additionalProperties: {
-				markdownDescription: nls.localize('notebook.cellToolbarLocation.viewType', "Configure the cell toolbar position for for specific file types"),
+				markdownDescription: nls.localize('notebook.cellToolbarLocation.viewType', "Configure the cell toolbar position for specific file types"),
 				type: 'string',
 				enum: ['left', 'right', 'hidden']
 			},

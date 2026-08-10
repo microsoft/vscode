@@ -5,9 +5,10 @@
 
 import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
+import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewCloseAnimation, IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
+import { AnchorPosition } from '../../../base/common/layout.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IMenuActionOptions, MenuId } from '../../actions/common/actions.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
@@ -40,9 +41,11 @@ export interface IContextViewDelegate {
 	render(container: HTMLElement): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
+	closeAnimation?: IContextViewCloseAnimation;
 	focus?(): void;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
+	anchorPosition?: AnchorPosition;
 
 	// context views with higher layers are rendered over contet views with lower layers
 	layer?: number; // Default: 0

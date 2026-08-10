@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { dirs } from '../../npm/dirs.js';
+import { dirs } from '../../npm/dirs.ts';
 
 const ROOT = path.join(import.meta.dirname, '../../../');
 

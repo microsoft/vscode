@@ -51,11 +51,13 @@ export interface ISelectOptionItem {
 	descriptionIsMarkdown?: boolean;
 	readonly descriptionMarkdownActionHandler?: MarkdownActionHandler;
 	isDisabled?: boolean;
+	isSeparator?: boolean;
 }
 
 export const SeparatorSelectOption: Readonly<ISelectOptionItem> = Object.freeze({
 	text: '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
 	isDisabled: true,
+	isSeparator: true,
 });
 
 export interface ISelectBoxStyles extends IListStyles {

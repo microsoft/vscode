@@ -8,7 +8,7 @@ import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
 import { IHistoryNavigationWidget } from '../../history.js';
-import { ActionBar } from '../actionbar/actionbar.js';
+import { ActionBar, IActionViewItemProvider } from '../actionbar/actionbar.js';
 import * as aria from '../aria/aria.js';
 import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
@@ -37,8 +37,10 @@ export interface IInputOptions {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly history?: IHistory<string>;
+	readonly hideHoverOnValueChange?: boolean;
 }
 
 export interface IInputBoxStyles {
@@ -115,6 +117,7 @@ export class InputBox extends Widget {
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
 	private readonly hover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly messageResizeObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public get onDidChange(): Event<string> { return this._onDidChange.event; }
@@ -206,11 +209,31 @@ export class InputBox extends Widget {
 
 		// Support actions
 		if (this.options.actions) {
-			this.actionbar = this._register(new ActionBar(this.element));
+			this.actionbar = this._register(new ActionBar(this.element, {
+				actionViewItemProvider: this.options.actionViewItemProvider
+			}));
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
 
 		this.applyStyles();
+	}
+
+	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		if (this.actionbar) {
+			this.actionbar.clear();
+			if (actions) {
+				this.actionbar.push(actions, { icon: true, label: false });
+			}
+		} else if (actions) {
+			this.actionbar = this._register(new ActionBar(this.element, {
+				actionViewItemProvider: actionViewItemProvider ?? this.options.actionViewItemProvider
+			}));
+			this.actionbar.push(actions, { icon: true, label: false });
+		}
+	}
+
+	public get actionsWidth(): number {
+		return this.actionbar?.getContainer().offsetWidth ?? 0;
 	}
 
 	protected onBlur(): void {
@@ -505,9 +528,12 @@ export class InputBox extends Widget {
 			},
 			onHide: () => {
 				this.state = 'closed';
+				this.messageResizeObserver.clear();
 			},
 			layout: layout
 		});
+
+		this.observeElementResize();
 
 		// ARIA Support
 		let alertText: string;
@@ -533,7 +559,25 @@ export class InputBox extends Widget {
 			this.contextViewProvider.hideContextView();
 		}
 
+		this.messageResizeObserver.clear();
 		this.state = 'idle';
+	}
+
+	/**
+	 * Keeps the validation message sized and anchored to the input while the
+	 * message is showing and the input itself is resized, e.g. because the
+	 * containing view was resized.
+	 */
+	private observeElementResize(): void {
+		const observer = new dom.DisposableResizeObserver('InputBox.validationMessage', () => {
+			// Ignore notifications for a hidden or detached input, laying out
+			// against a degenerate anchor would move the message to the corner.
+			if (this.element.isConnected && dom.getTotalWidth(this.element) > 0) {
+				this.layoutMessage();
+			}
+		}, dom.getWindow(this.element));
+		observer.observe(this.element);
+		this.messageResizeObserver.value = observer;
 	}
 
 	private layoutMessage(): void {
@@ -551,6 +595,10 @@ export class InputBox extends Widget {
 
 		if (this.state === 'open' && this.contextViewProvider) {
 			this.contextViewProvider.layout();
+		}
+
+		if (this.options.hideHoverOnValueChange) {
+			getBaseLayerHoverDelegate().hideHover();
 		}
 	}
 

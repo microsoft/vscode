@@ -9,7 +9,7 @@ import * as tas from 'vscode-tas-client';
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 
 interface ExperimentTypes {
-	// None for now.
+	suggestNativePreview: boolean;
 }
 
 export class ExperimentationService {
@@ -24,8 +24,8 @@ export class ExperimentationService {
 	public async getTreatmentVariable<K extends keyof ExperimentTypes>(name: K, defaultValue: ExperimentTypes[K]): Promise<ExperimentTypes[K]> {
 		const experimentationService = await this._experimentationServicePromise;
 		try {
-			const treatmentVariable = experimentationService.getTreatmentVariableAsync('vscode', name, /*checkCache*/ true) as Promise<ExperimentTypes[K]>;
-			return treatmentVariable;
+			const treatmentVariable = await experimentationService.getTreatmentVariableAsync('vscode', name, /*checkCache*/ true) as ExperimentTypes[K];
+			return treatmentVariable ?? defaultValue;
 		} catch {
 			return defaultValue;
 		}
@@ -36,7 +36,8 @@ export async function createTasExperimentationService(
 	reporter: IExperimentationTelemetryReporter,
 	id: string,
 	version: string,
-	globalState: vscode.Memento): Promise<tas.IExperimentationService> {
+	globalState: vscode.Memento
+): Promise<tas.IExperimentationService> {
 	let targetPopulation: tas.TargetPopulation;
 	switch (vscode.env.uriScheme) {
 		case 'vscode':

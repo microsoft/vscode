@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { publishRepository } from './publish.js';
-import { API as GitAPI, RemoteSourcePublisher, Repository } from './typings/git.js';
+import type { API as GitAPI, RemoteSourcePublisher, Repository } from './typings/git.d.ts';
 
 export class GithubRemoteSourcePublisher implements RemoteSourcePublisher {
 	readonly name = 'GitHub';

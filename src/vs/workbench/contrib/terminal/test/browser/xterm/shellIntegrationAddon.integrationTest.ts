@@ -16,6 +16,7 @@ import type { TerminalCapabilityStore } from '../../../../../../platform/termina
 import { ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { workbenchInstantiationService, type TestTerminalConfigurationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { events as rich_windows11_pwsh7_echo_3_times } from './recordings/rich/windows11_pwsh7_echo_3_times.js';
@@ -159,7 +160,7 @@ suite('Terminal Contrib Shell Integration Recordings', () => {
 		terminalConfigurationService.setConfig(terminalConfig as unknown as Partial<ITerminalConfiguration>);
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, NullTelemetryService, new NullLogService));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, logger: TestXtermLogger }));
 		capabilities = shellIntegrationAddon.capabilities;
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);
@@ -220,8 +221,8 @@ suite('Terminal Contrib Shell Integration Recordings', () => {
 						const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
 						if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
 							await Promise.race([
-								await timeout(1000).then(() => { throw new Error(`Prompt input change timed out current="${promptInputModel.getCombinedString()}", expected="${event.data}"`); }),
-								await new Promise<void>(r => {
+								timeout(1000).then(() => { throw new Error(`Prompt input change timed out current="${promptInputModel.getCombinedString()}", expected="${event.data}"`); }),
+								new Promise<void>(r => {
 									const d = promptInputModel.onDidChangeInput(() => {
 										if (promptInputModel.getCombinedString() === event.data) {
 											d.dispose();

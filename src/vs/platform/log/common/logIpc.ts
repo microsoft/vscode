@@ -45,7 +45,8 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 		this.channel.call('registerLogger', [logger, this.windowId]);
 	}
 
-	override deregisterLogger(resource: URI): void {
+	override deregisterLogger(idOrResource: URI | string): void {
+		const resource = this.toResource(idOrResource);
 		super.deregisterLogger(resource);
 		this.channel.call('deregisterLogger', [resource, this.windowId]);
 	}

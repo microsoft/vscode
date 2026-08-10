@@ -323,7 +323,7 @@ suite('PromptFileReference', function () {
 									name: 'file3.prompt.md',
 									contents: [
 										'---',
-										'tools: [ false, \'my-tool1\' , ]',
+										'tools: [ \'my-tool1\' , ]',
 										'---',
 										'',
 										'[](./some-other-folder/non-existing-folder)',
@@ -360,7 +360,7 @@ suite('PromptFileReference', function () {
 													name: 'another-file.prompt.md',
 													contents: [
 														'---',
-														'tools: [\'my-tool3\', false, "my-tool2" ]',
+														'tools: [\'my-tool3\', "my-tool2" ]',
 														'---',
 														`[](${rootFolder}/folder1/some-other-folder)`,
 														'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
@@ -441,7 +441,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'applyTo: \'**/*\'',
-									'tools: [ false, \'my-tool12\' , ]',
+									'tools: [ \'my-tool12\' , ]',
 									'description: \'Description of my prompt.\'',
 									'---',
 									'## Files',
@@ -457,7 +457,7 @@ suite('PromptFileReference', function () {
 										name: 'file3.prompt.md',
 										contents: [
 											'---',
-											'tools: [ false, \'my-tool1\' , ]',
+											'tools: [ \'my-tool1\' , ]',
 											'---',
 											' some more\t content',
 										],
@@ -547,7 +547,7 @@ suite('PromptFileReference', function () {
 								contents: [
 									'---',
 									'applyTo: \'**/*\'',
-									'tools: [ false, \'my-tool12\' , ]',
+									'tools: [ \'my-tool12\' , ]',
 									'description: \'Description of my instructions file.\'',
 									'---',
 									'## Files',
@@ -563,7 +563,7 @@ suite('PromptFileReference', function () {
 										name: 'file3.prompt.md',
 										contents: [
 											'---',
-											'tools: [ false, \'my-tool1\' , ]',
+											'tools: [ \'my-tool1\' , ]',
 											'---',
 											' some more\t content',
 										],
@@ -668,7 +668,7 @@ suite('PromptFileReference', function () {
 										name: 'file3.prompt.md',
 										contents: [
 											'---',
-											'tools: [ false, \'my-tool1\' , ]',
+											'tools: [ \'my-tool1\' , ]',
 											'agent: \'agent\'\t',
 											'---',
 											' some more\t content',
@@ -771,7 +771,7 @@ suite('PromptFileReference', function () {
 										name: 'file3.prompt.md',
 										contents: [
 											'---',
-											'tools: [ false, \'my-tool1\' , ]',
+											'tools: [ \'my-tool1\' , ]',
 											'---',
 											' some more\t content',
 										],
@@ -874,7 +874,7 @@ suite('PromptFileReference', function () {
 										name: 'file3.prompt.md',
 										contents: [
 											'---',
-											'tools: [ false, \'my-tool1\' , ]',
+											'tools: [ \'my-tool1\' , ]',
 											'---',
 											' some more\t content',
 										],
@@ -961,7 +961,7 @@ suite('PromptFileReference', function () {
 								name: 'file2.prompt.md',
 								contents: [
 									'---',
-									'tools: [ false, \'my-tool12\' , ]',
+									'tools: [ \'my-tool12\' , ]',
 									'description: \'Description of the prompt file.\'',
 									'---',
 									'## Files',
@@ -977,7 +977,7 @@ suite('PromptFileReference', function () {
 										name: 'file3.prompt.md',
 										contents: [
 											'---',
-											'tools: [ false, \'my-tool1\' , ]',
+											'tools: [ \'my-tool1\' , ]',
 											'---',
 											' some more\t content',
 										],

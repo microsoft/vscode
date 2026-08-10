@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './hover.css';
-import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import * as dom from '../../../base/browser/dom.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
@@ -12,7 +12,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Widget } from '../../../base/browser/ui/widget.js';
-import { AnchorPosition } from '../../../base/browser/ui/contextview/contextview.js';
+import { AnchorAlignment, AnchorPosition } from '../../../base/browser/ui/contextview/contextview.js';
 import { IMarkdownRendererService } from '../../markdown/browser/markdownRenderer.js';
 import { isMarkdownString } from '../../../base/common/htmlContent.js';
 import { localize } from '../../../nls.js';
@@ -48,6 +48,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
+	private readonly _anchorAlignment: AnchorAlignment;
 	private readonly _linkHandler: ((url: string) => void) | undefined;
 
 	private _isDisposed: boolean = false;
@@ -59,6 +60,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
 	private _maxHeightRatioRelativeToWindow: number = 0.5;
+	private _mouseTracker: CompositeMouseTracker | undefined;
 
 	private get _targetWindow(): Window {
 		return dom.getWindow(this._target.targetElements[0]);
@@ -93,6 +95,16 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._hoverContainer.classList.toggle('locked', this._isLocked);
 	}
 
+	/**
+	 * Adds an element to be tracked by this hover's mouse tracker. Mouse events on
+	 * this element will be considered as being "inside" the hover, preventing it
+	 * from closing. This is used for nested hovers where the child hover's container
+	 * should be treated as part of the parent hover.
+	 */
+	addMouseTrackingElement(element: HTMLElement): IDisposable {
+		return this._lockMouseTracker.addElement(element);
+	}
+
 	constructor(
 		options: IHoverOptions,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -105,6 +117,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
+		this._anchorAlignment = options.position?.anchorAlignment ?? AnchorAlignment.LEFT;
 
 		if (options.style) {
 			switch (options.style) {
@@ -127,6 +140,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._hover.containerDomNode.classList.add('workbench-hover');
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
+		}
+		if (this._hoverPointer) {
+			this._hover.containerDomNode.classList.add('with-pointer');
 		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
@@ -173,6 +189,14 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		} else if (dom.isHTMLElement(options.content)) {
 			contentsElement.appendChild(options.content);
 			contentsElement.classList.add('html-hover-contents');
+
+			// Watch for size changes from dynamic HTML content (e.g. collapsible regions).
+			const resizeObserver = new ResizeObserver(() => {
+				this.layout();
+				this._onRequestLayout.fire();
+			});
+			resizeObserver.observe(contentsElement);
+			this._register(toDisposable(() => resizeObserver.disconnect()));
 
 		} else {
 			const markdown = options.content;
@@ -247,7 +271,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		if (!hideOnHover) {
 			mouseTrackerTargets.push(this._hoverContainer);
 		}
-		const mouseTracker = this._register(new CompositeMouseTracker(mouseTrackerTargets));
+		const mouseTracker = this._mouseTracker = this._register(new CompositeMouseTracker(mouseTrackerTargets));
 		this._register(mouseTracker.onMouseOut(() => {
 			if (!this._isLocked) {
 				this.dispose();
@@ -327,8 +351,17 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	public layout() {
+		// Cancel any pending mouseout timers since the hover is being
+		// repositioned (e.g. due to content resize from collapsible sections).
+		// The mouse may end up back inside the hover after the layout.
+		this._mouseTracker?.suppressPendingMouseOut();
+		if (this._lockMouseTracker !== this._mouseTracker) {
+			this._lockMouseTracker?.suppressPendingMouseOut();
+		}
+
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
+		this._hover.containerDomNode.style.maxWidth = '';
 
 		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
 			const zoom = dom.getDomNodeZoomLevel(e);
@@ -427,7 +460,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		else {
-			if (this._hoverPointer) {
+			if (this._anchorAlignment === AnchorAlignment.RIGHT) {
+				this._x = target.right - hoverWidth;
+			} else if (this._hoverPointer) {
 				this._x = target.center.x - (this._hover.containerDomNode.clientWidth / 2);
 			} else {
 				this._x = target.left;
@@ -477,6 +512,14 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private adjustHorizontalHoverPosition(target: TargetRect): void {
 		// Do not adjust horizontal hover position if x cordiante is provided
 		if (this._target.x !== undefined) {
+			return;
+		}
+
+		if (this._anchorAlignment === AnchorAlignment.RIGHT && (this._hoverPosition === HoverPosition.ABOVE || this._hoverPosition === HoverPosition.BELOW)) {
+			const availableWidth = target.right - this._targetDocumentElement.clientLeft - Constants.HoverWindowEdgeMargin - Constants.HoverBorderWidth;
+			if (this._hover.containerDomNode.clientWidth > availableWidth) {
+				this._hover.containerDomNode.style.maxWidth = `${Math.max(availableWidth, 0)}px`;
+			}
 			return;
 		}
 
@@ -646,6 +689,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 class CompositeMouseTracker extends Widget {
 	private _isMouseIn: boolean = true;
+	private _suppressNextMouseOut: boolean = false;
 	private readonly _mouseTimer: MutableDisposable<TimeoutTimer> = this._register(new MutableDisposable());
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
@@ -673,6 +717,7 @@ class CompositeMouseTracker extends Widget {
 
 	private _onTargetMouseOver(): void {
 		this._isMouseIn = true;
+		this._suppressNextMouseOut = false;
 		this._mouseTimer.clear();
 	}
 
@@ -684,9 +729,42 @@ class CompositeMouseTracker extends Widget {
 	}
 
 	private _fireIfMouseOutside(): void {
-		if (!this._isMouseIn) {
+		if (!this._isMouseIn && !this._suppressNextMouseOut) {
 			this._onMouseOut.fire();
 		}
+	}
+
+	/**
+	 * Suppresses the next pending mouseout dismissal. Call this when tracked
+	 * elements are being resized or repositioned to avoid spurious dismissals
+	 * caused by the element shrinking away from the cursor. The suppression
+	 * is cleared when the mouse next enters a tracked element.
+	 */
+	suppressPendingMouseOut(): void {
+		if (!this._isMouseIn) {
+			this._suppressNextMouseOut = true;
+		}
+	}
+
+	/**
+	 * Adds an element to be tracked by this mouse tracker. Mouse events on this
+	 * element will be considered as being "inside" the tracked area.
+	 */
+	addElement(element: HTMLElement): IDisposable {
+		if (this._elements.includes(element)) {
+			return Disposable.None;
+		}
+		this._elements.push(element);
+		const store = new DisposableStore();
+		store.add(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => this._onTargetMouseOver()));
+		store.add(dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, () => this._onTargetMouseLeave()));
+		store.add(toDisposable(() => {
+			const index = this._elements.indexOf(element);
+			if (index >= 0) {
+				this._elements.splice(index, 1);
+			}
+		}));
+		return store;
 	}
 }
 

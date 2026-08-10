@@ -6,6 +6,6 @@
 declare module 'vscode' {
 
 	export namespace interactive {
-		export function transferActiveChat(toWorkspace: Uri): void;
+		export function transferActiveChat(toWorkspace: Uri): Thenable<void>;
 	}
 }

@@ -150,6 +150,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		let _executeHandler = handler ?? _defaultExecutHandler;
 		let _interruptHandler: ((this: vscode.NotebookController, notebook: vscode.NotebookDocument) => void | Thenable<void>) | undefined;
 		let _variableProvider: vscode.NotebookVariableProvider | undefined;
+		let _variableProviderDisposable: IDisposable | undefined;
 
 		this._proxy.$addKernel(handle, data).catch(err => {
 			// this can happen when a kernel with that ID is already registered
@@ -234,9 +235,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			set variableProvider(value) {
 				checkProposedApiEnabled(extension, 'notebookVariableProvider');
+				_variableProviderDisposable?.dispose();
 				_variableProvider = value;
 				data.hasVariableProvider = !!value;
-				value?.onDidChangeVariables(e => that._proxy.$variablesUpdated(e.uri));
+				_variableProviderDisposable = value?.onDidChangeVariables(e => that._proxy.$variablesUpdated(e.uri));
 				_update();
 			},
 			get variableProvider() {
@@ -270,6 +272,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					this._kernelData.delete(handle);
 					onDidChangeSelection.dispose();
 					onDidReceiveMessage.dispose();
+					_variableProviderDisposable?.dispose();
 					this._proxy.$removeKernel(handle);
 				}
 			},
@@ -573,7 +576,7 @@ class NotebookCellExecutionTask extends Disposable {
 	private static HANDLE = 0;
 	private _handle = NotebookCellExecutionTask.HANDLE++;
 
-	private _onDidChangeState = new Emitter<void>();
+	private _onDidChangeState = this._register(new Emitter<void>());
 	readonly onDidChangeState = this._onDidChangeState.event;
 
 	private _state = NotebookCellExecutionTaskState.Init;
@@ -783,7 +786,7 @@ class NotebookExecutionTask extends Disposable {
 	private static HANDLE = 0;
 	private _handle = NotebookExecutionTask.HANDLE++;
 
-	private _onDidChangeState = new Emitter<void>();
+	private _onDidChangeState = this._register(new Emitter<void>());
 	readonly onDidChangeState = this._onDidChangeState.event;
 
 	private _state = NotebookExecutionTaskState.Init;

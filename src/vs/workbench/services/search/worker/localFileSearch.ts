@@ -175,7 +175,9 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 
 	private async walkFolderQuery(handle: IWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => Promise<unknown> | unknown, token: CancellationToken): Promise<void> {
 
-		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parse(excludePattern.pattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression);
+		const ignoreGlobCase = queryProps.ignoreGlobCase || folderQuery.ignoreGlobCase;
+		const globOptions = { trimForExclusions: true, ignoreCase: ignoreGlobCase };
+		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parse(excludePattern.pattern ?? {}, globOptions) as glob.ParsedExpression);
 
 		const evalFolderExcludes = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
 			return folderExcludes?.some(folderExclude => {
@@ -231,7 +233,7 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 					if (!file) { return; }
 
 					const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
-					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile);
+					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile, ignoreGlobCase);
 				}));
 			}
 
@@ -326,19 +328,21 @@ function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommon
 
 
 function pathExcludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
+	const globOptions = queryProps.ignoreGlobCase ? { ignoreCase: true } : undefined;
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath, globOptions)) {
 		return true;
 	}
 	return false;
 }
 
 function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path)) {
+	const globOptions = queryProps.ignoreGlobCase ? { ignoreCase: true } : undefined;
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path, globOptions)) {
 		return false;
 	}
 
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, path)) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, path, globOptions)) {
 			return true;
 		}
 
@@ -350,7 +354,7 @@ function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, e
 				const uri = URI.file(path);
 				if (extUri.isEqualOrParent(uri, searchPath)) {
 					const relPath = paths.relative(searchPath.path, uri.path);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath, globOptions);
 				} else {
 					return false;
 				}

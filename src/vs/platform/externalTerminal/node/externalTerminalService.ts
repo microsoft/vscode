@@ -24,7 +24,7 @@ abstract class ExternalTerminalService {
 		return {
 			windows: WindowsExternalTerminalService.getDefaultTerminalWindows(),
 			linux: await LinuxExternalTerminalService.getDefaultTerminalLinuxReady(),
-			osx: 'xterm'
+			osx: DEFAULT_TERMINAL_OSX
 		};
 	}
 }
@@ -189,26 +189,21 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 					}
 				}
 
-				let stderr = '';
 				const osa = cp.spawn(MacExternalTerminalService.OSASCRIPT, osaArgs);
-				osa.on('error', err => {
-					reject(improveError(err));
-				});
-				osa.stderr.on('data', (data) => {
-					stderr += data.toString();
-				});
-				osa.on('exit', (code: number) => {
-					if (code === 0) {	// OK
-						resolve(undefined);
-					} else {
-						if (stderr) {
-							const lines = stderr.split('\n', 1);
-							reject(new Error(lines[0]));
-						} else {
-							reject(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
-						}
-					}
-				});
+				setupSpawnErrorHandling(osa, resolve, reject, terminalApp);
+			} else if (terminalApp === 'Ghostty.app') {
+				// Ghostty uses CLI flags directly instead of AppleScript like Mac Terminal and iTerm
+				// Note: -na is required (not just -a) because we need to spawn a new instance that
+				// receives our --args. With just -a, if Ghostty is already running, open will
+				// activate the existing instance and ignore --args entirely.
+				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+				const openArgs = ['-na', 'Ghostty.app', '--args'];
+				openArgs.push('--working-directory=' + dir);
+				openArgs.push('--wait-after-command=true');
+				openArgs.push('-e', ...args);
+
+				const cmd = cp.spawn('/usr/bin/open', openArgs, { env });
+				setupSpawnErrorHandling(cmd, resolve, reject, terminalApp);
 			} else {
 				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
 			}
@@ -244,11 +239,24 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 		const execPromise = settings.linuxExec ? Promise.resolve(settings.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 
 		return new Promise<number | undefined>((resolve, reject) => {
-
-			const termArgs: string[] = [];
-			//termArgs.push('--title');
-			//termArgs.push(`"${TERMINAL_TITLE}"`);
 			execPromise.then(exec => {
+				const basename = path.basename(exec).toLowerCase();
+				if (basename === 'ghostty') {
+					const ghosttyArgs: string[] = [];
+					if (dir) {
+						ghosttyArgs.push(`--working-directory=${dir}`);
+					}
+					ghosttyArgs.push('--wait-after-command=true');
+					if (args.length) {
+						ghosttyArgs.push('-e', ...args);
+					}
+					LinuxExternalTerminalService.spawnTerminalWithEnv(exec, ghosttyArgs, dir, envVars, resolve, reject);
+					return;
+				}
+
+				const termArgs: string[] = [];
+				//termArgs.push('--title');
+				//termArgs.push(`"${TERMINAL_TITLE}"`);
 				if (exec.indexOf('gnome-terminal') >= 0) {
 					termArgs.push('-x');
 				} else {
@@ -261,39 +269,26 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 
-				// merge environment variables into a copy of the process.env
-				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
-
-				// delete environment variables that have a null value
-				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
-
-				const options = {
-					cwd: dir,
-					env: env
-				};
-
-				let stderr = '';
-				const cmd = cp.spawn(exec, termArgs, options);
-				cmd.on('error', err => {
-					reject(improveError(err));
-				});
-				cmd.stderr.on('data', (data) => {
-					stderr += data.toString();
-				});
-				cmd.on('exit', (code: number) => {
-					if (code === 0) {	// OK
-						resolve(undefined);
-					} else {
-						if (stderr) {
-							const lines = stderr.split('\n', 1);
-							reject(new Error(lines[0]));
-						} else {
-							reject(new Error(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code)));
-						}
-					}
-				});
+				LinuxExternalTerminalService.spawnTerminalWithEnv(exec, termArgs, dir, envVars, resolve, reject);
 			});
 		});
+	}
+
+	private static spawnTerminalWithEnv(
+		exec: string,
+		args: string[],
+		dir: string,
+		envVars: ITerminalEnvironment,
+		resolve: (value: number | PromiseLike<number | undefined> | undefined) => void,
+		reject: (reason?: unknown) => void
+	): void {
+		const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+
+		// delete environment variables that have a null value
+		Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
+
+		const cmd = cp.spawn(exec, args, { cwd: dir, env });
+		setupSpawnErrorHandling(cmd, resolve, reject, exec);
 	}
 
 	private static _DEFAULT_TERMINAL_LINUX_READY: Promise<string>;
@@ -330,7 +325,9 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 		return new Promise<void>((c, e) => {
 			execPromise.then(exec => {
 				const env = getSanitizedEnvironment(process);
-				const child = spawner.spawn(exec, [], { cwd, env });
+				const basename = path.basename(exec).toLowerCase();
+				const args = basename === 'ghostty' && cwd ? [`--working-directory=${cwd}`] : [];
+				const child = spawner.spawn(exec, args, { cwd, env });
 				child.on('error', e);
 				child.on('exit', () => c());
 			});
@@ -352,6 +349,37 @@ function improveError(err: Error & { errno?: string; path?: string }): Error {
 		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err.path));
 	}
 	return err;
+}
+
+/**
+ * Attaches error handling to a spawned child process for terminal launching.
+ */
+function setupSpawnErrorHandling(
+	cmd: cp.ChildProcess,
+	resolve: (value: number | PromiseLike<number | undefined> | undefined) => void,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	reject: (reason?: any) => void,
+	terminalApp: string
+): void {
+	let stderr = '';
+	cmd.on('error', err => {
+		reject(improveError(err));
+	});
+	cmd.stderr?.on('data', (data) => {
+		stderr += data.toString();
+	});
+	cmd.on('exit', (code: number) => {
+		if (code === 0) {
+			resolve(undefined);
+		} else {
+			if (stderr) {
+				const lines = stderr.split('\n', 1);
+				reject(new Error(lines[0]));
+			} else {
+				reject(new Error(nls.localize('terminal.launch.failed', "Launching '{0}' failed with exit code {1}", terminalApp, code)));
+			}
+		}
+	});
 }
 
 /**

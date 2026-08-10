@@ -144,4 +144,46 @@ suite('fetching', () => {
 		assert.strictEqual(res.status, 200);
 		assert.deepStrictEqual(await res.text(), 'Hello, world!');
 	});
+
+	test('should not retry with other fetchers on 429 status', async () => {
+		// Set up server to return 429 for the first request
+		let requestCount = 0;
+		const oldListener = server.listeners('request')[0] as (req: http.IncomingMessage, res: http.ServerResponse) => void;
+		if (!oldListener) {
+			throw new Error('No request listener found on server');
+		}
+		
+		server.removeAllListeners('request');
+		server.on('request', (req, res) => {
+			requestCount++;
+			if (req.url === '/rate-limited') {
+				res.writeHead(429, {
+					'Content-Type': 'text/plain',
+					'X-Client-User-Agent': String(req.headers['user-agent'] ?? '').toLowerCase(),
+				});
+				res.end('Too Many Requests');
+			} else {
+				oldListener(req, res);
+			}
+		});
+
+		try {
+			const res = await createFetch()(`http://localhost:${port}/rate-limited`, {
+				logger,
+				retryFallbacks: true,
+				expectJSON: false,
+			});
+
+			// Verify only one request was made (no fallback attempts)
+			assert.strictEqual(requestCount, 1, 'Should only make one request for 429 status');
+			assert.strictEqual(res.status, 429);
+			// Note: We only check that we got a response, not which fetcher was used,
+			// as the fetcher order may vary by configuration
+			assert.strictEqual(await res.text(), 'Too Many Requests');
+		} finally {
+			// Restore original listener
+			server.removeAllListeners('request');
+			server.on('request', oldListener);
+		}
+	});
 });

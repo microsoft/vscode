@@ -88,7 +88,7 @@ class FileTemplateCodeActionProvider implements CodeActionProvider {
 			return undefined;
 		}
 
-		const snippets = await this._snippetService.getSnippets(model.getLanguageId(), { fileTemplateSnippets: true, includeNoPrefixSnippets: true });
+		const snippets = await this._snippetService.getSnippets(model.getLanguageId(), model.uri, { fileTemplateSnippets: true, includeNoPrefixSnippets: true });
 		const actions: CodeAction[] = [];
 		for (const snippet of snippets) {
 			if (actions.length >= FileTemplateCodeActionProvider._MAX_CODE_ACTIONS) {
