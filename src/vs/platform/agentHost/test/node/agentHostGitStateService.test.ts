@@ -435,6 +435,51 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('looks a fork pull request up by the local branch name when git inferred the fork head owner from the push remote', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = {
+				branchName: 'feature/alt-click-close-other-tabs',
+				baseBranchName: 'main',
+				githubHeadOwner: 'jadefr',
+			};
+			const calls: Array<{ branch: string; headOwner: string | undefined }> = [];
+			const h = createHarness({
+				octoKitService: {
+					findPullRequestByHeadBranch: async (_owner: string, _repo: string, branch: string, _token: string, _signal: AbortSignal, headOwner?: string) => {
+						calls.push({ branch, headOwner });
+						return {
+							url: 'https://github.com/microsoft/vscode/pull/328975',
+							number: 328975,
+						};
+					},
+				} as unknown as IAgentHostOctoKitService,
+			});
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+			});
+			h.setGitResult(gitState);
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+
+			assert.deepStrictEqual({
+				pullRequestCalls: calls,
+				pullRequestShaCalls: h.pullRequestShaCalls,
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			}, {
+				pullRequestCalls: [{ branch: 'feature/alt-click-close-other-tabs', headOwner: 'jadefr' }],
+				pullRequestShaCalls: [],
+				github: {
+					owner: 'microsoft',
+					repo: 'vscode',
+					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/328975'],
+					pullRequestBranchName: 'feature/alt-click-close-other-tabs',
+				},
+			});
+		});
+	});
+
 	test('falls back to the commit at HEAD when the branch name matches no pull request', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// A branch checked out from a pull request head: no upstream, and a

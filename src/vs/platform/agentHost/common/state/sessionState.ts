@@ -1295,7 +1295,7 @@ export interface ISessionGitState {
 	readonly uncommittedChanges?: number;
 	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
-	/** GitHub owner parsed from the current branch's upstream remote. */
+	/** GitHub owner parsed from the current branch's upstream or push remote. */
 	readonly githubHeadOwner?: string;
 	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
