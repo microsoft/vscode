@@ -15,6 +15,8 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	repositoryRoot: URI | undefined;
 	worktreeRoots: URI[] = [];
 	worktreeRootCalls = 0;
+	/** Set to emulate a git service that can answer from the repository layout on disk. */
+	primaryWorktreeRootsOnDisk: Map<string, URI> | undefined;
 
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
@@ -25,6 +27,9 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async getWorktreeRoots(): Promise<URI[]> {
 		this.worktreeRootCalls++;
 		return this.worktreeRoots;
+	}
+	async getPrimaryWorktreeRoot(workingDirectory: URI): Promise<URI | undefined> {
+		return this.primaryWorktreeRootsOnDisk?.get(workingDirectory.toString());
 	}
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
@@ -109,6 +114,25 @@ suite('Copilot Git Project', () => {
 			roots: roots.map(root => root?.toString()),
 		}, {
 			worktreeRootCalls: 1,
+			roots: [primaryRoot.toString(), primaryRoot.toString()],
+		});
+	});
+
+	test('resolves from the repository layout on disk instead of spawning git', async () => {
+		const primaryRoot = URI.file('/workspace/source-repo');
+		const checkouts = [URI.file('/workspace/source-repo.worktrees/a'), URI.file('/workspace/source-repo.worktrees/b')];
+		gitService.primaryWorktreeRootsOnDisk = new Map(checkouts.map(checkout => [checkout.toString(), primaryRoot]));
+		// A listing this large used to evict the cache faster than it could be
+		// reused, so it must not translate into git process launches.
+		gitService.worktreeRoots = [primaryRoot, ...checkouts];
+
+		const roots = await Promise.all(checkouts.map(checkout => tryResolvePrimaryWorktreeRoot(gitService, checkout)));
+
+		assert.deepStrictEqual({
+			worktreeRootCalls: gitService.worktreeRootCalls,
+			roots: roots.map(root => root?.toString()),
+		}, {
+			worktreeRootCalls: 0,
 			roots: [primaryRoot.toString(), primaryRoot.toString()],
 		});
 	});

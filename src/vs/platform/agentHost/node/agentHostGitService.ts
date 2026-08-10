@@ -136,6 +136,70 @@ export class AgentHostGitService implements IAgentHostGitService {
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
+	/**
+	 * Resolves the primary worktree root that owns `workingDirectory` by reading
+	 * Git's on-disk layout instead of spawning Git.
+	 *
+	 * `git worktree list --porcelain` answers the same question, but a process
+	 * launch per checkout is far too expensive for hot paths such as session
+	 * listing, where every session must resolve its repository identity. The
+	 * layout already encodes the answer: a primary worktree owns a `.git`
+	 * *directory*, while a linked worktree has a `.git` *file* pointing at
+	 * `<primary>/.git/worktrees/<id>`, whose `commondir` resolves back to the
+	 * primary worktree's git directory.
+	 *
+	 * Returns `undefined` when the layout cannot be interpreted — no repository,
+	 * a bare repository (which has no primary worktree), or a submodule, whose
+	 * git directory lives under `modules/` and carries no `commondir`. Callers
+	 * are expected to fall back to {@link getWorktreeRoots} in that case.
+	 */
+	async getPrimaryWorktreeRoot(workingDirectory: URI): Promise<URI | undefined> {
+		// Git reports canonical paths because it resolves its working directory,
+		// and callers compare this result against roots Git produced. Resolving
+		// symlinks here keeps both sources on one spelling of a path, so the
+		// same repository never presents itself as two different roots.
+		let directory = await fsPromises.realpath(path.resolve(workingDirectory.fsPath)).catch(() => undefined);
+		// Git only searches upwards from a directory that actually exists, and
+		// stopping here keeps a stale session path from adopting an unrelated
+		// ancestor repository.
+		if (!directory || !(await fsPromises.stat(directory).catch(() => undefined))?.isDirectory()) {
+			return undefined;
+		}
+		for (; ;) {
+			const dotGit = path.join(directory, '.git');
+			const stat = await fsPromises.stat(dotGit).catch(() => undefined);
+			if (stat?.isDirectory()) {
+				return URI.file(directory);
+			}
+			if (stat?.isFile()) {
+				return this._resolvePrimaryWorktreeRootFromLink(dotGit);
+			}
+			const parent = path.dirname(directory);
+			if (parent === directory) {
+				return undefined;
+			}
+			directory = parent;
+		}
+	}
+
+	/** Maps a linked worktree's `.git` file to the primary worktree root that owns it. */
+	private async _resolvePrimaryWorktreeRootFromLink(dotGitFile: string): Promise<URI | undefined> {
+		const link = await fsPromises.readFile(dotGitFile, 'utf8').catch(() => undefined);
+		const gitDirPath = link && /^gitdir:\s*(?<gitDir>.+?)\s*$/m.exec(link)?.groups?.gitDir;
+		if (!gitDirPath) {
+			return undefined;
+		}
+		const gitDir = path.resolve(path.dirname(dotGitFile), gitDirPath);
+		const commonDirPath = (await fsPromises.readFile(path.join(gitDir, 'commondir'), 'utf8').catch(() => undefined))?.trim();
+		if (!commonDirPath) {
+			return undefined;
+		}
+		const commonDir = path.resolve(gitDir, commonDirPath);
+		// Anything but `<primary>/.git` means there is no primary worktree to
+		// point at (bare repository) or the checkout belongs to a submodule.
+		return path.basename(commonDir) === '.git' ? URI.file(path.dirname(commonDir)) : undefined;
+	}
+
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
 		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
 

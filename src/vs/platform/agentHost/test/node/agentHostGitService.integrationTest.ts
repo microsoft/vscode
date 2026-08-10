@@ -686,6 +686,39 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
+
+	(hasGit ? test : test.skip)('getPrimaryWorktreeRoot agrees with git worktree list without spawning git', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-primary-${Date.now()}`);
+		const nested = join(dir, 'src', 'nested');
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/primary-root', 'main');
+			const fs = await import('fs/promises');
+			await fs.mkdir(nested, { recursive: true });
+
+			// `git worktree list --porcelain` reports the primary worktree
+			// first, so its answer is the contract the on-disk resolution must
+			// reproduce for every checkout of the repository.
+			const fromGit = (await svc!.getWorktreeRoots(URI.file(wtPath)))[0];
+
+			assert.deepStrictEqual({
+				expected: fromGit?.fsPath,
+				fromPrimary: (await svc!.getPrimaryWorktreeRoot(URI.file(dir)))?.fsPath,
+				fromLinked: (await svc!.getPrimaryWorktreeRoot(URI.file(wtPath)))?.fsPath,
+				fromNestedDirectory: (await svc!.getPrimaryWorktreeRoot(URI.file(nested)))?.fsPath,
+				fromNonRepository: await svc!.getPrimaryWorktreeRoot(URI.file(join(tmpdir(), `missing-${Date.now()}`))),
+			}, {
+				expected: fromGit?.fsPath,
+				fromPrimary: fromGit?.fsPath,
+				fromLinked: fromGit?.fsPath,
+				fromNestedDirectory: fromGit?.fsPath,
+				fromNonRepository: undefined,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+		}
+	});
 });
 
 suite('AgentHostGitService - restore (real git)', () => {

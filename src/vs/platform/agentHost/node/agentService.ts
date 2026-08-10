@@ -330,8 +330,14 @@ export class AgentService extends Disposable implements IAgentService {
 	 * agents stay unaware of the folder-vs-worktree distinction.
 	 */
 	private _worktree: WorktreeIsolation | undefined;
-	/** Successful list-time repository-root resolutions; eviction only causes safe re-resolution. */
-	private readonly _normalizedWorktreeRepositoryRoots = new LRUCache<string, URI>(100);
+	/**
+	 * Successful list-time repository-root resolutions, keyed by session so a
+	 * repeat listing re-reads nothing. Sized to hold a full catalogue: a bound
+	 * below the session count evicts entries before the next listing reaches
+	 * them, so every session would re-resolve on every list. Eviction is
+	 * otherwise harmless — it only causes a safe re-resolution.
+	 */
+	private readonly _normalizedWorktreeRepositoryRoots = new LRUCache<string, URI>(4096);
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */

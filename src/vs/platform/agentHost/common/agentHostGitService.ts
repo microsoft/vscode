@@ -94,11 +94,19 @@ export interface IPullOptions {
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
 /**
+ * Sized to cover a full session catalogue: sessions each resolve their own
+ * checkout, and a successful Git listing additionally maps every sibling
+ * worktree of the repository. A cache too small for either set evicts the very
+ * entries it exists to reuse, turning each subsequent lookup back into work.
+ */
+const PRIMARY_WORKTREE_ROOT_CACHE_SIZE = 4096;
+
+/**
  * Resolves linked checkouts to their primary worktree and caches successful mappings for every worktree reported by Git.
  * Resolution is serialized so concurrent requests across linked checkouts share one probe, while empty results remain retryable.
  */
 class PrimaryWorktreeRootResolver {
-	private readonly _roots = new LRUCache<string, URI>(100);
+	private readonly _roots = new LRUCache<string, URI>(PRIMARY_WORKTREE_ROOT_CACHE_SIZE);
 	private readonly _sequencer = new Sequencer();
 
 	constructor(private readonly _gitService: IAgentHostGitService) { }
@@ -108,6 +116,14 @@ class PrimaryWorktreeRootResolver {
 		const cached = this._roots.get(key);
 		if (cached) {
 			return cached;
+		}
+		// Git's own layout answers this for ordinary checkouts, so ask the disk
+		// before paying for a process. These are plain reads, so they neither
+		// need nor deserve the sequencer that exists to collapse Git launches.
+		const fromDisk = await this._gitService.getPrimaryWorktreeRoot?.(checkoutRoot);
+		if (fromDisk) {
+			this._roots.set(key, fromDisk);
+			return fromDisk;
 		}
 		return this._sequencer.queue(async () => {
 			const cached = this._roots.get(key);
@@ -208,6 +224,13 @@ export interface IAgentHostGitService {
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
+	/**
+	 * Returns the primary worktree root owning `workingDirectory` without
+	 * spawning Git, or `undefined` when the repository layout cannot answer it.
+	 * Optional: implementations that cannot inspect the repository on disk omit
+	 * it and are resolved through {@link getWorktreeRoots} instead.
+	 */
+	getPrimaryWorktreeRoot?(workingDirectory: URI): Promise<URI | undefined>;
 	/**
 	 * Creates a worktree for a new branch. `onProgress` receives every checkout
 	 * sample git reports, which can be several per second, so consumers are
