@@ -64,7 +64,7 @@ class TestHoverService extends mock<IHoverService>() {
 suite('NewSessionPromptOptionsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders loading and preserves selection while user edits disable replacement', async () => {
+	test('renders loading, preserves disabled selection, and clears selection for empty input', async () => {
 		const container = document.createElement('div');
 		const hoverService = new TestHoverService();
 		const selections: { readonly optionId: string; readonly expectedInput: string; readonly animate: boolean }[] = [];
@@ -154,7 +154,7 @@ suite('NewSessionPromptOptionsWidget', () => {
 			],
 			empty: [
 				{ selected: false, disabled: false },
-				{ selected: true, disabled: false },
+				{ selected: false, disabled: false },
 			],
 		});
 	});

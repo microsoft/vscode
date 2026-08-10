@@ -401,8 +401,9 @@ into an empty input. Later selections replace the generated prompt immediately.
 A different option can replace the input only while it is empty, exactly matches
 the previously selected prompt, or exactly matches that prompt after its editable
 placeholder was activated and removed. Any other edit disables every option but
-preserves the selected presentation; clearing the input or restoring either exact
-generated form enables them again. The option widget remains mounted after
+preserves the selected presentation; clearing the input clears the selection and
+enables every option, while restoring either exact generated form enables the
+options without clearing the selection. The option widget remains mounted after
 selection and is disposed with the composer. Its heading row ends with a close
 action that cancels an in-flight lookup, hides the widget for the lifetime of
 that composer, preserves inserted or partially typed text, and returns focus to

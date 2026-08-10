@@ -106,6 +106,9 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 
 	setInputValue(value: string): void {
 		this._inputValue = value;
+		if (value.length === 0) {
+			this._selectedOptionId = undefined;
+		}
 		this._updateButtons();
 	}
 
