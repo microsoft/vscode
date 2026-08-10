@@ -11,6 +11,9 @@ export enum InlineEditsUnification {
 	CompletionsNes = 'completionsNes',
 }
 
+/**
+ * Configuration options used for Unified Completions + NES models.
+ */
 export interface InlineEditsUnificationConfiguration {
 	readonly nLinesBelow: number;
 	readonly nLinesAbove: number;
