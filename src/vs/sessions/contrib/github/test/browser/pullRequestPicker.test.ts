@@ -107,7 +107,7 @@ suite('Create Session from Pull Request', () => {
 			{
 				owner: 'microsoft',
 				repo: 'vscode',
-				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
 				pullRequestBranchName: 'feature',
 			},
 		);

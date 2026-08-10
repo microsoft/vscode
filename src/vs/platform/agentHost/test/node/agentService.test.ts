@@ -515,7 +515,7 @@ suite('AgentService (node dispatcher)', () => {
 		const github = {
 			owner: 'microsoft',
 			repo: 'vscode',
-			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
 			pullRequestBranchName: 'feature',
 		};
 		const session = await localService.createSession({
@@ -594,7 +594,7 @@ suite('AgentService (node dispatcher)', () => {
 		const github = {
 			owner: 'microsoft',
 			repo: 'vscode',
-			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
 			pullRequestBranchName: 'feature',
 		};
 		const session = await localService.createSession({
