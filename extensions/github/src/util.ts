@@ -9,12 +9,21 @@ import type { Repository } from './typings/git.d.ts';
 export class DisposableStore {
 
 	private disposables = new Set<vscode.Disposable>();
+	private isDisposed = false;
 
 	add(disposable: vscode.Disposable): void {
+		if (this.isDisposed) {
+			// The store was already disposed, so nothing would ever dispose this.
+			disposable.dispose();
+			return;
+		}
+
 		this.disposables.add(disposable);
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
+
 		for (const disposable of this.disposables) {
 			disposable.dispose();
 		}
@@ -74,13 +83,13 @@ export function getRepositoryFromUrl(url: string): { owner: string; repo: string
 		return { owner: match[1], repo: match[2], baseUrl: 'https://github.com' };
 	}
 
-	// Generic HTTPS URL: https://host.com/owner/repo.git or https://host.com/owner/repo
+	// Generic HTTPS URL: https://host/owner/repo[.git]
 	match = /^https:\/\/([^/]+)\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	if (match) {
 		return { owner: match[2], repo: match[3], baseUrl: `https://${match[1]}` };
 	}
 
-	// Generic SSH URL: git@host.com:owner/repo.git
+	// Generic SSH URL: git@host:owner/repo[.git]
 	match = /^git@([^:]+):([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
 	if (match) {
 		return { owner: match[2], repo: match[3], baseUrl: `https://${match[1]}` };
@@ -119,7 +128,7 @@ export function getRepositoryDefaultRemoteUrl(repository: Repository, order: str
 	return remotes[0].fetchUrl;
 }
 
-export function getRepositoryDefaultRemote(repository: Repository, order: string[]): { owner: string; repo: string; baseUrl: string } | undefined {
+export function getRepositoryDefaultRemote(repository: Repository, order: string[]): { owner: string; repo: string } | undefined {
 	const fetchUrl = getRepositoryDefaultRemoteUrl(repository, order);
 	return fetchUrl ? getRepositoryFromUrl(fetchUrl) : undefined;
 }
