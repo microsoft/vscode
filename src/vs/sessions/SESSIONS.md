@@ -320,9 +320,10 @@ Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Ch
     (including extension-host Copilot CLI); before any chat is assigned it
     defaults to Agent Host Copilot. Chat input context keys also derive model
     targeting from that delegated type while the model resource is absent, so
-    the model picker remains mounted during loading. The view then locks to the
-    contributed chat session type (for example agent-host-codex) before setting
-    the model, so follow-up turns keep routing to the owning provider
+    the model picker remains mounted during loading. Before clearing the old
+    model, the view locks to the destination contributed chat session type (for
+    example agent-host-codex), keeping the Agent Host mode and permission
+    pickers mounted too; follow-up turns therefore route to the owning provider
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
@@ -343,6 +344,9 @@ visibility would alter intentional picker behavior outside that transition.
 All chat-input context derived from the session type must use the same effective
 type (the scoped delegate when provided, otherwise the model resource), or
 individual picker slots can disappear during the handoff.
+Likewise, update the widget's coding-agent lock from the destination type before
+clearing the old model; waiting for the new model to load transiently hides
+Agent Host-only mode and permission actions.
 
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible

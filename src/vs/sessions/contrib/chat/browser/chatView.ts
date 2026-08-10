@@ -311,6 +311,7 @@ export class ChatView extends AbstractChatView {
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
+		this._updateWidgetLockState(getChatViewSessionType(resource));
 		if (previousChatResource) {
 			this._clearCurrentChat();
 		}
@@ -328,7 +329,6 @@ export class ChatView extends AbstractChatView {
 				return;
 			}
 			this._modelRef.value = ref;
-			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
 			const widgetViewState = this.viewStateService.get(resource);
 			if (widgetViewState) {
