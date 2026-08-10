@@ -2181,7 +2181,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const sourceEntry = this._findAnySession(sourceSessionId) ?? await this._resumeSession(sourceSessionId);
 				const sourceTurns = await sourceEntry.getMessages();
 				const sourceTurnEventId = await sourceEntry.getTurnEventId(fork.turnId);
-				const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === sourceTurnEventId);
+				const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === fork.turnId || turn.id === sourceTurnEventId);
 				if (sourceTurnIndex < 0) {
 					throw new Error(`Cannot fork Copilot session ${sourceSessionId}: turn ${fork.turnId} is not in the provider history`);
 				}
@@ -2190,6 +2190,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const targetTurnIdByEventId = new Map<string, string>();
 				if (turnIdMapping) {
 					await Promise.all([...turnIdMapping].map(async ([sourceTurnId, targetTurnId]) => {
+						targetTurnIdByEventId.set(sourceTurnId, targetTurnId);
 						const eventId = await sourceEntry.getTurnEventId(sourceTurnId);
 						if (eventId) {
 							targetTurnIdByEventId.set(eventId, targetTurnId);

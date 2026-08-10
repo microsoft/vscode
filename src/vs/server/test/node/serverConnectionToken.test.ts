@@ -7,9 +7,10 @@ import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import { join } from '../../../base/common/path.js';
+import { connectionTokenCookieName, connectionTokenQueryName } from '../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { getRandomTestPath } from '../../../base/test/node/testUtils.js';
-import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
+import { MandatoryServerConnectionToken, parseServerConnectionToken, requestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
 import { ServerParsedArgs } from '../../node/serverEnvironmentService.js';
 
 suite('parseServerConnectionToken', () => {
@@ -69,4 +70,28 @@ suite('parseServerConnectionToken', () => {
 		assert.strictEqual(result.value, connectionToken);
 	});
 
+});
+
+suite('requestHasValidConnectionToken', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const connectionToken = new MandatoryServerConnectionToken('valid token');
+
+	test('validates a decoded query parameter', () => {
+		const searchParams = new URLSearchParams(`${connectionTokenQueryName}=valid+token`);
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers: {} }, searchParams), true);
+	});
+
+	test('rejects repeated query parameters', () => {
+		const searchParams = new URLSearchParams(`${connectionTokenQueryName}=valid+token&${connectionTokenQueryName}=valid+token`);
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers: {} }, searchParams), false);
+	});
+
+	test('falls back to a cookie', () => {
+		const headers = { cookie: `${connectionTokenCookieName}=valid%20token` };
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers }, new URLSearchParams()), true);
+	});
 });

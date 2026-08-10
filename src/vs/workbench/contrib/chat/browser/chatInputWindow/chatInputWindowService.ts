@@ -237,6 +237,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			transparent: true,
 			disableFullscreen: true,
 			nativeTitlebar: false,
+			notResizable: true,
 			noBackgroundThrottling: true,
 			backgroundColor: '#00000000',
 		});
@@ -259,6 +260,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		auxiliaryWindow.container.classList.add('chat-input-window');
 		auxiliaryWindow.window.document.body.classList.add('chat-input-window-body');
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
+		auxiliaryWindow.window.document.body.style.setProperty('overflow', 'visible', 'important');
 
 		this._windowDisposables.clear();
 
@@ -394,6 +396,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const parent = dom.append(row, dom.$('.interactive-session'));
 		parent.style.flex = '1 1 auto';
 		parent.style.minWidth = '0';
+		const editorOverflowWidgetsDomNode = dom.append(auxiliaryWindow.window.document.body, dom.$('.chat-editor-overflow.monaco-editor'));
+		this._windowDisposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
 
 		const scopedContextKeyService = this._windowDisposables.add(this.contextKeyService.createScoped(parent));
 		// Mark this surface so its dedicated accessibility help (routing + how to
@@ -429,6 +433,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				inputPickerContainer: () => this._actionWidgetWindow.value?.container,
 				inputPickerAnchor: anchor => this._getModelPickerAnchor(anchor),
 				inputPickerOpenOnMouseUp: true,
+				editorOverflowWidgetsDomNode,
 			},
 			{
 				inputEditorBackground: inputBackground,
