@@ -410,6 +410,7 @@ class AutomationHistorySection extends Disposable {
 		private readonly focusFallback: HTMLElement,
 		private readonly isMarkingAllRead: ISettableObservable<boolean>,
 		@IAutomationService private readonly automationService: IAutomationService,
+		@IAutomationRunner private readonly automationRunner: IAutomationRunner,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ILogService private readonly logService: ILogService,
@@ -564,7 +565,7 @@ class AutomationHistorySection extends Disposable {
 				button.element.classList.add('automations-run-card-action-button', 'automations-run-card-stop-button');
 				this.disposables.add(button.onDidClick(() => {
 					button.enabled = false;
-					void this.stopRunSession(sessionState.session, title, button);
+					void this.stopRunSession(run, sessionState.session, title, button);
 				}));
 			} else {
 				const deleteLabel = canDeleteSession
@@ -612,8 +613,9 @@ class AutomationHistorySection extends Disposable {
 		}
 	}
 
-	private async stopRunSession(session: ISession, automationName: string, stopButton: Button): Promise<void> {
+	private async stopRunSession(run: IAutomationRun, session: ISession, automationName: string, stopButton: Button): Promise<void> {
 		try {
+			this.automationRunner.cancelRun(run.id);
 			await this.sessionsManagementService.cancelCurrentRequest(session);
 			status(localize('automationRunSessionStoppedStatus', "Stopped the session for {0}", automationName));
 		} catch (error) {

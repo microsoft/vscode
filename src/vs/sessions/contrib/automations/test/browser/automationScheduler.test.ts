@@ -54,6 +54,8 @@ class RecordingRunner implements IAutomationRunner {
 
 	constructor(private readonly service: AutomationService) { }
 
+	cancelRun(): boolean { return false; }
+
 	runOnce(
 		automation: IAutomation,
 		trigger: AutomationRunTrigger,
@@ -80,6 +82,8 @@ class SkippingRunner implements IAutomationRunner {
 	declare readonly _serviceBrand: undefined;
 
 	readonly runs: RecordedRun[] = [];
+
+	cancelRun(): boolean { return false; }
 
 	runOnce(automation: IAutomation, trigger: AutomationRunTrigger): IAutomationRunOperation {
 		this.runs.push({ automationId: automation.id, trigger });
@@ -384,6 +388,7 @@ suite('AutomationSchedulerCore', () => {
 			readonly hung = new DeferredPromise<void>();
 			calls = 0;
 			cancelObserved = false;
+			cancelRun(): boolean { return false; }
 			runOnce(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): IAutomationRunOperation {
 				this.calls++;
 				const whenCompleted = this._run(automation, trigger, leaderWindowId, token);

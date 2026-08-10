@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { derived, waitForState } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -21,6 +21,7 @@ import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementServi
 export class AutomationRunner implements IAutomationRunner {
 
 	declare readonly _serviceBrand: undefined;
+	private readonly activeRunCancellationSources = new Map<string, CancellationTokenSource>();
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
@@ -29,6 +30,12 @@ export class AutomationRunner implements IAutomationRunner {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
+
+	cancelRun(runId: string): boolean {
+		const source = this.activeRunCancellationSources.get(runId);
+		source?.cancel();
+		return !!source;
+	}
 
 	runOnce(
 		automation: IAutomation,
@@ -70,6 +77,7 @@ export class AutomationRunner implements IAutomationRunner {
 	): Promise<void> {
 		const startTimeMs = Date.now();
 		let runId: string | undefined;
+		let runCancellationSource: CancellationTokenSource | undefined;
 		try {
 			if (!this.automationService.getAutomation(automation.id)) {
 				this.logService.trace(`[AutomationRunner] skipping ${automation.id}: automation was deleted.`);
@@ -123,6 +131,10 @@ export class AutomationRunner implements IAutomationRunner {
 				await this._markCancelled(runId, trigger, automation, startTimeMs);
 				return;
 			}
+
+			runCancellationSource = new CancellationTokenSource(token);
+			this.activeRunCancellationSources.set(runId, runCancellationSource);
+			token = runCancellationSource.token;
 
 			const options: ISendRequestOptions = {
 				query: automation.prompt,
@@ -201,6 +213,11 @@ export class AutomationRunner implements IAutomationRunner {
 			} catch (innerErr) {
 				this.logService.error(`[AutomationRunner] error recording failure for ${automation.id}`, innerErr);
 			}
+		} finally {
+			if (runId && this.activeRunCancellationSources.get(runId) === runCancellationSource) {
+				this.activeRunCancellationSources.delete(runId);
+			}
+			runCancellationSource?.dispose();
 		}
 	}
 

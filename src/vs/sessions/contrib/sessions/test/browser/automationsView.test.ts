@@ -212,6 +212,12 @@ class FakeDialogService extends mock<IDialogService>() {
 class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
 	runCalls = 0;
+	readonly cancelledRunIds: string[] = [];
+
+	override cancelRun(runId: string): boolean {
+		this.cancelledRunIds.push(runId);
+		return true;
+	}
 
 	override runOnce(_automation: IAutomation, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
 		this.runCalls++;
@@ -491,7 +497,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('run card opens with Space and becomes read only after open succeeds', async () => {
-		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
+		const { automationService, runner, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 		const card = widget.element.querySelector<HTMLElement>('.automations-run-card-main');
@@ -676,7 +682,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('stops an active run without opening its session', async () => {
-		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
+		const { automationService, runner, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
 
@@ -687,11 +693,13 @@ suite('AutomationsCardsWidget', () => {
 
 		assert.deepStrictEqual({
 			ariaLabel: stopButton.getAttribute('aria-label'),
+			cancelledRunIds: runner.cancelledRunIds,
 			cancelCurrentRequestCalls: sessionsManagementService.cancelCurrentRequestCalls,
 			openCalls: sessionsService.openCalls,
 			deleteButtonVisible: !!widget.element.querySelector('.automations-run-card-delete-button'),
 		}, {
 			ariaLabel: 'Stop session for Daily review',
+			cancelledRunIds: [RUN_ID],
 			cancelCurrentRequestCalls: 1,
 			openCalls: 0,
 			deleteButtonVisible: false,
@@ -710,10 +718,12 @@ suite('AutomationsCardsWidget', () => {
 		await dialogService.errorCalled.p;
 
 		assert.deepStrictEqual({
-			enabled: !stopButton.disabled,
+			ariaDisabled: stopButton.getAttribute('aria-disabled'),
+			disabledClass: stopButton.classList.contains('disabled'),
 			error: dialogService.errors,
 		}, {
-			enabled: true,
+			ariaDisabled: 'false',
+			disabledClass: false,
 			error: [{ message: 'Failed to stop the automation run session.', detail: 'stop failed' }],
 		});
 	});

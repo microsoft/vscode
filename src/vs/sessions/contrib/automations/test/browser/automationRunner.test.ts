@@ -391,7 +391,7 @@ suite('AutomationRunner', () => {
 		await runner.runOnce(a, 'schedule', 1, cts.token).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
-		assert.strictEqual(sessionsMgmt.calls[0].token, cts.token);
+		assert.strictEqual(sessionsMgmt.calls[0].token.isCancellationRequested, true);
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'failed');
@@ -424,6 +424,29 @@ suite('AutomationRunner', () => {
 			errorMessage: 'Cancelled',
 		});
 		cts.dispose();
+	});
+
+	test('cancelRun marks the active run cancelled', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		const status = observableValue('status-s-user-stopped', SessionStatus.InProgress);
+		sessionsMgmt.nextSession = fakeSession('s-user-stopped', status);
+
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const runPromise = runner.runOnce(automation, 'schedule', 1).whenCompleted;
+		const activeRun = await waitForState(service.runs.map(runs => runs[0]), run => run?.sessionResource !== undefined);
+
+		assert.strictEqual(runner.cancelRun(activeRun.id), true);
+		await runPromise;
+
+		assert.deepStrictEqual({
+			status: service.runs.get()[0].status,
+			errorMessage: service.runs.get()[0].errorMessage,
+			cancelAfterCompletion: runner.cancelRun(activeRun.id),
+		}, {
+			status: 'failed',
+			errorMessage: 'Cancelled',
+			cancelAfterCompletion: false,
+		});
 	});
 
 	test('does not overwrite a terminal failure when cancelled', async () => {

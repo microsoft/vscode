@@ -45,6 +45,9 @@ export interface IAutomationRunOperation {
 export interface IAutomationRunner {
 	readonly _serviceBrand: undefined;
 
+	/** Cancels lifecycle tracking for an active run. Returns whether the run was active. */
+	cancelRun(runId: string): boolean;
+
 	/**
 	 * Runs `automation` once (skips if another run for it is already in flight).
 	 * Never throws. Failures are recorded on the run row in {@link IAutomationService}.
