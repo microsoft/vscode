@@ -33,10 +33,10 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from 
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
+import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
@@ -46,7 +46,7 @@ import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } fr
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, isSubagentSession, readSessionPromptCacheState, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
@@ -2370,51 +2370,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Returns the subagent child sessions discoverable in this session's event
-	 * log, derived from the same {@link mapSessionEvents} reconstruction used
-	 * for {@link getMessages}/{@link getSubagentMessages}. Lets a parent
-	 * restore register every child up-front instead of each child re-fetching
-	 * and re-reconstructing the full parent event log.
-	 */
-	async getSubagentSessions(): Promise<readonly IRestoredSubagentSession[]> {
-		const result = await this._getMappedEvents();
-		if (result.subagentTurnsByToolCallId.size === 0) {
-			return [];
-		}
-		const parentSessionStr = this._storageUri.toString();
-		const out: IRestoredSubagentSession[] = [];
-		for (const turn of result.turns) {
-			for (const rp of turn.responseParts) {
-				if (rp.kind !== ResponsePartKind.ToolCall) {
-					continue;
-				}
-				const tc = rp.toolCall;
-				const childTurns = result.subagentTurnsByToolCallId.get(tc.toolCallId);
-				if (!childTurns || childTurns.length === 0) {
-					continue;
-				}
-				const content = (tc as { content?: readonly ToolResultContent[] }).content;
-				const subagentContent = content ? getToolSubagentContent({ content }) : undefined;
-				// Prefer the spawning Task tool's short `description` (captured on
-				// the parent tool call's `_meta`) so restored subagent tabs match
-				// the live path's concise, per-task naming; fall back to the
-				// agent type's display name.
-				const taskDescription = readToolCallMeta(tc).subagentDescription;
-				out.push({
-					resource: URI.parse(buildSubagentSessionUri(parentSessionStr, tc.toolCallId)),
-					toolCallId: tc.toolCallId,
-					title: subagentChatTitle(taskDescription, subagentContent?.title),
-					turns: childTurns,
-				});
-			}
-		}
-		return out;
-	}
-
-	/**
 	 * Memoized `getEvents()` + {@link mapSessionEvents} result, shared by
-	 * {@link getMessages}, {@link getSubagentMessages} and
-	 * {@link getSubagentSessions}. A single session open reads and
+	 * {@link getMessages} and {@link getSubagentMessages}. A single session open reads and
 	 * reconstructs the full parent event log once instead of once per
 	 * subagent. The memo is scoped to the resume/restore wave: it is dropped
 	 * whenever the persisted event log could change (see

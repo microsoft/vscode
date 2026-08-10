@@ -295,6 +295,12 @@ sequenceDiagram
     Note over AS: Spawned chats are NOT persisted to PEER_CHATS_METADATA_KEY\n(transient, re-derived from event log on restore)
 ```
 
+On restart, AgentService discovers completed subagents from the already-restored
+parent turns and registers metadata-only read-only chat summaries. Their
+provider transcripts are resolved through `AgentHostStateManager.resolveChatState`
+only when the child chat is subscribed, matching restored peer-chat laziness;
+no provider-wide eager child enumeration remains.
+
 ### 5d. Sequence: Restore
 
 ```mermaid

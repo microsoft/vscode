@@ -912,7 +912,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly draft?: Message; readonly providerData?: string; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly draft?: Message; readonly providerData?: string; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -934,6 +934,7 @@ export class AgentHostStateManager extends Disposable {
 			title: options.title ?? '',
 			status: SessionStatus.Idle,
 			origin: options.origin,
+			interactivity: options.interactivity,
 		};
 		sessionState.chats = [...sessionState.chats, chatSummary];
 		this._chatEntries.set(chatUri, {

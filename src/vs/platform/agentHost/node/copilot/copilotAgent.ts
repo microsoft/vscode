@@ -42,7 +42,7 @@ import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal, resolveAgentChatContext } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext } from '../../common/agentService.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -3039,26 +3039,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return [];
 		}
 		return parentEntry.getSubagentMessages(subagentInfo.toolCallId);
-	}
-
-	async getSubagentSessions(session: URI): Promise<readonly IRestoredSubagentSession[]> {
-		if (parseSubagentSessionUri(session)) {
-			return [];
-		}
-		const sessionId = AgentSession.id(session);
-		// Provisional sessions have no SDK history (and thus no subagents) yet.
-		if (this._provisionalSessions.has(sessionId)) {
-			return [];
-		}
-		const chat = this._findBoundSessionChatUri(sessionId) ?? session;
-		const resolved = this._resolveChatContext(chat, { session, resource: session });
-		const entry = await this._queueChat(resolved.sessionId, resolved.sequencerKey, async () => {
-			return this._ensureResolvedChatSession(this._resolveChatContext(chat, { session, resource: session })).catch(err => {
-				this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for subagent lookup`, err);
-				return undefined;
-			});
-		});
-		return entry ? entry.getSubagentSessions() : [];
 	}
 
 	async disposeSession(session: URI): Promise<void> {

@@ -23,7 +23,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, IRestoredSubagentSession, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatContext, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatContext, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -33,7 +33,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
@@ -3917,32 +3917,21 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(mdParts.length > 0, 'Should have markdown content');
 		});
 
-		test('eagerly registers subagent child sessions during parent restore', async () => {
-			// An agent that surfaces its subagent children from the parent's
-			// reconstructed history, exercising the eager-registration path.
-			class EagerSubagentMockAgent extends MockAgent {
-				async getSubagentSessions(session: URI): Promise<readonly IRestoredSubagentSession[]> {
-					if (parseSubagentSessionUri(session)) {
+		test('registers subagent summaries without loading child transcripts until subscription', async () => {
+			class LazySubagentMockAgent extends MockAgent {
+				readonly messageReads: string[] = [];
+				private returnEmptyChildOnce = true;
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					this.messageReads.push(session.toString());
+					if (parseChatUri(session)?.chatId.startsWith('subagent/') && this.returnEmptyChildOnce) {
+						this.returnEmptyChildOnce = false;
 						return [];
 					}
-					const parent = session.toString();
-					const out: IRestoredSubagentSession[] = [];
-					const seen = new Set<string>();
-					for (const rec of this.sessionMessages) {
-						if (rec.type === 'subagent_started' && !seen.has(rec.toolCallId)) {
-							seen.add(rec.toolCallId);
-							const childUri = buildSubagentSessionUri(parent, rec.toolCallId);
-							const turns = await this.getSessionMessages(URI.parse(childUri));
-							if (turns.length > 0) {
-								out.push({ resource: URI.parse(childUri), toolCallId: rec.toolCallId, title: rec.agentDisplayName, turns });
-							}
-						}
-					}
-					return out;
+					return super.getSessionMessages(session);
 				}
 			}
 
-			const agent = new EagerSubagentMockAgent('copilot');
+			const agent = new LazySubagentMockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			service.registerProvider(agent);
 			const { session } = await agent.createSession();
@@ -3962,45 +3951,33 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(sessionResource);
 
 			const childChatUri = buildSubagentChatUri(sessionResource.toString(), 'tc-sub');
+			const childSummary = service.stateManager.getSessionState(sessionResource.toString())?.chats.find(chat => chat.resource === childChatUri);
+			assert.deepStrictEqual({
+				childSummary: childSummary ? {
+					title: childSummary.title,
+					origin: childSummary.origin,
+					interactivity: childSummary.interactivity,
+				} : undefined,
+				childStateBeforeSubscribe: service.stateManager.getChatState(childChatUri),
+				childReadsBeforeSubscribe: agent.messageReads.filter(resource => resource === childChatUri).length,
+			}, {
+				childSummary: {
+					title: 'Find related files',
+					origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionResource), toolCallId: 'tc-sub' },
+					interactivity: ChatInteractivity.ReadOnly,
+				},
+				childStateBeforeSubscribe: undefined,
+				childReadsBeforeSubscribe: 0,
+			});
+
+			await assert.rejects(service.subscribe(URI.parse(childChatUri), 'child-reader-first'), /Subagent transcript is not available yet/);
+			assert.strictEqual(service.stateManager.getChatState(childChatUri), undefined);
+			await service.subscribe(URI.parse(childChatUri), 'child-reader-second');
 			const childState = service.stateManager.getChatState(childChatUri);
-			assert.ok(childState, 'subagent chat should be eagerly registered during parent restore');
-			assert.strictEqual(childState!.turns.length, 1, 'child should have its reconstructed turn');
-			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
-			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-1'), 'child should contain the inner tool call');
+			assert.ok(childState);
+			assert.strictEqual(childState.turns.length, 1);
+			assert.strictEqual(agent.messageReads.filter(resource => resource === childChatUri).length, 2);
 			assert.strictEqual(service.stateManager.getSessionState(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub')), undefined);
-		});
-
-		test('a concurrent restore waits for subagent catalog hydration after parent state exists', async () => {
-			class DelayedSubagentRestoreAgent extends MockAgent {
-				readonly subagentsReached = new DeferredPromise<void>();
-				readonly subagentsGate = new DeferredPromise<void>();
-
-				async getSubagentSessions(): Promise<readonly IRestoredSubagentSession[]> {
-					this.subagentsReached.complete();
-					await this.subagentsGate.p;
-					return [];
-				}
-			}
-
-			const agent = disposables.add(new DelayedSubagentRestoreAgent('copilot'));
-			service.registerProvider(agent);
-			const { session } = await agent.createSession();
-			service.stateManager.deleteSession(session.toString());
-			agent.sessionMessages = [
-				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
-				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
-			];
-
-			const firstRestore = service.restoreSession(session);
-			await agent.subagentsReached.p;
-			assert.ok(service.stateManager.getSessionState(session.toString()));
-			let secondSettled = false;
-			const secondRestore = service.restoreSession(session).finally(() => { secondSettled = true; });
-			await timeout(0);
-			assert.strictEqual(secondSettled, false);
-
-			agent.subagentsGate.complete();
-			await Promise.all([firstRestore, secondRestore]);
 		});
 
 		test('subscribing to a restored canonical subagent chat reconstructs it on demand', async () => {

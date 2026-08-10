@@ -22,7 +22,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentInheritedChatContext, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentInheritedChatContext, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -3514,25 +3514,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const promises: Promise<unknown>[] = [];
-		// Eagerly register subagent child sessions discovered in the event log
-		// so the client's per-subagent subscriptions resolve from in-memory
-		// state (hitting `restoreSubagent skipped existing`) instead of each
-		// re-fetching and re-reconstructing the full parent event log. The
-		// agent serves these from the same reconstruction it already produced
-		// for the parent turns above, so this adds no extra event-log reads.
-		promises.push((async () => {
-			if (agent.getSubagentSessions) {
-				try {
-					const children = await agent.getSubagentSessions(session);
-					for (const child of children) {
-						this._registerRestoredSubagent(child, sessionStr);
-					}
-				} catch (err) {
-					this._logService.warn(`[AgentService] restoreSession failed to eagerly register subagents session=${sessionStr}`, err);
-				}
-			}
-		})());
-		promises.push(this._restoreSubagentChatsFromParentHistory(agent, session, mergedTurns));
+		this._registerRestoredSubagentSummaries(agent, session, mergedTurns);
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
 		// and histories are restored when a peer chat is first requested.
@@ -4934,23 +4916,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
 	}
 
-	/**
-	 * Registers a reconstructed subagent in its parent's chat catalog.
-	 */
-	private _registerRestoredSubagent(child: IRestoredSubagentSession, parentSessionStr: string): void {
-		const subagentChatUri = buildSubagentChatUri(parentSessionStr, child.toolCallId);
-		if (this._stateManager.getChatState(subagentChatUri)) {
-			return;
-		}
-		this._stateManager.addChat(parentSessionStr, subagentChatUri, {
-			title: child.title,
-			turns: [...child.turns],
-			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(parentSessionStr), toolCallId: child.toolCallId },
-			interactivity: ChatInteractivity.ReadOnly,
-		});
-	}
-
-	private async _restoreSubagentChatsFromParentHistory(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> {
+	private _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void {
 		const parentSessionStr = parentSession.toString();
 		const parentChat = buildDefaultChatUri(parentSession);
 		const discovered = new Map<string, { title: string; toolCallId: string }>();
@@ -4964,30 +4930,36 @@ export class AgentService extends Disposable implements IAgentService {
 					: undefined;
 				const subagent = content?.find((item): item is ToolResultSubagentContent => item.type === ToolResultContentType.Subagent);
 				if (subagent) {
-					discovered.set(part.toolCall.toolCallId, { title: subagent.title || 'Subagent', toolCallId: part.toolCall.toolCallId });
+					discovered.set(part.toolCall.toolCallId, {
+						title: subagentChatTitle(readToolCallMeta(part.toolCall).subagentDescription, subagent.title),
+						toolCallId: part.toolCall.toolCallId,
+					});
 				}
 			}
 		}
-		await Promise.all([...discovered.values()].map(async child => {
+		for (const child of discovered.values()) {
 			const chatUri = buildSubagentChatUri(parentSessionStr, child.toolCallId);
 			if (this._stateManager.getChatState(chatUri)) {
-				return;
+				continue;
 			}
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: child.toolCallId } as const;
-			try {
-				const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, origin);
-				if (childTurns.length > 0) {
-					this._stateManager.addChat(parentSessionStr, chatUri, {
-						title: child.title,
-						turns: [...childTurns],
-						origin,
-						interactivity: ChatInteractivity.ReadOnly,
-					});
-				}
-			} catch (err) {
-				this._logService.warn(`[AgentService] Failed to restore subagent chat ${chatUri}`, err);
-			}
-		}));
+			this._stateManager.registerRestoredChatSummary(parentSessionStr, chatUri, {
+				title: child.title,
+				origin,
+				interactivity: ChatInteractivity.ReadOnly,
+				resolver: async () => ({
+					turns: [...await this._resolveRestoredSubagentTurns(agent, parentSession, chatUri, origin)],
+				}),
+			});
+		}
+	}
+
+	private async _resolveRestoredSubagentTurns(agent: IAgent, parentSession: URI, chatUri: string, origin: { readonly kind: ChatOriginKind.Tool; readonly chat: string; readonly toolCallId: string }): Promise<readonly Turn[]> {
+		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, origin);
+		if (childTurns.length === 0) {
+			throw new Error(`Subagent transcript is not available yet: ${chatUri}`);
+		}
+		return this._interleaveLocalTurns(parentSession.toString(), chatUri, childTurns);
 	}
 
 	private _findProviderForSession(session: URI | string): IAgent | undefined {
