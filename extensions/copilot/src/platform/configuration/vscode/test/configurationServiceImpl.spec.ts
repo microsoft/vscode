@@ -43,7 +43,6 @@ vi.mock('vscode', () => {
 
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { ConfigKey } from '../../common/configurationService';
-import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ConfigurationServiceImpl } from '../configurationServiceImpl';
 
 const fakeTokenStore: ICopilotTokenStore = {
@@ -73,19 +72,4 @@ describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', (
 
 		expect(value).toEqual(userValue);
 	});
-
-	test('prefers an experiment treatment over a default override', () => {
-		const key = ConfigKey.TeamInternal.InlineEditsDebounce;
-		const experimentationService = new class extends NullExperimentationService {
-			override getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-				return name === `copilotchat.config.${key.id}` ? 50 as T : undefined;
-			}
-		}();
-
-		const svc = new ConfigurationServiceImpl(fakeTokenStore);
-		const value = svc.getExperimentBasedConfig(key, experimentationService, undefined, 0);
-
-		expect(value).toBe(50);
-	});
-
 });

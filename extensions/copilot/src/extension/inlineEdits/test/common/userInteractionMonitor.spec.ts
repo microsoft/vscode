@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { beforeEach, describe, expect, test } from 'vitest';
-import type { ConfigurationScope } from 'vscode';
 import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
@@ -61,11 +60,11 @@ class MockConfigurationService extends InMemoryConfigurationService {
 		this._useAdaptiveAggressiveness = true;
 	}
 
-	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T {
+	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T {
 		if (this._useAdaptiveAggressiveness && key === ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel) {
 			return undefined as T;
 		}
-		return super.getExperimentBasedConfig(key, experimentationService, scope, defaultValueOverride);
+		return super.getExperimentBasedConfig(key, experimentationService);
 	}
 }
 

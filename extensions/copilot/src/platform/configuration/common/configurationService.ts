@@ -130,7 +130,7 @@ export interface IConfigurationService {
 	 *
 	 * @remark For object values, the user config will replace the default config.
 	 */
-	getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T;
+	getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T;
 
 	/**
 	 * Gets the observable of a user configuration for a key from vscode (which if not defined, pulls default value from package.json).
@@ -164,6 +164,8 @@ export interface IConfigurationService {
 
 	dumpConfig(): { [key: string]: string };
 }
+
+
 
 export abstract class AbstractConfigurationService extends Disposable implements IConfigurationService {
 	declare readonly _serviceBrand: undefined;
@@ -261,7 +263,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
 	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
 	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
-	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T;
+	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T;
 	abstract dumpConfig(): { [key: string]: string };
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
 		if (treatments.length === 0) {

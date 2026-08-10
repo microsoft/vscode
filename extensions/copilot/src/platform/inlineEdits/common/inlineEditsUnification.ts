@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelConfiguration } from './dataTypes/xtabPromptOptions';
+import type { ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService } from '../../configuration/common/configurationService';
+import type { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 
 export enum InlineEditsUnification {
 	CompletionsNes = 'completionsNes',
@@ -33,4 +35,44 @@ export function getInlineEditsUnificationDefaults(config: ModelConfiguration | n
 	return config?.unification === InlineEditsUnification.CompletionsNes
 		? COMPLETIONS_NES_UNIFICATION_DEFAULTS
 		: undefined;
+}
+
+export function getInlineEditsConfigWithDefault<T extends ExperimentBasedConfigType>(
+	configurationService: IConfigurationService,
+	key: ExperimentBasedConfig<T>,
+	experimentationService: IExperimentationService,
+	defaultValue: T,
+): T {
+	if (configurationService.isConfigured(key)) {
+		return configurationService.getExperimentBasedConfig(key, experimentationService);
+	}
+
+	const experimentValue = getExperimentValue(key, experimentationService);
+	if (experimentValue !== undefined) {
+		return experimentValue;
+	}
+
+	const configuredValue = configurationService.getExperimentBasedConfig(key, experimentationService);
+	return configuredValue !== configurationService.getDefaultValue(key) ? configuredValue : defaultValue;
+}
+
+function getExperimentValue<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T | undefined {
+	const treatmentNames = [
+		key.experimentName,
+		`copilotchat.config.${key.id}`,
+		`config.${key.fullyQualifiedId}`,
+		key.oldId ? `copilotchat.config.${key.oldId}` : undefined,
+		key.fullyQualifiedOldId ? `config.${key.fullyQualifiedOldId}` : undefined,
+	];
+
+	for (const treatmentName of treatmentNames) {
+		if (treatmentName) {
+			const value = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(treatmentName);
+			if (value !== undefined) {
+				return value;
+			}
+		}
+	}
+
+	return undefined;
 }

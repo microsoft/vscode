@@ -29,7 +29,7 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 		return undefined;
 	}
 
-	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T {
+	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T {
 		if (key.experimentName) {
 			const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(key.experimentName);
 			if (expValue !== undefined) {
@@ -62,7 +62,7 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 			}
 		}
 
-		return defaultValueOverride ?? this.getDefaultValue(key);
+		return this.getDefaultValue(key);
 	}
 
 	override updateExperimentBasedConfiguration(treatments: string[]): void {

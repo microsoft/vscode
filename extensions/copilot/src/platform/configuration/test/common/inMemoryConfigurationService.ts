@@ -60,12 +60,12 @@ export class InMemoryConfigurationService extends AbstractConfigurationService {
 		return Promise.resolve();
 	}
 
-	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T {
+	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T {
 		const override = this.overrides.get(key);
 		if (override !== undefined) {
 			return override as T;
 		}
-		return this.baseConfigurationService.getExperimentBasedConfig(key, experimentationService, scope, defaultValueOverride);
+		return this.baseConfigurationService.getExperimentBasedConfig(key, experimentationService);
 	}
 
 	dumpConfig(): { [key: string]: string } {

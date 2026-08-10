@@ -22,7 +22,7 @@ import { IExperimentationService } from '../../telemetry/common/nullExperimentat
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { WireTypes } from '../common/dataTypes/inlineEditsModelsTypes';
 import { isPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../common/dataTypes/xtabPromptOptions';
-import { getInlineEditsUnificationDefaults, InlineEditsUnificationConfiguration } from '../common/inlineEditsUnification';
+import { getInlineEditsConfigWithDefault, getInlineEditsUnificationDefaults, InlineEditsUnificationConfiguration } from '../common/inlineEditsUnification';
 import { IInlineEditsModelService, IUndesiredModelsManager } from '../common/inlineEditsModelService';
 
 const enum ModelSource {
@@ -317,7 +317,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 	}
 
 	private getConfigWithDefault<T extends boolean | number | string>(key: ExperimentBasedConfig<T | undefined>, defaultValue: T): T {
-		return this._configService.getExperimentBasedConfig(key, this._expService, undefined, defaultValue) ?? defaultValue;
+		return getInlineEditsConfigWithDefault(this._configService, key, this._expService, defaultValue) ?? defaultValue;
 	}
 
 	private isConfiguredModel(model: ModelConfigurationWithSource): boolean {

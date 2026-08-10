@@ -498,19 +498,19 @@ class OverridableConfigurationService extends DefaultsOnlyConfigurationService {
 		return super.getConfig(key);
 	}
 
-	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: vscode.ConfigurationScope, defaultValueOverride?: T): T {
+	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T {
 		if (this._overrides.has(key.id)) {
 			const overriddenValue = this._overrides.get(key.id);
 			if (key.validator) {
 				const result = key.validator.validate(overriddenValue);
 				if (result.error) {
-					return super.getExperimentBasedConfig(key, experimentationService, scope, defaultValueOverride);
+					return super.getExperimentBasedConfig(key, experimentationService);
 				}
 				return result.content;
 			}
 			return overriddenValue as T;
 		}
-		return super.getExperimentBasedConfig(key, experimentationService, scope, defaultValueOverride);
+		return super.getExperimentBasedConfig(key, experimentationService);
 	}
 
 	override inspectConfig<T>(key: BaseConfig<T>) {
