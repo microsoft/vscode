@@ -151,7 +151,7 @@ jobs:
         inputs:
           outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
         retryCountOnTaskFailure: 3
-        timeoutInMinutes: 5
+        timeoutInMinutes: 10
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 
