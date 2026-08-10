@@ -912,7 +912,7 @@ interface ISessionSectionTemplate {
 	readonly elementDisposables: DisposableStore;
 }
 
-class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
+export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
 
