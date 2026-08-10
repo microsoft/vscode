@@ -98,6 +98,35 @@ export function logChangesViewViewModeChange(telemetryService: ITelemetryService
 	telemetryService.publicLog2<ChangesViewViewModeChangeEvent, ChangesViewViewModeChangeClassification>('vscodeAgents.changesView/viewModeChange', { mode });
 }
 
+// --- Shared multi-root topology helpers ---
+
+/**
+ * The browser-projected git/non-git shape of a session's workspace folders,
+ * used for telemetry. These counts come from workspace *metadata*
+ * (`folder.gitRepository`), distinct from the agent host's Node-side git probe;
+ * `folderCount === gitFolderCount + nonGitFolderCount`.
+ */
+export interface ISessionWorkspaceTopology {
+	readonly folderCount: number;
+	readonly gitFolderCount: number;
+	readonly nonGitFolderCount: number;
+	readonly isMultiRoot: boolean;
+}
+
+/**
+ * Derives the reconcilable {@link ISessionWorkspaceTopology} from a session's
+ * total and git-backed folder counts (`isMultiRoot` uses the folder-count
+ * convention shared across sessions telemetry).
+ */
+export function classifySessionWorkspaceTopology(folderCount: number, gitFolderCount: number): ISessionWorkspaceTopology {
+	return {
+		folderCount: folderCount,
+		gitFolderCount,
+		nonGitFolderCount: folderCount - gitFolderCount,
+		isMultiRoot: folderCount > 1,
+	};
+}
+
 // --- Tunnel agent host discovery ---
 
 export type TunnelDiscoveryTrigger =
