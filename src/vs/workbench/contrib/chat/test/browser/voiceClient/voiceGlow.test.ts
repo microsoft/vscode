@@ -26,12 +26,14 @@ suite('VoiceGlow', () => {
 		);
 	});
 
-	test('does not render a pending confirmation when Voice Mode is disabled', () => {
+	test('only renders while Voice Mode is connected', () => {
 		assert.deepStrictEqual([
-			shouldRenderVoiceInputGlow(false, true, false, true, false, 'idle'),
-			shouldRenderVoiceInputGlow(true, true, false, true, false, 'idle'),
-			shouldRenderVoiceInputGlow(true, true, true, true, false, 'idle'),
-		], [false, false, true]);
+			shouldRenderVoiceInputGlow(true, false, true, false, 'idle'),
+			shouldRenderVoiceInputGlow(true, true, true, false, 'idle'),
+			shouldRenderVoiceInputGlow(false, false, true, true, 'listening'),
+			shouldRenderVoiceInputGlow(false, true, true, true, 'listening'),
+			shouldRenderVoiceInputGlow(false, true, false, true, 'speaking'),
+		], [false, true, false, true, false]);
 	});
 
 	test('renders in an auxiliary owner document', () => {

@@ -545,7 +545,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			() => resolveVoiceGlowColors(this.themeService.getColorTheme()),
 		));
 		this._register(this.themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
-		const voiceEnabled = observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.enabled')), () => this.configurationService.getValue<boolean>('agents.voice.enabled') === true);
 		// Merge the real voice session with any dev/preview simulation so the walkthrough
 		// commands drive the input-box glow exactly as a live session would.
 		const getEffectiveVoice = (): { connected: boolean; voiceState: VoiceGlowState; simulating: boolean } => {
@@ -578,7 +577,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const currentSession = this._currentSessionResource.get();
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const glowActive = voiceEnabled.get() && connected && (confirmationPending || (isGlowingVoiceState(voiceState) && (simulating || isOwner)));
+				const glowActive = connected && (confirmationPending || (isGlowingVoiceState(voiceState) && (simulating || isOwner)));
 
 				if (!glowActive) {
 					glowController.clear();
@@ -628,7 +627,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (voiceEnabled.read(reader) && connected && (confirmationPending || simGlow || isGlowingVoiceState(voiceState))) {
+			if (simGlow || (connected && (confirmationPending || isGlowingVoiceState(voiceState)))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
