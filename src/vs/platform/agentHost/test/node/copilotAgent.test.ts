@@ -3522,6 +3522,52 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('materializes restored provider history without a persisted turn event mapping', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'restored-source-session');
+			const target = AgentSession.uri('copilotcli', 'restored-target-session');
+			const sourceTurnId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: sourceTurnId,
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [sourceTurn],
+				getTurnEventId: async () => undefined,
+				workingDirectory: URI.file('/source-workspace'),
+				dispose: () => { },
+			});
+
+			let importedTurnIds: readonly string[] | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async config => {
+				importedTurnIds = config.importConversation?.turns.map(turn => turn.id);
+				return { session: target, resolvedWorkingDirectory: URI.file('/source-workspace') };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				await agent.createSession({
+					session: target,
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurnId,
+						turnIdMapping: new Map([[sourceTurnId, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual(importedTurnIds, [forkedTurnId]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('createSession activeClient eager-claim', () => {
