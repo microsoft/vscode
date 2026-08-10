@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -13,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
-	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
+	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
 	readonly id: string;
 	/** Display label (e.g., 'Copilot CLI', 'Cloud'). */
 	readonly label: string;
@@ -30,6 +31,35 @@ export interface ISessionType {
 	 * to {@link id} when omitted.
 	 */
 	readonly chatSessionType?: string;
+	/**
+	 * Whether this session type can run right now, and if it needs GitHub to do
+	 * so. Providers resolve this from what their agent advertises; it is not a
+	 * fixed trait (Claude and Codex both move between values as their own
+	 * credentials come and go).
+	 */
+	readonly authRequirement: SessionTypeAuthRequirement;
+}
+
+/**
+ * What a session type needs before it can serve a request.
+ *
+ * Deliberately three states rather than a boolean. A boolean collapses
+ * {@link Unusable} into {@link GitHub}, which turns "this agent cannot run" into
+ * a sign-in prompt that would not fix anything — the user signs in, and the type
+ * is still broken. Providers resolve the value from what their agent advertises,
+ * so it moves as credentials come and go rather than being a fixed trait.
+ */
+export const enum SessionTypeAuthRequirement {
+	/** Runs on the user's own credentials — usable while signed out of GitHub. */
+	None = 'none',
+	/** Needs a GitHub Copilot account. Also the assumption until an agent resolves. */
+	GitHub = 'github',
+	/**
+	 * Cannot run at all right now, and signing in to GitHub would not help — e.g.
+	 * Claude advertising the Copilot resource as optional but publishing an empty
+	 * model catalog. Surfaces as "no models", not a sign-in prompt.
+	 */
+	Unusable = 'unusable',
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -53,6 +83,19 @@ export const enum SessionStatus {
 /** Whether a session still has active work, including work blocked on user input. */
 export function isActiveSessionStatus(status: SessionStatus): boolean {
 	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
+}
+
+export function getSessionStatusMessage(status: SessionStatus, description: IMarkdownString | undefined): IMarkdownString | string | undefined {
+	switch (status) {
+		case SessionStatus.InProgress:
+			return description ?? localize('working', "Working...");
+		case SessionStatus.NeedsInput:
+			return description ?? localize('needsInput', "Input needed");
+		case SessionStatus.Error:
+			return description ?? localize('failed', "Failed");
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -192,6 +235,8 @@ export interface IGitHubInfo {
 	readonly owner: string;
 	/** GitHub repository name. */
 	readonly repo: string;
+	/** Pull requests associated with this session, most recent first. */
+	readonly pullRequests?: readonly IGitHubPullRequestRef[];
 	/** Pull request associated with this session, if any. */
 	readonly pullRequest?: {
 		/** Pull request number. */
@@ -210,6 +255,20 @@ export interface IGitHubInfo {
 	 * mentioned. Issues may live in a different repository than {@link owner}/{@link repo}.
 	 */
 	readonly issues?: readonly IGitHubIssueRef[];
+}
+
+/** A GitHub pull request associated with a session. */
+export interface IGitHubPullRequestRef {
+	/** GitHub repository owner of the pull request. */
+	readonly owner: string;
+	/** GitHub repository name of the pull request. */
+	readonly repo: string;
+	/** Pull request number. */
+	readonly number: number;
+	/** URI of the pull request. */
+	readonly uri: URI;
+	/** Icon reflecting the last known PR state. */
+	readonly icon?: ThemeIcon;
 }
 
 /** A GitHub issue referenced by a session. */
@@ -231,6 +290,11 @@ export interface ISessionChangesSummary {
 }
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+/** A last-turn file change classified against its owning session workspace. */
+export type ISessionTurnFileChange = ISessionFileChange & {
+	readonly isOutsideWorkspace: boolean;
+};
 
 /**
  * The kind of change applied to a {@link ISessionFile}.
@@ -427,6 +491,12 @@ export interface IChatOrigin {
 	 * resource of the chat that spawned it. Undefined for user-originated chats.
 	 */
 	readonly parentChat?: URI;
+	/**
+	 * For a {@link ChatOriginKind.Fork} or {@link ChatOriginKind.SideChat}, the
+	 * id of the turn in {@link parentChat} the chat branched from. Undefined for
+	 * other origins.
+	 */
+	readonly turnId?: string;
 	readonly selection?: ISideChatSelection;
 }
 
@@ -469,10 +539,10 @@ export interface IChat {
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
 	 * stream so consumers — e.g. the chat input status pills — can reflect just
-	 * what the most recent request produced. Providers that cannot determine
-	 * this omit the observable.
+	 * what the most recent request produced. Each change is classified against
+	 * this session's workspace. Providers that cannot determine this omit the observable.
 	 */
-	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
+	readonly lastTurnChanges?: IObservable<readonly ISessionTurnFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -782,6 +852,11 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 	return true;
 }
 
+/** Structural equality for arrays of {@link ISessionTurnFileChange}. */
+export function sessionTurnFileChangesEqual(a: readonly ISessionTurnFileChange[], b: readonly ISessionTurnFileChange[]): boolean {
+	return sessionFileChangesEqual(a, b) && a.every((change, index) => change.isOutsideWorkspace === b[index].isOutsideWorkspace);
+}
+
 /**
  * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
  * so that providers can re-publish updated info without notifying observers when the underlying GitHub
@@ -801,6 +876,12 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 
 	return a.owner === b.owner &&
 		a.repo === b.repo &&
+		arrayEquals(a.pullRequests ?? [], b.pullRequests ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&

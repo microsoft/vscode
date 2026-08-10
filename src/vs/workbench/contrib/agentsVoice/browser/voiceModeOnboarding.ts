@@ -23,9 +23,10 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable, asCssVariableWithDefault, selectBackground, selectListBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { buildMicrophoneOptions, IMicrophoneOption, indexOfMicrophone } from '../../chat/browser/speechToText/dictationOnboarding.js';
 import './media/voiceModeOnboarding.css';
@@ -61,6 +62,7 @@ type VoiceModeOnboardingActionEvent = {
  */
 interface IVoiceModeVoice {
 	readonly id: string;
+	readonly sampleId: string;
 	readonly label: string;
 	/** This voice's waveform texture. See {@link IWave}. */
 	readonly signature: readonly IWave[];
@@ -80,8 +82,9 @@ interface IWave {
 
 const VOICES: readonly IVoiceModeVoice[] = [
 	{
-		id: 'maya_neutral',
-		label: localize('voiceMode.onboarding.voice.maya', "Maya (Default)"),
+		id: 'birch_neutral',
+		sampleId: 'maya_neutral',
+		label: localize('voiceMode.onboarding.voice.birch', "Birch (Default)"),
 		// Flowing mid-range: even spread, gentle drift.
 		signature: [
 			{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
@@ -91,8 +94,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'victoria_neutral',
-		label: localize('voiceMode.onboarding.voice.victoria', "Victoria"),
+		id: 'harper_neutral',
+		sampleId: 'victoria_neutral',
+		label: localize('voiceMode.onboarding.voice.harper', "Harper"),
 		// Bright and quick: higher frequencies, tighter ripple.
 		signature: [
 			{ frequency: 1.4, amplitude: 0.38, speed: 0.52, phase: 0.0 },
@@ -102,8 +106,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'kevin_neutral',
-		label: localize('voiceMode.onboarding.voice.kevin', "Kevin"),
+		id: 'oak_neutral',
+		sampleId: 'kevin_neutral',
+		label: localize('voiceMode.onboarding.voice.oak', "Oak"),
 		// Low and broad: long swells with little high-frequency detail.
 		signature: [
 			{ frequency: 0.7, amplitude: 0.48, speed: 0.30, phase: 0.4 },
@@ -113,8 +118,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'daniel_neutral',
-		label: localize('voiceMode.onboarding.voice.daniel', "Daniel"),
+		id: 'junho_neutral',
+		sampleId: 'daniel_neutral',
+		label: localize('voiceMode.onboarding.voice.junho', "Junho"),
 		// Steady and measured: slow drift, calm regular crests.
 		signature: [
 			{ frequency: 0.9, amplitude: 0.44, speed: 0.24, phase: 1.3 },
@@ -557,7 +563,7 @@ class VoiceSamplePlayer extends Disposable {
 		return Math.min(1, Math.sqrt(sum / this.levels.length) * 3.2);
 	}
 
-	play(sampleId: string): void {
+	play(sampleId: string, playingVoice = sampleId): void {
 		this.stop();
 		try {
 			const audio = this.ensureAudio();
@@ -569,7 +575,7 @@ class VoiceSamplePlayer extends Disposable {
 			store.add(toDisposable(() => audio.pause()));
 			this.playback.value = store;
 
-			this.setPlayingVoice(sampleId);
+			this.setPlayingVoice(playingVoice);
 			audio.play().catch(error => {
 				this.logService.trace(`[voice] Voice Mode onboarding preview failed: ${error}`);
 				this.stop();
@@ -655,7 +661,7 @@ interface IVoiceElement {
  * afterwards. The leading icon carries that story: play before the click,
  * animating bars while it speaks, then a check once it is yours.
  */
-export class VoiceModeOnboardingBanner extends Disposable {
+export class VoiceModeOnboardingBanner extends Disposable implements IChatInputOnboardingBanner {
 
 	readonly domNode: HTMLElement;
 
@@ -668,8 +674,14 @@ export class VoiceModeOnboardingBanner extends Disposable {
 
 	private readonly voiceElements = new Map<string, IVoiceElement>();
 
+	/** Where the voice chips live, so they can be re-rendered on a language change. */
+	private voicesContainer: HTMLElement | undefined;
+
+	/** Listeners for the current set of voice chips, cleared when they re-render. */
+	private readonly voicesDisposables = this._register(new DisposableStore());
+
 	/** The native voice for the spoken language, when one exists. */
-	private readonly localizedVoice: ILocalizedVoice | undefined;
+	private localizedVoice: ILocalizedVoice | undefined;
 
 	/** The voice being auditioned, and the one that will be committed. */
 	private selectedVoice: IVoiceModeVoice | undefined;
@@ -679,7 +691,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -693,6 +704,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			container: options.container,
 			className: 'voice-mode-onboarding-banner',
 			ariaLabel: localize('voiceMode.onboarding.region', "Voice Mode introduction"),
+			ariaDescription: localize('voiceMode.onboarding.regionDescription', "Choose how your agent speaks to you. Adjust settings anytime."),
 			onEscape: () => {
 				this.logAction('escape');
 				this.options.onDismiss();
@@ -712,12 +724,19 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.renderMicrophonePicker();
 
 		const actions = dom.append(this.domNode, dom.$('.voice-mode-onboarding-actions'));
-		this.renderVoices(actions);
+		this.voicesContainer = actions;
+		this.renderVoices();
 		this.renderClose();
 		this.logAction('shown');
 
-		this.focusForScreenReader();
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.focusForScreenReader()));
+		// "Changing this while voice mode is connected takes effect immediately"
+		// applies to the card too: swap the chips for the new language's voice
+		// rather than leaving stale ones behind.
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(VOICE_LANGUAGE_SETTING)) {
+				this.updateForLanguage();
+			}
+		}));
 	}
 
 	/**
@@ -772,7 +791,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		}
 
 		const options = buildMicrophoneOptions(devices);
-		if (this.microphoneOptions.length > 1 && !options.some(option => option.deviceId && option.label)) {
+		// Wait for a real microphone label before rendering a multi-microphone picker.
+		if (options.length > 1 && !devices.some(device => device.kind === 'audioinput' && device.label)) {
 			return;
 		}
 		this.microphoneOptions = options;
@@ -801,7 +821,13 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			this.microphoneOptions.map(option => ({ text: option.label })),
 			selected,
 			this.contextViewService,
-			{ ...defaultSelectBoxStyles, selectBackground: undefined, selectBorder: undefined, selectForeground: undefined },
+			{
+				...defaultSelectBoxStyles,
+				selectBackground: undefined,
+				selectBorder: undefined,
+				selectForeground: undefined,
+				selectListBackground: asCssVariableWithDefault(selectListBackground, asCssVariable(selectBackground)),
+			},
 			{ ariaLabel: localize('voiceMode.onboarding.microphone', "Microphone"), useCustomDrawn: true },
 		));
 		selectBox.render(this.microphonePickerContainer);
@@ -832,8 +858,20 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	 * because bare text gave no sign it could be clicked at all. In a language
 	 * Voice Mode speaks natively there is only one voice, so the card previews
 	 * that voice instead of offering the English chooser.
+	 *
+	 * Re-entrant: clears any previously rendered chips so the card can rebuild
+	 * them when the spoken language changes.
 	 */
-	private renderVoices(container: HTMLElement): void {
+	private renderVoices(): void {
+		const container = this.voicesContainer;
+		if (!container) {
+			return;
+		}
+
+		this.voicesDisposables.clear();
+		this.voiceElements.clear();
+		dom.clearNode(container);
+
 		const labelText = localize('voiceMode.onboarding.voices', "Agent Voice:");
 		const label = dom.append(container, dom.$('.voice-mode-onboarding-voices-label'));
 		label.textContent = labelText;
@@ -859,11 +897,32 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			label.textContent = voice.label;
 			this.voiceElements.set(voice.id, { element: option, label: voice.label, restingAria });
 
-			this._register(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.selectVoice(voice)));
-			this._register(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => this.handleOptionKey(event, voice)));
+			this.voicesDisposables.add(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.selectVoice(voice)));
+			this.voicesDisposables.add(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => this.handleOptionKey(event, voice)));
 		}
 
 		this.updateSelection();
+	}
+
+	/**
+	 * The spoken language changed, so swap the chips: the four English voices
+	 * for a native language's single voice, or back again. Nothing is carried
+	 * over - a voice chosen for the old language means nothing for the new one.
+	 */
+	private updateForLanguage(): void {
+		const localizedVoice = localizedVoiceForLanguage(this.resolveSpokenLanguage());
+		if (localizedVoice?.id === this.localizedVoice?.id) {
+			return;
+		}
+
+		const hadVoiceFocus = this.voicesContainer ? dom.isAncestorOfActiveElement(this.voicesContainer) : false;
+		this.player.stop();
+		this.localizedVoice = localizedVoice;
+		this.selectedVoice = undefined;
+		this.renderVoices();
+		if (hadVoiceFocus) {
+			this.voiceElements.values().next().value?.element.focus();
+		}
 	}
 
 	/**
@@ -886,8 +945,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		label.textContent = voice.label;
 		this.voiceElements.set(voice.id, { element: option, label: voice.label, restingAria });
 
-		this._register(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.previewLocalizedVoice(voice)));
-		this._register(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => {
+		this.voicesDisposables.add(dom.addDisposableListener(option, dom.EventType.CLICK, () => this.previewLocalizedVoice(voice)));
+		this.voicesDisposables.add(dom.addDisposableListener(option, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
 				keyboardEvent.preventDefault();
@@ -996,11 +1055,8 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		});
 	}
 
-	private focusForScreenReader(): void {
-		if (this.accessibilityService.isScreenReaderOptimized()) {
-			this.domNode.tabIndex = -1;
-			this.domNode.focus();
-		}
+	announce(): void {
+		this.card.announce();
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
@@ -1012,7 +1068,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.logAction('selectVoice');
 		this.selectedVoice = voice;
 		this.updateSelection();
-		this.player.play(voice.id);
+		this.player.play(voice.sampleId, voice.id);
 		status(localize('voiceMode.onboarding.voice.selected', "{0} selected.", voice.label));
 		this.configurationService.updateValue(VOICE_SETTING, voice.id, ConfigurationTarget.USER)
 			.catch(error => this.logService.error(`[voice] Failed to persist the Voice Mode voice: ${error}`));

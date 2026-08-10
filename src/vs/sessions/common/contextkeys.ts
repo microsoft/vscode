@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
 
 //#region < --- Active Session --- >
 
@@ -51,6 +52,15 @@ export const ActiveSessionsContext = new RawContextKey<string>('activeSessions',
 export const SessionsFocusContext = new RawContextKey<boolean>('sessionsFocus', false, localize('sessionsFocus', "Whether the sessions part has keyboard focus"));
 export const SessionsVisibleContext = new RawContextKey<boolean>('sessionsVisible', false, localize('sessionsVisible', "Whether the sessions part is visible"));
 export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multipleSessionsVisible', false, localize('multipleSessionsVisible', "Whether more than one session is visible in the sessions part's grid"));
+export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessionsHasClosedItem', false, localize('sessionsHasClosedItem', "Whether a chat or session was closed recently and can be reopened with the Reopen Closed Chat or Session command"));
+
+/**
+ * Focus is inside the Agents window's editor surface: an editor part, or the
+ * auxiliary bar, which the single-pane layout docks into the side pane as the
+ * detail panel (Files/Changes). Shortcuts shared with VS Code's editor
+ * commands defer to those commands while this holds.
+ */
+export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusContext, AuxiliaryBarFocusContext)!;
 
 //#endregion
 
@@ -58,6 +68,7 @@ export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multip
 
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
+export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
 
 //#endregion
 
@@ -84,6 +95,7 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 export const SessionWorkspacePickerVisibleContext = new RawContextKey<boolean>('sessionWorkspacePickerVisible', false, localize('sessionWorkspacePickerVisible', "Whether the new-session view's workspace picker is rendered (as opposed to being replaced by the no-agent-host empty state)"));
 export const SessionHarnessPickerVisibleContext = new RawContextKey<boolean>('sessionHarnessPickerVisible', false, localize('sessionHarnessPickerVisible', "Whether the new-session view's harness (session type) picker is visible — it is hidden when at most one harness can serve the selected workspace"));
 export const SessionIsolationPickerVisibleContext = new RawContextKey<boolean>('sessionIsolationPickerVisible', false, localize('sessionIsolationPickerVisible', "Whether the new-session view's isolation picker is visible — it is shown only when the isolation option is enabled and the workspace has a git repository"));
+export const AgentHostSessionTypesAvailableContext = new RawContextKey<boolean>('agentHostSessionTypesAvailable', false, localize('agentHostSessionTypesAvailable', "Whether at least one connected agent-host provider has advertised session types"));
 
 //#endregion
 
@@ -118,8 +130,11 @@ export const CanGoForwardContext = new RawContextKey<boolean>('sessionsCanGoForw
 export const EditorMaximizedContext = new RawContextKey<boolean>('editorMaximized', false, localize('editorMaximized', "Whether the editor area is maximized"));
 export const SinglePaneLayoutEnabledContext = new RawContextKey<boolean>('agentSessionsSinglePaneLayoutEnabled', false, localize('agentSessionsSinglePaneLayoutEnabled', "Whether the Agents window is using the single-pane (docked detail panel) layout. Single source of truth for gating single-pane behaviour — set once by the workbench from the layout it was constructed with; features must read this instead of the underlying setting"));
 export const HasDockedDetailsContext = new RawContextKey<boolean>('agentSessionsHasDockedDetails', false, localize('agentSessionsHasDockedDetails', "Whether the single-pane active editor has a docked detail panel (a managed Changes/Files tab or a text file editor)"));
+export const SinglePaneDiffEditorInputActiveContext = new RawContextKey<boolean>('agentSessionsSinglePaneDiffEditorInputActive', false, localize('agentSessionsSinglePaneDiffEditorInputActive', "Whether the active single-pane editor input is a diff, independent of the editor used to render it"));
 export const SinglePaneChangesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabMissing', false, localize('agentSessionsSinglePaneChangesTabMissing', "Whether the single-pane session supports a Changes editor but its tab is not currently open"));
 export const SinglePaneFilesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabMissing', false, localize('agentSessionsSinglePaneFilesTabMissing', "Whether the single-pane session supports a Files tab but its tab is not currently open"));
+export const SinglePaneChangesTabAvailableContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabAvailable', false, localize('agentSessionsSinglePaneChangesTabAvailable', "Whether the single-pane session supports a Changes editor"));
+export const SinglePaneFilesTabAvailableContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabAvailable', false, localize('agentSessionsSinglePaneFilesTabAvailable', "Whether the single-pane session supports a Files editor"));
 
 //#endregion
 

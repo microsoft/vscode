@@ -27,8 +27,9 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
+import { CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -526,7 +527,7 @@ export interface IChatTabContext {
 registerAction2(class CloseChatAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.closeChat',
+			id: CLOSE_CHAT_COMMAND_ID,
 			title: localize2('closeActiveChat', "Close Chat"),
 			icon: Codicon.close,
 			// Hidden from the palette: closing a specific chat is contextual (the
@@ -618,7 +619,10 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 			if (chat.status.get() === SessionStatus.Untitled) {
 				await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
 			} else {
-				await sessionsService.closeChat(session, chat);
+				// Closing the whole batch is one gesture, so it is not offered to
+				// Reopen Closed Chat or Session — that would reopen only the last
+				// chat of the batch.
+				await sessionsService.closeChat(session, chat, { skipHistory: true });
 			}
 		}
 	}
@@ -670,13 +674,6 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			precondition: SessionSupportsMultipleChatsContext,
-			keybinding: {
-				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				// Like Cmd/Ctrl+Shift+T in a browser — reopens the most recently
-				// closed chat tab. Scoped to the agents window, outside editor area.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
-			},
 		});
 	}
 
@@ -693,6 +690,33 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 		}
 		await sessionsService.openChat(session, lastClosed.resource);
 		sessionsPartService.focusSession(session);
+	}
+});
+
+registerAction2(class ReopenLastClosedItemAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.reopenLastClosedItem',
+			title: localize2('reopenLastClosedItem', "Reopen Closed Chat or Session"),
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Ctrl/Cmd+Shift+T in a browser. Outside the editor scope the
+				// chord always belongs to the sessions area (it is a no-op when
+				// nothing was closed); inside it, VS Code's own Reopen Closed
+				// Editor takes over.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsEditorScopeContext.negate()),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsHasClosedItemContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ISessionsService).reopenLastClosedItem();
 	}
 });
 

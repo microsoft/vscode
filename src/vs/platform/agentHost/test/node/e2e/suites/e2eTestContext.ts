@@ -38,12 +38,18 @@ export interface IAgentHostE2ETestContext {
 	 * reason is visible at the call site.
 	 */
 	readonly portableShellToolReplayEnabled: boolean;
-	readonly supportsFileTools: boolean;
-	readonly stableSharedServerFileScenarios: boolean;
+	readonly isLinux: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
+	/** Whether explicitly requested known-issue reproductions should run against live recording. */
+	readonly runKnownIssueTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
 	readonly observedModelRequestBodies: readonly string[];
+	/**
+	 * Restart the target against the current test's isolated persistent state and
+	 * replay stream. The replacement client is connected but not initialized.
+	 */
+	readonly restartServer: () => Promise<void>;
 	/**
 	 * Open an extra connection to the same server. Needed only by tests that
 	 * exercise connection lifecycle, which cannot be expressed on the single

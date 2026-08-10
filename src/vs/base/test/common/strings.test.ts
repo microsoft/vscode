@@ -504,6 +504,8 @@ suite('Strings', () => {
 	test('truncateMiddle', () => {
 		assert.strictEqual('hello world', strings.truncateMiddle('hello world', 100));
 		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
+		assert.strictEqual('a…de', strings.truncateMiddle('a😀bcde', 5));
+		assert.strictEqual('ab…f', strings.truncateMiddle('abcde😀f', 5));
 	});
 
 	test('replaceAsync', async () => {
