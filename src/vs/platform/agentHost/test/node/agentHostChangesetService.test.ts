@@ -1495,32 +1495,60 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		}, 'the failed-root folder falls back to its DB edits; the healthy folder is unaffected');
 	});
 
-	test('caps multi-folder turn diffs at 20 repositories, warns, and fans out in parallel', async () => {
+	test('multi-folder turn diffs fan out over every repository with bounded concurrency and no cap', async () => {
 		const log = new RecordingLogService();
-		const workingDirectories = Array.from({ length: 25 }, (_, i) => `file:///repo${i}`);
+		const repoCount = 25;
+		const workingDirectories = Array.from({ length: repoCount }, (_, i) => `file:///repo${i}`);
 		const diffCalls: string[] = [];
-		let release!: () => void;
-		const gate = new Promise<void>(resolve => { release = resolve; });
+		let active = 0;
+		let maxActive = 0;
+		const pending: Array<() => void> = [];
 		const git = createNoopGitService();
 		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
-		git.computeFileDiffsBetweenRefs = async wd => { diffCalls.push(wd.toString()); await gate; return []; };
+		// Each diff parks on its own gate so we can observe how many run at once.
+		git.computeFileDiffsBetweenRefs = async wd => {
+			diffCalls.push(wd.toString());
+			active++;
+			maxActive = Math.max(maxActive, active);
+			await new Promise<void>(resolve => pending.push(() => { active--; resolve(); }));
+			return [];
+		};
 		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
 		const { svc, stateManager } = build({ workingDirectories, git, checkpoint, log });
 
 		const turnPromise = svc.computeTurnChangeset(sessionStr, 'turn-1');
-		try {
-			// All (and only) the capped 20 diffs are dispatched before any resolves.
-			for (let i = 0; i < 500 && diffCalls.length < 20; i++) {
-				await timeout(1);
-			}
-			await timeout(10);
-			assert.strictEqual(diffCalls.length, 20, 'at most 20 repositories are diffed, all fanned out in parallel');
-			assert.ok(log.warnings.some(w => w.includes('20')), `expected a cap warning, got ${JSON.stringify(log.warnings)}`);
-		} finally {
-			release();
-			const turnUri = await turnPromise;
-			assert.strictEqual(stateManager.getChangesetState(turnUri)?.status, ChangesetStatus.Ready);
+
+		// With every diff gated, only the concurrency limit start at once; the
+		// rest stay queued in the limiter (they are not dropped).
+		for (let i = 0; i < 500 && diffCalls.length < 5; i++) {
+			await timeout(1);
 		}
+		await timeout(10); // give a (wrongly) unbounded 6th diff a chance to start
+		const dispatchedWhileGated = diffCalls.length;
+
+		// Release the gated diffs one at a time, yielding so the limiter starts
+		// the next queued diff, until the whole turn compute settles.
+		let settled = false;
+		void turnPromise.then(() => { settled = true; });
+		while (!settled) {
+			pending.shift()?.();
+			await timeout(0);
+		}
+		const turnUri = await turnPromise;
+
+		assert.deepStrictEqual({
+			dispatchedWhileGated,
+			maxActive,
+			totalDiffed: diffCalls.length,
+			warnedAboutCapping: log.warnings.some(w => w.includes('capping')),
+			status: stateManager.getChangesetState(turnUri)?.status,
+		}, {
+			dispatchedWhileGated: 5,
+			maxActive: 5,
+			totalDiffed: repoCount,
+			warnedAboutCapping: false,
+			status: ChangesetStatus.Ready,
+		});
 	});
 
 	test('single-folder checkpoint path is byte-for-byte unchanged', async () => {
@@ -1943,7 +1971,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				isMultiRoot: data.isMultiRoot,
 				folderCount: data.folderCount,
 				hasFileCount: data.fileCount !== undefined,
-				hasMultiRootFields: data.diffedGitFolderCount !== undefined || data.trackedEditFallbackFolderCount !== undefined,
+				hasMultiRootFields: data.uniqueGitFolderCount !== undefined || data.trackedEditFallbackFolderCount !== undefined,
 			}, {
 				provider: URI.parse(sessionStr).scheme,
 				agentSessionId: AgentSession.id(sessionStr),
@@ -1980,9 +2008,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				isMultiRoot: data.isMultiRoot,
 				folderCount: data.folderCount,
 				uniqueGitFolderCount: data.uniqueGitFolderCount,
-				diffedGitFolderCount: data.diffedGitFolderCount,
 				nonGitFolderCount: data.nonGitFolderCount,
-				capHit: data.capHit,
 				trackedEditFallbackFolderCount: data.trackedEditFallbackFolderCount,
 			}, {
 				kind: 'turn',
@@ -1990,9 +2016,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				isMultiRoot: true,
 				folderCount: 2,
 				uniqueGitFolderCount: 2,
-				diffedGitFolderCount: 2,
 				nonGitFolderCount: 0,
-				capHit: false,
 				trackedEditFallbackFolderCount: 0,
 			});
 		});

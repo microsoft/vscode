@@ -142,7 +142,7 @@ suite('agentHostSessionRepositories', () => {
 		const result = await resultPromise;
 
 		assert.deepStrictEqual({ maxActive, gitRepositories: result.gitRepositories }, {
-			maxActive: 8,
+			maxActive: 5,
 			gitRepositories: directories,
 		});
 	});

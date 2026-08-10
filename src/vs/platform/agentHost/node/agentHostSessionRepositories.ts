@@ -13,7 +13,7 @@ import { IAgentHostGitService } from '../common/agentHostGitService.js';
  * resolving a session's working directories, so a many-folder session cannot
  * spawn an unbounded number of git processes at once.
  */
-const REPOSITORY_ROOT_RESOLUTION_CONCURRENCY = 8;
+const REPOSITORY_ROOT_RESOLUTION_CONCURRENCY = 5;
 
 /**
  * The git repository roots and non-git directories that a session's effective

@@ -65,19 +65,10 @@ export type TurnChangesetOutcome = 'computed' | 'dbOpenFailed' | 'resolveFailed'
 
 /** Multi-root fan-out metrics for a per-turn diff; absent for single-root turns. */
 export interface IMultiRootTurnDiffMetrics {
-	/**
-	 * Unique git repositories resolved from the session's working directories,
-	 * before the per-turn repository cap. Use this (not {@link diffedGitFolderCount})
-	 * as the true unique-repo count; when {@link capHit} is true it exceeds
-	 * `diffedGitFolderCount`.
-	 */
+	/** Unique git repositories resolved from the session's working directories; every one is diffed. */
 	readonly uniqueGitFolderCount: number;
-	/** Unique git repositories actually diffed, after the per-turn repository cap. */
-	readonly diffedGitFolderCount: number;
 	/** Non-git working directories whose diff came from tracked edits. */
 	readonly nonGitFolderCount: number;
-	/** Whether {@link uniqueGitFolderCount} exceeded the per-turn cap, so only some repos were diffed. */
-	readonly capHit: boolean;
 	/** Git repositories whose git diff was unavailable and fell back to tracked edits. */
 	readonly trackedEditFallbackFolderCount: number;
 }
@@ -86,7 +77,7 @@ export interface ITurnChangesetTelemetryData {
 	readonly outcome: TurnChangesetOutcome;
 	readonly durationMs: number;
 	readonly isMultiRoot: boolean;
-	/** Total effective working directories for the session (the cap never affects this). */
+	/** Total effective working directories for the session. */
 	readonly folderCount: number;
 	/** The changed-file count; only set when `outcome === 'computed'`. */
 	readonly fileCount?: number;
@@ -109,9 +100,7 @@ export function reportAgentHostTurnChangesetComputed(telemetryService: ITelemetr
 		...(data.fileCount !== undefined ? { fileCount: data.fileCount } : {}),
 		...(data.multiRoot ? {
 			uniqueGitFolderCount: data.multiRoot.uniqueGitFolderCount,
-			diffedGitFolderCount: data.multiRoot.diffedGitFolderCount,
 			nonGitFolderCount: data.multiRoot.nonGitFolderCount,
-			capHit: data.multiRoot.capHit,
 			trackedEditFallbackFolderCount: data.multiRoot.trackedEditFallbackFolderCount,
 		} : {}),
 	});
@@ -136,9 +125,7 @@ type ChangesetComputedEvent = {
 	incrementalUsed?: boolean;
 	usedEditTrackerFallback?: boolean;
 	uniqueGitFolderCount?: number;
-	diffedGitFolderCount?: number;
 	nonGitFolderCount?: number;
-	capHit?: boolean;
 	trackedEditFallbackFolderCount?: number;
 };
 
@@ -150,14 +137,12 @@ type ChangesetComputedClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The result of the compute. Static kinds: computed, preserved, gitUnavailable, dbOpenFailed, or error. Turn kind: computed, dbOpenFailed, resolveFailed, or error.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock time to compute the changeset, in milliseconds.' };
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
-	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total effective working directories for the session (unaffected by the per-turn repository cap).' };
+	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total effective working directories for the session.' };
 	fileCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of changed files; present only when the changeset was computed.' };
 	incrementalUsed?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the incremental session-diff path was taken (static session kind only).' };
 	usedEditTrackerFallback?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the SDK edit-tracker fallback produced the diffs instead of git (static session kind only).' };
-	uniqueGitFolderCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Unique git repositories resolved before the per-turn cap; multi-root turns only.' };
-	diffedGitFolderCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Unique git repositories actually diffed after the per-turn cap; multi-root turns only.' };
+	uniqueGitFolderCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Unique git repositories resolved and diffed; multi-root turns only.' };
 	nonGitFolderCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Non-git working directories whose diff came from tracked edits; multi-root turns only.' };
-	capHit?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the per-repository fan-out was capped; multi-root turns only.' };
 	trackedEditFallbackFolderCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Git repositories whose git diff was unavailable and fell back to tracked edits; multi-root turns only.' };
 	owner: 'DonJayamanne';
 	comment: 'Tracks how long the agent host takes to compute a changeset (branch/session/uncommitted static slots or a per-turn diff) and its outcome, to monitor multi-root changeset performance and health.';

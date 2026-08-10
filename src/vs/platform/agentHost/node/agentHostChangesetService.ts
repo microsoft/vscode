@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js';
+import { disposableTimeout, Limiter, SequencerByKey } from '../../../base/common/async.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
@@ -50,10 +50,14 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
 
 /**
- * Upper bound on the number of unique git repositories a single multi-folder
- * turn diff will fan out to; extra repositories are skipped with a warning.
+ * Maximum number of per-repository git diffs a multi-folder fan-out runs at
+ * once. Every resolved repository is diffed; this only bounds how many `git`
+ * child processes run concurrently — mirroring the built-in git extension's
+ * `Limiter(5)` for refreshing many repositories (see
+ * `extensions/git/src/model.ts`) — so a many-repository session cannot spawn an
+ * unbounded number of git processes at once.
  */
-const MAX_TURN_DIFF_REPOSITORIES = 20;
+const MAX_TURN_DIFF_REPOSITORY_CONCURRENCY = 5;
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'branch'
@@ -761,18 +765,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return { diffs: [], outcome: 'resolveFailed' };
 		}
 
-		// Bound the per-repo fan-out; the extras are skipped with a warning.
-		let repositoriesToDiff = gitRepositories;
-		const capHit = repositoriesToDiff.length > MAX_TURN_DIFF_REPOSITORIES;
-		if (capHit) {
-			this._logService.warn(`[AgentHostChangesetService] Multi-folder turn ${session}/${turnId} resolved ${repositoriesToDiff.length} git repositories; capping to ${MAX_TURN_DIFF_REPOSITORIES} and skipping the rest.`);
-			repositoriesToDiff = repositoriesToDiff.slice(0, MAX_TURN_DIFF_REPOSITORIES);
-		}
-
+		// Diff every resolved repository, but bound how many per-repo git diffs
+		// run at once so a many-repository session cannot spawn an unbounded
+		// number of git processes (see MAX_TURN_DIFF_REPOSITORY_CONCURRENCY).
+		const limiter = new Limiter<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }>(MAX_TURN_DIFF_REPOSITORY_CONCURRENCY);
 		const [perRepoDiffs, nonGitDiffs] = await Promise.all([
-			Promise.all(repositoriesToDiff.map(repoRoot => this._computeRepoTurnDiffs(session, sessionUri, db, turnId, repoRoot))),
+			Promise.all(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, sessionUri, db, turnId, repoRoot)))),
 			this._computeNonGitTurnDiffsFromTrackedEdits(session, db, turnId, nonGitDirectories),
-		]);
+		]).finally(() => limiter.dispose());
 
 		// Merge every source, keeping the first occurrence of each file. The git
 		// sources are passed ahead of the non-git source so a git diff wins over
@@ -784,9 +784,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			outcome: 'computed',
 			multiRoot: {
 				uniqueGitFolderCount: gitRepositories.length,
-				diffedGitFolderCount: repositoriesToDiff.length,
 				nonGitFolderCount: nonGitDirectories.length,
-				capHit,
 				trackedEditFallbackFolderCount: perRepoDiffs.filter(r => r.usedFallback).length,
 			},
 		};
@@ -895,8 +893,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * multi-folder session, writing both `META_CHANGES_SUMMARY` and the in-memory
 	 * summary. Sums every git repo's branch delta plus the non-git folders' edits
 	 * recorded by the edit tracker (`FileEditTracker`). Per-repo failures are
-	 * skipped and the fan-out is capped; if all sources fail the cached summary is
-	 * preserved instead of writing zero.
+	 * skipped and the fan-out runs at bounded concurrency; if all sources fail
+	 * the cached summary is preserved instead of writing zero.
 	 */
 	private async _updateMultiFolderChangesSummary(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[], primaryBranchDiffs?: readonly ISessionFileDiff[]): Promise<void> {
 		const workingDirectoryUris = this._parseWorkingDirectoryUris(session, workingDirectories);
@@ -908,13 +906,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Failed to resolve repositories for multi-folder branch summary ${session}`, err);
 			return;
-		}
-
-		// Bound the per-repo fan-out; the extras are skipped with a warning.
-		let repositoriesToDiff = gitRepositories;
-		if (repositoriesToDiff.length > MAX_TURN_DIFF_REPOSITORIES) {
-			this._logService.warn(`[AgentHostChangesetService] Multi-folder branch summary ${session} resolved ${repositoriesToDiff.length} git repositories; capping to ${MAX_TURN_DIFF_REPOSITORIES} and skipping the rest.`);
-			repositoriesToDiff = repositoriesToDiff.slice(0, MAX_TURN_DIFF_REPOSITORIES);
 		}
 
 		// The primary repo reuses the session's configured base branch so its
@@ -930,8 +921,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			: undefined;
 		const sessionBaseBranch = await this._resolveBranchBaseBranch(session, db);
 
+		// Diff every resolved repository, but bound how many per-repo git diffs
+		// run at once so a many-repository session cannot spawn an unbounded
+		// number of git processes (see MAX_TURN_DIFF_REPOSITORY_CONCURRENCY).
+		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_TURN_DIFF_REPOSITORY_CONCURRENCY);
 		const [perRepoDiffs, nonGitDiffs] = await Promise.all([
-			Promise.all(repositoriesToDiff.map(async repoRoot => {
+			Promise.all(gitRepositories.map(repoRoot => limiter.queue(async () => {
 				// Isolate each repository: any failure — including the
 				// `getDefaultBranch` probe below — marks ONLY this repository
 				// unavailable (`undefined`) instead of rejecting the whole
@@ -957,9 +952,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this._logService.error(`[AgentHostChangesetService] Failed to compute branch diff for multi-folder branch summary ${session} in repository ${repoRoot.toString()}`, err);
 					return undefined;
 				}
-			})),
+			}))),
 			this._computeNonGitBranchDiffs(session, db, nonGitDirectories),
-		]);
+		]).finally(() => limiter.dispose());
 
 		// Classify the diff sources by availability. The non-git DB source only
 		// counts when there ARE non-git folders, so a session whose working
