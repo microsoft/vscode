@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult } from '../../common/sessionRouter.js';
 
@@ -81,6 +82,23 @@ export function selectRouterShortlist(
 export function selectBestSessionRoute(results: readonly ISessionRouteResult[]): ISessionRouteResult | undefined {
 	const top = results[0];
 	return top && isHighConfidenceSessionRoute(top) ? top : undefined;
+}
+
+export function getSessionRoutingIndex(keyCode: KeyCode, focusedIndex: number, rowCount: number): number | undefined {
+	if (rowCount === 0) {
+		return undefined;
+	}
+	if (keyCode === KeyCode.Home) {
+		return 0;
+	}
+	if (keyCode === KeyCode.End) {
+		return rowCount - 1;
+	}
+	if (keyCode === KeyCode.UpArrow || keyCode === KeyCode.DownArrow) {
+		const delta = keyCode === KeyCode.UpArrow ? -1 : 1;
+		return (focusedIndex + delta + rowCount) % rowCount;
+	}
+	return undefined;
 }
 
 function sessionStatusPriority(status: string | undefined): number {

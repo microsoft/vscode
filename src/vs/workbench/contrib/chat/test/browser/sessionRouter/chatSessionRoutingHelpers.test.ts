@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingHelpers.js';
+import { getSessionRoutingIndex, parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingHelpers.js';
 
 suite('Chat session routing helpers', () => {
 
@@ -85,6 +86,16 @@ suite('Chat session routing helpers', () => {
 			{ sessionId: 'previous', confidence: 0.86 },
 		]), { sessionId: 'best', confidence: 0.9 });
 		assert.strictEqual(selectBestSessionRoute([{ sessionId: 'weak', confidence: 0.8 }]), undefined);
+	});
+
+	test('navigates and wraps through session routing choices', () => {
+		assert.deepStrictEqual([
+			getSessionRoutingIndex(KeyCode.UpArrow, 0, 3),
+			getSessionRoutingIndex(KeyCode.DownArrow, 2, 3),
+			getSessionRoutingIndex(KeyCode.Home, 2, 3),
+			getSessionRoutingIndex(KeyCode.End, 0, 3),
+			getSessionRoutingIndex(KeyCode.DownArrow, 0, 0),
+		], [2, 0, 0, 2, undefined]);
 	});
 
 	test('keeps the default folder for a weak related-session match', () => {
