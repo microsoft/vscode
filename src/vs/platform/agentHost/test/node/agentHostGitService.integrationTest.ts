@@ -614,7 +614,10 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	(hasGit ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async function () {
+	// Windows is excluded like the other chmod-based tests above: `chmod` does not
+	// convey POSIX directory permissions there, so prune's delete still succeeds
+	// and the masking scenario cannot be reproduced.
+	(hasGit && !isWindows ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async function () {
 		// Root bypasses the directory permission that makes prune fail, so this
 		// masking scenario cannot be reproduced there.
 		if (typeof process.getuid === 'function' && process.getuid() === 0) {
