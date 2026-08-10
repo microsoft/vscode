@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, l10n, LogOutputChannel, workspace, Uri } from 'vscode';
+import { Command, l10n, LogOutputChannel, workspace } from 'vscode';
 import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-schema';
 import type { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git.d.ts';
 import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util.js';
@@ -208,23 +208,18 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 
 	async provideHoverCommands(repository: Repository): Promise<Command[] | undefined> {
 		// origin -> upstream -> first
-		const descriptor = getRepositoryDefaultRemote(repository, ['origin', 'upstream']);
-		if (!descriptor) {
-			return undefined;
-		}
-
 		const url = getRepositoryDefaultRemoteUrl(repository, ['origin', 'upstream']);
 		if (!url) {
 			return undefined;
 		}
 
-		// Determine the host name for the label
-		const isGitHub = descriptor.baseUrl.toLowerCase().includes('github.com');
-		const hostLabel = isGitHub ? 'GitHub' : Uri.parse(descriptor.baseUrl).authority;
+		const descriptor = getRepositoryFromUrl(url);
+		const isGitHub = descriptor ? new URL(descriptor.baseUrl).hostname === 'github.com' : false;
+		const host = isGitHub ? 'GitHub' : (descriptor ? new URL(descriptor.baseUrl).hostname : 'remote');
 
 		return [{
-			title: l10n.t('{0} Open on {1}', '$(link-external)', hostLabel),
-			tooltip: l10n.t('Open on {0}', hostLabel),
+			title: l10n.t('{0} Open on {1}', '$(github)', host),
+			tooltip: l10n.t('Open on {0}', host),
 			command: 'github.openOnGitHub',
 			arguments: [url]
 		}];
@@ -251,7 +246,7 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 				owner = owner ?? descriptor.owner;
 				repo = repo ?? descriptor.repo;
 
-				return `[${label}](${descriptor.baseUrl}/${owner}/${repo}/issues/${number})`;
+				return `[${label}](https://github.com/${owner}/${repo}/issues/${number})`;
 			});
 	}
 
