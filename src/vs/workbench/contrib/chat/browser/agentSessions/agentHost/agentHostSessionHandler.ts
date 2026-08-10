@@ -2079,12 +2079,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const store = new DisposableStore();
 		this._inputNeededWatchers.set(sessionKey, { store, refs: new Set([sessionResource.toString()]) });
 
+		// Requests that we own should be 'invoked' when pending confirmation immediately because
+		// we handle showing their UI directly. For simplicity in later tool call flows, rewrite them.
 		const requests = derivedOpts({ equalsFn: equals }, reader =>
-			(state.read(reader)?.inputNeeded ?? []).filter((request): request is SessionInputRequest =>
-				request.kind === SessionInputRequestKind.ChatInput
-				|| request.kind === SessionInputRequestKind.ToolConfirmation
-				|| request.kind === SessionInputRequestKind.ToolClientExecution
-				|| request.kind === SessionInputRequestKind.ToolAuthentication));
+			(state.read(reader)?.inputNeeded ?? []).map((request): SessionInputRequest => {
+				if (request.kind === SessionInputRequestKind.ToolConfirmation
+					&& request.toolCall.status === ToolCallStatus.PendingConfirmation
+					&& request.toolCall.contributor?.kind === ToolCallContributorKind.Client) {
+					return {
+						...request,
+						kind: SessionInputRequestKind.ToolClientExecution,
+						clientId: request.toolCall.contributor.clientId,
+					};
+				}
+				return request;
+			})
+		);
+
+		const startedClientToolCalls = new Set<string>();
+		const pendingClientToolCts = new CancellationTokenSource();
+		store.add(toDisposable(() => pendingClientToolCts.dispose(true)));
 
 		// This watcher is the single point of truth for how client tools
 		// execute. A turn observer only ever renders the shared invocation; it
@@ -2116,14 +2130,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 
 			const key = this._toolCallKey(chatURI, initial.turnId, initial.toolCall.toolCallId);
-			const cts = new CancellationTokenSource();
-			itemStore.add(toDisposable(() => cts.dispose(true)));
 			itemStore.add(this._retainToolCall(key));
 
 			if (initial.kind === SessionInputRequestKind.ToolClientExecution) {
 				if (initial.clientId !== this._config.connection.clientId) {
 					return; // A different client owns this call.
 				}
+				const cts = new CancellationTokenSource();
+				itemStore.add(toDisposable(() => cts.dispose(true)));
 				let generation = 0;
 				let observedRequest: SessionToolClientExecutionRequest | undefined;
 				let startedRequest: SessionToolClientExecutionRequest | undefined;
@@ -2137,6 +2151,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						observedRequest = undefined;
 						startedRequest = undefined;
 						invocationStarted = false;
+						unobservedTimer.clear();
+						return;
+					}
+					if (startedClientToolCalls.has(key)) {
+						startedRequest = request;
 						unobservedTimer.clear();
 						return;
 					}
@@ -2163,11 +2182,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						void this._executeClientTool(
 							request,
 							contextSessionResource,
-							cts.token,
+							request.toolCall.status === ToolCallStatus.PendingConfirmation ? pendingClientToolCts.token : cts.token,
 							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
 							() => {
 								if (requestGeneration === generation) {
 									invocationStarted = true;
+									startedClientToolCalls.add(key);
 								}
 							},
 						);
@@ -2181,6 +2201,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						unobservedTimer.value = disposableTimeout(() => {
 							if (requestGeneration === generation && !startedRequest) {
 								startedRequest = request;
+								startedClientToolCalls.add(key);
 								this._denyClientTool(request);
 							}
 						}, UNOBSERVED_CLIENT_TOOL_GRACE_MS);
@@ -2418,7 +2439,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				parameters,
 				context: contextSessionResource ? { sessionResource: contextSessionResource } : undefined,
 				chatStreamToolCallId: toolCall.toolCallId,
-				preApproved: getClientToolPreApproval(toolCall),
+				preApproved: toolCall.status === ToolCallStatus.PendingConfirmation ? undefined : getClientToolPreApproval(toolCall),
 			}, async () => 0, token);
 		} catch (err) {
 			error = err;
@@ -3770,12 +3791,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
-			const state = invocation.state.read(reader);
 			this._tryObserveSubagentToolCall(tc, invocation, store, opts, subagentContext);
-			if (tc.status === ToolCallStatus.PendingConfirmation && state.type === IChatToolInvocation.StateKind.Streaming) {
-				const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
-				invocation.transitionFromStreaming(prepared, invocation.parameters, getClientToolPreApproval(tc));
-			}
 			if ((tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed)
 				&& !IChatToolInvocation.isComplete(invocation, reader)) {
 				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
