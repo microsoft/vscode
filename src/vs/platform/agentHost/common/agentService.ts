@@ -417,6 +417,9 @@ export interface IAgentHostOTelSettings {
  */
 export const AgentHostOTelPolicyIpcChannel = 'vscode:agentHostOTelPolicy';
 
+/** IPC channel (main -> renderer) notifying that the local Agent Host process exited. */
+export const AgentHostProcessExitIpcChannel = 'vscode:agentHostProcessExit';
+
 /**
  * Resolve the enterprise-policy values for the `chat.agentHost.otel.*` settings from a
  * configuration service whose policy layer includes managed settings (i.e. the renderer's).
