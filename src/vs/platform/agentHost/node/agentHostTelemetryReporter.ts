@@ -696,6 +696,10 @@ export class AgentHostTelemetryReporter {
 			} : {}),
 			attachmentCount,
 		});
+		this._restricted?.sendGHTelemetryEvent('agentHost.userMessageSent', {
+			initiatorClientType: clientContext.clientType,
+			conversationId: AgentSession.id(sessionUri),
+		});
 	}
 
 	clientConnection(report: IAgentHostClientConnectionReport): void {
