@@ -589,6 +589,88 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(JSON.parse(capturedBody ?? '{}').max_tokens, 32);
 		});
 
+		test('uses the minted Copilot token for utility completions', async () => {
+			const requests: Array<{ url: string; authorization: string | undefined }> = [];
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				requests.push({ url, authorization: (init?.headers as Record<string, string> | undefined)?.['Authorization'] });
+				if (url.endsWith('/copilot_internal/v2/token')) {
+					return tokenResponse();
+				}
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-oauth-token', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+			});
+
+			assert.deepStrictEqual(requests.map(request => ({
+				path: new URL(request.url).pathname,
+				authorization: request.authorization,
+			})), [
+				{ path: '/copilot_internal/user', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/copilot_internal/v2/token', authorization: 'token gh-oauth-token' },
+				{ path: '/models', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/chat/completions', authorization: 'Bearer copilot-tok-abc' },
+			]);
+		});
+
+		test('falls back to the GitHub OAuth token when Copilot token minting is forbidden', async () => {
+			const requests: Array<{ url: string; authorization: string | undefined }> = [];
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				requests.push({ url, authorization: (init?.headers as Record<string, string> | undefined)?.['Authorization'] });
+				if (url.endsWith('/copilot_internal/v2/token')) {
+					return new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
+				}
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-oauth-token', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+			});
+
+			assert.deepStrictEqual(requests.map(request => ({
+				path: new URL(request.url).pathname,
+				authorization: request.authorization,
+			})), [
+				{ path: '/copilot_internal/user', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/copilot_internal/v2/token', authorization: 'token gh-oauth-token' },
+				{ path: '/models', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/chat/completions', authorization: 'Bearer gh-oauth-token' },
+			]);
+		});
+
+		test('does not fall back to the GitHub OAuth token for other mint failures', async () => {
+			const paths: string[] = [];
+			const service = createService(async input => {
+				const url = getUrl(input);
+				paths.push(new URL(url).pathname);
+				if (url.endsWith('/copilot_internal/v2/token')) {
+					return new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' });
+				}
+				return tokenResponse();
+			});
+
+			await assert.rejects(
+				() => service.utilityChatCompletion('gh-oauth-token', {
+					messages: [{ role: 'user', content: 'Generate a title' }],
+				}),
+				/Copilot session token mint failed: 401 Unauthorized/,
+			);
+
+			assert.deepStrictEqual(paths, [
+				'/copilot_internal/user',
+				'/copilot_internal/v2/token',
+			]);
+		});
+
 		test('non-streaming sends stream=false in the body', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),

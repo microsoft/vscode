@@ -93,23 +93,6 @@ A Copilot session can defer client-provided tools, search for the relevant tool 
     --grep "tool search"
   ```
 
-### Authenticated Copilot session cannot invoke the commit changeset operation
-
-A signed-in user can ask Agent Host to commit the current session's uncommitted changes, which should generate a commit message and create the local Git commit. The operation currently reports that Copilot authentication is required even though the AHP client has already authenticated the Copilot provider, so the advertised commit action cannot complete.
-
-- Test: `commit changeset operation generates a message and commits mixed changes`.
-- Scope: Copilot.
-- Expected: the authenticated token is reused to generate a commit message, then mixed create, edit, delete, and rename changes are committed.
-- Observed: a normal Copilot model turn succeeds with the session's authenticated token immediately before the operation, but `invokeChangesetOperation` still fails with `Authentication is required to generate a commit message. Please sign in to GitHub Copilot and try again.`
-- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "commit changeset operation"
-  ```
-
 ### Copilot config slash commands are missing from completions
 
 A user can type Copilot configuration commands such as `/autopilot` to change the session mode. The commands work when sent directly, but the AHP completions response does not include their state-aware forms, so users cannot discover `/autopilot on` before entering autopilot mode or `/autopilot off` after entering it.

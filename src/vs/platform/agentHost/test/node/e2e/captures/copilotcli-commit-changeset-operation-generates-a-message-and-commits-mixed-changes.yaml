@@ -1,0 +1,78 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - method: POST
+    path: /chat/completions
+    response:
+      status: 200
+      headers:
+        content-security-policy: default-src 'none'; sandbox
+        content-type: application/json
+        strict-transport-security: max-age=31536000
+        x-copilot-api-exp-assignment-context: e4hcf520:1109203;t_capicli_aa:1116798;61623843:1255491;permission_prompt_treatment:1294978;2350j567:1255909;ccr_dau_aa_control:1281152;
+        x-copilot-service-request-id: ${uuid_0}
+        x-github-copilot-request-te: 'true'
+        x-quota-snapshot-chat: ent=-1&ov=0.0&ovPerm=false&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-quota-snapshot-completions: ent=-1&ov=0.0&ovPerm=false&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-quota-snapshot-premium_interactions: ent=-1&ov=0.0&ovPerm=true&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-request-id: ${uuid_1}
+        date: Mon, 10 Aug 2026 00:16:22 GMT
+        content-length: '1346'
+        x-github-backend: Kubernetes
+        x-github-request-id: E0C5:29121D:182771C:1EEB19B:6A791855
+        x-github-edge-region: iad
+      body: |
+        {"choices":[{"finish_reason":"stop","index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"message":{"content":"Reply with \"AUTHENTICATED\"","padding":"abcdef","role":"assistant"}}],"id":"chatcmpl-EB7yfbPTYPqETQOQGegCQN2FmK0ES","usage":{"completion_tokens":9,"completion_tokens_details":{"accepted_prediction_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens":190,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":199},"model":"gpt-4o-mini-2024-07-18","prompt_filter_results":[{"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"prompt_index":0}],"service_tier":"default","system_fingerprint":"fp_2a5d1eed47","copilot_usage":{"token_details":[{"batch_size":1000000,"cost_per_batch":0,"token_count":190,"token_type":"input"},{"batch_size":1000000,"cost_per_batch":0,"token_count":0,"token_type":"cache_read"},{"batch_size":1000000,"cost_per_batch":0,"token_count":0,"token_type":"cache_write"},{"batch_size":1000000,"cost_per_batch":0,"token_count":9,"token_type":"output"}],"total_nano_aiu":0}}
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "AUTHENTICATED".
+    response:
+      content: AUTHENTICATED
+      stopReason: end_turn
+  - method: POST
+    path: /chat/completions
+    response:
+      status: 200
+      headers:
+        content-security-policy: default-src 'none'; sandbox
+        content-type: application/json
+        strict-transport-security: max-age=31536000
+        x-copilot-api-exp-assignment-context: e4hcf520:1109203;t_capicli_aa:1116798;61623843:1255491;permission_prompt_treatment:1294978;2350j567:1255909;ccr_dau_aa_control:1281152;
+        x-copilot-service-request-id: ${uuid_2}
+        x-github-copilot-request-te: 'true'
+        x-quota-snapshot-chat: ent=-1&ov=0.0&ovPerm=false&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-quota-snapshot-completions: ent=-1&ov=0.0&ovPerm=false&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-quota-snapshot-premium_interactions: ent=-1&ov=0.0&ovPerm=true&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-request-id: ${uuid_3}
+        date: Mon, 10 Aug 2026 00:16:24 GMT
+        content-length: '1363'
+        x-github-backend: Kubernetes
+        x-github-request-id: E0C9:1B7139:186A4DE:1F2EA42:6A791857
+        x-github-edge-region: iad
+      body: |
+        {"choices":[{"finish_reason":"stop","index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"message":{"content":"User authentication confirmation","padding":"abcdefghijklmnopqrs","role":"assistant"}}],"id":"chatcmpl-EB7yhTab7o9nf1oiPmevnAnSs1yTi","usage":{"completion_tokens":4,"completion_tokens_details":{"accepted_prediction_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens":200,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":204},"model":"gpt-4o-mini-2024-07-18","prompt_filter_results":[{"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"prompt_index":0}],"service_tier":"default","system_fingerprint":"fp_2a5d1eed47","copilot_usage":{"token_details":[{"batch_size":1000000,"cost_per_batch":0,"token_count":200,"token_type":"input"},{"batch_size":1000000,"cost_per_batch":0,"token_count":0,"token_type":"cache_read"},{"batch_size":1000000,"cost_per_batch":0,"token_count":0,"token_type":"cache_write"},{"batch_size":1000000,"cost_per_batch":0,"token_count":4,"token_type":"output"}],"total_nano_aiu":0}}
+  - method: POST
+    path: /chat/completions
+    response:
+      status: 200
+      headers:
+        content-security-policy: default-src 'none'; sandbox
+        content-type: application/json
+        strict-transport-security: max-age=31536000
+        x-copilot-api-exp-assignment-context: e4hcf520:1109203;t_capicli_aa:1116798;61623843:1255491;permission_prompt_treatment:1294978;2350j567:1255909;ccr_dau_aa_control:1281152;
+        x-copilot-service-request-id: ${uuid_4}
+        x-github-copilot-request-te: 'true'
+        x-quota-snapshot-chat: ent=-1&ov=0.0&ovPerm=false&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-quota-snapshot-completions: ent=-1&ov=0.0&ovPerm=false&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-quota-snapshot-premium_interactions: ent=-1&ov=0.0&ovPerm=true&rem=100.0&rst=2026-09-01T00%3A00%3A00Z&totRem=-1
+        x-request-id: ${uuid_5}
+        date: Mon, 10 Aug 2026 00:16:26 GMT
+        content-length: '1392'
+        x-github-backend: Kubernetes
+        x-github-request-id: E0C9:1B7139:186AB04:1F2F1ED:6A791858
+        x-github-edge-region: iad
+      body: |
+        {"choices":[{"finish_reason":"stop","index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"message":{"content":"Create new file, delete old file, and edit existing file contents","padding":"abcdefghijklm","role":"assistant"}}],"id":"chatcmpl-EB7ykyuzWTfseZhPio53YbSjeud9N","usage":{"completion_tokens":14,"completion_tokens_details":{"accepted_prediction_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens":288,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":302},"model":"gpt-4o-mini-2024-07-18","prompt_filter_results":[{"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"prompt_index":0}],"service_tier":"default","system_fingerprint":"fp_2a5d1eed47","copilot_usage":{"token_details":[{"batch_size":1000000,"cost_per_batch":0,"token_count":288,"token_type":"input"},{"batch_size":1000000,"cost_per_batch":0,"token_count":0,"token_type":"cache_read"},{"batch_size":1000000,"cost_per_batch":0,"token_count":0,"token_type":"cache_write"},{"batch_size":1000000,"cost_per_batch":0,"token_count":14,"token_type":"output"}],"total_nano_aiu":0}}
