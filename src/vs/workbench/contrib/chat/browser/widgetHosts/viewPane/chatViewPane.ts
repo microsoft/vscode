@@ -566,7 +566,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
 				const { connected, voiceState, simulating } = getEffectiveVoice();
-				const confirmationPending = isConfirmationPending();
+				const confirmationPending = this._isCurrentConfirmationPending();
 				const effectiveState: VoiceGlowState = confirmationPending ? 'confirmation' : voiceState;
 				// Only glow the input of the session voice is bound to. Mirrors the
 				// transcript overlay's ownership test (see below) so the glow and
@@ -609,18 +609,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 			glowController.clear();
 		};
-		const isConfirmationPending = (): boolean => {
-			const currentSession = this._currentSessionResource.get();
-			return !!currentSession && this.voiceSessionController.pendingToolConfirmations.get()
-				.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
-		};
-
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			const currentSession = this._currentSessionResource.read(reader);
-			const confirmationPending = !!currentSession && this.voiceSessionController.pendingToolConfirmations.read(reader)
-				.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
+			const confirmationPending = this._isCurrentConfirmationPending(reader);
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
@@ -824,6 +816,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			transcriptScrollable.scanDomNode();
 			transcriptScrollable.setScrollPosition({ scrollTop: 0 });
 		}));
+	}
+
+	private _isCurrentConfirmationPending(reader?: IReader): boolean {
+		const response = this._widget.viewModel?.model.lastRequest?.response;
+		if (response && (reader ? response.isPendingConfirmation.read(reader) : response.isPendingConfirmation.get())) {
+			return true;
+		}
+
+		const currentSession = reader ? this._currentSessionResource.read(reader) : this._currentSessionResource.get();
+		const pendingConfirmations = reader
+			? this.voiceSessionController.pendingToolConfirmations.read(reader)
+			: this.voiceSessionController.pendingToolConfirmations.get();
+		return !!currentSession && pendingConfirmations.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
 	}
 
 	//#endregion
