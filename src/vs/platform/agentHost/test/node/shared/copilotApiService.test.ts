@@ -345,11 +345,31 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(discoveryUrl, 'https://api.acme.ghe.com/copilot_internal/user');
 		});
 
-		test('throws on 403 from endpoint discovery', async () => {
-			const service = createService(async () => new Response('{"message":"Not authorized"}', { status: 403, statusText: 'Forbidden' }));
+		test('preserves authentication errors from endpoint discovery', async () => {
+			const service = createService(async () => new Response('{"message":"Bad credentials"}', { status: 401, statusText: 'Unauthorized' }));
 			await assert.rejects(
 				() => service.messages('bad-tok', baseRequest),
-				(err: Error) => err.message.includes('Copilot endpoint discovery failed: 403'),
+				(err: Error) => {
+					assert.deepStrictEqual({
+						isCopilotApiError: err instanceof CopilotApiError,
+						status: err instanceof CopilotApiError ? err.status : undefined,
+						message: err.message,
+						envelope: err instanceof CopilotApiError ? err.envelope : undefined,
+					}, {
+						isCopilotApiError: true,
+						status: 401,
+						message: 'Copilot endpoint discovery failed: 401 Unauthorized — {"message":"Bad credentials"}',
+						envelope: {
+							type: 'error',
+							error: {
+								type: 'api_error',
+								message: '{"message":"Bad credentials"}',
+							},
+							request_id: null,
+						},
+					});
+					return true;
+				},
 			);
 		});
 
