@@ -151,9 +151,7 @@ function getCopilotPresentation(
 
 	if (entitlement === ChatEntitlement.Unknown) {
 		if (allowSignedOutWhenUsable) {
-			// The user can work while signed out, so this is an invitation, not a
-			// problem to fix: stay at the `default` tier rather than escalating to
-			// the `prominent` "Agents Signed Out" below.
+			// Signing in is optional, so present a calm affordance.
 			return {
 				source: 'copilot',
 				kind: 'default',
