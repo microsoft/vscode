@@ -53,6 +53,8 @@ export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelC
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
 
+export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
+
 /** Floors valid tool-search thresholds and returns the default for invalid values. */
 export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
 	return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
@@ -89,7 +91,7 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
 		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
-		default: false,
+		default: DEFAULT_COPILOT_RUBBER_DUCK_ENABLED,
 	}),
 	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({
 		type: 'boolean',

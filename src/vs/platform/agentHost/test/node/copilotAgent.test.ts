@@ -2059,6 +2059,33 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('enables the rubber duck CLI feature by default', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], 'true');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not enable the rubber duck CLI feature when explicitly disabled', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], undefined);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('restarts the client when the Copilot SDK log level changes', async () => {
 			const client = new StopCountingClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
@@ -2093,7 +2120,7 @@ suite('CopilotAgent', () => {
 
 				// The catalog belonged to the subprocess being torn down, and the
 				// replacement may point at a different CAPI endpoint entirely.
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
 					await timeout(1);
 				}
@@ -2122,7 +2149,7 @@ suite('CopilotAgent', () => {
 				const requestsBefore = client.modelListRequests.length;
 				client.stopGate = stopGate.p;
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await agent.authenticate('https://api.github.com', 'token-b');
 				await timeout(10);
 				assert.strictEqual(client.modelListRequests.length, requestsBefore, 'model refresh must wait for the old client to stop');
@@ -2156,7 +2183,7 @@ suite('CopilotAgent', () => {
 				await agent.listSessions();
 				client.stopGate = stopGate.p;
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				const listPromise = agent.listSessions();
 				await timeout(10);
 				assert.strictEqual(client.startCallCount, 1, 'replacement client must wait for the old client to stop');
@@ -2186,7 +2213,7 @@ suite('CopilotAgent', () => {
 				const requestsBefore = client.modelListRequests.length;
 				client.stopError = new Error('stop failed');
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(10);
 				client.stopError = undefined;
 				await agent.refreshModels();
@@ -2218,7 +2245,7 @@ suite('CopilotAgent', () => {
 					await timeout(1);
 				}
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 2; i++) {
 					await timeout(1);
 				}
@@ -2243,7 +2270,7 @@ suite('CopilotAgent', () => {
 				// Force the client to start so a subsequent config change has something to restart.
 				await agent.listSessions();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await Promise.resolve();
 
 				assert.strictEqual(client.stopCount, 1);
@@ -2262,7 +2289,7 @@ suite('CopilotAgent', () => {
 				let disposed = false;
 				setDefaultSessionStub(agent, 'active', { dispose() { disposed = true; } });
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await Promise.resolve();
 
 				assert.deepStrictEqual({
@@ -2323,7 +2350,7 @@ suite('CopilotAgent', () => {
 				const chat = busyChatStub();
 				setDefaultSessionStub(agent, 'busy', chat);
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
 
@@ -2355,7 +2382,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, 'busy-1', first);
 				setDefaultSessionStub(agent, 'busy-2', second);
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 
 				first.hasActiveTurn = false;
@@ -2382,7 +2409,7 @@ suite('CopilotAgent', () => {
 
 				setDefaultSessionStub(agent, 'busy', busyChatStub());
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 				const duringTurn = client.stopCount;
 
@@ -2408,7 +2435,7 @@ suite('CopilotAgent', () => {
 
 				// Two startup values change while the turn runs; the first
 				// restart to actually run satisfies both.
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' });
 				await timeout(0);
 
