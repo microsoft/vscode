@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
 import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -16,6 +16,18 @@ import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } 
 suite('ChatWidget', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('transcript overlays suppress the welcome state', () => {
+		assert.deepStrictEqual({
+			empty: shouldShowChatWelcome(0, false),
+			progress: shouldShowChatWelcome(0, true),
+			message: shouldShowChatWelcome(1, false),
+		}, {
+			empty: true,
+			progress: false,
+			message: false,
+		});
+	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
 		const command = new ChatRequestSlashCommandPart(

@@ -149,7 +149,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
-		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
+		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint, track) ?? startPoint;
 
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
@@ -523,10 +523,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}) !== undefined;
 	}
 
-	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
-		const remoteBranch = `origin/${branch}`;
-		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${remoteBranch}`]);
-		return output !== undefined ? remoteBranch : undefined;
+	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string, fetchIfMissing = false): Promise<string | undefined> {
+		const trackingRef = getRemoteTrackingRef(branch);
+		if (!trackingRef) {
+			return undefined;
+		}
+		const { branchName, remoteBranch, remoteRef, sourceRef } = trackingRef;
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', remoteRef]);
+		if (output !== undefined) {
+			return remoteBranch;
+		}
+		if (!fetchIfMissing || branchName === 'HEAD' || /^[0-9a-f]{40}$/i.test(branchName)) {
+			return undefined;
+		}
+
+		this._logService.info(`[AgentHostGitService] Fetching tracked branch '${branchName}' from origin.`);
+		await this._runGit(repositoryRoot, ['fetch', '--no-tags', 'origin', `${sourceRef}:${remoteRef}`], {
+			timeout: 60_000,
+			throwOnError: true,
+		});
+		return remoteBranch;
 	}
 
 	/**
@@ -974,6 +990,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+export function getRemoteTrackingRef(branch: string): { branchName: string; remoteBranch: string; remoteRef: string; sourceRef: string } | undefined {
+	const pullRequestRef = /^refs\/pull\/(?<number>\d+)\/head$/.exec(branch);
+	const branchName = pullRequestRef?.groups
+		? `pull/${pullRequestRef.groups.number}/head`
+		: branch
+			.replace(/^refs\/remotes\/origin\//, '')
+			.replace(/^origin\//, '')
+			.replace(/^refs\/heads\//, '');
+	if (branchName.startsWith('refs/')) {
+		return undefined;
+	}
+	const remoteBranch = `origin/${branchName}`;
+	return {
+		branchName,
+		remoteBranch,
+		remoteRef: `refs/remotes/${remoteBranch}`,
+		sourceRef: pullRequestRef ? branch : `refs/heads/${branchName}`,
+	};
 }
 
 /**
