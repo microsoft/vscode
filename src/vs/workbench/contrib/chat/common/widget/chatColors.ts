@@ -6,8 +6,8 @@
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
-import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
-import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
+import { buttonBackground, buttonSecondaryHoverBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
+import { darken, lighten, opaque } from '../../../../../platform/theme/common/colorUtils.js';
 import { COMMAND_CENTER_BACKGROUND } from '../../../../common/theme.js';
 
 // This color inherits its default value from commandCenter.background but is registered
@@ -30,6 +30,17 @@ export const chatRequestBackground = registerColor(
 	'chat.requestBackground',
 	{ dark: transparent(editorBackground, 0.62), light: transparent(editorBackground, 0.62), hcDark: editorWidgetBackground, hcLight: null },
 	localize('chat.requestBackground', 'The background color of a chat request.')
+);
+
+export const chatScrollToBottomHoverBackground = registerColor(
+	'chat.scrollToBottomHoverBackground',
+	{
+		dark: opaque(buttonSecondaryHoverBackground, editorWidgetBackground),
+		light: opaque(buttonSecondaryHoverBackground, editorWidgetBackground),
+		hcDark: editorWidgetBackground,
+		hcLight: editorWidgetBackground,
+	},
+	localize('chat.scrollToBottomHoverBackground', 'Background color of the chat scroll-to-bottom button when hovering.')
 );
 
 export const chatSlashCommandBackground = registerColor(

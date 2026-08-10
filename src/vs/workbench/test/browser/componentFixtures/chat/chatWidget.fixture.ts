@@ -606,7 +606,7 @@ const SCROLL_DOWN_BUTTON: IFixtureMessage[] = [
 	},
 ];
 
-async function renderScrollDownButton(context: ComponentFixtureContext): Promise<void> {
+async function renderScrollDownButton(context: ComponentFixtureContext, hover = false): Promise<void> {
 	await renderChatWidget(context, {
 		messages: SCROLL_DOWN_BUTTON,
 		onRendered: ({ listWidget }) => {
@@ -614,6 +614,10 @@ async function renderScrollDownButton(context: ComponentFixtureContext): Promise
 			listWidget.scrollTop = 0;
 		},
 	});
+
+	if (hover) {
+		context.container.querySelector<HTMLElement>('.chat-scroll-down')?.dispatchEvent(new MouseEvent('mouseover'));
+	}
 }
 
 // Code blocks that follow or are nested in list items should have symmetric spacing
@@ -796,6 +800,10 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
 	ScrollDownButton: defineComponentFixture({
 		render: renderScrollDownButton,
+		additionalThemes: ['darkHighContrast'],
+	}),
+	ScrollDownButtonHover: defineComponentFixture({
+		render: context => renderScrollDownButton(context, true),
 		additionalThemes: ['darkHighContrast'],
 	}),
 	LastResponseContentHover: defineComponentFixture({ render: renderLastResponseHover }),

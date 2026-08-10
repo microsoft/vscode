@@ -24,13 +24,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asCssVariable, asCssVariableWithDefault, buttonSecondaryForeground, buttonSecondaryHoverBackground, editorWidgetBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, buttonSecondaryForeground, editorWidgetBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { chatScrollToBottomHoverBackground } from '../../common/widget/chatColors.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
@@ -550,7 +551,7 @@ export class ChatListWidget extends Disposable {
 		this._scrollDownButton = this._register(new Button(this._container, {
 			buttonBackground: asCssVariable(editorWidgetBackground),
 			buttonForeground: asCssVariable(buttonSecondaryForeground),
-			buttonHoverBackground: asCssVariableWithDefault(buttonSecondaryHoverBackground, asCssVariable(editorWidgetBackground)),
+			buttonHoverBackground: asCssVariable(chatScrollToBottomHoverBackground),
 			buttonSecondaryBackground: undefined,
 			buttonSecondaryForeground: undefined,
 			buttonSecondaryHoverBackground: undefined,
