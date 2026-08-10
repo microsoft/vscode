@@ -679,6 +679,52 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	/**
+	 * Moves focus to the next setting's control, skipping group headers. Works no matter
+	 * whether focus is currently in the search input, on a tree row, or inside a setting's
+	 * control. Stops at the last setting.
+	 */
+	focusNextSetting(): void {
+		this.focusAdjacentSetting(true);
+	}
+
+	/**
+	 * Like {@link focusNextSetting}, but backwards. Stops at the first setting.
+	 */
+	focusPreviousSetting(): void {
+		this.focusAdjacentSetting(false);
+	}
+
+	private focusAdjacentSetting(next: boolean): void {
+		if (!this.isSearchUpToDate()) {
+			return;
+		}
+
+		// The tree's focus tracks the setting whose control contains DOM focus, so the anchor is valid even while a control is focused.
+		const anchor = this._currentFocusContext === SettingsFocusContext.SettingTree || this._currentFocusContext === SettingsFocusContext.SettingControl
+			? this.settingsTree.getFocus()[0]
+			: undefined;
+		const navigator = this.settingsTree.navigate(anchor);
+		let target = !anchor && !next ? navigator.last() : next ? navigator.next() : navigator.previous();
+		while (target && !(target instanceof SettingsTreeSettingElement)) {
+			target = next ? navigator.next() : navigator.previous();
+		}
+		if (!(target instanceof SettingsTreeSettingElement)) {
+			return;
+		}
+
+		// Reveal renders the row synchronously so its control can be focused below.
+		this.settingsTree.reveal(target);
+		this.settingsTree.setFocus([target]);
+		// The row selector avoids matching the previously focused setting, whose container
+		// keeps a stale focused class until DOM focus moves away from its control.
+		// eslint-disable-next-line no-restricted-syntax
+		const control = this.settingsTree.getHTMLElement().querySelector(`.monaco-list-row.focused ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
+		if (control) {
+			(<HTMLElement>control).focus();
+		}
+	}
+
+	/**
 	 * Invoked when the user presses the down arrow while the search input is focused.
 	 * Navigates forward through the search history first; only once there are no more
 	 * recent history entries does focus move down into the settings results.
@@ -705,7 +751,7 @@ export class SettingsEditor2 extends EditorPane {
 	 * focus is not moved into stale results.
 	 */
 	private isSearchUpToDate(): boolean {
-		return !this.searchInputDelayer.isTriggered && this.renderedSearchQuery === this.searchWidget.getValue().trim();
+		return !this.searchInputDelayer.isTriggered() && this.renderedSearchQuery === this.searchWidget.getValue().trim();
 	}
 
 	/**
