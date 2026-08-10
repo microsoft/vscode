@@ -30,6 +30,8 @@ export interface IUpdateURLOptions {
 	readonly internalOrg?: string;
 }
 
+type UpdateMode = 'none' | 'manual' | 'start' | 'default';
+
 export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
 	const url = new URL(`${baseUpdateUrl}/api/update/${platform}/${quality}/${commit}`);
 
@@ -114,6 +116,8 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	private _postInitialized: boolean = false;
 	/** Cancels the pending scheduled update check, if any. */
 	private readonly scheduler = this._register(new MutableDisposable<IDisposable>());
+	private schedulerGeneration = 0;
+	private updateMode: UpdateMode | undefined;
 	/** Serializes reconfiguration so overlapping `update.mode` changes settle on the latest value. */
 	private readonly reconfigureThrottler = this._register(new Throttler());
 
@@ -195,40 +199,42 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		// React to runtime `update.mode`/policy changes so switching to/from `none` applies without a restart.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('update.mode')) {
-				this.reconfigure().catch(err => this.logService.error('update#reconfigure - failed to apply update mode change', err));
+				this.reconfigure(false).catch(err => this.logService.error('update#reconfigure - failed to apply update mode change', err));
 			}
 		}));
 
 		// Apply the currently configured update mode.
-		await this.reconfigure();
+		await this.reconfigure(true);
 	}
 
 	/**
 	 * Evaluates the current `update.mode` setting (and its policy) and brings the service into the matching state.
 	 * Runs on startup and on every change, enabling or disabling updates without a restart.
 	 */
-	private reconfigure(): Promise<void> {
-		return this.reconfigureThrottler.queue(() => this.doReconfigure());
+	private reconfigure(startup: boolean): Promise<void> {
+		return this.reconfigureThrottler.queue(() => this.doReconfigure(startup));
 	}
 
-	private async doReconfigure(): Promise<void> {
+	private async doReconfigure(startup: boolean): Promise<void> {
 		if (this._disabledPermanently) {
 			return;
 		}
 
-		const updateMode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
-		const updateModeInspection = this.configurationService.inspect<'none' | 'manual' | 'start' | 'default'>('update.mode');
+		const updateMode = this.configurationService.getValue<UpdateMode>('update.mode');
+		const updateModeInspection = this.configurationService.inspect<UpdateMode>('update.mode');
 		const policyDisablesUpdates = updateModeInspection.policyValue !== undefined && !this.getProductQuality(updateModeInspection.policyValue);
 		const quality = this.getProductQuality(updateMode);
+		const modeChanged = this.updateMode !== updateMode;
 
 		if (!quality) {
 			const reason = policyDisablesUpdates ? DisablementReason.Policy : DisablementReason.ManuallyDisabled;
 
 			// Skip if already disabled for this reason, so a repeated write or policy refresh is a no-op.
-			if (this._state.type === StateType.Disabled && this._state.reason === reason) {
+			if (!modeChanged && this._state.type === StateType.Disabled && this._state.reason === reason) {
 				return;
 			}
 
+			this.updateMode = updateMode;
 			await this.disable(reason);
 			return;
 		}
@@ -252,7 +258,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			await this.postInitialize();
 		}
 
-		this.scheduleAccordingToMode(updateMode);
+		if (!modeChanged) {
+			return;
+		}
+
+		this.updateMode = updateMode;
+		this.scheduleAccordingToMode(updateMode, startup);
 	}
 
 	/**
@@ -260,7 +271,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	 * and any in-flight or pending update before moving to Disabled.
 	 */
 	private async disable(reason: DisablementReason): Promise<void> {
-		this.scheduler.clear();
+		this.cancelScheduledCheck();
 
 		// Show a transient Cancelling state only when there is in-flight or pending work to tear down.
 		if (isCancellableState(this._state.type)) {
@@ -287,12 +298,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	/** Disables updates for a non-reversible reason; subsequent `update.mode` changes are ignored. */
 	private setDisabledPermanently(reason: DisablementReason): void {
 		this._disabledPermanently = true;
-		this.scheduler.clear();
+		this.cancelScheduledCheck();
 		this.setState(State.Disabled(reason));
 	}
 
-	private scheduleAccordingToMode(updateMode: 'none' | 'manual' | 'start' | 'default'): void {
-		this.scheduler.clear();
+	private scheduleAccordingToMode(updateMode: UpdateMode, startup: boolean): void {
+		this.cancelScheduledCheck();
 
 		if (updateMode === 'manual') {
 			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
@@ -302,12 +313,17 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		if (updateMode === 'start') {
 			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
 
-			// Check for updates only once after 30 seconds
-			this.scheduleCheckForUpdates(30 * 1000, false);
-		} else {
-			// Start checking for updates after 30 seconds
-			this.scheduleCheckForUpdates(30 * 1000, true);
+			if (startup) {
+				this.scheduleCheckForUpdates(30 * 1000, updateMode);
+			}
+		} else if (updateMode === 'default') {
+			this.scheduleCheckForUpdates(30 * 1000, updateMode);
 		}
+	}
+
+	private cancelScheduledCheck(): void {
+		this.schedulerGeneration++;
+		this.scheduler.clear();
 	}
 
 	private async trackVersionChange(): Promise<void> {
@@ -382,16 +398,20 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		return updateMode === 'none' ? undefined : this.productService.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000, repeat = true): void {
+	private scheduleCheckForUpdates(delay: number, updateMode: 'start' | 'default', generation = this.schedulerGeneration): void {
 		const promise: CancelablePromise<void> = timeout(delay);
 		this.scheduler.value = toDisposable(() => promise.cancel());
 
 		promise
-			.then(() => this.checkForUpdates(false))
-			.then(() => {
-				if (repeat) {
-					// Check again after 1 hour
-					this.scheduleCheckForUpdates(60 * 60 * 1000, true);
+			.then(async () => {
+				if (generation !== this.schedulerGeneration || this.updateMode !== updateMode) {
+					return;
+				}
+
+				await this.checkForUpdates(false);
+
+				if (updateMode === 'default' && generation === this.schedulerGeneration && this.updateMode === updateMode) {
+					this.scheduleCheckForUpdates(60 * 60 * 1000, updateMode, generation);
 				}
 			})
 			.catch(err => {
