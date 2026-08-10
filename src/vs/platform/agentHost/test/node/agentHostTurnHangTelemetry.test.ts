@@ -18,7 +18,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatInputQuestionKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -534,6 +534,123 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolId: e.data.toolId,
 			toolSourceKind: e.data.toolSourceKind,
 		})), [{ toolId: 'lookup', toolSourceKind: 'mcp' }]);
+	});
+
+	test('names the tool the blocker gates, not another tool that happens to be running', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-mixed');
+			// A long-running tool starts first, so it is the earliest entry in
+			// the in-flight set...
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-running', toolName: 'bash', displayName: 'bash' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-mixed',
+				toolCallId: 'tc-running',
+				invocationMessage: 'Run build',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			// ...but a second tool is what actually blocks on the user, so that
+			// is the one the report must name.
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-gated', toolName: 'write', displayName: 'write' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-mixed',
+				toolCallId: 'tc-gated',
+				invocationMessage: 'Write file',
+				confirmationTitle: 'Write file',
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			hangReason: e.data.hangReason,
+			toolId: e.data.toolId,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{
+			hangReason: 'waitingOnUser',
+			toolId: 'write',
+			inFlightToolCallCount: 2,
+		}]);
+	});
+
+	test('leaves the tool unnamed when the user is reviewing a completed result', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-result');
+			fire({
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				toolName: 'write',
+				displayName: 'write',
+			});
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				invocationMessage: 'Write file',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			// The tool ran to completion and is now awaiting *result* review, so
+			// it has left the in-flight set. The turn waits on the user reading
+			// a result, not on a tool — `toolId` is deliberately undefined.
+			fire({
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-result',
+				toolCallId: 'tc-result',
+				result: { success: true, pastTenseMessage: 'wrote file' },
+				requiresResultConfirmation: true,
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			hangReason: e.data.hangReason,
+			blockedOn: e.data.blockedOn,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{
+			hangReason: 'waitingOnUser',
+			blockedOn: SessionInputRequestKind.ToolConfirmation,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
+		}]);
+	});
+
+	test('leaves the tool unnamed when the turn is blocked on an elicitation', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-elicit');
+			// An elicitation is not attached to any tool call at all, and the
+			// action carries no `turnId` — the blocker resolves to the chat's
+			// active turn via the fallback in `_setSessionInputNeeded`.
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'req-1',
+					message: 'Which environment should I deploy to?',
+					questions: [{ id: 'q1', kind: ChatInputQuestionKind.Text, message: 'Environment' }],
+				},
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			hangReason: e.data.hangReason,
+			blockedOn: e.data.blockedOn,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{
+			hangReason: 'waitingOnUser',
+			blockedOn: SessionInputRequestKind.ChatInput,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
+		}]);
 	});
 
 	test('reports a real stall when the agent goes quiet after a denied confirmation', async () => {
