@@ -1833,6 +1833,16 @@ suite('buffer api', () => {
 		assert.equal(pt.getNearestChunk(6), '345');
 		assert.equal(pt.getNearestChunk(9), '78');
 	});
+
+	test('offsets past the end of the buffer', () => {
+		const pieceTree = createTextBuffer(['012345678']);
+		ds.add(pieceTree);
+		const pt = pieceTree.getPieceTree();
+
+		// `nodeAt` finds no node, so these fall back instead of throwing
+		assert.strictEqual(pt.getCharCode(100), 0);
+		assert.strictEqual(pt.getNearestChunk(100), '');
+	});
 });
 
 suite('search offset cache', () => {

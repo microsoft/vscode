@@ -385,7 +385,7 @@ export class PieceTreeBase {
 			const startPosition = other.nodeAt(offset);
 			const endPosition = other.nodeAt(offset + len);
 			if (!startPosition || !endPosition) {
-				// the other buffer is shorter than this one
+				// defensive, the lengths are compared above
 				return false;
 			}
 			const val = other.getValueInRange2(startPosition, endPosition);
@@ -872,8 +872,7 @@ export class PieceTreeBase {
 		this._lastVisitedLine.value = '';
 
 		if (this.root !== SENTINEL) {
-			// the offset is expected to be inside the tree, and silently skipping the
-			// insertion would leave the buffer out of sync with the model
+			// fail rather than silently leaving the buffer out of sync with the model
 			const { node, remainder, nodeStartOffset } = assertReturnsDefined(this.nodeAt(offset));
 			const piece = node.piece;
 			const bufferIndex = piece.bufferIndex;
@@ -974,8 +973,7 @@ export class PieceTreeBase {
 			return;
 		}
 
-		// the range is expected to be inside the tree, and silently skipping the
-		// deletion would leave the buffer out of sync with the model
+		// fail rather than silently leaving the buffer out of sync with the model
 		const startPosition = assertReturnsDefined(this.nodeAt(offset));
 		const endPosition = assertReturnsDefined(this.nodeAt(offset + cnt));
 		const startNode = startPosition.node;
