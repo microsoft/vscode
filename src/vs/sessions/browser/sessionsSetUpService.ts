@@ -26,8 +26,7 @@ import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
-import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
-import { ConditionalAuthState, conditionalAuthState, observeUsableWithoutGitHub } from './sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, observeAllowSignedOutWhenUsable, shouldForceGitHubSignIn } from './sessionsAuthGate.js';
 
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
@@ -86,8 +85,8 @@ class SessionsSetUpWidget extends Disposable {
 	 * startup gap — one nothing can retire, since the account resolves silently.
 	 */
 	private _accountResolved = false;
-	/** Whether a signed-out user can work without GitHub right now. */
-	private readonly _usableWithoutGitHub: IObservable<boolean>;
+	/** Whether the window may proceed without GitHub sign-in. */
+	private readonly _allowSignedOutWhenUsable: IObservable<boolean>;
 
 	// Non-service params must come before @-decorated service params
 	constructor(
@@ -108,35 +107,29 @@ class SessionsSetUpWidget extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHostService private readonly hostService: IHostService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		this._usableWithoutGitHub = observeUsableWithoutGitHub(this.sessionsManagementService, this.configurationService);
-		// The gate's inputs resolve asynchronously: the local agent host advertises
-		// Claude at `AfterRestored`, i.e. after this widget has already decided. So
-		// this subscription is lifetime-scoped rather than installed once setup
-		// completes — otherwise a signed-out startup shows the non-dismissible
-		// modal before Claude resolves and never reconsiders.
-		this._register(runOnChange(this._usableWithoutGitHub, usable => this._onUsableWithoutGitHubChanged(usable)));
+		this._allowSignedOutWhenUsable = observeAllowSignedOutWhenUsable(this.configurationService);
+		this._register(runOnChange(this._allowSignedOutWhenUsable, allow => this._onAllowSignedOutWhenUsableChanged(allow)));
 		this._start();
 	}
 
 	/**
-	 * The last-resort gate's answer changed while the window is open. Ignored
-	 * until the account has resolved (see {@link _accountResolved}) and for
-	 * signed-in users. For a signed-out user, becoming usable retires an
-	 * already-open sign-in modal (it was raised before the answer resolved);
-	 * becoming unusable falls back to demanding sign-in.
+	 * The opt-in was toggled while the window is open. Ignored until the account
+	 * has resolved (see {@link _accountResolved}) and for signed-in users. For a
+	 * signed-out user, turning it on retires an already-open sign-in modal (it was
+	 * raised before the account resolved); turning it off falls back to demanding
+	 * sign-in.
 	 */
-	private _onUsableWithoutGitHubChanged(usable: boolean): void {
+	private _onAllowSignedOutWhenUsableChanged(allow: boolean): void {
 		// Only act once the account has resolved AND the user is signed out; while
 		// unresolved or signed in, the sign-in watch owns the decision.
 		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
 		if (conditionalAuthState(this._accountResolved, signedIn) !== ConditionalAuthState.SignedOut) {
 			return;
 		}
-		if (!usable) {
+		if (!allow) {
 			this._proceedingSignedOut = false;
 			void this._showWelcome(false);
 			return;
@@ -165,15 +158,14 @@ class SessionsSetUpWidget extends Disposable {
 				return;
 			}
 			this._accountResolved = true;
-			// A `_usableWithoutGitHub` change during the unresolved window was
-			// ignored above. If the agent ended up usable, replay it now so a
-			// signed-out user is let in rather than stranded on a sign-in dialog
-			// nothing else retires — the web path has no post-resolution re-check
-			// of its own (the native paths re-read usability after they await the
-			// account). While not usable, the initial setup flow still owns the
-			// dialog, so there is nothing to replay.
-			if (this._usableWithoutGitHub.get()) {
-				this._onUsableWithoutGitHubChanged(true);
+			// A setting change during the unresolved window was ignored above. If
+			// the opt-in is on, replay it now so a signed-out user is let in rather
+			// than stranded on a sign-in dialog nothing else retires — the web path
+			// has no post-resolution re-check of its own (the native paths re-read
+			// the opt-in after they await the account). With the opt-in off, the
+			// initial setup flow still owns the dialog, so there is nothing to replay.
+			if (this._allowSignedOutWhenUsable.get()) {
+				this._onAllowSignedOutWhenUsableChanged(true);
 			}
 		});
 
@@ -273,18 +265,16 @@ class SessionsSetUpWidget extends Disposable {
 	/**
 	 * The **window gate**: whether the Agents window must fall back to forcing
 	 * GitHub sign-in before showing any of the sessions UI. Every caller is on a
-	 * signed-out path, so this is simply the inverse of "can work without GitHub"
-	 * — always true while the opt-in is off, which is today's mandatory-sign-in
-	 * behavior.
+	 * signed-out path, so this is simply the inverse of the opt-in — always true
+	 * while the opt-in is off, which is today's mandatory-sign-in behavior.
 	 *
-	 * Deliberately a *last resort*, not the primary gate. The moment any session
-	 * type is usable without GitHub the window opens, and per-type on-demand
-	 * sign-in carries the rest — so this never blocks a user who has their own
-	 * credentials. See `sessionsAuthGate.ts` for the window-gate vs per-type-gate
-	 * distinction.
+	 * Deliberately a *last resort*, not the primary gate. With the opt-in on the
+	 * window opens immediately and per-type on-demand sign-in carries the rest —
+	 * so this never blocks a user who has their own credentials. See
+	 * `sessionsAuthGate.ts` for the window-gate vs per-type-gate distinction.
 	 */
 	private _mustForceGitHubSignIn(): boolean {
-		return !this._usableWithoutGitHub.get();
+		return shouldForceGitHubSignIn(this._allowSignedOutWhenUsable.get());
 	}
 
 	/**
@@ -305,17 +295,17 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	/**
-	 * Open the Agents window for a signed-out user because at least one session
-	 * type is usable without GitHub. Mirrors the signed-in completion path, but
-	 * keeps watching so a later change (a usable type disappears, or the user
-	 * signs in) re-drives the decision. Idempotent while already proceeding.
+	 * Open the Agents window for a signed-out user because the opt-in permits it.
+	 * Mirrors the signed-in completion path, but keeps watching so a later change
+	 * (the opt-in is turned off, or the user signs in) re-drives the decision.
+	 * Idempotent while already proceeding.
 	 */
 	private async _proceedWithoutGitHub(): Promise<void> {
 		if (this._proceedingSignedOut) {
 			return;
 		}
 		this._proceedingSignedOut = true;
-		this.logService.info('[sessions welcome] Proceeding without GitHub sign-in; a session type is usable while signed out');
+		this.logService.info('[sessions welcome] Proceeding without GitHub sign-in; signed-out operation is enabled');
 		await this._ensureAIFeaturesEnabled();
 		if (this._store.isDisposed) {
 			return;
@@ -377,8 +367,8 @@ class SessionsSetUpWidget extends Disposable {
 		}
 
 		// A non-first-launch _showWelcome means the user is signed out. Consult the
-		// last-resort GitHub gate before forcing sign-in: when a session type is
-		// usable without GitHub (and the opt-in is on), open the window instead.
+		// last-resort GitHub gate before forcing sign-in: with the opt-in on, open
+		// the window instead.
 		if (!isFirstLaunch && !this._mustForceGitHubSignIn()) {
 			await this._proceedWithoutGitHub();
 			return;
@@ -420,7 +410,7 @@ class SessionsSetUpWidget extends Disposable {
 			} else if (this._mustForceGitHubSignIn()) {
 				await this._showSignInDialog();
 			} else {
-				// Signed-out first launch, but a session type is usable without GitHub.
+				// Signed-out first launch, but the opt-in permits proceeding.
 				this.dialogRef.clear();
 				await this._proceedWithoutGitHub();
 				return;
