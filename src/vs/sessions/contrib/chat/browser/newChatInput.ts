@@ -923,7 +923,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					: localize('send', "Send"),
 				ariaLabel: localize('send', "Send"),
 			}));
-			sendButton.icon = Codicon.arrowUpCompact;
+			sendButton.icon = Codicon.arrowUp;
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
