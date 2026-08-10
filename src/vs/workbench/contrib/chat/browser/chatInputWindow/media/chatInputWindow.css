@@ -166,7 +166,7 @@
 	background: none !important;
 	color: var(--vscode-foreground) !important;
 	opacity: 1;
-	font-weight: var(--vscode-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-regular);
 	transform: scale(1.08);
 }
 
