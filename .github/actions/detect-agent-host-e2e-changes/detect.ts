@@ -66,12 +66,20 @@ function affectsAgentHostE2E(path: string): boolean {
 }
 
 export async function detectAgentHostE2EChanges(github: IGitHub, context: IContext, core: ICore): Promise<void> {
-	const files = await github.paginate(github.rest.pulls.listFiles, {
-		owner: context.repo.owner,
-		repo: context.repo.repo,
-		pull_number: context.issue.number,
-		per_page: 100,
-	});
+	let files: readonly IChangedFile[];
+	try {
+		files = await github.paginate(github.rest.pulls.listFiles, {
+			owner: context.repo.owner,
+			repo: context.repo.repo,
+			pull_number: context.issue.number,
+			per_page: 100,
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		core.warning(`Unable to list pull request files; running Agent Host E2E tests. ${message}`);
+		core.setOutput('affected', 'true');
+		return;
+	}
 
 	const paths = files.flatMap(file =>
 		file.previous_filename ? [file.filename, file.previous_filename] : [file.filename]);
