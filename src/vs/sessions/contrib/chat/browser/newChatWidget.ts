@@ -48,7 +48,7 @@ import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constant
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 
 // #region --- New Chat Widget ---
 
@@ -134,12 +134,6 @@ export class NewChatWidget extends Disposable {
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
 		this._register(toDisposable(() => this._workspacePickerVisibleKey.reset()));
 		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
-		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
-		// which scopes recents to the active host and renders as a bottom
-		// sheet on phone-layout viewports. On Electron desktop, the regular
-		// {@link WorkspacePicker} is fine — phones never run there.
-		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
-		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {}));
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
 
@@ -158,6 +152,15 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			return session?.isQuickChat?.read(reader) ?? false;
 		});
+
+		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
+		// which scopes recents to the active host and renders as a bottom
+		// sheet on phone-layout viewports. On Electron desktop, the regular
+		// {@link WorkspacePicker} is fine — phones never run there.
+		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
+		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
+			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
+		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
 		this._feedbackItems = derived(this, reader => {
@@ -187,6 +190,9 @@ export class NewChatWidget extends Disposable {
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
+			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
+				? NewSessionWorkspacePreselectionSource.None
+				: this._workspacePicker.preselectionSource,
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			canSubmitWithoutSession,
@@ -416,7 +422,9 @@ export class NewChatWidget extends Disposable {
 			this._register(autorun(reader => {
 				const isQuickChat = this._isQuickChatComposer.read(reader);
 				if (wasQuickChat && !isQuickChat && !this._session.read(reader)) {
-					this._seedWorkspaceDraft();
+					if (!this._workspacePicker.refreshAutomaticSelection()) {
+						this._seedWorkspaceDraft();
+					}
 				}
 				wasQuickChat = isQuickChat;
 			}));
