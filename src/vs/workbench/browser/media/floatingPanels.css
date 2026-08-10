@@ -211,8 +211,8 @@
  * `activitybar-compact` is mirrored onto the workbench root by activitybarPart.ts;
  * the `:not` keeps a hidden compact bar resolving to the hidden inset below. */
 .monaco-workbench.floating-panels.activitybar-compact:not(.noactivitybar) .part.statusbar {
-	padding-left: var(--vscode-spacing-size20);
-	padding-right: var(--vscode-spacing-size20);
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 /* When the activity bar is hidden (`noactivitybar`, toggled by layout.ts like
