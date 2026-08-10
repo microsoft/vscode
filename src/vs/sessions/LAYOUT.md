@@ -42,6 +42,8 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 | Auxiliary Bar | Right side | Visible | Changes view, file tree |
 | Panel | Below Sessions Part + Aux Bar | Hidden | Terminal, debug output |
 
+The Panel and Auxiliary Bar tab strips inherit the shared Modern UI pane-tab presentation from `workbench/contrib/styleOverrides/browser/media/tabs.css` through the workbench root's `modern-ui-tabs` class. Sessions-owned styles define only the part surface and inset; action geometry, active/hover/focus states, and badge placement remain owned by the shared pane-tab stylesheet so the Editor and Agents windows stay aligned.
+
 ### 2.2 Grid Tree
 
 ```
@@ -104,7 +106,7 @@ Which view is shown is owned by `ICustomViewService` ([services/customView/brows
 
 > **Pitfall:** `SplitView` calls `Part.setVisible` when a view's grid visibility changes, and the workbench maps that event straight back onto the desired visibility (`setSessionsHidden`, `setPanelHidden`, …). The custom view's grid updates therefore run under `_applyingCustomViewGridVisibility`, which makes that listener bail — without it, hiding the parts for a custom view *overwrites* the state that is supposed to be restored, and hiding the custom view leaves neither grid visible. For the same reason, showing a custom view first exits a maximized editor (a maximized editor owns the row instead of the sessions grid) and the grid descriptor is built from the effective values.
 
-**Dismissal.** Opening a session (`SessionsService._startOpenSession`, which every explicit open gesture funnels through) hides the custom view. On phone layouts showing one pushes a `MobileNavigationStack` layer, so the Android back button dismisses it. Actions that operate on the hidden parts — Toggle Side Panel, Open Terminal, and the secondary side bar toggle — are disabled while it is shown (`CustomViewVisibleContext`).
+**Dismissal.** Opening a session (`SessionsService._startOpenSession`, which every explicit open gesture funnels through) hides the custom view. On phone layouts showing one pushes a `MobileNavigationStack` layer, so the Android back button dismisses it. Actions that operate on the hidden parts — Toggle Side Panel, Toggle Panel, and the secondary side bar toggle — are disabled while it is shown (`CustomViewVisibleContext`).
 
 **Chrome.** Each grid leaf is a `CustomViewNode` ([browser/parts/customViewNode.ts](src/vs/sessions/browser/parts/customViewNode.ts)) that owns the shared header — title, optional description and the contributed actions rendered either as an icon toolbar or a button bar — above a scroll container. The header always has a bottom divider, independent of the content's scroll position. The header band and the content are centred and capped to `AGENTS_CENTERED_CONTENT_MAX_WIDTH` (the same measure the session views use); a view may override it with `AbstractCustomView.maxWidth`. Views only fill the content container and are disposed when hidden. On phone-class viewports `CustomViewGridParts` selects `MobileCustomViewGridPart` instead, mirroring `SessionsParts`/`MobileSessionsPart`.
 
@@ -122,7 +124,7 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 |---------|---------|---------|
 | Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, new session (when sidebar hidden, A/B experiment), agent host filter |
 | Center | `Menus.CommandCenter` | Session picker widget |
-| Right | `Menus.TitleBarSessionMenu`, `Menus.TitleBarRightLayout`, `Menus.TitleBarUpdate` | Active-session actions (including Create Pull Request for created sessions with changes), remote connections, run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget, and the rightmost Update indicator |
+| Right | `Menus.TitleBarSessionMenu`, `Menus.TitleBarRightLayout`, `Menus.TitleBarUpdate` | Active-session actions (including Create Pull Request for created sessions with changes), remote connections, run script (split button), Open in VS Code, bottom-panel and auxiliary-bar layout toggles, account widget, and the rightmost Update indicator |
 
 No menubar or `WindowTitle` dependency. Editor-specific actions remain in the editor header, while session-level actions are placed on the right of the title bar.
 

@@ -36,7 +36,7 @@ import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -3404,6 +3404,87 @@ suite('CopilotAgent', () => {
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('createSession fork', () => {
+		test('rejects a fork targeting its source session', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const session = AgentSession.uri('copilotcli', 'same-session');
+
+			try {
+				await assert.rejects(() => agent.createSession({
+					session,
+					fork: { session, turnIndex: 0, turnId: 'turn-1' },
+				}), /Cannot fork Copilot session same-session onto itself/);
+				assert.strictEqual(client.startCallCount, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materializes provider history under the client-chosen session ID', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'source-session');
+			const target = AgentSession.uri('copilotcli', 'target-session');
+			const sourceWorkingDirectory = URI.file('/source-workspace');
+			const sourceEventId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: 'source-turn',
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [{ ...sourceTurn, id: sourceEventId }],
+				getTurnEventId: async (turnId: string) => turnId === sourceTurn.id ? sourceEventId : undefined,
+				workingDirectory: sourceWorkingDirectory,
+				dispose: () => { },
+			});
+
+			let imported: { config: IAgentCreateSessionConfig; sessionId: string; workingDirectory: URI } | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async (config, sessionId, directory) => {
+				imported = { config, sessionId, workingDirectory: directory };
+				return { session: target, resolvedWorkingDirectory: directory };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				const result = await agent.createSession({
+					session: target,
+					workingDirectories: [URI.file('/ignored-client-workspace')],
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurn.id,
+						turnIdMapping: new Map([[sourceTurn.id, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual({
+					resultSession: result.session.toString(),
+					importSessionId: imported?.sessionId,
+					importWorkingDirectory: imported?.workingDirectory.toString(),
+					importWorkingDirectories: imported?.config.workingDirectories?.map(directory => directory.toString()),
+					importFork: imported?.config.fork,
+					importedTurnIds: imported?.config.importConversation?.turns.map(turn => turn.id),
+				}, {
+					resultSession: target.toString(),
+					importSessionId: AgentSession.id(target),
+					importWorkingDirectory: sourceWorkingDirectory.toString(),
+					importWorkingDirectories: [sourceWorkingDirectory.toString()],
+					importFork: undefined,
+					importedTurnIds: [forkedTurnId],
+				});
+			} finally {
 				await disposeAgent(agent);
 			}
 		});

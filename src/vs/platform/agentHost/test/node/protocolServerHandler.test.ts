@@ -896,6 +896,30 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('createSession rejects a fork targeting its source session', async () => {
+		const transport = connectClient('client-self-fork');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		const session = URI.parse('copilot:///same-session').toString();
+
+		transport.simulateMessage(request(2, 'createSession', {
+			channel: session,
+			provider: 'copilot',
+			fork: { session, turnId: 'turn-1' },
+		}));
+		const response = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.deepStrictEqual({
+			errorCode: response.error?.code,
+			errorMessage: response.error?.message,
+			createCalls: agentService.createSessionConfigs.length,
+		}, {
+			errorCode: AhpErrorCodes.SessionAlreadyExists,
+			errorMessage: `Fork target session must differ from source session: ${session}`,
+			createCalls: 0,
+		});
+	});
+
 	suite('createChat / disposeChat', () => {
 		const peerChat = buildChatUri(sessionUri, 'peer-1');
 

@@ -5336,6 +5336,13 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Returns the SDK event ID associated with the given protocol turn.
+	 */
+	getTurnEventId(turnId: string): Promise<string | undefined> {
+		return this._databaseRef.object.getTurnEventId(turnId);
+	}
+
+	/**
 	 * Returns the SDK event ID of the earliest turn.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined> {

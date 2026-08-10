@@ -460,7 +460,7 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
-	test('restores an idle system notification as a system-initiated turn', async () => {
+	test('restores an idle system notification and resumed response in the preceding turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Start the background agent' } },
 			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-1' } },
@@ -486,20 +486,16 @@ suite('mapSessionEvents — history replay', () => {
 			message: turn.message,
 			state: turn.state,
 			parts: partKinds(turn.responseParts),
-		})), [
-			{
-				id: 'user-event',
-				message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
-				state: TurnState.Complete,
-				parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' }],
-			},
-			{
-				id: 'notification-event',
-				message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
-				state: TurnState.Complete,
-				parts: [{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' }],
-			},
-		]);
+		})), [{
+			id: 'user-event',
+			message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
+			state: TurnState.Complete,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent agent-a is complete' },
+				{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' },
+			],
+		}]);
 	});
 
 	test('does not restore a passive notification outside an assistant turn', async () => {

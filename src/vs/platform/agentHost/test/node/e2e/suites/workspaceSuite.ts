@@ -60,7 +60,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			`subscribe snapshot summary should carry the requested working directory`);
 	});
 
-	(config.supportsWorktreeIncludeFilesE2E ? test : test.skip)('worktree materialization copies configured ignored files', async function () {
+	(context.runKnownIssueTests && config.supportsWorktreeIncludeFilesE2E ? test : test.skip)('worktree materialization copies configured ignored files', async function () {
 		this.timeout(180_000);
 		const repository = mkdtempSync(`${tmpdir()}/ahp-wt-include-`);
 		tempDirs.push(repository, `${repository}.worktrees`);

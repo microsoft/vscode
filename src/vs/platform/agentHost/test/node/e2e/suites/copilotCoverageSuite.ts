@@ -421,18 +421,26 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork inherits provider history through the selected source turn', async function () {
+	test('session fork inherits provider history through the selected source turn', async function () {
 		this.timeout(240_000);
-		const { sessionUri } = await createWorkspaceSession('session-fork-history');
+		const { sessionUri, workspace } = await createWorkspaceSession('session-fork-history');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-alpha', 'Remember FORK_ALPHA. Reply exactly "ready".', 1);
 		await assertSessionListed(sessionUri);
 		const forkUri = await createFork(sessionUri, 'turn-fork-alpha');
 
-		const result = await driveTurnToCompletion(context.client, forkUri, 'turn-fork-followup', 'Reply with only the code word you were asked to remember.', 10);
+		await context.restartServer();
+		await initialize('session-fork-history-restored-client', workspace);
+		await context.client.call<SubscribeResult>('subscribe', { channel: forkUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(forkUri) });
+		const restored = await fetchSessionWithChat(context.client, forkUri);
+		assert.deepStrictEqual(restored.turns.map(turn => turn.message.text), ['Remember FORK_ALPHA. Reply exactly "ready".']);
+
+		const reforkUri = await createFork(forkUri, restored.turns[0].id);
+		const result = await driveTurnToCompletion(context.client, reforkUri, 'turn-fork-followup', 'Reply with only the code word you were asked to remember.', 10);
 		assert.ok(result.responseText.includes('FORK_ALPHA'));
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork excludes provider history after the selected source turn', async function () {
+	test('session fork excludes provider history after the selected source turn', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('session-fork-bounded');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-first', 'Remember FORK_FIRST. Reply exactly "ready".', 1);

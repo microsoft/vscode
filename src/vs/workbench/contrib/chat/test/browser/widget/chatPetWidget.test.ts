@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
-import { CHAT_PET_IDLE_SLEEP_DELAY, ChatPetHopController, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldFlipChatPetWideSprite, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_IDLE_SLEEP_DELAY, ChatPetHopController, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldFlipChatPetWideSprite, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -203,12 +203,13 @@ suite('ChatPetWidget', () => {
 
 	test('maps chat activity to pet states by priority', () => {
 		assert.deepStrictEqual([
-			getChatPetBaseState(false, false, false, false),
-			getChatPetBaseState(false, false, false, true),
-			getChatPetBaseState(false, false, true, false),
-			getChatPetBaseState(false, false, true, true),
-			getChatPetBaseState(true, false, true, true),
-			getChatPetBaseState(true, true, true, true),
+			getChatPetBaseState(false, false, false, false, false),
+			getChatPetBaseState(false, false, false, false, true),
+			getChatPetBaseState(false, false, false, true, false),
+			getChatPetBaseState(false, false, false, true, true),
+			getChatPetBaseState(true, false, false, true, true),
+			getChatPetBaseState(true, true, false, true, true),
+			getChatPetBaseState(true, true, true, true, true),
 		], [
 			'idle',
 			'sleep',
@@ -216,7 +217,12 @@ suite('ChatPetWidget', () => {
 			'sleep',
 			'rendering',
 			'clapping',
+			'idle',
 		]);
+	});
+
+	test('limits confirmation attention to two seconds', () => {
+		assert.strictEqual(CHAT_PET_CONFIRMATION_ATTENTION_DURATION, 2_000);
 	});
 
 	test('only shows in the latest focused chat widget when enabled', () => {

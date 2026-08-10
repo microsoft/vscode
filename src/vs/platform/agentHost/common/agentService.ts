@@ -750,9 +750,9 @@ export interface IAgentSessionMetadata {
 	/** All working directories available to the session (index 0 = primary). */
 	readonly workingDirectories?: readonly URI[];
 	/**
-	 * Aggregate counts (additions / deletions / files) describing the
-	 * `changeKind: 'session'` changeset for this session — the chip
-	 * aggregate previously embedded in the catalogue entry. Mirrors
+	 * Aggregate counts (additions / deletions / files) for this session's
+	 * changes. Single-folder sessions derive this from the branch changeset;
+	 * multi-folder sessions aggregate it across all folders. Mirrors
 	 * `SessionSummary.changes`.
 	 */
 	readonly changes?: ChangesSummary;

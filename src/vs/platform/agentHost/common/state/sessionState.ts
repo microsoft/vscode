@@ -1286,8 +1286,12 @@ export interface ISessionGitHubState {
 	readonly owner?: string;
 	/** The name of the GitHub repository. */
 	readonly repo?: string;
-	/** GitHub pull request URLs associated with the session, most recent first. */
+	/** GitHub pull request URLs found for the session's checkouts, most recent first. */
 	readonly pullRequestUrls?: readonly string[];
+	/** Pull requests that predate a folder-isolated session. An empty array is a captured baseline. */
+	readonly initialPullRequestUrls?: readonly string[];
+	/** Pull requests explicitly associated through user intent, most recent first. */
+	readonly associatedPullRequestUrls?: readonly string[];
 	/**
 	 * URLs of the GitHub issues referenced by the session's user messages, in
 	 * order of first appearance.
@@ -1318,15 +1322,24 @@ export function hasSessionPullRequestForBranch(gitHubState: ISessionGitHubState 
 	return gitHubState.pullRequestBranchName === undefined || gitHubState.pullRequestBranchName === branchName;
 }
 
+/** Returns pull requests related to the session rather than inherited from its folder checkout. */
+export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubState | undefined): readonly string[] {
+	const pullRequestUrls = gitHubState?.pullRequestUrls ?? [];
+	const initialPullRequestUrls = gitHubState?.initialPullRequestUrls;
+	const initialUrls = new Set(initialPullRequestUrls?.map(url => url.toLowerCase()) ?? []);
+	const associatedUrls = new Set(gitHubState?.associatedPullRequestUrls?.map(url => url.toLowerCase()) ?? []);
+	return pullRequestUrls.filter(url => !initialUrls.has(url.toLowerCase()) || associatedUrls.has(url.toLowerCase()));
+}
+
 /** Maximum pull requests retained for a session. */
 export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
 function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 	const normalizedUrls = urls.map(url => {
-		const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
 		const groups = match?.groups;
 		return groups
-			? `https://github.com/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
+			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
 			: url;
 	});
 	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
@@ -1342,6 +1355,45 @@ export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubStat
 	return {
 		pullRequestUrls,
 		pullRequestBranchName: branchName,
+	};
+}
+
+/** Returns state that promotes a pull request from the folder baseline into the session. */
+export function withMostRecentRelatedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
+	const next = withMostRecentSessionPullRequest(gitHubState, pullRequestUrl, branchName);
+	const promotedUrl = normalizeSessionPullRequestUrls([pullRequestUrl])[0]?.toLowerCase();
+	const initialPullRequestUrls = gitHubState?.initialPullRequestUrls;
+	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.associatedPullRequestUrls ?? [])
+	]);
+	return {
+		...next,
+		associatedPullRequestUrls,
+		...(initialPullRequestUrls !== undefined ? {
+			initialPullRequestUrls: initialPullRequestUrls.filter(url => url.toLowerCase() !== promotedUrl)
+		} : {}),
+	};
+}
+
+/** Returns state that records a pull request in the folder-session baseline. */
+export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl?: string): ISessionGitHubState {
+	return {
+		initialPullRequestUrls: normalizeSessionPullRequestUrls([
+			...(pullRequestUrl ? [pullRequestUrl] : []),
+			...(gitHubState?.initialPullRequestUrls ?? [])
+		])
+	};
+}
+
+/** Returns state that records a user-referenced pull request without changing checkout PR state. */
+export function withMostRecentReferencedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string): ISessionGitHubState {
+	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.associatedPullRequestUrls ?? [])
+	]);
+	return {
+		associatedPullRequestUrls,
 	};
 }
 
@@ -1423,6 +1475,8 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		owner?: string;
 		repo?: string;
 		pullRequestUrls?: readonly string[];
+		initialPullRequestUrls?: readonly string[];
+		associatedPullRequestUrls?: readonly string[];
 		issueUrls?: readonly string[];
 		pullRequestBranchName?: string;
 	} = {};
@@ -1436,6 +1490,15 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			: [];
 	if (pullRequestUrls.length > 0) {
 		result.pullRequestUrls = normalizeSessionPullRequestUrls(pullRequestUrls);
+	}
+	if (Array.isArray(raw['initialPullRequestUrls'])) {
+		result.initialPullRequestUrls = normalizeSessionPullRequestUrls(raw['initialPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+	}
+	if (Array.isArray(raw['associatedPullRequestUrls'])) {
+		const associatedPullRequestUrls = normalizeSessionPullRequestUrls(raw['associatedPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+		if (associatedPullRequestUrls.length > 0) {
+			result.associatedPullRequestUrls = associatedPullRequestUrls;
+		}
 	}
 	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
