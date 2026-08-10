@@ -33,7 +33,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'chat.editor.preferCopilotHarness': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot CLI whenever the local harness would otherwise be selected for a new editor chat session. Claude and Codex selections are unaffected."),
+			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot SDK whenever the local harness would otherwise be selected for a new editor chat session. Claude and Codex selections are unaffected."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
@@ -44,14 +44,14 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.editor.preferCopilotHarness.policy',
-						value: nls.localize('chat.editor.preferCopilotHarness.policy', "Configure whether VS Code uses the Agent Host Copilot CLI instead of the local harness for new editor chat sessions."),
+						value: nls.localize('chat.editor.preferCopilotHarness.policy', "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."),
 					},
 				},
 			},
 		},
 		'chat.defaultToCopilotHarness': {
 			type: 'boolean',
-			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot CLI instead of the local harness."),
+			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot SDK instead of the local harness."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },

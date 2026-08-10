@@ -444,7 +444,7 @@
             "localization": {
                 "description": {
                     "key": "chat.editor.preferCopilotHarness.policy",
-                    "value": "Configure whether VS Code uses the Agent Host Copilot CLI instead of the local harness for new editor chat sessions."
+                    "value": "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."
                 }
             },
             "type": "boolean",
