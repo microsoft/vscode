@@ -305,6 +305,7 @@ export type IChatSessionHistoryItem = {
 	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
+	isHidden?: boolean;
 	systemInitiatedLabel?: string;
 	isTerminalRequest?: boolean;
 } | {
@@ -333,6 +334,7 @@ export interface IChatSessionServerRequest {
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
+	readonly isHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
 }
