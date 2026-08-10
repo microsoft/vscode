@@ -17,6 +17,9 @@ export const SESSION_ROUTE_CONFIDENCE_THRESHOLD = 0.8;
 export const COMMAND_INTENT_CONFIDENCE_THRESHOLD = 0.8;
 export const COMMAND_INTENT_MAX_CANDIDATES = 80;
 const COMMAND_INTENT_LABEL_CLIP_LENGTH = 120;
+const commandIntentSegmenter = typeof Intl.Segmenter === 'function'
+	? new Intl.Segmenter(undefined, { granularity: 'word' })
+	: undefined;
 
 export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boolean {
 	return result.confidence > SESSION_ROUTE_CONFIDENCE_THRESHOLD;
@@ -175,11 +178,18 @@ export function buildCommandIntentMessages(request: ICommandIntentRequest): ISes
 }
 
 function tokenizeCommandIntent(text: string): string[] {
-	return text
-		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-		.toLowerCase()
-		.split(/[^a-z0-9]+/)
-		.filter(term => term.length > 1 && !COMMAND_INTENT_STOP_WORDS.has(term));
+	const normalized = text
+		.replace(/([\p{Ll}\p{Nd}])([\p{Lu}])/gu, '$1 $2')
+		.toLocaleLowerCase();
+	const terms = commandIntentSegmenter
+		? [...commandIntentSegmenter.segment(normalized)]
+			.filter(segment => segment.isWordLike)
+			.map(segment => segment.segment)
+		: normalized.split(/[^\p{L}\p{N}]+/u);
+	return terms
+		.map(term => term.trim())
+		.filter(term => term.length > 0 && (term.length > 1 || /[^\x00-\x7f]/.test(term)))
+		.filter(term => !COMMAND_INTENT_STOP_WORDS.has(term));
 }
 
 const COMMAND_INTENT_STOP_WORDS = new Set([

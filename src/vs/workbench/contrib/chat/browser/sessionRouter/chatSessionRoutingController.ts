@@ -611,12 +611,20 @@ export class ChatSessionRoutingController extends Disposable {
 
 		let didRun = false;
 		const timer = store.add(new MutableDisposable());
+		const reviewControls = store.add(new DisposableStore());
+		const clearReviewControls = () => {
+			reviewControls.clear();
+			for (const action of badge.querySelectorAll('.chat-routing-badge-action')) {
+				action.remove();
+			}
+		};
 		const run = async () => {
 			if (didRun) {
 				return;
 			}
 			didRun = true;
 			timer.clear();
+			clearReviewControls();
 			this._submitDraftListeners.clear();
 			this._setSubmissionPhase('dispatching');
 			mark.replaceChildren(renderIcon(Codicon.loading));
@@ -660,9 +668,9 @@ export class ChatSessionRoutingController extends Disposable {
 			void sendToChat();
 		};
 
-		this._addActionLink(store, badge, localize('chatSessionRouting.runNow', "Run Now"), () => void run());
-		this._addActionLink(store, badge, localize('chatSessionRouting.sendToChat', "Send to Chat"), routeToChat);
-		this._addActionLink(store, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel);
+		this._addActionLink(reviewControls, badge, localize('chatSessionRouting.runNow', "Run Now"), () => void run());
+		this._addActionLink(reviewControls, badge, localize('chatSessionRouting.sendToChat', "Send to Chat"), routeToChat);
+		this._addActionLink(reviewControls, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel);
 		renderCountdown();
 		ariaAlert(localize('chatSessionRouting.runningCommandIn', "Running command {0} in {1} seconds. Activate Cancel or press Escape to cancel.", command.label, remainingSeconds));
 		const targetWindow = dom.getWindow(badge);
@@ -676,7 +684,7 @@ export class ChatSessionRoutingController extends Disposable {
 		}, 1000);
 		timer.value = toDisposable(() => targetWindow.clearInterval(handle));
 
-		store.add(dom.addDisposableListener(targetWindow, dom.EventType.KEY_DOWN, event => {
+		reviewControls.add(dom.addDisposableListener(targetWindow, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Escape)) {
 				keyboardEvent.preventDefault();

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -16,6 +17,7 @@ import { ChatModeKind } from '../../../common/constants.js';
 suite('ChatSessionRoutingController', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
 	test('detects command intent before collecting chat sessions', async () => {
 		const phases: Array<[boolean, boolean]> = [];
@@ -81,6 +83,257 @@ suite('ChatSessionRoutingController', () => {
 		await routeToChat?.();
 		assert.strictEqual(routedToChat, true);
 		controller.dispose();
+	});
+
+	test('auto-runs a reviewed command after countdown', async () => {
+		const clock = sinon.useFakeTimers();
+		const command = { commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' };
+		const phases: Array<[boolean, boolean]> = [];
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const executeCommand = sinon.stub().resolves();
+		try {
+			const host = {
+				widget: {
+					input: { setSubmitPending: (pending: boolean, showingProgress: boolean) => phases.push([pending, showingProgress]) },
+					inputEditor: {
+						onDidChangeModelContent: Event.None,
+						getValue: () => 'turn on zen mode',
+						setValue: () => { },
+					},
+					attachmentModel: {
+						onDidChange: Event.None,
+						attachments: [],
+						clear: () => { },
+					},
+					getSelectedModelRequestOptions: () => ({}),
+					getModeRequestOptions: () => ({}),
+				},
+				getOwnSessionResource: () => undefined,
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+			} as unknown as IChatSessionRoutingHost;
+			const controller = new ChatSessionRoutingController(
+				host,
+				'test',
+				undefined!,
+				undefined!,
+				undefined!,
+				{
+					detectIntent: async () => ({ kind: 'command', commandId: command.commandId, confidence: 0.95 }),
+				} as never,
+				undefined!,
+				{ warn: () => { } } as never,
+				undefined!,
+				undefined!,
+				undefined!,
+				{ executeCommand } as never,
+				undefined!,
+				undefined!,
+				undefined!,
+			);
+			Reflect.set(controller, '_collectCommandCandidates', () => [command]);
+
+			await controller.handleSubmit('turn on zen mode', ChatModeKind.Agent);
+			await clock.tickAsync(10000);
+
+			assert.strictEqual(executeCommand.callCount, 1);
+			assert.deepStrictEqual(phases, [[true, true], [true, false], [true, true], [false, false]]);
+			controller.dispose();
+		} finally {
+			clock.restore();
+			container.remove();
+		}
+	});
+
+	test('run now starts execution and removes cancellation controls', async () => {
+		const command = { commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' };
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		let resolveCommand: (() => void) | undefined;
+		const executePromise = new Promise<void>(resolve => resolveCommand = resolve);
+		const executeCommand = sinon.stub().returns(executePromise);
+		try {
+			const host = {
+				widget: {
+					input: { setSubmitPending: () => { } },
+					inputEditor: {
+						onDidChangeModelContent: Event.None,
+						getValue: () => 'turn on zen mode',
+						setValue: () => { },
+					},
+					attachmentModel: {
+						onDidChange: Event.None,
+						attachments: [],
+						clear: () => { },
+					},
+					getSelectedModelRequestOptions: () => ({}),
+					getModeRequestOptions: () => ({}),
+				},
+				getOwnSessionResource: () => undefined,
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+			} as unknown as IChatSessionRoutingHost;
+			const controller = new ChatSessionRoutingController(
+				host,
+				'test',
+				undefined!,
+				undefined!,
+				undefined!,
+				{
+					detectIntent: async () => ({ kind: 'command', commandId: command.commandId, confidence: 0.95 }),
+				} as never,
+				undefined!,
+				{ warn: () => { } } as never,
+				undefined!,
+				undefined!,
+				undefined!,
+				{ executeCommand } as never,
+				undefined!,
+				undefined!,
+				undefined!,
+			);
+			Reflect.set(controller, '_collectCommandCandidates', () => [command]);
+
+			await controller.handleSubmit('turn on zen mode', ChatModeKind.Agent);
+			const runNow = [...container.querySelectorAll<HTMLElement>('.chat-routing-badge-action')]
+				.find(action => action.textContent === 'Run Now');
+			assert.ok(runNow);
+			runNow?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			assert.strictEqual(executeCommand.callCount, 1);
+			assert.strictEqual(
+				[...container.querySelectorAll<HTMLElement>('.chat-routing-badge-action')].some(action => action.textContent === 'Cancel'),
+				false,
+			);
+			const submitCts = Reflect.get(controller, '_submitCts') as { value?: CancellationTokenSource };
+			assert.strictEqual(submitCts.value?.token.isCancellationRequested, false);
+
+			resolveCommand?.();
+			await executePromise;
+			controller.dispose();
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('cancel keeps draft and skips command execution', async () => {
+		const command = { commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' };
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const executeCommand = sinon.stub().resolves();
+		try {
+			const host = {
+				widget: {
+					input: { setSubmitPending: () => { } },
+					inputEditor: {
+						onDidChangeModelContent: Event.None,
+						getValue: () => 'turn on zen mode',
+						setValue: () => { },
+					},
+					attachmentModel: {
+						onDidChange: Event.None,
+						attachments: [],
+						clear: () => { },
+					},
+					getSelectedModelRequestOptions: () => ({}),
+					getModeRequestOptions: () => ({}),
+				},
+				getOwnSessionResource: () => undefined,
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+			} as unknown as IChatSessionRoutingHost;
+			const controller = new ChatSessionRoutingController(
+				host,
+				'test',
+				undefined!,
+				undefined!,
+				undefined!,
+				{
+					detectIntent: async () => ({ kind: 'command', commandId: command.commandId, confidence: 0.95 }),
+				} as never,
+				undefined!,
+				{ warn: () => { } } as never,
+				undefined!,
+				undefined!,
+				undefined!,
+				{ executeCommand } as never,
+				undefined!,
+				undefined!,
+				undefined!,
+			);
+			Reflect.set(controller, '_collectCommandCandidates', () => [command]);
+
+			await controller.handleSubmit('turn on zen mode', ChatModeKind.Agent);
+			const cancel = [...container.querySelectorAll<HTMLElement>('.chat-routing-badge-action')]
+				.find(action => action.textContent === 'Cancel');
+			assert.ok(cancel);
+			cancel?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			assert.strictEqual(executeCommand.callCount, 0);
+			const submitCts = Reflect.get(controller, '_submitCts') as { value?: CancellationTokenSource };
+			assert.strictEqual(submitCts.value, undefined);
+			controller.dispose();
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('shows command failure result when execution fails', async () => {
+		const command = { commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' };
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const executeCommand = sinon.stub().rejects(new Error('boom'));
+		try {
+			const host = {
+				widget: {
+					input: { setSubmitPending: () => { } },
+					inputEditor: {
+						onDidChangeModelContent: Event.None,
+						getValue: () => 'turn on zen mode',
+						setValue: () => { },
+					},
+					attachmentModel: {
+						onDidChange: Event.None,
+						attachments: [],
+						clear: () => { },
+					},
+					getSelectedModelRequestOptions: () => ({}),
+					getModeRequestOptions: () => ({}),
+				},
+				getOwnSessionResource: () => undefined,
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+			} as unknown as IChatSessionRoutingHost;
+			const controller = new ChatSessionRoutingController(
+				host,
+				'test',
+				undefined!,
+				undefined!,
+				undefined!,
+				{
+					detectIntent: async () => ({ kind: 'command', commandId: command.commandId, confidence: 0.95 }),
+				} as never,
+				undefined!,
+				{ warn: () => { } } as never,
+				undefined!,
+				undefined!,
+				undefined!,
+				{ executeCommand } as never,
+				undefined!,
+				undefined!,
+				undefined!,
+			);
+			Reflect.set(controller, '_collectCommandCandidates', () => [command]);
+
+			await controller.handleSubmit('turn on zen mode', ChatModeKind.Agent);
+			const runNow = [...container.querySelectorAll<HTMLElement>('.chat-routing-badge-action')]
+				.find(action => action.textContent === 'Run Now');
+			assert.ok(runNow);
+			runNow?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			await Promise.resolve();
+
+			assert.ok(container.textContent?.includes('Could not run command View: Toggle Zen Mode.'));
+			controller.dispose();
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('returns the stable request id for an immediately sent route', async () => {

@@ -73,6 +73,16 @@ suite('SessionRouter helpers', () => {
 		assert.deepStrictEqual(selectCommandIntentCandidates('explain polymorphism', commands), []);
 	});
 
+	test('selectCommandIntentCandidates supports non-Latin scripts', () => {
+		assert.deepStrictEqual(
+			selectCommandIntentCandidates('切换禅模式', [
+				{ commandId: 'workbench.action.toggleZenMode', label: '视图: 切换禅模式' },
+				{ commandId: 'workbench.action.files.save', label: '文件: 保存' },
+			], 1),
+			[{ commandId: 'workbench.action.toggleZenMode', label: '视图: 切换禅模式' }],
+		);
+	});
+
 	test('buildRouterMessages embeds utterance and every session id', () => {
 		const messages = buildRouterMessages(request);
 		assert.strictEqual(messages.length, 2);

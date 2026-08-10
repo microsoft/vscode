@@ -36,7 +36,7 @@
 }
 
 .chat-routing-badge-command .chat-routing-badge-label {
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .chat-routing-badge .chat-routing-badge-action {
