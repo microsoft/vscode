@@ -1858,7 +1858,11 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Keyboard navigation in submenu
 			this._submenuDisposables.add(dom.addDisposableListener(submenuWidget.domNode, 'keydown', (e: KeyboardEvent) => {
-				if (e.key === 'ArrowLeft' || e.key === 'Escape') {
+				if (e.key === 'Escape') {
+					dom.EventHelper.stop(e, true);
+					this._hideSubmenu();
+					this.hide();
+				} else if (e.key === 'ArrowLeft') {
 					dom.EventHelper.stop(e, true);
 					this._hideSubmenu();
 					this._list.domFocus();
