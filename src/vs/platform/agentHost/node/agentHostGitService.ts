@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import type { Stats } from 'fs';
 import * as fsPromises from 'fs/promises';
 import { cp as copyFile } from '@vscode/fs-copyfile';
 import * as path from '../../../base/common/path.js';
@@ -19,6 +20,16 @@ import { buildGitBlobUri } from './gitDiffContent.js';
 import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { Limiter, SequencerByKey } from '../../../base/common/async.js';
+
+/**
+ * Distinguishes a path that is genuinely absent from one the filesystem merely
+ * refused to describe (permissions, an unmounted volume, an I/O error). Only the
+ * former licenses a caller to keep searching; the latter means "unknown".
+ */
+function isFileNotFound(error: unknown): boolean {
+	const code = (error as NodeJS.ErrnoException | undefined)?.code;
+	return code === 'ENOENT' || code === 'ENOTDIR';
+}
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -154,20 +165,34 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * are expected to fall back to {@link getWorktreeRoots} in that case.
 	 */
 	async getPrimaryWorktreeRoot(workingDirectory: URI): Promise<URI | undefined> {
+		try {
+			return await this._readPrimaryWorktreeRoot(workingDirectory);
+		} catch (error) {
+			// Reaching here means the filesystem refused to answer rather than
+			// reporting absence. Guessing past that would ascend to an unrelated
+			// enclosing repository, and listing persists what it is told, so a
+			// momentary permission or mount failure would be frozen in. Git can
+			// decide instead.
+			this._logService.trace(`[AgentHostGitService] Could not read the repository layout for '${workingDirectory.fsPath}': ${error}`);
+			return undefined;
+		}
+	}
+
+	private async _readPrimaryWorktreeRoot(workingDirectory: URI): Promise<URI | undefined> {
 		// Git reports canonical paths because it resolves its working directory,
 		// and callers compare this result against roots Git produced. Resolving
 		// symlinks here keeps both sources on one spelling of a path, so the
 		// same repository never presents itself as two different roots.
-		let directory = await fsPromises.realpath(path.resolve(workingDirectory.fsPath)).catch(() => undefined);
+		let directory = await fsPromises.realpath(path.resolve(workingDirectory.fsPath));
 		// Git only searches upwards from a directory that actually exists, and
 		// stopping here keeps a stale session path from adopting an unrelated
 		// ancestor repository.
-		if (!directory || !(await fsPromises.stat(directory).catch(() => undefined))?.isDirectory()) {
+		if (!(await this._statIfPresent(directory))?.isDirectory()) {
 			return undefined;
 		}
 		for (; ;) {
 			const dotGit = path.join(directory, '.git');
-			const stat = await fsPromises.stat(dotGit).catch(() => undefined);
+			const stat = await this._statIfPresent(dotGit);
 			if (stat?.isFile()) {
 				return this._resolvePrimaryWorktreeRootFromLink(dotGit);
 			}
@@ -181,7 +206,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				// directory, so the enclosing folder is no longer the worktree
 				// Git would report. Parsing the setting properly means honouring
 				// includes, so treat any mention as a reason to defer to Git.
-				const config = await fsPromises.readFile(path.join(dotGit, 'config'), 'utf8').catch(() => undefined);
+				const config = await this._readFileIfPresent(path.join(dotGit, 'config'));
 				return config && /^\s*worktree\s*=/m.test(config) ? undefined : URI.file(directory);
 			}
 			// A bare repository owns no worktree, so climbing out of one would
@@ -197,25 +222,54 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
+	/**
+	 * Stats `target`, reporting `undefined` only when it is genuinely absent.
+	 * Any other failure is rethrown: "I could not look" must not be mistaken for
+	 * "it is not there", because callers treat absence as a reason to keep
+	 * searching further up the tree.
+	 */
+	private async _statIfPresent(target: string): Promise<Stats | undefined> {
+		try {
+			return await fsPromises.stat(target);
+		} catch (error) {
+			if (isFileNotFound(error)) {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
+	/** Reads `target`, reporting `undefined` only when it is genuinely absent. */
+	private async _readFileIfPresent(target: string): Promise<string | undefined> {
+		try {
+			return await fsPromises.readFile(target, 'utf8');
+		} catch (error) {
+			if (isFileNotFound(error)) {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
 	/** Mirrors Git's own repository test: a HEAD alongside the object and ref stores. */
 	private async _isGitDirectory(directory: string): Promise<boolean> {
 		const [head, objects, refs] = await Promise.all([
-			fsPromises.stat(path.join(directory, 'HEAD')).catch(() => undefined),
-			fsPromises.stat(path.join(directory, 'objects')).catch(() => undefined),
-			fsPromises.stat(path.join(directory, 'refs')).catch(() => undefined),
+			this._statIfPresent(path.join(directory, 'HEAD')),
+			this._statIfPresent(path.join(directory, 'objects')),
+			this._statIfPresent(path.join(directory, 'refs')),
 		]);
 		return !!head?.isFile() && !!objects?.isDirectory() && !!refs?.isDirectory();
 	}
 
 	/** Maps a linked worktree's `.git` file to the primary worktree root that owns it. */
 	private async _resolvePrimaryWorktreeRootFromLink(dotGitFile: string): Promise<URI | undefined> {
-		const link = await fsPromises.readFile(dotGitFile, 'utf8').catch(() => undefined);
+		const link = await this._readFileIfPresent(dotGitFile);
 		const gitDirPath = link && /^gitdir:\s*(?<gitDir>.+?)\s*$/m.exec(link)?.groups?.gitDir;
 		if (!gitDirPath) {
 			return undefined;
 		}
 		const gitDir = path.resolve(path.dirname(dotGitFile), gitDirPath);
-		const commonDirPath = (await fsPromises.readFile(path.join(gitDir, 'commondir'), 'utf8').catch(() => undefined))?.trim();
+		const commonDirPath = (await this._readFileIfPresent(path.join(gitDir, 'commondir')))?.trim();
 		if (!commonDirPath) {
 			return undefined;
 		}

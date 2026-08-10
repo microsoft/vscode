@@ -738,6 +738,14 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const nestedBare = join(dir, 'nested-bare.git');
 		cp.execFileSync('git', ['clone', '--bare', '-q', dir, nestedBare], { cwd: dir, env, stdio: 'pipe' });
 
+		// A checkout the filesystem refuses to describe. Ascending past its
+		// unreadable `.git` would answer with the enclosing repository, and
+		// listing certifies what it is told, so a momentary permission failure
+		// would be frozen into a permanent mis-grouping.
+		const unreadable = join(dir, '..', `wt-unreadable-${Date.now()}`);
+		await svc!.addWorktree(URI.file(dir), URI.file(unreadable), 'agents/unreadable', 'main');
+		await fs.chmod(unreadable, 0o000);
+
 		const detachedWorktree = join(dir, '..', `wt-detached-${Date.now()}`);
 		await fs.mkdir(join(detachedWorktree, '.git'), { recursive: true });
 		for (const entry of ['HEAD', 'config']) {
@@ -755,14 +763,17 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				damagedWorktree: await svc!.getPrimaryWorktreeRoot(URI.file(damagedWorktree)),
 				nestedBare: await svc!.getPrimaryWorktreeRoot(URI.file(nestedBare)),
 				coreWorktreeRedirect: await svc!.getPrimaryWorktreeRoot(URI.file(detachedWorktree)),
+				unreadableCheckout: isWindows ? undefined : await svc!.getPrimaryWorktreeRoot(URI.file(unreadable)),
 			}, {
 				strayDotGit: (await svc!.getWorktreeRoots(URI.file(strayDotGit)))[0]?.fsPath,
 				damagedWorktree: undefined,
 				nestedBare: undefined,
 				coreWorktreeRedirect: undefined,
+				unreadableCheckout: undefined,
 			});
 		} finally {
-			for (const path of [damagedWorktree, detachedWorktree]) {
+			await fs.chmod(unreadable, 0o755).catch(() => { /* best-effort cleanup */ });
+			for (const path of [damagedWorktree, detachedWorktree, unreadable]) {
 				try { await svc!.removeWorktree(URI.file(dir), URI.file(path), { force: true }); } catch { /* best-effort cleanup */ }
 				rmDirWithRetry(path);
 			}
