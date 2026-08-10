@@ -3402,6 +3402,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
+						protected override getHoverContents() {
+							return isOmniInput ? undefined : super.getHoverContents();
+						}
+
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.add('chat-submit-button');
