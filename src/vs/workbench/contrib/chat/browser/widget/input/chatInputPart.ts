@@ -3236,6 +3236,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
 		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
+		hoverDelegate.showNativeHover = isOmniInput;
 		const isVoiceSessionActive = derived(this, reader => {
 			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
 			if (omniInputActive) {
