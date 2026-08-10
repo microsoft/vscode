@@ -127,6 +127,57 @@ A user can reopen a Copilot session after restarting Agent Host and expects the 
     --grep "shell failure metadata|plugin skill lifecycle is reconstructed"
   ```
 
+### Copilot provider sessions can disappear across a Windows host restart
+
+A user can restart Agent Host and reopen a Copilot session that contains completed tool activity. On Windows, the provider session can no longer be found after restart, so the host cannot reconstruct the persisted conversation and its tool rows.
+
+- Test: `tool-rich provider history is reconstructed after a host restart`.
+- Scope: Copilot on Windows.
+- Expected: restarting Agent Host preserves the provider session and restores the completed edit tool call.
+- Observed: reopening fails with `Session not found on backend`, although the same deterministic replay passes on macOS and Linux.
+- Gate: the Windows variant is skipped at the test declaration in `copilotCoverageSuite.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
+    --grep "tool-rich provider history"
+  ```
+
+### Persisted Copilot request errors are restored as cancelled on Windows
+
+A user can restart Agent Host after a Copilot request fails and expects the reopened turn to retain its error state and diagnostic details. On Windows, the reopened turn is instead marked cancelled with no error, hiding why the request failed.
+
+- Test: `request error survives a host restart`.
+- Scope: Copilot on Windows.
+- Expected: the reopened turn remains in the error state and contains the same request error published before restart.
+- Observed: the reopened turn has state `cancelled` and no error, although the same deterministic replay passes on macOS and Linux.
+- Gate: the Windows variant is skipped at the test declaration in `copilotAgentHostE2E.integrationTest.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
+    --grep "request error survives a host restart"
+  ```
+
+### Resource-scoped changeset discard does not refresh sibling state on Windows
+
+A user can discard one changed file while preserving another changed file in the same session. On Windows, the discard restores the requested file on disk but the changeset state does not refresh to remove it, leaving the UI stale.
+
+- Test: `discarding one file preserves sibling changes`.
+- Scope: Agent Host conformance on Windows.
+- Expected: after discarding `first.txt`, the changeset contains only the still-modified `second.txt`.
+- Observed: the discard operation completes, but the changeset still contains `first.txt` after the synchronization retry expires.
+- Gate: the Windows variant is disabled through the `conformanceTest` platform condition in `changesetSuite.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\conformance\agentHostConformance.integrationTest.ts `
+    --grep "discarding one file preserves sibling changes"
+  ```
+
 ### Copilot SDK rejects the host's interactive denial result variant
 
 - Test: `declining a file creation tool prevents the mutation and completes the turn`.
