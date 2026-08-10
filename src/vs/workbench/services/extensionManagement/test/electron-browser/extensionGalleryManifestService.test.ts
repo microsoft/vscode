@@ -25,7 +25,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { IHostService } from '../../../host/browser/host.js';
@@ -69,6 +69,17 @@ function createGalleryManifest(includeEligibility = false) {
 	};
 }
 
+/** Captures emitted telemetry events so tests can assert on event names and dimensions. */
+class RecordingTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly eventName: string; readonly data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ eventName, data });
+		}
+	}
+}
+
 suite('WorkbenchExtensionGalleryManifestService', () => {
 
 	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
@@ -82,6 +93,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let configurationService: TestConfigurationService;
 	let storageData: Map<string, string>;
 	let entraAuthEnabled: boolean;
+	let telemetryService: RecordingTelemetryService;
 
 	setup(() => {
 		defaultAccount = null;
@@ -119,7 +131,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 		}());
 
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		telemetryService = new RecordingTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
 
 		instantiationService.stub(IStorageService, new class extends mock<IStorageService>() {
 			override get(key: string, _scope: StorageScope, fallbackValue: string): string;
@@ -1087,5 +1100,86 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		// With no configured marketplace serviceUrl the Entra/private-marketplace path is never
 		// engaged; the base class falls back to the product's default gallery → Available.
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+	});
+
+	// --- Telemetry ---
+
+	function authCheckedEvents() {
+		return telemetryService.events.filter(e => e.eventName === 'marketplace:auth:checked').map(e => e.data);
+	}
+
+	function customMarketplaceCount() {
+		return telemetryService.events.filter(e => e.eventName === 'galleryservice:custom:marketplace').length;
+	}
+
+	test('telemetry — GitHub eligible access reports custom marketplace and auth check', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(customMarketplaceCount(), 1);
+		assert.deepStrictEqual(authCheckedEvents(), [{ authProvider: 'github', eligible: true }]);
+	});
+
+	test('telemetry — GitHub ineligible access reports auth check but not custom marketplace', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: false });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		// Denied access never publishes the manifest, so the custom-marketplace event does not fire.
+		assert.strictEqual(customMarketplaceCount(), 0);
+		assert.deepStrictEqual(authCheckedEvents(), [{ authProvider: 'github', eligible: false }]);
+	});
+
+	test('telemetry — Microsoft eligible access reports custom marketplace and auth check', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession()];
+		requestHandler = (options) => {
+			if (options.url?.includes('eligibility')) {
+				return mockResponse(200, { eligible: true, reason: 'EntraID' });
+			}
+			return mockResponse(200, createGalleryManifest(true));
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		// Regression guard: the custom-marketplace event must fire for the Microsoft path too, not
+		// just for GitHub. The github/microsoft distinction lives on 'marketplace:auth:checked'.
+		assert.strictEqual(customMarketplaceCount(), 1);
+		assert.deepStrictEqual(authCheckedEvents(), [{ authProvider: 'microsoft', eligible: true }]);
+	});
+
+	test('telemetry — Microsoft ineligible access reports auth check but not custom marketplace', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession()];
+		requestHandler = (options) => {
+			if (options.url?.includes('eligibility')) {
+				return mockResponse(200, { eligible: false, reason: 'MSA without VSS' });
+			}
+			return mockResponse(200, createGalleryManifest(true));
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(customMarketplaceCount(), 0);
+		assert.deepStrictEqual(authCheckedEvents(), [{ authProvider: 'microsoft', eligible: false }]);
+	});
+
+	test('telemetry — RequiresSignIn does not report any access verdict', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = null;
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		// No definitive verdict was reached, so nothing is cached and no verdict is reported.
+		assert.strictEqual(customMarketplaceCount(), 0);
+		assert.deepStrictEqual(authCheckedEvents(), []);
 	});
 });
