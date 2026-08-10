@@ -178,11 +178,8 @@ export interface IChatSetupRequirement {
 }
 
 /**
- * Single source of truth for whether Chat still requires setup before it can
- * service a request. Shared by the setup agent (which routes a sent message
- * through setup) and the model picker (which surfaces a "Sign in to use Copilot"
- * state instead of a misleading lone "Auto"). BYOK models and anonymous access
- * intentionally satisfy the entitlement-based checks so those flows keep working.
+ * Returns whether Chat requires setup before it can service a request.
+ * The model picker uses a narrower condition that only surfaces interactive setup.
  */
 export function chatRequiresSetup(context: IChatSetupRequirement): boolean {
 	return (

@@ -16,6 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -107,12 +108,7 @@ export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowS
  * the agent host process. When `false`, the agent host skips registering the
  * Claude provider regardless of SDK availability. Defaults to `true`.
  *
- * Independent of {@link ClaudePreferAgentHostAgentsSettingId} /
- * {@link ClaudePreferAgentHostEditorSettingId}, which control whether the
- * workbench surfaces the agent host's Claude provider (vs. the GitHub Copilot
- * Chat extension's). This setting is strictly about whether the agent host
- * advertises Claude at all. The agent host process must be restarted for
- * changes to take effect.
+ * The agent host process must be restarted for changes to take effect.
  */
 export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
 
@@ -261,21 +257,14 @@ export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAg
  */
 export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
 
-export function claudePreferAgentHostSettingId(isSessionsWindow: boolean): string {
-	return isSessionsWindow
-		? ClaudePreferAgentHostAgentsSettingId
-		: ClaudePreferAgentHostEditorSettingId;
-}
-
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
-	return event.affectsConfiguration(claudePreferAgentHostSettingId(isSessionsWindow))
-		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+	return event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
 	switch (provider) {
 		case CLAUDE_AGENT_PROVIDER_ID:
-			return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
+			return true;
 		case CODEX_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
 		default:
@@ -426,6 +415,12 @@ export interface IAgentHostOTelSettings {
  * the managed OTel env. See {@link readAgentHostOTelPolicySettings}.
  */
 export const AgentHostOTelPolicyIpcChannel = 'vscode:agentHostOTelPolicy';
+
+/** Renderer-to-main request to replace the shared local Agent Host process. */
+export const AgentHostRestartIpcChannel = 'vscode:restartAgentHost';
+
+/** Main-to-renderer notification sent before replacement so each local client reconnects immediately. */
+export const AgentHostWillRestartIpcChannel = 'vscode:agentHostWillRestart';
 
 /**
  * Resolve the enterprise-policy values for the `chat.agentHost.otel.*` settings from a
@@ -675,9 +670,10 @@ export interface IAgentHostNetworkDiagnosticsInfo {
 
 export interface IAgentHostManagedSettingsSnapshot {
 	readonly account?: string;
-	readonly source: 'server' | 'device' | 'none';
+	readonly source: 'server' | 'device' | 'client' | 'mixed' | 'none';
 	readonly serverManaged: boolean;
 	readonly deviceManaged: boolean;
+	readonly clientManaged?: boolean;
 	readonly failClosed: boolean;
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
@@ -730,6 +726,9 @@ export interface IAgentHostNetworkFetchResult {
  */
 export interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
+
+	/** Resolves after the WebSocket listener configured at process startup is bound. */
+	waitForConfiguredWebSocketServer(): Promise<void>;
 
 	/**
 	 * Request the agent host to start a WebSocket server on a local
@@ -787,9 +786,9 @@ export interface IAgentSessionMetadata {
 	/** All working directories available to the session (index 0 = primary). */
 	readonly workingDirectories?: readonly URI[];
 	/**
-	 * Aggregate counts (additions / deletions / files) describing the
-	 * `changeKind: 'session'` changeset for this session — the chip
-	 * aggregate previously embedded in the catalogue entry. Mirrors
+	 * Aggregate counts (additions / deletions / files) for this session's
+	 * changes. Single-folder sessions derive this from the branch changeset;
+	 * multi-folder sessions aggregate it across all folders. Mirrors
 	 * `SessionSummary.changes`.
 	 */
 	readonly changes?: ChangesSummary;
@@ -1592,6 +1591,18 @@ export interface IActiveClient {
 }
 
 /**
+ * Outcome of {@link IAgent.ensureSessionAdopted}. `adopted` is true iff this
+ * call newly seeded metadata for the session; `eligible` is true iff the session
+ * is a legacy on-disk session that was a genuine adoption candidate (whether or
+ * not it was adopted this call), so callers can distinguish a migration that did
+ * not happen from an ordinary native restore.
+ */
+export interface IAgentSessionAdoptionResult {
+	readonly adopted: boolean;
+	readonly eligible: boolean;
+}
+
+/**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
@@ -1652,15 +1663,19 @@ export interface IAgent {
 	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
 	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
 	 * no agent-host metadata yet, seed that metadata in place — reusing the event
-	 * log verbatim — so the normal restore flow can resume it. Returns `true` iff
-	 * it newly adopted the session (so the caller can run a one-time checkpoint
-	 * bridge), `false` otherwise. Optional: providers without a legacy on-disk
-	 * format omit it.
+	 * log verbatim — so the normal restore flow can resume it. Reports whether the
+	 * session was newly adopted (so the caller can run a one-time checkpoint
+	 * bridge) and whether it was an eligible legacy session at all (so the caller
+	 * can tell a genuine migration candidate apart from an ordinary native
+	 * restore). Optional: providers without a legacy on-disk format omit it.
 	 */
-	ensureSessionAdopted?(session: URI): Promise<boolean>;
+	ensureSessionAdopted?(session: URI): Promise<IAgentSessionAdoptionResult>;
 
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+
+	/** Select provider-owned configuration that a newly created session should inherit. */
+	getInheritedSessionConfig?(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
 
 	/** Return dynamic completions for a provider-owned session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
@@ -2142,7 +2157,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.

@@ -34,7 +34,7 @@ import { ChatEntitlement, ChatEntitlementService, getChatPlanName, IChatEntitlem
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { observeUsableWithoutGitHub } from '../../../browser/sessionsAuthGate.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
@@ -54,6 +54,7 @@ import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
+import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -68,15 +69,13 @@ const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
 const accountDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
 const accountTimeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 
-// Register the shared VS Code update title bar entry into the Agents titlebar layout.
-// Placed as the first (leftmost) item of the leftmost right-cluster container so that, in
-// the right-aligned title bar, the update button grows into the empty space on its left
-// when it appears and every other control (session toggles, account widget) stays anchored
-// and doesn't shift.
-registerUpdateTitleBarMenuPlacement(Menus.TitleBarSessionMenu, {
+export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState, 'source' | 'kind'>, hasCopilotDashboard: boolean, isAccountLoading: boolean): boolean {
+	return !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
+}
+
+// Register the shared VS Code update entry at the trailing edge of the Agents titlebar.
+registerUpdateTitleBarMenuPlacement(Menus.TitleBarUpdate, {
 	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
-	group: 'navigation',
-	order: -1,
 });
 
 // Sign In (shown when signed out)
@@ -84,7 +83,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.agenticSignIn',
-			title: localize2('signIn', 'Sign In'),
+			title: localize2('signIn', "Sign in to use GitHub Copilot"),
 			icon: Codicon.signIn,
 			menu: {
 				id: AccountMenu,
@@ -95,8 +94,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const defaultAccountService = accessor.get(IDefaultAccountService);
-		await defaultAccountService.signIn();
+		await accessor.get(ICommandService).executeCommand(CHAT_SETUP_ACTION_ID);
 	}
 });
 
@@ -296,6 +294,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const entitlement = this.accountName && this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
 			? ChatEntitlement.Unresolved
 			: this.chatEntitlementService.entitlement;
+		const hasChatGPTAccount = hasSignedInCodexChatGPTAccount(
+			this.codexAccountService.account,
+			shouldShowCodexAccount(this.configurationService, true),
+		);
 
 		const state = getAccountTitleBarState({
 			isAccountLoading: this.isAccountLoading,
@@ -336,10 +338,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
 		this.iconElement.classList.toggle('hidden', hasLoadedAvatar);
-		const hasChatGPTAccount = hasSignedInCodexChatGPTAccount(
-			this.codexAccountService.account,
-			shouldShowCodexAccount(this.configurationService, true),
-		);
 		this.container.classList.toggle('has-chatgpt-account', hasChatGPTAccount);
 		this.codexIconElement.classList.toggle('visible', hasChatGPTAccount);
 		this.labelElement.textContent = '';
@@ -530,6 +528,20 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				copilotActionBar.push(partitioned.signOut, { icon: true, label: false });
 			}
 			this.appendCopilotUsage(copilotAccount, panelStore);
+		} else if (partitioned.signIn) {
+			const copilotAccount = append(identities, $('section.sessions-account-titlebar-panel-provider-account.signed-out', {
+				'aria-label': localize('copilotAccountSectionLabel', "Copilot account")
+			}));
+			const copilotIdentity = append(copilotAccount, $('.sessions-account-titlebar-panel-provider-identity'));
+			const accountIcon = append(copilotIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
+			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
+			const signInActions = append(copilotIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
+			const signInActionBar = panelStore.add(new ActionBar(signInActions));
+			panelStore.add(signInActionBar.onWillRun(() => {
+				this.hoverService.hideHover(true);
+				this.clickPanelDisposable.clear();
+			}));
+			signInActionBar.push(partitioned.signIn, { icon: false, label: true });
 		}
 
 		if (hasSignedInCodexChatGPTAccount(codexAccount, codexAccountVisible)) {
@@ -624,7 +636,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			}
 		}
 
-		if (!this.shouldShowCopilotDashboardHover() && !this.isAccountLoading) {
+		if (shouldShowAccountPanelSummary(this.lastState, this.shouldShowCopilotDashboardHover(), this.isAccountLoading)) {
 			const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
 			const summary = append(contentSection, $('.sessions-account-titlebar-panel-summary'));
 			summary.textContent = this.lastState.ariaLabel;
@@ -733,7 +745,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		return localize('chatGPTUsageLimitUsed', "Usage limit");
 	}
 
-	private partitionMenuActions(rawActions: IAction[]): { signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {
+	private partitionMenuActions(rawActions: IAction[]): { signIn: IAction | undefined; signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {
+		let signIn: IAction | undefined;
 		let signOut: IAction | undefined;
 		const personalizeMap = new Map<string, IAction>();
 		const other: IAction[] = [];
@@ -756,14 +769,17 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				signOut = action;
 				continue;
 			}
+			if (action.id === SIGN_IN_ACTION_ID) {
+				if (!this.isAccountLoading) {
+					signIn = action;
+				}
+				continue;
+			}
 			if (PERSONALIZE_ACTION_IDS.includes(action.id)) {
 				personalizeMap.set(action.id, action);
 				continue;
 			}
 			if (action.id.startsWith('update.')) {
-				continue;
-			}
-			if (this.isAccountLoading && action.id === SIGN_IN_ACTION_ID) {
 				continue;
 			}
 			other.push(action);
@@ -779,7 +795,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			.map(id => personalizeMap.get(id))
 			.filter((a): a is IAction => !!a);
 
-		return { signOut, personalize, other };
+		return { signIn, signOut, personalize, other };
 	}
 
 	private getPanelHeaderLabel(): string {

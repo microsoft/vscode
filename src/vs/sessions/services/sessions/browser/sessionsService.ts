@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, autorun } from '../../../../base/common/observable.js';
+import { IObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -130,6 +130,9 @@ export interface ISessionsService {
 	 */
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 
+	/** Whether the initial persisted visible-session restore has settled. */
+	readonly initialRestoreComplete: IObservable<boolean>;
+
 	/** Fires after a session's stickiness was toggled via {@link toggleSessionStickiness}. */
 	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent>;
 
@@ -143,6 +146,12 @@ export interface ISessionsService {
 	 * Used to populate the sessions picker.
 	 */
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions;
+
+	/**
+	 * Synchronously select an existing session as active and show it in the grid
+	 * without waiting for its provider-backed state to load.
+	 */
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void;
 
 	/**
 	 * Select an existing session as the active session and show it in the grid.
@@ -267,6 +276,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** The canonical active session — the visible active slot. */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
+	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
+	readonly initialRestoreComplete: IObservable<boolean> = this._initialRestoreComplete;
 
 	private readonly _isNewChatSessionContext: IContextKey<boolean>;
 
@@ -695,10 +706,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 		this._cancelRestore();
 		const token = this._startOpenSession();
-		await this._doOpenSession(sessionResource, token, options);
+		const sessionData = this._showSession(sessionResource, options);
+		await this._waitForOpenSessionToLoad(sessionData, token);
 	}
 
-	private async _doOpenSession(sessionResource: URI, token: CancellationToken, options?: { preserveFocus?: boolean }): Promise<void> {
+	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
+		this._cancelRestore();
+		this._startOpenSession();
+		this._showSession(sessionResource, options);
+	}
+
+	private _showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): ISession {
 		const t0 = Date.now();
 		const sessionData = this.sessionsManagementService.getSession(sessionResource);
 		if (!sessionData) {
@@ -708,12 +726,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
 
 		this._activate(sessionData, options?.preserveFocus);
+		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+		return sessionData;
+	}
+
+	private async _waitForOpenSessionToLoad(sessionData: ISession, token: CancellationToken): Promise<void> {
+		const t0 = Date.now();
 		if (!await this._waitForSessionToLoad(sessionData, token)) {
-			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionResource.toString()}`);
+			this.logService.trace(`[SessionsView] openSession cancelled while waiting for session to load uri=${sessionData.resource.toString()}`);
 			return;
 		}
 
-		this.logService.trace(`[SessionsView] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+		this.logService.trace(`[SessionsView] openSession loaded total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 
 	unsetNewSession(): void {
@@ -1103,6 +1127,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async restoreVisibleSessions(): Promise<void> {
+		try {
+			await this._restoreVisibleSessions();
+		} finally {
+			this._initialRestoreComplete.set(true, undefined);
+		}
+	}
+
+	private async _restoreVisibleSessions(): Promise<void> {
 		// Ordered list of slots to restore: real sessions plus, optionally, the
 		// empty (new-session) slot when it was active.
 		interface IRestoreTarget {

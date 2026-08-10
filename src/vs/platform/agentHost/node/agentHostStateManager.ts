@@ -268,6 +268,9 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined }>());
 	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined }> = this._onDidChangeSessionConfig.event;
 
+	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
+	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		options: IAgentHostStateManagerOptions = {},
@@ -762,7 +765,9 @@ export class AgentHostStateManager extends Disposable {
 	 *
 	 * Unlike {@link createSession}, this does NOT emit a `sessionAdded`
 	 * notification because the session is already known to clients via
-	 * `listSessions`.
+	 * `listSessions`. When the session was previously surfaced with a different
+	 * summary (e.g. adoptable-legacy), a `sessionSummaryChanged` delta is emitted
+	 * so clients update the entry in place instead of dropping it.
 	 */
 	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string }): SessionState {
 		const key = summary.resource;
@@ -778,7 +783,16 @@ export class AgentHostStateManager extends Disposable {
 		};
 		this._sessionStates.set(key, this._newEntry(state, summary, SessionUse.Used));
 		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle);
-		this._summaryNotifier.announce(key, summary);
+		// A session that was previously surfaced (e.g. announced as an
+		// adoptable-legacy session) is already known to clients with a different
+		// summary. Emit the delta so they update the entry in place — clearing the
+		// adoptable marker — rather than dropping the just-opened session on the
+		// next list reconcile. Never-announced sessions record the summary silently.
+		if (this._summaryNotifier.isAnnounced(key)) {
+			this._summaryNotifier.flush(key);
+		} else {
+			this._summaryNotifier.announce(key, summary);
+		}
 
 		this._logService.trace(`[AgentHostStateManager] Restored session: ${key} (${turns.length} turns)`);
 
@@ -1389,6 +1403,13 @@ export class AgentHostStateManager extends Disposable {
 				}
 				if (sessionAction.type === ActionType.SessionConfigChanged) {
 					this._onDidChangeSessionConfig.fire({ session: key, previous: previousState.config, current: newState.config });
+				}
+				// The reducer returns the SAME state object when a working-directory
+				// action is a no-op, so a reference change here means the effective
+				// set actually changed. Multi-root operation suppression (turn /
+				// compare-turns) depends on this set, so consumers refresh operations.
+				if (previousState.workingDirectories !== newState.workingDirectories) {
+					this._onDidChangeSessionWorkingDirectories.fire({ session: key });
 				}
 
 				// When the reducer touched a summary-relevant field, notify

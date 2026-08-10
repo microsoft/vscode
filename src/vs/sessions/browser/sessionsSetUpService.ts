@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/sessionsSetUp.css';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { IObservable, runOnChange } from '../../base/common/observable.js';
 import { DeferredPromise, disposableTimeout } from '../../base/common/async.js';
@@ -28,7 +27,7 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
-import { observeUsableWithoutGitHub } from './sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, observeUsableWithoutGitHub } from './sessionsAuthGate.js';
 
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
@@ -37,6 +36,8 @@ import { Dialog, DialogContentsAlignment } from '../../base/browser/ui/dialog/di
 import { createWorkbenchDialogOptions } from '../../workbench/browser/parts/dialogs/dialog.js';
 import { MarkdownString } from '../../base/common/htmlContent.js';
 import { localize } from '../../nls.js';
+import { createSessionsSignInDialogOptions, SessionsSigningInDialog } from './sessionsSignInDialog.js';
+import { SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js';
 
 const AIDisabledConfig = 'chat.disableAIFeatures';
 
@@ -76,6 +77,15 @@ class SessionsSetUpWidget extends Disposable {
 	private _initialSetupFlow = true;
 	/** True while the window is open for a signed-out user via the conditional-auth opt-in. */
 	private _proceedingSignedOut = false;
+	/**
+	 * Set once the initial default-account resolution has completed. Until then
+	 * the synchronous {@link IDefaultAccountService.currentDefaultAccount} snapshot
+	 * is `null` even for a signed-in user, so a `null` reading means "not known
+	 * yet", not "signed out". The conditional-auth reaction stays inert until this
+	 * flips, otherwise it forces a sign-in modal on a signed-in user during the
+	 * startup gap — one nothing can retire, since the account resolves silently.
+	 */
+	private _accountResolved = false;
 	/** Whether a signed-out user can work without GitHub right now. */
 	private readonly _usableWithoutGitHub: IObservable<boolean>;
 
@@ -99,6 +109,7 @@ class SessionsSetUpWidget extends Disposable {
 		@IHostService private readonly hostService: IHostService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this._usableWithoutGitHub = observeUsableWithoutGitHub(this.sessionsManagementService, this.configurationService);
@@ -112,13 +123,17 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	/**
-	 * The last-resort gate's answer changed while the window is open. Signed-in
-	 * users are unaffected. Becoming usable retires an already-open sign-in
-	 * modal (it was raised before the answer resolved); becoming unusable falls
-	 * back to demanding sign-in.
+	 * The last-resort gate's answer changed while the window is open. Ignored
+	 * until the account has resolved (see {@link _accountResolved}) and for
+	 * signed-in users. For a signed-out user, becoming usable retires an
+	 * already-open sign-in modal (it was raised before the answer resolved);
+	 * becoming unusable falls back to demanding sign-in.
 	 */
 	private _onUsableWithoutGitHubChanged(usable: boolean): void {
-		if (this.defaultAccountService.currentDefaultAccount !== null) {
+		// Only act once the account has resolved AND the user is signed out; while
+		// unresolved or signed in, the sign-in watch owns the decision.
+		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
+		if (conditionalAuthState(this._accountResolved, signedIn) !== ConditionalAuthState.SignedOut) {
 			return;
 		}
 		if (!usable) {
@@ -140,6 +155,27 @@ class SessionsSetUpWidget extends Disposable {
 			this.onCompleted();
 			return;
 		}
+
+		// Learn when the default account resolves so the conditional-auth reaction
+		// can tell "signed out" from "not resolved yet". On first load the account
+		// is populated silently (no change event fires), so awaiting it once is the
+		// only signal that resolution has happened.
+		this.defaultAccountService.getDefaultAccount().then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._accountResolved = true;
+			// A `_usableWithoutGitHub` change during the unresolved window was
+			// ignored above. If the agent ended up usable, replay it now so a
+			// signed-out user is let in rather than stranded on a sign-in dialog
+			// nothing else retires — the web path has no post-resolution re-check
+			// of its own (the native paths re-read usability after they await the
+			// account). While not usable, the initial setup flow still owns the
+			// dialog, so there is nothing to replay.
+			if (this._usableWithoutGitHub.get()) {
+				this._onUsableWithoutGitHubChanged(true);
+			}
+		});
 
 		if (isWeb) {
 			void this._checkWebAuth().finally(() => this._initialSetupFlow = false);
@@ -235,10 +271,17 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	/**
-	 * Whether the Agents window must fall back to forcing GitHub sign-in. Every
-	 * caller is on a signed-out path, so this is simply the inverse of "can work
-	 * without GitHub" — always true while the opt-in is off, which is today's
-	 * mandatory-sign-in behavior.
+	 * The **window gate**: whether the Agents window must fall back to forcing
+	 * GitHub sign-in before showing any of the sessions UI. Every caller is on a
+	 * signed-out path, so this is simply the inverse of "can work without GitHub"
+	 * — always true while the opt-in is off, which is today's mandatory-sign-in
+	 * behavior.
+	 *
+	 * Deliberately a *last resort*, not the primary gate. The moment any session
+	 * type is usable without GitHub the window opens, and per-type on-demand
+	 * sign-in carries the rest — so this never blocks a user who has their own
+	 * credentials. See `sessionsAuthGate.ts` for the window-gate vs per-type-gate
+	 * distinction.
 	 */
 	private _mustForceGitHubSignIn(): boolean {
 		return !this._usableWithoutGitHub.get();
@@ -406,43 +449,40 @@ class SessionsSetUpWidget extends Disposable {
 		}
 		this.logService.info('[sessions welcome] Showing sign-in dialog');
 
-		const signingInDialogRef = new MutableDisposable<DisposableStore>();
+		while (true) {
+			const attemptDisposables = new DisposableStore();
+			const signingInDialogRef = attemptDisposables.add(new MutableDisposable<SessionsSigningInDialog>());
+			let canceled = false;
+			const showReturnToVSCodeEditor = !isWeb && (await this.commandService.executeCommand<boolean>(SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID)) === true;
 
-		const success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
-			forceSignInDialog: true,
-			dialogIcon: Codicon.agent,
-			dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
-			disableCloseButton: true,
-			onSignInStarted: () => {
-				const disposables = new DisposableStore();
-				signingInDialogRef.value = disposables;
-				const dialog = disposables.add(new Dialog(
-					this.layoutService.activeContainer,
-					localize('sessions.signingIn', "Signing in…"),
-					[],
-					createWorkbenchDialogOptions({
-						type: 'none',
-						extraClasses: ['chat-setup-dialog', 'sessions-welcome-dialog'],
-						detail: localize('sessions.signingIn.detail', "Please complete sign-in in the browser."),
-						icon: Codicon.agent,
-						alignment: DialogContentsAlignment.Vertical,
-						cancelId: 0,
-						disableCloseButton: true,
-						disableDefaultAction: true,
-					}, this.keybindingService, this.layoutService, this.hostService)
-				));
-				dialog.show();
+			let success: boolean | undefined;
+			try {
+				success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
+					...createSessionsSignInDialogOptions(this.commandService, showReturnToVSCodeEditor),
+					onSignInStarted: (cancel: () => void) => {
+						signingInDialogRef.value = this.instantiationService.createInstance(SessionsSigningInDialog, () => {
+							canceled = true;
+							cancel();
+						});
+					}
+				});
+			} finally {
+				attemptDisposables.dispose();
 			}
-		});
 
-		signingInDialogRef.dispose();
+			if (canceled) {
+				this.logService.info('[sessions welcome] Sign-in canceled; returning to sign-in dialog');
+				continue;
+			}
 
-		if (success) {
-			this.logService.info('[sessions welcome] Sign-in completed successfully');
-			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this.serviceMarkDone();
-		} else {
-			this.logService.info('[sessions welcome] Sign-in was canceled or failed');
+			if (success) {
+				this.logService.info('[sessions welcome] Sign-in completed successfully');
+				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.serviceMarkDone();
+			} else {
+				this.logService.info('[sessions welcome] Sign-in was canceled or failed');
+			}
+			return;
 		}
 	}
 

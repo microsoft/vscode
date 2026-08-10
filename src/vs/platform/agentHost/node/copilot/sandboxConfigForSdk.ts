@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CopilotSession } from '@github/copilot-sdk';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
@@ -19,48 +20,11 @@ export interface IAgentSandboxFileSystemSetting {
 	denyWrite?: string[];
 }
 
-/**
- * SDK-side sandbox configuration produced by {@link buildSandboxConfigForSdk}.
- *
- * Mirrors the SDK's `SandboxConfig` type (from
- * `@github/copilot-sdk`'s `SessionUpdateOptionsParams.sandboxConfig`) — the
- * same shape the Copilot extension produces via its own `buildSandboxConfigForCLI`.
- * Defined locally because `SandboxConfig` is not re-exported from the SDK's
- * public entry point.
- */
-export interface ISdkSandboxConfig {
-	enabled: boolean;
-	addCurrentWorkingDirectory?: boolean;
-	allowDevToolAccess?: boolean;
-	gitAuth?: boolean;
-	ghAuth?: boolean;
-	userPolicy?: {
-		filesystem?: {
-			readwritePaths?: string[];
-			readonlyPaths?: string[];
-			deniedPaths?: string[];
-			clearPolicyOnExit?: boolean;
-		};
-		network?: {
-			allowOutbound?: boolean;
-			allowLocalNetwork?: boolean;
-			proxy?: {
-				url: string;
-				username?: string;
-				password?: string;
-			};
-		};
-		seatbelt?: {
-			keychainAccess?: boolean;
-		};
-		/** @deprecated Use `seatbelt` instead. */
-		experimental?: {
-			seatbelt?: {
-				keychainAccess?: boolean;
-			};
-		};
-	};
-}
+type SdkSandboxConfig = NonNullable<Parameters<CopilotSession['rpc']['options']['update']>[0]['sandboxConfig']>;
+
+export type CopilotSandboxConfig = SdkSandboxConfig & {
+	readonly allowBypass?: boolean;
+};
 
 /**
  * Translate the AgentHost's host-side sandbox configuration into the
@@ -91,7 +55,7 @@ export interface ISdkSandboxConfig {
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
-): ISdkSandboxConfig | undefined {
+): CopilotSandboxConfig | undefined {
 	if (!sandbox) {
 		return undefined;
 	}

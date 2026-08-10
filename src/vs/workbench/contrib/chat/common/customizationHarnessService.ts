@@ -92,8 +92,7 @@ export interface IHarnessDescriptor {
 	/**
 	 * Per-section overrides for the create button behavior.
 	 *
-	 * A `commandId` entry replaces the button entirely with a command
-	 * invocation (e.g. Claude hooks → `copilot.claude.hooks`).
+	 * A `commandId` entry replaces the button entirely with a command invocation.
 	 *
 	 * A `rootFile` entry makes the primary button create a specific file
 	 * at the workspace root (e.g. Claude instructions → `CLAUDE.md`).
