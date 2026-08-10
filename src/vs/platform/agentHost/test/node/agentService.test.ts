@@ -6058,10 +6058,10 @@ suite('AgentService (node dispatcher)', () => {
 			for (let i = 0; i < 50 && materializeCalls === 0; i++) {
 				await timeout(0);
 			}
+			const firstSubscribeRejected = assert.rejects(firstSubscribe, /invalidated/);
 			const dispose = localService.disposeSession(session);
 			firstMaterialization.complete();
-			await dispose;
-			await assert.rejects(() => firstSubscribe, /invalidated/);
+			await Promise.all([dispose, firstSubscribeRejected]);
 			const stateAfterStaleResolution = localService.stateManager.getChatState(peerUri.toString());
 
 			await localService.createSession({ provider: 'copilot', session });
