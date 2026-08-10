@@ -280,7 +280,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			},
 		}));
 
-		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
+		// The Agents window rewrites workspace folder 0 to follow the active session, so
+		// workspace-scoped content there belongs to whichever session is focused rather
+		// than to this window-global bundle. A local agent host discovers it per-session
+		// anyway. See `ILocalCustomizationSyncOptions.includeWorkspaceStorage`.
+		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType, {
+			includeWorkspaceStorage: !this._isSessionsWindow,
+		}));
 		const syncProvider = agentRegistration.syncProvider;
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,

@@ -972,7 +972,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			connection,
 		));
 
-		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType, { includeUserStorage: true }));
+		// A remote host runs on another machine and cannot natively discover any of this
+		// client's files, so both user and workspace storage are synced to it. This is the
+		// one registration where the client bundle is load-bearing rather than redundant.
+		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType, {
+			includeUserStorage: true,
+			includeWorkspaceStorage: true,
+		}));
 		const syncProvider = agentRegistration.syncProvider;
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,

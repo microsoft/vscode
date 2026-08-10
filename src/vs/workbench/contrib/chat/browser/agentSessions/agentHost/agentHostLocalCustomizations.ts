@@ -71,6 +71,10 @@ export interface ILocalCustomizationSyncOptions {
 	 * workspace-discovered MCP servers — may be bundled into the synthetic
 	 * synced plugin. Defaults to `true`.
 	 *
+	 * Every caller states this explicitly, because the correct value depends on
+	 * facts the service cannot see: whether the window's workspace is stable,
+	 * and whether the host can discover these files for itself.
+	 *
 	 * Must be `false` wherever the window's workspace folders are a transient
 	 * reflection of some *other* piece of state rather than a stable, user-chosen
 	 * workspace. The Agents window is exactly that case: it rewrites workspace
@@ -81,16 +85,19 @@ export interface ILocalCustomizationSyncOptions {
 	 * The synthetic bundle, by contrast, is a single window-global artifact
 	 * shared by *every* session of a session type. Mixing the two means each
 	 * focus change rewrites the bundle, which changes its content nonce and
-	 * forces the agent host to destroy and resume every live session
+	 * forces the agent host to destroy and resume the session on its next send
 	 * (`ActiveClient.requiresRestart`). It is also simply wrong: sessions get a
 	 * second copy of another worktree's instructions on top of their own.
 	 *
-	 * Nothing important is lost by excluding it — the agent host natively
-	 * discovers `.github/instructions`, `.github/skills`, `.github/agents` and
-	 * friends from each session's own working directory (see
-	 * `SessionCustomizationDiscovery`), which is the correct source. This
-	 * mirrors the existing rule that local agent hosts exclude user storage
-	 * because native discovery already reads the same machine's user home.
+	 * For a *local* agent host nothing important is lost by excluding it — the
+	 * host natively discovers `.github/instructions`, `.github/skills`,
+	 * `.github/agents` and friends from each session's own working directory
+	 * (see `SessionCustomizationDiscovery`), which is the correct source.
+	 *
+	 * A *remote* agent host is the opposite case and must pass `true`: it runs on
+	 * another machine and cannot discover any of this client's files, so the
+	 * client bundle is load-bearing rather than redundant. This is the same
+	 * reason remote registrations opt into user storage.
 	 *
 	 * The one type with no native equivalent is workspace `.github/prompts`
 	 * (bundled as `commands/`). Those stop reaching sessions when this is
