@@ -72,10 +72,21 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * change) issue at most one GitHub request at a time.
 	 */
 	private _queuePullRequestLookup(sessionKey: string): Promise<void> {
-		return this._pullRequestSequencer.queue(sessionKey, () => this._attachSessionGitHubPullRequest(sessionKey));
+		if (this._disposingSessions.has(sessionKey)) {
+			return Promise.resolve();
+		}
+		return this._pullRequestSequencer.queue(sessionKey, () => {
+			if (this._disposingSessions.has(sessionKey)) {
+				return Promise.resolve();
+			}
+			return this._attachSessionGitHubPullRequest(sessionKey);
+		});
 	}
 
 	private async _attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+		if (this._disposingSessions.has(sessionKey)) {
+			return;
+		}
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			return;
@@ -284,14 +295,14 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	async onSessionDisposed(sessionKey: string): Promise<void> {
 		this._disposingSessions.add(sessionKey);
 		this._disposeRefreshCancellationTokenSource(sessionKey);
+		const pendingPullRequestLookup = this._pullRequestSequencer.peek(sessionKey);
 		const pendingRefreshes = this._pendingRefreshes.get(sessionKey);
-		if (pendingRefreshes) {
-			await Promise.allSettled([...pendingRefreshes]);
-		}
 		const pendingPersistence = this._pendingPersistence.get(sessionKey);
-		if (pendingPersistence) {
-			await Promise.allSettled([...pendingPersistence]);
-		}
+		await Promise.allSettled([
+			...(pendingRefreshes ?? []),
+			...(pendingPersistence ?? []),
+			...(pendingPullRequestLookup ? [pendingPullRequestLookup] : []),
+		]);
 	}
 
 	onSessionDeleted(sessionKey: string): void {

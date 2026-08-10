@@ -92,6 +92,7 @@ suite('AgentHostGitStateService', () => {
 		let gitResult: ISessionGitState | undefined;
 		let gitError: Error | undefined;
 		let onGitStateLookup: (() => Promise<void>) | undefined;
+		let onRevParse: (() => Promise<void>) | undefined;
 		let headSha: string | undefined;
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
@@ -103,7 +104,10 @@ suite('AgentHostGitStateService', () => {
 				}
 				return gitResult;
 			},
-			revParse: async () => headSha,
+			revParse: async () => {
+				await onRevParse?.();
+				return headSha;
+			},
 		};
 
 		const pullRequestCalls: string[] = [];
@@ -148,6 +152,7 @@ suite('AgentHostGitStateService', () => {
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitError: (error: Error) => { gitError = error; },
 			setOnGitStateLookup: (fn: () => Promise<void>) => { onGitStateLookup = fn; },
+			setOnRevParse: (fn: () => Promise<void>) => { onRevParse = fn; },
 			setHeadSha: (sha: string | undefined) => { headSha = sha; },
 			setPullRequest: (branch: string, pullRequest: CreatedPullRequest) => { pullRequestsByBranch.set(branch, pullRequest); },
 			setPullRequestForSha: (sha: string, pullRequest: CreatedPullRequest) => { pullRequestsBySha.set(sha, pullRequest); },
@@ -224,6 +229,50 @@ suite('AgentHostGitStateService', () => {
 			disposalCompleted: true,
 			gitState: undefined,
 			persistedGitState: undefined,
+		});
+	});
+
+	test('session disposal drains an in-flight pull request lookup and blocks new lookups', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = { branchName: 'local-only', baseBranchName: 'main' };
+			const h = createHarness();
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+			});
+			h.setGitResult(gitState);
+			h.setHeadSha('1ce2c20d3dcb593273f604b077240543d494e276');
+			const revParseStarted = new DeferredPromise<void>();
+			const releaseRevParse = new DeferredPromise<void>();
+			h.setOnRevParse(async () => {
+				revParseStarted.complete(undefined);
+				await releaseRevParse.p;
+			});
+
+			const lookup = h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+			await revParseStarted.p;
+			let disposalCompleted = false;
+			const disposal = h.service.onSessionDisposed(SESSION).then(() => {
+				disposalCompleted = true;
+			});
+			const blockedLookup = h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+			await Promise.resolve();
+
+			assert.deepStrictEqual({ disposalCompleted, pullRequestCalls: h.pullRequestCalls }, { disposalCompleted: false, pullRequestCalls: ['local-only'] });
+
+			releaseRevParse.complete(undefined);
+			await Promise.all([lookup, blockedLookup, disposal]);
+
+			assert.deepStrictEqual({
+				disposalCompleted,
+				pullRequestCalls: h.pullRequestCalls,
+				pullRequestShaCalls: h.pullRequestShaCalls,
+			}, {
+				disposalCompleted: true,
+				pullRequestCalls: ['local-only'],
+				pullRequestShaCalls: ['1ce2c20d3dcb593273f604b077240543d494e276'],
+			});
 		});
 	});
 

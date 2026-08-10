@@ -110,13 +110,18 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		this._retryWatchAttachment(sessionStr);
 	}
 
-	onSessionDisposed(sessionStr: string): void {
+	async onSessionDisposed(sessionStr: string): Promise<void> {
 		this._disposingSessions.add(sessionStr);
 		this.untrackSessionChanges(buildUncommittedChangesetUri(sessionStr));
 		this.untrackSessionChanges(buildSessionChangesetUri(sessionStr));
 		this.untrackSessionChanges(sessionStr);
 		this._removeActiveSession(sessionStr);
 		this._destroyWatchInterest(sessionStr);
+
+		await Promise.allSettled([
+			this._watchAttachmentSequencer.peek(sessionStr),
+			this._activeTurnSequencer.peek(sessionStr),
+		].filter((pending): pending is Promise<unknown> => pending !== undefined));
 	}
 
 	onSessionDeleted(sessionStr: string): void {
@@ -124,6 +129,9 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
+		if (this._disposingSessions.has(sessionStr)) {
+			return;
+		}
 		this._activeTurnSequencer.queue(sessionStr, async () => {
 			if (active) {
 				await this._markSessionActive(sessionStr);

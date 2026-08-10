@@ -29,6 +29,12 @@ import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChang
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 
+type TestGitService = IAgentHostGitService & {
+	readonly rootLookupCalls: string[];
+	waitForRootLookups(count: number): Promise<void>;
+	blockNextRootLookup(): { readonly started: Promise<void>; release(): void };
+};
+
 suite('ChangesetSessionCoordinator', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,7 +59,7 @@ suite('ChangesetSessionCoordinator', () => {
 		changesets: TestChangesetService;
 		subscriptions: IAgentHostChangesetSubscriptionService;
 		monitor: TestFileMonitorService;
-		gitService: IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> };
+		gitService: TestGitService;
 		gitStateService: TestGitStateService;
 		coordinator: AgentHostChangesetCoordinator;
 	} {
@@ -328,11 +334,56 @@ suite('ChangesetSessionCoordinator', () => {
 			disposals: ['file:///repo'],
 		});
 	});
+
+	test('session disposal waits for watcher attachment root resolution', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const rootLookup = environment.gitService.blockNextRootLookup();
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await rootLookup.started;
+		let disposalCompleted = false;
+		const disposal = environment.coordinator.onSessionDisposed(session).then(() => {
+			disposalCompleted = true;
+		});
+		await tick();
+
+		assert.strictEqual(disposalCompleted, false);
+
+		rootLookup.release();
+		await disposal;
+
+		assert.deepStrictEqual({ disposalCompleted, acquisitions: environment.monitor.acquisitions }, { disposalCompleted: true, acquisitions: [] });
+	});
+
+	test('session disposal waits for active-turn root resolution', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const rootLookup = environment.gitService.blockNextRootLookup();
+
+		environment.coordinator.onSessionTurnActiveChanged(session, true);
+		await rootLookup.started;
+		let disposalCompleted = false;
+		const disposal = environment.coordinator.onSessionDisposed(session).then(() => {
+			disposalCompleted = true;
+		});
+		await tick();
+
+		assert.strictEqual(disposalCompleted, false);
+
+		rootLookup.release();
+		await disposal;
+
+		assert.strictEqual(disposalCompleted, true);
+	});
 });
 
-function createGitService(root: URI): IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> } {
+function createGitService(root: URI): TestGitService {
 	const rootLookupCalls: string[] = [];
 	const waiters: Array<{ count: number; deferred: DeferredPromise<void> }> = [];
+	let blockedRootLookup: { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } | undefined;
 	const releaseWaiters = () => {
 		for (const waiter of [...waiters]) {
 			if (rootLookupCalls.length >= waiter.count) {
@@ -347,6 +398,12 @@ function createGitService(root: URI): IAgentHostGitService & { readonly rootLook
 		async getRepositoryRoot(workingDirectory: URI): Promise<URI> {
 			rootLookupCalls.push(workingDirectory.toString());
 			releaseWaiters();
+			if (blockedRootLookup) {
+				const current = blockedRootLookup;
+				blockedRootLookup = undefined;
+				current.started.complete(undefined);
+				await current.release.p;
+			}
 			return root;
 		},
 		waitForRootLookups(count: number): Promise<void> {
@@ -356,6 +413,15 @@ function createGitService(root: URI): IAgentHostGitService & { readonly rootLook
 			const deferred = new DeferredPromise<void>();
 			waiters.push({ count, deferred });
 			return deferred.p;
+		},
+		blockNextRootLookup() {
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			blockedRootLookup = { started, release };
+			return {
+				started: started.p,
+				release: () => release.complete(undefined),
+			};
 		},
 	};
 }

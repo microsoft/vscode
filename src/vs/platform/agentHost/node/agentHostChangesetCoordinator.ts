@@ -115,10 +115,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 */
 	async onSessionDisposed(sessionStr: string): Promise<void> {
 		this._disposingSessions.add(sessionStr);
-		this._changesetFileMonitor.onSessionDisposed(sessionStr);
+		const fileMonitorDisposal = this._changesetFileMonitor.onSessionDisposed(sessionStr);
 		this._changesetSubscriptions.clearSessionSubscriptions(sessionStr);
-		await this._gitStateService.onSessionDisposed(sessionStr);
-		await this._changesets.onSessionDisposed(sessionStr);
+		await Promise.all([
+			fileMonitorDisposal,
+			this._gitStateService.onSessionDisposed(sessionStr),
+			this._changesets.onSessionDisposed(sessionStr),
+		]);
 	}
 
 	onSessionDeleted(sessionStr: string): void {
