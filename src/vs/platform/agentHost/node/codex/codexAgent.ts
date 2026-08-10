@@ -1788,8 +1788,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		const host = this._serverToolHost;
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
-				const entry = session.mapState.itemToToolCall.get(params.callId);
-				if (entry && host.requiresConfirmation(session.sessionUri.toString(), params.tool)) {
+				if (host.requiresConfirmation(session.sessionUri.toString(), params.tool)) {
+					const entry = session.mapState.itemToToolCall.get(params.callId);
+					if (!entry) {
+						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
+					}
 					const invocationMessage = getServerToolDisplay(params.tool, params.arguments)?.invocationMessage ?? `Calling ${params.tool}`;
 					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
 						this._fire(session.sessionUri, {

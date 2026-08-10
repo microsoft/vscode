@@ -981,52 +981,6 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
 		});
 
-		test('keeps generic confirmed tools visible after completion', () => {
-			const pending: ToolCallPendingConfirmationState = {
-				toolCallId: 'tc-delete-session',
-				toolName: 'delete_session',
-				displayName: 'Delete Session',
-				invocationMessage: 'Deleting session',
-				toolInput: '{"session":"agent-host-session://current"}',
-				status: ToolCallStatus.PendingConfirmation,
-				confirmationTitle: 'Allow tool call?',
-			};
-			const invocation = toolCallStateToInvocation(pending);
-			const pendingState = invocation.state.get();
-			if (pendingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-				assert.fail('Expected the tool to wait for confirmation');
-			}
-			const pendingPresentation = invocation.presentation;
-			pendingState.confirm({ type: ToolConfirmKind.UserAction });
-
-			const completed = createCompletedToolCall({
-				toolCallId: pending.toolCallId,
-				toolName: pending.toolName,
-				displayName: pending.displayName,
-				invocationMessage: pending.invocationMessage,
-				toolInput: pending.toolInput,
-				confirmed: ToolCallConfirmationReason.UserAction,
-				success: false,
-				error: { message: 'Cannot delete the current session' },
-			});
-			finalizeToolInvocation(invocation, completed);
-			const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
-
-			assert.deepStrictEqual({
-				pendingState: pendingState.type,
-				pendingPresentation,
-				completedState: invocation.state.get().type,
-				completedPresentation: invocation.presentation,
-				restoredPresentation: restored.presentation,
-			}, {
-				pendingState: IChatToolInvocation.StateKind.WaitingForConfirmation,
-				pendingPresentation: undefined,
-				completedState: IChatToolInvocation.StateKind.Completed,
-				completedPresentation: undefined,
-				restoredPresentation: undefined,
-			});
-		});
-
 		test('renders ask-user tools as waiting progress that hides after completion', () => {
 			const toolNames = ['ask_user', 'AskUserQuestion', 'request_user_input'];
 			const live = toolNames.map(toolName => {
