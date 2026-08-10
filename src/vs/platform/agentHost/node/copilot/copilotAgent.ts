@@ -3103,9 +3103,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		const existingBacking = this._chatBackings.get(chatKey);
 		if (existingBacking) {
-			if (isEqual(context.resource, session) && existingBacking.sdkSessionId === sessionId) {
-				return;
-			}
 			return { providerData: encodeProviderData(existingBacking), backingSession: AgentSession.uri(this.id, existingBacking.sdkSessionId) };
 		}
 		let result: IAgentCreateChatResult | undefined;
@@ -3115,14 +3112,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await queue(async () => {
 			const existing = this._chatBackings.get(chatKey);
 			if (existing) {
-				if (isEqual(context.resource, session) && existing.sdkSessionId === sessionId) {
-					return;
-				}
 				result = { providerData: encodeProviderData(existing), backingSession: AgentSession.uri(this.id, existing.sdkSessionId) };
-				return;
-			}
-			if (isEqual(context.resource, session)) {
-				this._bindSessionChat(sessionId, chat);
 				return;
 			}
 			const model = options?.model;

@@ -5400,7 +5400,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('createChat is a no-op for the session-backed chat URI', async () => {
+		test('createChat returns the existing backing without inferring a chat role from the resource', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
 			try {
@@ -5411,12 +5411,14 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = () => { throw new Error('_createAgentSession must not be called for the session-backed chat'); };
 
-				await agent.chats.createChat(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session), {});
+				const result = await agent.chats.createChat(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session), {});
 
 				assert.deepStrictEqual({
 					tracked: peerChatCount(agent),
+					providerData: result?.providerData ? JSON.parse(result.providerData) : undefined,
 				}, {
 					tracked: 0,
+					providerData: { sdkSessionId: AgentSession.id(session) },
 				});
 			} finally {
 				await disposeAgent(agent);
