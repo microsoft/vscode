@@ -635,9 +635,10 @@ export interface IAgentHostNetworkDiagnosticsInfo {
 
 export interface IAgentHostManagedSettingsSnapshot {
 	readonly account?: string;
-	readonly source: 'server' | 'device' | 'none';
+	readonly source: 'server' | 'device' | 'client' | 'mixed' | 'none';
 	readonly serverManaged: boolean;
 	readonly deviceManaged: boolean;
+	readonly clientManaged?: boolean;
 	readonly failClosed: boolean;
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;

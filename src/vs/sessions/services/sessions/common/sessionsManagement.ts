@@ -484,6 +484,9 @@ export interface ISessionsManagementService {
 
 	// -- Session Actions --
 
+	/** Cancel the current request in a session's main chat. */
+	cancelCurrentRequest(session: ISession): Promise<void>;
+
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
 

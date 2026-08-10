@@ -669,7 +669,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('commit changeset operation generates a message and commits mixed changes', async function () {
+	test('commit changeset operation generates a message and commits mixed changes', async function () {
 		this.timeout(240_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-commit-'));
 		tempDirs.push(workspace);

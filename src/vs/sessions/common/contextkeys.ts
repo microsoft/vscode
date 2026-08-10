@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
 
 //#region < --- Active Session --- >
 
@@ -51,6 +52,15 @@ export const ActiveSessionsContext = new RawContextKey<string>('activeSessions',
 export const SessionsFocusContext = new RawContextKey<boolean>('sessionsFocus', false, localize('sessionsFocus', "Whether the sessions part has keyboard focus"));
 export const SessionsVisibleContext = new RawContextKey<boolean>('sessionsVisible', false, localize('sessionsVisible', "Whether the sessions part is visible"));
 export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multipleSessionsVisible', false, localize('multipleSessionsVisible', "Whether more than one session is visible in the sessions part's grid"));
+export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessionsHasClosedItem', false, localize('sessionsHasClosedItem', "Whether a chat or session was closed recently and can be reopened with the Reopen Closed Chat or Session command"));
+
+/**
+ * Focus is inside the Agents window's editor surface: an editor part, or the
+ * auxiliary bar, which the single-pane layout docks into the side pane as the
+ * detail panel (Files/Changes). Shortcuts shared with VS Code's editor
+ * commands defer to those commands while this holds.
+ */
+export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusContext, AuxiliaryBarFocusContext)!;
 
 //#endregion
 
