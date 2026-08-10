@@ -690,7 +690,6 @@ export enum ModelConfigurationUnification {
 }
 
 export const COMPLETIONS_NES_UNIFICATION_DEFAULTS = {
-	useSlashModels: false,
 	nLinesBelow: 7,
 	nLinesAbove: 0,
 	unification: true,

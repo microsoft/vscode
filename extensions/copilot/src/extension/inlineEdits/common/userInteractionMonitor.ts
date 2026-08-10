@@ -276,7 +276,7 @@ export class UserInteractionMonitor {
 		}
 
 		// Team-internal experiment-based override
-		const configuredAggressivenessLevel = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel, this._experimentationService);
+		const configuredAggressivenessLevel = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, this._experimentationService);
 
 		if (configuredAggressivenessLevel !== undefined) {
 			return { aggressivenessLevel: configuredAggressivenessLevel, userHappinessScore: undefined };

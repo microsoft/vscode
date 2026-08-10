@@ -61,7 +61,7 @@ class MockConfigurationService extends InMemoryConfigurationService {
 	}
 
 	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T {
-		if (this._useAdaptiveAggressiveness && key === ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel) {
+		if (this._useAdaptiveAggressiveness && key === ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel) {
 			return undefined as T;
 		}
 		return super.getExperimentBasedConfig(key, experimentationService, scope, defaultValueOverride);
@@ -257,7 +257,7 @@ describe('UserInteractionMonitor', () => {
 
 		test('explicit user eagerness takes priority over configured aggressiveness', () => {
 			configurationService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, AggressivenessSetting.High);
-			configurationService.setConfig(ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel, AggressivenessLevel.Low);
+			configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, AggressivenessLevel.Low);
 
 			expect(monitor.getAggressivenessLevel()).toEqual({
 				aggressivenessLevel: AggressivenessLevel.High,
@@ -289,7 +289,7 @@ describe('UserInteractionMonitor', () => {
 
 		test('respects configured aggressiveness level override', () => {
 			configurationService.setConfig(
-				ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel,
+				ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel,
 				AggressivenessLevel.Low
 			);
 

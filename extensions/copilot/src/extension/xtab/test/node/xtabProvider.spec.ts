@@ -1054,7 +1054,7 @@ describe('XtabProvider integration', () => {
 			const lines = ['const x = 1;', 'const y = 2;'];
 			const captureUserPrompt = async (promptingStrategy: PromptingStrategy, aggressivenessLevel: AggressivenessLevel) => {
 				mockModelService.setSelectedConfig({ promptingStrategy });
-				await configService.setConfig(ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel, aggressivenessLevel);
+				await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, aggressivenessLevel);
 				streamingFetcher.setStreamingLines(lines);
 
 				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);

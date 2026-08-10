@@ -4369,20 +4369,6 @@
               "experimental"
             ]
           },
-          "github.copilot.chat.inlineEdits.xtabProvider.aggressivenessLevel": {
-            "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ],
-            "default": "medium",
-            "markdownDescription": "Controls the aggressiveness level for next edit suggestions.\n\n**Note**: This is an advanced setting.",
-            "tags": [
-              "advanced",
-              "experimental"
-            ]
-          },
           "github.copilot.chat.reasoningEffortOverride": {
             "type": [
               "string",
