@@ -851,8 +851,14 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.
 			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
-			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
-			...(options?.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
+			// Keep replay on unified exec and exclude unrelated remote plugin-catalog work.
+			...(options?.codexSdkRoot && options.capiReplay ? {
+				[AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify([
+					'-c', 'features.unified_exec=true',
+					'-c', 'features.plugins=false',
+					'-c', 'features.remote_plugin=false',
+				]),
+			} : {}),
 			...(realCapture ? {
 				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
 				// the proxy. The real GitHub token flows via the `authenticate`
