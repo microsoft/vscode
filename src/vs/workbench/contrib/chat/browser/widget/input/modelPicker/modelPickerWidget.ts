@@ -30,7 +30,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { chatRequiresSetup, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -42,7 +42,7 @@ import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { buildModelPickerItems, createManageModelsAction, getModelPickerAccessibilityProvider, getModelPickerControlModels, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
 import { getModelPickerIcon } from './modelProviderIcons.js';
-import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 type ChatModelChangeClassification = {
@@ -153,6 +153,10 @@ export class ModelPickerWidget extends Disposable {
 			shouldShowCacheBreakHint: () => this.shouldShowCacheBreakHint(/* excludeAutoModel */ false),
 			getCacheBreakLearnMoreLink: () => this.getCacheBreakLearnMoreLink(),
 			dismissCacheBreakHint: () => this.dismissCacheBreakHint(),
+			onDidChangeVisibility: visible => this._delegate.onDidChangeVisibility?.(visible),
+			getActionWidgetContainer: () => this._delegate.actionWidgetContainer,
+			getActionWidgetAnchor: anchor => this._delegate.getActionWidgetAnchor?.(anchor) ?? anchor,
+			getAnchorPosition: () => this._delegate.anchorPosition,
 		});
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._activatingAfterTrust && this._delegate.getModels().length > 0) {
@@ -252,13 +256,7 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _requiresSetup(): boolean {
-		const sentiment = this._entitlementService.sentiment;
-		return chatRequiresSetup({
-			completed: !!sentiment.completed,
-			disabled: !!sentiment.disabled,
-			// Don't derive `untrusted` from sentiment (it lags after a Trust grant): trust is handled
-			// authoritatively by the Restricted branch, which runs first, so it's false here.
-			untrusted: false,
+		return modelPickerRequiresSetup({
 			entitlement: this._entitlementService.entitlement,
 			anonymous: this._entitlementService.anonymous,
 			hasByokModels: this._entitlementService.hasByokModels,
@@ -354,13 +352,30 @@ export class ModelPickerWidget extends Disposable {
 	 * Registers mouse-down and Enter/Space key handlers on a button element.
 	 */
 	private _registerButtonAction(element: HTMLElement, action: () => void): void {
-		this._register(dom.addDisposableGenericMouseDownListener(element, e => {
+		let expandedOnMouseDown = false;
+		if (this._delegate.openOnMouseUp) {
+			this._register(dom.addDisposableGenericMouseDownListener(element, e => {
+				// Focusing this window can dismiss a picker in another window before mouse-up.
+				if (e.button === 0) {
+					expandedOnMouseDown = element.getAttribute('aria-expanded') === 'true';
+				}
+			}));
+		}
+		const runAction = (e: MouseEvent) => {
 			if (e.button !== 0) {
 				return;
 			}
 			dom.EventHelper.stop(e, true);
+			if (this._delegate.openOnMouseUp && expandedOnMouseDown && element.getAttribute('aria-expanded') !== 'true') {
+				expandedOnMouseDown = false;
+				return;
+			}
+			expandedOnMouseDown = false;
 			action();
-		}));
+		};
+		this._register(this._delegate.openOnMouseUp
+			? dom.addDisposableGenericMouseUpListener(element, runAction)
+			: dom.addDisposableGenericMouseDownListener(element, runAction));
 		this._register(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -582,7 +597,7 @@ export class ModelPickerWidget extends Disposable {
 				false,
 				items,
 				delegate,
-				anchorElement,
+				this._delegate.getActionWidgetAnchor?.(anchorElement) ?? anchorElement,
 				this._delegate.actionWidgetContainer,
 				[],
 				getModelPickerAccessibilityProvider(),
@@ -621,6 +636,7 @@ export class ModelPickerWidget extends Disposable {
 	override dispose(): void {
 		this._showRequestId++;
 		this._activeShowDisposables.clear();
+		this._configuration.dispose();
 		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
 			this._actionWidgetService.hide(true);
 		}

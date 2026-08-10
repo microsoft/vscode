@@ -422,6 +422,7 @@
 	align-items: center;
 	justify-content: center;
 	background: none !important;
+	color: inherit;
 }
 
 .agent-status-badge-section.sparkle .action-container .action-label {

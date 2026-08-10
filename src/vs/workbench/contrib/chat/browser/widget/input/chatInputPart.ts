@@ -12,6 +12,7 @@ import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/act
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
+import { IAnchor } from '../../../../../../base/browser/ui/contextview/contextview.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
@@ -258,7 +259,9 @@ export interface IChatInputPartOptions {
 	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
 	inputPickerPosition?: AnchorPosition;
-	inputPickerContainer?: HTMLElement;
+	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
+	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
+	inputPickerOpenOnMouseUp?: boolean;
 	onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 }
 
@@ -1212,6 +1215,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _createModelPickerDelegate(): IModelPickerDelegate {
+		const inputPickerContainer = this.options.inputPickerContainer;
 		return {
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
@@ -1224,7 +1228,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			modelConfiguration: this._modelConfigStore,
 			onDidChangeVisibility: this.options.onDidChangeModelPickerVisibility,
 			anchorPosition: this.options.inputPickerPosition,
-			actionWidgetContainer: this.options.inputPickerContainer,
+			get actionWidgetContainer() {
+				return typeof inputPickerContainer === 'function' ? inputPickerContainer() : inputPickerContainer;
+			},
+			getActionWidgetAnchor: this.options.inputPickerAnchor,
+			openOnMouseUp: this.options.inputPickerOpenOnMouseUp,
 		};
 	}
 
@@ -1243,8 +1251,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _usesHarnessProviderIcon(): boolean {
 		const sessionType = this.getCurrentSessionType();
-		return sessionType === SessionType.ClaudeCode
-			|| sessionType === SessionType.Codex
+		return sessionType === SessionType.Codex
 			|| sessionType === SessionType.AgentHostClaude
 			|| sessionType === SessionType.AgentHostCodex;
 	}

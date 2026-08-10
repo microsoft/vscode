@@ -493,8 +493,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private _defaultTransportMode(): ClaudeTransportMode {
 		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		const hasExistingSetup = allowSignedOutWhenUsable && detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
-		return resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup });
+		return resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup: this._hasUsableNativeSetup() });
+	}
+
+	/**
+	 * Whether Claude can run without GitHub right now: the signed-out opt-in is on
+	 * AND a BYO-Anthropic credential is discoverable (see
+	 * {@link detectExistingClaudeSetup}). Backs both the advertised requirement and
+	 * the model-less transport default so the two cannot disagree.
+	 */
+	private _hasUsableNativeSetup(): boolean {
+		return this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true
+			&& detectExistingClaudeSetup(this._environmentService.userHome.fsPath);
 	}
 
 	// #region Descriptor + auth
@@ -516,25 +526,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
-		// The transport is chosen per session from the picked model, so no
-		// host-global mode can make Copilot strictly required: advertise the
-		// Copilot resource as optional (`required: false`, mirroring Codex's
-		// always-optional Copilot resource). Two effects, both wanted:
-		//   1. The host silently forwards a GitHub token IFF the user is already
-		//      signed in (no prompt when signed out) — the sign-in probe that lets
-		//      `authenticate()` acquire a proxy handle for Copilot-routed models
-		//      (after which model-less sessions default to proxy; see
-		//      {@link _defaultTransportMode}).
-		//   2. `required: false` still tells the window gate the type is usable
-		//      without GitHub when signed out (see
-		//      `protectedResourcesRequireGitHubCopilotSignIn`, which checks
-		//      `required !== false`), so no sign-in is forced.
-		// `_ensureAuthenticated(model)` raises `AHP_AUTH_REQUIRED` only for the
-		// sessions that actually pick a Copilot-routed model without a proxy
-		// handle. The optional repo resource is kept for git operations either way.
+		// Kept in the list even when optional, never dropped:
+		// `authenticateProtectedResources` matches on `resource` and ignores
+		// `required`, so advertising it is what lets the host silently forward a
+		// token to an already-signed-in user — and acquire the proxy handle
+		// Copilot-routed models need — without forcing sign-in on anyone else.
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
-			{ ...copilotResource, required: false },
+			this._hasUsableNativeSetup() ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
@@ -631,10 +630,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._githubToken = token;
 		this._logService.info('[Claude] Auth token updated');
 		oldHandle?.dispose();
-		// A different account can have different model entitlements; do not retain
-		// the previous list if enumeration for the new token fails. The `models`
-		// write also republishes the protected resources downstream.
-		this._models.set([], undefined);
+		// Blank the catalog only on a *replacement*: a different account can have
+		// different model entitlements, so don't retain the previous list if
+		// enumeration for the new token fails.
+		//
+		// A first sign-in (no `oldHandle`) must NOT blank. It has no superseded
+		// account to drop, and the catalog it would clear is native-only — the
+		// bootstrap list, which is account-independent and stays valid. Blanking
+		// there publishes an empty catalog for the length of the refresh, which the
+		// window gate reads as `SessionTypeAuthRequirement.Unusable` (an agent with
+		// no models is unusable). That closes the `allowSignedOutWhenUsable` gate
+		// mid-startup and forces the sign-in dialog on a user who is already signed
+		// in — the GitHub session resolves before the Copilot default account does,
+		// so the welcome flow still believes it is signed out.
+		if (oldHandle) {
+			this._models.set([], undefined);
+		}
 		void this._startModelRefresh();
 		return true;
 	}
@@ -1102,7 +1113,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _makeCanUseTool(sdkSessionId: string): NonNullable<Options['canUseTool']> {
 		return (toolName, input, options) =>
 			handleCanUseTool(
-				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService },
+				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService, serverToolHost: this._serverToolHost },
 				sdkSessionId, toolName, input, options,
 			);
 	}

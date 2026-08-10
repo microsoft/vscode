@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../../base/common/map.js';
 import { constObservable, derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -31,6 +32,7 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatResponseFileChangesProvider, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
 
 const SUBSCRIPTION_OWNER = 'AgentHostResponseFileChangesProvider';
+const REQUEST_CACHE_CAPACITY = 1000;
 
 function uriArrayEquals(a: readonly URI[], b: readonly URI[]): boolean {
 	return a.length === b.length && a.every((uri, index) => isEqual(uri, b[index]));
@@ -67,8 +69,8 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
  */
 export class AgentHostResponseFileChangesProvider extends Disposable implements IChatResponseFileChangesProvider {
 
-	private readonly _perRequest = new Map<string, IObservable<readonly IEditSessionEntryDiff[]>>();
-	private readonly _perRequestFileEdits = new Map<string, IObservable<readonly IChatResponseFileEdit[]>>();
+	private readonly _perRequest = new LRUCache<string, IObservable<readonly IEditSessionEntryDiff[]>>(REQUEST_CACHE_CAPACITY);
+	private readonly _perRequestFileEdits = new LRUCache<string, IObservable<readonly IChatResponseFileEdit[]>>(REQUEST_CACHE_CAPACITY);
 
 	constructor(
 		private readonly _connection: IAgentConnection,

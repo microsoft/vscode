@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -320,7 +321,9 @@ export interface IChatWidgetViewOptions {
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
 	inputPickerPosition?: AnchorPosition;
-	inputPickerContainer?: HTMLElement;
+	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
+	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
+	inputPickerOpenOnMouseUp?: boolean;
 
 	/**
 	 * Whether we are running in the sessions window.
@@ -382,6 +385,17 @@ export interface IChatWidgetViewModelChangeEvent {
 	readonly previousSessionResource: URI | undefined;
 	readonly currentSessionResource: URI | undefined;
 }
+
+/**
+ * Visual presentation state restored when a widget is rebound to a chat.
+ * Composer data such as text, attachments, mode, and model belongs in {@link IChatModelInputState}.
+ */
+export interface IChatWidgetViewState {
+	readonly scrollTop: number;
+	readonly isAtBottom?: boolean;
+}
+
+export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
 
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
@@ -499,7 +513,9 @@ export interface IChatWidget {
 	 */
 	holdAutoScroll(): IDisposable;
 	clear(targetSessionType?: string): Promise<void>;
-	getViewState(): IChatModelInputState | undefined;
+	getInputState(): IChatModelInputState | undefined;
+	getViewState(): IChatWidgetViewState;
+	restoreViewState(state: IChatWidgetViewState): void;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;

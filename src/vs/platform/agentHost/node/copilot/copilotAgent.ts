@@ -40,7 +40,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, type CopilotSdkLogLevelSet
 import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, prepareSideChatPrompt, stripSideChatContext, type IPersistedChat } from '../agentPeerChats.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -1933,6 +1933,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * (no `workingDirectory` supplied) — a stable per-session scratch directory.
 	 */
 	private async _resolveCreateWorkingDirectory(sessionConfig: IAgentCreateSessionConfig, sessionId: string, isWorkspaceless: boolean): Promise<URI> {
+		if (sessionConfig.fork) {
+			const sourceSessionId = AgentSession.id(sessionConfig.fork.session);
+			const liveWorkingDirectory = this._findAnySession(sourceSessionId)?.workingDirectory;
+			if (liveWorkingDirectory) {
+				return liveWorkingDirectory;
+			}
+			const storedWorkingDirectory = (await this._readSessionMetadata(sessionConfig.fork.session)).workingDirectory;
+			if (storedWorkingDirectory) {
+				return storedWorkingDirectory;
+			}
+		}
 		const existing = sessionConfig.workingDirectories?.[0] ?? this._provisionalSessions.get(sessionId)?.workingDirectory;
 		if (existing) {
 			return existing;
@@ -2101,6 +2112,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
+		if (sessionConfig.fork && AgentSession.id(sessionConfig.fork.session) === sessionId) {
+			throw new Error(`Cannot fork Copilot session ${sessionId} onto itself`);
+		}
 		// Workspace-less is inferred at create from an absent input
 		// `workingDirectory`: such a session is run in a stable scratch dir. The
 		// AH service persists the marker centrally (`agentHost.workspaceless`) and
@@ -2110,39 +2124,53 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// `workingDirectory` is passed.
 		const isWorkspaceless = !sessionConfig.fork && sessionConfig.workingDirectories === undefined;
 		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId, isWorkspaceless);
-		const client = await this._ensureClient();
-		// When forking, use the SDK's sessions.fork RPC. Forking from a source
-		// session that has no turns is equivalent to creating a fresh session;
-		// in that case the agent service drops `config.fork` before calling us,
-		// so we never enter this branch with a provisional source.
+		await this._ensureClient();
+		// Forking from a source session that has no turns is equivalent to
+		// creating a fresh session; in that case the agent service drops
+		// `config.fork` before calling us, so we never enter this branch with a
+		// provisional source.
 		if (sessionConfig.fork) {
-			const sourceSessionId = AgentSession.id(sessionConfig.fork.session);
+			const fork = sessionConfig.fork;
+			const sourceSessionId = AgentSession.id(fork.session);
 
 			// Serialize against the source session to prevent concurrent
 			// modifications while we read its state.
 			return this._queueSession(sourceSessionId, async () => {
-				this._logService.info(`[Copilot] Forking session ${sourceSessionId} at turnId=${sessionConfig.fork!.turnId}`);
+				this._logService.info(`[Copilot] Forking session ${sourceSessionId} at turnId=${fork.turnId}`);
 
 				const sourceEntry = this._findAnySession(sourceSessionId) ?? await this._resumeSession(sourceSessionId);
-
-				// Look up the SDK event ID for the turn *after* the fork point.
-				// toEventId is exclusive — events before it are included.
-				// If there's no next turn, omit toEventId to include all events.
-				const toEventId = await sourceEntry.getNextTurnEventId(sessionConfig.fork!.turnId);
-
-				const forkResult = await client.rpc.sessions.fork({
-					sessionId: sourceSessionId,
-					...(toEventId ? { toEventId } : {}),
-				});
-				const newSessionId = forkResult.sessionId;
+				const sourceTurns = await sourceEntry.getMessages();
+				const sourceTurnEventId = await sourceEntry.getTurnEventId(fork.turnId);
+				const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === sourceTurnEventId);
+				if (sourceTurnIndex < 0) {
+					throw new Error(`Cannot fork Copilot session ${sourceSessionId}: turn ${fork.turnId} is not in the provider history`);
+				}
+				const inheritedTurns = sourceTurns.slice(0, sourceTurnIndex + 1);
+				const turnIdMapping = fork.turnIdMapping;
+				const targetTurnIdByEventId = new Map<string, string>();
+				if (turnIdMapping) {
+					await Promise.all([...turnIdMapping].map(async ([sourceTurnId, targetTurnId]) => {
+						const eventId = await sourceEntry.getTurnEventId(sourceTurnId);
+						if (eventId) {
+							targetTurnIdByEventId.set(eventId, targetTurnId);
+						}
+					}));
+				}
+				const importedTurns = inheritedTurns.map(turn => ({ ...turn, id: targetTurnIdByEventId.get(turn.id) ?? turn.id }));
+				const session = AgentSession.uri(this.id, sessionId);
+				const sourceMetadata = await this._readSessionMetadata(fork.session);
+				const inheritedWorkingDirectories = sourceMetadata.workingDirectories
+					?? (sourceEntry.workingDirectory ? [sourceEntry.workingDirectory] : [workingDirectory]);
+				const model = sessionConfig.model ?? sourceMetadata.model;
+				const agent = sessionConfig.agent ?? sourceMetadata.agent;
 
 				// Copy the source session's database using VACUUM INTO so the
 				// forked session inherits turn event IDs and file-edit snapshots.
 				// VACUUM INTO is safe even while the source DB is open.
-				const targetDbDir = this._sessionDataService.getSessionDataDirById(newSessionId);
+				const targetDbDir = this._sessionDataService.getSessionDataDir(session);
 				const targetDbPath = URI.joinPath(targetDbDir, SESSION_DB_FILENAME);
 				try {
-					const sourceDbRef = await this._sessionDataService.tryOpenDatabase(sessionConfig.fork!.session);
+					const sourceDbRef = await this._sessionDataService.tryOpenDatabase(fork.session);
 					if (sourceDbRef) {
 						try {
 							await fs.mkdir(targetDbDir.fsPath, { recursive: true });
@@ -2150,40 +2178,44 @@ export class CopilotAgent extends Disposable implements IAgent {
 							// any stale DB left by a previous (e.g. crashed) attempt.
 							await fs.rm(targetDbPath.fsPath, { force: true });
 							await sourceDbRef.object.vacuumInto(targetDbPath.fsPath);
+							if (turnIdMapping) {
+								const targetDbRef = this._sessionDataService.openDatabase(session);
+								try {
+									const importedEventIds = new Map(importedTurns.map(turn => [turn.id, turn.id]));
+									await targetDbRef.object.remapTurnIds(turnIdMapping, importedEventIds);
+								} finally {
+									targetDbRef.dispose();
+								}
+							}
 						} finally {
 							sourceDbRef.dispose();
 						}
 					}
 				} catch (err) {
 					this._logService.warn(`[Copilot] Failed to copy session database for fork: ${err instanceof Error ? err.message : String(err)}`);
+					await fs.rm(targetDbPath.fsPath, { force: true });
 				}
 
-				// Resume the forked session so the SDK loads the forked history
-				const agentSession = await this._resumeSession(newSessionId);
-
-				// Remap turn IDs to match the new protocol turn IDs
-				if (sessionConfig.fork!.turnIdMapping) {
-					await agentSession.remapTurnIds(sessionConfig.fork!.turnIdMapping);
-				}
-
-				const session = agentSession.sessionUri;
+				const created = await this._importConversation({
+					...sessionConfig,
+					model,
+					agent,
+					workingDirectories: inheritedWorkingDirectories,
+					fork: undefined,
+					importConversation: { turns: importedTurns, model },
+				}, sessionId, workingDirectory);
 				this._logService.info(`[Copilot] Forked session created: ${session.toString()}`);
 
 				// Copy the source session's reviewed ref so the fork starts with
 				// the parent's review progress (best-effort; a failure just means
 				// the fork starts unreviewed).
 				try {
-					await this._reviewService.copyReviewedRef(sessionConfig.fork!.session.toString(), session.toString(), workingDirectory);
+					await this._reviewService.copyReviewedRef(fork.session.toString(), session.toString(), workingDirectory);
 				} catch (err) {
 					this._logService.warn(`[Copilot] Failed to copy reviewed ref for fork: ${err instanceof Error ? err.message : String(err)}`);
 				}
 
-				const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, sessionConfig.workingDirectories ?? ([workingDirectory]), workingDirectory, project, true);
-				if (sessionConfig.agent !== undefined) {
-					await this._storeSessionAgentMetadata(session, sessionConfig.agent);
-				}
-				return { session, resolvedWorkingDirectory: workingDirectory, ...(project ? { project } : {}) };
+				return created;
 			});
 		}
 
@@ -2358,11 +2390,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * has an on-disk SDK event log (`~/.copilot/session-state/<id>/`) but no
 	 * agent-host VS Code-layer metadata yet, seed that metadata in place — reusing
 	 * the event log verbatim — so the normal restore flow can resume it as editable
-	 * turns. Returns `true` iff it newly adopted the session (so the caller can run
-	 * the one-time checkpoint bridge); `false` when already migrated / native or
-	 * not an adoptable on-disk session.
+	 * turns. Reports `adopted: true` iff it newly adopted the session (so the caller
+	 * can run the one-time checkpoint bridge), and `eligible` whether the session
+	 * was a genuine legacy candidate at all (vs already migrated / native / not an
+	 * adoptable on-disk session).
 	 */
-	async ensureSessionAdopted(session: URI): Promise<boolean> {
+	async ensureSessionAdopted(session: URI): Promise<IAgentSessionAdoptionResult> {
 		const sessionId = AgentSession.id(session);
 		return this._queueSession(sessionId, async () => {
 			// A genuine native / already-adopted session always has a persisted
@@ -2372,18 +2405,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// existence — to avoid falsely treating an empty DB as migrated.
 			const existing = await this._readStoredSessionMetadata(session);
 			if (existing?.workingDirectory) {
-				return false; // already native / adopted
+				return { adopted: false, eligible: false }; // already native / adopted
 			}
 			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
 			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.
 			if (!(await this._isExtensionHostCliSession(sessionId))) {
-				return false;
+				return { adopted: false, eligible: false };
 			}
 			const client = await this._ensureClient();
 			const sdkMetadata = await client.getSessionMetadata(sessionId).catch(() => undefined);
 			const workingDirectory = typeof sdkMetadata?.context?.workingDirectory === 'string' ? URI.file(sdkMetadata.context.workingDirectory) : undefined;
 			if (!workingDirectory) {
-				return false; // no adoptable on-disk session
+				// An eligible legacy session whose on-disk working directory could not
+				// be resolved: a genuine migration candidate that did not migrate.
+				return { adopted: false, eligible: true };
 			}
 			this._logService.info(`[Copilot] Adopting legacy session ${sessionId} in place (reusing on-disk events.jsonl)`);
 			// Resolve the project from the SDK-derived cwd (authoritative) — the
@@ -2401,7 +2436,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
 			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle);
-			return true;
+			return { adopted: true, eligible: true };
 		});
 	}
 
