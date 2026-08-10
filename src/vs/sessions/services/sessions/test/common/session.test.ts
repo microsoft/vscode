@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
 
 suite('isActiveSessionStatus', () => {
 
@@ -29,6 +30,29 @@ suite('isActiveSessionStatus', () => {
 			false,
 			false,
 		]);
+	});
+});
+
+suite('getSessionStatusMessage', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses provider activity and shared status fallbacks', () => {
+		const activity = new MarkdownString('Creating isolated worktree (42%)');
+
+		assert.deepStrictEqual({
+			activity: getSessionStatusMessage(SessionStatus.InProgress, activity),
+			working: getSessionStatusMessage(SessionStatus.InProgress, undefined),
+			needsInput: getSessionStatusMessage(SessionStatus.NeedsInput, undefined),
+			failed: getSessionStatusMessage(SessionStatus.Error, undefined),
+			completed: getSessionStatusMessage(SessionStatus.Completed, activity),
+		}, {
+			activity,
+			working: 'Working...',
+			needsInput: 'Input needed',
+			failed: 'Failed',
+			completed: undefined,
+		});
 	});
 });
 
