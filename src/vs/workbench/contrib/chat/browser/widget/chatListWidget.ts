@@ -24,7 +24,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asCssVariable, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, asCssVariableWithDefault, buttonSecondaryForeground, buttonSecondaryHoverBackground, editorWidgetBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
@@ -548,9 +548,9 @@ export class ChatListWidget extends Disposable {
 
 		// Create scroll-down button
 		this._scrollDownButton = this._register(new Button(this._container, {
-			buttonBackground: asCssVariable(buttonSecondaryBackground),
+			buttonBackground: asCssVariable(editorWidgetBackground),
 			buttonForeground: asCssVariable(buttonSecondaryForeground),
-			buttonHoverBackground: asCssVariable(buttonSecondaryHoverBackground),
+			buttonHoverBackground: asCssVariableWithDefault(buttonSecondaryHoverBackground, asCssVariable(editorWidgetBackground)),
 			buttonSecondaryBackground: undefined,
 			buttonSecondaryForeground: undefined,
 			buttonSecondaryHoverBackground: undefined,
