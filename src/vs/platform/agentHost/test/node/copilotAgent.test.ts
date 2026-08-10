@@ -602,6 +602,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			getMessages: fake.getMessages,
 			appliedSnapshot: undefined,
 			dispose: fake.dispose,
+			hasRunningDetachedShells: async () => false,
 			resetTurnState: (newTurnId: string) => { turnId = newTurnId; },
 			emitInitialMarkdown: (content: string) => {
 				emitter.fire({
@@ -4647,6 +4648,7 @@ suite('CopilotAgent', () => {
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
 				async setModel(id: string): Promise<void> { rec.modelCalls.push({ id }); },
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
+				async hasRunningDetachedShells(): Promise<boolean> { return false; },
 				handleClientToolCallComplete(): void { },
 				async getNextTurnEventId(): Promise<string | undefined> { return undefined; },
 				getMessages: getMessages ?? (async () => []),
@@ -4800,6 +4802,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), {
 					workingDirectory: URI.file('/workspace'),
 					hasActiveTurn: false,
+					async hasRunningDetachedShells() { return false; },
 					async destroySession() { },
 					dispose() { },
 				});
@@ -4851,6 +4854,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), {
 					workingDirectory: URI.file('/workspace'),
 					hasActiveTurn: false,
+					async hasRunningDetachedShells() { return false; },
 					async destroySession() { },
 					dispose() { },
 				});
@@ -4868,6 +4872,7 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as ChatInternals;
 				internals._resumeSession = async () => ({
 					workingDirectory: URI.file('/workspace'),
+					async hasRunningDetachedShells() { return false; },
 					dispose() { },
 				} as unknown as CopilotAgentSession);
 				internals._createAgentSession = (launchPlan, _directory, _activeClient, identity) => {
@@ -4926,6 +4931,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), {
 					workingDirectory: URI.file('/workspace'),
 					hasActiveTurn: false,
+					async hasRunningDetachedShells() { return false; },
 					async destroySession() {
 						releaseStarted = true;
 						await releaseGate.p;
@@ -4939,6 +4945,7 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as ChatInternals;
 				internals._resumeSession = async () => ({
 					workingDirectory: URI.file('/workspace'),
+					async hasRunningDetachedShells() { return false; },
 					dispose() { },
 				} as unknown as CopilotAgentSession);
 				let initializations = 0;
@@ -4981,6 +4988,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, sessionId, {
 					workingDirectory: URI.file('/workspace'),
 					hasActiveTurn: false,
+					async hasRunningDetachedShells() { return false; },
 					async destroySession() { },
 					dispose() { },
 				});
@@ -5036,6 +5044,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), {
 					workingDirectory: URI.file('/workspace'),
 					hasActiveTurn: false,
+					async hasRunningDetachedShells() { return false; },
 					async destroySession() {
 						releaseStarted = true;
 						await releaseGate.p;

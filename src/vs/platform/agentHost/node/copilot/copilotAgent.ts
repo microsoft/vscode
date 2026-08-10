@@ -2933,16 +2933,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * sessions) or that aren't currently held in memory, and for sessions with a
 	 * running turn — disconnecting mid-turn would strand the SDK session.
 	 */
-	async releaseSession(session: URI): Promise<void> {
+	async releaseSession(session: URI): Promise<boolean> {
 		const sessionId = AgentSession.id(session);
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
 		if (!lifetime) {
-			return;
+			return true;
 		}
+		let released = true;
 		await lifetime.queueSession(() => lifetime.release(async () => {
 			// Provisional sessions were never persisted, so releasing them would
 			// lose state with no way to resume. Leave them in memory.
 			if (this._provisionalSessions.has(sessionId)) {
+				released = false;
 				return;
 			}
 			const entry = this._sessions.get(sessionId);
@@ -2953,11 +2955,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// eviction while a turn is active, but a turn could have started
 			// between that check and this sequenced callback.
 			if (entry.allChatSessions().some(chatSession => chatSession.hasActiveTurn)) {
+				released = false;
 				return;
+			}
+			for (const chatSession of entry.allChatSessions()) {
+				if (await chatSession.hasRunningDetachedShells()) {
+					this._logService.info(`[Copilot:${sessionId}] Deferring idle release while a detached shell is running`);
+					released = false;
+					return;
+				}
 			}
 			this._logService.info(`[Copilot:${sessionId}] Releasing idle session from memory (durable state preserved)`);
 			await this._releaseSessionResources(sessionId);
 		}));
+		return released;
 	}
 
 	private async _abortSession(chat: URI): Promise<void> {

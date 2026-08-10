@@ -3797,25 +3797,26 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * sessions whose codex thread was never started) and for sessions with a
 	 * turn in flight — `thread/unsubscribe` mid-turn would drop live progress.
 	 */
-	async releaseSession(sessionUri: URI): Promise<void> {
+	async releaseSession(sessionUri: URI): Promise<boolean> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
-			return;
+			return true;
 		}
 		// Provisional sessions have no codex thread on disk to resume from;
 		// releasing them would lose their in-memory state. Leave them in place.
 		if (session.threadId === undefined) {
-			return;
+			return false;
 		}
 		// Defensive active-turn guard: the orchestrator already skips eviction
 		// while a turn is active, but one could have started between that check
 		// and this call.
 		if (session.currentTurnId !== undefined) {
-			return;
+			return false;
 		}
 		this._logService.info(`[Codex:${session.threadId}] Releasing idle session from memory (durable state preserved)`);
 		await this._teardownSessionInMemory(session, sessionId);
+		return true;
 	}
 
 	/**

@@ -1322,28 +1322,29 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * {@link disposeSession}; the destructive difference (deleting durable data)
 	 * lives in the orchestrator, which only invokes it on dispose.
 	 */
-	releaseSession(session: URI): Promise<void> {
+	releaseSession(session: URI): Promise<boolean> {
 		const sessionId = AgentSession.id(session);
 		return this._disposeSequencer.queue(sessionId, async () => {
 			const entry = this._sessions.get(sessionId);
 			if (!entry) {
-				return;
+				return true;
 			}
 			// Provisional sessions (default chat not materialized) have no
 			// on-disk SDK session to resume from; releasing would lose state.
 			if (!entry.defaultChat?.isPipelineReady) {
-				return;
+				return false;
 			}
 			// Defensive active-turn guard: the orchestrator already skips
 			// eviction while a turn is active, but `disposeSession` and
 			// `sendMessage` run on separate sequencers, so a turn could be in
 			// flight. Never tear the pipeline down under a live turn.
 			if (entry.allChatSessions().some(chatSession => chatSession.hasActiveTurn)) {
-				return;
+				return false;
 			}
 			this._logService.info(`[Claude:${sessionId}] Releasing idle session from memory (durable state preserved)`);
 			await this._teardownEntry(sessionId);
 			this._pruneActiveClientHandles(sessionId);
+			return true;
 		});
 	}
 

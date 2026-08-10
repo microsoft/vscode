@@ -190,10 +190,11 @@ export class MockAgent implements IAgent {
 		this._sessions.delete(AgentSession.id(session));
 	}
 
-	async releaseSession(session: URI): Promise<void> {
+	async releaseSession(session: URI): Promise<boolean> {
 		// Non-destructive: record the call but keep the session in the catalog
 		// so a later restore/resume still finds its durable data.
 		this.releaseSessionCalls.push(session);
+		return true;
 	}
 
 	async abortSession(session: URI): Promise<void> {

@@ -1738,9 +1738,10 @@ export interface IAgent {
 	 * session database, and worktree are all preserved so the session can be
 	 * transparently resumed later. Used by idle-session eviction to bound
 	 * memory in long-lived host processes. Optional; providers that hold no
-	 * releasable in-memory state simply omit it.
+	 * releasable in-memory state simply omit it. Returns `false` when live
+	 * provider work prevents release; the host will retry later.
 	 */
-	releaseSession?(session: URI): Promise<void>;
+	releaseSession?(session: URI): Promise<boolean>;
 
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;

@@ -2259,6 +2259,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// {@link ProtocolServerHandler} when state is already cached).
 		this.addSubscriber(resource, clientId);
 		try {
+			await this._releaseSessionInFlight.get(this._sessionReleaseKey(resource));
 			// Check for terminal state
 			const terminalState = this._terminalManager.getTerminalState(resourceStr);
 			if (terminalState) {
@@ -2345,6 +2346,18 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	private _sessionReleaseKey(resource: URI): string {
+		const resourceString = resource.toString();
+		const changesetSession = parseChangesetUri(resourceString)?.sessionUri;
+		const chatSession = parseDefaultChatUri(resourceString);
+		let session = URI.parse(changesetSession ?? chatSession ?? resourceString);
+		let subagent;
+		while ((subagent = parseSubagentSessionUri(session))) {
+			session = subagent.parentSession;
+		}
+		return session.toString();
+	}
+
 	/** Waits for an armed subagent chat to register (or its wait to time out); returns `undefined` if not armed or never registered. */
 	private async _awaitPendingSubagentChat(subagentChatUri: string): Promise<IStateSnapshot | undefined> {
 		const pending = this._pendingSubagentChats.get(subagentChatUri);
@@ -2404,14 +2417,18 @@ export class AgentService extends Disposable implements IAgentService {
 		// and keeps the live provider SDK session, avoiding a disconnect/resume
 		// churn cycle that races concurrent session operations on the shared
 		// provider runtime. A zero grace releases on the next tick.
-		this._pendingSessionRelease.set(resource, disposableTimeout(() => {
-			this._pendingSessionRelease.deleteAndDispose(resource);
-			this._maybeEvictIdleSession(resource);
-		}, SESSION_RELEASE_GRACE_MS));
+		this._scheduleSessionRelease(resource);
 	}
 
 	private _cancelPendingSessionRelease(resource: URI): void {
 		this._pendingSessionRelease.deleteAndDispose(resource);
+	}
+
+	private _scheduleSessionRelease(resource: URI): void {
+		this._pendingSessionRelease.set(resource, disposableTimeout(() => {
+			this._pendingSessionRelease.deleteAndDispose(resource);
+			this._maybeEvictIdleSession(resource);
+		}, SESSION_RELEASE_GRACE_MS));
 	}
 
 	/**
@@ -2519,14 +2536,8 @@ export class AgentService extends Disposable implements IAgentService {
 				evictionTarget = parsed.parentSession;
 			}
 		}
-		// Don't evict if the root or any of its subagent descendants still has subscribers.
-		if (this._resourceSubscribers.has(evictionTarget)) {
+		if (this._hasSessionSubscribers(evictionTarget)) {
 			return;
-		}
-		for (const subscribedUri of this._resourceSubscribers.keys()) {
-			if (this._isSubagentDescendantOf(subscribedUri, evictionTarget)) {
-				return;
-			}
 		}
 		const evictionTargetKey = evictionTarget.toString();
 		// A restore/resume racing this unsubscribe means a client is about to
@@ -2536,36 +2547,71 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const targetState = this._stateManager.getSessionState(evictionTargetKey);
-		if (!targetState || targetState.activeTurn !== undefined) {
+		if (!targetState) {
 			return;
 		}
-		this._logService.info(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
-		// Also evict any sibling subagent entries cached under the parent: their
-		// authoritative state is the parent's turn tree, and dropping the parent
-		// would leave them orphaned.
+		if (targetState.activeTurn !== undefined) {
+			this._scheduleSessionRelease(evictionTarget);
+			return;
+		}
+		const provider = this._findProviderForSession(evictionTarget);
+		if (!provider?.releaseSession) {
+			this._evictSessionState(evictionTarget, evictionTargetKey, key);
+			return;
+		}
+		const release = provider.releaseSession(evictionTarget);
+		const trackedRelease = (async () => {
+			try {
+				const released = await release;
+				if (released) {
+					const currentState = this._stateManager.getSessionState(evictionTargetKey);
+					if (this._hasSessionSubscribers(evictionTarget)) {
+						return;
+					}
+					if (this._restoreSessionInFlight.has(evictionTargetKey) || currentState?.activeTurn !== undefined) {
+						this._scheduleSessionRelease(evictionTarget);
+						return;
+					}
+					if (currentState) {
+						this._evictSessionState(evictionTarget, evictionTargetKey, key);
+					}
+				} else if (!this._hasSessionSubscribers(evictionTarget)) {
+					this._scheduleSessionRelease(evictionTarget);
+				}
+			} catch (err) {
+				this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
+				if (!this._hasSessionSubscribers(evictionTarget)) {
+					this._scheduleSessionRelease(evictionTarget);
+				}
+			}
+		})();
+		this._releaseSessionInFlight.set(evictionTargetKey, trackedRelease);
+		void trackedRelease.then(() => {
+			if (this._releaseSessionInFlight.get(evictionTargetKey) === trackedRelease) {
+				this._releaseSessionInFlight.delete(evictionTargetKey);
+			}
+		});
+	}
+
+	private _hasSessionSubscribers(session: URI): boolean {
+		if (this._resourceSubscribers.has(session)) {
+			return true;
+		}
+		for (const subscribedUri of this._resourceSubscribers.keys()) {
+			if (this._isSubagentDescendantOf(subscribedUri, session)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _evictSessionState(evictionTarget: URI, evictionTargetKey: string, triggerKey: string): void {
+		this._logService.info(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${triggerKey})`);
 		const subagentPrefix = buildSubagentSessionUriPrefix(evictionTarget);
 		for (const cachedKey of this._stateManager.getSessionUrisWithPrefix(subagentPrefix)) {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._stateManager.removeSession(evictionTargetKey);
-		// Release the provider's in-memory SDK session in lockstep with the
-		// cached state. Non-destructive: durable data is preserved so the
-		// session resumes transparently on the next access. Fire-and-forget —
-		// the provider sequences the release internally and re-checks its own
-		// invariants (e.g. a turn that started after this call).
-		const provider = this._findProviderForSession(evictionTarget);
-		const release = provider?.releaseSession?.(evictionTarget);
-		if (release) {
-			const trackedRelease = release.catch(err => {
-				this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
-			});
-			this._releaseSessionInFlight.set(evictionTargetKey, trackedRelease);
-			void trackedRelease.then(() => {
-				if (this._releaseSessionInFlight.get(evictionTargetKey) === trackedRelease) {
-					this._releaseSessionInFlight.delete(evictionTargetKey);
-				}
-			});
-		}
 	}
 
 	// Returns true when a changeset is safe to drop from the in-memory cache.

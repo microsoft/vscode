@@ -5785,16 +5785,29 @@ suite('AgentService (node dispatcher)', () => {
 			readonly release = new DeferredPromise<void>();
 			readonly events: string[] = [];
 
-			override async releaseSession(session: URI): Promise<void> {
+			override async releaseSession(session: URI): Promise<boolean> {
 				this.events.push('release:start');
-				await super.releaseSession(session);
+				const released = await super.releaseSession(session);
 				await this.release.p;
 				this.events.push('release:end');
+				return released;
 			}
 
 			override async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 				this.events.push('metadata');
 				return super.getSessionMetadata(session);
+			}
+		}
+
+		class DeferringReleaseMockAgent extends MockAgent {
+			releaseAttempts = 0;
+
+			override async releaseSession(session: URI): Promise<boolean> {
+				this.releaseAttempts++;
+				if (this.releaseAttempts === 1) {
+					return false;
+				}
+				return super.releaseSession(session);
 			}
 		}
 
@@ -5828,6 +5841,67 @@ suite('AgentService (node dispatcher)', () => {
 			service.unsubscribe(sessionResource, 'client-1');
 
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'active-turn session must not be evicted');
+		});
+
+		test('an unsubscribed session is released after its active turn completes', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const sessionResource = await service.createSession({ provider: 'copilot' });
+				const chatResource = buildDefaultChatUri(sessionResource.toString());
+				service.addSubscriber(sessionResource, 'client-1');
+				service.dispatchAction(
+					chatResource,
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-background', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					'client-1', 1,
+				);
+				service.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.strictEqual(copilotAgent.releaseSessionCalls.length, 0, 'active session should re-arm idle release');
+
+				service.dispatchAction(
+					chatResource,
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-background', duration: 30_000 },
+					'client-1', 2,
+				);
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual(copilotAgent.releaseSessionCalls.map(uri => uri.toString()), [sessionResource.toString()]);
+			});
+		});
+
+		test('a provider can defer idle release without losing cached state', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const agent = new DeferringReleaseMockAgent('copilot');
+				service.registerProvider(agent);
+				const { session } = await agent.createSession();
+				const sessionResource = (await agent.listSessions())[0].session;
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+				];
+				await service.restoreSession(sessionResource);
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.deepStrictEqual({
+					releaseAttempts: agent.releaseAttempts,
+					hasCachedState: service.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				}, {
+					releaseAttempts: 1,
+					hasCachedState: true,
+				});
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.deepStrictEqual({
+					releaseAttempts: agent.releaseAttempts,
+					hasCachedState: service.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				}, {
+					releaseAttempts: 2,
+					hasCachedState: false,
+				});
+			});
 		});
 
 		test('a restored idle session is evicted when its last subscriber drops', () => {
@@ -5915,7 +5989,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('restore waits for provider release to finish', () => {
+		test('subscription waits for provider release and keeps cached state', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
 				service.registerProvider(agent);
@@ -5933,10 +6007,52 @@ suite('AgentService (node dispatcher)', () => {
 				service.unsubscribe(sessionResource, 'client-1');
 				await new Promise(resolve => setTimeout(resolve, 30_000));
 
-				const restore = service.subscribe(sessionResource, 'client-2');
+				let subscriptionSettled = false;
+				const subscription = service.subscribe(sessionResource, 'client-2').then(result => {
+					subscriptionSettled = true;
+					return result;
+				});
+				await Promise.resolve();
+				assert.strictEqual(subscriptionSettled, false);
 				await agent.release.complete();
-				await restore;
-				assert.deepStrictEqual(agent.events, ['release:start', 'release:end', 'metadata']);
+				await subscription;
+				assert.deepStrictEqual({
+					events: agent.events,
+					hasCachedState: service.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				}, {
+					events: ['release:start', 'release:end'],
+					hasCachedState: true,
+				});
+			});
+		});
+
+		test('initial subscriber added during provider release keeps cached state', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const agent = new DelayedReleaseMockAgent('copilot');
+				service.registerProvider(agent);
+				const { session } = await agent.createSession();
+				const sessionResource = (await agent.listSessions())[0].session;
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+				];
+				await service.restoreSession(sessionResource);
+				agent.events.length = 0;
+				service.addSubscriber(sessionResource, 'client-1');
+				service.unsubscribe(sessionResource, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				service.addSubscriber(sessionResource, 'client-2');
+				await agent.release.complete();
+				await Promise.resolve();
+
+				assert.deepStrictEqual({
+					events: agent.events,
+					hasCachedState: service.stateManager.getSessionState(sessionResource.toString()) !== undefined,
+				}, {
+					events: ['release:start', 'release:end'],
+					hasCachedState: true,
+				});
 			});
 		});
 
