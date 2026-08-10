@@ -222,6 +222,124 @@ export interface IAgentHostTurnCompletedReport {
 	failure: IAgentHostTurnFailure | undefined;
 }
 
+/**
+ * Why a turn was quiet when the hang watchdog fired.
+ *
+ * Unexpected (these are real bugs and are what dashboards should alert on):
+ *  - `noProgress`: the turn started but literally nothing was ever observed for
+ *    it — no text, no reasoning, no tool call, no error, no completion. This is
+ *    the signature of a lost turn (e.g. a dropped provider callback
+ *    registration) where the UI sits on "Working…" forever.
+ *  - `stalledAfterProgress`: the turn made progress and then went quiet without
+ *    anything outstanding to explain the silence.
+ *
+ * Expected (the turn is legitimately waiting; reported so the two populations
+ * can be told apart in queries rather than silently dropped):
+ *  - `waitingOnUser`: a session input request (tool confirmation, client tool
+ *    execution, tool authentication, or an elicitation) is outstanding, so the
+ *    turn is blocked on a human.
+ *  - `runningTool`: a tool call is still in flight. Covers genuinely long tool
+ *    invocations (builds, test runs) and subagents, whose work is reported on
+ *    the subagent's own chat channel rather than the parent turn's.
+ */
+export type AgentHostTurnHangReason = 'noProgress' | 'stalledAfterProgress' | 'waitingOnUser' | 'runningTool';
+
+export interface IAgentHostTurnHungEvent {
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	isSubagentSession: boolean;
+	turnId: string;
+	hangReason: AgentHostTurnHangReason;
+	isExpected: boolean;
+	hadAnyProgress: boolean;
+	lastActivityKind: string;
+	blockedOn: SessionInputRequestKind | undefined;
+	inFlightToolCallCount: number;
+	quietTimeMs: number;
+	turnElapsedMs: number;
+	model: string | TelemetryTrustedValue<string> | undefined;
+	modelSelectionKind: AgentHostModelSelectionKind;
+	permissionLevel: string | undefined;
+}
+
+export type IAgentHostTurnHungClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the hung agent host turn.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the hung turn belongs to a subagent session.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the hung turn within the agent host session.' };
+	hangReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded state the turn was quiet in: noProgress, stalledAfterProgress, waitingOnUser, or runningTool.' };
+	isExpected: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the quiet period is explained by a legitimate wait (blocked on the user or running a tool) rather than an unexplained hang.' };
+	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
+	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The protocol action type of the last observed turn activity, or none when the turn never produced any.' };
+	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding session input request the turn is blocked on, when there is one.' };
+	inFlightToolCallCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of tool calls that had started but not completed when the watchdog fired.' };
+	quietTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds since the last observed turn activity.' };
+	turnElapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the hang report.' };
+	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The trusted provider model identifier for the turn, or a generic value for BYOK and unknown models.' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
+	owner: 'roblourens';
+	comment: 'Tracks agent host turns that stop making progress for longer than the hang threshold, so permanently stuck sessions are visible as a positive signal instead of missing turnCompleted events.';
+};
+
+export interface IAgentHostTurnHungReport {
+	provider: string;
+	session: string;
+	turnId: string;
+	hangReason: AgentHostTurnHangReason;
+	hadAnyProgress: boolean;
+	lastActivityKind: string;
+	blockedOn: SessionInputRequestKind | undefined;
+	inFlightToolCallCount: number;
+	quietTimeMs: number;
+	turnElapsedMs: number;
+	model: string | undefined;
+	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	modelSelectionKind: AgentHostModelSelectionKind;
+	permissionLevel: string | undefined;
+}
+
+export interface IAgentHostHungTurnCompletedEvent {
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	isSubagentSession: boolean;
+	turnId: string;
+	hangReason: AgentHostTurnHangReason;
+	result: AgentHostTurnResult;
+	hangReportCount: number;
+	totalTimeMs: number;
+	timeAfterHangMs: number;
+}
+
+export type IAgentHostHungTurnCompletedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the recovered agent host turn.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the recovered turn belongs to a subagent session.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the recovered turn within the agent host session.' };
+	hangReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The most recently reported hang reason for the turn before it completed.' };
+	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the previously hung turn eventually completed successfully, with an error, or was cancelled.' };
+	hangReportCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of hang reports emitted for the turn before it completed.' };
+	totalTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
+	timeAfterHangMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from the most recent hang report to turn completion.' };
+	owner: 'roblourens';
+	comment: 'Tracks agent host turns that complete after previously being reported as hung, so permanent hangs can be separated from merely slow ones.';
+};
+
+export interface IAgentHostHungTurnCompletedReport {
+	provider: string;
+	session: string;
+	turnId: string;
+	hangReason: AgentHostTurnHangReason;
+	result: AgentHostTurnResult;
+	hangReportCount: number;
+	totalTimeMs: number;
+	timeAfterHangMs: number;
+}
+
 export interface IAgentHostToolInvokedReport {
 	provider: string;
 	session: string;
@@ -910,6 +1028,50 @@ export class AgentHostTelemetryReporter {
 				callstack: report.failure.errorStack ?? report.failure.error.stack,
 			});
 		}
+	}
+
+	/**
+	 * Reports a turn that has stopped producing activity for longer than the
+	 * hang threshold. See {@link AgentHostTurnHangReason} for which reasons are
+	 * expected waits and which indicate a real hang.
+	 */
+	turnHung(report: IAgentHostTurnHungReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<IAgentHostTurnHungEvent, IAgentHostTurnHungClassification>('agentHost.turnHung', {
+			provider: report.provider,
+			agentSessionId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(report.session),
+			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			turnId: report.turnId,
+			hangReason: report.hangReason,
+			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
+			hadAnyProgress: report.hadAnyProgress,
+			lastActivityKind: report.lastActivityKind,
+			blockedOn: report.blockedOn,
+			inFlightToolCallCount: report.inFlightToolCallCount,
+			quietTimeMs: report.quietTimeMs,
+			turnElapsedMs: report.turnElapsedMs,
+			model: toTelemetryModel(report.model, report.modelTelemetryKind),
+			modelSelectionKind: report.modelSelectionKind,
+			permissionLevel: report.permissionLevel,
+		});
+	}
+
+	/** Paired recovery event for a turn previously reported by {@link turnHung}. */
+	hungTurnCompleted(report: IAgentHostHungTurnCompletedReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<IAgentHostHungTurnCompletedEvent, IAgentHostHungTurnCompletedClassification>('agentHost.hungTurnCompleted', {
+			provider: report.provider,
+			agentSessionId: AgentSession.id(session),
+			chatSessionId: getTelemetryChatSessionId(report.session),
+			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			turnId: report.turnId,
+			hangReason: report.hangReason,
+			result: report.result,
+			hangReportCount: report.hangReportCount,
+			totalTimeMs: report.totalTimeMs,
+			timeAfterHangMs: report.timeAfterHangMs,
+		});
 	}
 
 	toolInvoked(report: IAgentHostToolInvokedReport): void {
