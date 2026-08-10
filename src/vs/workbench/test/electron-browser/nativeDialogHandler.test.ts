@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
+import { MessageBoxReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestClipboardService } from '../../../platform/clipboard/test/common/testClipboardService.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
@@ -12,7 +13,7 @@ import { TestNativeHostService } from './workbenchTestServices.js';
 
 class UnexpectedResponseNativeHostService extends TestNativeHostService {
 
-	override async showMessageBox(): Promise<Electron.MessageBoxReturnValue> {
+	override async showMessageBox(): Promise<MessageBoxReturnValue> {
 		return { response: 1, unexpectedResponse: 420, checkboxChecked: false };
 	}
 }

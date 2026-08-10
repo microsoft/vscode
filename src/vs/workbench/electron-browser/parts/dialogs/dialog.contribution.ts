@@ -12,14 +12,13 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IDialogsModel, IDialogViewItem } from '../../../common/dialogs.js';
 import { BrowserDialogHandler } from '../../../browser/parts/dialogs/dialogHandler.js';
-import { NativeDialogHandler } from './dialogHandler.js';
+import { NativeDialogHandler, UnexpectedNativeDialogResponseError } from './dialogHandler.js';
 import { DialogService } from '../../../services/dialogs/common/dialogService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { createNativeAboutDialogDetails } from '../../../../platform/dialogs/electron-browser/dialog.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { UnexpectedNativeDialogResponseError } from './dialogHandler.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
