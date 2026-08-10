@@ -237,6 +237,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			transparent: true,
 			disableFullscreen: true,
 			nativeTitlebar: false,
+			notResizable: true,
 			noBackgroundThrottling: true,
 			backgroundColor: '#00000000',
 		});
