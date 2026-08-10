@@ -67,7 +67,12 @@ export class ExtensionGalleryServiceIndexService {
 			return cached;
 		}
 		const manifest = await this.fetchServiceIndex(serviceUrl, token, accessToken);
-		this._memo.set(serviceUrl, manifest);
+		if (!token.isCancellationRequested) {
+			// Do not repopulate the memo for a superseded generation: `invalidate()` may have already
+			// run for a newer validation, and a late set would resurrect an entry the new generation
+			// intended to drop. The live caller checks the token immediately after this returns.
+			this._memo.set(serviceUrl, manifest);
+		}
 		return manifest;
 	}
 

@@ -10,6 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
@@ -20,15 +21,14 @@ import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, ICachedAcce
 import { ExtensionGalleryServiceIndexService } from './extensionGalleryServiceIndex.js';
 
 /**
- * Storage key under which the last durable access verdict ({@link ICachedAccess}) is persisted.
- * `APPLICATION` scope + `MACHINE` target so the verdict is shared across windows on the machine
- * but never roamed to other machines/profiles.
+ * Storage key for the last durable access verdict ({@link ICachedAccess}). `APPLICATION` scope +
+ * `MACHINE` target so the verdict is shared across windows but never roamed to other machines.
  */
 const CACHED_ACCESS_KEY = 'marketplace.cachedAccess';
 
 /**
- * The shape of the eligibility endpoint's JSON response. Only `eligible` is authoritative; the
- * optional `reason` is diagnostic and is deliberately never persisted (see {@link ExtensionGalleryAccountService.getMicrosoftAccount}).
+ * The eligibility endpoint's JSON response. Only `eligible` is authoritative; `reason` is diagnostic
+ * and deliberately never persisted (it could carry account/tenant text) — see {@link ExtensionGalleryAccountService.getMicrosoftAccount}.
  */
 interface IEligibilityResponse {
 	readonly accountType?: 'Entra' | 'MSA';
@@ -58,8 +58,8 @@ type MarketplaceAuthClassification = {
 };
 
 /**
- * The current signed-in identity for the effective provider, as resolved silently (no prompt).
- * `token` is only carried for the Microsoft path (the GitHub/default path has no bearer token).
+ * The current signed-in identity for the effective provider, resolved silently. `token` is only
+ * carried on the Microsoft path (the GitHub/default path has no bearer).
  */
 type AccountResolution =
 	| { readonly kind: 'account'; readonly accountId: string; readonly token?: string }
@@ -67,39 +67,35 @@ type AccountResolution =
 	| { readonly kind: 'error' };
 
 /**
- * The resolved access verdict for the current account against a marketplace. `undefined` (returned
- * from {@link IExtensionGalleryAccountService.getAccount}/{@link IExtensionGalleryAccountService.getCachedAccess})
- * means "no account / sign-in required". A present value with `eligible: false` is a denial; with
- * `eligible: true` the account may use the marketplace. `manifest` is the validated service index
- * when it was already fetched during the check (so the host need not re-fetch), and `accessToken`
- * is the bearer the host must present to (re-)fetch a gated index.
+ * A resolved access verdict. `undefined` from {@link ExtensionGalleryAccountService.getAccount}/
+ * {@link ExtensionGalleryAccountService.getCachedAccess} means sign-in required; `eligible: false`
+ * is a denial; `eligible: true` grants access and `manifest` carries the validated index to render.
  */
 export interface IExtensionGalleryAccount {
 	readonly eligible: boolean;
 	readonly manifest?: IExtensionGalleryManifest;
-	readonly accessToken?: string;
 }
 
 /**
  * Abstracts "which account may access the Private Marketplace" behind an API deliberately shaped
- * like {@link IDefaultAccountService}: a silent `getAccount()` resolver plus an `onDidChangeAccount`
- * signal. It selects the effective auth provider (GitHub default account vs a Microsoft/Entra
- * session), performs the eligibility check for that provider, and owns the durable verdict cache —
- * so the host manifest service stays close to its upstream shape and only maps verdicts to status.
+ * like {@link IDefaultAccountService} (a silent `getAccount()` plus `onDidChangeAccount`) so the
+ * host manifest service stays close to its upstream shape. Selects the effective provider (GitHub
+ * default account vs Microsoft/Entra session), runs the eligibility check, and owns the verdict cache.
  */
 export class ExtensionGalleryAccountService extends Disposable {
 
 	private readonly authProvider: ExtensionGalleryAccessProviderId;
 
+	// Fetches and memoizes the service index. Fully owned by this service — both the live probe and
+	// the cached-verdict fast-path materialize the index through it, so a validation generation never
+	// re-requests the same index.
+	private readonly indexService: ExtensionGalleryServiceIndexService;
+
 	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
-	/**
-	 * Fires when the underlying account may have changed (Microsoft session added/removed/changed,
-	 * or the GitHub default account changed), so the host can re-run validation.
-	 */
+	/** Fires when the underlying account may have changed, so the host can re-run validation. */
 	readonly onDidChangeAccount: Event<void> = this._onDidChangeAccount.event;
 
 	constructor(
-		private readonly indexService: ExtensionGalleryServiceIndexService,
 		@IProductService private readonly productService: IProductService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -108,12 +104,14 @@ export class ExtensionGalleryAccountService extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this.authProvider = getEffectiveAuthProvider(configurationService, productService);
+		this.indexService = instantiationService.createInstance(ExtensionGalleryServiceIndexService);
 
-		// Relay only the change signal that is relevant to the effective provider so the host does
-		// not re-validate on unrelated account activity.
+		// Relay only the signal relevant to the effective provider so the host does not re-validate on
+		// unrelated account activity.
 		const source = this.authProvider === 'microsoft'
 			? Event.map(Event.filter(this.authenticationService.onDidChangeSessions, e => e.providerId === 'microsoft', this._store), () => undefined, this._store)
 			: Event.map(this.defaultAccountService.onDidChangeDefaultAccount, () => undefined, this._store);
@@ -121,12 +119,11 @@ export class ExtensionGalleryAccountService extends Disposable {
 	}
 
 	/**
-	 * Resolves the current account's access verdict for `configuredServiceUrl`, performing a live
-	 * eligibility check for the effective provider. Returns `undefined` when no account is signed in
-	 * (sign-in required), `{ eligible: false }` for a durable denial, and `{ eligible: true, ... }`
-	 * when access is granted. Throws {@link MarketplaceMisconfiguredError} when the deployment is
-	 * misconfigured for the effective provider, and rethrows transient/network errors so the host
-	 * can preserve an already-available marketplace instead of downgrading it.
+	 * Resolves the current account's access verdict for `configuredServiceUrl` via a live eligibility
+	 * check. Returns `undefined` (sign-in required), `{ eligible: false }` (durable denial), or
+	 * `{ eligible: true, manifest }` (granted). Throws {@link MarketplaceMisconfiguredError} for a
+	 * misconfigured deployment, and rethrows transient/network errors so the host can preserve an
+	 * already-available marketplace instead of downgrading it.
 	 */
 	getAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
 		return this.authProvider === 'microsoft'
@@ -147,12 +144,11 @@ export class ExtensionGalleryAccountService extends Disposable {
 			return undefined;
 		}
 		if (!this.checkGitHubAccess(account)) {
-			// Account exists but is not entitled → durable denial, cache it.
 			this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: false, serviceUrl: configuredServiceUrl });
 			return { eligible: false };
 		}
-		// Entitled → confirm the marketplace is reachable by fetching its service index. A transient
-		// failure here propagates (no cache write) so the host surfaces "unreachable".
+		// Entitled → confirm reachability by fetching the index. A transient failure here propagates
+		// (no cache write) so the host surfaces "unreachable".
 		const manifest = await this.indexService.getServiceIndex(configuredServiceUrl, token);
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -162,32 +158,35 @@ export class ExtensionGalleryAccountService extends Disposable {
 	}
 
 	private checkGitHubAccess(account: IDefaultAccount): boolean {
+		this.logService.debug('[Marketplace] Checking Account SKU access for configured gallery', account.entitlementsData?.access_type_sku);
 		if (account.entitlementsData?.access_type_sku
 			&& this.productService.extensionsGallery?.accessSKUs?.includes(account.entitlementsData.access_type_sku)) {
+			this.logService.debug('[Marketplace] Account has access to configured gallery');
 			return true;
 		}
+		this.logService.debug('[Marketplace] Checking enterprise account access for configured gallery', account.enterprise);
 		return account.enterprise;
 	}
 
 	private async getMicrosoftAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
-		// Acquire an existing Microsoft session silently — `getSessions` never prompts for sign-in.
-		// A throw here is a transient auth-service failure: propagate so the host preserves cache.
+		// Acquire an existing session silently — `getSessions` never prompts. A throw is a transient
+		// auth-service failure: propagate so the host preserves cache.
 		const sessions = await this.authenticationService.getSessions('microsoft', PRIVATE_MARKETPLACE_SCOPES);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 		const session = sessions[0];
 		if (!session) {
-			// No token. When 'microsoft' is configured the service index MAY itself be auth-gated
-			// (admin's discretion), so an anonymous probe would at best return a guaranteed 401.
-			// Go straight to sign-in; there is deliberately NO fallback to GitHub.
+			// No token. A 'microsoft'-configured index MAY itself be auth-gated, so an anonymous probe
+			// would at best return a guaranteed 401. Go straight to sign-in; there is deliberately NO
+			// fallback to GitHub.
 			this.clearCache();
 			return undefined;
 		}
 
 		if (!isSafeTokenTarget(configuredServiceUrl, configuredServiceUrl)) {
-			// We will not attach a bearer token to a non-HTTPS service index. Without a token a
-			// gated index is unreadable, so this deployment is misconfigured for Entra auth.
+			// Won't attach a bearer to a non-HTTPS index. Without a token a gated index is unreadable,
+			// so this deployment is misconfigured for Entra auth.
 			this.logService.error('[Marketplace] Refusing to send the Microsoft token to a non-HTTPS service index URL — the marketplace is misconfigured for Entra auth.');
 			this.clearCache();
 			throw new MarketplaceMisconfiguredError('The service index URL is not HTTPS.');
@@ -198,10 +197,9 @@ export class ExtensionGalleryAccountService extends Disposable {
 			manifest = await this.indexService.getServiceIndex(configuredServiceUrl, token, session.accessToken);
 		} catch (error) {
 			if (error instanceof MarketplaceAuthRequiredError) {
-				return this.denyFromAuthError(error, session, configuredServiceUrl);
+				return this.denyFromAuthError(error, session, configuredServiceUrl, token);
 			}
-			// Transient error fetching the index — propagate so the host surfaces "unreachable"
-			// while preserving any cached verdict.
+			// Transient — propagate so the host surfaces "unreachable" while preserving cache.
 			throw error;
 		}
 		if (token.isCancellationRequested) {
@@ -210,14 +208,14 @@ export class ExtensionGalleryAccountService extends Disposable {
 
 		const eligibilityUrl = getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.EligibilityService);
 		if (!eligibilityUrl) {
-			// The manifest was fetched but advertises no EligibilityService — misconfigured for Entra.
+			// Manifest fetched but advertises no EligibilityService — misconfigured for Entra.
 			this.logService.error('[Marketplace] authProvider is "microsoft" but the gallery manifest does not advertise an EligibilityService resource — the marketplace is misconfigured for Entra auth.');
 			this.clearCache();
 			throw new MarketplaceMisconfiguredError('The gallery manifest does not advertise an EligibilityService.');
 		}
 		if (!isSafeTokenTarget(eligibilityUrl, configuredServiceUrl)) {
-			// The advertised eligibility endpoint is not same-origin HTTPS with the configured index.
-			// Sending the token there would risk leaking it to a foreign/cleartext origin.
+			// Eligibility endpoint is not same-origin HTTPS with the index — sending the token there
+			// would risk leaking it to a foreign/cleartext origin.
 			this.logService.error('[Marketplace] The EligibilityService URL is not same-origin HTTPS with the configured service index — refusing to transmit the Microsoft token. The marketplace is misconfigured for Entra auth.');
 			this.clearCache();
 			throw new MarketplaceMisconfiguredError('The EligibilityService URL is not same-origin HTTPS with the service index.');
@@ -228,34 +226,39 @@ export class ExtensionGalleryAccountService extends Disposable {
 			result = await this.checkMicrosoftEligibility(eligibilityUrl, session.accessToken, token);
 		} catch (error) {
 			if (error instanceof MarketplaceAuthRequiredError) {
-				return this.denyFromAuthError(error, session, configuredServiceUrl);
+				return this.denyFromAuthError(error, session, configuredServiceUrl, token);
 			}
-			// Network/5xx/malformed response — not a definitive verdict. Propagate so the host
-			// surfaces "unreachable" and never caches it.
+			// Not a definitive verdict — propagate so the host surfaces "unreachable" and never caches.
 			throw error;
 		}
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
-		// A 200 is definitive — cache it. The server-provided `reason` is NOT persisted: it is not
-		// used for any UI/gating decision and could carry account/tenant diagnostic text.
+		// A 200 is definitive — cache it. The server `reason` is NOT persisted: unused for any
+		// UI/gating decision and could carry account/tenant diagnostic text.
 		this.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: result.eligible, serviceUrl: configuredServiceUrl });
 		this.telemetryService.publicLog2<MarketplaceAuthEvent, MarketplaceAuthClassification>('marketplace:auth:checked', {
 			authProvider: 'microsoft',
 			eligible: result.eligible,
 		});
-		return { eligible: result.eligible, manifest, accessToken: session.accessToken };
+		return { eligible: result.eligible, manifest };
 	}
 
 	/**
 	 * Maps a {@link MarketplaceAuthRequiredError} raised while presenting a Microsoft token into a
-	 * denial verdict. A 403 (token accepted, identity forbidden) is a durable denial and is cached;
-	 * a 401 (token rejected) is not durable, so the cache is cleared and nothing negative is written.
-	 * Either way the caller surfaces AccessDenied rather than looping the already-signed-in user
-	 * back to sign-in on the same rejected token.
+	 * denial. A 403 (token accepted, identity forbidden) is a durable denial and is cached; a 401
+	 * (token rejected) is not durable, so the cache is cleared. Either way the caller surfaces
+	 * AccessDenied rather than looping the signed-in user back to sign-in on the same rejected token.
+	 *
+	 * Guarded by `token.isCancellationRequested`: a superseded validation must never write the shared
+	 * cache — a stale 403 could persist a denial for an account that is no longer current, and a
+	 * stale 401 could clear a newer generation's verdict.
 	 */
-	private denyFromAuthError(error: MarketplaceAuthRequiredError, session: AuthenticationSession, configuredServiceUrl: string): IExtensionGalleryAccount {
+	private denyFromAuthError(error: MarketplaceAuthRequiredError, session: AuthenticationSession, configuredServiceUrl: string, token: CancellationToken): IExtensionGalleryAccount {
+		if (token.isCancellationRequested) {
+			return { eligible: false };
+		}
 		if (error.statusCode === 403) {
 			this.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: false, serviceUrl: configuredServiceUrl });
 		} else {
@@ -273,43 +276,42 @@ export class ExtensionGalleryAccountService extends Disposable {
 				'Content-Type': 'application/json',
 			},
 			callSite: 'extensionGalleryManifestService.checkMicrosoftEligibility',
-			// A bearer token is attached, so never follow redirects: the request service would
-			// forward the Authorization header to the (possibly cross-origin) redirect target and
-			// leak the token. A 3xx is treated as a non-200 error below.
+			// A bearer is attached, so never follow redirects: the request service would forward the
+			// Authorization header to the (possibly cross-origin) target and leak the token. A 3xx is
+			// treated as a non-200 error below.
 			followRedirects: 0,
 		}, cancellationToken);
 
 		if (context.res.statusCode !== 200) {
 			if (context.res.statusCode === 401 || context.res.statusCode === 403) {
-				// Auth-specific outcome at the eligibility endpoint. Surface the status code so the
-				// caller can distinguish 401 (token missing/expired/wrong-audience — re-auth may fix
-				// it) from 403 (token accepted but identity forbidden — a durable denial), mirroring
-				// the service-index fetch classification.
+				// Surface the status so the caller can distinguish 401 (token missing/expired/wrong-
+				// audience — re-auth may fix it) from 403 (identity forbidden — durable denial),
+				// mirroring the service-index fetch classification.
 				throw new MarketplaceAuthRequiredError(context.res.statusCode);
 			}
-			// Any other non-200 is NOT a definitive eligibility result — throw a generic error so
-			// callers treat it as transient/server error and don't cache it.
+			// Any other non-200 is not a definitive result — generic error so callers treat it as
+			// transient and don't cache it.
 			throw new Error(`Eligibility endpoint returned status ${context.res.statusCode}`);
 		}
 
 		const response = await asJson<IEligibilityResponse>(context);
 		if (!response || typeof response.eligible !== 'boolean') {
-			// A 200 with a missing/non-boolean `eligible` is not a definitive verdict — a server
-			// contract drift must not be coerced into a durable allow/deny. Throw so the caller
-			// treats it as transient and never caches it.
+			// A 200 with a missing/non-boolean `eligible` is server contract drift — must not be
+			// coerced into a durable allow/deny. Throw so the caller treats it as transient.
 			throw new Error('Eligibility endpoint returned a malformed response');
 		}
 		return { eligible: response.eligible, reason: response.reason };
 	}
 
 	/**
-	 * Reads the persisted verdict and, if it is still trustworthy for the current identity, returns
-	 * it for immediate application on startup (the fast-path that avoids a sign-in flash). The cached
-	 * verdict is an authorization input: it is honored only when the currently signed-in account
-	 * matches the account the verdict was written for. Returns `undefined` when there is no usable
-	 * cache; throws on a transient identity-resolution failure so the host preserves an available
-	 * marketplace instead of downgrading it. Never returns a manifest — the host (re-)fetches the
-	 * index itself when rendering Available.
+	 * Startup fast-path that avoids a sign-in flash: reads the persisted verdict and, if still
+	 * trustworthy, returns a usable result. The cached verdict is an authorization input — honored
+	 * only when the currently signed-in account matches the account it was written for. For an
+	 * eligible verdict the index is materialized (presenting the cached identity's bearer only to a
+	 * safe HTTPS same-origin target) so the host can render `Available` directly. Returns `undefined`
+	 * when there is no usable cache — including when the index cannot be materialized (auth now
+	 * required, misconfigured, or transient) — so the host falls through to a full validation. Throws
+	 * on a transient identity-resolution failure so the host preserves an available marketplace.
 	 */
 	async getCachedAccess(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
 		const cached = this.readValidCache(configuredServiceUrl);
@@ -322,18 +324,42 @@ export class ExtensionGalleryAccountService extends Disposable {
 		}
 		if (current.kind === 'error') {
 			// Transient identity-resolution failure — do not trust or clear the cache; signal the
-			// host to keep any current state rather than treating this as "no account".
+			// host to keep current state rather than treating this as "no account".
 			throw new Error('Unable to resolve the current account for cache validation.');
 		}
 		if (current.kind === 'none' || current.accountId !== cached.accountId) {
-			// The verdict was written for a different (or no longer present) account — drop it.
+			// Verdict was written for a different (or absent) account — drop it.
 			this.clearCache();
 			return undefined;
 		}
 		if (!cached.eligible) {
 			return { eligible: false };
 		}
-		return { eligible: true, accessToken: current.token };
+		// Trust the eligible verdict but materialize the index so the host renders `Available` without
+		// further fetching. A bearer is only presented to an HTTPS same-origin target; if that is
+		// unsafe or the fetch fails, the cache is not a usable fast-path — return `undefined` so a full
+		// validation surfaces the correct status.
+		if (current.token && !isSafeTokenTarget(configuredServiceUrl, configuredServiceUrl)) {
+			return undefined;
+		}
+		try {
+			const manifest = await this.indexService.getServiceIndex(configuredServiceUrl, token, current.token);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			return { eligible: true, manifest };
+		} catch {
+			return undefined;
+		}
+	}
+
+	/**
+	 * Drops the in-process service-index cache so the next validation generation re-fetches the
+	 * index rather than serving one memoized under a superseded account/marketplace. Called by the
+	 * host at the start of each validation generation and on config change.
+	 */
+	invalidateServiceIndexCache(): void {
+		this.indexService.invalidate();
 	}
 
 	/**
