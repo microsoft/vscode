@@ -87,6 +87,43 @@ suite('EditorResolverService', () => {
 		registeredEditor.dispose();
 	});
 
+	test('singlePerResource finds editors by preferred resource', async () => {
+		const [part, service] = await createEditorResolverService();
+		const resource = URI.file('/workspace/index.test');
+		const editorId = 'TEST_EDITOR';
+		const existingEditor = constructDisposableFileEditorInput(URI.from({ scheme: Schemas.vscodeBrowser, path: 'browser-id' }), editorId, disposables);
+		Object.defineProperty(existingEditor, 'preferredResource', { value: resource });
+		await part.activeGroup.openEditor(existingEditor);
+		let createCount = 0;
+		disposables.add(service.registerEditor('*.test',
+			{
+				id: editorId,
+				label: 'Test Editor Label',
+				priority: RegisteredEditorPriority.default
+			},
+			{
+				singlePerResource: true
+			},
+			{
+				createEditorInput: () => {
+					createCount++;
+					return { editor: constructDisposableFileEditorInput(resource, editorId, disposables) };
+				},
+			}
+		));
+
+		const result = await service.resolveEditor({ resource, options: { override: editorId } }, part.activeGroup);
+
+		assert.ok(result && result !== ResolvedStatus.ABORT && result !== ResolvedStatus.NONE);
+		assert.deepStrictEqual({
+			reusedExistingEditor: result.editor === existingEditor,
+			createCount
+		}, {
+			reusedExistingEditor: true,
+			createCount: 0
+		});
+	});
+
 	test('Untitled Resolve', async () => {
 		const UNTITLED_TEST_EDITOR_INPUT_ID = 'UNTITLED_TEST_INPUT';
 		const [part, service] = await createEditorResolverService();
