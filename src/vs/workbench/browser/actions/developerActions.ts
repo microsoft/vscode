@@ -1067,7 +1067,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				['Property', 'Value'],
 				[
 					['Endpoint', '/copilot_internal/managed_settings'],
-					['Last fetch', fetchStatus ?? 'never'],
+					['Last fetch', fetchStatus === null ? 'never' : String(fetchStatus)],
 					['Last successful fetch', fetchedAt ? new Date(fetchedAt).toLocaleString() : 'n/a'],
 					['Contributes winning keys', channelContributes('server') ? 'yes' : 'no']
 				]
