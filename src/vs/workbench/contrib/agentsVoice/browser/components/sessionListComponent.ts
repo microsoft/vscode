@@ -94,7 +94,10 @@ function createSessionRow(session: SessionRowData, props: SessionListProps): HTM
 			row.click();
 		} else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
 			e.preventDefault();
-			const rows = Array.from(row.closest('.voice-session-list')?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+			const container = row.parentElement?.parentElement;
+			const rows = Array.from(container?.children ?? [])
+				.map(child => child.firstElementChild)
+				.filter((child): child is HTMLElement => dom.isHTMLElement(child) && child.role === 'option');
 			const nextIndex = getSessionListNavigationIndex(rows.indexOf(row), e.key === 'ArrowUp' ? 'up' : 'down', rows.length);
 			if (nextIndex !== undefined) {
 				rows[nextIndex].focus();
