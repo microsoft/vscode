@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { tryResolvePrimaryWorktreeRoot, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { PrimaryWorktreeResolutionPass, tryResolvePrimaryWorktreeRoot, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
 import { projectFromCopilotContext, projectFromRepository, resolveGitProject } from '../../node/copilot/copilotGitProject.js';
 
 class TestAgentHostGitService implements IAgentHostGitService {
@@ -108,9 +108,10 @@ suite('Copilot Git Project', () => {
 		const checkoutB = URI.file('/workspace/source-repo.worktrees/b');
 		gitService.worktreeRoots = [primaryRoot, checkoutA, checkoutB];
 
+		const pass = new PrimaryWorktreeResolutionPass();
 		const roots = await Promise.all([
-			tryResolvePrimaryWorktreeRoot(gitService, checkoutA),
-			tryResolvePrimaryWorktreeRoot(gitService, checkoutB),
+			tryResolvePrimaryWorktreeRoot(gitService, checkoutA, pass),
+			tryResolvePrimaryWorktreeRoot(gitService, checkoutB, pass),
 		]);
 
 		assert.deepStrictEqual({
@@ -119,6 +120,53 @@ suite('Copilot Git Project', () => {
 		}, {
 			worktreeRootCalls: 1,
 			roots: [primaryRoot.toString(), primaryRoot.toString()],
+		});
+	});
+
+	test('spends its budget on git launches, not on whatever ran before them', async () => {
+		// Callers arrive together, so a budget started when the pass was built
+		// would already be gone before the first launch. It starts at the first
+		// launch, which also guarantees a pass always makes progress.
+		const primaryRoot = URI.file('/workspace/source-repo');
+		gitService.worktreeRoots = [primaryRoot];
+		const pass = new PrimaryWorktreeResolutionPass(0);
+
+		const first = await tryResolvePrimaryWorktreeRoot(gitService, URI.file('/workspace/a'), pass);
+		await new Promise(resolve => setTimeout(resolve, 5));
+		const second = await tryResolvePrimaryWorktreeRoot(gitService, URI.file('/workspace/b'), pass);
+		// A caller outside the pass is unaffected, so a repair budget never
+		// starves foreground resolution.
+		const foreground = await tryResolvePrimaryWorktreeRoot(gitService, URI.file('/workspace/c'));
+
+		assert.deepStrictEqual({
+			first: first?.toString(),
+			second,
+			foreground: foreground?.toString(),
+			worktreeRootCalls: gitService.worktreeRootCalls,
+		}, {
+			first: primaryRoot.toString(),
+			second: undefined,
+			foreground: primaryRoot.toString(),
+			worktreeRootCalls: 2,
+		});
+	});
+
+	test('answers an exhausted pass from what git already reported', async () => {
+		const primaryRoot = URI.file('/workspace/source-repo');
+		const checkoutA = URI.file('/workspace/source-repo.worktrees/a');
+		const checkoutB = URI.file('/workspace/source-repo.worktrees/b');
+		gitService.worktreeRoots = [primaryRoot, checkoutA, checkoutB];
+		const pass = new PrimaryWorktreeResolutionPass(0);
+
+		await tryResolvePrimaryWorktreeRoot(gitService, checkoutA, pass);
+		const afterBudget = await tryResolvePrimaryWorktreeRoot(gitService, checkoutB, pass);
+
+		assert.deepStrictEqual({
+			afterBudget: afterBudget?.toString(),
+			worktreeRootCalls: gitService.worktreeRootCalls,
+		}, {
+			afterBudget: primaryRoot.toString(),
+			worktreeRootCalls: 1,
 		});
 	});
 
@@ -138,8 +186,9 @@ suite('Copilot Git Project', () => {
 			[primaryRoot.fsPath, primaryRoot.fsPath],
 		]);
 
-		const viaSymlink = await tryResolvePrimaryWorktreeRoot(gitService, URI.file('/workspace/source-repo.worktrees/a'));
-		const viaCanonical = await tryResolvePrimaryWorktreeRoot(gitService, canonicalCheckout);
+		const pass = new PrimaryWorktreeResolutionPass();
+		const viaSymlink = await tryResolvePrimaryWorktreeRoot(gitService, URI.file('/workspace/source-repo.worktrees/a'), pass);
+		const viaCanonical = await tryResolvePrimaryWorktreeRoot(gitService, canonicalCheckout, pass);
 
 		assert.deepStrictEqual({
 			worktreeRootCalls: gitService.worktreeRootCalls,
@@ -158,19 +207,32 @@ suite('Copilot Git Project', () => {
 		assert.deepStrictEqual({ root, worktreeRootCalls: gitService.worktreeRootCalls }, { root: undefined, worktreeRootCalls: 0 });
 	});
 
-	test('does not re-probe a checkout git could not describe', async () => {
+	test('probes a checkout git could not describe once per pass, and again in the next one', async () => {
+		// Git reports "not a worktree" and "git could not run" identically, so a
+		// failure must never outlive the pass that saw it -- otherwise a repo
+		// repaired between listings stays mis-grouped with no way to retry.
 		const orphaned = URI.file('/workspace/orphaned-worktree');
 		gitService.worktreeRoots = [];
+		const pass = new PrimaryWorktreeResolutionPass();
 
-		const first = await tryResolvePrimaryWorktreeRoot(gitService, orphaned);
-		const second = await tryResolvePrimaryWorktreeRoot(gitService, orphaned);
+		const first = await tryResolvePrimaryWorktreeRoot(gitService, orphaned, pass);
+		const again = await tryResolvePrimaryWorktreeRoot(gitService, orphaned, pass);
+		const callsWithinPass = gitService.worktreeRootCalls;
+
+		const primaryRoot = URI.file('/workspace/source-repo');
+		gitService.worktreeRoots = [primaryRoot];
+		const nextPass = await tryResolvePrimaryWorktreeRoot(gitService, orphaned, new PrimaryWorktreeResolutionPass());
 
 		assert.deepStrictEqual({
-			worktreeRootCalls: gitService.worktreeRootCalls,
-			roots: [first, second],
+			withinPass: [first, again],
+			callsWithinPass,
+			nextPass: nextPass?.toString(),
+			totalCalls: gitService.worktreeRootCalls,
 		}, {
-			worktreeRootCalls: 1,
-			roots: [undefined, undefined],
+			withinPass: [undefined, undefined],
+			callsWithinPass: 1,
+			nextPass: primaryRoot.toString(),
+			totalCalls: 2,
 		});
 	});
 

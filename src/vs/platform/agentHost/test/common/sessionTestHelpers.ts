@@ -15,6 +15,9 @@ import type { Message } from '../../common/state/sessionState.js';
 export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
 	private readonly _metadata = new Map<string, string>();
+	private _closed = false;
+	/** Opt in to production's deferred, close-aware write semantics. */
+	modelDeferredWrites = false;
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
@@ -78,6 +81,16 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async setMetadata(key: string, value: string): Promise<void> {
+		if (this.modelDeferredWrites) {
+			// Production defers the write behind a sequencer before it reaches
+			// SQLite, and rejects it once closed. Without that, a write which
+			// was merely started -- never awaited -- still lands here, hiding
+			// the class of bug where a caller releases its reference first.
+			await new Promise(resolve => setTimeout(resolve, 0));
+			if (this._closed) {
+				throw new Error('SessionDatabase has been disposed');
+			}
+		}
 		this.setMetadataCalls.push({ key, value });
 		this._metadata.set(key, value);
 	}
@@ -95,7 +108,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return this._drafts.get(chat.toString());
 	}
 
-	async close(): Promise<void> { }
+	/** Closes the database, as releasing the last reference does in production. */
+	async close(): Promise<void> {
+		this._closed = true;
+	}
 
 	async vacuumInto(_targetPath: string): Promise<void> { }
 
@@ -230,13 +246,20 @@ export function createZeroDiffComputeService(): IDiffComputeService {
 	return new TestDiffComputeService({ added: 0, removed: 0, changes: [] });
 }
 
-export function createSessionDataService(database: ISessionDatabase = new TestSessionDatabase()): ISessionDataService {
+export function createSessionDataService(database: ISessionDatabase = new TestSessionDatabase(), options?: { readonly closeOnDispose?: boolean }): ISessionDataService {
+	// Production closes the database when its last reference goes away, which
+	// rejects any write that had only been started. Opt in to model that.
+	let release: (() => void) | undefined;
+	if (options?.closeOnDispose && database instanceof TestSessionDatabase) {
+		database.modelDeferredWrites = true;
+		release = () => { void database.close(); };
+	}
 	return {
 		_serviceBrand: undefined,
 		getSessionDataDir: session => URI.from({ scheme: Schemas.inMemory, path: `/session-data${session.path}` }),
 		getSessionDataDirById: sessionId => URI.from({ scheme: Schemas.inMemory, path: `/session-data/${sessionId}` }),
-		openDatabase: () => createReference(database),
-		tryOpenDatabase: async () => createReference(database),
+		openDatabase: () => createReference(database, release),
+		tryOpenDatabase: async () => createReference(database, release),
 		deleteSessionData: async () => { },
 		onWillDeleteSessionData: Event.None,
 		cleanupOrphanedData: async () => { },
@@ -339,10 +362,10 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 	};
 }
 
-function createReference<T>(object: T): IReference<T> {
+function createReference<T>(object: T, onDispose?: () => void): IReference<T> {
 	return {
 		object,
-		dispose: () => { },
+		dispose: () => onDispose?.(),
 	};
 }
 

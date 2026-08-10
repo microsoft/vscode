@@ -44,7 +44,7 @@ import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHost
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, PrimaryWorktreeResolutionPass, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
@@ -152,12 +152,14 @@ function omitHostOwnedSessionConfig<T>(config: Record<string, T>): Record<string
 const RESOURCE_WATCH_GRACE_MS = 30_000;
 
 /**
- * Time one {@link AgentService.listSessions} call may spend repairing repository
- * roots persisted by builds that predate worktree-identity canonicalization.
- * Repair is stamped and therefore one-shot per session, but a first listing over
- * a catalogue spanning many repositories still has to launch Git once per
- * repository. The budget keeps that bounded; sessions past it keep their
- * persisted root, stay unstamped, and are repaired by a later listing.
+ * Wall-clock time one {@link AgentService.listSessions} call may spend launching
+ * Git to repair repository roots persisted by builds that predate
+ * worktree-identity canonicalization. Repair is stamped and therefore one-shot
+ * per session, but a first listing over a catalogue spanning many repositories
+ * still has to launch Git once per repository. Sessions reached after the budget
+ * keep their persisted root, stay unstamped, and are repaired by a later
+ * listing. The budget gates *starting* a launch, so one already in flight can
+ * still run to `_runGit`'s timeout.
  */
 const LISTED_WORKTREE_ROOT_MIGRATION_BUDGET_MS = 2_000;
 
@@ -947,17 +949,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Listing performs this migration because archived sessions may never resume through WorktreeIsolation's metadata reader.
 	 *
 	 * A repaired root is stamped, so this costs one resolution per session ever
-	 * rather than one per listing. Persistence is deliberately not awaited: the
-	 * value returned to the client is already correct, and a lost write only
-	 * means the next listing re-derives it.
+	 * rather than one per listing.
 	 */
-	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string, stamp: string | undefined, deadline: number): Promise<string> {
+	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string, stamp: string | undefined, pass: PrimaryWorktreeResolutionPass): Promise<string> {
 		if (isRepositoryRootStamped(stamp, repositoryRootRaw)) {
-			return repositoryRootRaw;
-		}
-		// Migrating the rest of the catalogue must not hold up the listing. What
-		// is left stays unstamped and is picked up by a later listing.
-		if (Date.now() > deadline) {
 			return repositoryRootRaw;
 		}
 		const persistedRoot = URI.parse(repositoryRootRaw);
@@ -965,8 +960,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
 		let primaryRoot: URI | undefined;
 		try {
-			primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
-				?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);
+			primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot, pass)
+				?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot, pass) : undefined);
 		} catch (error) {
 			this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
 		}
@@ -984,21 +979,24 @@ export class AgentService extends Disposable implements IAgentService {
 		if (nextStamp) {
 			writes.push(database.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, nextStamp));
 		}
-		if (writes.length) {
-			Promise.all(writes).catch(error => {
-				this._logService.warn(`[AgentService][listSessions] Failed to normalize worktree repository metadata for ${session.session}`, error);
-			});
+		try {
+			// Awaited on purpose. The caller disposes its database reference as
+			// soon as this returns, and disposing the last one closes the
+			// database, so a write merely started here is rejected and lost --
+			// taking the stamp, and the repair itself, with it.
+			await Promise.all(writes);
+		} catch (error) {
+			this._logService.warn(`[AgentService][listSessions] Failed to normalize worktree repository metadata for ${session.session}`, error);
 		}
 		return normalized;
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
-		// Caps what one listing spends repairing legacy repository roots. Work
-		// left over stays unstamped and is resumed by the next listing, so a
-		// catalogue spanning unusually many repositories still converges
-		// without ever blocking the window on it.
-		const migrationDeadline = Date.now() + LISTED_WORKTREE_ROOT_MIGRATION_BUDGET_MS;
+		// Shared by every session in this listing, so one Git listing answers a
+		// whole repository, and bounds what the listing spends doing it. Work
+		// left over stays unstamped and is resumed by the next listing.
+		const migrationPass = new PrimaryWorktreeResolutionPass(LISTED_WORKTREE_ROOT_MIGRATION_BUDGET_MS);
 		const results = await Promise.all(
 			[...this._providers.values()].map(p => p.listSessions())
 		);
@@ -1072,7 +1070,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 					let repositoryRootRaw = m[WORKTREE_META_REPOSITORY_ROOT];
 					if (repositoryRootRaw) {
-						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw, m[WORKTREE_META_REPOSITORY_ROOT_STAMP], migrationDeadline);
+						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw, m[WORKTREE_META_REPOSITORY_ROOT_STAMP], migrationPass);
 					}
 					const worktreeProject = worktreeProjectFromRepositoryRoot(repositoryRootRaw);
 					if (worktreeProject) {

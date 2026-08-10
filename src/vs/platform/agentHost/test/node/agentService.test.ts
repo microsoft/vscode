@@ -1837,6 +1837,36 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('listSessions persists the repair before releasing the session database', async () => {
+			// The overlay disposes its database reference the moment the repair
+			// returns. A write merely started by then is rejected, silently
+			// losing both the stamp and the repair it certifies.
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
+			const sessionId = 'test-session-persisted-repair';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [linkedCheckout] };
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const gitService = createNoopGitService();
+			gitService.getWorktreeRoots = async () => [primaryRoot, linkedCheckout];
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db, { closeOnDispose: true }), { _serviceBrand: undefined } as IProductService, gitService));
+			svc.registerProvider(agent);
+
+			await svc.listSessions();
+
+			assert.deepStrictEqual({
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				stamp: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
+			}, {
+				persistedRepositoryRoot: primaryRoot.toString(),
+				stamp: `1:${primaryRoot.toString()}`,
+			});
+		});
+
 		test('listSessions uses SDK title when no custom title exists', async () => {
 			service.registerProvider(copilotAgent);
 			copilotAgent.sessionMetadataOverrides = { summary: 'Auto-generated Title' };
