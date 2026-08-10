@@ -246,7 +246,7 @@ export class AgentHostTurnTracker extends Disposable {
 		return timing ? { model: timing.model, modelTelemetryKind: timing.modelTelemetryKind } : undefined;
 	}
 
-	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
+	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure, workspace?: { readonly isMultiRoot: boolean; readonly folderCount: number }): void {
 		const key = this._key(session, turnId);
 		const timing = this._turnTimings.get(key);
 		if (!timing) {
@@ -266,6 +266,8 @@ export class AgentHostTurnTracker extends Disposable {
 			modelSelectionKind: timing.modelSelectionKind,
 			permissionLevel: timing.permissionLevel,
 			failure,
+			isMultiRoot: workspace?.isMultiRoot ?? false,
+			folderCount: workspace?.folderCount ?? 0,
 		});
 
 		// Paired recovery event: the turn was reported as hung but did finish,
