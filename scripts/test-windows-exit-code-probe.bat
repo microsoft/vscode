@@ -19,9 +19,28 @@ if "%~1"=="nested-else" (
 	exit /b 0
 )
 
+if "%~1"=="parenthesized-goto" (
+	call node -e "process.exitCode = 17"
+	if errorlevel 1 goto failed
+	exit /b 0
+)
+
+if "%~1"=="nested-else-goto" (
+	if "0"=="1" (
+		goto failed
+	) else (
+		call node -e "process.exitCode = 17"
+		if errorlevel 1 goto failed
+	)
+	exit /b 0
+)
+
 exit /b 64
 
 :top_level
 call node -e "process.exitCode = 17"
 if errorlevel 1 exit /b 1
 exit /b 0
+
+:failed
+exit /b 1
