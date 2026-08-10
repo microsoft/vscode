@@ -850,31 +850,35 @@ export class ChatSessionRoutingController extends Disposable {
 		let lastAnnouncement = labelElement.textContent;
 		let observedActivity = !waitForActivity;
 		const update = (requestInProgress = model?.requestInProgress.get() ?? false, needsInput = !!model?.requestNeedsInput.get()) => {
-			const sessionStatus = this.agentSessionsService.model.getSession(resource)?.status;
+			const session = this.agentSessionsService.model.getSession(resource);
+			const sessionLabel = session?.label || label;
+			const sessionStatus = session?.status;
 			let icon = waitForActivity && !observedActivity ? Codicon.clock : Codicon.pass;
-			let statusLabel = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
+			let statusLabel = localize('chatSessionRouting.sentTo', "Sent to {0}", sessionLabel);
 			let isCompleted = false;
 			if (needsInput || sessionStatus === AgentSessionStatus.NeedsInput) {
 				observedActivity = true;
 				icon = Codicon.question;
-				statusLabel = localize('chatSessionRouting.needsInputIn', "{0} needs your input", label);
+				statusLabel = localize('chatSessionRouting.needsInputIn', "{0} needs your input", sessionLabel);
 			} else if (requestInProgress || sessionStatus === AgentSessionStatus.InProgress) {
 				observedActivity = true;
 				icon = Codicon.loading;
-				statusLabel = localize('chatSessionRouting.runningIn', "Running in {0}", label);
+				statusLabel = localize('chatSessionRouting.runningIn', "Running in {0}", sessionLabel);
 			} else if (sessionStatus === AgentSessionStatus.Failed) {
 				observedActivity = true;
 				icon = Codicon.error;
-				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", label);
+				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", sessionLabel);
 			} else if (observedActivity && (sessionStatus === AgentSessionStatus.Completed || model?.hasRequests)) {
-				statusLabel = localize('chatSessionRouting.completedIn', "Completed in {0}", label);
+				statusLabel = localize('chatSessionRouting.completedIn', "Completed in {0}", sessionLabel);
 				isCompleted = true;
 			}
 			const response = model?.lastRequest?.response;
 			const preview = isCompleted && response?.isComplete
 				? getResponsePreview(renderAsPlaintext(new MarkdownString(response.response.getMarkdown()), { useLinkFormatter: true }))
 				: undefined;
-			labelElement.textContent = preview ?? statusLabel;
+			labelElement.textContent = preview
+				? localize('chatSessionRouting.completedInWithResponse', "{0}: {1}", sessionLabel, preview)
+				: statusLabel;
 			mark.replaceChildren(renderIcon(icon));
 			if (statusLabel !== lastAnnouncement) {
 				lastAnnouncement = statusLabel;
