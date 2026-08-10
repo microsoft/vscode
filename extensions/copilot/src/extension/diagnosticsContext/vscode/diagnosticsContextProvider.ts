@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, getExperimentBasedConfigWithDefaultOverride, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
+import { getCompletionsNesUnificationDefaults } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ILanguageContextProviderService, ProviderTarget } from '../../../platform/languageContextProvider/common/languageContextProviderService';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -28,6 +30,7 @@ export class DiagnosticsContextContribution extends Disposable {
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@ILanguageDiagnosticsService private readonly diagnosticsService: ILanguageDiagnosticsService,
 		@ILanguageContextProviderService private readonly languageContextProviderService: ILanguageContextProviderService,
+		@IInlineEditsModelService private readonly modelService: IInlineEditsModelService,
 	) {
 		super();
 		this._enableDiagnosticsContextProvider = configurationService.getExperimentBasedConfigObservable(ConfigKey.Advanced.DiagnosticsContextProvider, experimentationService);
@@ -41,7 +44,7 @@ export class DiagnosticsContextContribution extends Disposable {
 	private register(): IDisposable {
 		const disposables = new DisposableStore();
 		try {
-			const resolver = new ContextResolver(this.diagnosticsService, this.configurationService, this.experimentationService);
+			const resolver = new ContextResolver(this.diagnosticsService, this.configurationService, this.experimentationService, this.modelService);
 			const provider: Copilot.ContextProvider<Copilot.SupportedContextItem> = {
 				id: 'diagnostics-context-provider',
 				selector: '*',
@@ -67,6 +70,7 @@ class ContextResolver implements Copilot.ContextResolver<Copilot.SupportedContex
 		private readonly diagnosticsService: ILanguageDiagnosticsService,
 		private readonly configurationService: IConfigurationService,
 		private readonly experimentationService: IExperimentationService,
+		private readonly modelService: IInlineEditsModelService,
 	) { }
 
 	async resolve(request: Copilot.ResolveRequest, token: CancellationToken): Promise<Copilot.SupportedContextItem[]> {
@@ -86,8 +90,13 @@ class ContextResolver implements Copilot.ContextResolver<Copilot.SupportedContex
 
 		const requestedFileResource = URI.parse(request.documentContext.uri);
 		const cursor = new Position(request.documentContext.position.line + 1, request.documentContext.position.character + 1);
-		const linesAbove = this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.experimentationService) ?? N_LINES_ABOVE;
-		const linesBelow = this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.experimentationService) ?? N_LINES_BELOW;
+		const unificationDefaults = getCompletionsNesUnificationDefaults(this.modelService.selectedModelConfiguration());
+		const linesAbove = unificationDefaults
+			? getExperimentBasedConfigWithDefaultOverride(this.configurationService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.experimentationService, unificationDefaults.nLinesAbove) ?? N_LINES_ABOVE
+			: this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.experimentationService) ?? N_LINES_ABOVE;
+		const linesBelow = unificationDefaults
+			? getExperimentBasedConfigWithDefaultOverride(this.configurationService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.experimentationService, unificationDefaults.nLinesBelow) ?? N_LINES_BELOW
+			: this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.experimentationService) ?? N_LINES_BELOW;
 		const editWindow = new Range(cursor.lineNumber - linesAbove, 1, cursor.lineNumber + linesBelow, Number.MAX_SAFE_INTEGER);
 
 		return this.getContext(requestedFileResource, cursor, {

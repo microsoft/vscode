@@ -259,7 +259,7 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 		return this.config.update(key.id, value, target === undefined ? this._getTargetFromInspect(inspect) : this._toVSCodeConfigurationTarget(target));
 	}
 
-	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: vscode.ConfigurationScope): T {
+	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: vscode.ConfigurationScope, defaultValueOverride?: T): T {
 		const configuredValue = this._getUserConfiguredValueForExperimentBasedConfig(key, scope);
 		if (configuredValue !== undefined) {
 			return configuredValue;
@@ -297,7 +297,7 @@ export class ConfigurationServiceImpl extends AbstractConfigurationService {
 			}
 		}
 
-		return this.getDefaultValue(key);
+		return defaultValueOverride ?? this.getDefaultValue(key);
 	}
 
 	private _getUserConfiguredValueForExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, scope?: vscode.ConfigurationScope): T | undefined {

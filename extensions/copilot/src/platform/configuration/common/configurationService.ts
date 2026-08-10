@@ -130,7 +130,7 @@ export interface IConfigurationService {
 	 *
 	 * @remark For object values, the user config will replace the default config.
 	 */
-	getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T;
+	getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T;
 
 	/**
 	 * Gets the observable of a user configuration for a key from vscode (which if not defined, pulls default value from package.json).
@@ -165,7 +165,14 @@ export interface IConfigurationService {
 	dumpConfig(): { [key: string]: string };
 }
 
-
+export function getExperimentBasedConfigWithDefaultOverride<T extends ExperimentBasedConfigType>(
+	configurationService: IConfigurationService,
+	key: ExperimentBasedConfig<T>,
+	experimentationService: IExperimentationService,
+	defaultValue: T,
+): T {
+	return configurationService.getExperimentBasedConfig(key, experimentationService, undefined, defaultValue);
+}
 
 export abstract class AbstractConfigurationService extends Disposable implements IConfigurationService {
 	declare readonly _serviceBrand: undefined;
@@ -263,7 +270,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
 	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
 	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
-	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T;
+	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T;
 	abstract dumpConfig(): { [key: string]: string };
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
 		if (treatments.length === 0) {
@@ -709,6 +716,11 @@ export namespace ConfigKey {
 		export const InlineEditsNextCursorPredictionCurrentFileMaxTokens = defineAndMigrateExpSetting<number>('chat.advanced.inlineEdits.nextCursorPrediction.currentFileMaxTokens', 'chat.inlineEdits.nextCursorPrediction.currentFileMaxTokens', 3000);
 		export const InlineEditsRenameSymbolSuggestions = defineSetting<boolean>('chat.inlineEdits.renameSymbolSuggestions', ConfigType.ExperimentBased, true);
 		export const InlineEditsPreferredModel = defineSetting<string | 'none'>('nextEditSuggestions.preferredModel', ConfigType.ExperimentBased, 'none');
+		export const InlineEditsXtabAggressivenessLevel = defineAndMigrateExpSetting<xtabPromptOptions.AggressivenessLevel | undefined>(
+			'chat.advanced.inlineEdits.xtabProvider.aggressivenessLevel',
+			'chat.inlineEdits.xtabProvider.aggressivenessLevel',
+			xtabPromptOptions.AggressivenessLevel.Medium,
+		);
 		export const InlineEditsAggressiveness = defineSetting<xtabPromptOptions.AggressivenessSetting>('nextEditSuggestions.eagerness', ConfigType.ExperimentBased, xtabPromptOptions.AggressivenessSetting.Default, xtabPromptOptions.AggressivenessSetting.VALIDATOR);
 		export const DiagnosticsContextProvider = defineAndMigrateExpSetting<boolean>('chat.advanced.inlineEdits.diagnosticsContextProvider.enabled', 'chat.inlineEdits.diagnosticsContextProvider.enabled', false);
 		export const ChatSessionContextProvider = defineSetting<boolean>('chat.inlineEdits.chatSessionContextProvider.enabled', ConfigType.ExperimentBased, false);
@@ -926,7 +938,6 @@ export namespace ConfigKey {
 		export const InlineEditsXtabOnlyMergeConflictLines = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.onlyMergeConflictLines', ConfigType.ExperimentBased, false);
 		export const InlineEditsXtabDuplicateAdditionsMode = defineTeamInternalSetting<DuplicateAdditionsMode>('chat.advanced.inlineEdits.xtabProvider.diffPatch.duplicateAdditionsMode', ConfigType.ExperimentBased, DuplicateAdditionsMode.Off, DuplicateAdditionsMode.VALIDATOR);
 		export const InlineEditsXtabSplitPatchOnDiff = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.diffPatch.splitOnDiff', ConfigType.ExperimentBased, false, vBoolean());
-		export const InlineEditsXtabAggressivenessLevel = defineTeamInternalSetting<xtabPromptOptions.AggressivenessLevel | undefined>('chat.advanced.inlineEdits.xtabProvider.aggressivenessLevel', ConfigType.ExperimentBased, xtabPromptOptions.AggressivenessLevel.Medium);
 		export const InlineEditsAggressivenessLowMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.lowMinResponseTimeMs', ConfigType.ExperimentBased, 1500);
 		export const InlineEditsAggressivenessMediumMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.mediumMinResponseTimeMs', ConfigType.ExperimentBased, 700);
 		export const InlineEditsAggressivenessHighDebounceMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.highDebounceMs', ConfigType.ExperimentBased, 0);

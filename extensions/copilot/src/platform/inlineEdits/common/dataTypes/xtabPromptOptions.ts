@@ -674,6 +674,7 @@ export interface ModelConfiguration {
 	modelName: string;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
 	includeTagsInCurrentFile: boolean;
+	unification?: ModelConfigurationUnification;
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
@@ -682,6 +683,27 @@ export interface ModelConfiguration {
 	supportsNextCursorLinePrediction?: boolean;
 	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
 	allowImportChanges?: ImportChanges;
+}
+
+export enum ModelConfigurationUnification {
+	CompletionsNes = 'completionsNes',
+}
+
+export const COMPLETIONS_NES_UNIFICATION_DEFAULTS = {
+	useSlashModels: false,
+	nLinesBelow: 7,
+	nLinesAbove: 0,
+	unification: true,
+	rebasedCacheDelay: 0,
+	extraDebounceEndOfLine: 0,
+	debounce: 0,
+	cacheDelay: 200,
+} as const;
+
+export function getCompletionsNesUnificationDefaults(config: ModelConfiguration | null | undefined): typeof COMPLETIONS_NES_UNIFICATION_DEFAULTS | undefined {
+	return config?.unification === ModelConfigurationUnification.CompletionsNes
+		? COMPLETIONS_NES_UNIFICATION_DEFAULTS
+		: undefined;
 }
 
 /**
@@ -743,6 +765,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'modelName': vRequired(vString()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
+	'unification': vUnion(vEnum(ModelConfigurationUnification.CompletionsNes), vUndefined()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),

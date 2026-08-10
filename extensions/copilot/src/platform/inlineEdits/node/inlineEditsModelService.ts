@@ -14,14 +14,14 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { derived, IObservable, observableFromEvent } from '../../../util/vs/base/common/observable';
 import { CopilotToken } from '../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
-import { ConfigKey, ExperimentBasedConfig, IConfigurationService } from '../../configuration/common/configurationService';
+import { ConfigKey, ExperimentBasedConfig, getExperimentBasedConfigWithDefaultOverride, IConfigurationService } from '../../configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { ILogger, ILogService } from '../../log/common/logService';
 import { IProxyModelsService } from '../../proxyModels/common/proxyModelsService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { WireTypes } from '../common/dataTypes/inlineEditsModelsTypes';
-import { isPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../common/dataTypes/xtabPromptOptions';
+import { getCompletionsNesUnificationDefaults, isPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService, IUndesiredModelsManager } from '../common/inlineEditsModelService';
 
 const enum ModelSource {
@@ -78,7 +78,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 	private _localModelConfigObs = this._configService.getConfigObservable(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 	private _expBasedModelConfigObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfigurationString, this._expService);
 	private _defaultModelConfigObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsXtabProviderDefaultModelConfigurationString, this._expService);
-	private _useSlashModelsObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsUseSlashModels, this._expService);
+	private _configuredUseSlashModelsObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsUseSlashModels, this._expService);
 	private _undesiredModelsObs = observableFromEvent(this, this._undesiredModelsManager.onDidChange, () => this._undesiredModelsManager);
 
 	private _modelsObs: IObservable<ModelConfigurationWithSource[]>;
@@ -113,7 +113,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 				localModelConfig: this._localModelConfigObs.read(reader),
 				modelConfigString: this._expBasedModelConfigObs.read(reader),
 				defaultModelConfigString: this._defaultModelConfigObs.read(reader),
-				useSlashModels: this._useSlashModelsObs.read(reader),
+				configuredUseSlashModels: this._configuredUseSlashModelsObs.read(reader),
 			});
 		}).recomputeInitiallyAndOnChange(this._store);
 
@@ -206,14 +206,14 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 			localModelConfig,
 			modelConfigString,
 			defaultModelConfigString,
-			useSlashModels,
+			configuredUseSlashModels,
 		}: {
 			copilotToken: CopilotToken | undefined;
 			fetchedNesModels: WireTypes.Model.t[] | undefined;
 			localModelConfig: ModelConfiguration | null;
 			modelConfigString: string | undefined;
 			defaultModelConfigString: string | undefined;
-			useSlashModels: boolean;
+			configuredUseSlashModels: boolean;
 		},
 	): ModelConfigurationWithSource[] {
 		const logger = this._logger.createSubLogger('aggregateModels');
@@ -234,9 +234,11 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 			}
 		}
 
+		let parsedExperimentConfig: ModelConfiguration | undefined;
 		if (modelConfigString) {
 			logger.trace('Parsing modelConfigurationString...');
 			const parsedConfig = this.parseModelConfigString(modelConfigString, ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfigurationString);
+			parsedExperimentConfig = parsedConfig;
 			if (parsedConfig && !models.some(m => m.modelName === parsedConfig.modelName)) {
 				logger.trace(`Adding model from modelConfigurationString: ${parsedConfig.modelName}`);
 				models.push({ ...parsedConfig, source: ModelSource.ExpConfig });
@@ -244,6 +246,11 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 				logger.trace('No valid model found in modelConfigurationString.');
 			}
 		}
+
+		const unificationDefault = getCompletionsNesUnificationDefaults(parsedExperimentConfig ?? localModelConfig)?.useSlashModels;
+		const useSlashModels = unificationDefault === undefined
+			? configuredUseSlashModels
+			: getExperimentBasedConfigWithDefaultOverride(this._configService, ConfigKey.TeamInternal.InlineEditsUseSlashModels, this._expService, unificationDefault);
 
 		if (useSlashModels && fetchedNesModels && fetchedNesModels.length > 0) {
 			logger.trace(`Processing ${fetchedNesModels.length} fetched models...`);
@@ -464,4 +471,3 @@ export namespace UndesiredModels {
 		}
 	}
 }
-

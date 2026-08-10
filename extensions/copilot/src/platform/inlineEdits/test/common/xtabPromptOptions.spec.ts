@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, COMPLETIONS_NES_UNIFICATION_DEFAULTS, DEFAULT_OPTIONS, getCompletionsNesUnificationDefaults, GlobalBudgetOptions, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, ModelConfigurationUnification, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -111,6 +111,23 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 	it('rejects an invalid allowImportChanges value', () => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: 'sometimes' as ImportChanges }));
 		expect(result.error).toBeDefined();
+	});
+
+	it('accepts the completions NES unification profile', () => {
+		const config = baseConfig({ unification: ModelConfigurationUnification.CompletionsNes });
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(config);
+
+		expect({
+			error: result.error,
+			defaults: getCompletionsNesUnificationDefaults(config),
+		}).toEqual({
+			error: undefined,
+			defaults: COMPLETIONS_NES_UNIFICATION_DEFAULTS,
+		});
+	});
+
+	it('does not apply unification defaults without a profile', () => {
+		expect(getCompletionsNesUnificationDefaults(baseConfig())).toBeUndefined();
 	});
 });
 

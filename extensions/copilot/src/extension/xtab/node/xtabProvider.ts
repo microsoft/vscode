@@ -6,7 +6,7 @@
 import { Raw } from '@vscode/prompt-tsx';
 import { FetchStreamSource } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchError, ChatFetchResponseType, ChatLocation, RESPONSE_CONTAINED_NO_CHOICES } from '../../../platform/chat/common/commonTypes';
-import { ConfigKey, IConfigurationService, XTabProviderId } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, getExperimentBasedConfigWithDefaultOverride, IConfigurationService, XTabProviderId } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
 import { createProxyXtabEndpoint } from '../../../platform/endpoint/node/proxyXtabEndpoint';
@@ -19,7 +19,7 @@ import { LanguageContextEntry, LanguageContextResponse } from '../../../platform
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessSetting, EarlyDivergenceCancellationMode, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessSetting, EarlyDivergenceCancellationMode, getCompletionsNesUnificationDefaults, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
@@ -610,7 +610,11 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				delaySession.setExtraDebounce(inlineSuggestionDebounce);
 			} else if (isCursorAtEndOfLine) {
 				tracer.trace('Debouncing for cursor at end of line');
-				delaySession.setExtraDebounce(this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, this.expService));
+				const unificationDefault = getCompletionsNesUnificationDefaults(this.modelService.selectedModelConfiguration())?.extraDebounceEndOfLine;
+				const extraDebounceEndOfLine = unificationDefault === undefined
+					? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, this.expService)
+					: getExperimentBasedConfigWithDefaultOverride(this.configService, ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, this.expService, unificationDefault);
+				delaySession.setExtraDebounce(extraDebounceEndOfLine);
 			} else {
 				tracer.trace('No extra debounce applied');
 			}
@@ -1454,6 +1458,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	private computeEditWindowLinesRange(currentDocument: CurrentDocument, request: StatelessNextEditRequest, tracer: ILogger, telemetry: StatelessNextEditTelemetryBuilder): OffsetRange {
 		const currentDocLines = currentDocument.lines;
 		const cursorLineOffset = currentDocument.cursorLineOffset;
+		const unificationDefaults = getCompletionsNesUnificationDefaults(this.modelService.selectedModelConfiguration());
 
 		let nLinesAbove: number;
 		{
@@ -1473,8 +1478,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					}
 				}
 			} else {
-				nLinesAbove = (this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.expService)
-					?? N_LINES_ABOVE);
+				nLinesAbove = unificationDefaults
+					? getExperimentBasedConfigWithDefaultOverride(this.configService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.expService, unificationDefaults.nLinesAbove) ?? N_LINES_ABOVE
+					: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.expService) ?? N_LINES_ABOVE;
 			}
 		}
 
@@ -1484,7 +1490,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			tracer.trace(`Using expanded nLinesBelow: ${request.expandedEditWindowNLines}`);
 			nLinesBelow = request.expandedEditWindowNLines;
 		} else {
-			const overriddenNLinesBelow = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.expService);
+			const overriddenNLinesBelow = unificationDefaults
+				? getExperimentBasedConfigWithDefaultOverride(this.configService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.expService, unificationDefaults.nLinesBelow)
+				: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.expService);
 			if (overriddenNLinesBelow !== undefined) {
 				tracer.trace(`Using overridden nLinesBelow: ${overriddenNLinesBelow}`);
 				nLinesBelow = overriddenNLinesBelow;

@@ -43,6 +43,8 @@ vi.mock('vscode', () => {
 
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { ConfigKey } from '../../common/configurationService';
+import { AggressivenessLevel } from '../../../inlineEdits/common/dataTypes/xtabPromptOptions';
+import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ConfigurationServiceImpl } from '../configurationServiceImpl';
 
 const fakeTokenStore: ICopilotTokenStore = {
@@ -72,4 +74,30 @@ describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', (
 
 		expect(value).toEqual(userValue);
 	});
+
+	test('reads the public xtab aggressiveness level for external users', () => {
+		const key = ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel;
+		mockConfigStore.user = { [key.fullyQualifiedId]: AggressivenessLevel.High };
+		mockConfigStore.defaults = { [key.fullyQualifiedId]: AggressivenessLevel.Medium };
+
+		const svc = new ConfigurationServiceImpl(fakeTokenStore);
+		const value = svc.getExperimentBasedConfig(key, new NullExperimentationService());
+
+		expect(value).toBe(AggressivenessLevel.High);
+	});
+
+	test('prefers an experiment treatment over a default override', () => {
+		const key = ConfigKey.TeamInternal.InlineEditsDebounce;
+		const experimentationService = new class extends NullExperimentationService {
+			override getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+				return name === `copilotchat.config.${key.id}` ? 50 as T : undefined;
+			}
+		}();
+
+		const svc = new ConfigurationServiceImpl(fakeTokenStore);
+		const value = svc.getExperimentBasedConfig(key, experimentationService, undefined, 0);
+
+		expect(value).toBe(50);
+	});
+
 });

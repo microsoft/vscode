@@ -4355,6 +4355,29 @@
             ],
             "default": null,
             "markdownDescription": "Advanced model configuration for the next edit suggestions xtab provider.\n\n**Note**: This is an advanced setting.",
+            "properties": {
+              "unification": {
+                "type": "string",
+                "enum": [
+                  "completionsNes"
+                ],
+                "markdownDescription": "Applies the completions NES defaults. Standalone settings take precedence over these defaults."
+              }
+            },
+            "tags": [
+              "advanced",
+              "experimental"
+            ]
+          },
+          "github.copilot.chat.inlineEdits.xtabProvider.aggressivenessLevel": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "default": "medium",
+            "markdownDescription": "Controls the aggressiveness level for next edit suggestions.\n\n**Note**: This is an advanced setting.",
             "tags": [
               "advanced",
               "experimental"

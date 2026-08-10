@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { beforeEach, describe, expect, test } from 'vitest';
-import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType } from '../../../../platform/configuration/common/configurationService';
+import type { ConfigurationScope } from 'vscode';
+import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, getExperimentBasedConfigWithDefaultOverride } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
-import { AggressivenessLevel, AggressivenessSetting, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, UserHappinessScoreConfiguration } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, AggressivenessSetting, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, ModelConfiguration, ModelConfigurationUnification, UserHappinessScoreConfiguration } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
+import { Event } from '../../../../util/vs/base/common/event';
 import { ActionKind, MAX_INTERACTIONS_CONSIDERED, MAX_INTERACTIONS_STORED, UserInteractionMonitor } from '../../common/userInteractionMonitor';
 
 
@@ -57,11 +60,11 @@ class MockConfigurationService extends InMemoryConfigurationService {
 		this._useAdaptiveAggressiveness = true;
 	}
 
-	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T {
-		if (this._useAdaptiveAggressiveness && key === ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel) {
+	override getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope, defaultValueOverride?: T): T {
+		if (this._useAdaptiveAggressiveness && key === ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel) {
 			return undefined as T;
 		}
-		return super.getExperimentBasedConfig(key, experimentationService);
+		return super.getExperimentBasedConfig(key, experimentationService, scope, defaultValueOverride);
 	}
 }
 
@@ -92,13 +95,28 @@ describe('UserInteractionMonitor', () => {
 	let logService: ILogService;
 	let telemetryService: ITelemetryService;
 	let monitor: TestUserInteractionMonitor;
+	let modelConfiguration: ModelConfiguration;
+	const modelService: IInlineEditsModelService = {
+		_serviceBrand: undefined,
+		modelInfo: undefined,
+		onModelListUpdated: Event.None,
+		setCurrentModelId: async () => { },
+		selectedModelConfiguration: () => modelConfiguration,
+		defaultModelConfiguration: () => modelConfiguration,
+	};
 
 	beforeEach(() => {
 		configurationService = new MockConfigurationService();
 		experimentationService = new NullExperimentationService();
 		logService = new TestLogService();
 		telemetryService = new NullTelemetryService();
-		monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, telemetryService);
+		modelConfiguration = {
+			modelName: 'test-model',
+			promptingStrategy: undefined,
+			includeTagsInCurrentFile: false,
+			lintOptions: undefined,
+		};
+		monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, telemetryService, modelService);
 	});
 
 	describe('history logging', () => {
@@ -209,6 +227,26 @@ describe('UserInteractionMonitor', () => {
 		});
 	});
 
+	test('uses the completions NES debounce default', () => {
+		modelConfiguration = {
+			...modelConfiguration,
+			unification: ModelConfigurationUnification.CompletionsNes,
+		};
+
+		expect(monitor.createDelaySession(undefined).getDebounceTime()).toBe(0);
+	});
+
+	test('prefers a standalone setting over the completions NES default', () => {
+		configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsDebounce, 25);
+
+		expect(getExperimentBasedConfigWithDefaultOverride(
+			configurationService,
+			ConfigKey.TeamInternal.InlineEditsDebounce,
+			experimentationService,
+			0,
+		)).toBe(25);
+	});
+
 	describe('aggressiveness level calculation', () => {
 		test('defaults to medium aggressiveness without using adaptive scoring', () => {
 			expect(monitor.getAggressivenessLevel()).toEqual({
@@ -219,7 +257,7 @@ describe('UserInteractionMonitor', () => {
 
 		test('explicit user eagerness takes priority over configured aggressiveness', () => {
 			configurationService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, AggressivenessSetting.High);
-			configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, AggressivenessLevel.Low);
+			configurationService.setConfig(ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel, AggressivenessLevel.Low);
 
 			expect(monitor.getAggressivenessLevel()).toEqual({
 				aggressivenessLevel: AggressivenessLevel.High,
@@ -251,7 +289,7 @@ describe('UserInteractionMonitor', () => {
 
 		test('respects configured aggressiveness level override', () => {
 			configurationService.setConfig(
-				ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel,
+				ConfigKey.Advanced.InlineEditsXtabAggressivenessLevel,
 				AggressivenessLevel.Low
 			);
 
@@ -277,7 +315,7 @@ describe('UserInteractionMonitor', () => {
 			const levelRejectionsRecent = monitor.getAggressivenessLevel().aggressivenessLevel;
 
 			// Reset and do opposite order
-			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, telemetryService);
+			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, telemetryService, modelService);
 			for (let i = 0; i < 5; i++) {
 				monitor.handleRejection();
 			}
@@ -356,7 +394,7 @@ describe('UserInteractionMonitor', () => {
 		beforeEach(() => {
 			configurationService.useAdaptiveAggressiveness();
 			mockTelemetryService = new MockTelemetryService();
-			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, mockTelemetryService);
+			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, mockTelemetryService, modelService);
 		});
 
 		test('emits telemetry event when config is invalid JSON', () => {
