@@ -6007,6 +6007,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!session.isCompleteObs.get()) {
 				session.complete();
 			}
+			this._chatService.invalidateSessionModel(session.sessionResource);
 			session.dispose();
 		}
 		this._activeSessions.clear();

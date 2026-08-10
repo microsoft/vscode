@@ -596,6 +596,10 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.acquireExisting(sessionResource, debugOwner ?? 'ChatService#acquireExistingSession');
 	}
 
+	invalidateSessionModel(sessionResource: URI): void {
+		this._sessionModels.invalidate(sessionResource);
+	}
+
 	getChatModelReferenceDebugInfo() {
 		return this._sessionModels.getReferenceDebugSnapshot();
 	}

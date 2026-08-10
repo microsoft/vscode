@@ -113,6 +113,10 @@ export class MockChatService implements IChatService {
 		return undefined;
 	}
 
+	invalidateSessionModel(sessionResource: URI): void {
+		this.removeSession(sessionResource);
+	}
+
 	setSessionTitle(_sessionResource: URI, _title: string): void { }
 
 	appendProgress(_request: IChatRequestModel, _progress: IChatProgress): void { }

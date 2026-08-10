@@ -1973,6 +1973,12 @@ export interface IChatService {
 	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined>;
 
 	/**
+	 * Prevents future acquisitions from reusing the current model for this
+	 * resource. Existing references remain valid until their owners release them.
+	 */
+	invalidateSessionModel(sessionResource: URI): void;
+
+	/**
 	 * Loads a session from exported chat data
 	 */
 	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string): IChatModelReference;

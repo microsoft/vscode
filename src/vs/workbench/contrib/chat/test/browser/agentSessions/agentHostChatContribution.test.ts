@@ -799,6 +799,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		getSession: (sessionResource: URI) => chatModels.get(sessionResource.toString()),
 		onDidCreateModel: onDidCreateModel.event,
 		onDidDisposeSession: Event.None,
+		invalidatedSessionModels: [] as URI[],
+		invalidateSessionModel(sessionResource: URI) {
+			this.invalidatedSessionModels.push(sessionResource);
+			chatModels.delete(sessionResource.toString());
+		},
 		setSession(sessionResource: URI, model: IChatModel) {
 			chatModels.set(sessionResource.toString(), model);
 			onDidCreateModel.fire(model);
@@ -4022,9 +4027,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('disposing the handler settles a live turn without cancelling the backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
 
-			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			let settled = false;
 			void turnPromise.then(() => settled = true);
 			await timeout(0);
@@ -4037,9 +4042,11 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({
 				settled,
 				cancelled: agentHostService.dispatchedActions.some(action => action.action.type === 'chat/turnCancelled'),
+				invalidatedSessionModels: chatService.invalidatedSessionModels.map(resource => resource.toString()),
 			}, {
 				settled: true,
 				cancelled: false,
+				invalidatedSessionModels: [chatSession.sessionResource.toString()],
 			});
 		}));
 

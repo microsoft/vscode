@@ -88,6 +88,83 @@ suite('ChatModelStore', () => {
 		ref2.dispose();
 	});
 
+	test('invalidation creates a new generation while old references remain valid', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+		const disposedModels: ChatModel[] = [];
+		store.add(testObject.onDidDisposeModel(model => disposedModels.push(model)));
+
+		const oldRef = testObject.acquireOrCreate(props, 'old-holder');
+		const oldModel = oldRef.object as unknown as MockChatModel;
+
+		assert.strictEqual(testObject.invalidate(uri), true);
+		assert.strictEqual(testObject.get(uri), undefined);
+		assert.strictEqual(testObject.acquireExisting(uri), undefined);
+
+		const newRef = testObject.acquireOrCreate(props, 'new-holder');
+		const newModel = newRef.object;
+		assert.notStrictEqual(newModel, oldModel);
+
+		oldRef.dispose();
+		await testObject.waitForModelDisposals();
+
+		assert.deepStrictEqual({
+			createdModels: createdModels.length,
+			oldDisposed: oldModel.isDisposed,
+			currentIsNew: testObject.get(uri) === newModel,
+			willDisposeCalls: willDisposePromises.length,
+			disposedModels,
+			debugModels: testObject.getReferenceDebugSnapshot().models.map(model => ({
+				createdBy: model.createdBy,
+				referenceCount: model.referenceCount,
+			})),
+		}, {
+			createdModels: 2,
+			oldDisposed: true,
+			currentIsNew: true,
+			willDisposeCalls: 0,
+			disposedModels: [],
+			debugModels: [{
+				createdBy: 'new-holder',
+				referenceCount: 1,
+			}],
+		});
+
+		newRef.dispose();
+		willDisposePromises[0].complete();
+		await testObject.waitForModelDisposals();
+		assert.deepStrictEqual(disposedModels, [newModel]);
+	});
+
+	test('invalidated generation fires disposal when it has no replacement', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+		const disposedModels: ChatModel[] = [];
+		store.add(testObject.onDidDisposeModel(model => disposedModels.push(model)));
+		const ref = testObject.acquireOrCreate(props);
+		const model = ref.object;
+
+		testObject.invalidate(uri);
+		ref.dispose();
+		await testObject.waitForModelDisposals();
+
+		assert.deepStrictEqual({
+			disposedModels,
+			willDisposeCalls: willDisposePromises.length,
+		}, {
+			disposedModels: [model],
+			willDisposeCalls: 0,
+		});
+	});
+
 	test('get and has', async () => {
 		const uri = URI.parse('test://session');
 		const props: IStartSessionProps = {
