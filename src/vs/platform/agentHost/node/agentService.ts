@@ -53,7 +53,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionCreationDefaults, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 
-import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, isGitDirectoryPath, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -939,6 +939,7 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * Repairs repository roots written by older builds that treated a parent linked checkout as the repository.
 	 * Listing performs this migration because archived sessions may never resume through WorktreeIsolation's metadata reader.
+	 * Leaves the stored value alone when git answers with its own git directory — see {@link isGitDirectoryPath}.
 	 */
 	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string): Promise<string> {
 		const storedRepositoryRootRaw = repositoryRootRaw;
@@ -958,7 +959,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
 			}
 		}
-		if (primaryRoot) {
+		if (primaryRoot && !isGitDirectoryPath(primaryRoot)) {
 			repositoryRootRaw = primaryRoot.toString();
 		}
 		if (repositoryRootRaw !== storedRepositoryRootRaw) {

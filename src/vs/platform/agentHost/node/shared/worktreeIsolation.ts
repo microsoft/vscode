@@ -65,6 +65,29 @@ interface IWorktreeMetadata {
 }
 
 /**
+ * Whether `path` names a git *directory* rather than a working tree.
+ *
+ * `git worktree list` does not always answer with a working tree: inside a
+ * submodule it reports the superproject's git directory
+ * (`/super/.git/modules/vendored`), and for a worktree of a bare repository it
+ * reports the bare directory (`/work/repo.git`). Adopting either as a session's
+ * repository root is destructive, because {@link getWorktreesRoot} derives the
+ * worktrees directory from it: a worktree-isolated session created from a
+ * submodule would be materialized at
+ * `/super/.git/modules/vendored.worktrees/<name>`, inside the repository's own
+ * metadata.
+ *
+ * This is a conservative refusal by name, not a classification of the path. It
+ * only recognises the conventional `.git` spellings; a `--separate-git-dir`
+ * target can be named anything, so it is deliberately not recognised here and
+ * callers keep whatever fallback they already had for that case.
+ */
+export function isGitDirectoryPath(path: URI): boolean {
+	const segments = path.path.split('/');
+	return segments.includes('.git') || !!segments[segments.length - 1]?.endsWith('.git');
+}
+
+/**
  * The `<repo>.worktrees` sibling directory where per-session isolated
  * worktrees are created, e.g. `/src/vscode` → `/src/vscode.worktrees`.
  */
@@ -570,7 +593,7 @@ export class WorktreeIsolation extends Disposable {
 			return workingDirectory;
 		}
 
-		const repositoryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
+		const { root: repositoryRoot } = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
 		const worktreesRoot = getWorktreesRoot(repositoryRoot);
 		// Prefix (e.g. the user's `git.branchPrefix`) the client forwards for
 		// worktree-isolated sessions. Prepended ahead of the built-in `agents/`
@@ -890,8 +913,10 @@ export class WorktreeIsolation extends Disposable {
 			return false;
 		}
 		const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, worktreeRoot).catch(() => undefined);
-		// A primary checkout (not a linked worktree) resolves to itself; nothing to bridge.
-		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
+		// A primary checkout (not a linked worktree) resolves to itself; nothing to
+		// bridge. Neither is there when git answers with its own git directory —
+		// see {@link isGitDirectoryPath}.
+		if (!primaryRoot || isGitDirectoryPath(primaryRoot) || isEqual(primaryRoot, worktreeRoot)) {
 			return false;
 		}
 		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
@@ -917,12 +942,26 @@ export class WorktreeIsolation extends Disposable {
 		return meta?.repositoryRoot ? projectFromRepositoryRoot(meta.repositoryRoot) : undefined;
 	}
 
-	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<URI> {
+	/**
+	 * Resolves the repository's primary worktree root for `checkoutRoot`, or
+	 * `fallbackRoot` when git has no usable answer. `resolved` distinguishes a
+	 * genuine git answer from the fallback so callers can decide whether the
+	 * value is worth persisting.
+	 */
+	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<{ readonly root: URI; readonly resolved: boolean }> {
 		try {
-			return await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot) ?? fallbackRoot;
+			const resolved = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot);
+			if (resolved && !isGitDirectoryPath(resolved)) {
+				return { root: resolved, resolved: true };
+			}
+			// Git answered with its own git directory — a submodule, or a bare
+			// repository. Adopting it would group the session under a path inside
+			// the repository's metadata, and worse, place its worktree there: the
+			// worktrees directory is derived from this value.
+			return { root: fallbackRoot, resolved: false };
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}] Failed to resolve primary worktree for '${checkoutRoot.fsPath}': ${errorMessage(error)}`);
-			return fallbackRoot;
+			return { root: fallbackRoot, resolved: false };
 		}
 	}
 
@@ -1003,8 +1042,10 @@ export class WorktreeIsolation extends Disposable {
 			let repositoryRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
 			if (repositoryRoot) {
 				const checkoutRoot = worktreePath && await fileExists(worktreePath.fsPath) ? worktreePath : repositoryRoot;
-				const primaryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
-				if (primaryRoot.toString() !== repositoryRoot.toString()) {
+				const { root: primaryRoot, resolved } = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
+				// Only persist a root that git genuinely resolved; a fallback carries
+				// no new information and must not overwrite what is already stored.
+				if (resolved && primaryRoot.toString() !== repositoryRoot.toString()) {
 					repositoryRoot = primaryRoot;
 					try {
 						await ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString());

@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, isGitDirectoryPath, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 
 /**
@@ -138,6 +138,24 @@ suite('WorktreeIsolation', () => {
 			namedFlattened: 'feature-sub-topic',
 			namedNoPrefix: 'plain-branch',
 			namedWithBranchPrefix: 'add-config',
+		});
+	});
+
+	test('isGitDirectoryPath refuses the git directories git reports for submodules and bare repositories', () => {
+		assert.deepStrictEqual({
+			submoduleGitDir: isGitDirectoryPath(URI.file('/work/super/.git/modules/vendored')),
+			bareRepository: isGitDirectoryPath(URI.file('/work/repo.git')),
+			dotGitDirectory: isGitDirectoryPath(URI.file('/work/repo/.git')),
+			workingTree: isGitDirectoryPath(URI.file('/work/repo')),
+			worktreesSibling: isGitDirectoryPath(URI.file('/work/repo.worktrees/feature')),
+			substringLookalike: isGitDirectoryPath(URI.file('/work/gitlab/repo')),
+		}, {
+			submoduleGitDir: true,
+			bareRepository: true,
+			dotGitDirectory: true,
+			workingTree: false,
+			worktreesSibling: false,
+			substringLookalike: false,
 		});
 	});
 
@@ -304,6 +322,35 @@ suite('WorktreeIsolation', () => {
 		}, {
 			worktree: URI.joinPath(fallbackWorktreesRoot, getWorktreeName(branchName)).toString(),
 			metaRepositoryRoot: checkoutRoot.toString(),
+		});
+	});
+
+	test('resolveWorkingDirectory keeps a submodule working tree rather than the git directory git reports', async () => {
+		// Inside a submodule `git worktree list` answers with the superproject's
+		// git directory, so the worktree must not be derived from it.
+		const submoduleCheckout = URI.joinPath(repoRoot, 'vendored');
+		const submoduleGitDir = URI.joinPath(repoRoot, '.git', 'modules', 'vendored');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => submoduleCheckout;
+		gitService.getWorktreeRoots = async () => [submoduleGitDir];
+		const isolation = createIsolation(disposables, { gitService });
+
+		const worktree = await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: submoduleCheckout,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+		const meta = await isolation.readWorktreeMetadata(sessionUri);
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
+			createdInsideGitDirectory: existsSync(getWorktreesRoot(submoduleGitDir).fsPath),
+		}, {
+			worktree: URI.joinPath(getWorktreesRoot(submoduleCheckout), getWorktreeName(branchName)).toString(),
+			metaRepositoryRoot: submoduleCheckout.toString(),
+			createdInsideGitDirectory: false,
 		});
 	});
 
