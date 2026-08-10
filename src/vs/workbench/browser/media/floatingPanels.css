@@ -160,7 +160,7 @@
 /* Extend the rail to the window edge with extra space outside the activity items. */
 .monaco-workbench.floating-panels .part.activitybar.left {
 	margin-left: 0;
-	margin-right: var(--vscode-spacing-size20);
+	margin-right: 0;
 	padding-left: var(--vscode-spacing-size60);
 	padding-right: var(--vscode-spacing-size20);
 	width: calc(var(--activity-bar-width, 48px) + var(--vscode-spacing-size80));
@@ -168,6 +168,7 @@
 }
 
 .monaco-workbench.floating-panels .part.activitybar.right {
+	margin-left: var(--vscode-spacing-size20);
 	margin-right: 0;
 	padding-left: var(--vscode-spacing-size20);
 	padding-right: var(--vscode-spacing-size60);

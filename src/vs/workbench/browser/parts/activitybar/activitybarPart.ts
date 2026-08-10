@@ -97,7 +97,7 @@ export class ActivitybarPart extends Part {
 			return 0;
 		}
 
-		return ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN
+		return ActivitybarPart.FLOATING_MARGIN * 2
 			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? FLOATING_PANEL_INNER_MARGIN : 0);
 	}
 
