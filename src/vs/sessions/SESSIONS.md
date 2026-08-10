@@ -223,7 +223,7 @@ Each session operates on an **`ISessionWorkspace`** containing one or more **`IS
 
 Agent-host sessions retain up to ten deduplicated pull request URLs in most-recent-first order. Rediscovering a PR moves it to the front; legacy metadata containing a singular `pullRequestUrl` is read as a one-item list. The client projects the first entry as `IGitHubInfo.pullRequest`, so CI, review comments, session-list status, context actions, and all other existing PR behavior continue to target only the most recent PR. `IGitHubInfo.pullRequests` exposes the ordered history solely for the session-header pill: one PR renders `#N`, while multiple render `N Pull Requests` and open the same keyboard-accessible icon/number/title list used for referenced issues. The header keeps every retained PR's core state, CI checks, and review threads live so each row's icon and title stay current.
 
-Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants. The picker supplements its own history with VS Code's recently opened folders. Folders below a path segment ending in `.worktrees` or named `copilot-worktrees` appear only when the user previously selected them in an Agents picker; they are excluded from VS Code's general recents and never automatically preselected. For other folders, the picker restores the last explicitly selected workspace first, then other Agents-owned recents, and finally the most recent resolvable workspace from VS Code's general history.
+Workspaces carry a `group` label (e.g., `"Local"`, `"Remote"`) used by the workspace picker to organize entries into tabs via the `SESSION_WORKSPACE_GROUP_LOCAL` / `SESSION_WORKSPACE_GROUP_REMOTE` constants. The picker supplements its own history with VS Code's recently opened folders. Folders below a path segment ending in `.worktrees` or named `copilot-worktrees` appear only when the user previously selected them in an Agents picker; they are excluded from VS Code's general recents and never automatically preselected. For other folders, the picker restores the last explicitly selected workspace first, then other Agents-owned recents, and finally the most recent resolvable workspace from VS Code's general history. If none of those sources produces a workspace, `SessionWorkspaceFallback` examines the 15 most recently updated provider sessions, counts their primary workspace folders, and returns the most frequent folder that still resolves and exists; frequency ties prefer the workspace from the newer session. Quick chats and worktree sessions identified by `worktreePending`, `gitRepository.workTreeUri`, or the historical path heuristic are excluded. Late provider-session updates retry this final fallback until the user makes an explicit choice, except while the new-session surface is hosting a workspace-less quick-chat composer. The picker owns only fallback eligibility, race handling, and publishing the returned selection.
 
 Tasks with `runOptions.runOn === "worktreeCreated"` are dispatched client-side only for sessions that this window has just started. `SessionsManagementService` emits `onDidStartSession` from `sendNewChatRequest` after `provider.sendRequest(...)` commits, and `WorktreeCreatedTaskDispatcher` tracks only those sessions until they report a concrete `gitRepository.workTreeUri`. Restored/synced catalog sessions and runtimes that declare `capabilities.runsWorktreeCreatedTasks` are skipped so setup tasks are not re-run on window open or double-run with server-side provisioning.
 
@@ -372,17 +372,44 @@ with a delay. Its workspace step is shared with V2, so it appears only when no
 workspace is preselected. Once that step completes (or is skipped because a
 workspace was preselected), the sequence advances to a non-visual `run` step
 that finds the mounted editable new-session composer through
-`INewSessionComposerService` and fills its input with a task-prompt template over
-2.5 seconds. The run step awaits typing and forwards sequence cancellation;
-cancellation or composer disposal preserves only the text already typed, while
-explicit placeholder activation completes the template before replacement. Run
-steps count in sequence telemetry but not in spotlight progress; V3 therefore
-has two sequence steps while displaying one spotlight step. Reduced-motion and
-screen-reader modes fill the template at once; an existing draft is never
-replaced, and editing during the animation cancels the remaining generated text.
-The task placeholder uses the same themed highlight as slash commands. Clicking
-it, or placing the caret inside and pressing Enter, removes the placeholder,
-focuses the input, and places the caret at the replacement position.
+`INewSessionComposerService`. The `prompt` and `githubPrompt` variations fill the
+input over 2.5 seconds. The `options` variation first shows three loading
+skeletons, then resolves up to two assigned, unlinked GitHub issues followed by
+up to two authored pull requests with failing CI or unaddressed review comments.
+`options` is the default when no variation treatment is assigned; `prompt` and
+`githubPrompt` remain available as explicit treatments and developer overrides.
+Any remaining slots are filled, in order, by the standard Implement a feature,
+Fix a bug, and Fix CI options. GitHub work is resolved
+silently with bounded cancellable lookups and shared issue/pull-request state
+icons; failures and timeouts leave every candidate completed by that point in
+place and fill the rest with standard options. Changing the selected workspace
+clears the repository-specific option set immediately, shows loading skeletons,
+and starts a fresh lookup for the replacement draft so cards from the previous
+repository cannot be inserted into the new workspace. Clearing the workspace
+cancels the active lookup, removes only untouched/generated option text, and
+hides the widget so stale results cannot reappear.
+
+Selecting the first option focuses the input immediately and animates its prompt
+into an empty input. Later selections replace the generated prompt immediately.
+A different option can replace the input only while it is empty, exactly matches
+the previously selected prompt, or exactly matches that prompt after its editable
+placeholder was activated and removed. Any other edit disables every option but
+preserves the selected presentation; clearing the input or restoring either exact
+generated form enables them again. The option widget remains mounted after
+selection and is disposed with the composer. Standard prompts contain
+action-specific editable placeholders and the same inspect, explain, implement,
+and validate guidance as the prompt variation.
+
+The run step awaits typing or option resolution and forwards sequence
+cancellation; cancellation or composer disposal preserves only text already
+typed and removes unresolved loading UI, while explicit placeholder activation
+completes the template before replacement. Run steps count in sequence telemetry
+but not in spotlight progress; V3 therefore has two sequence steps while
+displaying one spotlight step. Reduced-motion and screen-reader modes fill a
+selected template at once. The task placeholder uses the same themed highlight
+as slash commands. Clicking it, or placing the caret inside and pressing Enter,
+removes the placeholder, focuses the input, and places the caret at the
+replacement position.
 
 Non-visual onboarding behavior must not be attached to a spotlight payload as a
 completion callback. Model heterogeneous tours with the sequence presentation
@@ -455,6 +482,15 @@ review-confirmation command bridge resolves the rendered `IChat.resource` throug
 `ISessionsManagementService.getSessionForChatResource` before reading or mutating
 feedback. This keeps the unreviewed count, picker contents, and reveal selection on
 the same parent session even when the tool is invoked from an additional chat.
+`viewUnreviewedComments` returns an explicit picker selection when one exists;
+otherwise, including when confirmation is automatically approved, it returns every
+created PR and code-review comment and transitions them directly to `submitted`.
+The picker disables **Reveal Selected** when no comments are selected. When there
+are no created comments or pending selections to reveal, providers execute the
+empty tool call without presenting a confirmation, regardless of permission mode:
+Copilot and Claude gate their confirmation on
+`IAgentServerToolHost.requiresConfirmation`, while Codex runs server
+tools as dynamic tool calls, which never round-trip for approval.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
@@ -838,6 +874,10 @@ existing risk-badge position with safety-appropriate visuals. A live
 approval-level change is pushed to every in-memory SDK
 chat immediately, including during an active turn, so leaving Allow all
 cannot leave the SDK in allow-all mode for later tool calls in that turn.
+Client tools preserve this approval when they execute without a live chat
+observer: the Agent Host's `autoApproveBySetting` metadata becomes the tool
+invocation's `preApproved` reason, and the headless invocation path honors it
+unless a pre-tool-use hook explicitly requests confirmation.
 `chat.experimental.autoApprovals.enabled` controls whether Assisted permissions is
 offered in approval pickers and defaults on outside Stable builds. Enterprise
 policy still leaves Approve When Safe and Allow All visible, but disables both with an
@@ -934,11 +974,13 @@ creating after its draft was replaced is disposed before activation.
 
 Provider add notifications are authoritative upserts. A provisional `listSessions()` entry may already be cached when the backend publishes its materialized project and working directory, so providers update the existing session adapter in place and report it as changed rather than replacing its identity.
 
+Providers initialize synchronous session caches before registration completes. Read APIs such as `getSessions()` and `getSession()` must not populate a cache and synchronously emit `onDidChangeSessions`, because callers can read them while rendering a session-list tree update.
+
 ### First-Time Window-Open Telemetry
 
 Editor entry points pass an `AgentsWindowOpenSource` through `INativeHostService.openAgentsWindow` and the `vscode:selectAgentsFolder` startup handoff. The source distinguishes command-palette, keyboard, title-bar, chat-title, handoff-tip, discovery-banner, and command-line opens without collecting workspace or session identifiers.
 
-On the first handoff in a window, `SelectAgentsFolderContribution` starts `SessionsWindowOpenTelemetry` only when the application-scoped `TOTAL_SESSIONS_KEY` counter is still zero. The collector freezes whether the settled initial view is a workspace-preselected new-session view (or records `undefined` when a created session is visible), reads whether the initial setup flow showed its sign-in dialog, and emits `agents/firstTimeWindowOpen` once. A close within three minutes includes `windowCloseDurationMs`; otherwise the event emits at the three-minute boundary with that field undefined.
+On the first handoff in a window, `SelectAgentsFolderContribution` starts `SessionsWindowOpenTelemetry` only when the application-scoped `TOTAL_SESSIONS_KEY` counter is still zero. The collector freezes whether the settled initial view is a workspace-preselected new-session view (or records `undefined` when a created session is visible), records whether that workspace came from the checked workspace, recents, existing sessions, a provided folder, or a user choice, reads whether the initial setup flow showed its sign-in dialog, and emits `agents/firstTimeWindowOpen` once. A close within three minutes includes `windowCloseDurationMs`; otherwise the event emits at the three-minute boundary with that field undefined.
 
 `SessionsWindowStartupExperiment` reads the `agentsWindowStartupAA` treatment at `WorkbenchPhase.BlockStartup`. Both A/A variants use the same treatment value, so the read records experiment exposure without changing the Agents window experience.
 

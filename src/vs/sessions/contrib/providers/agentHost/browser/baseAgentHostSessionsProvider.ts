@@ -27,7 +27,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, StateComponents, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, StateComponents, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -251,7 +251,7 @@ function toGitHubPullRequestRefs(pullRequestUrls: readonly string[] | undefined)
 function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const pullRequests = toGitHubPullRequestRefs(state?.pullRequestUrls);
+	const pullRequests = toGitHubPullRequestRefs(getSessionRelatedPullRequestUrls(state));
 	const pullRequest = pullRequests?.[0];
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
@@ -2598,14 +2598,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Subclasses whose `_shouldAdvertiseAgent` can change at runtime MUST
 		// fire `onDidChangeSessions` when it does, so consumers re-query and
 		// re-filter (see the local provider's `preferAgentHost` listener).
+		const pendingSession = this._pendingSession;
 		const sessions: ISession[] = [];
 		for (const cached of this._sessionCache.values()) {
+			if (pendingSession && isEqual(cached.resource, pendingSession.resource)) {
+				continue;
+			}
 			if (this._shouldAdvertiseAgent(cached.agentProvider)) {
 				sessions.push(cached);
 			}
 		}
-		if (this._pendingSession && this._shouldAdvertiseAgent(this._pendingSession.sessionType)) {
-			sessions.push(this._pendingSession);
+		if (pendingSession && this._shouldAdvertiseAgent(pendingSession.sessionType)) {
+			sessions.push(pendingSession);
 		}
 		return sessions;
 	}
@@ -3593,27 +3597,33 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!connection) {
 			return;
 		}
-		const targets: { rawId: string; sessionId: string; cached: AgentHostSessionAdapter }[] = [];
+		const targets: { rawId: string; cached: AgentHostSessionAdapter }[] = [];
 		for (const sessionId of sessionIds) {
 			const rawId = this._rawIdFromChatId(sessionId);
 			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 			if (cached && rawId) {
-				targets.push({ rawId, sessionId, cached });
+				targets.push({ rawId, cached });
 			}
 		}
 		if (targets.length === 0) {
 			return;
 		}
-		for (const { rawId, sessionId, cached } of targets) {
-			await connection.disposeSession(cached.backendUri);
-			this._sessionCache.delete(rawId);
-			this._runningSessionConfigs.delete(sessionId);
-			this._runningSessionConfigResolveSeq.delete(sessionId);
-		}
-		const removed = targets.map(target => target.cached);
-		this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
-		for (const cached of removed) {
-			cached.dispose();
+		const removed: AgentHostSessionAdapter[] = [];
+		try {
+			for (const { rawId, cached } of targets) {
+				await connection.disposeSession(cached.backendUri);
+				const removedSession = this._removeCachedSession(rawId, cached);
+				if (removedSession) {
+					removed.push(removedSession);
+				}
+			}
+		} finally {
+			if (removed.length > 0) {
+				this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
+				for (const cached of removed) {
+					cached.dispose();
+				}
+			}
 		}
 	}
 
@@ -4902,17 +4912,32 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _handleSessionRemoved(session: URI | string): void {
 		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
+		const cached = this._removeCachedSession(rawId);
 		if (cached) {
-			this._sessionCache.delete(rawId);
-			this._runningSessionConfigs.delete(cached.sessionId);
-			this._runningSessionConfigResolveSeq.delete(cached.sessionId);
-			this._sessionStateIdleTimers.deleteAndDispose(cached.sessionId);
-			this._sessionStateSubscriptions.deleteAndDispose(cached.sessionId);
-			this._lastSessionStates.delete(cached.sessionId);
 			this._onDidChangeSessions.fire({ added: [], removed: [cached], changed: [] });
 			cached.dispose();
 		}
+	}
+
+	private _removeCachedSession(rawId: string, expected?: AgentHostSessionAdapter): AgentHostSessionAdapter | undefined {
+		const cached = this._sessionCache.get(rawId);
+		if (expected && cached && cached !== expected) {
+			return undefined;
+		}
+		this._metaByRawId.delete(rawId);
+		const stateOwner = cached ?? expected;
+		if (!stateOwner) {
+			return undefined;
+		}
+		if (cached) {
+			this._sessionCache.delete(rawId);
+		}
+		this._runningSessionConfigs.delete(stateOwner.sessionId);
+		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);
+		this._sessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
+		this._sessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
+		this._lastSessionStates.delete(stateOwner.sessionId);
+		return cached;
 	}
 
 	private _handleTitleChanged(session: string, title: string): void {
@@ -4943,6 +4968,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _handleSessionSummaryChanged(session: string, changes: Partial<SessionSummary>): void {
+		// Set when a delta clears the adoptable-legacy marker so we can reopen the
+		// passive state subscription after the transaction commits (the observable
+		// updates in `_ensureSessionStateSubscription` must not run nested in `tx`).
+		let reopenStateSubscriptionFor: string | undefined;
 		transaction((tx) => {
 			const rawId = AgentSession.id(session);
 			const cached = this._sessionCache.get(rawId);
@@ -4989,14 +5018,35 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				didChange = true;
 			}
 
-			if (changes._meta !== undefined && cached.setMeta(changes._meta, tx)) {
-				didChange = true;
+			if (Object.prototype.hasOwnProperty.call(changes, '_meta')) {
+				// Keep the guard map in sync (mirrors `updateAdapter`) so a cleared
+				// adoptable-legacy marker reopens the passive session-state
+				// subscription in `_ensureSessionStateSubscription`. Use `hasOwnProperty`
+				// (like `activity` above) so an explicit clear to `undefined` applies.
+				const storedMeta = this._metaByRawId.get(rawId);
+				const wasAdoptable = readSessionEhcliAdoptable(storedMeta?._meta);
+				if (storedMeta) {
+					this._metaByRawId.set(rawId, { ...storedMeta, _meta: changes._meta });
+				}
+				if (cached.setMeta(changes._meta, tx)) {
+					didChange = true;
+				}
+				// A cleared adoptable-legacy marker means the session is now a real
+				// session; the guard in `_ensureSessionStateSubscription` skipped it
+				// while it was adoptable, so reopen the subscription explicitly.
+				if (wasAdoptable && !readSessionEhcliAdoptable(changes._meta)) {
+					reopenStateSubscriptionFor = cached.sessionId;
+				}
 			}
 
 			if (didChange) {
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			}
 		});
+
+		if (reopenStateSubscriptionFor !== undefined) {
+			this._ensureSessionStateSubscription(reopenStateSubscriptionFor);
+		}
 	}
 
 	private _handleConfigChanged(session: string, config: Record<string, unknown>, replace: boolean): void {

@@ -38,7 +38,7 @@ Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contributi
   - `AgentHostTerminalContribution` — terminal integration for agent host sessions.
   - The classic chat sidebar item controller is registered separately in the editor window only; the Agents window does not load or register `AgentHostSessionListController`.
 
-The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only wiring on top.
+The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only Agent Host developer commands, including debugging, profiling, and restarting the local Agent Host process.
 
 ## Identity
 
@@ -56,6 +56,14 @@ The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only
 | `sessionTypes` | Dynamically populated from the local agent host's `rootState.agents`; the type label is the agent's unadorned `displayName` (e.g. `"Copilot"`), the type **id** is the agent provider name (e.g. `copilotcli`) so the same agent shares one session type across local and remote hosts |
 
 These session-type icons are specific to the Agents window provider. In the editor window, `agentSessions.ts` maps local Agent Host Copilot to the Local harness's `Codicon.vm` picker icon, while `agentSessionsViewer.ts` uses the same session-list status dot as the Local harness.
+
+## Pull Request Provenance
+
+Agent Host metadata keeps the complete pull-request history discovered for a checkout so branch operations can detect an existing PR. Folder-isolated sessions additionally persist `initialPullRequestUrls`; the provider filters those pre-existing PRs from session presentation and `withPullRequest` queries.
+
+A baseline PR becomes session-related when the user references it in a message or deliberately invokes a create-PR operation that resolves to it. Explicit references are stored separately from checkout PRs and only surface after checkout discovery confirms the same PR, so an unrelated mention cannot change branch operations or session presentation. Pull requests created after the session began are related automatically. Worktree and legacy sessions have no baseline and retain the complete discovered history.
+
+Pull-request identity uses the Agent Host's configured GitHub host. Never canonicalize references to `github.com`: Enterprise checkout URLs and explicit references must remain comparable by host, owner, repository, and number.
 
 ## IDs and URI Schemes
 
