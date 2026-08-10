@@ -89,19 +89,22 @@ export interface ILocalCustomizationSyncOptions {
 	 * (`ActiveClient.requiresRestart`). It is also simply wrong: sessions get a
 	 * second copy of another worktree's instructions on top of their own.
 	 *
-	 * For a *local* agent host nothing important is lost by excluding it — the
-	 * host natively discovers `.github/instructions`, `.github/skills`,
-	 * `.github/agents` and friends from each session's own working directory
-	 * (see `SessionCustomizationDiscovery`), which is the correct source.
+	 * For a *local* agent host most workspace customization types remain
+	 * available: the host natively discovers `.github/instructions`,
+	 * `.github/skills`, `.github/agents` and friends from each session's own
+	 * working directory (see `SessionCustomizationDiscovery`), which is the
+	 * correct source. Workspace `.github/prompts` is the deliberate exception —
+	 * see below.
 	 *
 	 * A *remote* agent host is the opposite case and must pass `true`: it runs on
 	 * another machine and cannot discover any of this client's files, so the
 	 * client bundle is load-bearing rather than redundant. This is the same
 	 * reason remote registrations opt into user storage.
 	 *
-	 * The one type with no native equivalent is workspace `.github/prompts`
-	 * (bundled as `commands/`). Those stop reaching sessions when this is
-	 * `false`, which is deliberate: a slash command from an unrelated worktree
+	 * Workspace `.github/prompts` (bundled as `commands/`) has no native
+	 * equivalent, so those slash commands — user-visible functionality — stop
+	 * working in the Agents window when this is `false`. That is an accepted
+	 * regression rather than a no-op: a slash command from an unrelated worktree
 	 * is worse than no slash command. Skills are the supported replacement for
 	 * prompt files on agent-host harnesses. Restoring them properly means
 	 * bundling per session rather than per window.

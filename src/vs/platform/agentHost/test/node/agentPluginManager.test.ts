@@ -82,8 +82,8 @@ suite('AgentPluginManager', () => {
 	async function readCacheNonces(): Promise<Set<string>> {
 		const cachePath = URI.joinPath(basePath, 'agentPlugins', 'cache.json');
 		const content = await fileService.readFile(cachePath);
-		const entries: { uri: string; nonce: string }[] = JSON.parse(content.value.toString());
-		return new Set(entries.map(entry => entry.nonce));
+		const parsed: { entries: { uri: string; nonce: string }[] } = JSON.parse(content.value.toString());
+		return new Set(parsed.entries.map(entry => entry.nonce));
 	}
 
 	// ---- syncCustomizations -------------------------------------------------
@@ -180,6 +180,25 @@ suite('AgentPluginManager', () => {
 
 			assert.notStrictEqual(dir1.toString(), dir2.toString(), 'sign-differing nonces must not share a directory');
 			assert.strictEqual((await fileService.readFile(URI.joinPath(dir2, 'index.js'))).value.toString(), 'v2');
+		});
+
+		// A nonce is an opaque client token, so the directory mapping must be
+		// injective for *any* pair of distinct nonces — including one that is
+		// already path-safe and happens to look like another's encoded form.
+		test('distinct nonces never share a directory, whatever their shape', async () => {
+			const nonces = ['-28114114', '28114114', 'n-LTI4MTE0MTE0', 'default', '', 'a/b', 'a-b', 'a_b', 'A'.repeat(400), 'A'.repeat(401)];
+			const dirs = new Map<string, string>();
+			for (const nonce of nonces) {
+				await seedPluginDir('shapes', { 'index.js': nonce });
+				const result = await manager.syncCustomizations('test-client', [makeRef('shapes', nonce)]);
+				const dir = result[0].pluginDir!.toString();
+				const clash = [...dirs.entries()].find(([, d]) => d === dir);
+				// The empty nonce is treated as absent, so it legitimately shares the `default` slot.
+				if (nonce !== '' && clash && clash[0] !== '') {
+					assert.fail(`nonce ${JSON.stringify(nonce)} collided with ${JSON.stringify(clash[0])} at ${dir}`);
+				}
+				dirs.set(nonce, dir);
+			}
 		});
 
 		test('retains a locked older nonce so both revisions coexist', async () => {
@@ -294,6 +313,28 @@ suite('AgentPluginManager', () => {
 			// Should be loaded from cache (nonce match), not error
 			assert.strictEqual((result[0].customization as PluginCustomization).load?.kind, 'loaded');
 			assert.ok(result[0].pluginDir);
+		});
+
+		// The nonce → directory mapping changed, so entries written by an older
+		// build point at directories this build never looks up. They must be
+		// removed rather than orphaned, and must not linger in the LRU.
+		test('discards directories and entries from a superseded cache layout', async () => {
+			const uri = pluginUri('legacy');
+			const legacyDir = URI.joinPath(basePath, 'agentPlugins', uri.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''), '28114114');
+			await fileService.writeFile(URI.joinPath(legacyDir, 'index.js'), VSBuffer.fromString('stale'));
+			// Pre-versioning format: a bare array of entries.
+			await fileService.writeFile(
+				URI.joinPath(basePath, 'agentPlugins', 'cache.json'),
+				VSBuffer.fromString(JSON.stringify([{ uri, nonce: '-28114114' }])),
+			);
+
+			await seedPluginDir('legacy', { 'index.js': 'fresh' });
+			const result = await new AgentPluginManager(basePath, fileService, new NullLogService())
+				.syncCustomizations('test-client', [makeRef('legacy', '-28114114')]);
+
+			assert.strictEqual(await fileService.exists(legacyDir), false, 'legacy directory should be removed');
+			assert.strictEqual((await fileService.readFile(URI.joinPath(result[0].pluginDir!, 'index.js'))).value.toString(), 'fresh');
+			assert.deepStrictEqual(await readCacheNonces(), new Set(['-28114114']));
 		});
 	});
 });

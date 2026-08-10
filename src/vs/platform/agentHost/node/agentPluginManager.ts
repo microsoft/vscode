@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
-import { hash } from '../../../base/common/hash.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
@@ -14,6 +14,24 @@ import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCus
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
 const DEFAULT_MAX_PLUGINS = 20;
+
+/**
+ * Layout version of the on-disk cache. Bumped whenever the nonce → directory
+ * mapping changes, so an upgrade can remove directories materialized under the
+ * previous scheme instead of orphaning them.
+ */
+const CACHE_LAYOUT_VERSION = 2;
+
+const MAX_KEY_LENGTH = 128;
+const NONCE_KEY_UNDEFINED = 'default';
+const NONCE_KEY_PREFIX_ENCODED = 'n-';
+const NONCE_KEY_PREFIX_HASHED = 'h-';
+
+/** On-disk cache file format. */
+interface ICacheFile {
+	readonly version: number;
+	readonly entries: ICacheEntry[];
+}
 
 /** On-disk cache entry format. */
 interface ICacheEntry {
@@ -149,24 +167,35 @@ export class AgentPluginManager implements IAgentPluginManager {
 	/**
 	 * Directory-name key for a nonce.
 	 *
-	 * {@link _sanitize} is lossy — content-hash nonces are signed 32-bit
-	 * integers, so roughly half are negative and `-1234` reduces to the same
-	 * `1234` as its positive counterpart. Two genuinely different revisions
-	 * would then share one directory while being tracked as distinct LRU
-	 * entries, so eviction of one deletes the other's materialized content. A
-	 * short hash of the raw value is appended whenever sanitizing changed it,
-	 * which keeps the mapping injective while leaving well-formed nonces
-	 * readable.
+	 * A nonce is an opaque client token, so this mapping must be **injective**:
+	 * two different nonces must never share a directory, or the LRU (which
+	 * tracks them as distinct revisions) will evict one and delete the other's
+	 * materialized content. {@link _sanitize} is lossy and cannot be used here —
+	 * content-hash nonces are signed 32-bit integers, so `-1234` and `1234`
+	 * would both reduce to `1234`.
+	 *
+	 * Every nonce is therefore encoded reversibly as URL-safe base64 (whose
+	 * alphabet is already path-safe) under a reserved `n-` prefix. Nonces too
+	 * long to encode within {@link MAX_KEY_LENGTH} fall back to a SHA-1 digest
+	 * under a distinct `h-` prefix, so the two schemes occupy separate
+	 * namespaces and a hashed key can never alias an encoded one.
 	 */
 	private _keyForNonce(nonce: string | undefined): string {
 		if (!nonce) {
-			return 'default';
+			return NONCE_KEY_UNDEFINED;
 		}
-		const sanitized = this._sanitize(nonce);
-		if (sanitized === nonce) {
-			return sanitized;
+		const encoded = encodeBase64(VSBuffer.fromString(nonce), false, true);
+		if (encoded.length <= MAX_KEY_LENGTH) {
+			return `${NONCE_KEY_PREFIX_ENCODED}${encoded}`;
 		}
-		return `${sanitized || 'nonce'}-${(hash(nonce) >>> 0).toString(16)}`;
+		const sha = new StringSHA1();
+		sha.update(nonce);
+		return `${NONCE_KEY_PREFIX_HASHED}${sha.digest()}`;
+	}
+
+	/** The pre-`n-`/`h-` directory name a nonce mapped to. Used only to clean up on upgrade. */
+	private _legacyKeyForNonce(nonce: string | undefined): string {
+		return (nonce && this._sanitize(nonce)) || NONCE_KEY_UNDEFINED;
 	}
 
 	private _sanitize(value: string): string {
@@ -279,18 +308,29 @@ export class AgentPluginManager implements IAgentPluginManager {
 				return;
 			}
 			const content = await this._fileService.readFile(this._cachePath);
-			const entries: ICacheEntry[] = JSON.parse(content.value.toString());
+			const parsed: ICacheFile | ICacheEntry[] = JSON.parse(content.value.toString());
+			// Pre-versioning caches were a bare array of entries.
+			const isCurrentLayout = !Array.isArray(parsed) && parsed?.version === CACHE_LAYOUT_VERSION;
+			const entries = Array.isArray(parsed) ? parsed : parsed?.entries;
 			if (!Array.isArray(entries)) {
 				return;
 			}
 
-			// Entries are stored in LRU order (oldest first)
-			for (const entry of entries) {
-				if (typeof entry.uri === 'string' && typeof entry.nonce === 'string') {
-					this._lru.push({ uri: entry.uri, nonce: entry.nonce });
-				}
+			const valid = entries.filter(entry => typeof entry?.uri === 'string' && typeof entry?.nonce === 'string');
+			if (!isCurrentLayout) {
+				// The nonce → directory mapping changed. Entries recorded under the
+				// previous layout point at directories this build will never look
+				// up again, so remove them and start with an empty LRU rather than
+				// leaving orphaned trees and permanently stale entries behind.
+				await this._discardLegacyLayout(valid);
+				return;
 			}
-			this._logService.trace(`[AgentPluginManager] Loaded ${entries.length} cache entries from disk`);
+
+			// Entries are stored in LRU order (oldest first)
+			for (const entry of valid) {
+				this._lru.push({ uri: entry.uri, nonce: entry.nonce });
+			}
+			this._logService.trace(`[AgentPluginManager] Loaded ${valid.length} cache entries from disk`);
 		} catch (err) {
 			this._logService.warn('[AgentPluginManager] Failed to load cache from disk', err);
 		}
@@ -299,12 +339,30 @@ export class AgentPluginManager implements IAgentPluginManager {
 		await this._persistCache();
 	}
 
+	/**
+	 * Removes plugin directories materialized under a superseded cache layout.
+	 * Best-effort: a directory still held by a running session is left alone,
+	 * and is no longer tracked, so it is only ever cleaned up by a later
+	 * upgrade. Callers start with an empty LRU afterwards.
+	 */
+	private async _discardLegacyLayout(entries: readonly ICacheEntry[]): Promise<void> {
+		if (entries.length === 0) {
+			return;
+		}
+		this._logService.info(`[AgentPluginManager] Cache layout changed, discarding ${entries.length} entries from the previous layout`);
+		for (const entry of entries) {
+			const legacyDir = URI.joinPath(this._basePath, this._keyForUri(entry.uri), this._legacyKeyForNonce(entry.nonce));
+			await this._tryDeleteDir(legacyDir);
+		}
+	}
+
 	private async _persistCache(): Promise<void> {
 		try {
 			// Write entries in LRU order (oldest first)
 			const entries: ICacheEntry[] = this._lru.map(entry => ({ uri: entry.uri, nonce: entry.nonce }));
+			const file: ICacheFile = { version: CACHE_LAYOUT_VERSION, entries };
 			await this._fileService.createFolder(this._basePath);
-			await this._fileService.writeFile(this._cachePath, VSBuffer.fromString(JSON.stringify(entries)));
+			await this._fileService.writeFile(this._cachePath, VSBuffer.fromString(JSON.stringify(file)));
 		} catch (err) {
 			this._logService.warn('[AgentPluginManager] Failed to persist cache to disk', err);
 		}
