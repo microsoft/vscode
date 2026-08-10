@@ -4050,6 +4050,45 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('disposing the handler during turn preparation prevents stale dispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService, chatService } = createTestServices(disposables);
+			const reconcileStarted = new DeferredPromise<void>();
+			const releaseReconcile = new DeferredPromise<void>();
+			instantiationService.stub(IAgentHostSessionWorkingDirectorySynchronizer, {
+				register: () => toDisposable(() => { }),
+				reconcile: async () => {
+					reconcileStarted.complete();
+					await releaseReconcile.p;
+				},
+			} as Partial<IAgentHostSessionWorkingDirectorySynchronizer> as IAgentHostSessionWorkingDirectorySynchronizer);
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const handlerStore = disposables.add(new DisposableStore());
+			const sessionHandler = handlerStore.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'Copilot SDK agent running in a dedicated process',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				isNewSession: sessionResource => listController.isNewSession(sessionResource),
+			}));
+
+			const { turnPromise, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			await reconcileStarted.p;
+			handlerStore.dispose();
+			releaseReconcile.complete();
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				turnStarted: agentHostService.dispatchedActions.some(action => action.action.type === 'chat/turnStarted'),
+				invalidatedSessionModels: chatService.invalidatedSessionModels.map(resource => resource.toString()),
+			}, {
+				turnStarted: false,
+				invalidatedSessionModels: [chatSession.sessionResource.toString()],
+			});
+		}));
+
 		test('live turn returns model credit details from usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
