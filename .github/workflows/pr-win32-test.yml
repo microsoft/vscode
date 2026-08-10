@@ -46,35 +46,6 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Probe Windows Batch Exit Codes
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
-        shell: pwsh
-        run: |
-          $results = [ordered]@{}
-
-          node -e "process.exitCode = 17"
-          $results['node'] = $LASTEXITCODE
-
-          .\scripts\test-windows-exit-code-probe.bat top-level
-          $results['top-level-batch'] = $LASTEXITCODE
-
-          .\scripts\test-windows-exit-code-probe.bat parenthesized
-          $results['parenthesized-batch'] = $LASTEXITCODE
-
-          .\scripts\test-windows-exit-code-probe.bat nested-else
-          $results['nested-else-batch'] = $LASTEXITCODE
-
-          .\scripts\test-windows-exit-code-probe.bat parenthesized-goto
-          $results['parenthesized-goto-batch'] = $LASTEXITCODE
-
-          .\scripts\test-windows-exit-code-probe.bat nested-else-goto
-          $results['nested-else-goto-batch'] = $LASTEXITCODE
-
-          .\scripts\test-integration.bat --suite intentionally-invalid
-          $results['invalid-integration-suite'] = $LASTEXITCODE
-
-          Write-Host "WINDOWS_EXIT_CODE_PROBE=$($results | ConvertTo-Json -Compress)"
-
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
