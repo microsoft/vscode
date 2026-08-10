@@ -22,6 +22,10 @@ parameters:
 steps:
   - template: ../../common/checkout.yml@self
 
+  - ${{ if eq(parameters.VSCODE_RUN_TESTS_IN_PARALLEL, true) }}:
+    - script: mkdir -p .build/crashes .build/logs
+      displayName: Ensure test artifact directories exist
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
