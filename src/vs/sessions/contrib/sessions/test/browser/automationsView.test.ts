@@ -491,7 +491,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('run card opens with Space and becomes read only after open succeeds', async () => {
-		const { automationService, runner, sessionsManagementService, sessionsService, widget } = setup();
+		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 		const card = widget.element.querySelector<HTMLElement>('.automations-run-card-main');
