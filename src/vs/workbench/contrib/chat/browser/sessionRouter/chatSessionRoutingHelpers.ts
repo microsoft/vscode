@@ -9,6 +9,8 @@ import { IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult } f
 
 /** Number of top-ranked candidates whose conversation content should be resolved. */
 export const ROUTE_ENRICH_MAX_CANDIDATES = 12;
+/** Maximum length of the completed response preview shown in the omni bar. */
+export const ROUTE_RESPONSE_PREVIEW_LENGTH = 140;
 const RELATED_SESSION_FOLDER_CONFIDENCE = 0.35;
 
 /**
@@ -81,6 +83,17 @@ export function selectRouterShortlist(
 export function selectBestSessionRoute(results: readonly ISessionRouteResult[]): ISessionRouteResult | undefined {
 	const top = results[0];
 	return top && isHighConfidenceSessionRoute(top) ? top : undefined;
+}
+
+/** Normalizes and clips response text for the completed-route badge. */
+export function getResponsePreview(text: string): string | undefined {
+	const normalized = text.replace(/\s+/g, ' ').trim();
+	if (!normalized) {
+		return undefined;
+	}
+	return normalized.length > ROUTE_RESPONSE_PREVIEW_LENGTH
+		? `${normalized.slice(0, ROUTE_RESPONSE_PREVIEW_LENGTH - 1).trimEnd()}…`
+		: normalized;
 }
 
 function sessionStatusPriority(status: string | undefined): number {
