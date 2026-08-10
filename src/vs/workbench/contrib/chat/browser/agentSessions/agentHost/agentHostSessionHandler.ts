@@ -26,7 +26,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -105,7 +105,7 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
 /**
@@ -1533,7 +1533,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				);
 			} else {
 				failureStage = 'authentication';
-				await this._ensureRequiredAuthentication();
+				await this._ensureRequiredAuthentication(this._createModelSelection(request.userSelectedModelId, request.modelConfiguration));
 
 				failureStage = 'subscribeSession';
 				// Eager-created session: take a refcounted subscription so the
@@ -4732,11 +4732,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 	}
 
-	private async _ensureRequiredAuthentication(): Promise<ProtectedResourceMetadata[]> {
+	private async _ensureRequiredAuthentication(model: ModelSelection | undefined): Promise<ProtectedResourceMetadata[]> {
 		const agentInfo = this._getRootState()?.agents.find(a => a.provider === this._config.provider);
 		const protectedResources = agentInfo?.protectedResources ?? [];
-		const hasRequiredAuth = protectedResources.some(r => r.required !== false);
-		if (hasRequiredAuth && this._config.resolveAuthentication) {
+		const allowSignedOutWhenUsable = this._configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
+		if (modelRequiresAgentAuthentication(agentInfo, model, allowSignedOutWhenUsable) && this._config.resolveAuthentication) {
 			const authenticated = await this._config.resolveAuthentication(protectedResources);
 			if (!authenticated) {
 				throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
@@ -4753,7 +4753,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
 		onFailureStage?.('authentication');
-		const protectedResources = await this._ensureRequiredAuthentication();
+		const protectedResources = await this._ensureRequiredAuthentication(model);
 
 		const activeClient = this._getCurrentActiveClient();
 
