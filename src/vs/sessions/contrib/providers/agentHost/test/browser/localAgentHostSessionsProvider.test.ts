@@ -5025,6 +5025,48 @@ suite('LocalAgentHostSessionsProvider', () => {
 		sub.dispose();
 	}));
 
+	test('filters folder-session baseline pull requests from GitHub info', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+
+		agentHost.addSession(createSession('pr-baseline', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'PR Session');
+		assert.ok(session);
+
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('pr-baseline', 'copilotcli', {
+			provider: 'copilotcli', title: 'PR Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: {
+				github: {
+					owner: 'owner',
+					repo: 'repo',
+					pullRequestUrls: [
+						'https://github.com/owner/repo/pull/42',
+						'https://github.com/owner/repo/pull/41',
+					],
+					initialPullRequestUrls: ['https://github.com/owner/repo/pull/42'],
+				}
+			},
+		});
+
+		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
+		assert.deepStrictEqual({
+			activePullRequest: gitHubInfo?.pullRequest?.number,
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
+		}, {
+			activePullRequest: 41,
+			pullRequests: [41],
+		});
+	}));
+
 	// ---- replaceSessionConfig -------
 
 	test('replaceSessionConfig only replaces sessionMutable, non-readOnly values and preserves everything else', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
