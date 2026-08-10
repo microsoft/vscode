@@ -687,7 +687,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	(hasGit ? test : test.skip)('getPrimaryWorktreeRoot agrees with git worktree list without spawning git', async () => {
+	(hasGit ? test : test.skip)('getPrimaryWorktreeRoot agrees with git worktree list', async () => {
 		const dir = initRepo();
 		const wtPath = join(dir, '..', `wt-primary-${Date.now()}`);
 		const nested = join(dir, 'src', 'nested');
@@ -717,6 +717,55 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
+		}
+	});
+
+	(hasGit ? test : test.skip)('getPrimaryWorktreeRoot declines layouts it cannot describe rather than guessing a root', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		// Each of these resolves to a real directory that is NOT the repository
+		// root, so answering from the layout alone would persist a wrong root
+		// and regroup the session under an unrelated project. Declining hands
+		// the question back to git.
+		const strayDotGit = join(dir, 'vendor', 'interrupted-clone');
+		await fs.mkdir(join(strayDotGit, '.git'), { recursive: true });
+
+		const damagedWorktree = join(dir, '..', `wt-damaged-${Date.now()}`);
+		await svc!.addWorktree(URI.file(dir), URI.file(damagedWorktree), 'agents/damaged', 'main');
+		await fs.rm(join(damagedWorktree, '.git'));
+		await fs.mkdir(join(damagedWorktree, '.git'));
+
+		const nestedBare = join(dir, 'nested-bare.git');
+		cp.execFileSync('git', ['clone', '--bare', '-q', dir, nestedBare], { cwd: dir, env, stdio: 'pipe' });
+
+		const detachedWorktree = join(dir, '..', `wt-detached-${Date.now()}`);
+		await fs.mkdir(join(detachedWorktree, '.git'), { recursive: true });
+		for (const entry of ['HEAD', 'config']) {
+			await fs.copyFile(join(dir, '.git', entry), join(detachedWorktree, '.git', entry));
+		}
+		await fs.mkdir(join(detachedWorktree, '.git', 'objects'), { recursive: true });
+		await fs.mkdir(join(detachedWorktree, '.git', 'refs'), { recursive: true });
+		await fs.appendFile(join(detachedWorktree, '.git', 'config'), `\n[core]\n\tworktree = ${dir}\n`);
+
+		try {
+			assert.deepStrictEqual({
+				// A `.git` directory that holds no repository is not a checkout
+				// root; git keeps searching upwards and so must this.
+				strayDotGit: (await svc!.getPrimaryWorktreeRoot(URI.file(strayDotGit)))?.fsPath,
+				damagedWorktree: await svc!.getPrimaryWorktreeRoot(URI.file(damagedWorktree)),
+				nestedBare: await svc!.getPrimaryWorktreeRoot(URI.file(nestedBare)),
+				coreWorktreeRedirect: await svc!.getPrimaryWorktreeRoot(URI.file(detachedWorktree)),
+			}, {
+				strayDotGit: (await svc!.getWorktreeRoots(URI.file(strayDotGit)))[0]?.fsPath,
+				damagedWorktree: undefined,
+				nestedBare: undefined,
+				coreWorktreeRedirect: undefined,
+			});
+		} finally {
+			for (const path of [damagedWorktree, detachedWorktree]) {
+				try { await svc!.removeWorktree(URI.file(dir), URI.file(path), { force: true }); } catch { /* best-effort cleanup */ }
+				rmDirWithRetry(path);
+			}
 		}
 	});
 });

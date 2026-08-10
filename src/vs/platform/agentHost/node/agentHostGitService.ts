@@ -168,11 +168,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 		for (; ;) {
 			const dotGit = path.join(directory, '.git');
 			const stat = await fsPromises.stat(dotGit).catch(() => undefined);
-			if (stat?.isDirectory()) {
-				return URI.file(directory);
-			}
 			if (stat?.isFile()) {
 				return this._resolvePrimaryWorktreeRootFromLink(dotGit);
+			}
+			// Git accepts a `.git` directory only when it actually holds a
+			// repository and keeps searching upwards otherwise. Skipping that
+			// check would promote a half-written clone, or a checkout whose
+			// worktree link was replaced by an empty directory, into a
+			// repository root — and that answer gets persisted.
+			if (stat?.isDirectory() && await this._isGitDirectory(dotGit)) {
+				// `core.worktree` detaches the working tree from the repository
+				// directory, so the enclosing folder is no longer the worktree
+				// Git would report. Parsing the setting properly means honouring
+				// includes, so treat any mention as a reason to defer to Git.
+				const config = await fsPromises.readFile(path.join(dotGit, 'config'), 'utf8').catch(() => undefined);
+				return config && /^\s*worktree\s*=/m.test(config) ? undefined : URI.file(directory);
+			}
+			// A bare repository owns no worktree, so climbing out of one would
+			// hand back whatever unrelated checkout happens to contain it.
+			if (await this._isGitDirectory(directory)) {
+				return undefined;
 			}
 			const parent = path.dirname(directory);
 			if (parent === directory) {
@@ -180,6 +195,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			directory = parent;
 		}
+	}
+
+	/** Mirrors Git's own repository test: a HEAD alongside the object and ref stores. */
+	private async _isGitDirectory(directory: string): Promise<boolean> {
+		const [head, objects, refs] = await Promise.all([
+			fsPromises.stat(path.join(directory, 'HEAD')).catch(() => undefined),
+			fsPromises.stat(path.join(directory, 'objects')).catch(() => undefined),
+			fsPromises.stat(path.join(directory, 'refs')).catch(() => undefined),
+		]);
+		return !!head?.isFile() && !!objects?.isDirectory() && !!refs?.isDirectory();
 	}
 
 	/** Maps a linked worktree's `.git` file to the primary worktree root that owns it. */
@@ -197,7 +222,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const commonDir = path.resolve(gitDir, commonDirPath);
 		// Anything but `<primary>/.git` means there is no primary worktree to
 		// point at (bare repository) or the checkout belongs to a submodule.
-		return path.basename(commonDir) === '.git' ? URI.file(path.dirname(commonDir)) : undefined;
+		if (path.basename(commonDir) !== '.git') {
+			return undefined;
+		}
+		// Canonicalize like the checkout branch above: Git records a resolved
+		// path here, but a restored or hand-edited link need not, and Windows
+		// only settles on-disk casing through a real path lookup. One spelling
+		// per repository is what keeps sessions grouped together.
+		const primaryRoot = path.dirname(commonDir);
+		return URI.file(await fsPromises.realpath(primaryRoot).catch(() => primaryRoot));
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {

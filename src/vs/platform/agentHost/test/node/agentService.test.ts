@@ -42,7 +42,7 @@ import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1765,10 +1765,14 @@ suite('AgentService (node dispatcher)', () => {
 				resolvedFrom: resolvedFrom.map(uri => uri.toString()),
 				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
 				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				persistedStamp: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
 			}, {
+				// Resolved once despite two listings: the stamp records that the
+				// root is already canonical, so later listings never re-derive it.
 				resolvedFrom: [linkedCheckout.toString()],
 				project: { uri: primaryRoot.toString(), displayName: 'vscode' },
 				persistedRepositoryRoot: primaryRoot.toString(),
+				persistedStamp: WORKTREE_REPOSITORY_ROOT_STAMP,
 			});
 		});
 

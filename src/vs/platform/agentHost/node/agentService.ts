@@ -9,7 +9,7 @@ import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { LRUCache, ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
@@ -51,7 +51,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionCreationDefaults, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 
-import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -330,14 +330,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * agents stay unaware of the folder-vs-worktree distinction.
 	 */
 	private _worktree: WorktreeIsolation | undefined;
-	/**
-	 * Successful list-time repository-root resolutions, keyed by session so a
-	 * repeat listing re-reads nothing. Sized to hold a full catalogue: a bound
-	 * below the session count evicts entries before the next listing reaches
-	 * them, so every session would re-resolve on every list. Eviction is
-	 * otherwise harmless — it only causes a safe re-resolution.
-	 */
-	private readonly _normalizedWorktreeRepositoryRoots = new LRUCache<string, URI>(4096);
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
@@ -943,34 +935,36 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * Repairs repository roots written by older builds that treated a parent linked checkout as the repository.
 	 * Listing performs this migration because archived sessions may never resume through WorktreeIsolation's metadata reader.
+	 * A repaired root is stamped, so this costs one resolution per session ever rather than one per listing.
 	 */
-	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string): Promise<string> {
+	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string, stamp: string | undefined): Promise<string> {
+		if (stamp === WORKTREE_REPOSITORY_ROOT_STAMP) {
+			return repositoryRootRaw;
+		}
 		const storedRepositoryRootRaw = repositoryRootRaw;
 		const persistedRoot = URI.parse(repositoryRootRaw);
-		const sessionStr = session.session.toString();
-		let primaryRoot = this._normalizedWorktreeRepositoryRoots.get(sessionStr);
+		let primaryRoot: URI | undefined;
+		const workingDirectory = session.workingDirectories?.[0];
+		const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
+		try {
+			primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
+				?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);
+		} catch (error) {
+			this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
+		}
 		if (!primaryRoot) {
-			const workingDirectory = session.workingDirectories?.[0];
-			const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
-			try {
-				primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
-					?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);
-				if (primaryRoot) {
-					this._normalizedWorktreeRepositoryRoots.set(sessionStr, primaryRoot);
-				}
-			} catch (error) {
-				this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
-			}
+			// Leave the root unstamped so a later listing can still repair it,
+			// rather than freezing a value this run could not confirm.
+			return repositoryRootRaw;
 		}
-		if (primaryRoot) {
-			repositoryRootRaw = primaryRoot.toString();
-		}
-		if (repositoryRootRaw !== storedRepositoryRootRaw) {
-			try {
+		repositoryRootRaw = primaryRoot.toString();
+		try {
+			if (repositoryRootRaw !== storedRepositoryRootRaw) {
 				await database.setMetadata(WORKTREE_META_REPOSITORY_ROOT, repositoryRootRaw);
-			} catch (error) {
-				this._logService.warn(`[AgentService][listSessions] Failed to normalize worktree repository metadata for ${session.session}`, error);
 			}
+			await database.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP);
+		} catch (error) {
+			this._logService.warn(`[AgentService][listSessions] Failed to normalize worktree repository metadata for ${session.session}`, error);
 		}
 		return repositoryRootRaw;
 	}
@@ -1000,8 +994,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, [WORKTREE_META_REPOSITORY_ROOT_STAMP]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, [WORKTREE_META_REPOSITORY_ROOT_STAMP]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
 					// Claude peer chat's SDK session, enumerated by the agent's
@@ -1050,7 +1044,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 					let repositoryRootRaw = m[WORKTREE_META_REPOSITORY_ROOT];
 					if (repositoryRootRaw) {
-						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw);
+						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw, m[WORKTREE_META_REPOSITORY_ROOT_STAMP]);
 					}
 					const worktreeProject = worktreeProjectFromRepositoryRoot(repositoryRootRaw);
 					if (worktreeProject) {

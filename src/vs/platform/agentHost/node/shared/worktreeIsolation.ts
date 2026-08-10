@@ -36,6 +36,14 @@ import { ICopilotApiService } from './copilotApiService.js';
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
+/**
+ * Stamps the repository root as canonicalized, so listing can trust it without
+ * touching the filesystem. Older builds stored a parent linked checkout here,
+ * and an unstamped root is indistinguishable from one of those, so it has to be
+ * re-derived once. Bump the stamped value if the root's meaning changes again.
+ */
+export const WORKTREE_META_REPOSITORY_ROOT_STAMP = 'copilot.worktree.repositoryRootStamp';
+export const WORKTREE_REPOSITORY_ROOT_STAMP = '1';
 const WORKTREE_META_CREATION_FAILURE = 'copilot.worktree.creationFailure';
 const MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH = 200;
 
@@ -970,6 +978,8 @@ export class WorktreeIsolation extends Disposable {
 				dbRef.object.setMetadata(WORKTREE_META_BRANCH, metadata.branchName),
 				dbRef.object.setMetadata(WORKTREE_META_PATH, metadata.worktreePath.toString()),
 				dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, metadata.repositoryRoot.toString()),
+				// Written here already canonical, so listing never re-derives it.
+				dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP),
 			];
 			if (metadata.baseBranch) {
 				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, metadata.baseBranch));
