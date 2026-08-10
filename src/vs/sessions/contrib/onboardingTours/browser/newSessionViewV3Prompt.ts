@@ -680,18 +680,19 @@ export class NewSessionViewV3PromptRunner {
 			}
 			const workspace = activeSession.workspace.get();
 			const folder = workspace?.folders[0];
-			const additionalHosts = this._gitHubService.enterpriseHost ? [this._gitHubService.enterpriseHost] : [];
+			const enterpriseHost = this._gitHubService.enterpriseHost;
+			const supportedHosts = enterpriseHost ? [enterpriseHost] : undefined;
 			this._logWorkspaceSnapshot(activeSession);
 			if (!workspace || !folder) {
 				this._logService.trace(`${LOG_PREFIX} The active draft has no primary workspace folder.`);
 				return undefined;
 			}
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
-			if (gitHubInfo) {
+			if (!enterpriseHost && gitHubInfo) {
 				this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${gitHubInfo.owner}/${gitHubInfo.repo}' from session metadata.`);
 				return this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), { owner: gitHubInfo.owner, repo: gitHubInfo.repo });
 			}
-			const repositoryFromUri = getGitHubRepositoryFromUri(folder.root)
+			const repositoryFromUri = enterpriseHost ? undefined : getGitHubRepositoryFromUri(folder.root)
 				?? getGitHubRepositoryFromUri(folder.workingDirectory)
 				?? (folder.gitRepository ? getGitHubRepositoryFromUri(folder.gitRepository.uri) : undefined);
 			if (repositoryFromUri) {
@@ -700,7 +701,7 @@ export class NewSessionViewV3PromptRunner {
 			}
 
 			try {
-				const repositoryFromConfig = await resolveGitHubRepositoryFromGitConfig(this._fileService, folder.workingDirectory, additionalHosts);
+				const repositoryFromConfig = await resolveGitHubRepositoryFromGitConfig(this._fileService, folder.workingDirectory, supportedHosts);
 				if (repositoryFromConfig) {
 					this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${repositoryFromConfig.owner}/${repositoryFromConfig.repo}' directly from .git/config.`);
 					return this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), repositoryFromConfig);
@@ -710,7 +711,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.warn(`${LOG_PREFIX} Reading Git repository metadata directly from the selected workspace failed.`, error);
 			}
 
-			if (isAgentHostProviderId(activeSession.providerId)) {
+			if (!enterpriseHost && isAgentHostProviderId(activeSession.providerId)) {
 				this._logService.info(`${LOG_PREFIX} Waiting for Agent Host git metadata for the active draft.`);
 				const result = await this._waitForAgentHostRepository(activeSession, token);
 				if (result.kind === 'sessionChanged') {
@@ -733,7 +734,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} The selected workspace folder could not be opened through the Git extension.`);
 				return undefined;
 			}
-			const repositoryFromRemote = getGitHubRemoteInfo(repository.state.get(), additionalHosts);
+			const repositoryFromRemote = getGitHubRemoteInfo(repository.state.get(), supportedHosts);
 			if (!repositoryFromRemote) {
 				this._logService.trace(`${LOG_PREFIX} The selected Git repository has no supported GitHub remote.`);
 				return undefined;

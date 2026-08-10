@@ -385,8 +385,11 @@ lookup has a 10-second ceiling; summary requests receive up to 5 seconds,
 issue-linkage requests 2.5 seconds, and review-thread requests 4 seconds within
 that total budget. Failures and timeouts leave every candidate completed by that
 point in place and fill the rest with standard options. Repository discovery and
-API authentication use github.com by default or the configured GitHub Enterprise
-host and `github-enterprise` authentication provider. Changing the selected
+API authentication use github.com by default. When GitHub Enterprise is
+configured, repository discovery accepts only that Enterprise host and API calls
+use its endpoint and `github-enterprise` authentication provider; hostless
+session metadata and github.com remotes are not mixed into that connection.
+Changing the selected
 workspace clears the repository-specific option set immediately, shows loading
 skeletons, and starts a fresh lookup for the replacement draft so cards from the
 previous repository cannot be inserted into the new workspace. Clearing the
@@ -413,6 +416,12 @@ Successful option insertions and the close action emit
 a fixed option category (`implementFeature`, `fixBug`, `fixCI`, `githubIssue`,
 `githubPRCI`, or `githubPRComments`); it never records issue/PR numbers, titles,
 URLs, prompt text, or other repository content.
+
+GitHub prompt personalization must keep repository discovery and API connection
+selection on the same host. Do not add Enterprise hosts to the github.com
+allowlist while routing every API request through Enterprise; either preserve
+the resolved host through the request or make Enterprise discovery exclusive,
+including hostless metadata paths.
 
 The run step awaits typing or option resolution and forwards sequence
 cancellation; cancellation or composer disposal preserves only text already

@@ -479,6 +479,20 @@ suite('NewSessionViewV3Prompt', () => {
 		]);
 	});
 
+	test('does not query hostless metadata or github.com remotes through GitHub Enterprise', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'githubPrompt' },
+			{},
+			{ pullRequests: [], issues: [issue('Public issue', '2026-08-07T13:00:00Z')] },
+			{
+				gitRemoteUrl: 'git@github.com:public/project.git',
+				enterpriseHost: 'ghe.example.com',
+			},
+		);
+
+		assert.deepStrictEqual(result.gitHubRequests, []);
+	});
+
 	test('waits for Agent Host git metadata instead of requiring the Git extension', async () => {
 		const workspace = observableValue('workspace', createWorkspace(URI.file('C:\\repo'), 'r', false));
 		const activeSession = new class extends mock<IActiveSession>() {

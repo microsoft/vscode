@@ -12,6 +12,8 @@ export interface IGitHubRemoteInfo {
 	readonly repo: string;
 }
 
+const DEFAULT_GITHUB_HOSTS = ['github.com', 'www.github.com'];
+
 export function hasGitHubRemotes(repositoryState: GitRepositoryState): boolean {
 	const hosts = ['github.com', 'ghe.com'];
 	const remotes = getOrderedRemotes(repositoryState!)
@@ -34,10 +36,10 @@ export function hasGitHubRemotes(repositoryState: GitRepositoryState): boolean {
 	return false;
 }
 
-export function getGitHubRemoteInfo(repositoryState: GitRepositoryState, additionalHosts: readonly string[] = []): IGitHubRemoteInfo | undefined {
+export function getGitHubRemoteInfo(repositoryState: GitRepositoryState, supportedHosts: readonly string[] = DEFAULT_GITHUB_HOSTS): IGitHubRemoteInfo | undefined {
 	for (const remote of getOrderedRemotes(repositoryState)) {
 		if (remote.fetchUrl) {
-			const repository = getGitHubRepositoryFromRemoteUrl(remote.fetchUrl, additionalHosts);
+			const repository = getGitHubRepositoryFromRemoteUrl(remote.fetchUrl, supportedHosts);
 			if (repository) {
 				return repository;
 			}
@@ -47,14 +49,13 @@ export function getGitHubRemoteInfo(repositoryState: GitRepositoryState, additio
 	return undefined;
 }
 
-export function getGitHubRepositoryFromRemoteUrl(remoteUrl: string, additionalHosts: readonly string[] = []): IGitHubRemoteInfo | undefined {
+export function getGitHubRepositoryFromRemoteUrl(remoteUrl: string, supportedHosts: readonly string[] = DEFAULT_GITHUB_HOSTS): IGitHubRemoteInfo | undefined {
 	const remote = parseRemoteUrl(remoteUrl);
 	if (!remote) {
 		return undefined;
 	}
 	const host = equalsIgnoreCase(remote.scheme, 'ssh') ? remote.host : remote.rawHost;
-	const supportedHosts = ['github.com', 'www.github.com', ...additionalHosts.map(normalizeHost)];
-	if (!supportedHosts.some(supportedHost => equalsIgnoreCase(host, supportedHost))) {
+	if (!supportedHosts.map(normalizeHost).some(supportedHost => equalsIgnoreCase(host, supportedHost))) {
 		return undefined;
 	}
 	const segments = remote.path.replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.git$/i, '').split('/');

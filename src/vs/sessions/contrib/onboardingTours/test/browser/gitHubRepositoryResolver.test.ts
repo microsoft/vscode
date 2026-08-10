@@ -41,16 +41,18 @@ suite('GitHubRepositoryResolver', () => {
 		});
 	});
 
-	test('accepts only the configured GitHub Enterprise host', () => {
+	test('uses the configured GitHub Enterprise host exclusively', () => {
 		assert.deepStrictEqual({
 			https: getGitHubRepositoryFromRemoteUrl('https://ghe.example.com/owner/project.git', ['ghe.example.com']),
 			ssh: getGitHubRepositoryFromRemoteUrl('git@ghe.example.com:owner/project.git', ['ghe.example.com']),
 			lookalike: getGitHubRepositoryFromRemoteUrl('https://evil-ghe.example.com/owner/project.git', ['ghe.example.com']),
+			githubDotCom: getGitHubRepositoryFromRemoteUrl('https://github.com/owner/project.git', ['ghe.example.com']),
 			unconfigured: getGitHubRepositoryFromRemoteUrl('https://ghe.example.com/owner/project.git'),
 		}, {
 			https: { owner: 'owner', repo: 'project' },
 			ssh: { owner: 'owner', repo: 'project' },
 			lookalike: undefined,
+			githubDotCom: undefined,
 			unconfigured: undefined,
 		});
 	});
