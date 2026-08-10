@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { withSessionEhcliAdoptable } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
@@ -163,19 +164,21 @@ suite('ChatSessionRoutingController', () => {
 		controller.dispose();
 	});
 
-	test('does not send another provider session metadata to the Copilot router', async () => {
-		const session = (providerType: AgentSessionProviders, path: string) => ({
+	test('excludes un-adopted legacy Copilot CLI sessions from routing candidates', async () => {
+		const session = (providerType: AgentSessionProviders, path: string, adoptable = false) => ({
 			resource: URI.from({ scheme: providerType, path }),
 			providerType,
 			label: path,
 			status: undefined,
 			isArchived: () => false,
+			metadata: adoptable ? withSessionEhcliAdoptable(undefined) : undefined,
 		});
 		const agentSessionsService = {
 			model: {
 				resolve: async () => { },
 				sessions: [
 					session(AgentSessionProviders.AgentHostCopilot, '/copilot'),
+					session(AgentSessionProviders.AgentHostCopilot, '/legacy-copilot', true),
 					session(AgentSessionProviders.AgentHostClaude, '/claude'),
 				],
 			},

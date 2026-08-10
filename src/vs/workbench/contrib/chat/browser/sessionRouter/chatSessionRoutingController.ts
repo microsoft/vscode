@@ -17,6 +17,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -372,6 +373,7 @@ export class ChatSessionRoutingController extends Disposable {
 			.filter(session => session.resource.toString() !== ownResource
 				&& isCopilotRoutingProvider(session.providerType)
 				&& !session.isArchived()
+				&& !readSessionEhcliAdoptable(session.metadata)
 				&& this.chatSessionsService.getChatSessionContribution(getChatSessionType(session.resource))?.isReadOnly !== true)
 			.map(session => this._toRoutableSession(session));
 	}
