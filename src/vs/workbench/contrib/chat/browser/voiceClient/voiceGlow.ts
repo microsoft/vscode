@@ -28,6 +28,11 @@ export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 
 export function isGlowingVoiceState(voiceState: VoiceGlowState): boolean {
 	return voiceState === 'listening' || voiceState === 'speaking' || voiceState === 'confirmation';
 }
+
+export function shouldRenderVoiceInputGlow(voiceEnabled: boolean, confirmationPending: boolean, connected: boolean, active: boolean, ownsVoice: boolean, voiceState: VoiceGlowState): boolean {
+	return voiceEnabled && (confirmationPending || (connected && active && ownsVoice && isGlowingVoiceState(voiceState)));
+}
+
 /**
  * Reduce an analyser's frequency data to a normalized [0, 1] intensity. Returns
  * a small resting value when no analyser is available (before capture/playback).

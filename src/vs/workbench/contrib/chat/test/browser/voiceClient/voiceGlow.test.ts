@@ -12,7 +12,7 @@ import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
 import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
-import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../../browser/voiceClient/voiceGlowController.js';
 
 suite('VoiceGlow', () => {
@@ -24,6 +24,11 @@ suite('VoiceGlow', () => {
 			states.filter(isGlowingVoiceState),
 			['listening', 'speaking', 'confirmation']
 		);
+	});
+
+	test('does not render a pending confirmation when Voice Mode is disabled', () => {
+		assert.strictEqual(shouldRenderVoiceInputGlow(false, true, false, true, false, 'idle'), false);
+		assert.strictEqual(shouldRenderVoiceInputGlow(true, true, false, true, false, 'idle'), true);
 	});
 
 	test('renders in an auxiliary owner document', () => {

@@ -5,8 +5,9 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -18,7 +19,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IMicCaptureService } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
-import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors } from './voiceGlow.js';
+import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow } from './voiceGlow.js';
 import { createVoiceGlowController, IVoiceGlowController } from './voiceGlowController.js';
 import { IVoiceSessionController } from './voiceSessionController.js';
 
@@ -76,6 +77,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	};
 
 	const store = new DisposableStore();
+	const voiceEnabled = observableFromEvent(store, Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.enabled')), () => configurationService.getValue<boolean>('agents.voice.enabled') === true);
 	const getPushToTalkKeybindingLabel = () => (
 		keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
 		?? keybindingService.lookupKeybinding('agentsVoice.pushToTalk')
@@ -141,7 +143,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const active = isActive.read(reader);
 		const ownsVoice = isSurfaceOwner(reader);
 		const confirmationPending = options.confirmationPending?.read(reader) ?? false;
-		if (confirmationPending || (connected && active && ownsVoice && isGlowingVoiceState(voiceState))) {
+		if (shouldRenderVoiceInputGlow(voiceEnabled.read(reader), confirmationPending, connected, active, ownsVoice, voiceState)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
