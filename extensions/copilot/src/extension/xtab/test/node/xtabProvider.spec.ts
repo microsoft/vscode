@@ -128,6 +128,10 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 		return this._defaultConfig;
 	}
 
+	unificationConfiguration() {
+		return undefined;
+	}
+
 	setSelectedConfig(config: Partial<ModelConfiguration>): void {
 		this._selectedConfig = { ...this._selectedConfig, ...config };
 	}

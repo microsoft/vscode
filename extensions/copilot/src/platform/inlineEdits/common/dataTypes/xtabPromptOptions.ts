@@ -6,6 +6,7 @@
 import { Result } from '../../../../util/common/result';
 import { assertNever } from '../../../../util/vs/base/common/assert';
 import { IValidator, vArray, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
+import { InlineEditsUnification } from '../inlineEditsUnification';
 import { ImportChanges } from './importFilteringOptions';
 
 export enum IncludeLineNumbersOption {
@@ -674,7 +675,7 @@ export interface ModelConfiguration {
 	modelName: string;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
 	includeTagsInCurrentFile: boolean;
-	unification?: ModelConfigurationUnification;
+	unification?: InlineEditsUnification;
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
@@ -683,26 +684,6 @@ export interface ModelConfiguration {
 	supportsNextCursorLinePrediction?: boolean;
 	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
 	allowImportChanges?: ImportChanges;
-}
-
-export enum ModelConfigurationUnification {
-	CompletionsNes = 'completionsNes',
-}
-
-export const COMPLETIONS_NES_UNIFICATION_DEFAULTS = {
-	nLinesBelow: 7,
-	nLinesAbove: 0,
-	unification: true,
-	rebasedCacheDelay: 0,
-	extraDebounceEndOfLine: 0,
-	debounce: 0,
-	cacheDelay: 200,
-} as const;
-
-export function getCompletionsNesUnificationDefaults(config: ModelConfiguration | null | undefined): typeof COMPLETIONS_NES_UNIFICATION_DEFAULTS | undefined {
-	return config?.unification === ModelConfigurationUnification.CompletionsNes
-		? COMPLETIONS_NES_UNIFICATION_DEFAULTS
-		: undefined;
 }
 
 /**
@@ -764,7 +745,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'modelName': vRequired(vString()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
-	'unification': vUnion(vEnum(ModelConfigurationUnification.CompletionsNes), vUndefined()),
+	'unification': vUnion(vEnum(InlineEditsUnification.CompletionsNes), vUndefined()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),

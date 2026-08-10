@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Event } from '../../../util/vs/base/common/event';
 import { ModelConfiguration } from './dataTypes/xtabPromptOptions';
+import { InlineEditsUnificationConfiguration } from './inlineEditsUnification';
 
 export interface IInlineEditsModelService {
 	readonly _serviceBrand: undefined;
@@ -20,6 +21,8 @@ export interface IInlineEditsModelService {
 	selectedModelConfiguration(): ModelConfiguration;
 
 	defaultModelConfiguration(): ModelConfiguration;
+
+	unificationConfiguration(): InlineEditsUnificationConfiguration | undefined;
 }
 
 export const IInlineEditsModelService = createServiceIdentifier<IInlineEditsModelService>('IInlineEditsModelService');

@@ -22,6 +22,7 @@ import { IExperimentationService } from '../../telemetry/common/nullExperimentat
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { WireTypes } from '../common/dataTypes/inlineEditsModelsTypes';
 import { isPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../common/dataTypes/xtabPromptOptions';
+import { getInlineEditsUnificationDefaults, InlineEditsUnificationConfiguration } from '../common/inlineEditsUnification';
 import { IInlineEditsModelService, IUndesiredModelsManager } from '../common/inlineEditsModelService';
 
 const enum ModelSource {
@@ -296,6 +297,27 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 			}
 		}
 		return toModelConfiguration(this.determineDefaultModel(this._copilotTokenObs.get(), this._defaultModelConfigObs.get()));
+	}
+
+	public unificationConfiguration(): InlineEditsUnificationConfiguration | undefined {
+		const defaults = getInlineEditsUnificationDefaults(this.selectedModelConfiguration());
+		if (!defaults) {
+			return undefined;
+		}
+
+		return {
+			nLinesBelow: this.getConfigWithDefault(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, defaults.nLinesBelow),
+			nLinesAbove: this.getConfigWithDefault(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, defaults.nLinesAbove),
+			unification: this.getConfigWithDefault(ConfigKey.TeamInternal.InlineEditsUnification, defaults.unification),
+			rebasedCacheDelay: this.getConfigWithDefault(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, defaults.rebasedCacheDelay),
+			extraDebounceEndOfLine: this.getConfigWithDefault(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, defaults.extraDebounceEndOfLine),
+			debounce: this.getConfigWithDefault(ConfigKey.TeamInternal.InlineEditsDebounce, defaults.debounce),
+			cacheDelay: this.getConfigWithDefault(ConfigKey.TeamInternal.InlineEditsCacheDelay, defaults.cacheDelay),
+		};
+	}
+
+	private getConfigWithDefault<T extends boolean | number | string>(key: ExperimentBasedConfig<T | undefined>, defaultValue: T): T {
+		return this._configService.getExperimentBasedConfig(key, this._expService, undefined, defaultValue) ?? defaultValue;
 	}
 
 	private isConfiguredModel(model: ModelConfigurationWithSource): boolean {

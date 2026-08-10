@@ -165,15 +165,6 @@ export interface IConfigurationService {
 	dumpConfig(): { [key: string]: string };
 }
 
-export function getExperimentBasedConfigWithDefaultOverride<T extends ExperimentBasedConfigType>(
-	configurationService: IConfigurationService,
-	key: ExperimentBasedConfig<T>,
-	experimentationService: IExperimentationService,
-	defaultValue: T,
-): T {
-	return configurationService.getExperimentBasedConfig(key, experimentationService, undefined, defaultValue);
-}
-
 export abstract class AbstractConfigurationService extends Disposable implements IConfigurationService {
 	declare readonly _serviceBrand: undefined;
 

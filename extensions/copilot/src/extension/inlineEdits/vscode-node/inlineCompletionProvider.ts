@@ -5,14 +5,13 @@
 
 import * as l10n from '@vscode/l10n';
 import { CancellationToken, Command, EndOfLine, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
-import { ConfigKey, getExperimentBasedConfigWithDefaultOverride, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { stringEditFromDiff } from '../../../platform/editing/common/edit';
 import { DocumentEditRecorder } from '../../../platform/editSurvivalTracking/common/editComputer';
 import { EditSurvivalReporter } from '../../../platform/editSurvivalTracking/common/editSurvivalReporter';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
-import { getCompletionsNesUnificationDefaults } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { shortenOpportunityId } from '../../../platform/inlineEdits/common/utils/utils';
@@ -255,10 +254,8 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const isCompletionsEnabled = this._isCompletionsEnabled(document);
 
-		const unificationDefault = getCompletionsNesUnificationDefaults(this._modelService.selectedModelConfiguration())?.unification;
-		const unification = unificationDefault === undefined
-			? this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService)
-			: getExperimentBasedConfigWithDefaultOverride(this._configurationService, ConfigKey.TeamInternal.InlineEditsUnification, this._expService, unificationDefault);
+		const unification = this._modelService.unificationConfiguration()?.unification
+			?? this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService);
 
 		const isInlineEditsEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
 

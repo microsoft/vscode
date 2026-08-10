@@ -5,11 +5,11 @@
 
 import { basename } from 'path';
 import type * as vscode from 'vscode';
-import { ConfigKey, getExperimentBasedConfigWithDefaultOverride, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/rootedLineEdit';
-import { getCompletionsNesUnificationDefaults, isRejectedEditMemoryEnabled, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { isRejectedEditMemoryEnabled, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
@@ -1136,13 +1136,11 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return 0;
 		}
 
-		const unificationDefaults = getCompletionsNesUnificationDefaults(this._modelService.selectedModelConfiguration());
-		const cacheDelay = unificationDefaults
-			? getExperimentBasedConfigWithDefaultOverride(this._configService, ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService, unificationDefaults.cacheDelay)
-			: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService);
-		const rebasedCacheDelay = unificationDefaults
-			? getExperimentBasedConfigWithDefaultOverride(this._configService, ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService, unificationDefaults.rebasedCacheDelay)
-			: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService);
+		const unificationConfiguration = this._modelService.unificationConfiguration();
+		const cacheDelay = unificationConfiguration?.cacheDelay
+			?? this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService);
+		const rebasedCacheDelay = unificationConfiguration?.rebasedCacheDelay
+			?? this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService);
 		const subsequentCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSubsequentCacheDelay, this._expService);
 		const speculativeRequestDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestDelay, this._expService);
 

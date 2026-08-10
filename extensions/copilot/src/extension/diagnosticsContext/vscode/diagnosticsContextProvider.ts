@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigKey, getExperimentBasedConfigWithDefaultOverride, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
-import { getCompletionsNesUnificationDefaults } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ILanguageContextProviderService, ProviderTarget } from '../../../platform/languageContextProvider/common/languageContextProviderService';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
@@ -90,13 +89,13 @@ class ContextResolver implements Copilot.ContextResolver<Copilot.SupportedContex
 
 		const requestedFileResource = URI.parse(request.documentContext.uri);
 		const cursor = new Position(request.documentContext.position.line + 1, request.documentContext.position.character + 1);
-		const unificationDefaults = getCompletionsNesUnificationDefaults(this.modelService.selectedModelConfiguration());
-		const linesAbove = unificationDefaults
-			? getExperimentBasedConfigWithDefaultOverride(this.configurationService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.experimentationService, unificationDefaults.nLinesAbove) ?? N_LINES_ABOVE
-			: this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.experimentationService) ?? N_LINES_ABOVE;
-		const linesBelow = unificationDefaults
-			? getExperimentBasedConfigWithDefaultOverride(this.configurationService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.experimentationService, unificationDefaults.nLinesBelow) ?? N_LINES_BELOW
-			: this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.experimentationService) ?? N_LINES_BELOW;
+		const unificationConfiguration = this.modelService.unificationConfiguration();
+		const linesAbove = unificationConfiguration?.nLinesAbove
+			?? this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, this.experimentationService)
+			?? N_LINES_ABOVE;
+		const linesBelow = unificationConfiguration?.nLinesBelow
+			?? this.configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, this.experimentationService)
+			?? N_LINES_BELOW;
 		const editWindow = new Range(cursor.lineNumber - linesAbove, 1, cursor.lineNumber + linesBelow, Number.MAX_SAFE_INTEGER);
 
 		return this.getContext(requestedFileResource, cursor, {

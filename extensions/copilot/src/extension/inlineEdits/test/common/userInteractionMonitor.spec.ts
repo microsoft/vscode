@@ -5,10 +5,11 @@
 
 import { beforeEach, describe, expect, test } from 'vitest';
 import type { ConfigurationScope } from 'vscode';
-import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, getExperimentBasedConfigWithDefaultOverride } from '../../../../platform/configuration/common/configurationService';
+import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
-import { AggressivenessLevel, AggressivenessSetting, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, ModelConfiguration, ModelConfigurationUnification, UserHappinessScoreConfiguration } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, AggressivenessSetting, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, ModelConfiguration, UserHappinessScoreConfiguration } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { getInlineEditsUnificationDefaults, InlineEditsUnification } from '../../../../platform/inlineEdits/common/inlineEditsUnification';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
@@ -103,6 +104,7 @@ describe('UserInteractionMonitor', () => {
 		setCurrentModelId: async () => { },
 		selectedModelConfiguration: () => modelConfiguration,
 		defaultModelConfiguration: () => modelConfiguration,
+		unificationConfiguration: () => getInlineEditsUnificationDefaults(modelConfiguration),
 	};
 
 	beforeEach(() => {
@@ -230,21 +232,10 @@ describe('UserInteractionMonitor', () => {
 	test('uses the completions NES debounce default', () => {
 		modelConfiguration = {
 			...modelConfiguration,
-			unification: ModelConfigurationUnification.CompletionsNes,
+			unification: InlineEditsUnification.CompletionsNes,
 		};
 
 		expect(monitor.createDelaySession(undefined).getDebounceTime()).toBe(0);
-	});
-
-	test('prefers a standalone setting over the completions NES default', () => {
-		configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsDebounce, 25);
-
-		expect(getExperimentBasedConfigWithDefaultOverride(
-			configurationService,
-			ConfigKey.TeamInternal.InlineEditsDebounce,
-			experimentationService,
-			0,
-		)).toBe(25);
 	});
 
 	describe('aggressiveness level calculation', () => {

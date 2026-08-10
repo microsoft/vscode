@@ -58,6 +58,7 @@ function createModelService(rejectedEditMemoryEnabled = false, promptingStrategy
 		setCurrentModelId: async _modelId => { },
 		selectedModelConfiguration: () => modelConfiguration,
 		defaultModelConfiguration: () => modelConfiguration,
+		unificationConfiguration: () => undefined,
 	};
 }
 
