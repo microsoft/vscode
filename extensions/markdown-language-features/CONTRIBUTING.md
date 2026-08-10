@@ -76,6 +76,10 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Launch VS Code with the **Run VS Code** task. After the Markdown editor bundle is rebuilt, reload the development window or close and reopen the Markdown custom editor.
 
+5. **Update editor commands**
+
+   Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
+
 ### Running tests
 
 You can run the VS Code extension tests by running the `Markdown Extension Tests` target in VS Code. This will run the tests under `./src/test`
@@ -138,3 +142,4 @@ The latter two extensions build on top of our Markdown extension api using the s
 - `markdown.markdownItPlugins` — register a [markdown-it](https://github.com/markdown-it/markdown-it) plugin to extend how Markdown is parsed and rendered.
 - `markdown.previewScripts` — add scripts that run inside the preview webview.
 - `markdown.previewStyles` — add stylesheets to the preview.
+- `markdown.codeBlockEditors` — register an extension-relative, self-contained HTML editor for a fenced code block language in the experimental Markdown editor. The HTML runs in a sandboxed iframe and exchanges content using the `web-editor/0.12` protocol.

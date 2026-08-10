@@ -45,10 +45,10 @@ import { IProductService } from '../../../platform/product/common/productService
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
-import { IPolicyService } from '../../../platform/policy/common/policy.js';
-import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingResolution, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingResolution, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
-import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
+import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
 import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
@@ -693,6 +693,19 @@ function managedSettingsSourceShortLabel(source: ManagedSettingsSource): string 
 	}
 }
 
+function policyValueSourceLabel(source: PolicyValueSource | undefined): string {
+	switch (source) {
+		case PolicyValueSource.Device: return 'Device';
+		case PolicyValueSource.NativeMdm: return 'Managed Settings: Native MDM';
+		case PolicyValueSource.ServerManagedSettings: return 'Managed Settings: Server';
+		case PolicyValueSource.FileManagedSettings: return 'Managed Settings: File';
+		case PolicyValueSource.MixedManagedSettings: return 'Managed Settings: Mixed';
+		case PolicyValueSource.Account: return 'Account';
+		case PolicyValueSource.AccountGate: return 'Account Policy Gate';
+		case undefined: return 'Unknown';
+	}
+}
+
 /** Render a value as a fenced JSON code block for the diagnostics report. */
 function jsonBlock(value: unknown): string {
 	return '```json\n' + JSON.stringify(value ?? {}, null, 2) + '\n```\n\n';
@@ -851,11 +864,6 @@ class PolicyDiagnosticsAction extends Action2 {
 		}
 
 		content += '## Managed Settings\n\n';
-		// Captured from the Managed Settings section below so the Policy-Controlled Settings table
-		// can attribute each managed-settings-driven policy to the delivery channel that actually
-		// won its key (per-key precedence), instead of the generic AccountPolicyService that hosts
-		// the projection. Maps a winning managed-settings key -> the channel that supplied it.
-		const activeManagedSettingSources = new Map<string, ManagedSettingsChannel>();
 		try {
 			const policyData = defaultAccountService.policyData;
 			const serverManagedSettings = policyData?.managedSettings ?? {};
@@ -996,15 +1004,6 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 			}
 
-			// Remember which managed-settings keys actually reached policy evaluation, and from which
-			// channel won each, so the Policy-Controlled Settings table can attribute them accurately.
-			for (const key of Object.keys(effective)) {
-				const resolution = pick.resolutions.get(key);
-				if (resolution) {
-					activeManagedSettingSources.set(key, resolution.source);
-				}
-			}
-
 			// JSON payloads: the structured keys carry a JSON string that PolicyConfiguration parses
 			// back into the object/array-typed setting on read. Re-parse exactly those keys with the
 			// same jsonc parser so a malformed value surfaces here instead of being silently rejected.
@@ -1076,64 +1075,10 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 			}
 
-			// Try to detect where the policy came from
-			const policySourceMemo = new Map<string, string>();
-			const getPolicySource = (policyName: string): string => {
-				if (policySourceMemo.has(policyName)) {
-					return policySourceMemo.get(policyName)!;
-				}
-				try {
-					const policyServiceConstructorName = policyService.constructor.name;
-					if (policyServiceConstructorName === 'MultiplexPolicyService') {
-						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-						const multiplexService = policyService as any;
-						if (multiplexService.policyServices) {
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							const componentServices = multiplexService.policyServices as ReadonlyArray<any>;
-							for (const service of componentServices) {
-								if (service.getPolicyValue && service.getPolicyValue(policyName) !== undefined) {
-									policySourceMemo.set(policyName, service.constructor.name);
-									return service.constructor.name;
-								}
-							}
-						}
-					}
-					return '';
-				} catch {
-					return 'Unknown';
-				}
-			};
-
-			// A managed-settings-driven policy is hosted by AccountPolicyService but its value really
-			// originates from a delivery channel (server / native MDM / file). With per-key precedence
-			// a policy's declared keys can even resolve to different channels, so attribute it to the
-			// channel(s) that actually won its declared keys. When the Account Policy Gate is actively
-			// restricting, the value comes from the gate's restricted value (which overrides managed
-			// settings), so don't credit any channel in that case.
-			const gateInfo = accountPolicyGateService.gateInfo;
-			const gateRestricted = gateInfo.state === AccountPolicyGateState.Restricted
-				&& gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const getRefinedPolicySource = (item: { name: string; property: any }): string => {
-				const declaredKeys = item.property.policy?.managedSettings ? Object.keys(item.property.policy.managedSettings) : [];
-				if (!gateRestricted) {
-					const winningSources = new Set<ManagedSettingsChannel>();
-					for (const key of declaredKeys) {
-						const source = activeManagedSettingSources.get(key);
-						if (source) {
-							winningSources.add(source);
-						}
-					}
-					if (winningSources.size > 0) {
-						const ordered = MANAGED_SETTINGS_CHANNELS.filter(channel => winningSources.has(channel));
-						return `Managed Settings: ${ordered.map(managedSettingsSourceShortLabel).join(', ')}`;
-					}
-				}
-				return getPolicySource(item.name);
-			};
+			const getPolicySource = (policyName: string): string => policyValueSourceLabel(policyService.getPolicyValueSource(policyName));
 
 			content += '### Applied Policy\n\n';
-			appliedPolicy.sort((a, b) => getRefinedPolicySource(a).localeCompare(getRefinedPolicySource(b)) || a.name.localeCompare(b.name));
+			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
 			if (appliedPolicy.length > 0) {
 				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
 				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
@@ -1142,7 +1087,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					const defaultValue = JSON.stringify(setting.property.default);
 					const currentValue = JSON.stringify(setting.inspection.value);
 					const policyValue = JSON.stringify(setting.inspection.policyValue);
-					const policySource = getRefinedPolicySource(setting);
+					const policySource = getPolicySource(setting.name);
 					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
 
 					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;

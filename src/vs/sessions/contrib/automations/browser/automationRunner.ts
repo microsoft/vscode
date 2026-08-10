@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { waitForState } from '../../../../base/common/observable.js';
+import { derived, waitForState } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -155,7 +155,7 @@ export class AutomationRunner implements IAutomationRunner {
 
 			const terminalStatus = session
 				? await waitForState(
-					session.status,
+					derived(reader => session.mainChat.read(reader).status.read(reader)),
 					status => status === SessionStatus.Completed || status === SessionStatus.Error,
 					undefined,
 					token,

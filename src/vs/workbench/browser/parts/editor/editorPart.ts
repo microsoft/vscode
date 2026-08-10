@@ -902,7 +902,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Different groups view: move via groups view API
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
-			sourceView.closeAllEditors();
+			sourceView.closeAllEditors({ force: true });
 			this.removeGroup(sourceView, restoreFocus);
 		}
 
@@ -1424,10 +1424,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.left = left;
 
 		// When the floating panels experiment is enabled, reserve a margin around the
-		// main editor so it floats like the side bar and panel cards. The editor has
-		// no top margin (it stays flush with the title bar). Scope to the main window
-		// (auxiliary editor windows do not apply the matching CSS). The matching
-		// `margin` is applied in CSS (`.floating-panels .part.editor`).
+		// main editor so it floats like the side bar and panel cards. Scope to the main
+		// window (auxiliary editor windows do not apply the matching CSS).
 		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
 
 			// When the editor becomes the outermost card on a side (no floating part
@@ -1573,7 +1571,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		const groups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		for (const group of groups) {
-			await group.closeAllEditors({ excludeConfirming: true });
+			await group.closeAllEditors({ excludeConfirming: true, force: true });
 		}
 
 		return groups;

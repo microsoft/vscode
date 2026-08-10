@@ -13,7 +13,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -395,10 +395,11 @@ function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData
 }
 
 function getToolRawInput(tc: ToolCallState): unknown {
+	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
 	try {
-		return tc.status === ToolCallStatus.Streaming || !tc.toolInput ? {} : JSON.parse(tc.toolInput);
+		return toolInput ? JSON.parse(toolInput) : {};
 	} catch {
-		return { input: tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput };
+		return { input: toolInput };
 	}
 }
 
@@ -1239,11 +1240,12 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 }
 
 function getTerminalInput(tc: ToolCallState): string | undefined {
-	if (tc.status !== ToolCallStatus.Streaming && tc.toolInput) {
+	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
+	if (toolInput) {
 		try {
-			return JSON.parse(tc.toolInput).command || tc.toolInput;
+			return JSON.parse(toolInput).command || toolInput;
 		} catch {
-			return tc.toolInput;
+			return toolInput;
 		}
 	}
 
@@ -1257,13 +1259,15 @@ function getTerminalOutput(tc: ToolCallState) {
 
 	const terminalContent = getTerminalContent(tc.content);
 	const terminalResult = getTerminalCommandResult(tc);
+	const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 
-	// Prefer the structured terminal snapshot. Text content is a compatibility
-	// fallback for older/restored results and can include legacy bookkeeping.
-	let text = terminalResult?.preview;
+	// A truncated preview omits the completion text that tells the user where the full output was saved.
+	// TODO: Use an SDK API for the large-output file path instead of relying on the tool completion display text.
+	let text = terminalResult?.truncated === true && fallbackText !== undefined
+		? stripLegacyTerminalExitMarkers(fallbackText)
+		: terminalResult?.preview;
 	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
 	if (text === undefined && terminalContent?.isPty !== false) {
-		const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
 	}
 	if (text === undefined || (!text && !hasRetainedNonPtySnapshot && terminalResult?.truncated !== true)) {
@@ -1277,7 +1281,7 @@ function getTerminalOutput(tc: ToolCallState) {
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {
-	return text.replace(/<shellId:[^>\r\n]*completed with exit code \d+>\s*$/i, '');
+	return text.replace(/<shellId:[^>\r\n]*completed with exit code -?\d+>\s*$/i, '');
 }
 
 function isToolResultTextContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.Text }> {
@@ -1418,7 +1422,7 @@ function buildTerminalToolSpecificData(
 }
 
 function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined, includeMcpOutput: boolean, connectionAuthority: string): IToolResultInputOutputDetails | undefined {
-	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput;
+	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
 	if (!toolInput) {
 		return undefined;
 	}
@@ -1562,7 +1566,7 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	// A chat-scoped link (create_chat, or send_message targeting a specific chat)
 	// shows the conversation icon; a session-scoped link shows the agent icon.
 	const isChat = isCreateChatTool(tc.toolName) || (isSend && !!parseOpenSessionLinkChatId(openLink));
-	const label = createSessionTitleFromArgs(tc.toolInput) ?? (backend.path.replace(/^\//, '') || backend.toString());
+	const label = createSessionTitleFromArgs(getInlineToolInput(tc.toolInput)) ?? (backend.path.replace(/^\//, '') || backend.toString());
 	return { kind: 'sessionCreated', openLink, label, isChat };
 }
 
@@ -2064,7 +2068,10 @@ function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
 	if (tc.status === ToolCallStatus.Streaming || !tc.toolInput) {
 		return undefined;
 	}
-	const toolInput = tc.toolInput;
+	const toolInput = getInlineToolInput(tc.toolInput);
+	if (!toolInput) {
+		return undefined;
+	}
 	let args: { resourceUri?: unknown; range?: unknown; text?: unknown };
 	try {
 		args = JSON.parse(toolInput);
@@ -2154,12 +2161,15 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 					};
 				}),
 			};
-		} else if (getToolKind(tc) === 'terminal' && tc.toolInput) {
+		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
 			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-		} else if (tc.toolInput) {
-			let rawInput: unknown;
-			try { rawInput = JSON.parse(tc.toolInput); } catch { rawInput = { input: tc.toolInput }; }
-			toolSpecificData = { kind: 'input', rawInput };
+		} else {
+			const toolInput = getInlineToolInput(tc.toolInput);
+			if (toolInput) {
+				let rawInput: unknown;
+				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
+				toolSpecificData = { kind: 'input', rawInput };
+			}
 		}
 
 		return new ChatToolInvocation(

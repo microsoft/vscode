@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { Message } from '../../common/state/sessionState.js';
 
 export class TestSessionDatabase implements ISessionDatabase {
@@ -343,4 +344,23 @@ function createReference<T>(object: T): IReference<T> {
 		object,
 		dispose: () => { },
 	};
+}
+
+/**
+ * Recording {@link IAgentHostCheckpointService} double that captures
+ * {@link captureBaselineCheckpoint} invocations (session + resolved working
+ * directories) so tests can assert baseline capture on the fresh materialize
+ * path — and its absence on resume / subsequent sends. All other methods are
+ * no-ops, mirroring `NULL_CHECKPOINT_SERVICE`.
+ */
+export class RecordingCheckpointService implements IAgentHostCheckpointService {
+	declare readonly _serviceBrand: undefined;
+	readonly baselineCalls: { readonly session: string; readonly workingDirectories: readonly string[] | undefined }[] = [];
+	async captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void> {
+		this.baselineCalls.push({ session: sessionUri.toString(), workingDirectories: workingDirectories?.map(w => w.toString()) });
+	}
+	async captureTurnCheckpoint(): Promise<void> { }
+	async getTurnCheckpointPair(): Promise<{ parent: string; current: string } | undefined> { return undefined; }
+	async getBaselineCheckpoint(): Promise<string | undefined> { return undefined; }
+	async deleteCheckpoints(): Promise<void> { }
 }
