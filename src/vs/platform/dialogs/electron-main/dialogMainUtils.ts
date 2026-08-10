@@ -7,7 +7,7 @@ import { release } from 'os';
 import { mnemonicButtonLabel } from '../../../base/common/labels.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
-import { MessageBoxOptions } from '../../../base/parts/sandbox/common/electronTypes.js';
+import { MessageBoxOptions, MessageBoxReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { IProductService } from '../../product/common/productService.js';
 
 export interface IMassagedMessageBoxOptions {
@@ -23,6 +23,22 @@ export interface IMassagedMessageBoxOptions {
 	 * changes so that we can still return the correct index to the caller.
 	 */
 	readonly buttonIndeces: number[];
+}
+
+export function mapMessageBoxResponse(buttonIndeces: readonly number[], response: number, cancelId: number): Pick<MessageBoxReturnValue, 'response' | 'unexpectedResponse'> {
+	if (buttonIndeces.length === 0 && response === 0) {
+		return { response: 0 }; // Electron provides an implicit OK button when none are configured
+	}
+
+	const mappedResponse = buttonIndeces[response];
+	if (typeof mappedResponse === 'number') {
+		return { response: mappedResponse };
+	}
+
+	return {
+		response: buttonIndeces[cancelId] ?? 0,
+		unexpectedResponse: response
+	};
 }
 
 /**

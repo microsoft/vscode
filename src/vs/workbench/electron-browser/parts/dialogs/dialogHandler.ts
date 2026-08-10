@@ -12,6 +12,9 @@ import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
+/** Signals that Electron dismissed a native dialog with an unknown button response. */
+export class UnexpectedNativeDialogResponseError extends Error { }
+
 export class NativeDialogHandler extends AbstractDialogHandler {
 
 	constructor(
@@ -31,12 +34,18 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		return typeof detail === 'object' ? renderAsPlaintext(detail) : detail;
 	}
 
+	private ensureExpectedResponse(response: number, buttonCount: number, unexpectedResponse: number | undefined): void {
+		if (typeof unexpectedResponse === 'number' || !Number.isInteger(response) || response < 0 || response >= buttonCount) {
+			throw new UnexpectedNativeDialogResponseError();
+		}
+	}
+
 	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
 		const buttons = this.getPromptButtons(prompt);
 
-		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox({
+		const { response, checkboxChecked, unexpectedResponse } = await this.nativeHostService.showMessageBox({
 			type: this.getDialogType(prompt.type),
 			title: prompt.title,
 			message: prompt.message,
@@ -47,6 +56,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			checkboxChecked: prompt.checkbox?.checked,
 			targetWindowId: getActiveWindow().vscodeWindowId
 		});
+		this.ensureExpectedResponse(response, buttons.length, unexpectedResponse);
 
 		return this.getPromptResult(prompt, response, checkboxChecked);
 	}
@@ -56,7 +66,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getConfirmationButtons(confirmation);
 
-		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox({
+		const { response, checkboxChecked, unexpectedResponse } = await this.nativeHostService.showMessageBox({
 			type: this.getDialogType(confirmation.type) ?? 'question',
 			title: confirmation.title,
 			message: confirmation.message,
@@ -67,6 +77,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			checkboxChecked: confirmation.checkbox?.checked,
 			targetWindowId: getActiveWindow().vscodeWindowId
 		});
+		this.ensureExpectedResponse(response, buttons.length, unexpectedResponse);
 
 		return { confirmed: response === 0, checkboxChecked };
 	}
@@ -76,16 +87,18 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 	}
 
 	async about(title: string, details: string, detailsToCopy: string): Promise<void> {
-		const { response } = await this.nativeHostService.showMessageBox({
+		const buttons = [
+			localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
+			localize('okButton', "OK")
+		];
+		const { response, unexpectedResponse } = await this.nativeHostService.showMessageBox({
 			type: 'info',
 			message: title,
 			detail: `\n${details}`,
-			buttons: [
-				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
-				localize('okButton', "OK")
-			],
+			buttons,
 			targetWindowId: getActiveWindow().vscodeWindowId
 		});
+		this.ensureExpectedResponse(response, buttons.length, unexpectedResponse);
 
 		if (response === 0) {
 			this.clipboardService.writeText(detailsToCopy);

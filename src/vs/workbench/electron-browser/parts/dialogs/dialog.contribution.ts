@@ -19,6 +19,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Lazy } from '../../../../base/common/lazy.js';
 import { createNativeAboutDialogDetails } from '../../../../platform/dialogs/electron-browser/dialog.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { UnexpectedNativeDialogResponseError } from './dialogHandler.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -68,7 +69,10 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 					const args = this.currentDialog.args.confirmArgs;
 					result = (this.useCustomDialog || args?.confirmation.custom) ?
 						await this.browserImpl.value.confirm(args.confirmation) :
-						await this.nativeImpl.value.confirm(args.confirmation);
+						await this.showNativeDialogWithFallback(
+							() => this.nativeImpl.value.confirm(args.confirmation),
+							() => this.browserImpl.value.confirm(args.confirmation)
+						);
 				}
 
 				// Input (custom only)
@@ -82,7 +86,10 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 					const args = this.currentDialog.args.promptArgs;
 					result = (this.useCustomDialog || args?.prompt.custom) ?
 						await this.browserImpl.value.prompt(args.prompt) :
-						await this.nativeImpl.value.prompt(args.prompt);
+						await this.showNativeDialogWithFallback(
+							() => this.nativeImpl.value.prompt(args.prompt),
+							() => this.browserImpl.value.prompt(args.prompt)
+						);
 				}
 
 				// About
@@ -92,7 +99,10 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 					if (this.useCustomDialog) {
 						await this.browserImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
 					} else {
-						await this.nativeImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
+						await this.showNativeDialogWithFallback(
+							() => this.nativeImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy),
+							() => this.browserImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy)
+						);
 					}
 				}
 			} catch (error) {
@@ -101,6 +111,18 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 
 			this.currentDialog.close(result);
 			this.currentDialog = undefined;
+		}
+	}
+
+	private async showNativeDialogWithFallback<T>(showNative: () => Promise<T>, showCustom: () => Promise<T>): Promise<T> {
+		try {
+			return await showNative();
+		} catch (error) {
+			if (error instanceof UnexpectedNativeDialogResponseError) {
+				return showCustom();
+			}
+
+			throw error;
 		}
 	}
 

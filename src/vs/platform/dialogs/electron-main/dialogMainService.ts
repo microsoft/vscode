@@ -13,7 +13,7 @@ import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
 import { INativeOpenDialogOptions } from '../common/dialogs.js';
-import { massageMessageBoxOptions } from './dialogMainUtils.js';
+import { mapMessageBoxResponse, massageMessageBoxOptions } from './dialogMainUtils.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -158,8 +158,13 @@ export class DialogMainService implements IDialogMainService {
 				result = await electron.dialog.showMessageBox(options);
 			}
 
+			const response = mapMessageBoxResponse(buttonIndeces, result.response, options.cancelId ?? 0);
+			if (typeof response.unexpectedResponse === 'number') {
+				this.logService.warn(`[DialogMainService]: unexpected message box response '${result.response}' for ${buttonIndeces.length} buttons`);
+			}
+
 			return {
-				response: buttonIndeces[result.response],
+				...response,
 				checkboxChecked: result.checkboxChecked
 			};
 		});

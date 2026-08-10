@@ -93,6 +93,10 @@ export interface MessageBoxReturnValue {
 	 */
 	response: number;
 	/**
+	 * The unexpected response returned by the native dialog, if any.
+	 */
+	unexpectedResponse?: number;
+	/**
 	 * The checked state of the checkbox if `checkboxLabel` was set. Otherwise `false`.
 	 */
 	checkboxChecked: boolean;

@@ -7,7 +7,7 @@ import { deepEqual } from 'assert';
 import { release } from 'os';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IMassagedMessageBoxOptions, massageMessageBoxOptions } from '../../electron-main/dialogMainUtils.js';
+import { IMassagedMessageBoxOptions, mapMessageBoxResponse, massageMessageBoxOptions } from '../../electron-main/dialogMainUtils.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 
@@ -166,6 +166,26 @@ suite('Dialog', () => {
 			assertOptions(fourButtonCancel_4, ['4', '3', '2', '1'], 3, 4, [3, 2, 1, 0]);
 			assertOptions(fourButtonNegativeCancel, ['4', '3', '2', '1'], 3, -1, [3, 2, 1, 0]);
 		}
+	});
+
+	test('mapMessageBoxResponse', () => {
+		deepEqual({
+			firstButton: mapMessageBoxResponse([0, 1], 0, 1),
+			secondButton: mapMessageBoxResponse([0, 1], 1, 1),
+			reorderedFirstButton: mapMessageBoxResponse([1, 0], 0, 0),
+			reorderedSecondButton: mapMessageBoxResponse([1, 0], 1, 0),
+			implicitOkButton: mapMessageBoxResponse([], 0, -1),
+			unexpectedResponse: mapMessageBoxResponse([0, 1], 420, 1),
+			unexpectedNegativeResponse: mapMessageBoxResponse([0, 1], -1, 1)
+		}, {
+			firstButton: { response: 0 },
+			secondButton: { response: 1 },
+			reorderedFirstButton: { response: 1 },
+			reorderedSecondButton: { response: 0 },
+			implicitOkButton: { response: 0 },
+			unexpectedResponse: { response: 1, unexpectedResponse: 420 },
+			unexpectedNegativeResponse: { response: 1, unexpectedResponse: -1 }
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
