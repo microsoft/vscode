@@ -305,6 +305,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
 
 		if (objectEquals(currentState, nextState)) {
+			await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
 			return;
 		}
 

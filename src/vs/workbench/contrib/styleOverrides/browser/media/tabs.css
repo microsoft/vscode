@@ -17,15 +17,15 @@
 
 .modern-ui-tabs.monaco-workbench {
 	/* Translucent so they blend with whatever surface they overlay (e.g. the composite bar). */
-	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
-	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--vscode-editor-background));
+	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
 }
 
 .modern-ui-tabs.monaco-workbench.vs {
-	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
-	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	--modern-ui-tab-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--vscode-editor-background));
+	--modern-ui-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--vscode-editor-background));
 	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background));
 }
