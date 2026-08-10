@@ -447,18 +447,20 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			try { ptyProcess.kill(); } catch { /* already dead */ }
 		}));
 
-		const onFirstData = new DeferredPromise<void>();
+		const onTerminalReady = new DeferredPromise<void>();
 		const dataListener = ptyProcess.onData(rawData => {
 			void managed.headlessTerminal?.writePtyData(rawData);
 			this._handlePtyData(managed, rawData);
-			onFirstData.complete();
+			if (!commandTracker || commandTracker.detectionAvailableEmitted) {
+				onTerminalReady.complete();
+			}
 		});
 		store.add(toDisposable(() => dataListener.dispose()));
 
 		const exitListener = ptyProcess.onExit(e => {
 			managed.exitCode = e.exitCode;
 			managed.onExitEmitter.fire(e.exitCode);
-			onFirstData.complete();
+			onTerminalReady.complete();
 			this._stateManager.dispatchServerAction(uri, {
 				type: ActionType.TerminalExited,
 				exitCode: e.exitCode,
@@ -483,7 +485,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			store.add(toDisposable(() => clearInterval(titleInterval)));
 		}
 
-		await raceCancellablePromises([onFirstData.p, timeout(WAIT_FOR_PROMPT_TIMEOUT)]);
+		await raceCancellablePromises([onTerminalReady.p, timeout(WAIT_FOR_PROMPT_TIMEOUT)]);
 
 		this._broadcastTerminalList();
 	}

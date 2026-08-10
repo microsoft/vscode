@@ -302,12 +302,37 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		}, { shell: '/bin/bash' });
 
 		await pty.dataListenerRegistered.p;
-		pty.fireData('prompt');
+		pty.fireData(`${osc633('A')}prompt`);
 		await createTerminal;
 
 		await manager.sendText('agenthost-terminal://test/command-input', 'echo first\necho second', { shouldExecute: true });
 
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
+	});
+
+	test('waits for shell integration before resolving terminal creation', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = DeferredPromise.fromPromise(manager.createTerminal({
+			channel: 'agenthost-terminal://test/delayed-shell-integration',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' }));
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('plain startup data');
+		await timeout(0);
+		assert.strictEqual(createTerminal.isSettled, false);
+
+		pty.fireData(osc633('A'));
+		await createTerminal.p;
 	});
 
 	test('writes bracketed paste command input when enabled by the terminal', async () => {
@@ -327,7 +352,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		}, { shell: '/bin/bash' });
 
 		await pty.dataListenerRegistered.p;
-		pty.fireData('\x1b[?2004h');
+		pty.fireData(`${osc633('A')}\x1b[?2004h`);
 		await createTerminal;
 
 		await manager.sendText('agenthost-terminal://test/bracketed-paste', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
@@ -352,7 +377,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		}, { shell: '/bin/bash' });
 
 		await pty.dataListenerRegistered.p;
-		pty.fireData('prompt');
+		pty.fireData(`${osc633('A')}prompt`);
 		await createTerminal;
 
 		await manager.sendText('agenthost-terminal://test/bracketed-paste-disabled', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
@@ -382,7 +407,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 				rows: 24,
 			}, { shell, ...options });
 			await pty.dataListenerRegistered.p;
-			pty.fireData('prompt');
+			pty.fireData(`${osc633('A')}prompt`);
 			await createTerminal;
 			return manager;
 		}
@@ -429,7 +454,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		}, { shell: '/bin/bash' });
 
 		await pty.dataListenerRegistered.p;
-		pty.fireData('abc\x1b[6n');
+		pty.fireData(`${osc633('A')}abc\x1b[6n`);
 		await createTerminal;
 		await waitForWrites(pty, 1);
 
@@ -456,7 +481,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 
 		await pty.dataListenerRegistered.p;
 		disposables.add(manager.onData(uri, data => clientData.push(data)));
-		pty.fireData('before\x1b]10;?\x1b\\\x1b[6nmid\x1b]11;?\x07\x1b[6nafter');
+		pty.fireData(`${osc633('A')}before\x1b]10;?\x1b\\\x1b[6nmid\x1b]11;?\x07\x1b[6nafter`);
 		await createTerminal;
 		await waitForWrites(pty, 2);
 
@@ -487,7 +512,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		}, { shell: '/bin/bash' });
 
 		await pty.dataListenerRegistered.p;
-		pty.fireData('prompt');
+		pty.fireData(`${osc633('A')}prompt`);
 		await createTerminal;
 
 		const altBufferStore = disposables.add(new DisposableStore());
@@ -516,7 +541,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		}, { shell: '/bin/bash' });
 
 		await pty.dataListenerRegistered.p;
-		pty.fireData('prompt');
+		pty.fireData(`${osc633('A')}prompt`);
 		await createTerminal;
 
 		const altBufferStore = new DisposableStore();
