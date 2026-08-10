@@ -108,15 +108,22 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 			];
 		}
 
+		// A setting such as `x/node_modules/typescript/lib` inside a workspace folder
+		// named `x` is ambiguous: it may mean the nested `x/x/node_modules/...` or the
+		// folder-name-prefixed `x/node_modules/...`. Only take the prefixed reading when
+		// it resolves to a real tsserver.js, otherwise fall through to the plain join
+		// below so the nested path still works.
 		const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
 		if (workspacePath !== undefined) {
 			const serverPath = path.join(workspacePath, 'tsserver.js');
-			return [
-				new TypeScriptVersion(source,
-					serverPath,
-					DiskTypeScriptVersionProvider.getApiVersion(serverPath),
-					tsdkPathSetting)
-			];
+			if (fs.existsSync(serverPath)) {
+				return [
+					new TypeScriptVersion(source,
+						serverPath,
+						DiskTypeScriptVersionProvider.getApiVersion(serverPath),
+						tsdkPathSetting)
+				];
+			}
 		}
 
 		return this.loadTypeScriptVersionsFromPath(source, tsdkPathSetting);
