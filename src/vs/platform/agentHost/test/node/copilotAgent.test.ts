@@ -83,8 +83,8 @@ function chatEntriesBySdkId(agent: CopilotAgent): Map<string, { chatSession: Cop
 	return (agent as unknown as { _chatEntriesBySdkId: Map<string, { chatSession: CopilotAgentSession; dispose(): void }> })._chatEntriesBySdkId;
 }
 
-function chatBindings(agent: CopilotAgent): Map<string, { sdkSessionId: string; model?: ModelSelection }> {
-	return (agent as unknown as { _chatBindings: Map<string, { sdkSessionId: string; model?: ModelSelection }> })._chatBindings;
+function chatBackings(agent: CopilotAgent): Map<string, { sdkSessionId: string; model?: ModelSelection }> {
+	return (agent as unknown as { _chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection }> })._chatBackings;
 }
 
 function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknown, chatUri?: URI): void {
@@ -93,7 +93,7 @@ function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknow
 		dispose: () => (stub as { dispose?: () => void }).dispose?.(),
 	});
 	if (chatUri) {
-		chatBindings(agent).set(chatUri.toString(), { sdkSessionId });
+		chatBackings(agent).set(chatUri.toString(), { sdkSessionId });
 	}
 }
 
@@ -130,36 +130,36 @@ function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSe
 	typed.bindChatChannel ??= (uri: URI) => { typed.chatChannelUri = uri; };
 	typed.destroySession ??= async () => { };
 	setLiveChatStub(agent, resolvedSdkSessionId, typed, chatUri);
-	chatBindings(agent).set(chatUri.toString(), { sdkSessionId: resolvedSdkSessionId });
+	chatBackings(agent).set(chatUri.toString(), { sdkSessionId: resolvedSdkSessionId });
 }
 
 function getPeerChatStub(agent: CopilotAgent, chatUri: URI): CopilotAgentSession | undefined {
-	const sdkSessionId = chatBindings(agent).get(chatUri.toString())?.sdkSessionId;
+	const sdkSessionId = chatBackings(agent).get(chatUri.toString())?.sdkSessionId;
 	return sdkSessionId ? chatEntriesBySdkId(agent).get(sdkSessionId)?.chatSession : undefined;
 }
 
 function hasLiveChat(agent: CopilotAgent, chatUri: URI): boolean {
-	const sdkSessionId = chatBindings(agent).get(chatUri.toString())?.sdkSessionId;
+	const sdkSessionId = chatBackings(agent).get(chatUri.toString())?.sdkSessionId;
 	return !!sdkSessionId && !!chatEntriesBySdkId(agent).get(sdkSessionId);
 }
 
 function peerChatCount(agent: CopilotAgent): number {
 	let count = 0;
-	for (const [chatKey, binding] of chatBindings(agent)) {
+	for (const [chatKey, backing] of chatBackings(agent)) {
 		try {
 			const ownerSession = URI.parse(parseRequiredSessionUriFromChatUri(URI.parse(chatKey)));
-			if (binding.sdkSessionId !== AgentSession.id(ownerSession)) {
+			if (backing.sdkSessionId !== AgentSession.id(ownerSession)) {
 				count++;
 			}
 		} catch {
-			// Ignore non-chat bindings in test-only accounting.
+			// Ignore non-chat backings in test-only accounting.
 		}
 	}
 	return count;
 }
 
 function listUnboundSessions(agent: CopilotAgent): string[] {
-	const boundIds = new Set([...chatBindings(agent).values()].map(binding => binding.sdkSessionId));
+	const boundIds = new Set([...chatBackings(agent).values()].map(backing => backing.sdkSessionId));
 	return [...chatEntriesBySdkId(agent).keys()].filter(id => !boundIds.has(id));
 }
 
@@ -3539,10 +3539,10 @@ suite('CopilotAgent', () => {
 
 			let imported: { config: IAgentCreateSessionConfig; sessionId: string; workingDirectory: URI } | undefined;
 			const internals = agent as unknown as {
-				_materializeChatBinding(context: IAgentChatContext): Promise<typeof sourceSession | undefined>;
+				_resolveOrResumeChatSession(context: IAgentChatContext): Promise<typeof sourceSession | undefined>;
 				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
 			};
-			internals._materializeChatBinding = async () => sourceSession;
+			internals._resolveOrResumeChatSession = async () => sourceSession;
 			internals._importConversation = async (config, sessionId, directory) => {
 				imported = { config, sessionId, workingDirectory: directory };
 				return { session: target, resolvedWorkingDirectory: directory };
@@ -4431,7 +4431,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					tracked: hasLiveChat(agent, chatUri),
-					backing: chatBindings(agent).get(chatUri.toString()),
+					backing: chatBackings(agent).get(chatUri.toString()),
 					disposed,
 				}, {
 					tracked: true,
@@ -4468,7 +4468,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					tracked: hasLiveChat(agent, chatUri),
-					backing: chatBindings(agent).get(chatUri.toString()),
+					backing: chatBackings(agent).get(chatUri.toString()),
 					disposed,
 				}, {
 					tracked: false,
@@ -4795,7 +4795,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					disposed: chat.isDisposed(),
 					live: hasLiveChat(agent, chatUri),
-					backing: chatBindings(agent).get(chatUri.toString()),
+					backing: chatBackings(agent).get(chatUri.toString()),
 				}, {
 					disposed: false,
 					live: true,
@@ -4819,7 +4819,7 @@ suite('CopilotAgent', () => {
 					'peer-a': { sdkSessionId: 'sdk-a' },
 				}));
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
-				const internals = agent as unknown as { _chatBindings: Map<string, unknown> };
+				const internals = agent as unknown as { _chatBackings: Map<string, unknown> };
 				// Materialize the backing first, mirroring the orchestrator's
 				// restore handing back the persisted providerData.
 				await agent.materializeChat(chatUri, session, JSON.stringify({ sdkSessionId: 'sdk-a' }));
@@ -4828,7 +4828,7 @@ suite('CopilotAgent', () => {
 
 				const remaining = await db.object.getMetadata('copilot.chats');
 				assert.deepStrictEqual({
-					backingCleared: internals._chatBindings.has(chatUri.toString()),
+					backingCleared: internals._chatBackings.has(chatUri.toString()),
 					deleted: client.deletedSessionIds,
 					// The agent no longer owns the durable catalog, so it leaves
 					// the legacy blob untouched (orchestrator drops the entry).
@@ -4848,7 +4848,7 @@ suite('CopilotAgent', () => {
 
 		/** Internal surface these chat-routing tests reach into to stub the SDK/agent-session seam. */
 		type ChatInternals = {
-			_chatBindings: Map<string, { sdkSessionId: string; model?: ModelSelection }>;
+			_chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection }>;
 			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown, identity?: { sessionUri: URI; chatChannelUri: URI }) => CopilotAgentSession;
 			_resumeSession: (sessionId: string) => Promise<CopilotAgentSession>;
 			_getOrCreateSessionLifetime: (sessionId: string) => { queueSession<T>(task: () => Promise<T>): Promise<T> } | undefined;
@@ -4942,7 +4942,7 @@ suite('CopilotAgent', () => {
 					session: capturedSession?.toString(),
 					channel: capturedChannel?.toString(),
 					kind: captured?.kind,
-					backing: internals._chatBindings.get(chatUri.toString()),
+					backing: internals._chatBackings.get(chatUri.toString()),
 					providerData: result ? JSON.parse(result.providerData!) : undefined,
 					// The orchestrator now owns the durable catalog; the agent no
 					// longer writes its private `copilot.chats` metadata.
@@ -5464,7 +5464,7 @@ suite('CopilotAgent', () => {
 					launchKind: captured?.kind,
 					launchSessionId: captured?.sessionId,
 					tracked: hasLiveChat(agent, chatUri),
-					backing: internals._chatBindings.get(chatUri.toString()),
+					backing: internals._chatBackings.get(chatUri.toString()),
 					providerData: result ? JSON.parse(result.providerData!) : undefined,
 					legacyCatalogWritten: raw !== undefined,
 				}, {
@@ -5676,7 +5676,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('sendMessage on an addressed chat resumes the addressed binding even when the parent session is provisional', async () => {
+		test('sendMessage on an addressed chat resumes the addressed backing even when the parent session is provisional', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
 			try {
@@ -5831,7 +5831,7 @@ suite('CopilotAgent', () => {
 				const history = await getPeerChatStub(agent2, peerA)!.getMessages();
 
 				assert.deepStrictEqual({
-					materializedBackings: [internals2._chatBindings.get(peerA.toString()), internals2._chatBindings.get(peerB.toString())],
+					materializedBackings: [internals2._chatBackings.get(peerA.toString()), internals2._chatBackings.get(peerB.toString())],
 					resumeKind: resumed?.kind,
 					resumeSessionId: resumed?.sessionId,
 					expectedSessionId: created['peer-a'],
@@ -5872,8 +5872,8 @@ suite('CopilotAgent', () => {
 				await agent.materializeChat(corruptUri, session, 'not json');
 
 				assert.deepStrictEqual({
-					legacy: internals._chatBindings.get(chatUri.toString()),
-					corrupt: internals._chatBindings.has(corruptUri.toString()),
+					legacy: internals._chatBackings.get(chatUri.toString()),
+					corrupt: internals._chatBackings.has(corruptUri.toString()),
 				}, {
 					legacy: { sdkSessionId: 'legacy-sdk', model: { id: 'gpt-legacy' } },
 					corrupt: false,
@@ -5890,7 +5890,7 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const internals = agent as unknown as ChatInternals;
 				setPeerChatStub(agent, chatUri, makeFakeChatSession(session, 'sdk-a').fake);
-				internals._chatBindings.set(chatUri.toString(), { sdkSessionId: 'sdk-a' });
+				internals._chatBackings.set(chatUri.toString(), { sdkSessionId: 'sdk-a' });
 
 				const events: { chat: string; providerData: unknown }[] = [];
 				disposables.add(agent.onDidChangeChatData(e => events.push({ chat: e.chat.toString(), providerData: JSON.parse(e.providerData) })));
@@ -5898,7 +5898,7 @@ suite('CopilotAgent', () => {
 				await agent.chats.changeModel(chatUri, { id: 'model-x' });
 
 				assert.deepStrictEqual({
-					backing: internals._chatBindings.get(chatUri.toString()),
+					backing: internals._chatBackings.get(chatUri.toString()),
 					events,
 				}, {
 					backing: { sdkSessionId: 'sdk-a', model: { id: 'model-x' } },
@@ -6030,7 +6030,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					unbound: listUnboundSessions(agent),
 					bound,
-					routedSdkId: chatBindings(agent).get(chat.toString())?.sdkSessionId,
+					routedSdkId: chatBackings(agent).get(chat.toString())?.sdkSessionId,
 				}, {
 					unbound: [],
 					bound: [chat.toString()],
@@ -6236,7 +6236,7 @@ suite('CopilotAgent', () => {
 					peerDisposed: peerRec.disposed,
 					defaultLive: hasLiveChat(agent, defaultChatUri(session)),
 					peerLive: hasLiveChat(agent, peerChat),
-					peerBacking: chatBindings(agent).get(peerChat.toString()),
+					peerBacking: chatBackings(agent).get(peerChat.toString()),
 				}, {
 					defaultDisposed: false,
 					peerDisposed: true,

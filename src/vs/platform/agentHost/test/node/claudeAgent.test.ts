@@ -85,29 +85,29 @@ interface IStartCall {
 }
 
 /**
- * Enumerate the agent's live additional-chat bindings for a session as
- * channel URI strings (bindings AH did not stamp with a storage scope).
+ * Enumerate the agent's live additional-chat backings for a session as
+ * channel URI strings (backings AH did not stamp with a storage scope).
  * Replaces the removed `IAgent.getChats` for tests that assert additional-chat
  * lifecycle at the agent level (the orchestrator now owns the durable
  * catalog).
  */
 function listAdditionalChats(agent: ClaudeAgent, session: URI): string[] {
-	const bindings = (agent as unknown as { _chatBindings: Map<string, { readonly sdkSessionId: string }> })._chatBindings;
-	return [...bindings].flatMap(([chat]) => !isDefaultChatUri(chat) && parseRequiredSessionUriFromChatUri(chat) === session.toString() ? [chat] : []);
+	const backings = (agent as unknown as { _chatBackings: Map<string, { readonly sdkSessionId: string }> })._chatBackings;
+	return [...backings].flatMap(([chat]) => !isDefaultChatUri(chat) && parseRequiredSessionUriFromChatUri(chat) === session.toString() ? [chat] : []);
 }
 
 function listLiveChats(agent: ClaudeAgent): string[] {
 	const internals = agent as unknown as {
-		_chatBindings: Map<string, { readonly sdkSessionId: string }>;
+		_chatBackings: Map<string, { readonly sdkSessionId: string }>;
 		_chatEntriesBySdkId: Map<string, unknown>;
 	};
-	return [...internals._chatBindings].flatMap(([chat, binding]) => internals._chatEntriesBySdkId.has(binding.sdkSessionId) ? [chat] : []);
+	return [...internals._chatBackings].flatMap(([chat, backing]) => internals._chatEntriesBySdkId.has(backing.sdkSessionId) ? [chat] : []);
 }
 
-function listSessionChatBindings(agent: ClaudeAgent): string[] {
+function listSessionChatBackings(agent: ClaudeAgent): string[] {
 	const index = (agent as unknown as {
-		_chatBindings: Map<string, { readonly sdkSessionId: string }>;
-	})._chatBindings;
+		_chatBackings: Map<string, { readonly sdkSessionId: string }>;
+	})._chatBackings;
 	return [...index].flatMap(([chat]) => isDefaultChatUri(chat) ? [chat] : []);
 }
 
@@ -8190,7 +8190,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(listAdditionalChats(agent, created.session), []);
 	});
 
-	test('chat bindings retain only provider chat data', async () => {
+	test('chat backings retain only provider chat data', async () => {
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
@@ -8199,13 +8199,13 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats.bindSessionChat!(defaultChat, created.session);
 		const additionalChat = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
 		const additional = await agent.chats.createChat(additionalChat, created.session, { model: { id: 'claude-opus-4.6' }, inheritedContext: inheritedChatContext() });
-		const bindings = (agent as unknown as {
-			_chatBindings: Map<string, { readonly sdkSessionId: string; readonly model?: { readonly id: string } }>;
-		})._chatBindings;
+		const backings = (agent as unknown as {
+			_chatBackings: Map<string, { readonly sdkSessionId: string; readonly model?: { readonly id: string } }>;
+		})._chatBackings;
 
-		assert.deepStrictEqual([...bindings].map(([chat, binding]) => ({ chat, binding })), [
-			{ chat: defaultChat.toString(), binding: { sdkSessionId: AgentSession.id(created.session) } },
-			{ chat: additionalChat.toString(), binding: { sdkSessionId: AgentSession.id(additional!.backingSession!), model: { id: 'claude-opus-4.6' } } },
+		assert.deepStrictEqual([...backings].map(([chat, backing]) => ({ chat, backing })), [
+			{ chat: defaultChat.toString(), backing: { sdkSessionId: AgentSession.id(created.session) } },
+			{ chat: additionalChat.toString(), backing: { sdkSessionId: AgentSession.id(additional!.backingSession!), model: { id: 'claude-opus-4.6' } } },
 		]);
 	});
 
@@ -8710,11 +8710,11 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const session = AgentSession.uri('claude', 'unbound-default');
 		await agent.createSession({ session, workingDirectories: [URI.file('/work')] });
 		await agent.chats.bindSessionChat!(defaultChatUri(session), session);
-		assert.deepStrictEqual(listSessionChatBindings(agent), [defaultChatUri(session).toString()]);
+		assert.deepStrictEqual(listSessionChatBackings(agent), [defaultChatUri(session).toString()]);
 
 		await agent.chats.disposeChat(defaultChatUri(session));
 
-		assert.deepStrictEqual(listSessionChatBindings(agent), []);
+		assert.deepStrictEqual(listSessionChatBackings(agent), []);
 	});
 
 	test('releaseChat releases only the addressed live chat', async () => {
@@ -8746,11 +8746,11 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		assert.deepStrictEqual({
 			liveChats: listLiveChats(agent),
-			sessionChatBindings: listSessionChatBindings(agent),
+			sessionChatBackings: listSessionChatBackings(agent),
 			backings: listAdditionalChats(agent, session),
 		}, {
 			liveChats: [],
-			sessionChatBindings: [defaultChat.toString()],
+			sessionChatBackings: [defaultChat.toString()],
 			backings: [additionalChat.toString()],
 		});
 	});
