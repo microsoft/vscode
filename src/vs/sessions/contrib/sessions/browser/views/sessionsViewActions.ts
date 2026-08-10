@@ -21,6 +21,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { TerminalContextKeys } from '../../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
@@ -180,7 +181,7 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 			keybinding: {
 				// Mirror core "Previous Editor"; keep Alt+Up as a sessions-only alternate outside the editor area.
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), TerminalContextKeys.focus.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				mac: {
@@ -214,7 +215,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 			keybinding: {
 				// Mirror core "Next Editor"; keep Alt+Down as a sessions-only alternate outside the editor area.
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), TerminalContextKeys.focus.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				mac: {
