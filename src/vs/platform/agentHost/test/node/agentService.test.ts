@@ -1734,9 +1734,8 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(readSessionMultiRootMetadata(sessions[0]._meta), undefined);
 		});
 
-		test('listSessions normalizes a persisted linked-worktree project without probing a missing session worktree', async () => {
+		test('listSessions surfaces the persisted worktree repository root without resolving it', async () => {
 			const db = disposables.add(new TestSessionDatabase());
-			const primaryRoot = URI.file('/workspace/vscode');
 			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
 			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
 			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
@@ -1744,30 +1743,73 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionUri = AgentSession.uri('copilot', sessionId);
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			agent.sessionMetadataOverrides = {
-				workingDirectories: [sessionWorktree],
-				project: { uri: linkedCheckout, displayName: 'parent' },
-			};
+			agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree] };
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const gitService = createNoopGitService();
-			const resolvedFrom: URI[] = [];
-			gitService.getWorktreeRoots = async workingDirectory => {
-				resolvedFrom.push(workingDirectory);
-				return [primaryRoot, linkedCheckout, sessionWorktree];
+			let worktreeRootResolutions = 0;
+			gitService.getWorktreeRoots = async () => {
+				worktreeRootResolutions++;
+				return [];
 			};
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
+			// Twice, because the deleted repair cached per session: one listing cannot tell "never resolves" from "resolves once".
 			await svc.listSessions();
 
 			assert.deepStrictEqual({
-				resolvedFrom: resolvedFrom.map(uri => uri.toString()),
+				worktreeRootResolutions,
 				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
 				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
 			}, {
-				resolvedFrom: [linkedCheckout.toString()],
-				project: { uri: primaryRoot.toString(), displayName: 'vscode' },
+				worktreeRootResolutions: 0,
+				project: { uri: linkedCheckout.toString(), displayName: 'parent' },
+				persistedRepositoryRoot: linkedCheckout.toString(),
+			});
+		});
+
+		test('listSessions reports the repository root once opening the session heals it', async () => {
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
+			await Promise.all([
+				db.setMetadata('copilot.worktree.branchName', 'agents/child'),
+				db.setMetadata('copilot.worktree.path', sessionWorktree.toString()),
+				db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString()),
+			]);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree] };
+			const gitService = createNoopGitService();
+			gitService.getWorktreeRoots = async () => [primaryRoot, linkedCheckout, sessionWorktree];
+			const sessionDataService = createSessionDataService(db);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			)));
+			svc.registerProvider(agent);
+			await agent.createSession();
+			const sessionResource = (await agent.listSessions())[0].session;
+			agent.sessionMessages = [];
+
+			const before = await svc.listSessions();
+			// Restore heals the metadata by resolving the worktree project, canonicalizing the root, and writing it back.
+			await svc.restoreSession(sessionResource);
+			const after = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				before: before[0].project?.uri.toString(),
+				after: after[0].project?.uri.toString(),
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+			}, {
+				before: linkedCheckout.toString(),
+				after: primaryRoot.toString(),
 				persistedRepositoryRoot: primaryRoot.toString(),
 			});
 		});
