@@ -1033,6 +1033,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 	}
 
+	async cancelCurrentRequest(session: ISession): Promise<void> {
+		await this.chatService.cancelCurrentRequestForSession(session.mainChat.get().resource, 'sessionsManagement');
+	}
+
 	async archiveSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.archiveSession(session.sessionId);
 		this._onDidArchiveSession.fire(session);

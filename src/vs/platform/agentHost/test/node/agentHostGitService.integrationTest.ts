@@ -118,6 +118,27 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('reports the GitHub owner of a branch push remote without an upstream', async () => {
+		const dir = initRepo({ remote: 'https://github.com/base-owner/repo.git' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.remote', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.pushremote', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({
+			githubOwner: result?.githubOwner,
+			githubHeadOwner: result?.githubHeadOwner,
+			githubRepo: result?.githubRepo,
+			upstreamBranchName: result?.upstreamBranchName,
+		}, {
+			githubOwner: 'base-owner',
+			githubHeadOwner: 'fork-owner',
+			githubRepo: 'repo',
+			upstreamBranchName: undefined,
+		});
+	});
+
 	(hasGit ? test : test.skip)('resolves the default branch name and remote-tracking start point', async () => {
 		const dir = initRepo();
 		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
@@ -614,7 +635,10 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	(hasGit ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async function () {
+	// Windows is excluded like the other chmod-based tests above: `chmod` does not
+	// convey POSIX directory permissions there, so prune's delete still succeeds
+	// and the masking scenario cannot be reproduced.
+	(hasGit && !isWindows ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async function () {
 		// Root bypasses the directory permission that makes prune fail, so this
 		// masking scenario cannot be reproduced there.
 		if (typeof process.getuid === 'function' && process.getuid() === 0) {
