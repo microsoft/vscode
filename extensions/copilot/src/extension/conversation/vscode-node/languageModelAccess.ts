@@ -13,11 +13,12 @@ import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError 
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
+import { AUTO_MODE_TIER_PROPERTY, defaultAutoModeTier, selectableAutoModeTiers } from '../../../platform/endpoint/common/autoModeTiers';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
-import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
+import { IAutomodeService, type IAutoModeRoutingRequest } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
@@ -44,7 +45,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -92,10 +93,49 @@ function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boole
 	];
 }
 
-// Auto model delegates to different backends, so don't expose config pickers
-function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+/**
+ * Extracts what auto mode needs from a `vscode.lm` request, which has no
+ * `ChatRequest`: the prompt to classify, any attached images, and a cache key.
+ * Returns `undefined` without user text, falling back to prompt-free selection.
+ */
+function buildAutoRoutingContext(
+	messages: readonly (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[],
+	options: vscode.ProvideLanguageModelChatResponseOptions,
+): IAutoModeRoutingRequest | undefined {
+	// The last user message is the turn being answered.
+	const lastUserMessage = [...messages].reverse().find(m => m.role === vscode.LanguageModelChatMessageRole.User);
+	if (!lastUserMessage) {
+		return undefined;
+	}
+	const content = lastUserMessage.content;
+	const parts = typeof content === 'string' ? [] : content;
+	const prompt = (typeof content === 'string'
+		? content
+		: parts
+			.map(part => part instanceof vscode.LanguageModelTextPart ? part.value : '')
+			.join('')
+	).trim();
+	if (!prompt) {
+		return undefined;
+	}
+	// Images are forwarded to the selected model, so `/auto` must see them too
+	// or it may pick a text-only model. Only the mime type matters here.
+	const references = parts
+		.filter((part): part is vscode.LanguageModelDataPart => part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/'))
+		.map(part => ({ value: { mimeType: part.mimeType } }));
+	// Key by the calling extension. Like a panel conversation, the first prompt
+	// picks the model and later ones reuse it, which bounds the cache at one
+	// entry per extension.
+	return { prompt, sessionId: `vscode.lm:${options.requestInitiator ?? 'unknown'}`, references, modelConfiguration: options.modelConfiguration };
+}
+
+// Auto model delegates to different backends, so the only picker it exposes is
+// the routing tier; per-model options belong to the model it routes to.
+function buildConfigurationSchema(endpoint: IChatEndpoint, preferLongContext: boolean, autoTiersEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
-		return {};
+		return autoTiersEnabled
+			? { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } }
+			: {};
 	}
 
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
@@ -263,6 +303,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			void this._refreshUtilityOverrides();
 			this._onDidChange.fire();
 		}));
+		this._register(this._automodeService.onDidChangeAutoModeTierSupport(() => {
+			// Withdraws (or restores) the Auto model's tier picker, which is only
+			// honored while routing goes through `POST /auto`.
+			this._onDidChange.fire();
+		}));
 	}
 
 	private async _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
@@ -279,7 +324,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			return this._currentModels;
 		}
 		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
-		const autoEndpoint = await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
+		const autoEndpoint = await this._automodeService.resolveAutoModePickerEndpoint(allEndpoints);
 		chatEndpoints.push(autoEndpoint);
 		let defaultChatEndpoint: IChatEndpoint;
 		const defaultExpModel = this._expService.getTreatmentVariable<string>('chat.defaultLanguageModel')?.replace('copilot/', '');
@@ -293,6 +338,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 		const seenFamilies = new Set<string>();
 		const preferLongContext = this._configurationService.getConfig(ConfigKey.PreferLongContext);
+		const autoTiersEnabled = this._automodeService.areAutoModeTiersSupported();
 
 		for (const endpoint of chatEndpoints) {
 			if (seenFamilies.has(endpoint.family) && !endpoint.showInModelPicker) {
@@ -378,7 +424,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint, preferLongContext),
+				...buildConfigurationSchema(endpoint, preferLongContext, autoTiersEnabled),
 			};
 
 			models.push(model);
@@ -490,13 +536,15 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 	}
 
-	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation) {
+	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation, autoRoutingContext?: IAutoModeRoutingRequest) {
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
 			if (!allEndpoints.length) {
 				return undefined;
 			}
-			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
+			// Without routing context (no user text) auto mode falls back to
+			// prompt-free model selection.
+			return await this._automodeService.resolveAutoModeEndpoint(autoRoutingContext, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
 		if (aliasEndpoint) {
@@ -512,7 +560,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		let endpoint = await this._getEndpointForModel(model);
+		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);
 		}
@@ -534,7 +582,15 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		text: string | vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2,
 		token: vscode.CancellationToken
 	): Promise<number> {
-		const endpoint = await this._getEndpointForModel(model);
+		// Counting only needs a tokenizer, so don't route a model for Auto: that
+		// would mint a session token for a purely local computation.
+		let endpoint: IChatEndpoint | undefined;
+		if (model.id === AutoChatEndpoint.pseudoModelId) {
+			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+			endpoint = allEndpoints.length ? await this._automodeService.resolveAutoModePickerEndpoint(allEndpoints) : undefined;
+		} else {
+			endpoint = await this._getEndpointForModel(model);
+		}
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);
 		}

@@ -105,7 +105,8 @@ export interface IModelTokenPrices {
 export interface IModelPromo {
 	id: string;
 	discount_percent: number;
-	ends_at: string;
+	/** ISO 8601 end date; absent for open-ended promotions. */
+	ends_at?: string;
 	message: string;
 }
 

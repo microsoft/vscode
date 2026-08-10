@@ -205,8 +205,13 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
-	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'remove', '--force', worktree.fsPath], { timeout: 60_000, throwOnError: true });
+	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
+		const args = ['worktree', 'remove'];
+		if (options?.force) {
+			args.push('--force');
+		}
+		args.push(worktree.fsPath);
+		await this._runGit(repositoryRoot, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
@@ -621,6 +626,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async revParse(repositoryRoot: URI, expression: string): Promise<string | undefined> {
 		const out = await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', expression]);
 		return out?.trim() || undefined;
+	}
+
+	async listRefNamesWithOids(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>> {
+		const out = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(objectname)', pattern]);
+		if (!out) {
+			return [];
+		}
+		const result: Array<{ ref: string; oid: string }> = [];
+		for (const line of out.split('\n')) {
+			const trimmed = line.trim();
+			if (!trimmed) {
+				continue;
+			}
+			const [ref, oid] = trimmed.split('\x00');
+			if (ref && oid) {
+				result.push({ ref, oid });
+			}
+		}
+		return result;
 	}
 
 	async overlayPathIntoTree(repositoryRoot: URI, baseTreeOid: string, path: string, sourceTreeOid: string): Promise<string | undefined> {

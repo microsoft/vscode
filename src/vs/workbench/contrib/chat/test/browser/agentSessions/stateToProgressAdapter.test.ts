@@ -16,7 +16,7 @@ import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/age
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -1413,6 +1413,80 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('toolCallStateToStreamingInvocation defers partial input display for read tools', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-read-stream',
+				toolName: 'view',
+				displayName: 'Read',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"path":"/repo/part',
+				invocationMessage: { markdown: 'Reading [part](file:///repo/part)' },
+				_meta: { toolKind: 'read' },
+			}, undefined);
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			assert.deepStrictEqual({
+				invocationMessage: invocation.invocationMessage,
+				partialInput: state.partialInput.get(),
+				streamingMessage: state.streamingMessage.get(),
+			}, {
+				invocationMessage: 'Read',
+				partialInput: undefined,
+				streamingMessage: 'Reading file',
+			});
+		});
+
+		test('updateStreamingToolInvocation clears edit progress when a legacy tool resolves to read', () => {
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-legacy-read-stream',
+				toolName: 'str_replace_editor',
+				displayName: 'Edit File',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"path":"/repo/part',
+				invocationMessage: { markdown: 'Editing [part](file:///repo/part)' },
+			}, undefined);
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			const beforeStreamingMessage = state.streamingMessage.get();
+			const before = {
+				partialInput: state.partialInput.get(),
+				streamingMessage: typeof beforeStreamingMessage === 'string' ? beforeStreamingMessage : beforeStreamingMessage?.value,
+			};
+
+			updateStreamingToolInvocation(invocation, {
+				toolCallId: 'tc-legacy-read-stream',
+				toolName: 'str_replace_editor',
+				displayName: 'Edit File',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"command":"view","path":"/repo/part',
+				invocationMessage: { markdown: 'Reading [part](file:///repo/part)' },
+				_meta: { toolKind: 'read' },
+			}, '');
+
+			assert.deepStrictEqual({
+				before,
+				after: {
+					partialInput: state.partialInput.get(),
+					streamingMessage: state.streamingMessage.get(),
+				},
+			}, {
+				before: {
+					partialInput: { path: '/repo/part' },
+					streamingMessage: 'Editing [part](file:///repo/part)',
+				},
+				after: {
+					partialInput: undefined,
+					streamingMessage: 'Reading file',
+				},
+			});
+		});
+
 		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
 			const sessionResource = URI.parse('copilotcli:/session-1');
 			const invocation = toolCallStateToStreamingInvocation({
@@ -1513,6 +1587,41 @@ suite('stateToProgressAdapter', () => {
 			streaming.requestConfirmation(toolCallStateToPreparedInvocation(pending));
 			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
 			assert.strictEqual(streaming.toolSpecificData?.kind, 'terminal');
+		});
+
+		test('a same-state pending refresh replaces the visible terminal command without replacing its gate', () => {
+			const first: AnyToolCallState = {
+				toolCallId: 'tc-term',
+				toolName: 'bash',
+				displayName: 'Bash',
+				invocationMessage: 'Running `npm config get registry`',
+				toolInput: 'npm config get registry',
+				status: ToolCallStatus.PendingConfirmation,
+				_meta: { toolKind: 'terminal' },
+				confirmationTitle: 'Run command?',
+			};
+			const invocation = toolCallStateToInvocation(first);
+			const initialState = invocation.state.get();
+			assert.strictEqual(initialState.type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			const initialGate = initialState.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? initialState.confirm : undefined;
+
+			const refreshed: AnyToolCallState = {
+				...first,
+				invocationMessage: 'Running `npm install --registry=https://registry.npmjs.org`',
+				toolInput: 'npm install --registry=https://registry.npmjs.org',
+			};
+			invocation.updatePreparedInvocation(toolCallStateToPreparedInvocation(refreshed), invocation.parameters);
+
+			const state = invocation.state.get();
+			const terminalData = invocation.toolSpecificData;
+			assert.ok(terminalData?.kind === 'terminal' && hasKey(terminalData, { commandLine: true }));
+			assert.deepStrictEqual({
+				command: terminalData.commandLine.original,
+				gatePreserved: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirm === initialGate,
+			}, {
+				command: 'npm install --registry=https://registry.npmjs.org',
+				gatePreserved: true,
+			});
 		});
 
 		test('requestConfirmation no-ops on a completed invocation', () => {
@@ -2271,13 +2380,14 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput, undefined);
 		});
 
-		test('uses terminal completion exit code for completed SDK shell tool history', () => {
+		test('uses tool completion text for truncated SDK shell output', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
-				toolInput: 'gti status',
+				toolInput: 'cat large-output.txt',
 				content: [
-					{ type: ToolResultContentType.Text, text: 'command not found\n<shellId: 104 completed with exit code 127>' },
-					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 127, preview: 'preview only\n', truncated: true } },
+					// TODO: Prefer shell_exit once the SDK exposes the saved output file path as structured data.
+					{ type: ToolResultContentType.Text, text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\nUse view with view_range to examine portions of the output.<shellId: 104 completed with exit code -1>' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: 'preview only\n', truncated: true } },
 				],
 				success: true,
 			});
@@ -2292,10 +2402,16 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const serialized = response.parts[0] as IChatToolInvocationSerialized;
 			const termData = getSerializedTerminalData(serialized);
-			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'preview only\r\n');
-			assert.strictEqual(termData.terminalCommandOutput?.truncated, true);
-			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+			assert.deepStrictEqual({
+				output: termData.terminalCommandOutput,
+				state: termData.terminalCommandState,
+			}, {
+				output: {
+					text: 'Output too large to read at once (25 KB). Saved to: /tmp/output.txt\r\nUse view with view_range to examine portions of the output.',
+					truncated: true,
+				},
+				state: { exitCode: 0 },
+			});
 		});
 
 		test('preserves an explicitly empty non-PTY retained completion snapshot', () => {
