@@ -31,7 +31,7 @@ import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSession
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
-import { getSessionRoutingIndex, parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
+import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
 
 import './media/chatSessionRouting.css';
 
@@ -745,12 +745,18 @@ export class ChatSessionRoutingController extends Disposable {
 				cancel();
 				return;
 			}
-			const inputDomNode = this.host.widget.inputEditor.getDomNode();
-			const isListInteraction = dom.isHTMLElement(event.target)
-				&& (badge.contains(event.target) || inputDomNode?.contains(event.target));
+			const isRoutingInteraction = dom.isHTMLElement(event.target) && badge.contains(event.target);
+			const isListInteraction = isRoutingInteraction && !!event.target.closest('.chat-routing-badge-row');
 			if (isListInteraction && (keyboardEvent.equals(KeyCode.UpArrow) || keyboardEvent.equals(KeyCode.DownArrow) || keyboardEvent.equals(KeyCode.Home) || keyboardEvent.equals(KeyCode.End))) {
 				keyboardEvent.preventDefault();
-				focusedIndex = getSessionRoutingIndex(keyboardEvent.keyCode, focusedIndex, rows.length)!;
+				if (keyboardEvent.equals(KeyCode.Home)) {
+					focusedIndex = 0;
+				} else if (keyboardEvent.equals(KeyCode.End)) {
+					focusedIndex = rows.length - 1;
+				} else {
+					const delta = keyboardEvent.equals(KeyCode.UpArrow) ? -1 : 1;
+					focusedIndex = (focusedIndex + delta + rows.length) % rows.length;
+				}
 				renderSelection();
 				rows[focusedIndex].focus();
 				countdownTimer.clear();
