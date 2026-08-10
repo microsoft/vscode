@@ -220,6 +220,8 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				hadAnyProgress: false,
 				lastActivityKind: TURN_ACTIVITY_NONE,
 				blockedOn: undefined,
+				toolId: undefined,
+				toolSourceKind: undefined,
 				inFlightToolCallCount: 0,
 				quietTimeMs: true,
 				turnElapsedMs: true,
@@ -293,11 +295,15 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: e.data.hangReason,
 			isExpected: e.data.isExpected,
 			blockedOn: e.data.blockedOn,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
 			inFlightToolCallCount: e.data.inFlightToolCallCount,
 		})), [{
 			hangReason: 'waitingOnUser',
 			isExpected: true,
 			blockedOn: SessionInputRequestKind.ToolConfirmation,
+			toolId: 'write',
+			toolSourceKind: 'agentHost',
 			inFlightToolCallCount: 1,
 		}]);
 	});
@@ -331,10 +337,14 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
 			isExpected: e.data.isExpected,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
 			inFlightToolCallCount: e.data.inFlightToolCallCount,
 		})), [
-			{ hangReason: 'runningTool', isExpected: true, inFlightToolCallCount: 1 },
-			{ hangReason: 'stalledAfterProgress', isExpected: false, inFlightToolCallCount: 0 },
+			// The agent-host tool is named even though it never entered the
+			// session input queue, which is what `toolCallStalled` cannot see.
+			{ hangReason: 'runningTool', isExpected: true, toolId: 'bash', toolSourceKind: 'agentHost', inFlightToolCallCount: 1 },
+			{ hangReason: 'stalledAfterProgress', isExpected: false, toolId: undefined, toolSourceKind: undefined, inFlightToolCallCount: 0 },
 		]);
 	});
 
@@ -473,13 +483,57 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: e.data.hangReason,
 			isExpected: e.data.isExpected,
 			blockedOn: e.data.blockedOn,
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
 			inFlightToolCallCount: e.data.inFlightToolCallCount,
 		})), [{
 			hangReason: 'runningTool',
 			isExpected: true,
 			blockedOn: undefined,
+			toolId: 'run_tests',
+			toolSourceKind: 'client',
 			inFlightToolCallCount: 1,
 		}]);
+	});
+
+	test('names the longest-running tool when several are in flight', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-parallel');
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-a', toolName: 'bash', displayName: 'bash' });
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-b', toolName: 'read_file', displayName: 'read_file' });
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		// `toolId` is a best guess among parallel calls; `inFlightToolCallCount`
+		// above one is the signal that attribution is ambiguous.
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			toolId: e.data.toolId,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{ toolId: 'bash', inFlightToolCallCount: 2 }]);
+	});
+
+	test('refines the tool source kind when tool metadata arrives after the start', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-refined');
+			// The start signal carries no contributor; `ready` supplies it.
+			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-refined', toolCallId: 'tc-refined', toolName: 'lookup', displayName: 'lookup' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-refined',
+				toolCallId: 'tc-refined',
+				invocationMessage: 'Look up metadata',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'c1' },
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			toolId: e.data.toolId,
+			toolSourceKind: e.data.toolSourceKind,
+		})), [{ toolId: 'lookup', toolSourceKind: 'mcp' }]);
 	});
 
 	test('reports a real stall when the agent goes quiet after a denied confirmation', async () => {
