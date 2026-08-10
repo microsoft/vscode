@@ -1867,6 +1867,38 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('listSessions leaves the stored root alone when git answers with a git directory', async () => {
+			// Git answers a submodule with its git directory. Persisting that
+			// unstamped would replace the session's root with a value every
+			// later listing has to re-derive.
+			const db = disposables.add(new TestSessionDatabase());
+			const persistedRoot = URI.file('/workspace/outer');
+			const gitDirectory = URI.file('/workspace/outer/.git/modules/sub');
+			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, persistedRoot.toString());
+			const sessionId = 'test-session-submodule';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [persistedRoot] };
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const gitService = createNoopGitService();
+			gitService.getWorktreeRoots = async () => [gitDirectory];
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				project: sessions[0].project?.uri.toString(),
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				stamp: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
+			}, {
+				project: persistedRoot.toString(),
+				persistedRepositoryRoot: persistedRoot.toString(),
+				stamp: undefined,
+			});
+		});
+
 		test('listSessions uses SDK title when no custom title exists', async () => {
 			service.registerProvider(copilotAgent);
 			copilotAgent.sessionMetadataOverrides = { summary: 'Auto-generated Title' };

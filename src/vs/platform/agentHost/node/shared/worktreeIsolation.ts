@@ -53,10 +53,14 @@ const WORKTREE_REPOSITORY_ROOT_STAMP_VERSION = '1';
 
 /** Builds the stamp certifying `repositoryRoot`, or `undefined` when it must not be certified. */
 export function buildRepositoryRootStamp(repositoryRoot: URI): string | undefined {
-	// Git answers a submodule or `--separate-git-dir` checkout with its git
-	// directory rather than a working tree. Grouping under that is wrong today
-	// too, but it self-heals on the next listing; certifying it would freeze it.
-	if (repositoryRoot.path.split('/').includes('.git')) {
+	// Git answers a submodule with its git directory rather than a working
+	// tree, and a bare repository's worktrees with the bare directory. Neither
+	// is a repository root worth freezing, so decline to certify them. This is
+	// a conservative refusal by name, not a classification: a
+	// `--separate-git-dir` target can be called anything, so it is not caught
+	// here and keeps the behaviour it has today.
+	const segments = repositoryRoot.path.split('/');
+	if (segments.includes('.git') || segments[segments.length - 1]?.endsWith('.git')) {
 		return undefined;
 	}
 	return `${WORKTREE_REPOSITORY_ROOT_STAMP_VERSION}:${repositoryRoot.toString()}`;
@@ -1051,14 +1055,18 @@ export class WorktreeIsolation extends Disposable {
 			if (repositoryRoot && !isRepositoryRootStamped(stamp, repositoryRootRaw!)) {
 				const checkoutRoot = worktreePath && await fileExists(worktreePath.fsPath) ? worktreePath : repositoryRoot;
 				const { root: primaryRoot, resolved } = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
-				const changed = primaryRoot.toString() !== repositoryRoot.toString();
-				repositoryRoot = primaryRoot;
+				// Only a root worth freezing is adopted: one Git confirmed, and
+				// one the stamp will certify. Anything else leaves the stored
+				// value alone rather than replacing it with something every
+				// later read has to re-derive.
 				const nextStamp = resolved ? buildRepositoryRootStamp(primaryRoot) : undefined;
-				if (changed || nextStamp) {
+				if (nextStamp) {
+					const changed = primaryRoot.toString() !== repositoryRoot.toString();
+					repositoryRoot = primaryRoot;
 					try {
 						await Promise.all([
 							...(changed ? [ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString())] : []),
-							...(nextStamp ? [ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, nextStamp)] : []),
+							ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, nextStamp),
 						]);
 					} catch (error) {
 						this._logService.warn(`[${this._logLabel}] Failed to normalize worktree repository metadata for '${sessionUri.toString()}': ${errorMessage(error)}`);

@@ -972,12 +972,18 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const normalized = primaryRoot.toString();
 		const nextStamp = buildRepositoryRootStamp(primaryRoot);
-		const writes: Promise<void>[] = [];
+		if (!nextStamp) {
+			// Git answered, but with something no listing should freeze — a git
+			// directory rather than a working tree. Persisting it without a
+			// stamp would overwrite the session's root with a value every later
+			// listing has to re-derive, so leave the stored one alone.
+			return repositoryRootRaw;
+		}
+		const writes: Promise<void>[] = [
+			database.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, nextStamp),
+		];
 		if (normalized !== repositoryRootRaw) {
 			writes.push(database.setMetadata(WORKTREE_META_REPOSITORY_ROOT, normalized));
-		}
-		if (nextStamp) {
-			writes.push(database.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, nextStamp));
 		}
 		try {
 			// Awaited on purpose. The caller disposes its database reference as
