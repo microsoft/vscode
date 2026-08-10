@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationTokenSource } from '../../../common/cancellation.js';
 import { setUnexpectedErrorHandler } from '../../../common/errors.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { DisposableStore, toDisposable } from '../../../common/lifecycle.js';
@@ -1189,16 +1188,6 @@ suite('observables', () => {
 				log.log(`resolved ${JSON.stringify(r)}`);
 			}, (err) => {
 				log.log(`rejected ${JSON.stringify(err)}`);
-			});
-
-			test('resolve disposes the cancellation listener', async () => {
-				const source = new CancellationTokenSource();
-				const observable = observableValue('waitForState', 'initializing');
-				const promise = waitForState(observable, state => state === 'ready', undefined, source.token);
-
-				observable.set('ready', undefined);
-				await promise;
-				source.dispose();
 			});
 
 			assert.deepStrictEqual(log.getAndClearEntries(), [

@@ -212,12 +212,6 @@ class FakeDialogService extends mock<IDialogService>() {
 class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
 	runCalls = 0;
-	readonly cancelledRunIds: string[] = [];
-
-	override cancelRun(runId: string): boolean {
-		this.cancelledRunIds.push(runId);
-		return true;
-	}
 
 	override runOnce(_automation: IAutomation, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
 		this.runCalls++;
@@ -682,7 +676,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('stops an active run without opening its session', async () => {
-		const { automationService, runner, sessionsManagementService, sessionsService, widget } = setup();
+		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
 
@@ -693,13 +687,11 @@ suite('AutomationsCardsWidget', () => {
 
 		assert.deepStrictEqual({
 			ariaLabel: stopButton.getAttribute('aria-label'),
-			cancelledRunIds: runner.cancelledRunIds,
 			cancelCurrentRequestCalls: sessionsManagementService.cancelCurrentRequestCalls,
 			openCalls: sessionsService.openCalls,
 			deleteButtonVisible: !!widget.element.querySelector('.automations-run-card-delete-button'),
 		}, {
 			ariaLabel: 'Stop session for Daily review',
-			cancelledRunIds: [RUN_ID],
 			cancelCurrentRequestCalls: 1,
 			openCalls: 0,
 			deleteButtonVisible: false,
