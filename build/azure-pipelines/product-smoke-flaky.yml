@@ -1,4 +1,4 @@
-# Twice-daily flaky-detection pipeline.
+# Scheduled flaky-detection pipeline.
 #
 # Builds VS Code from source once per platform (Linux, Windows and macOS), then
 # fans out to parallel Unit/Integration/Smoke jobs that download and reuse that
@@ -17,11 +17,18 @@ pr: none
 trigger: none
 
 schedules:
-  # Twice per day at 04:00 and 16:00 UTC. `always: true` forces the runs even when
+  # Run the insider flavor twice per day. `always: true` forces the runs even when
   # there are no new commits, since flaky behavior is environmental and worth
-  # sampling every 12 hours regardless of source changes.
-  - cron: "0 4,16 * * *"
-    displayName: Twice daily at 04:00 and 16:00 UTC (smoke flaky detection)
+  # sampling regardless of source changes.
+  - cron: "0 3,16 * * *"
+    displayName: Twice daily at 03:00 and 16:00 UTC (insider smoke flaky detection)
+    branches:
+      include:
+        - main
+    always: true
+  # Also sample the stable flavor on Monday mornings.
+  - cron: "0 3 * * 1"
+    displayName: Monday at 03:00 UTC (stable smoke flaky detection)
     branches:
       include:
         - main
@@ -77,7 +84,7 @@ parameters:
 
 variables:
   - name: VSCODE_QUALITY
-    value: ${{ parameters.VSCODE_QUALITY }}
+    value: $[iif(eq(variables['Build.CronSchedule.DisplayName'], 'Monday at 03:00 UTC (stable smoke flaky detection)'), 'stable', '${{ parameters.VSCODE_QUALITY }}')]
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
   # Compile templates skip publish/codesign/artifact-staging when VSCODE_CIBUILD
@@ -92,7 +99,7 @@ variables:
   # The Copilot extension build patches its package.json version for pre-release
   # (non-stable) quality and requires a per-build counter (0-99, reset daily) to
   # keep versions unique. Mirrors product-build.yml. The counter resets each day
-  # per quality+branch, so this twice-daily pipeline stays at a low value.
+  # per quality+branch, so this scheduled pipeline stays at a low value.
   - name: VSCODE_PUBLISH_COUNTER_PREFIX
     value: $[format('{0:yyyyMMdd}-{1}-{2}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['Build.SourceBranch'])]
   - name: VSCODE_PUBLISH_COUNTER
@@ -102,7 +109,7 @@ variables:
   - name: Codeql.SkipTaskAutoInjection
     value: true
 
-name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }} flaky)"
+name: "$(Date:yyyyMMdd).$(Rev:r) ($(VSCODE_QUALITY) flaky)"
 
 resources:
   repositories:
@@ -200,7 +207,7 @@ extends:
           jobs:
             - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
               parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_QUALITY: $(VSCODE_QUALITY)
                 VSCODE_TEST_UNIT: ${{ parameters.VSCODE_TEST_UNIT }}
                 VSCODE_TEST_INTEGRATION: ${{ parameters.VSCODE_TEST_INTEGRATION }}
                 VSCODE_TEST_SMOKE: ${{ parameters.VSCODE_TEST_SMOKE }}
@@ -216,7 +223,7 @@ extends:
           jobs:
             - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
               parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_QUALITY: $(VSCODE_QUALITY)
                 VSCODE_TEST_UNIT: ${{ parameters.VSCODE_TEST_UNIT }}
                 VSCODE_TEST_INTEGRATION: ${{ parameters.VSCODE_TEST_INTEGRATION }}
                 VSCODE_TEST_SMOKE: ${{ parameters.VSCODE_TEST_SMOKE }}

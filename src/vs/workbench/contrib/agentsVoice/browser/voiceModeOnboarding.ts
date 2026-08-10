@@ -62,6 +62,7 @@ type VoiceModeOnboardingActionEvent = {
  */
 interface IVoiceModeVoice {
 	readonly id: string;
+	readonly sampleId: string;
 	readonly label: string;
 	/** This voice's waveform texture. See {@link IWave}. */
 	readonly signature: readonly IWave[];
@@ -81,8 +82,9 @@ interface IWave {
 
 const VOICES: readonly IVoiceModeVoice[] = [
 	{
-		id: 'maya_neutral',
-		label: localize('voiceMode.onboarding.voice.maya', "Maya (Default)"),
+		id: 'birch_neutral',
+		sampleId: 'maya_neutral',
+		label: localize('voiceMode.onboarding.voice.birch', "Birch (Default)"),
 		// Flowing mid-range: even spread, gentle drift.
 		signature: [
 			{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
@@ -92,8 +94,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'victoria_neutral',
-		label: localize('voiceMode.onboarding.voice.victoria', "Victoria"),
+		id: 'harper_neutral',
+		sampleId: 'victoria_neutral',
+		label: localize('voiceMode.onboarding.voice.harper', "Harper"),
 		// Bright and quick: higher frequencies, tighter ripple.
 		signature: [
 			{ frequency: 1.4, amplitude: 0.38, speed: 0.52, phase: 0.0 },
@@ -103,8 +106,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'kevin_neutral',
-		label: localize('voiceMode.onboarding.voice.kevin', "Kevin"),
+		id: 'oak_neutral',
+		sampleId: 'kevin_neutral',
+		label: localize('voiceMode.onboarding.voice.oak', "Oak"),
 		// Low and broad: long swells with little high-frequency detail.
 		signature: [
 			{ frequency: 0.7, amplitude: 0.48, speed: 0.30, phase: 0.4 },
@@ -114,8 +118,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'daniel_neutral',
-		label: localize('voiceMode.onboarding.voice.daniel', "Daniel"),
+		id: 'junho_neutral',
+		sampleId: 'daniel_neutral',
+		label: localize('voiceMode.onboarding.voice.junho', "Junho"),
 		// Steady and measured: slow drift, calm regular crests.
 		signature: [
 			{ frequency: 0.9, amplitude: 0.44, speed: 0.24, phase: 1.3 },
@@ -558,7 +563,7 @@ class VoiceSamplePlayer extends Disposable {
 		return Math.min(1, Math.sqrt(sum / this.levels.length) * 3.2);
 	}
 
-	play(sampleId: string): void {
+	play(sampleId: string, playingVoice = sampleId): void {
 		this.stop();
 		try {
 			const audio = this.ensureAudio();
@@ -570,7 +575,7 @@ class VoiceSamplePlayer extends Disposable {
 			store.add(toDisposable(() => audio.pause()));
 			this.playback.value = store;
 
-			this.setPlayingVoice(sampleId);
+			this.setPlayingVoice(playingVoice);
 			audio.play().catch(error => {
 				this.logService.trace(`[voice] Voice Mode onboarding preview failed: ${error}`);
 				this.stop();
@@ -1063,7 +1068,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		this.logAction('selectVoice');
 		this.selectedVoice = voice;
 		this.updateSelection();
-		this.player.play(voice.id);
+		this.player.play(voice.sampleId, voice.id);
 		status(localize('voiceMode.onboarding.voice.selected', "{0} selected.", voice.label));
 		this.configurationService.updateValue(VOICE_SETTING, voice.id, ConfigurationTarget.USER)
 			.catch(error => this.logService.error(`[voice] Failed to persist the Voice Mode voice: ${error}`));

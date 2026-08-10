@@ -81,9 +81,9 @@ export interface IAgentHostOTelService {
 	/**
 	 * Emits a standalone metadata span carrying the latest title for an
 	 * agent-host session, correlated to the provider's telemetry by its
-	 * conversation id (e.g. the Copilot SDK conversation id or the Claude SDK
-	 * session id). No span is emitted when telemetry or content capture is
-	 * disabled.
+	 * conversation id (e.g. the Copilot SDK conversation id, the Claude SDK
+	 * session id, or the Codex agent host session id). No span is emitted when
+	 * telemetry or content capture is disabled.
 	 */
 	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void;
 

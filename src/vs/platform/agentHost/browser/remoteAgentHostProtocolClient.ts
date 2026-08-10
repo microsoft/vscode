@@ -40,6 +40,7 @@ import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETR
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { getAgentHostConfigurationSyncEntries, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { toClientConnectionTelemetryMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -434,6 +435,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			if (isClientTransport(this._transport)) {
 				await this._raceClose(this._transport.connect());
 			}
+			if (this._state.kind !== AgentHostClientState.Connecting) {
+				throw transportLostError(this._address);
+			}
 
 			const result = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
 				channel: ROOT_STATE_URI,
@@ -443,6 +447,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
+				...this._clientConnectionTelemetryMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true });
 			this._applyInitializeResult(result);
@@ -473,6 +478,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				}
 				this._rejectPendingRequests(protocolError);
 				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
+				throw error;
+			}
+			if (this._state.kind === AgentHostClientState.Reconnecting && this._transportFactory) {
 				throw error;
 			}
 			this._handleClose(protocolError);
@@ -509,9 +517,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case AgentHostClientState.Closed:
 				return;
 			case AgentHostClientState.Connecting:
-				// No handshake yet; we can't resume so always treat as fatal
-				// regardless of whether a factory is configured.
-				this._handleClose(connectionClosedError(this._address));
+				if (!this._transportFactory) {
+					this._handleClose(connectionClosedError(this._address));
+					return;
+				}
+				this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
+				this._transitionTo({
+					kind: AgentHostClientState.Reconnecting,
+					reconnect: { ...this._newReconnectState(), outbox: this._state.outbox },
+				});
+				this._cancelLivenessTimers();
+				this._rejectPendingRequests(transportLostError(this._address));
+				this._scheduleReconnect();
 				return;
 			case AgentHostClientState.Incompatible:
 				this._handleClose(connectionClosedError(this._address));
@@ -638,6 +655,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				clientId: this._clientId,
 				lastSeenServerSeq,
 				subscriptions,
+				...this._clientConnectionTelemetryMeta(),
 			}, { bypassReconnectGate: true });
 		} catch (error) {
 			if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound) {
@@ -651,10 +669,16 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
+			...this._clientConnectionTelemetryMeta(),
 			initialSubscriptions: subscriptions,
 		}, { bypassReconnectGate: true });
 		this._applyInitializeResult(initializeResult);
 		return { type: ReconnectResultType.Snapshot, snapshots: initializeResult.snapshots ?? [] };
+	}
+
+	private _clientConnectionTelemetryMeta(): { _meta: Record<string, unknown> } | Record<string, never> {
+		const meta = toClientConnectionTelemetryMeta(this._transport.clientConnectionKind);
+		return meta ? { _meta: meta } : {};
 	}
 
 	private _applyInitializeResult(result: CommandMap['initialize']['result']): void {

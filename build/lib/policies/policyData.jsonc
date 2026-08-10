@@ -187,8 +187,7 @@
             "default": true,
             "included": true,
             "referencedSettings": [
-                "github.copilot.chat.claudeAgent.enabled",
-                "sessions.chat.claudeAgent.enabled"
+                "github.copilot.chat.claudeAgent.enabled"
             ]
         },
         {

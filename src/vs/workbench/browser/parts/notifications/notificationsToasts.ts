@@ -29,6 +29,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { PendingNotificationToasts } from './pendingNotificationToasts.js';
+import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -101,8 +102,18 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			callback => scheduleAtNextAnimationFrame(getWindow(this.container), callback)
 		));
 		this._register(toDisposable(() => this.removeToasts()));
+		this._register(onDidChangeNotificationRowHeight(() => this.updateNotificationHeights()));
 
 		this.registerListeners();
+	}
+
+	private updateNotificationHeights(): void {
+		this.mapNotificationToToast.forEach(({ list }) => list.updateNotificationHeights());
+
+		const maxDimensions = this.computeMaxDimensions();
+		if (maxDimensions.height) {
+			this.layoutContainer(maxDimensions.height);
+		}
 	}
 
 	private registerListeners(): void {

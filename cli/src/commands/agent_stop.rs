@@ -6,6 +6,7 @@
 use ahp_types::actions::{ChatTurnCancelledAction, StateAction};
 use ahp_types::commands::{SubscribeParams, SubscribeResult};
 use ahp_types::state::{SessionStatus, SnapshotState};
+use jiff::Timestamp;
 
 use crate::log;
 use crate::util::errors::{wrap, AnyError};
@@ -38,9 +39,7 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 		&ctx,
 		&client,
 		"subscribe",
-		SubscribeParams {
-			channel: args.session.clone(),
-		},
+		SubscribeParams::new(args.session.clone()),
 	)
 	.await?;
 
@@ -63,20 +62,26 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 			&ctx,
 			&client,
 			"subscribe",
-			SubscribeParams {
-				channel: chat_uri.clone(),
-			},
+			SubscribeParams::new(chat_uri.clone()),
 		)
 		.await?;
 
-		let turn_id = match chat_result.snapshot.map(|s| s.state) {
-			Some(SnapshotState::Chat(chat)) => chat.active_turn.map(|t| t.id),
+		let active_turn = match chat_result.snapshot.map(|s| s.state) {
+			Some(SnapshotState::Chat(chat)) => chat.active_turn,
 			_ => None,
 		};
 
-		let Some(turn_id) = turn_id else {
+		let Some(active_turn) = active_turn else {
 			continue;
 		};
+		let started_at: Timestamp = active_turn.started_at.parse().map_err(|e| {
+			wrap(
+				e,
+				"Agent host returned an invalid active turn start timestamp",
+			)
+		})?;
+		let duration = Timestamp::now().as_millisecond() - started_at.as_millisecond();
+		let turn_id = active_turn.id;
 
 		debug!(ctx.log, "Cancelling turn {} on {}", turn_id, chat_uri);
 
@@ -85,6 +90,7 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 				chat_uri.clone(),
 				StateAction::ChatTurnCancelled(ChatTurnCancelledAction {
 					turn_id: turn_id.clone(),
+					duration,
 					meta: None,
 				}),
 			)

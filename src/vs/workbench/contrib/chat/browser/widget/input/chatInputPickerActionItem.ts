@@ -32,8 +32,8 @@ export interface IChatInputPickerOptions {
 
 export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
 	return {
-		...withActionWidgetDropdownMotion(listOptions),
 		anchorPosition: AnchorPosition.ABOVE,
+		...withActionWidgetDropdownMotion(listOptions),
 	};
 }
 

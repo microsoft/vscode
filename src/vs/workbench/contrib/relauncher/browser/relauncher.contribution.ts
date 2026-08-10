@@ -46,8 +46,7 @@ interface IConfiguration extends IWindowsConfiguration {
 				dbSpanExporter?: { enabled?: boolean };
 			};
 		};
-		agents?: { claude?: { preferAgentHost?: boolean } };
-		editor?: { claude?: { preferAgentHost?: boolean }; codex?: { preferAgentHost?: boolean } };
+		editor?: { codex?: { preferAgentHost?: boolean } };
 	};
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
@@ -72,8 +71,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'chat.extensionUnification.enabled',
 		'chat.agentHost.claudeAgent.enabled',
 		'chat.agentHost.byokModels.enabled',
-		'chat.agents.claude.preferAgentHost',
-		'chat.editor.claude.preferAgentHost',
 		'chat.editor.codex.preferAgentHost',
 		'chat.agentHost.otel.enabled',
 		'chat.agentHost.otel.exporterType',
@@ -99,8 +96,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
 	private readonly agentHostClaudeAgentEnabled = new ChangeObserver('boolean');
 	private readonly agentHostByokModelsEnabled = new ChangeObserver('boolean');
-	private readonly agentsClaudePreferAgentHost = new ChangeObserver('boolean');
-	private readonly editorClaudePreferAgentHost = new ChangeObserver('boolean');
 	private readonly editorCodexPreferAgentHost = new ChangeObserver('boolean');
 	private readonly agentHostOTelEnabled = new ChangeObserver('boolean');
 	private readonly agentHostOTelExporterType = new ChangeObserver('string');
@@ -203,10 +198,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Agent Host
 		processChanged(this.agentHostByokModelsEnabled.handleChange(config.chat?.agentHost?.byokModels?.enabled));
 
-		// Claude provider registration and implementation preferences are read at spawn.
+		// Agent provider registration and implementation preferences are read at spawn.
 		processChanged(this.agentHostClaudeAgentEnabled.handleChange(config.chat?.agentHost?.claudeAgent?.enabled));
-		processChanged(this.agentsClaudePreferAgentHost.handleChange(config.chat?.agents?.claude?.preferAgentHost));
-		processChanged(this.editorClaudePreferAgentHost.handleChange(config.chat?.editor?.claude?.preferAgentHost));
 		processChanged(this.editorCodexPreferAgentHost.handleChange(config.chat?.editor?.codex?.preferAgentHost));
 
 		// Agent Host OTel: settings are forwarded as env vars when the agent host

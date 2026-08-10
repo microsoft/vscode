@@ -26,14 +26,17 @@ suite('SessionsVoiceNewComposerContribution', () => {
 			sendQuery: () => { },
 			prefillInput: () => { },
 			focus: () => { },
+			getVoiceModels: () => [],
+			selectVoiceModel: () => false,
+			attach: () => { },
 		};
 	}
 
-	function createController(isConnected: ISettableObservable<boolean>) {
+	function createController(isConnected: ISettableObservable<boolean>, isConnecting = constObservable(false)) {
 		let disconnectCount = 0;
 		const controller = new class extends mock<IVoiceSessionController>() {
 			override readonly isConnected = isConnected;
-			override readonly isConnecting = constObservable(false);
+			override readonly isConnecting = isConnecting;
 			override disconnect(): void { disconnectCount++; }
 		};
 		return { controller, getDisconnectCount: () => disconnectCount };
@@ -61,6 +64,22 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
 
 		// Opening a new session mounts a fresh welcome composer.
+		const b = composer();
+		disposables.add(target.registerComposer(b));
+
+		assert.strictEqual(getDisconnectCount(), 1);
+	});
+
+	test('disconnects when a fresh welcome composer takes over a connecting voice session', () => {
+		const target = disposables.add(createTarget());
+		const isConnected = observableValue<boolean>('isConnected', false);
+		const isConnecting = observableValue<boolean>('isConnecting', true);
+		const { controller, getDisconnectCount } = createController(isConnected, isConnecting);
+
+		const a = composer();
+		disposables.add(target.registerComposer(a));
+		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
+
 		const b = composer();
 		disposables.add(target.registerComposer(b));
 

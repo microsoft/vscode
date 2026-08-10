@@ -168,7 +168,7 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * One tick per user prompt — unbucketed and uncapped, decorated with per-prompt diff stats. The
-	 * dock rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
+	 * gutter rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
 	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
 	 */
 	private readonly _promptTicks = derived<readonly PromptTick[]>(this, reader => {
@@ -191,7 +191,7 @@ export class PromptTimelineModel extends Disposable {
 	private readonly _activeRequestId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activeRequestId(): IObservable<string | undefined> { return this._activeRequestId; }
 
-	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the dock rail's active row. */
+	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the gutter rail's active row. */
 	private readonly _activePromptId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activePromptId(): IObservable<string | undefined> { return this._activePromptId; }
 

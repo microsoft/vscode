@@ -24,7 +24,7 @@ import { ChatEditorInput } from '../../../../browser/widgetHosts/editor/chatEdit
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constants.js';
+import { ChatAgentLocation } from '../../../../common/constants.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
@@ -141,12 +141,10 @@ suite('ChatEditorInput', () => {
 		}
 	});
 
-	test('new chat replaces a hidden current Copilot CLI harness', async () => {
+	test('new chat replaces a current extension host Copilot CLI harness', async () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.CopilotCliHideExtensionHostEditor]: true,
-		});
+		const configurationService = new TestConfigurationService();
 		const chatSessionsService = new MockChatSessionsService();
 		chatSessionsService.setContributions([{
 			type: SessionType.CopilotCLI,

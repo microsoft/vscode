@@ -17,8 +17,12 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ReconnectResultType, type FetchTurnsResult, type InitializeResult, type ListSessionsResult, type ReconnectResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { SessionSummaryChangedParams } from '../../../../common/state/protocol/channels-root/notifications.js';
+import type { OtlpExportLogsParams } from '../../../../common/state/protocol/channels-otlp/notifications.js';
+import type { IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../../../../common/agentService.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type Turn } from '../../../../common/state/sessionState.js';
+import { TerminalClaimKind } from '../../../../common/state/protocol/state.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
 import { createRealSession, dispatchTurn } from '../harness/agentHostE2ETestHarness.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../common/state/sessionProtocol.js';
@@ -57,6 +61,16 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		return { sessionUri, workspace };
 	}
 
+	async function initializeAdditionalClient(prefix: string): Promise<TestProtocolClient> {
+		const client = await context.connectClient();
+		await client.call('initialize', {
+			channel: ROOT_STATE_URI,
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: `${prefix}-${config.provider}`,
+		});
+		return client;
+	}
+
 	conformanceTest(context, 'ping answers while the connection is live', async function () {
 		// Liveness has no payload — the response itself is the signal, so the
 		// contract is that the call resolves rather than what it returns.
@@ -68,6 +82,88 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		try {
 			const result = await client.call('ping', { channel: ROOT_STATE_URI });
 			assert.strictEqual(result, null);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'subscribed client receives OTLP log exports from the real server', async function () {
+		const client = await context.connectClient();
+		try {
+			await client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `otlp-logs-${config.provider}`,
+				initialSubscriptions: [ROOT_STATE_URI],
+			});
+			await client.call('subscribe', { channel: 'ahp-otlp://logs/trace' });
+			const exported = client.waitForNotification(n =>
+				n.method === 'otlp/exportLogs'
+				&& (n.params as OtlpExportLogsParams).channel === 'ahp-otlp://logs/trace',
+				30_000,
+			);
+
+			await client.call('createSession', { channel: 'missing-provider:/otlp', provider: 'missing-provider' }).catch(() => undefined);
+			const notification = await exported;
+
+			assert.ok(Object.keys((notification.params as OtlpExportLogsParams).payload).length > 0);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'management diagnostics report providers and network endpoints', async function () {
+		const client = await context.connectClient();
+		try {
+			await client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `management-diagnostics-${config.provider}`,
+			});
+
+			const [network, managed] = await Promise.all([
+				client.call<IAgentHostNetworkDiagnosticsInfo>('getNetworkDiagnosticsInfo', {}),
+				client.call<readonly IAgentHostManagedSettingsDiagnostics[]>('getManagedSettingsDiagnostics', {}),
+			]);
+
+			assert.deepStrictEqual({
+				hasVersion: network.version.length > 0,
+				os: network.os,
+				arch: network.arch,
+				hasEndpoints: network.endpoints.length > 0,
+				hasReferenceProvider: managed.some(entry => entry.provider === config.provider),
+			}, {
+				hasVersion: true,
+				os: process.platform,
+				arch: process.arch,
+				hasEndpoints: true,
+				hasReferenceProvider: true,
+			});
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'diagnostics fetch reports a refused local connection', async function () {
+		const client = await context.connectClient();
+		try {
+			await client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `diagnostics-fetch-${config.provider}`,
+			});
+
+			const result = await client.call<IAgentHostNetworkFetchResult>('diagnosticsFetch', { url: 'http://127.0.0.1:1/' }, 30_000);
+
+			assert.deepStrictEqual({
+				url: result.url,
+				hasError: typeof result.error === 'string' && result.error.length > 0,
+				hasDuration: typeof result.durationMs === 'number',
+			}, {
+				url: 'http://127.0.0.1:1/',
+				hasError: true,
+				hasDuration: true,
+			});
 		} finally {
 			client.close();
 		}
@@ -268,6 +364,208 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 			client.close();
 		}
 	});
+
+	conformanceTest(context, 'a session action is broadcast to every subscribed client', async function () {
+		const { sessionUri } = await createSession('multi-client-session-action');
+		const client = await initializeAdditionalClient('multi-client-session-action');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			client.clearReceived();
+			const sequence = nextClientSeq();
+			context.client.dispatch({
+				channel: sessionUri,
+				clientSeq: sequence,
+				action: { type: ActionType.SessionTitleChanged, title: 'Shared Title' },
+			});
+
+			const observed = await client.waitForNotification(n =>
+				isActionNotification(n, 'session/titleChanged')
+				&& getActionEnvelope(n).channel === sessionUri,
+				30_000,
+			);
+			const state = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+
+			assert.deepStrictEqual({
+				title: (getActionEnvelope(observed).action as { readonly title: string }).title,
+				originClientSeq: getActionEnvelope(observed).origin?.clientSeq,
+				snapshotTitle: (state.snapshot!.state as SessionState).title,
+			}, {
+				title: 'Shared Title',
+				originClientSeq: sequence,
+				snapshotTitle: 'Shared Title',
+			});
+		} finally {
+			client.close();
+		}
+	});
+
+	// Disabled variants document missing multi-client channel isolation; see KNOWN_ISSUES.md.
+	conformanceTest(context, 'a chat action is broadcast to every subscribed client', async function () {
+		const { sessionUri } = await createSession('multi-client-chat-action');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const client = await initializeAdditionalClient('multi-client-chat-action');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			client.clearReceived();
+			const draft = { text: 'shared draft', origin: { kind: MessageKind.User as const } };
+			await dispatchAndWaitOnShared(chatUri, { type: ActionType.ChatDraftChanged, draft });
+			const observed = await client.waitForNotification(n =>
+				isActionNotification(n, 'chat/draftChanged')
+				&& getActionEnvelope(n).channel === chatUri,
+				30_000,
+			);
+			const state = await client.call<SubscribeResult>('subscribe', { channel: chatUri });
+
+			assert.deepStrictEqual({
+				actionDraft: (getActionEnvelope(observed).action as { readonly draft?: object }).draft,
+				snapshotDraft: (state.snapshot!.state as ChatState).draft,
+			}, {
+				actionDraft: draft,
+				snapshotDraft: draft,
+			});
+		} finally {
+			client.close();
+		}
+	}, false);
+
+	conformanceTest(context, 'an unsubscribed client stops receiving channel actions', async function () {
+		const { sessionUri } = await createSession('multi-client-unsubscribe');
+		const client = await initializeAdditionalClient('multi-client-unsubscribe');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			client.notify('unsubscribe', { channel: sessionUri });
+			await client.call('ping', { channel: ROOT_STATE_URI });
+			client.clearReceived();
+
+			await dispatchAndWaitOnShared(sessionUri, { type: ActionType.SessionTitleChanged, title: 'After Unsubscribe' });
+
+			assert.deepStrictEqual(client.receivedNotifications(n =>
+				isActionNotification(n, 'session/titleChanged')
+				&& getActionEnvelope(n).channel === sessionUri,
+			), []);
+		} finally {
+			client.close();
+		}
+	}, false);
+
+	conformanceTest(context, 'initial subscriptions include current session and chat state', async function () {
+		const { sessionUri } = await createSession('multi-client-initial-state');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const draft = { text: 'initial snapshot draft', origin: { kind: MessageKind.User as const } };
+		await dispatchAndWaitOnShared(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Initial Snapshot Title' });
+		await dispatchAndWaitOnShared(chatUri, { type: ActionType.ChatDraftChanged, draft });
+		const client = await context.connectClient();
+		try {
+			const initialized = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `multi-client-initial-state-${config.provider}`,
+				initialSubscriptions: [sessionUri, chatUri],
+			});
+			const session = initialized.snapshots.find(snapshot => snapshot.resource === sessionUri);
+			const chat = initialized.snapshots.find(snapshot => snapshot.resource === chatUri);
+
+			assert.deepStrictEqual({
+				title: (session?.state as SessionState | undefined)?.title,
+				draft: (chat?.state as ChatState | undefined)?.draft,
+			}, {
+				title: 'Initial Snapshot Title',
+				draft,
+			});
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'terminal output is streamed to every subscribed client', async function () {
+		const { sessionUri, workspace } = await createSession('multi-client-terminal');
+		const terminalUri = URI.from({ scheme: 'agenthost-terminal', authority: 'e2e', path: `/${sessionUri.split('/').at(-1)}` }).toString();
+		const client = await initializeAdditionalClient('multi-client-terminal');
+		try {
+			await context.client.call('createTerminal', {
+				channel: terminalUri,
+				claim: { kind: TerminalClaimKind.Session, session: sessionUri },
+				name: 'Multi-client Terminal',
+				cwd: URI.file(workspace).toString(),
+				cols: 90,
+				rows: 30,
+			});
+			await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
+			await client.call<SubscribeResult>('subscribe', { channel: terminalUri });
+			context.client.clearReceived();
+			client.clearReceived();
+			context.client.dispatch({
+				channel: terminalUri,
+				clientSeq: nextClientSeq(),
+				action: { type: ActionType.TerminalInput, data: 'node -p "\'MULTI_CLIENT_OUTPUT\'"\r' },
+			});
+
+			async function waitForMarker(target: TestProtocolClient): Promise<string> {
+				let output = '';
+				await target.waitForNotification(n => {
+					if (!isActionNotification(n, 'terminal/data') || getActionEnvelope(n).channel !== terminalUri) {
+						return false;
+					}
+					output += (getActionEnvelope(n).action as { readonly data: string }).data;
+					return output.includes('MULTI_CLIENT_OUTPUT');
+				}, 30_000);
+				return output;
+			}
+
+			const [sharedOutput, additionalOutput] = await Promise.all([waitForMarker(context.client), waitForMarker(client)]);
+			assert.deepStrictEqual({
+				shared: sharedOutput.includes('MULTI_CLIENT_OUTPUT'),
+				additional: additionalOutput.includes('MULTI_CLIENT_OUTPUT'),
+			}, {
+				shared: true,
+				additional: true,
+			});
+		} finally {
+			await context.client.call('disposeTerminal', { channel: terminalUri });
+			client.close();
+		}
+	}, false);
+
+	conformanceTest(context, 'session disposal invalidates another client subscription', async function () {
+		const { sessionUri } = await createSession('multi-client-dispose');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const client = await initializeAdditionalClient('multi-client-dispose');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			await client.call<SubscribeResult>('subscribe', { channel: chatUri });
+
+			await context.client.call('disposeSession', { channel: sessionUri });
+			const index = createdSessions.indexOf(sessionUri);
+			if (index >= 0) {
+				createdSessions.splice(index, 1);
+			}
+
+			await assert.rejects(client.call<SubscribeResult>('subscribe', { channel: sessionUri }));
+			await assert.rejects(client.call<SubscribeResult>('subscribe', { channel: chatUri }));
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'root session summaries are broadcast to every subscribed client', async function () {
+		const { sessionUri } = await createSession('multi-client-root-summary');
+		const client = await initializeAdditionalClient('multi-client-root-summary');
+		try {
+			await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			client.clearReceived();
+			await dispatchAndWaitOnShared(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Broadcast Summary' });
+
+			const observed = await client.waitForNotification(n =>
+				n.method === 'root/sessionSummaryChanged'
+				&& (n.params as SessionSummaryChangedParams).session === sessionUri,
+				30_000,
+			);
+
+			assert.strictEqual((observed.params as SessionSummaryChangedParams).changes.title, 'Broadcast Summary');
+		} finally {
+			client.close();
+		}
+	}, false);
 
 	/**
 	 * Runs `body` against a second connection that has completed the handshake

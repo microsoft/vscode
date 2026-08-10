@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import type { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -333,6 +334,8 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
  * so there is no `connect()` method — the protocol client skips that step.
  */
 class TunnelConnectionTransport extends Disposable implements IProtocolTransport {
+	readonly clientConnectionKind = AgentHostClientConnectionKind.DevTunnel;
+
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 

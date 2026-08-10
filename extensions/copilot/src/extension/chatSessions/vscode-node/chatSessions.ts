@@ -24,26 +24,9 @@ import { prExtensionInstalledContextKey } from '../../contextKeys/vscode-node/co
 import { GitBranchNameGenerator } from '../../prompt/node/gitBranch';
 import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { IToolsService } from '../../tools/common/toolsService';
-import { IClaudeRuntimeDataService } from '../claude/common/claudeRuntimeDataService';
-import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
-import { ClaudeToolPermissionService, IClaudeToolPermissionService } from '../claude/common/claudeToolPermissionService';
-import { ClaudePlanFileTracker, IClaudePlanFileTracker } from '../claude/common/claudePlanFileTracker';
-import { ClaudeCodeFolderMruService } from '../claude/node/claudeCodeFolderMru';
-import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { ClaudeCodeModels, IClaudeCodeModels } from '../claude/node/claudeCodeModels';
-import { ClaudeCodeSdkService, IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
-import { RoutingClaudeAgentSdkLoaderService } from '../claude/vscode-node/routingClaudeAgentSdkLoaderService';
-import { IClaudeAgentSdkLoaderService } from '../claude/common/claudeAgentSdkLoaderService';
-import { ClaudeRuntimeDataService } from '../claude/node/claudeRuntimeDataService';
-import { ClaudePluginService, IClaudePluginService } from '../claude/node/claudeSkills';
-import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
-import { ClaudeSessionStateService } from '../claude/node/claudeSessionStateService';
-import { ClaudeCodeSessionService, IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
-import { ClaudeSlashCommandService, IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IAgentSessionsWorkspace } from '../common/agentSessionsWorkspace';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
-import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager } from '../common/folderRepositoryManager';
@@ -66,11 +49,8 @@ import { AgentSessionsWorkspace } from './agentSessionsWorkspace';
 import { UserQuestionHandler } from '../copilotcli/vscode-node/askUserQuestionHandler';
 import { ChatSessionMetadataStore } from '../copilotcli/vscode-node/chatSessionMetadataStoreImpl';
 import { ChatSessionWorkspaceFolderService } from './chatSessionWorkspaceFolderServiceImpl';
-import { ClaudeWorkspaceFolderService } from './claudeWorkspaceFolderServiceImpl';
 import { ChatSessionWorktreeCheckpointService } from './chatSessionWorktreeCheckpointServiceImpl';
 import { ChatSessionWorktreeService } from './chatSessionWorktreeServiceImpl';
-import { ClaudeChatSessionContentProvider } from './claudeChatSessionContentProvider';
-import { ClaudeCustomizationProvider } from './claudeCustomizationProvider';
 import { CopilotCLIChatSessionInitializer, ICopilotCLIChatSessionInitializer } from '../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
 import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, registerCLIChatCommands } from './copilotCLIChatSessions';
 import { CopilotCLIChatSessionContentProvider as CopilotCLIChatSessionContentProviderV1, CopilotCLIChatSessionItemProvider as CopilotCLIChatSessionItemProviderV1, CopilotCLIChatSessionParticipant as CopilotCLIChatSessionParticipantV1, registerCLIChatCommands as registerCLIChatCommandsV1 } from './copilotCLIChatSessionsContribution';
@@ -78,7 +58,7 @@ import { getBlockingSiblingSessionsForFolder } from './worktreeSharing';
 import { CopilotCLICustomizationProvider } from '../copilotcli/vscode-node/copilotCLICustomizationProvider';
 import { CopilotCLITerminalIntegration, ICopilotCLITerminalIntegration } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
-import { ClaudeFolderRepositoryManager, CopilotCLIFolderRepositoryManager } from './folderRepositoryManagerImpl';
+import { CopilotCLIFolderRepositoryManager } from './folderRepositoryManagerImpl';
 import { PRContentProvider } from './prContentProvider';
 import { IPullRequestCreationService, PullRequestCreationService } from './pullRequestCreationService';
 import { IPullRequestDetectionService, PullRequestDetectionService } from './pullRequestDetectionService';
@@ -133,44 +113,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		const useController = instantiationService.invokeFunction(accessor =>
 			accessor.get(IConfigurationService).getConfig(configKey)
 		);
-		const { sessionMetadata } = useController ? this.registerCopilotCLIServices(instantiationService, delegationSummary, logService) : this.registerCopilotCLIServicesV1(instantiationService, delegationSummary, logService);
-
-		// #region Claude Code Chat Sessions
-		const claudeAgentInstaService = instantiationService.createChild(
-			new ServiceCollection(
-				[IAgentSessionsWorkspace, new SyncDescriptor(AgentSessionsWorkspace)],
-				[IClaudeAgentSdkLoaderService, new SyncDescriptor(RoutingClaudeAgentSdkLoaderService)],
-				[IClaudeCodeSessionService, new SyncDescriptor(ClaudeCodeSessionService)],
-				[IClaudeCodeSdkService, new SyncDescriptor(ClaudeCodeSdkService)],
-				[IClaudeCodeModels, new SyncDescriptor(ClaudeCodeModels)],
-				[ILanguageModelServer, new SyncDescriptor(LanguageModelServer)],
-				[IClaudeToolPermissionService, new SyncDescriptor(ClaudeToolPermissionService)],
-				[IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker)],
-				[IClaudeSessionStateService, new SyncDescriptor(ClaudeSessionStateService)],
-				[IClaudeSlashCommandService, new SyncDescriptor(ClaudeSlashCommandService)],
-				[IChatSessionMetadataStore, sessionMetadata],
-				[IChatSessionWorktreeService, new SyncDescriptor(ChatSessionWorktreeService)],
-				[IChatSessionWorktreeCheckpointService, new SyncDescriptor(ChatSessionWorktreeCheckpointService)],
-				[IChatSessionWorkspaceFolderService, new SyncDescriptor(ChatSessionWorkspaceFolderService)],
-				[IClaudeWorkspaceFolderService, new SyncDescriptor(ClaudeWorkspaceFolderService)],
-				[IFolderRepositoryManager, new SyncDescriptor(ClaudeFolderRepositoryManager)],
-				[IChatFolderMruService, new SyncDescriptor(ClaudeCodeFolderMruService)],
-				[IClaudeRuntimeDataService, new SyncDescriptor(ClaudeRuntimeDataService)],
-				[IClaudePluginService, new SyncDescriptor(ClaudePluginService)],
-			));
-		const claudeAgentManager = this._register(claudeAgentInstaService.createInstance(ClaudeAgentManager));
-		const claudeModels = claudeAgentInstaService.invokeFunction(accessor => accessor.get(IClaudeCodeModels));
-		claudeModels.registerLanguageModelChatProvider(vscode.lm);
-		const chatSessionContentProvider = this._register(claudeAgentInstaService.createInstance(ClaudeChatSessionContentProvider, claudeAgentManager));
-		const chatParticipant = vscode.chat.createChatParticipant(ClaudeSessionUri.scheme, chatSessionContentProvider.createHandler());
-		chatParticipant.iconPath = new vscode.ThemeIcon('claude');
-		this._register(vscode.chat.registerChatSessionContentProvider(ClaudeSessionUri.scheme, chatSessionContentProvider, chatParticipant));
-		const claudeCustomizationProvider = this._register(claudeAgentInstaService.createInstance(ClaudeCustomizationProvider));
-		this._register(vscode.chat.registerChatSessionCustomizationProvider(ClaudeSessionUri.scheme, ClaudeCustomizationProvider.metadata, claudeCustomizationProvider));
-
-		// #endregion
-
-		// #endregion
+		useController ? this.registerCopilotCLIServices(instantiationService, delegationSummary, logService) : this.registerCopilotCLIServicesV1(instantiationService, delegationSummary, logService);
 
 	}
 

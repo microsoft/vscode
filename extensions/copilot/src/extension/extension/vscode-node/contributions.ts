@@ -16,6 +16,7 @@ import * as chatBlockLanguageContribution from '../../codeBlocks/vscode-node/cha
 import { IExtensionContributionFactory, asContributionFactory } from '../../common/contributions';
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
 import { ConfigurationMigrationContribution } from '../../configuration/vscode-node/configurationMigration';
+import { InternalConfigurationInformationCommandContribution } from '../../configuration/vscode-node/internalConfigurationInformationCommand';
 import { ContextKeysContribution } from '../../contextKeys/vscode-node/contextKeys.contribution';
 import { ByokUtilityModelNotificationContribution } from '../../chatInputNotification/vscode-node/byokUtilityModel.contribution';
 import { AiMappedEditsContrib } from '../../conversation/vscode-node/aiMappedEditsContrib';
@@ -85,6 +86,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	// asContributionFactory(InlineEditProviderFeatureContribution),
 	// asContributionFactory(CompletionsCoreContribution),
 	asContributionFactory(SettingsSchemaFeature),
+	asContributionFactory(InternalConfigurationInformationCommandContribution),
 	asContributionFactory(WorkspaceRecorderFeature),
 	asContributionFactory(SurveyCommandContribution),
 	asContributionFactory(FeedbackCommandContribution),

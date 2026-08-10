@@ -124,7 +124,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 					? localize('disableImplicitContext', "Disable {0} context {1}", attachmentTypeName, contextLabel)
 					: localize('addToContext', "Add {0} to context", contextLabel);
 				const toggleButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: buttonMsg }));
-				toggleButton.icon = context.enabled ? Codicon.x : Codicon.plus;
+				toggleButton.icon = context.enabled ? Codicon.closeCompact : Codicon.addCompact;
 				this.renderDisposables.add(toggleButton.onDidClick(async (e) => {
 					e.stopPropagation();
 					e.preventDefault();

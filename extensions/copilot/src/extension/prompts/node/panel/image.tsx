@@ -11,6 +11,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { modelCanUseImageURL } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IImageService } from '../../../../platform/image/common/imageService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { isCAPIEndpoint } from '../../../../platform/networking/common/networking';
 import { getMimeType } from '../../../../util/common/imageUtils';
 import { Uri } from '../../../../vscodeTypes';
 import { IPromptEndpoint } from '../base/promptRenderer';
@@ -35,6 +36,11 @@ export interface HistoricalImageProps extends BasePromptElementProps {
 	mimeType?: string;
 }
 
+function canSendImage(endpoint: IPromptEndpoint, authService: IAuthenticationService): boolean {
+	return endpoint.supportsVision
+		&& (!isCAPIEndpoint(endpoint) || (authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true));
+}
+
 /**
  * Renders an image from conversation history.
  * Checks if the current model supports vision and omits the image if not.
@@ -49,11 +55,7 @@ export class HistoricalImage extends PromptElement<HistoricalImageProps, unknown
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		// If the model doesn't support vision, omit historical images.
-		// Editor preview features are gated only when a Copilot token explicitly
-		// disables them (org policy). Signed-out / BYOK users have no Copilot token
-		// and must not be blocked, so default to enabled when the token is absent.
-		if (!this.promptEndpoint.supportsVision || !(this.authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true)) {
+		if (!canSendImage(this.promptEndpoint, this.authService)) {
 			return undefined;
 		}
 
@@ -74,11 +76,7 @@ export class Image extends PromptElement<ImageProps, unknown> {
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		// See HistoricalImage: only an explicit org-policy Copilot token disables preview
-		// features; a missing token (signed-out / BYOK) must still send the image.
-		const previewFeaturesEnabled = this.authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true;
 		const noVisionDescription = l10n.t("{0} does not support images.", this.promptEndpoint.model);
-		// Report the actual reason so a vision-capable model isn't misreported as not supporting images.
 		const omittedDescription = !this.promptEndpoint.supportsVision
 			? noVisionDescription
 			: l10n.t("Images are omitted because editor preview features are disabled by organization policy.");
@@ -88,7 +86,7 @@ export class Image extends PromptElement<ImageProps, unknown> {
 		const fillerUri: Uri = this.props.reference ?? Uri.parse('Attached Image');
 
 		try {
-			if (!this.promptEndpoint.supportsVision || !previewFeaturesEnabled) {
+			if (!canSendImage(this.promptEndpoint, this.authService)) {
 				if (this.props.omitReferences) {
 					return;
 				}

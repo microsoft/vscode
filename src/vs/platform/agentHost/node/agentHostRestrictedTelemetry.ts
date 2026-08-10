@@ -71,6 +71,7 @@ export type FetchFn = typeof globalThis.fetch;
  */
 const MAX_PROPERTY_LENGTH = 8192;
 const MAX_CONCATENATED_PROPERTIES = 50;
+const MAX_TELEMETRY_ITEM_BODY_LENGTH = MAX_PROPERTY_LENGTH * MAX_CONCATENATED_PROPERTIES;
 
 // Suffix appended to the base property name for the compressed (gzip + base64) chunk family.
 const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
@@ -104,8 +105,9 @@ export async function multiplexProperties(properties: TelemetryProps): Promise<T
 		// the full value gzip + base64 compressed as <key>Chunk, <key>Chunk_2, … (no zero padding).
 		newProperties[key] = value!.slice(0, MAX_PROPERTY_LENGTH);
 		const compressed = await compressTelemetryValue(value!);
+		const compressedChunkKey = key === 'messagesJson' ? 'messagesJSON' : key;
 		for (let offset = 0, index = 1; offset < compressed.length && index <= MAX_CONCATENATED_PROPERTIES; offset += MAX_PROPERTY_LENGTH, index++) {
-			const columnName = index === 1 ? `${key}${COMPRESSED_CHUNK_SUFFIX}` : `${key}${COMPRESSED_CHUNK_SUFFIX}_${index}`;
+			const columnName = index === 1 ? `${compressedChunkKey}${COMPRESSED_CHUNK_SUFFIX}` : `${compressedChunkKey}${COMPRESSED_CHUNK_SUFFIX}_${index}`;
 			newProperties[columnName] = compressed.slice(offset, offset + MAX_PROPERTY_LENGTH);
 		}
 	}
@@ -270,6 +272,13 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 			},
 		};
 
+		const body = JSON.stringify(envelope);
+		const bodyLength = Buffer.byteLength(body, 'utf8');
+		if (bodyLength > MAX_TELEMETRY_ITEM_BODY_LENGTH) {
+			this._logService.trace(`[ahp-restricted] drop ${name}: serialized body is ${bodyLength} bytes (maximum ${MAX_TELEMETRY_ITEM_BODY_LENGTH})`);
+			return;
+		}
+
 		this._logService.trace(`[ahp-restricted] emit ${name} (iKey ${iKey.slice(0, 8)})`);
 
 		if (typeof this._fetchFn !== 'function') {
@@ -283,7 +292,7 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		this._fetchFn(context?.endpointUrl || (context ? GH_TELEMETRY_URL : this._endpointUrl), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-json-stream' },
-			body: JSON.stringify(envelope),
+			body,
 		}).then(res => {
 			if (!res.ok) {
 				this._logService.warn(`[ahp-restricted] ${name} rejected: HTTP ${res.status}`);

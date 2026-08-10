@@ -57,7 +57,7 @@
 <body>
 
 <h1>OTel Data Flow — VS Code Copilot Chat Extension</h1>
-<h2>Complete tracing architecture for foreground agent, CLI background agent, CLI terminal, and Claude Code</h2>
+<h2>Complete tracing architecture for foreground agent, CLI background agent, and CLI terminal</h2>
 
 <div class="legend">
   <div class="legend-item"><div class="legend-swatch" style="background:#1a2332;border:1.5px solid #58a6ff"></div> Provider A (Extension NodeOTelService)</div>
@@ -73,7 +73,6 @@
   <div class="tab" onclick="switchTab('foreground')">Foreground Agent</div>
   <div class="tab" onclick="switchTab('cli-bg')">CLI Background</div>
   <div class="tab" onclick="switchTab('cli-term')">CLI Terminal</div>
-  <div class="tab" onclick="switchTab('claude')">Claude Code</div>
 </div>
 
 <div class="tab-content">
@@ -148,23 +147,6 @@
     <text x="12" y="20" class="label">CLI Extension Wrapper</text>
     <text x="12" y="36" class="sub">copilotcliSession.ts</text>
     <text x="12" y="50" class="sub">invoke_agent copilotcli (tracer A)</text>
-  </g>
-
-  <!-- Claude Agent -->
-  <g class="node provider-none" transform="translate(340,355)">
-    <rect width="220" height="70"/>
-    <text x="12" y="20" class="label" fill="#bc8cff">Claude Code Agent</text>
-    <text x="12" y="36" class="sub">claudeCodeAgent.ts (synthetic spans)</text>
-    <text x="12" y="52" class="sub">Uses tracer A (Provider A)</text>
-    <text x="12" y="66" class="sub">invoke_agent → execute_tool (flat)</text>
-  </g>
-
-  <!-- Claude Subprocess -->
-  <g class="node process" transform="translate(340,455)">
-    <rect width="220" height="55"/>
-    <text x="12" y="20" class="label">Claude Code Subprocess</text>
-    <text x="12" y="36" class="sub">Separate Node process</text>
-    <text x="12" y="50" class="sub">Metrics + events only (no traces)</text>
   </g>
 
   <!-- CLI Terminal -->
@@ -253,20 +235,9 @@
   <path d="M 290,355 Q 320,540 340,565" class="arrow arrow-env" marker-end="url(#ah-yellow)"/>
   <text x="265" y="480" fill="#d29922" font-size="9">env vars</text>
 
-  <!-- Env vars → Claude subprocess -->
-  <path d="M 290,355 Q 320,455 340,480" class="arrow arrow-env" marker-end="url(#ah-yellow)"/>
-
   <!-- CLI Terminal → Grafana (independent) -->
   <path d="M 560,565 Q 750,540 750,475" class="arrow arrow-export" marker-end="url(#ah-red)"/>
   <text x="630" y="530" fill="#f85149" font-size="9">independent traces</text>
-
-  <!-- Claude subprocess → Grafana -->
-  <path d="M 560,480 Q 760,490 760,475" class="arrow arrow-export" marker-end="url(#ah-red)"/>
-  <text x="610" y="498" fill="#f85149" font-size="9">metrics+events</text>
-
-  <!-- Claude → Debug Panel (synthetic) -->
-  <path d="M 560,390 Q 610,200 620,120" class="arrow arrow-data" marker-end="url(#ah-blue)"/>
-  <text x="580" y="260" fill="#bc8cff" font-size="9">synthetic spans</text>
 
   <!-- Config source -->
   <g class="node" transform="translate(30,630)">
@@ -505,80 +476,6 @@
 </svg>
 </div>
 
-<!-- CLAUDE -->
-<div class="tab-pane" id="tab-claude">
-<svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <marker id="ah5-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/></marker>
-    <marker id="ah5-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#f85149"/></marker>
-    <marker id="ah5-yellow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#d29922"/></marker>
-  </defs>
-
-  <text x="20" y="24" fill="#bc8cff" font-size="14" font-weight="600">Claude Code — Synthetic Spans (Only Option)</text>
-  <text x="20" y="42" fill="#8b949e" font-size="11">Child process internal spans inaccessible. Extension creates spans from message loop.</text>
-
-  <!-- Span hierarchy -->
-  <g transform="translate(30,60)">
-    <rect width="380" height="200" rx="8" fill="#161b22" stroke="#30363d"/>
-    <text x="12" y="20" fill="#bc8cff" font-size="12" font-weight="600">Extension Synthetic Spans (tracer A)</text>
-
-    <rect x="16" y="36" width="350" height="24" rx="4" fill="#2a1a2a" stroke="#bc8cff" stroke-width="1"/>
-    <text x="24" y="52" fill="#c9d1d9" font-size="10">invoke_agent claude — claudeCodeAgent.ts</text>
-
-    <rect x="32" y="68" width="330" height="22" rx="4" fill="#1a2332" stroke="#58a6ff" stroke-width="1"/>
-    <text x="40" y="83" fill="#c9d1d9" font-size="10">chat claude-sonnet-4 — chatMLFetcher.ts (FREE)</text>
-
-    <rect x="32" y="98" width="330" height="22" rx="4" fill="#2a1a2a" stroke="#bc8cff" stroke-width="1"/>
-    <text x="40" y="113" fill="#c9d1d9" font-size="10">execute_tool Read — message loop (PR #4505)</text>
-
-    <rect x="32" y="128" width="330" height="22" rx="4" fill="#1a2332" stroke="#58a6ff" stroke-width="1"/>
-    <text x="40" y="143" fill="#c9d1d9" font-size="10">chat claude-sonnet-4 — chatMLFetcher.ts</text>
-
-    <rect x="32" y="158" width="330" height="22" rx="4" fill="#2a1a2a" stroke="#bc8cff" stroke-width="1"/>
-    <text x="40" y="173" fill="#c9d1d9" font-size="10">execute_tool Edit — message loop (PR #4505)</text>
-
-    <text x="16" y="195" fill="#8b949e" font-size="9">FLAT hierarchy — no subagent nesting, no permissions</text>
-  </g>
-
-  <!-- Claude subprocess -->
-  <g transform="translate(30,280)">
-    <rect width="380" height="80" rx="8" fill="#161b22" stroke="#8b949e"/>
-    <text x="12" y="20" fill="#8b949e" font-size="12" font-weight="600">Claude Code Subprocess (separate process)</text>
-    <text x="12" y="40" fill="#8b949e" font-size="10">Own OTel SDK: metrics + events (no traces)</text>
-    <text x="12" y="56" fill="#8b949e" font-size="10">claude_code.token.usage, claude_code.cost.usage</text>
-    <text x="12" y="72" fill="#8b949e" font-size="10">claude_code.tool_result, claude_code.api_request</text>
-  </g>
-
-  <!-- Flow -->
-  <g transform="translate(460,60)">
-    <rect width="210" height="50" rx="6" fill="#1a2332" stroke="#58a6ff"/>
-    <text x="12" y="20" fill="#58a6ff" font-size="11" font-weight="600">NodeOTelService</text>
-    <text x="12" y="38" fill="#8b949e" font-size="10">Provider A tracer</text>
-
-    <path d="M 105,50 L 105,90" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#ah5-blue)"/>
-
-    <rect x="0" y="90" width="210" height="40" rx="6" fill="#2a2218" stroke="#d29922"/>
-    <text x="12" y="115" fill="#d29922" font-size="11">Debug Panel ✅ (flat)</text>
-
-    <rect x="240" y="0" width="200" height="40" rx="6" fill="#2a1a1a" stroke="#f85149"/>
-    <text x="252" y="25" fill="#f85149" font-size="11">OTLP → Grafana ✅</text>
-
-    <path d="M 210,25 L 240,20" stroke="#f85149" stroke-width="1.5" marker-end="url(#ah5-red)"/>
-
-    <!-- Subprocess → Grafana -->
-    <path d="M -50,260 Q 300,300 350,40" stroke="#f85149" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ah5-red)"/>
-    <text x="220" y="200" fill="#f85149" font-size="9">subprocess metrics/events</text>
-
-    <!-- Limitation callout -->
-    <rect x="0" y="170" width="440" height="80" rx="8" fill="#161b22" stroke="#bc8cff"/>
-    <text x="16" y="190" fill="#bc8cff" font-size="12" font-weight="600">WHY SYNTHETIC (not bridge)?</text>
-    <text x="16" y="210" fill="#8b949e" font-size="10">• Claude SDK runs as separate child process</text>
-    <text x="16" y="226" fill="#8b949e" font-size="10">• Internal spans are inaccessible from extension</text>
-    <text x="16" y="242" fill="#8b949e" font-size="10">• Bridge approach is impossible — synthetic is the only option</text>
-  </g>
-</svg>
-</div>
-
 </div><!-- tab-content -->
 
 <!-- Info cards -->
@@ -588,7 +485,7 @@
   <div class="info-card">
     <h4>Two TracerProviders in the Same Process</h4>
     <ul>
-      <li><b>Provider A</b> (<code>NodeOTelService</code>): Created at extension activation. Stores tracer ref. Serves foreground agent, CLI wrapper span, Claude synthetic spans.</li>
+      <li><b>Provider A</b> (<code>NodeOTelService</code>): Created at extension activation. Stores tracer ref. Serves foreground agent and the CLI wrapper span.</li>
       <li><b>Provider B</b> (<code>BasicTracerProvider</code>): Created by SDK's <code>OtelLifecycle.initializeOtelSdk()</code>. Replaces A as global. Serves all SDK-native spans.</li>
       <li>Provider A's stored <code>this._tracer</code> still works after override — OTel tracers are bound to their provider at creation time.</li>
     </ul>
@@ -617,7 +514,6 @@
     <ul>
       <li><b>Foreground</b>: tracer A → TrackedSpanHandle.end() → <code>_onDidCompleteSpan.fire()</code></li>
       <li><b>CLI background</b>: tracer B → Bridge.onEnd() → <code>injectCompletedSpan()</code> → <code>_onDidCompleteSpan.fire()</code></li>
-      <li><b>Claude</b>: tracer A → TrackedSpanHandle.end() → <code>_onDidCompleteSpan.fire()</code> (same as foreground)</li>
       <li><b>CLI terminal</b>: N/A (separate process, no debug panel visibility)</li>
       <li>Both consumers: <code>OTelChatDebugLogProvider</code> (trajectory) and <code>ChatDebugFileLoggerService</code> (file)</li>
     </ul>
@@ -625,15 +521,14 @@
   <div class="info-card">
     <h4>service.name Values</h4>
     <ul>
-      <li><code>copilot-chat</code> — Extension Provider A spans (foreground, CLI wrapper, Claude synthetic)</li>
+      <li><code>copilot-chat</code> — Extension Provider A spans (foreground and CLI wrapper)</li>
       <li><code>github-copilot</code> — SDK Provider B spans (CLI native), CLI terminal</li>
-      <li><code>claude-code</code> — Claude subprocess metrics/events</li>
     </ul>
   </div>
   <div class="info-card">
     <h4>What Goes Where</h4>
     <ul>
-      <li><b>Grafana</b>: Everything from all OTLP exporters (Provider A + B + terminal + Claude subprocess)</li>
+      <li><b>Grafana</b>: Everything from all OTLP exporters (Provider A + B + terminal)</li>
       <li><b>Debug Panel</b>: Only spans that fire <code>onDidCompleteSpan</code> with <code>copilot_chat.chat_session_id</code></li>
       <li><b>File Logger</b>: Same as debug panel (listens to same event)</li>
     </ul>

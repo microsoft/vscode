@@ -229,7 +229,8 @@ export interface IAgentHostGitService {
 	 * whose worktree was previously cleaned up on archive).
 	 */
 	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
-	removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void>;
+	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */
+	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void>;
 	/**
 	 * Returns true when the named branch exists in the repository
 	 * (`refs/heads/<branchName>` resolves). Used by archive cleanup to
@@ -427,6 +428,22 @@ function getBranchPriority(branch: string, currentBranch: string | undefined, de
 		return 1;
 	}
 	return 2;
+}
+
+/**
+ * Splits an upstream tracking branch (e.g. `origin/feature`) into its remote
+ * and remote-side branch name. Returns `undefined` when the branch has no
+ * upstream or the value is not of the `<remote>/<branch>` shape.
+ */
+export function parseUpstreamBranchName(upstreamBranchName: string | undefined): { remote: string; branch: string } | undefined {
+	const separatorIndex = upstreamBranchName?.indexOf('/') ?? -1;
+	if (!upstreamBranchName || separatorIndex <= 0 || separatorIndex === upstreamBranchName.length - 1) {
+		return undefined;
+	}
+	return {
+		remote: upstreamBranchName.substring(0, separatorIndex),
+		branch: upstreamBranchName.substring(separatorIndex + 1),
+	};
 }
 
 export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {

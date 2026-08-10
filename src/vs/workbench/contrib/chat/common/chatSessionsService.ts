@@ -354,7 +354,6 @@ export namespace SessionType {
 	export const CopilotCLI = 'copilotcli';
 	export const CopilotCloud = 'copilot-cloud-agent';
 	export const Local = 'local';
-	export const ClaudeCode = 'claude-code';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilotcli';
@@ -772,6 +771,11 @@ export interface IChatSessionsService {
 
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
 	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
+	/**
+	 * Reads a session's history without retaining a contributed session in the
+	 * global session cache. Intended for lightweight ranking and previews.
+	 */
+	getChatSessionHistory(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionHistoryItem[]>;
 
 	/**
 	 * Programmatically register a chat session contribution (for internal session types

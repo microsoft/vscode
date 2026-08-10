@@ -358,11 +358,13 @@
 	overflow: visible;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar .action-label,
-.quick-input-list .quick-input-list-entry-action-bar .monaco-custom-toggle {
+.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label,
+.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .monaco-custom-toggle {
 	/*
-	 * By default, actions in the quick input action bar are hidden
-	 * until hovered over them or selected.
+	 * Icon actions and toggles also match `.monaco-action-bar .action-item .codicon`,
+	 * whose equal-specificity `display: flex` would reveal them in the idle state
+	 * when loaded later. The hover, focus, and always-visible rules below remain
+	 * more specific and reveal the controls on intent.
 	 */
 	display: none;
 }

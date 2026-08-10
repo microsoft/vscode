@@ -18,7 +18,6 @@ import { MenuItemAction } from '../../../../../platform/actions/common/actions.j
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -26,7 +25,6 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
-import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { BrowserEditor, BrowserEditorContribution } from '../browserEditor.js';
@@ -235,7 +233,6 @@ class BrowserEditorAutoReloadContribution extends BrowserEditorContribution {
 	constructor(
 		editor: BrowserEditor,
 		@IBrowserAutoReloadService private readonly _browserAutoReloadService: IBrowserAutoReloadService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 	) {
 		super(editor);
 
@@ -264,11 +261,8 @@ class BrowserEditorAutoReloadContribution extends BrowserEditorContribution {
 				MenuItemAction,
 				{
 					...action.item,
-					toggled: {
-						condition: ContextKeyExpr.true(),
-						title: localize('browser.reloadAutomaticRefreshEnabled', "Reload (Automatic Refresh Enabled)"),
-						icon: Codicon.sync,
-					},
+					icon: Codicon.sync,
+					title: localize('browser.reloadAutomaticRefreshEnabled', "Reload (Automatic Refresh Enabled)"),
 				},
 				action.alt?.item,
 				{ shouldForwardArgs: true },
@@ -320,13 +314,8 @@ class BrowserEditorAutoReloadContribution extends BrowserEditorContribution {
 				}
 			},
 		};
-		const configureAction = toAction({
-			id: 'workbench.browser.configureAutoReload',
-			label: localize('browser.configureAutoReload', "Configure Auto Reload"),
-			run: () => this._preferencesService.openSettings({ query: `@id:${BrowserAutoReloadOnFileChangeSettingId}` }),
-		});
 
-		return [toggleAction, configureAction];
+		return [toggleAction];
 	}
 }
 

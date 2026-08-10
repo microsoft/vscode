@@ -18,13 +18,9 @@
  * the `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
  */
 
-/*
- * Command center box. Drop the solid `commandCenter-background` fill so it reads
- * transparent at rest; the base stylesheet's `:hover` rule (titlebarpart.css)
- * still reveals the active background/border on hover.
- */
-.style-override.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
-	background-color: transparent !important;
+/* Keep unavailable navigation actions on the contributed command-center foreground. */
+.style-override.monaco-workbench .part.titlebar .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label:is(.codicon-arrow-left, .codicon-arrow-right) {
+	color: var(--vscode-commandCenter-foreground);
 }
 
 /*

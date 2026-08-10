@@ -555,8 +555,20 @@ suite('SSH Remote Agent Host Helpers', () => {
 			const exec: ISshExec = async () => ({ stdout: 'not json', stderr: '', code: 0 });
 			await assert.rejects(
 				() => runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli'),
-				/unparsable output/,
+				/unparsable output \(8 characters\)$/,
 			);
+		});
+
+		test('parses JSON after legacy CLI log output', async () => {
+			const output = `[2026-08-06 15:31:19] info Pruning stale local endpoint registry entry\n${JSON.stringify({ userDataPath: '/tmp/user-data', endpoints: [] })}`;
+			const exec: ISshExec = async () => ({ stdout: output, stderr: '', code: 0 });
+
+			const result = await runAgentEndpoints(exec, '~/.vscode-server/code', '~/.vscode-server/cli');
+
+			assert.deepStrictEqual(result, {
+				userDataPath: '/tmp/user-data',
+				endpoints: [],
+			});
 		});
 	});
 

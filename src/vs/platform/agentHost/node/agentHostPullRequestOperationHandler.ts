@@ -12,7 +12,7 @@ import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { type AutoMergeMethod, type CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -32,17 +32,6 @@ const MAX_PR_CONVERSATION_CONTEXT_CHARS = 12_000;
  * utility model when generating a PR title and description.
  */
 const MAX_PR_CHANGE_SUMMARY_CHARS = 4_000;
-
-function parseUpstreamBranchName(upstreamBranchName: string | undefined): { remote: string; branch: string } | undefined {
-	const separatorIndex = upstreamBranchName?.indexOf('/') ?? -1;
-	if (!upstreamBranchName || separatorIndex <= 0 || separatorIndex === upstreamBranchName.length - 1) {
-		return undefined;
-	}
-	return {
-		remote: upstreamBranchName.substring(0, separatorIndex),
-		branch: upstreamBranchName.substring(separatorIndex + 1),
-	};
-}
 
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;

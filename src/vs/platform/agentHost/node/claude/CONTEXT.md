@@ -1177,10 +1177,10 @@ is an internal concern of the agent. The IAgent surface exposes only:
 |---|---|---|
 | `createSession(config)` (no `fork`) → `IAgentCreateSessionResult { provisional: true }` | none (no SDK call) | Records a **provisional** session: id, requested `workingDirectory` (= the repo path the client passed in), title, model, etc. No `Query`. No on-disk session file. The agent reserves the eventual session id locally. The session shows up in `listSessions` but cannot receive messages until materialized. |
 | `createSession({ fork: { session, turnIndex, turnId, turnIdMapping? } })` → `IAgentCreateSessionResult { provisional: false }` | `forkSession(parentSessionId, { upToMessageId: lastUuidOfTurn(turnId), title? })` → `{ sessionId }` | **Materializes immediately on disk** because `forkSession` writes the new session file synchronously. SDK rewrites every message UUID and rebuilds the `parentUuid` chain. Result is **not provisional**. No `Query` is started yet — that still happens lazily on first `sendMessage` — but because the session already exists on disk, the materialization path will use `resume: forkedSessionId` in `Options` (see *Fresh vs resumed* below). The agent fires `onDidMaterializeSession` here, immediately after `forkSession` returns. |
-| (internal) first `sendMessage` on a provisional session | `query({ options })` with `Options.sessionId = sessionId` (fresh) or `Options.resume = sessionId` (resumed) | Triggers internal materialization. Resolves effective `workingDirectory` (Copilot may create a worktree); constructs `Options`; starts `Query`; fires `onDidMaterializeSession`; then proceeds to send the actual user message. Subsequent `sendMessage` calls reuse the live `Query`. |
-| `onArchivedChanged(uri, isArchived)` (optional) | none (SDK untouched) | Soft, reversible. `true`: remove worktree dir from disk if branch is preserved and tree is clean (Copilot's `_cleanupWorktreeOnArchive`). `false`: `git worktree add --existing` against the preserved branch (`_recreateWorktreeOnUnarchive`). SDK session, per-session DB, branch all untouched. Claude does not implement this yet. |
-| `disposeSession(sessionId)` | `Query.interrupt()` + `Query.return()` (or asyncDispose) | Full teardown of one session: kill SDK `Query`, drop in-memory wrapper, delete state-manager entry, and (Copilot) remove the worktree if it was created in this process. Triggered by explicit protocol `disposeSession` or the empty-session GC. |
-| `shutdown()` | per-session `Query.interrupt()` + asyncDispose, serialized through a sequencer; then SDK client stop | Graceful, async, **memoized** drain of all sessions. Walks `_sessions` ∪ `_createdWorktrees`, runs `_destroyAndDisposeSession` per id through `_sessionSequencer` so it interleaves with concurrent `sendMessage` / `disposeSession`. Claude additionally aborts provisional `AbortController`s first so any racing `await sdk.startup()` unwinds cleanly. |
+| (internal) first `sendMessage` on a provisional session | `query({ options })` with `Options.sessionId = sessionId` (fresh) or `Options.resume = sessionId` (resumed) | Triggers internal materialization. The host resolves the effective `workingDirectory`, creating a worktree when configured; the provider constructs `Options`, starts `Query`, fires `onDidMaterializeSession`, and sends the user message. Subsequent `sendMessage` calls reuse the live `Query`. |
+| `onArchivedChanged(uri, isArchived)` (optional) | none (SDK untouched) | The host owns worktree archive/unarchive cleanup for every provider. The provider hook handles provider-specific state only. |
+| `disposeSession(sessionId)` | `Query.interrupt()` + `Query.return()` (or asyncDispose) | Full teardown of one session. After provider teardown, the host loads persisted worktree metadata, deletes session data and checkpoint refs, then removes the worktree. |
+| `shutdown()` | per-session `Query.interrupt()` + asyncDispose, serialized through a sequencer; then SDK client stop | Graceful, async, **memoized** provider drain. Session-owned worktrees remain on disk across host restarts. |
 | `dispose()` | synchronous teardown of provider | Hard provider teardown. Copilot: kicks off `shutdown()` and chains `super.dispose()` in `.finally` (cooperatively reuses the memoized drain). Claude: aborts provisional controllers, then `super.dispose()` synchronously disposes `_sessions` (each wrapper interrupts/asyncDisposes its `Query`), then releases `_proxyHandle` — wrapper-before-proxy ordering is load-bearing. |
 
 #### Birth axis: provisional → materialized
@@ -1209,10 +1209,9 @@ plus an event**, not a method pair.
   agent receives `sendMessage` for a still-undermaterialized session
   (whether the on-disk file exists from fork or doesn't exist yet),
   it:
-  1. Resolves the effective `workingDirectory`. Copilot's
-     `_resolveSessionWorkingDirectory` consults `_createdWorktrees`
-     and may run `git worktree add` on a fresh branch. Claude
-     currently uses the requested path as-is.
+  1. Asks the host to resolve the effective `workingDirectory`.
+     `WorktreeIsolation` may run `git worktree add` on a fresh branch
+     before either provider locks in its SDK working directory.
   2. Constructs SDK `Options` with that `cwd` and all other
      startup-only fields.
   3. Calls `query({ options })` → SDK forks the CLI subprocess,
@@ -1342,8 +1341,8 @@ background.
 
 | Surface | Scope | Sync? | Reuses `shutdown`? | Notes |
 |---|---|---|---|---|
-| `disposeSession(id)` | one session | async | n/a | Routes through `_sessionSequencer` so it serializes against in-flight `sendMessage`. Worktree removal consults the **in-memory** `_createdWorktrees` map — sessions created in a previous process lifetime are not removed by this path; archive cleanup picks them up via the persisted DB metadata. |
-| `shutdown()` | all sessions | async, memoized | self | Walks `_sessions ∪ _createdWorktrees`. Memoization (`_shutdownPromise`) means concurrent calls fold into one drain. Claude aborts provisionals first to unwind racing `sdk.startup()` awaits. |
+| `disposeSession(id)` | one session | async | n/a | Routes through the provider sequencer so it serializes against in-flight `sendMessage`. The host loads persisted worktree metadata before deleting the session database, so deletion also cleans up sessions created in an earlier process. |
+| `shutdown()` | all sessions | async, memoized | self | Drains provider sessions while preserving session-owned worktrees. Memoization (`_shutdownPromise`) means concurrent calls fold into one drain. Claude aborts provisionals first to unwind racing `sdk.startup()` awaits. |
 | `dispose()` | provider | sync surface; may chain async | Copilot: yes; Claude: no | Copilot: `shutdown().finally(super.dispose)` — cooperative. Claude: synchronous wrapper-then-proxy teardown, no graceful drain. The provider choice is intentional: Claude's wrapper is the stronger ownership and must dispose before the IPC handle. |
 
 `AgentService.shutdown` fans out `provider.shutdown()` in parallel;
@@ -1391,9 +1390,9 @@ internally decides whether `dispose` chains `shutdown` or not.
 
 | | CopilotAgent | ClaudeAgent |
 |---|---|---|
-| Worktree on materialize | Yes (`_resolveSessionWorkingDirectory` + `_createdWorktrees`) | No (uses requested `workingDirectory` as-is) |
-| `onArchivedChanged` | Implemented (clean + recreate) | Not implemented |
-| `disposeSession` worktree path | Consults in-memory `_createdWorktrees` | No worktree state to clean |
+| Worktree on materialize | Host-owned `WorktreeIsolation` | Host-owned `WorktreeIsolation` |
+| `onArchivedChanged` | Host performs worktree cleanup/recreation | Host performs worktree cleanup/recreation |
+| `disposeSession` worktree path | Host loads persisted metadata and removes the worktree | Host loads persisted metadata and removes the worktree |
 | `shutdown` provisional handling | Drops provisional records + `_activeClients` snapshot | Aborts provisional `AbortController`s first to unwind racing `sdk.startup()` |
 | `dispose` strategy | Chain `shutdown().finally(super.dispose)` | Synchronous wrapper-then-proxy teardown (no graceful drain) |
 | Sequencer | `_sessionSequencer` (per-session) | `_disposeSequencer` (drain only) |

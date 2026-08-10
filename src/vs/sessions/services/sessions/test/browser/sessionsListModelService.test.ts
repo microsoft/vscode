@@ -63,6 +63,20 @@ suite('SessionsListModelService', () => {
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
 
+	test('unread state takes precedence over the completed-state icon', () => {
+		const completedStateIcon = Codicon.gitPullRequest;
+		const unreadIcon = service.getStatusIcon(SessionStatus.Completed, false, false, completedStateIcon);
+		const readIcon = service.getStatusIcon(SessionStatus.Completed, true, false, completedStateIcon);
+
+		assert.deepStrictEqual({
+			unread: { id: unreadIcon.id, color: unreadIcon.color?.id },
+			read: { id: readIcon.id, color: readIcon.color?.id },
+		}, {
+			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
+			read: { id: Codicon.gitPullRequest.id, color: undefined },
+		});
+	});
+
 	// -- Pinning --
 
 	test('pinSession marks session as pinned', () => {

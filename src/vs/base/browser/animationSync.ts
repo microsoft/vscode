@@ -89,6 +89,7 @@ let unregisterWindowListener: IDisposable | undefined;
 
 /**
  * Pauses CSS animations while their element is outside the viewport or its document is hidden.
+ * Tracking survives temporary DOM detachment; dispose it when the element is no longer reusable.
  */
 export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPauseCSSAnimationsWhenHiddenOptions): IDisposable {
 	const targetWindow = getWindow(element);
@@ -106,12 +107,6 @@ export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPau
 				const target = entry.target as HTMLElement;
 				const trackedAnimation = trackedAnimations.get(target);
 				if (!trackedAnimation) {
-					continue;
-				}
-				if (!target.isConnected) {
-					observer.unobserve(target);
-					trackedAnimations.delete(target);
-					intersectingElements.delete(target);
 					continue;
 				}
 				if (entry.isIntersecting) {
@@ -135,12 +130,6 @@ export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPau
 			const documentHidden = targetWindow.document.hidden;
 			const toResync: Array<[HTMLElement, IPauseCSSAnimationsWhenHiddenOptions]> = [];
 			for (const [target, trackedAnimation] of trackedAnimations) {
-				if (!target.isConnected) {
-					observer.unobserve(target);
-					trackedAnimations.delete(target);
-					intersectingElements.delete(target);
-					continue;
-				}
 				const paused = documentHidden || !intersectingElements.has(target);
 				target.classList.toggle(trackedAnimation.options.pausedClass, paused);
 				if (!paused) {

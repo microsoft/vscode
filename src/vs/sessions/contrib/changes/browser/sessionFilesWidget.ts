@@ -111,8 +111,8 @@ class SessionFileListRenderer implements IListRenderer<ISessionFile, ISessionFil
 export class SessionFilesWidget extends Disposable {
 
 	static readonly HEADER_HEIGHT = 34; // 6px header margin-top + 8px header padding + 20px header min-height
-	static readonly MIN_BODY_HEIGHT = 3 * SessionFileListDelegate.ITEM_HEIGHT + 2;
-	static readonly PREFERRED_BODY_HEIGHT = 4 * SessionFileListDelegate.ITEM_HEIGHT;
+	static readonly MIN_BODY_HEIGHT = 3 * SessionFileListDelegate.ITEM_HEIGHT;
+	static readonly PREFERRED_BODY_HEIGHT = 3 * SessionFileListDelegate.ITEM_HEIGHT;
 	static readonly MAX_BODY_HEIGHT = 240;
 
 	private readonly _domNode: HTMLElement;
@@ -258,7 +258,6 @@ export class SessionFilesWidget extends Disposable {
 			this._fileCount = files.length;
 
 			if (files.length === 0) {
-				this._setCollapsed(false);
 				this._renderBody([]);
 				this._domNode.style.display = 'none';
 				if (oldCount !== 0) {
@@ -291,8 +290,16 @@ export class SessionFilesWidget extends Disposable {
 	}
 
 	private _toggleCollapsed(): void {
-		this._setCollapsed(!this._collapsed);
-		this._onDidToggleCollapsed.fire(this._collapsed);
+		this.setCollapsed(!this._collapsed);
+	}
+
+	/** Sets the collapsed state and notifies the SplitView layout. */
+	setCollapsed(collapsed: boolean): void {
+		if (this._collapsed === collapsed) {
+			return;
+		}
+		this._setCollapsed(collapsed);
+		this._onDidToggleCollapsed.fire(collapsed);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -301,12 +308,7 @@ export class SessionFilesWidget extends Disposable {
 	 * parent pane restores its size. No-op when already expanded.
 	 */
 	expand(): void {
-		if (!this._collapsed) {
-			return;
-		}
-		this._setCollapsed(false);
-		this._onDidToggleCollapsed.fire(false);
-		this._onDidChangeHeight.fire();
+		this.setCollapsed(false);
 	}
 
 	/**

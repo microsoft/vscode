@@ -43,6 +43,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
+import { UpdateAgentPluginsCommandId } from '../chat.js';
 
 const $ = DOM.$;
 
@@ -398,6 +399,7 @@ export class PluginListWidget extends Disposable {
 	private addButtonSimple!: Button;
 	private addButton!: ButtonWithDropdown;
 	private createPluginButton!: Button;
+	private updatePluginsButton!: Button;
 	private readonly addDropdownActions = this._register(new DisposableStore());
 
 	private installedItems: IInstalledPluginItem[] = [];
@@ -509,7 +511,7 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 
-		// Button container (Browse Marketplace + Add actions + Create Plugin)
+		// Button container (Browse Marketplace + Add actions + Create Plugin + Update Plugins)
 		this.buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
 		// Back button (visible only in marketplace browse mode)
@@ -551,6 +553,12 @@ export class PluginListWidget extends Disposable {
 		this.createPluginButton.element.classList.add('list-icon-button');
 		this.createPluginButton.label = `$(${Codicon.newFile.id})`;
 		this._register(this.createPluginButton.onDidClick(() => this.runCreatePluginAction()));
+
+		const updatePluginsLabel = localize('updatePlugins', "Update Plugins");
+		this.updatePluginsButton = this._register(new Button(this.buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: updatePluginsLabel, ariaLabel: updatePluginsLabel }));
+		this.updatePluginsButton.element.classList.add('list-icon-button');
+		this.updatePluginsButton.label = `$(${Codicon.refresh.id})`;
+		this._register(this.updatePluginsButton.onDidClick(() => this.runUpdatePluginsAction()));
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
@@ -843,6 +851,15 @@ export class PluginListWidget extends Disposable {
 
 	private async runCreatePluginAction(): Promise<void> {
 		await this.commandService.executeCommand('workbench.action.chat.createPlugin');
+	}
+
+	private async runUpdatePluginsAction(): Promise<void> {
+		this.updatePluginsButton.enabled = false;
+		try {
+			await this.commandService.executeCommand(UpdateAgentPluginsCommandId);
+		} finally {
+			this.updatePluginsButton.enabled = true;
+		}
 	}
 
 	private async runPluginAction(action: ICustomizationItemAction): Promise<void> {

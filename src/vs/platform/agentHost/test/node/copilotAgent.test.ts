@@ -36,7 +36,7 @@ import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -50,6 +50,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
@@ -1372,6 +1373,9 @@ suite('CopilotAgent', () => {
 				clientFailureId: 'string',
 				failureKind: 'startupFailed',
 				operation: 'startClient',
+				startupFailureCause: 'spawnFailed',
+				startupFailureResource: 'other',
+				startupExitCode: undefined,
 				activeTurnCount: 0,
 				recoveryStarted: false,
 				errorName: 'Error',
@@ -1379,6 +1383,68 @@ suite('CopilotAgent', () => {
 				msg: 'Failed to start CLI server: spawn failed',
 				callstack: 'string',
 			});
+		} finally {
+			client.startError = undefined;
+			await disposeAgent(agent);
+		}
+	});
+
+	test('reports bounded Copilot client startup failure details', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		const cases = [{
+			message: 'CLI server exited with code 1\nNative addon "runtime" not found. prebuilds/win32-x64/runtime.node: The specified procedure could not be found. runtime.win32-x64-msvc.node: Cannot find module',
+			expected: { startupFailureCause: 'nativeModuleProcedureNotFound', startupFailureResource: 'runtime', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 3221226505\nprebuilds/win32-x64/runtime.node: A dynamic link library (DLL) initialization routine failed.',
+			expected: { startupFailureCause: 'nativeModuleInitializationFailed', startupFailureResource: 'runtime', startupExitCode: 3221226505 },
+		}, {
+			message: 'CLI server exited with code 1\nPermission denied',
+			expected: { startupFailureCause: 'permissionDenied', startupFailureResource: 'other', startupExitCode: 1 },
+		}, {
+			message: 'Failed to start CLI server: spawn EACCES',
+			expected: { startupFailureCause: 'permissionDenied', startupFailureResource: 'other', startupExitCode: undefined },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module conpty.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'conpty', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module cli-native.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'cliNative', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module wxc-exec.exe',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'sandbox', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module /Users/wxc/project/helper.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'other', startupExitCode: 1 },
+		}, {
+			message: 'Timeout waiting for CLI server to start',
+			expected: { startupFailureCause: 'timeout', startupFailureResource: 'other', startupExitCode: undefined },
+		}, {
+			message: 'CLI server exited unexpectedly with code 3221225477',
+			expected: { startupFailureCause: 'processExitedUnexpectedly', startupFailureResource: 'other', startupExitCode: 3221225477 },
+		}, {
+			message: 'CLI server exited with code 0',
+			expected: { startupFailureCause: 'processExited', startupFailureResource: 'other', startupExitCode: 0 },
+		}, {
+			message: 'CLI server exited with code 9007199254740992',
+			expected: { startupFailureCause: 'processExited', startupFailureResource: 'other', startupExitCode: undefined },
+		}];
+
+		try {
+			for (const testCase of cases) {
+				client.startError = new Error(testCase.message);
+				await assert.rejects(agent.listSessions());
+			}
+
+			assert.deepStrictEqual(telemetryService.errorEvents.map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					startupFailureCause: data.startupFailureCause,
+					startupFailureResource: data.startupFailureResource,
+					startupExitCode: data.startupExitCode,
+				};
+			}), cases.map(testCase => testCase.expected));
 		} finally {
 			client.startError = undefined;
 			await disposeAgent(agent);
@@ -3343,6 +3409,87 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	suite('createSession fork', () => {
+		test('rejects a fork targeting its source session', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const session = AgentSession.uri('copilotcli', 'same-session');
+
+			try {
+				await assert.rejects(() => agent.createSession({
+					session,
+					fork: { session, turnIndex: 0, turnId: 'turn-1' },
+				}), /Cannot fork Copilot session same-session onto itself/);
+				assert.strictEqual(client.startCallCount, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materializes provider history under the client-chosen session ID', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'source-session');
+			const target = AgentSession.uri('copilotcli', 'target-session');
+			const sourceWorkingDirectory = URI.file('/source-workspace');
+			const sourceEventId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: 'source-turn',
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [{ ...sourceTurn, id: sourceEventId }],
+				getTurnEventId: async (turnId: string) => turnId === sourceTurn.id ? sourceEventId : undefined,
+				workingDirectory: sourceWorkingDirectory,
+				dispose: () => { },
+			});
+
+			let imported: { config: IAgentCreateSessionConfig; sessionId: string; workingDirectory: URI } | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async (config, sessionId, directory) => {
+				imported = { config, sessionId, workingDirectory: directory };
+				return { session: target, resolvedWorkingDirectory: directory };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				const result = await agent.createSession({
+					session: target,
+					workingDirectories: [URI.file('/ignored-client-workspace')],
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurn.id,
+						turnIdMapping: new Map([[sourceTurn.id, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual({
+					resultSession: result.session.toString(),
+					importSessionId: imported?.sessionId,
+					importWorkingDirectory: imported?.workingDirectory.toString(),
+					importWorkingDirectories: imported?.config.workingDirectories?.map(directory => directory.toString()),
+					importFork: imported?.config.fork,
+					importedTurnIds: imported?.config.importConversation?.turns.map(turn => turn.id),
+				}, {
+					resultSession: target.toString(),
+					importSessionId: AgentSession.id(target),
+					importWorkingDirectory: sourceWorkingDirectory.toString(),
+					importWorkingDirectories: [sourceWorkingDirectory.toString()],
+					importFork: undefined,
+					importedTurnIds: [forkedTurnId],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
 	suite('createSession activeClient eager-claim', () => {
 
 		class SpyingPluginManager extends TestAgentPluginManager {
@@ -4113,6 +4260,13 @@ suite('CopilotAgent', () => {
 				const systemMessage = capturedConfig.systemMessage;
 				assert.deepStrictEqual(systemMessage, {
 					...COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
+					sections: {
+						...COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections,
+						tool_instructions: {
+							action: 'append',
+							content: `\n${COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION}`,
+						},
+					},
 					content: COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS,
 				});
 				if (!systemMessage || systemMessage.mode !== 'customize') {
@@ -6758,7 +6912,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ first, second, configValues },
-					{ first: true, second: false, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
+					{ first: { adopted: true, eligible: true }, second: { adopted: false, eligible: false }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6787,7 +6941,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, customTitle },
-					{ adopted: true, customTitle: 'My Legacy Session' },
+					{ adopted: { adopted: true, eligible: true }, customTitle: 'My Legacy Session' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6811,7 +6965,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
-					{ adopted: false, getSessionMetadataCalls: [], openedDatabases: [] },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6838,7 +6992,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls },
-					{ adopted: false, getSessionMetadataCalls: [] },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });

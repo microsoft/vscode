@@ -16,8 +16,8 @@ data the SDK accepts directly.
   shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and
   `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated
-  one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's
-  `tool_instructions` section. The browser line is the one registered today.
+  or unconditional one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the
+  SDK's `tool_instructions` section.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `allPrompts.ts` — side-effect import hub; importing it registers every
   contributor into the shared `agentHostPromptRegistry`.
@@ -44,12 +44,13 @@ There are two ways to customize, and a model can use both at once.
 
 ## Lever 1 — universal, all models (`toolInstructions.ts`)
 
-Guidance for a tool that should apply to **every** model whenever that tool is in
-the session. This is what the browser line does.
+Guidance that should apply to **every** model. A line can be unconditional for
+host-wide behavior such as reading offloaded tool output, or gated on a client
+tool as the browser line is.
 
 1. Write a `ToolInstructionLine` — a function `(hasTool) => string | undefined`
-   that returns one sentence (no surrounding newlines) when its tool is present,
-   or `undefined` to contribute nothing.
+   that returns one sentence (no surrounding newlines), or `undefined` when its
+   gate does not apply.
 2. Add it to `TOOL_INSTRUCTION_LINES`.
 
 ```ts
@@ -58,7 +59,7 @@ const exampleToolInstructions: ToolInstructionLine = hasTool =>
 		? 'One sentence of guidance, shown only when that tool is present.'
 		: undefined;
 
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [browserToolInstructions, exampleToolInstructions];
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, browserToolInstructions, exampleToolInstructions];
 ```
 
 **Caveat — `hasTool` sees CLIENT tools only.** It is `context.hasClientTool`,

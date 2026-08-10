@@ -19,7 +19,7 @@ import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePane
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-const singlePaneHeaderToggleDetailsOrder = 20;
+const singlePaneHeaderToggleDetailsOrder = 10;
 
 /**
  * Owns the single-pane Toggle Details action. The Sessions sidebar remains under

@@ -267,11 +267,10 @@ export class SessionTypePicker extends Disposable {
 	/**
 	 * Constrains a pick to the types the picker actually offers, falling back to
 	 * the preferred (first) type when it doesn't. A remembered pick outlives the
-	 * harness that produced it: a session type can stop being advertised (e.g.
-	 * the extension-host Copilot CLI once `chat.agents.copilotCli.hideExtensionHost`
-	 * is on), and the stored preference still names it. Displaying it as selected
-	 * while the dropdown hides it would let the user start a session on a harness
-	 * they can no longer pick.
+	 * harness that produced it: a session type can stop being advertised while
+	 * the stored preference still names it. Displaying it as selected while the
+	 * dropdown hides it would let the user start a session on a harness they can
+	 * no longer pick.
 	 *
 	 * An empty offer list means the types aren't known yet (no session or folder
 	 * to source them from, or a provider still connecting), so the pick is left

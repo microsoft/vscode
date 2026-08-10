@@ -101,7 +101,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -794,7 +794,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * already be cleared by then.
 	 */
 	private readonly _inputNeededWatcherBackends = new ResourceMap<URI>();
-	/** Per-session subscription reconciling client data after session state hydration. */
+	/** One-shot per-session subscription reconciling client data after session state hydration. */
 	private readonly _activeClientRefreshSubscriptions = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
@@ -1362,7 +1362,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (sessionSubscription) {
 			this._ensureActiveClientRefreshSubscription(sessionResource, resolvedSession, sessionSubscription);
 		}
-		this._refreshActiveClientIfPresent(resolvedSession);
 
 		if (!isNewSession) {
 			// Only wire up pending-message/draft sync once the chat URI has been
@@ -1892,33 +1891,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
-	/**
-	 * Refresh this client's tools and customizations when it is already active.
-	 * Unlike {@link _ensureActiveClient}, this never claims a session owned by a
-	 * different client, so opening a session cannot interrupt another window's
-	 * in-progress turn. This closes the initialization race where customization
-	 * discovery finishes before the session is added to `_activeSessions`.
-	 */
-	private _refreshActiveClientIfPresent(backendSession: URI): void {
-		const state = this._getSessionState(backendSession.toString());
-		const activeClient = this._getCurrentActiveClient();
-		const existing = state?.activeClients.find(c => c.clientId === activeClient.clientId);
-		if (!existing || equals(existing, activeClient)) {
-			return;
-		}
-		this._dispatchAction(backendSession, {
-			type: ActionType.SessionActiveClientSet,
-			activeClient,
-		});
-	}
-
+	/** Refreshes this client's data once it appears in hydrated state without claiming another client's session. */
 	private _ensureActiveClientRefreshSubscription(sessionResource: URI, backendSession: URI, sessionSubscription: IAgentSubscription<SessionState>): void {
 		if (this._activeClientRefreshSubscriptions.has(sessionResource)) {
 			return;
 		}
-		this._activeClientRefreshSubscriptions.set(sessionResource, sessionSubscription.onDidChange(() => {
-			this._refreshActiveClientIfPresent(backendSession);
-		}));
+		const refresh = () => {
+			const state = this._getSessionState(backendSession.toString());
+			const activeClient = this._getCurrentActiveClient();
+			const existing = state?.activeClients.find(c => c.clientId === activeClient.clientId);
+			if (!existing) {
+				return;
+			}
+
+			this._activeClientRefreshSubscriptions.deleteAndDispose(sessionResource);
+			if (!equals(existing, activeClient)) {
+				this._dispatchAction(backendSession, {
+					type: ActionType.SessionActiveClientSet,
+					activeClient,
+				});
+			}
+		};
+		this._activeClientRefreshSubscriptions.set(sessionResource, sessionSubscription.onDidChange(refresh));
+		refresh();
 	}
 
 	/**
@@ -3491,7 +3486,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, () => confirmationOptions, opts.chatURI);
 				}
 			} else if (status === ToolCallStatus.PendingConfirmation) {
-				invocation.updateConfirmationMessages(toolCallConfirmationMessages(tc, this._config.connectionAuthority));
+				// The protocol can refresh a pending tool's command without an
+				// intervening status transition. Refresh the whole presentation, not
+				// just its message, so Omni and voice expose the command that is
+				// actually awaiting approval while preserving the current gate.
+				const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
+				invocation.updatePreparedInvocation(prepared, invocation.parameters);
 			} else if (status === ToolCallStatus.AuthRequired) {
 				this._ensureLeftStreaming(invocation, tc, opts);
 				invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority), () => {

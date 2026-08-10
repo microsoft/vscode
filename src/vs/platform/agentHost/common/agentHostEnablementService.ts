@@ -30,13 +30,6 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostConfigurationTitle', "Chat Agent Host"),
 	type: 'object',
 	properties: {
-		'chat.agents.copilotCli.hideExtensionHost': {
-			type: 'boolean',
-			description: nls.localize('chat.agents.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the Agents window picker."),
-			default: true,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-		},
 		'chat.editor.preferCopilotHarness': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, prefers the Agent Host Copilot CLI for new editor chat sessions. If the local harness is selected, it is replaced with Copilot once."),
@@ -54,13 +47,6 @@ configurationRegistry.registerConfiguration({
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),
-			default: true,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-		},
-		'chat.editor.copilotCli.hideExtensionHost': {
-			type: 'boolean',
-			description: nls.localize('chat.editor.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the editor window chat picker."),
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },

@@ -157,7 +157,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			// No plain continuation family is produced.
 			plainContinuation: event.properties?.messagesJson_02,
 			// The full value round-trips from the compressed chunk family.
-			roundTrip: gunzip([event.properties?.messagesJsonChunk, event.properties?.messagesJsonChunk_2]),
+			roundTrip: gunzip([event.properties?.messagesJSONChunk, event.properties?.messagesJSONChunk_2]),
 		})), [
 			{ destination: 'enhancedGH', original: original.slice(0, 8192), plainContinuation: undefined, roundTrip: original },
 			{ destination: 'internalMSFT', original: original.slice(0, 8192), plainContinuation: undefined, roundTrip: original },

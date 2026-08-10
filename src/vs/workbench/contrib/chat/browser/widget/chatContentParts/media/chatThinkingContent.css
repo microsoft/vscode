@@ -24,6 +24,10 @@
 		margin: 0px;
 	}
 
+	> .chat-used-context-label {
+		position: relative;
+	}
+
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
 		display: flex;
 		align-items: center;
@@ -118,11 +122,11 @@
 	}
 
 	/* Curved connector from the header to the first thinking item */
-	&:not(.chat-used-context-collapsed)::after {
+	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
 		content: '';
 		position: absolute;
 		left: 3px;
-		top: 22px;
+		top: 100%;
 		height: 16px;
 		width: 5px;
 		border-left: 1px solid var(--vscode-chat-requestBorder);

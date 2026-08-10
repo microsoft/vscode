@@ -1617,6 +1617,30 @@ suite('ChatTipService', () => {
 		});
 	}
 
+	for (const tipId of [
+		'tip.autoAcceptDelay',
+		'tip.codeActions',
+	]) {
+		test(`excludes ${tipId} in the Agents window`, async () => {
+			const service = createService();
+			contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+			contextKeyService.createKey(IsSessionsWindowContext.key, true);
+			await new Promise<void>(r => queueMicrotask(r));
+
+			assertTipNeverShown(service, tipId);
+		});
+
+		test(`shows ${tipId} outside the Agents window`, async () => {
+			const service = createService();
+			contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+			contextKeyService.createKey(IsSessionsWindowContext.key, false);
+			await new Promise<void>(r => queueMicrotask(r));
+
+			const tip = findTipById(service, tipId);
+			assert.ok(tip, `Should show ${tipId} outside the Agents window`);
+		});
+	}
+
 	test('dismisses createPrompt tip after clicking its command link', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);

@@ -46,9 +46,12 @@ export function activateShared(
 	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));
 
+	const markdownEditorProvider = new MarkdownEditorProvider(context.extensionUri, context.globalState, opener, contributions, logger);
+	context.subscriptions.push(markdownEditorProvider);
+	context.subscriptions.push(registerMarkdownEditorCommands(context, markdownEditorProvider));
 	context.subscriptions.push(vscode.window.registerCustomEditorProvider(
 		MarkdownEditorProvider.viewType,
-		new MarkdownEditorProvider(context.extensionUri, context.globalState, opener),
+		markdownEditorProvider,
 		{
 			webviewOptions: { retainContextWhenHidden: true },
 			supportsMultipleEditorsPerDocument: true,
@@ -57,6 +60,28 @@ export function activateShared(
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		previewManager.updateConfiguration();
 	}));
+}
+
+function registerMarkdownEditorCommands(
+	context: vscode.ExtensionContext,
+	provider: MarkdownEditorProvider,
+): vscode.Disposable {
+	const contributions = context.extension.packageJSON.contributes as {
+		readonly commands?: readonly {
+			readonly command?: unknown;
+			readonly $generated?: unknown;
+		}[];
+	} | undefined;
+	const registrations = (contributions?.commands ?? [])
+		.filter(command => command.$generated === true)
+		.map(command => {
+			const commandId = command.command;
+			if (typeof commandId !== 'string') {
+				throw new TypeError('Generated Markdown editor command is missing its command identifier.');
+			}
+			return vscode.commands.registerCommand(commandId, () => provider.executeCommand(commandId));
+		});
+	return vscode.Disposable.from(...registrations);
 }
 
 function registerMarkdownLanguageFeatures(

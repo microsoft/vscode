@@ -90,6 +90,7 @@ suite('AgentHostGitStateService', () => {
 		const gitCalls: string[] = [];
 		let gitResult: ISessionGitState | undefined;
 		let gitError: Error | undefined;
+		let headSha: string | undefined;
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
 			getSessionGitState: async (workingDirectory: URI) => {
@@ -99,16 +100,23 @@ suite('AgentHostGitStateService', () => {
 				}
 				return gitResult;
 			},
+			revParse: async () => headSha,
 		};
 
 		const pullRequestCalls: string[] = [];
+		const pullRequestShaCalls: string[] = [];
 		const pullRequestsByBranch = new Map<string, CreatedPullRequest>();
+		const pullRequestsBySha = new Map<string, CreatedPullRequest>();
 		let onPullRequestLookup: ((branch: string) => Promise<void>) | undefined;
 		const octoKitService = {
 			findPullRequestByHeadBranch: async (_owner: string, _repo: string, branch: string) => {
 				pullRequestCalls.push(branch);
 				await onPullRequestLookup?.(branch);
 				return pullRequestsByBranch.get(branch);
+			},
+			findPullRequestByHeadSha: async (_owner: string, _repo: string, sha: string) => {
+				pullRequestShaCalls.push(sha);
+				return pullRequestsBySha.get(sha);
 			},
 		} as unknown as IAgentHostOctoKitService;
 		const agentService = { getAuthToken: () => 'token' } as unknown as IAgentService;
@@ -133,9 +141,12 @@ suite('AgentHostGitStateService', () => {
 			gitCalls,
 			runEvents,
 			pullRequestCalls,
+			pullRequestShaCalls,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitError: (error: Error) => { gitError = error; },
+			setHeadSha: (sha: string | undefined) => { headSha = sha; },
 			setPullRequest: (branch: string, pullRequest: CreatedPullRequest) => { pullRequestsByBranch.set(branch, pullRequest); },
+			setPullRequestForSha: (sha: string, pullRequest: CreatedPullRequest) => { pullRequestsBySha.set(sha, pullRequest); },
 			setOnPullRequestLookup: (fn: (branch: string) => Promise<void>) => { onPullRequestLookup = fn; },
 		};
 	}
@@ -331,6 +342,87 @@ suite('AgentHostGitStateService', () => {
 					pullRequestBranchName: 'feature',
 				},
 			});
+		});
+	});
+
+	test('looks a pull request up by the upstream branch rather than the local branch name', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = {
+				branchName: 'local-name',
+				baseBranchName: 'main',
+				upstreamBranchName: 'origin/remote-name',
+				githubHeadOwner: 'microsoft',
+			};
+			const h = createHarness();
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+			});
+			h.setGitResult(gitState);
+			h.setPullRequest('remote-name', { url: 'https://github.com/microsoft/vscode/pull/1', number: 1 });
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+
+			assert.deepStrictEqual({
+				pullRequestCalls: h.pullRequestCalls,
+				pullRequestShaCalls: h.pullRequestShaCalls,
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			}, {
+				pullRequestCalls: ['remote-name'],
+				pullRequestShaCalls: [],
+				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'local-name' },
+			});
+		});
+	});
+
+	test('falls back to the commit at HEAD when the branch name matches no pull request', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// A branch checked out from a pull request head: no upstream, and a
+			// name that does not exist on the remote.
+			const gitState: ISessionGitState = { branchName: 'local-only', baseBranchName: 'main' };
+			const h = createHarness();
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+			});
+			h.setGitResult(gitState);
+			h.setHeadSha('1ce2c20d3dcb593273f604b077240543d494e276');
+			h.setPullRequestForSha('1ce2c20d3dcb593273f604b077240543d494e276', { url: 'https://github.com/microsoft/vscode/pull/2', number: 2 });
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+
+			assert.deepStrictEqual({
+				pullRequestCalls: h.pullRequestCalls,
+				pullRequestShaCalls: h.pullRequestShaCalls,
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			}, {
+				pullRequestCalls: ['local-only'],
+				pullRequestShaCalls: ['1ce2c20d3dcb593273f604b077240543d494e276'],
+				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'], pullRequestBranchName: 'local-only' },
+			});
+		});
+	});
+
+	test('ignores an upstream branch that does not resolve to a GitHub remote', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = {
+				branchName: 'local-name',
+				baseBranchName: 'main',
+				upstreamBranchName: 'gitlab/remote-name',
+			};
+			const h = createHarness();
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+			});
+			h.setGitResult(gitState);
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+
+			assert.deepStrictEqual(h.pullRequestCalls, ['local-name']);
 		});
 	});
 

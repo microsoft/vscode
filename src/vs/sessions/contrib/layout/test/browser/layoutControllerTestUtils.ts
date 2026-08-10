@@ -19,7 +19,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
-import { IEditorGroup, IEditorGroupsService, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ICloseEditorOptions, IEditorGroup, IEditorGroupsService, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -208,6 +208,8 @@ export interface ITestLayoutHarness {
 	openedEditors: IUntypedEditorInput[];
 	/** Records the depth-at-close for each `closeEditors` call, to assert layout-driven closes happen while suppressed. */
 	closeSuppressionFlags: boolean[];
+	/** Records whether each `closeEditors` call forces lifecycle cleanup. */
+	closeForceFlags: boolean[];
 	activePaneCompositeId: string | undefined;
 	pinnedAuxiliaryBarContainerIds: string[];
 	visibleEditorsList: readonly unknown[];
@@ -317,6 +319,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		closedEditors: [],
 		openedEditors: [],
 		closeSuppressionFlags: [],
+		closeForceFlags: [],
 		activePaneCompositeId: undefined,
 		pinnedAuxiliaryBarContainerIds: [SESSIONS_FILES_CONTAINER_ID, CHANGES_VIEW_CONTAINER_ID],
 		visibleEditorsList: [],
@@ -593,12 +596,13 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			}
 			return [];
 		}
-		override async closeEditors(editors: readonly { editor: EditorInput }[]): Promise<void> {
+		override async closeEditors(editors: readonly { editor: EditorInput }[], options?: ICloseEditorOptions): Promise<void> {
 			await harness.onCloseEditors?.();
 			for (const { editor } of editors) {
 				const index = harness.activeGroupEditors.indexOf(editor);
 				if (index !== -1) {
 					harness.closeSuppressionFlags.push(harness.editorPartAutoVisibilitySuppressionDepth > 0);
+					harness.closeForceFlags.push(options?.force === true);
 					harness.activeGroupEditors.splice(index, 1);
 					harness.closedEditors.push(editor);
 				}

@@ -40,9 +40,9 @@
 	content: "";
 	position: absolute;
 	top: 0;
-	left: 4px;
-	right: 4px;
-	height: 1px;
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
+	height: var(--vscode-strokeThickness);
 	pointer-events: none;
 	background-color: var(--vscode-sideBarSectionHeader-border, var(--vscode-panelSectionHeader-border, var(--vscode-panel-border)));
 }
@@ -91,11 +91,11 @@
 
 /*
  * The global focus rule uses `outline-offset: -1px`, which puts the ring's top
- * stroke right on the 1px section separator so it looks clipped. Inset it a bit
- * more so the keyboard focus ring clears the separator.
+ * stroke right on the 1px section separator so it looks clipped. Negate the
+ * smallest spacing token so the keyboard focus ring clears the separator.
  */
 .style-override .monaco-pane-view .pane > .pane-header:focus {
-	outline-offset: -2px;
+	outline-offset: calc(var(--vscode-spacing-size20) * -1);
 }
 
 .style-override.monaco-workbench .part > .title > .title-actions .start-debug-action-item {

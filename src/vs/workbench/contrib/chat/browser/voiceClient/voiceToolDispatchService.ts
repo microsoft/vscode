@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { posix, win32 } from '../../../../../base/common/path.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -15,11 +16,17 @@ import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/voi
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatModel } from '../../common/model/chatModel.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IVoiceDispatchResult, IVoiceToolCall, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, markPendingIdResolved, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -31,7 +38,15 @@ export interface IVoiceToolDispatchDelegate {
 	/** Get the resource URI of the currently active session. */
 	getCurrentSessionResource(): Promise<URI | undefined>;
 	/** Switch the view to a different session by resource URI. */
-	switchToSession(resource: URI): void;
+	switchToSession(resource: URI): Promise<boolean>;
+	/** Set the session all subsequent voice turns and actions belong to. */
+	setTargetSession(resource: URI): void;
+	/** The explicit voice target, or the currently shown session when unpinned. */
+	getTargetSessionResource(): URI | undefined;
+	/** Select a model in the currently shown voice input. */
+	selectModel(requestedModel: string): Promise<IVoiceModelSelectionResult>;
+	/** Attach files to the currently shown voice input. */
+	attachFiles(resources: readonly URI[]): Promise<IVoiceAttachmentResult>;
 	/** Get the set of auto-approved session resource strings. */
 	getAutoApprovedSessions(): Set<string>;
 	/** Mark all current sessions as auto-approved. */
@@ -40,6 +55,62 @@ export interface IVoiceToolDispatchDelegate {
 	removeAutoApprovedSession(resource: string): void;
 	/** Trigger an auto-approve check cycle. */
 	triggerAutoApproveCheck(): void;
+}
+
+export interface IVoiceModelSelectionResult {
+	readonly ok: boolean;
+	readonly reason?: 'no_input' | 'model_not_found' | 'ambiguous_model' | 'selection_failed';
+	readonly selected_model?: IVoiceModelReference;
+	readonly available_models?: readonly IVoiceModelReference[];
+}
+
+export interface IVoiceAttachmentResult {
+	readonly ok: boolean;
+	readonly reason?: 'no_input' | 'no_file' | 'file_not_found' | 'ambiguous_file' | 'attachment_failed';
+	readonly attached?: readonly string[];
+	readonly candidates?: readonly string[];
+}
+
+function voiceModelReference(model: ILanguageModelChatMetadataAndIdentifier): IVoiceModelReference {
+	return {
+		identifier: model.identifier,
+		name: model.metadata.name,
+		vendor: model.metadata.vendor,
+	};
+}
+
+function normalizeModelName(value: string): string {
+	return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Resolve only exact identifiers or unique normalized names; never guess among similar models. */
+export function resolveVoiceModel(models: readonly ILanguageModelChatMetadataAndIdentifier[], requestedModel: string): IVoiceModelSelectionResult & { readonly identifier?: string } {
+	const exactIdentifier = models.find(model => model.identifier === requestedModel);
+	if (exactIdentifier) {
+		return { ok: true, identifier: exactIdentifier.identifier, selected_model: voiceModelReference(exactIdentifier) };
+	}
+
+	const normalized = normalizeModelName(requestedModel);
+	const exactMatches = models.filter(model => [
+		model.metadata.name,
+		model.metadata.id,
+		model.metadata.family,
+		`${model.metadata.name} ${model.metadata.vendor}`,
+	].some(candidate => normalizeModelName(candidate) === normalized));
+	if (exactMatches.length === 1) {
+		return { ok: true, identifier: exactMatches[0].identifier, selected_model: voiceModelReference(exactMatches[0]) };
+	}
+	if (exactMatches.length > 1) {
+		return { ok: false, reason: 'ambiguous_model', available_models: exactMatches.map(voiceModelReference) };
+	}
+
+	const related = normalized ? models.filter(model => [model.metadata.name, model.metadata.id, model.metadata.family]
+		.some(candidate => normalizeModelName(candidate).includes(normalized) || normalized.includes(normalizeModelName(candidate)))) : [];
+	return {
+		ok: false,
+		reason: related.length > 1 ? 'ambiguous_model' : 'model_not_found',
+		available_models: (related.length > 0 ? related : models).slice(0, 10).map(voiceModelReference),
+	};
 }
 
 export interface IVoiceToolDispatchService {
@@ -78,6 +149,9 @@ const ACTION_LABELS: Record<string, string> = {
 	get_session_thread: localize('agentsVoice.action.getSessionThread', "Checking conversation..."),
 	respond_to_session: localize('agentsVoice.action.respond', "Responding..."),
 	focus_session: localize('agentsVoice.action.focusSession', "Focusing session..."),
+	set_model: localize('agentsVoice.action.setModel', "Changing model..."),
+	attach_file: localize('agentsVoice.action.attachFile', "Attaching file..."),
+	attach_files: localize('agentsVoice.action.attachFiles', "Attaching files..."),
 	auto_approve_session: localize('agentsVoice.action.autoApprove', "Auto-approving session..."),
 	revoke_auto_approve: localize('agentsVoice.action.revokeAutoApprove', "Revoking auto-approve..."),
 };
@@ -92,6 +166,9 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IFileService private readonly fileService: IFileService,
 	) { }
 
 	setDelegate(delegate: IVoiceToolDispatchDelegate): void {
@@ -170,35 +247,48 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 					}
 				}
 				if (firstResource) {
-					delegate.switchToSession(firstResource);
+					if (await delegate.switchToSession(firstResource)) {
+						delegate.setTargetSession(firstResource);
+					}
 				}
 				break;
 			}
 			case 'focus_session': {
 				const targetSessionId = argString('coding_session_id');
-				let targetResource: URI | undefined;
-				if (targetSessionId) {
-					// Try agent sessions first
-					const agentSession = this.agentSessionsService.model.sessions
-						.find(s => !s.isArchived() && s.resource.toString() === targetSessionId);
-					targetResource = agentSession?.resource;
-					// Fall back to regular chat sessions
-					if (!targetResource) {
-						for (const chatModel of this.chatService.chatModels.get()) {
-							if (chatModel.sessionResource.toString() === targetSessionId) {
-								targetResource = chatModel.sessionResource;
-								break;
-							}
-						}
-					}
-				}
+				const targetResource = this._findSessionResource(targetSessionId);
 				if (targetResource) {
 					const currentResource = await delegate.getCurrentSessionResource();
-					if (targetResource.toString() !== currentResource?.toString()) {
-						delegate.switchToSession(targetResource);
+					const switched = targetResource.toString() === currentResource?.toString()
+						|| await delegate.switchToSession(targetResource);
+					if (switched) {
+						delegate.setTargetSession(targetResource);
+						return JSON.stringify({ ok: true, session_id: targetResource.toString() });
 					}
 				}
-				break;
+				return JSON.stringify({ ok: false, reason: targetResource ? 'switch_failed' : 'session_not_found' });
+			}
+			case 'set_model': {
+				const requestedModel = argString('model_id') || argString('model');
+				if (!requestedModel) {
+					return JSON.stringify({ ok: false, reason: 'model_not_found' });
+				}
+				const target = await this._showActionTarget(argString('coding_session_id'));
+				if (!target.ok) {
+					return JSON.stringify(target);
+				}
+				return JSON.stringify(await delegate.selectModel(requestedModel));
+			}
+			case 'attach_file':
+			case 'attach_files': {
+				const target = await this._showActionTarget(argString('coding_session_id'));
+				if (!target.ok) {
+					return JSON.stringify(target);
+				}
+				const resolved = await this._resolveAttachmentResources(args);
+				if (!resolved.ok) {
+					return JSON.stringify(resolved);
+				}
+				return JSON.stringify(await delegate.attachFiles(resolved.resources));
 			}
 			case 'auto_approve_session': {
 				delegate.addAllAutoApprovedSessions();
@@ -230,6 +320,100 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			}
 		}
 		return 'ok';
+	}
+
+	private _findSessionResource(sessionId: string): URI | undefined {
+		if (!sessionId) {
+			return undefined;
+		}
+		const agentSession = this.agentSessionsService.model.sessions
+			.find(session => !session.isArchived() && session.resource.toString() === sessionId);
+		if (agentSession) {
+			return agentSession.resource;
+		}
+		for (const model of this.chatService.chatModels.get()) {
+			if (model.sessionResource.toString() === sessionId) {
+				return model.sessionResource;
+			}
+		}
+		return undefined;
+	}
+
+	private async _showActionTarget(sessionId: string): Promise<{ ok: true; resource: URI } | { ok: false; reason: 'no_session' | 'session_not_found' | 'switch_failed' }> {
+		const delegate = this._delegate;
+		if (!delegate) {
+			return { ok: false, reason: 'no_session' };
+		}
+		const resource = sessionId
+			? this._findSessionResource(sessionId)
+			: delegate.getTargetSessionResource() ?? await delegate.getCurrentSessionResource();
+		if (!resource) {
+			return { ok: false, reason: sessionId ? 'session_not_found' : 'no_session' };
+		}
+		const current = await delegate.getCurrentSessionResource();
+		if (current?.toString() !== resource.toString() && !await delegate.switchToSession(resource)) {
+			return { ok: false, reason: 'switch_failed' };
+		}
+		if (sessionId) {
+			delegate.setTargetSession(resource);
+		}
+		return { ok: true, resource };
+	}
+
+	private async _resolveAttachmentResources(args: Record<string, unknown>): Promise<
+		{ ok: true; resources: readonly URI[] }
+		| { ok: false; reason: NonNullable<IVoiceAttachmentResult['reason']>; candidates?: readonly string[] }
+	> {
+		const uriValues = [args['uri'], ...(Array.isArray(args['uris']) ? args['uris'] : [])]
+			.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+		const pathValues = [args['path'], ...(Array.isArray(args['paths']) ? args['paths'] : [])]
+			.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+		if (uriValues.length === 0 && pathValues.length === 0) {
+			const activeResource = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			return activeResource ? { ok: true, resources: [activeResource] } : { ok: false, reason: 'no_file' };
+		}
+
+		const resources: URI[] = [];
+		for (const rawValue of uriValues) {
+			const value = rawValue.trim();
+			let resource: URI;
+			try {
+				resource = URI.parse(value, true);
+			} catch {
+				return { ok: false, reason: 'file_not_found', candidates: [value] };
+			}
+			if (!await this.fileService.exists(resource)) {
+				return { ok: false, reason: 'file_not_found', candidates: [value] };
+			}
+			resources.push(resource);
+		}
+
+		for (const rawValue of pathValues) {
+			const value = rawValue.trim();
+			const isWindowsPath = win32.isAbsolute(value);
+			if (isWindowsPath || posix.isAbsolute(value)) {
+				const resource = URI.file(isWindowsPath ? value.replaceAll('\\', '/') : value);
+				if (!await this.fileService.exists(resource)) {
+					return { ok: false, reason: 'file_not_found', candidates: [value] };
+				}
+				resources.push(resource);
+				continue;
+			}
+
+			const relativePath = value.replace(/^\.[\\/]/, '').replaceAll('\\', '/');
+			const candidates = this.workspaceContextService.getWorkspace().folders
+				.map(folder => URI.joinPath(folder.uri, relativePath));
+			const exists = await Promise.all(candidates.map(candidate => this.fileService.exists(candidate)));
+			const matches = candidates.filter((_candidate, index) => exists[index]);
+			if (matches.length === 0) {
+				return { ok: false, reason: 'file_not_found', candidates: [value] };
+			}
+			if (matches.length > 1) {
+				return { ok: false, reason: 'ambiguous_file', candidates: matches.map(match => match.toString()) };
+			}
+			resources.push(matches[0]);
+		}
+		return { ok: true, resources };
 	}
 
 	/**
@@ -314,6 +498,10 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			if (getVoiceConfirmationType([part]) !== 'tool') {
 				return { ok: false, reason: 'unsupported' };
 			}
+			// A provider may keep multiple rehydrated copies pending while it sends
+			// this response. Retire the shared occurrence before invoking the callback
+			// so none of those copies can submit the same approval a second time.
+			markPendingIdResolved(pendingId);
 			const confirmed = IChatToolInvocation.confirmWith(
 				part as IChatToolInvocation,
 				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied },
@@ -455,71 +643,92 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 
 
 	private async _gatherSessionInfo(): Promise<string> {
-		const allSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
-		const delegate = this._delegate;
-		const currentResource = await delegate?.getCurrentSessionResource();
-
-		// Per-session lastActivity (ms epoch). 0 means "no timing info" — treat as oldest.
-		const lastActivityOf = (s: typeof allSessions[number]): number =>
-			s.timing.lastRequestEnded ?? s.timing.lastRequestStarted ?? s.timing.created ?? 0;
-
-		// Calendar-day key (local time) for an epoch ms timestamp.
-		const dayKey = (ms: number): string => {
-			const d = new Date(ms);
-			return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+		const agentSessions = this.agentSessionsService.model.sessions.filter(session => !session.isArchived());
+		const currentResource = await this._delegate?.getCurrentSessionResource();
+		const activeResource = this._delegate?.getTargetSessionResource() ?? currentResource;
+		const agentResources = new Set(agentSessions.map(session => session.resource.toString()));
+		const inputDetails = (model: IChatModel | undefined) => {
+			const state = model?.inputModel?.state?.get();
+			const selected = state?.selectedModel;
+			const attachments = state?.attachments.filter(isExplicitFileOrImageVariableEntry) ?? [];
+			return {
+				...(selected ? { selected_model: voiceModelReference(selected) } : {}),
+				...(attachments.length ? {
+					attachment_names: attachments.map(attachment => attachment.name).slice(0, 10),
+					attachment_count: attachments.length,
+				} : {}),
+			};
+		};
+		const lastResponseSummary = (model: IChatModel | undefined): string | undefined => {
+			const summary = model?.getRequests().at(-1)?.response?.response.value
+				.filter(part => part.kind === 'markdownContent')
+				.map(part => (part as { content: { value: string } }).content.value)
+				.join(' ')
+				.slice(0, 500);
+			return summary || undefined;
 		};
 
-		// Filter to "active today, or if none today, the most-recent active day".
-		const todayKey = dayKey(Date.now());
-		const withTiming = allSessions
-			.map(s => ({ s, t: lastActivityOf(s) }))
-			.filter(x => x.t > 0); // drop sessions with no activity timestamp at all
-
-		let filtered: typeof allSessions;
-		const todays = withTiming.filter(x => dayKey(x.t) === todayKey);
-		if (todays.length > 0) {
-			filtered = todays.map(x => x.s);
-		} else if (withTiming.length > 0) {
-			// Fall back to the most recent active day.
-			const mostRecent = withTiming.reduce((a, b) => (a.t >= b.t ? a : b));
-			const mostRecentKey = dayKey(mostRecent.t);
-			filtered = withTiming.filter(x => dayKey(x.t) === mostRecentKey).map(x => x.s);
-		} else {
-			filtered = [];
-		}
-
-		const sessionData = filtered.map(session => {
+		const sessionData: Array<Record<string, unknown> & { state: string; is_active: boolean; last_activity: number }> = agentSessions.map(session => {
 			const model = this.chatService.getSession(session.resource);
 			const changes = getAgentChangesSummary(session.changes);
-			const lastReq = model?.getRequests().at(-1);
-			const lastResponseSummary = lastReq?.response?.response.value
-				.filter(p => p.kind === 'markdownContent')
-				.map(p => (p as { content: { value: string } }).content.value)
-				.join(' ')
-				.slice(0, 500) || '';
-
-			const statusLabel =
-				session.status === AgentSessionStatus.InProgress ? 'working'
-					: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
-						: session.status === AgentSessionStatus.Completed ? 'idle'
-							: 'unknown';
-
-			const isActive = currentResource?.toString() === session.resource.toString();
-			const lastActivity = lastActivityOf(session);
-			const minutesAgo = lastActivity ? Math.round((Date.now() - lastActivity) / 60000) : undefined;
-
+			const state = session.status === AgentSessionStatus.InProgress ? 'working'
+				: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
+					: session.status === AgentSessionStatus.Completed ? 'idle'
+						: 'unknown';
+			const lastActivity = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created ?? 0;
 			return {
 				id: session.resource.toString(),
-				state: statusLabel,
-				is_active: isActive,
+				label: session.label || undefined,
+				session_type: 'agent' as const,
+				state,
+				is_active: activeResource?.toString() === session.resource.toString(),
 				insertions: changes?.insertions ?? 0,
 				deletions: changes?.deletions ?? 0,
-				last_activity_minutes_ago: minutesAgo,
-				last_response_summary: lastResponseSummary,
+				last_activity: lastActivity,
+				last_activity_minutes_ago: lastActivity ? Math.max(0, Math.round((Date.now() - lastActivity) / 60000)) : undefined,
+				last_response_summary: lastResponseSummary(model),
+				...inputDetails(model),
 			};
 		});
 
-		return JSON.stringify({ sessions: sessionData });
+		for (const model of this.chatService.chatModels.get()) {
+			const sessionId = model.sessionResource.toString();
+			const isActive = activeResource?.toString() === sessionId;
+			if (agentResources.has(sessionId) || (model.getRequests().length === 0 && !isActive)) {
+				continue;
+			}
+			const needsInput = model.requestNeedsInput?.get();
+			const inProgress = model.hasActiveRequest?.get();
+			const lastActivity = model.lastMessageDate || 0;
+			sessionData.push({
+				id: sessionId,
+				label: model.title || undefined,
+				session_type: 'chat',
+				state: needsInput ? 'waiting_for_input' : inProgress ? 'working' : 'idle',
+				is_active: isActive,
+				insertions: 0,
+				deletions: 0,
+				last_activity: lastActivity,
+				last_activity_minutes_ago: lastActivity ? Math.max(0, Math.round((Date.now() - lastActivity) / 60000)) : undefined,
+				last_response_summary: lastResponseSummary(model),
+				...inputDetails(model),
+			});
+		}
+
+		sessionData.sort((a, b) => Number(b.is_active) - Number(a.is_active) || b.last_activity - a.last_activity);
+		const counts = sessionData.reduce((result, session) => {
+			if (session.state === 'working') { result.working++; }
+			else if (session.state === 'waiting_for_input') { result.waiting_for_input++; }
+			else if (session.state === 'idle') { result.idle++; }
+			return result;
+		}, { working: 0, waiting_for_input: 0, idle: 0 });
+		const visibleSessions = sessionData.slice(0, 20).map(({ last_activity, ...session }) => session);
+		return JSON.stringify({
+			total_sessions: sessionData.length,
+			counts,
+			sessions: visibleSessions,
+			truncated: visibleSessions.length < sessionData.length,
+		});
 	}
 
 	/**

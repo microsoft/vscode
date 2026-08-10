@@ -10,6 +10,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';
 import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext } from './changesViewService.js';
 import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor } from './sessionChangesEditor.js';
@@ -44,9 +45,19 @@ export class ChangesetReviewAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
+		if (changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
+			return;
+		}
+
+		// Guard against a resource forwarded by a stale editor row (e.g. mid session switch).
+		const activeSessionChanges = changesViewService.activeSessionChangesObs.get();
+		if (!getChangesEditorFileStats(resource, activeSessionChanges)) {
+			return;
+		}
+
 		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
 
-		const reviewedFiles = changesViewService.activeSessionChangesObs.get()
+		const reviewedFiles = activeSessionChanges
 			.filter(change => change.reviewed)
 			.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
 			.filter((uri: string | undefined) => uri !== undefined);

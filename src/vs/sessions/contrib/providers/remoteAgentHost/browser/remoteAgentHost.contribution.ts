@@ -7,6 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout, IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -47,10 +48,10 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
-import { computeSSHConnectionKey, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt, logTerminalRecovery } from '../../../../common/sessionsTelemetry.js';
 
 Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 	matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType),
@@ -151,6 +152,8 @@ export class SSHReconnectState extends Disposable {
 	paused = false;
 	/** Wall-clock timestamp when {@link paused} was last set to true. */
 	pausedAt = 0;
+	/** Whether only an explicit user reconnect should resume this state. */
+	requiresUserInitiatedResume = false;
 
 	get hasPendingTimer(): boolean {
 		return !!this._timer.value;
@@ -174,11 +177,20 @@ export class SSHReconnectState extends Disposable {
 		this.attempts = 0;
 		this.paused = false;
 		this._timer.clear();
+		this.requiresUserInitiatedResume = false;
+	}
+
+	resumeAutomatically(): boolean {
+		if (!this.paused || this.requiresUserInitiatedResume) {
+			return false;
+		}
+		this.resetForResume();
+		return true;
 	}
 }
 
 export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
-	return isCancellationError(err);
+	return isCancellationError(err) || isSSHHostKeyDeniedError(err);
 }
 
 /**
@@ -462,6 +474,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				continue;
 			}
 			if (state?.paused) {
+				if (state.requiresUserInitiatedResume) {
+					this._logService.trace(`[RemoteAgentHost] SSH reconnect for ${sshConfigHost}: waiting for a user-initiated reconnect`);
+					continue;
+				}
 				const pausedMs = Date.now() - state.pausedAt;
 				if (pausedMs < SSH_RECONNECT_PAUSE_AUTO_RESUME_MS) {
 					this._logService.trace(`[RemoteAgentHost] SSH reconnect for ${sshConfigHost}: paused (${Math.round(pausedMs / 1000)}s ago), skipping`);
@@ -489,17 +505,36 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private async _connectSSHOnDemand(connection: IRemoteAgentHostSSHConnection, name: string, address: string): Promise<void> {
 		const sshConfigHost = connection.sshConfigHost;
 		if (!sshConfigHost) {
-			// `_connectSSHOnDemand` is only ever invoked from the on-demand
-			// "Connect" action, so this is always user-initiated — set
-			// explicitly for clarity even though it matches the default.
-			await this._sshService.connect({
-				host: connection.hostName,
-				port: connection.port,
-				username: connection.user ?? connection.hostName,
-				authMethod: SSHAuthMethod.Agent,
-				name,
-				userInitiated: true,
-			});
+			const stopwatch = StopWatch.create(false);
+			try {
+				await this._sshService.connect({
+					host: connection.hostName,
+					port: connection.port,
+					username: connection.user ?? connection.hostName,
+					authMethod: SSHAuthMethod.Agent,
+					name,
+					userInitiated: true,
+				});
+				logSSHConnectAttempt(this._telemetryService, {
+					operation: 'connect',
+					userInitiated: true,
+					attempt: 1,
+					durationMs: stopwatch.elapsed(),
+					success: true,
+					willRetry: false,
+				});
+			} catch (err) {
+				logSSHConnectAttempt(this._telemetryService, {
+					operation: 'connect',
+					userInitiated: true,
+					attempt: 1,
+					durationMs: stopwatch.elapsed(),
+					success: false,
+					willRetry: false,
+					errorCategory: categorizeSSHConnectError(err),
+				});
+				throw err;
+			}
 			return;
 		}
 		if (this._pendingSSHReconnects.has(sshConfigHost)) {
@@ -582,8 +617,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _resumeSSHReconnects(): void {
 		let resumed = 0;
 		for (const [, state] of this._sshReconnectStates) {
-			if (state.paused) {
-				state.resetForResume();
+			if (state.resumeAutomatically()) {
 				resumed++;
 			}
 		}
@@ -621,6 +655,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			const state = opts.getOrCreateState(opts.key);
 			const attempt = state.attempts;
 			const provider = this._providerInstances.get(opts.address);
+			const stopwatch = StopWatch.create(false);
 			if (opts.userInitiated) {
 				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 			}
@@ -636,22 +671,45 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 					}
 				}
 				await opts.doConnect();
+				logSSHConnectAttempt(this._telemetryService, {
+					operation: 'reconnect',
+					userInitiated: opts.userInitiated,
+					attempt: attempt + 1,
+					durationMs: stopwatch.elapsed(),
+					success: true,
+					willRetry: false,
+				});
 				opts.states.deleteAndDispose(opts.key);
 				this._logService.info(`[RemoteAgentHost] ${opts.kind} connection re-established for ${opts.key}`);
 			} catch (err) {
-				if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+				const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+				const pause = opts.shouldPause(err);
+				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				const willRetry = enabled && !opts.userInitiated && !pause && !incompatible && attempt + 1 < opts.maxAttempts;
+				logSSHConnectAttempt(this._telemetryService, {
+					operation: 'reconnect',
+					userInitiated: opts.userInitiated,
+					attempt: attempt + 1,
+					durationMs: stopwatch.elapsed(),
+					success: false,
+					willRetry,
+					errorCategory: categorizeSSHConnectError(err),
+				});
+				if (!enabled) {
 					opts.states.deleteAndDispose(opts.key);
 					return;
 				}
 				if (opts.userInitiated) {
 					provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 				}
-				if (opts.shouldPause(err)) {
-					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after user cancellation`);
+				if (pause) {
+					const requiresUserInitiatedResume = isSSHHostKeyDeniedError(err);
+					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after ${requiresUserInitiatedResume ? 'host key denial' : 'user cancellation'}`);
 					provider?.unpublishCachedSessions();
 					const liveState = opts.getOrCreateState(opts.key);
 					liveState.paused = true;
 					liveState.pausedAt = Date.now();
+					liveState.requiresUserInitiatedResume = requiresUserInitiatedResume;
 					return;
 				}
 				this._logService.error(`[RemoteAgentHost] ${opts.kind} reconnect failed for ${opts.key}`, err);
@@ -659,7 +717,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				// workspace picker can show the host's message and the user
 				// can read it. Other errors stay as the existing disconnected
 				// state.
-				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
 				if (incompatible) {
 					provider?.setConnectionStatus(incompatible);
 					// Don't keep retrying on incompatible — user needs to

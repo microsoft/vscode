@@ -423,7 +423,13 @@ suite('ChatAttachmentsContentPart', () => {
 
 				await new Promise<void>(resolve => setTimeout(resolve, 0));
 
-				assert.strictEqual(widget.element.ariaLabel, 'Attached image, pasted-image.png (Delete)');
+				assert.deepStrictEqual({
+					ariaLabel: widget.element.ariaLabel,
+					clearButtonClass: widget.element.querySelector('.monaco-button')?.className,
+				}, {
+					ariaLabel: 'Attached image, pasted-image.png (Delete)',
+					clearButtonClass: 'monaco-button codicon codicon-close-compact',
+				});
 			});
 		});
 	});

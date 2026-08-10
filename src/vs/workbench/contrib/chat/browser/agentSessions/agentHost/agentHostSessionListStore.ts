@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
  * Minimal agent-host connection surface needed by the session list store.
@@ -374,14 +374,25 @@ export class AgentHostSessionListStore extends Disposable {
 		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		const workspace = this._workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
+		const configuration = workspace.configuration;
 		const multiRoot = readSessionMultiRootMetadata(entry.summary._meta);
 		if (multiRoot) {
-			return URI.isUri(workspace.configuration)
-				&& extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), workspace.configuration);
+			// A multi-root window matches strictly by workspace-file identity so two
+			// different `.code-workspace` files that share a folder don't cross over.
+			if (URI.isUri(configuration)) {
+				return extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), configuration);
+			}
+			// An empty window shows every session; a single-folder (or other
+			// non-multi-root) window falls back to working-directory containment.
+			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders);
 		}
 		if (folders.length === 0) {
 			return true;
 		}
+		return this._matchesAnyFolder(workingDirectories, folders);
+	}
+
+	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
 		return workingDirectories.some(directory =>
 			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
 		);

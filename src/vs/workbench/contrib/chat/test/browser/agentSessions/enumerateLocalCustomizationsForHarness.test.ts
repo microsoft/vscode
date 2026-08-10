@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { enumerateLocalCustomizationsForHarness } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
@@ -21,10 +22,14 @@ function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): I
 
 function makePromptsService(
 	files: ReadonlyMap<string, readonly IPromptPath[]>,
+	disabledPromptFiles: ReadonlyMap<PromptsType, ResourceSet> = new Map(),
 ): IPromptsService {
 	return {
 		async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage): Promise<readonly IPromptPath[]> {
 			return files.get(`${type}/${storage}`) ?? [];
+		},
+		getDisabledPromptFiles(type: PromptsType): ResourceSet {
+			return disabledPromptFiles.get(type) ?? new ResourceSet();
 		},
 	} as unknown as IPromptsService;
 }
@@ -141,6 +146,54 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
 			{ uri: enabled.toString(), disabled: false },
 			{ uri: disabled.toString(), disabled: true },
+		]);
+	});
+
+	test('marks built-in skills disabled when the user disabled them in the Customizations UI', async () => {
+		// The Enable/Disable actions write to `IPromptsService`, not to the
+		// per-harness sync provider. Both stores must be honored, otherwise a
+		// disabled built-in skill would still be synced to the agent host.
+		const disabledSkill = URI.file('/builtin/create-pr/SKILL.md');
+		const enabledSkill = URI.file('/builtin/merge/SKILL.md');
+		const promptsService = makePromptsService(
+			new Map([
+				[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
+					makePromptPath(disabledSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage),
+					makePromptPath(enabledSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage),
+				]],
+			]),
+			new Map([[PromptsType.skill, new ResourceSet([disabledSkill])]]),
+		);
+
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
+
+		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
+			{ uri: disabledSkill.toString(), disabled: true },
+			{ uri: enabledSkill.toString(), disabled: false },
+		]);
+	});
+
+	test('does not honor the user-disabled store for prompt types the Customizations UI cannot re-enable', async () => {
+		// `getDisabledPromptFiles(agent)` is also written by the chat view agent
+		// picker ("hidden from agent picker"). The Customizations UI registers
+		// Enable/Disable only for built-in skills, so it has no way to bring a
+		// hidden agent back. Dropping it from the bundle would remove it from the
+		// Agents-window list too, stranding it permanently — so the wire must
+		// ignore that store here and leave the agent enabled.
+		const hiddenAgent = URI.file('/workspace/.github/agents/reviewer.agent.md');
+		const promptsService = makePromptsService(
+			new Map([
+				[`${PromptsType.agent}/${PromptsStorage.local}`, [
+					makePromptPath(hiddenAgent, PromptsType.agent, PromptsStorage.local),
+				]],
+			]),
+			new Map([[PromptsType.agent, new ResourceSet([hiddenAgent])]]),
+		);
+
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
+
+		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
+			{ uri: hiddenAgent.toString(), disabled: false },
 		]);
 	});
 

@@ -21,6 +21,7 @@ import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TerminalSettingId, type ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
@@ -200,7 +201,7 @@ interface ITestSetup {
 	defaultAccountService: MockDefaultAccountService;
 }
 
-function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): ITestSetup {
+function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, remoteAuthority?: string): ITestSetup {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
 	disposables.add({ dispose: () => agentHostService.dispose() });
@@ -216,6 +217,9 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: observableValue('agentHostEnabled', agentHostEnabled) });
+	instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+		override readonly remoteAuthority = remoteAuthority;
+	}());
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
@@ -250,6 +254,16 @@ suite('AgentHostTerminalContribution', () => {
 
 		// Even with a fully-hydrated rootState, nothing should fire because
 		// the contribution short-circuits in _updateEnabled.
+		agentHostService.setRootState(rootStateWithDefaultShellKey());
+		agentHostService.fireAgentHostStart();
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+	});
+
+	test('does not forward the local default shell to a remote agent host', async () => {
+		const { agentHostService } = setup(disposables, /*agentHostEnabled*/ true, 'ssh-remote+test');
+
 		agentHostService.setRootState(rootStateWithDefaultShellKey());
 		agentHostService.fireAgentHostStart();
 		await flush();

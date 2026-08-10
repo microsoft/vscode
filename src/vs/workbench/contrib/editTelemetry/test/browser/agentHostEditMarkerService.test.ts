@@ -14,11 +14,11 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { AttributedToolResultFileEditContent, createFileEditContentDigest, EditAttributionFlushOutcome, FILE_EDIT_ATTRIBUTION_PROPERTY, IEditAttributionCoverageGapAcknowledgement, IFileEditAttributionMarker, parseEditAttributionResource } from '../../../../../platform/agentHost/common/fileEditAttribution.js';
+import { createFileEditContentDigest, EditAttributionFlushOutcome, FILE_EDIT_ATTRIBUTION_PROPERTY, IEditAttributionCoverageGapAcknowledgement, IFileEditAttributionMarker, parseEditAttributionResource } from '../../../../../platform/agentHost/common/fileEditAttribution.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { ContentEncoding } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ToolResultContentType } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolResultContentType, ToolResultFileEditContent } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AgentHostEditAttributionDeferredError, AgentHostEditMarkerService } from '../../browser/telemetry/agentHostEditMarkerService.js';
@@ -43,6 +43,36 @@ suite('Agent Host Edit Marker Service', () => {
 			markerFirst: true,
 			reloadFirst: true,
 			suppressedIds: [markerFirst, reloadFirst],
+		});
+	});
+
+	test('shares one resolved attribution with all active consumers', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const first = correlation.register('a', 'ab');
+		const second = correlation.register('a', 'ab');
+		correlation.release(first);
+
+		context.fireMarker(marker(1, 'a', 'ab', {
+			modelId: 'gpt-5',
+			conversationId: 'session-1',
+			requestId: 'turn-1',
+			harness: 'copilotcli',
+		}));
+
+		const resolution = correlation.getResolution?.(second);
+		assert.deepStrictEqual({
+			sharedObservation: first === second,
+			suppressed: correlation.isSuppressed(second),
+			sourceKey: resolution?.source?.toKey(1),
+			sessionId: resolution?.source?.props.$$sessionId,
+			requestId: resolution?.source?.props.$$requestId,
+		}, {
+			sharedObservation: true,
+			suppressed: true,
+			sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
+			sessionId: 'session-1',
+			requestId: 'turn-1',
 		});
 	});
 
@@ -71,6 +101,68 @@ suite('Agent Host Edit Marker Service', () => {
 			},
 		});
 	});
+
+	test('rejects null marker source metadata without disrupting action processing', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const observation = correlation.register('a', 'ab');
+
+		const malformedMarker = {
+			version: 1,
+			editId: 'edit-null-source',
+			sequence: 1,
+			beforeDigest: createFileEditContentDigest('a'),
+			afterDigest: createFileEditContentDigest('ab'),
+			source: null,
+		};
+		context.fireRawMarker(malformedMarker);
+
+		assert.strictEqual(correlation.isSuppressed(observation), false);
+	});
+
+	test('does not evict active observations when the cap is reached', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const first = correlation.register('before-0', 'after-0');
+		for (let index = 1; index <= 128; index++) {
+			correlation.register(`before-${index}`, `after-${index}`);
+		}
+
+		context.fireMarker(marker(1, 'before-0', 'after-0'));
+
+		assert.deepStrictEqual({
+			firstSuppressed: correlation.isSuppressed(first),
+			suppressedIds: context.suppressedIds,
+		}, {
+			firstSuppressed: true,
+			suppressedIds: [first],
+		});
+	});
+
+	test('does not match an observation after its marker TTL expires', () => runWithFakedTimers({}, async () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const observation = correlation.register('a', 'ab');
+		await timeout(5 * 60 * 1000 + 1);
+
+		context.fireMarker(marker(1, 'a', 'ab'));
+
+		assert.strictEqual(correlation.isSuppressed(observation), false);
+	}));
+
+	test('recovers observation capacity after unresolved observations expire', () => runWithFakedTimers({}, async () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		for (let index = 0; index < 128; index++) {
+			correlation.register(`before-${index}`, `after-${index}`);
+		}
+		await timeout(5 * 60 * 1000 + 1);
+
+		const observation = correlation.register('current-before', 'current-after');
+		context.fireMarker(marker(1, 'current-before', 'current-after'));
+
+		assert.strictEqual(correlation.isSuppressed(observation), true);
+	}));
 
 	test('does not report expired coverage gaps', () => runWithFakedTimers({}, async () => {
 		const context = createContext();
@@ -226,6 +318,42 @@ suite('Agent Host Edit Marker Service', () => {
 		}, {
 			suppressed: false,
 			suppressedIds: [],
+		});
+	});
+
+	test('uses metadata from the matching repeated digest cycle', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		context.fireMarker(marker(1, 'a', 'ab', {
+			modelId: 'old-model',
+			conversationId: 'old-session',
+			requestId: 'old-turn',
+			harness: 'copilotcli',
+		}));
+		context.fireMarker(marker(2, 'ab', 'a', {
+			modelId: 'old-model',
+			conversationId: 'old-session',
+			requestId: 'old-turn',
+			harness: 'copilotcli',
+		}));
+		context.fireMarker(marker(3, 'a', 'ab', {
+			modelId: 'new-model',
+			conversationId: 'new-session',
+			requestId: 'new-turn',
+			harness: 'claude',
+		}));
+
+		const observation = correlation.register('a', 'ab');
+		const resolution = correlation.getResolution?.(observation);
+
+		assert.deepStrictEqual({
+			sourceKey: resolution?.source?.toKey(1),
+			sessionId: resolution?.source?.props.$$sessionId,
+			requestId: resolution?.source?.props.$$requestId,
+		}, {
+			sourceKey: 'source:Chat.applyEdits-$modelId:new-model-$harness:claude-$origin:agentHost',
+			sessionId: 'new-session',
+			requestId: 'new-turn',
 		});
 	});
 
@@ -608,7 +736,10 @@ suite('Agent Host Edit Marker Service', () => {
 			invalidatedIds,
 			resourceReads,
 			fireMarker(attribution: IFileEditAttributionMarker) {
-				const content: AttributedToolResultFileEditContent = {
+				this.fireRawMarker(attribution);
+			},
+			fireRawMarker(attribution: object & { readonly sequence: number }) {
+				const content: ToolResultFileEditContent = {
 					type: ToolResultContentType.FileEdit,
 					before: {
 						uri: resource.toString(),
@@ -618,8 +749,8 @@ suite('Agent Host Edit Marker Service', () => {
 						uri: resource.toString(),
 						content: { uri: 'session-db:/after' },
 					},
-					[FILE_EDIT_ATTRIBUTION_PROPERTY]: attribution,
 				};
+				Object.assign(content, { [FILE_EDIT_ATTRIBUTION_PROPERTY]: attribution });
 				actionEmitter.fire({
 					channel: 'ahp-chat:copilot%3A%2Fsession',
 					serverSeq: attribution.sequence,
@@ -640,12 +771,18 @@ suite('Agent Host Edit Marker Service', () => {
 	}
 });
 
-function marker(sequence: number, before: string, after: string): IFileEditAttributionMarker {
+function marker(sequence: number, before: string, after: string, source?: {
+	readonly modelId?: string;
+	readonly conversationId: string;
+	readonly requestId: string;
+	readonly harness: string;
+}): IFileEditAttributionMarker {
 	return {
 		version: 1,
 		editId: `edit-${sequence}`,
 		sequence,
 		beforeDigest: createFileEditContentDigest(before),
 		afterDigest: createFileEditContentDigest(after),
+		source,
 	};
 }

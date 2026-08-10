@@ -18,6 +18,7 @@ export interface IAgentHostConnection {
 
 export interface IAgentHostStarter extends IDisposable {
 	readonly onRequestConnection?: Event<void>;
+	readonly onRequestRestart?: Event<void>;
 	readonly onWillShutdown?: Event<void>;
 
 	/**

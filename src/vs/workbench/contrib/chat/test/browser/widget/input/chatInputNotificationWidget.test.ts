@@ -339,6 +339,28 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(notificationService.dismissed.join(','), 'info');
 	});
 
+	test('keep-open actions execute without dismissing the notification', async () => {
+		const commandService = new TestCommandService();
+		const { notificationService, widget } = createWidget({ commandService });
+		showNotification(notificationService, {
+			id: 'setup',
+			message: 'Setup',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Sign In', commandId: 'test.signIn', keepOpen: true }],
+		});
+
+		clickAction(widget);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			executed: commandService.executed,
+			dismissed: notificationService.dismissed,
+		}, {
+			executed: [{ id: 'test.signIn', args: [] }],
+			dismissed: [],
+		});
+	});
+
 	test('catches rejected command actions', async () => {
 		const logService = store.add(new RecordingLogService());
 		const commandService = new class extends TestCommandService {

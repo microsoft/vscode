@@ -1,0 +1,57 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.
+    response:
+      content:
+        - type: text
+          text: I'll ask you now.
+        - type: tool_use
+          id: toolcall_0
+          name: AskUserQuestion
+          input:
+            questions:
+              - question: Which colors?
+                header: Colors
+                multiSelect: true
+                options:
+                  - label: Red
+                    description: The color red.
+                  - label: Blue
+                    description: The color blue.
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll ask you now.
+            - type: tool_use
+              name: AskUserQuestion
+              input:
+                questions:
+                  - question: Which colors?
+                    header: Colors
+                    multiSelect: true
+                    options:
+                      - label: Red
+                        description: The color red.
+                      - label: Blue
+                        description: The color blue.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Your questions have been answered: "Which colors?"="Red". You can now continue with these answers in mind.'
+    response:
+      content: 'You selected: **Red**.'
+      stopReason: end_turn

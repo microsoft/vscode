@@ -28,6 +28,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 |`--fgrep <string>`|`-f`|Only run tests containing the given string (Mocha fgrep)|
 |`--test-results <path>`|`-t`|Output test results in JUnit format to the specified path|
 |`--timeout <sec>`||Set the test-case timeout in seconds (default: 600 seconds)|
+|`--artifacts-dir <path>`||Resolve builds from downloaded pipeline artifacts instead of the update service|
 |`--verbose`|`-v`|Enable verbose logging|
 |`--help`|`-h`|Show this help message|
 
@@ -38,6 +39,22 @@ To run CLI tests for all platforms on given commit of Insiders build, from the r
 ```bash
 npm run sanity-test -- --commit 19228f26df517fecbfda96c20956f7c521e072be --quality insider -g "cli*"
 ```
+
+### Testing Unpublished Builds
+
+By default targets are resolved through `update.code.visualstudio.com`, which only serves published
+builds. Validation builds that never publish — such as the Copilot SDK canary runs — can be tested by
+passing `--artifacts-dir`, which resolves each target from downloaded build pipeline artifacts laid out
+as `<artifacts-dir>/<artifact-name>/<file>`:
+
+```bash
+npm run sanity-test -- --commit <commit> --quality insider --artifacts-dir /tmp/artifacts -g "linux.*x64"
+```
+
+Every target has a `targetArtifacts` mapping in `src/context.ts`; an unmapped target fails with an
+explicit error rather than falling back to the update service, so runs must be scoped with `-g`/`-f`
+to the artifacts that were actually downloaded. The SHA-256 check is skipped in this mode because
+there is no update service metadata to compare against.
 
 ## Scripts
 

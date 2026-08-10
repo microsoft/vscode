@@ -35,6 +35,12 @@ export function serverToolAllowList(toolNames: readonly string[]): string[] {
 	return toolNames.map(name => `mcp__${CLAUDE_SERVER_TOOL_MCP_SERVER_NAME}__${name}`);
 }
 
+/** Returns the bare host server-tool name from its Claude SDK-prefixed name. */
+export function extractServerToolName(toolName: string): string | undefined {
+	const prefix = `mcp__${CLAUDE_SERVER_TOOL_MCP_SERVER_NAME}__`;
+	return toolName.startsWith(prefix) ? toolName.slice(prefix.length) : undefined;
+}
+
 /**
  * Build the per-session in-process MCP server that surfaces the agent host's
  * server tools to the Claude SDK.

@@ -668,7 +668,7 @@ suite('Automation branch picker', () => {
 
 	test('normalizes unsupported Worktree targets back to Folder mode', async () => {
 		const { container, model } = createItem({
-			state: createFormState({ sessionTypeId: 'claude-code', branch: 'feature/saved' }),
+			state: createFormState({ sessionTypeId: 'claude', branch: 'feature/saved' }),
 		});
 		await timeout(0);
 

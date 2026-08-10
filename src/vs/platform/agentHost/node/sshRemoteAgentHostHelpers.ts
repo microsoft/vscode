@@ -388,9 +388,24 @@ export function parseAgentEndpointsOutput(stdout: string): IAgentEndpointsResult
 	if (!trimmed) {
 		return undefined;
 	}
+	const candidates = [trimmed];
+	const lastLine = trimmed.split('\n').at(-1)?.trim();
+	if (lastLine && lastLine !== trimmed) {
+		candidates.push(lastLine);
+	}
+	for (const candidate of candidates) {
+		const result = parseAgentEndpointsDocument(candidate);
+		if (result) {
+			return result;
+		}
+	}
+	return undefined;
+}
+
+function parseAgentEndpointsDocument(value: string): IAgentEndpointsResult | undefined {
 	let raw: unknown;
 	try {
-		raw = JSON.parse(trimmed);
+		raw = JSON.parse(value);
 	} catch {
 		return undefined;
 	}
@@ -418,7 +433,7 @@ export async function runAgentEndpoints(exec: ISshExec, cliBin: string, cliDataD
 	}
 	const result = parseAgentEndpointsOutput(stdout);
 	if (!result) {
-		throw new Error(`'agent endpoints' produced unparsable output: ${JSON.stringify(stdout.slice(0, 500))}`);
+		throw new Error(`'agent endpoints' produced unparsable output (${stdout.length} characters)`);
 	}
 	return result;
 }

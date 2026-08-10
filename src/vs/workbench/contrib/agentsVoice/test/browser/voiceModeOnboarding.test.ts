@@ -57,7 +57,7 @@ suite('Voice Mode onboarding', () => {
 		});
 	}
 
-	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = [], holds: boolean[] = [], telemetryEvents: ITelemetryEvent[] = [], screenReaderOptimized = false): VoiceModeOnboardingService {
+	function createTestInstantiationService(store: Pick<DisposableStore, 'add'>, screenReaderOptimized = false) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
 			override readonly onDidChangeScreenReaderOptimized = Event.None;
@@ -65,6 +65,11 @@ suite('Voice Mode onboarding', () => {
 			override isScreenReaderOptimized(): boolean { return screenReaderOptimized; }
 			override isMotionReduced(): boolean { return false; }
 		});
+		return instantiationService;
+	}
+
+	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = [], holds: boolean[] = [], telemetryEvents: ITelemetryEvent[] = [], screenReaderOptimized = false): VoiceModeOnboardingService {
+		const instantiationService = createTestInstantiationService(store, screenReaderOptimized);
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand(id: string): Promise<undefined> {
 				executed.push(id);
@@ -126,7 +131,7 @@ suite('Voice Mode onboarding', () => {
 				microphonePickerHidden: true,
 				microphonePickerDisplay: 'none',
 				selectedOnOpen: 0,
-				voices: ['Maya (Default)', 'Victoria', 'Kevin', 'Daniel'],
+				voices: ['Birch (Default)', 'Harper', 'Oak', 'Junho'],
 				voicesLabel: 'Agent Voice:',
 				selectedAfterPick: 1,
 				shownAfterClose: false,
@@ -140,13 +145,7 @@ suite('Voice Mode onboarding', () => {
 	});
 
 	test('clicking the playing voice stops its preview without changing the selection', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
-			override readonly onDidChangeScreenReaderOptimized = Event.None;
-			override readonly onDidChangeReducedMotion = Event.None;
-			override isScreenReaderOptimized(): boolean { return false; }
-			override isMotionReduced(): boolean { return false; }
-		});
+		const instantiationService = createTestInstantiationService(disposables);
 
 		const audio = document.createElement('audio');
 		let playCount = 0;
@@ -165,43 +164,37 @@ suite('Voice Mode onboarding', () => {
 			audioFactory: () => audio,
 		}));
 
-		const maya = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!;
-		maya.click();
-		const playingAfterFirstClick = maya.classList.contains('playing');
-		const ariaLabelAfterFirstClick = maya.getAttribute('aria-label');
-		maya.click();
+		const defaultVoiceOption = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!;
+		defaultVoiceOption.click();
+		const playingAfterFirstClick = defaultVoiceOption.classList.contains('playing');
+		const ariaLabelAfterFirstClick = defaultVoiceOption.getAttribute('aria-label');
+		defaultVoiceOption.click();
 
 		assert.deepStrictEqual(
 			{
-				label: maya.querySelector('.voice-mode-onboarding-voice-label')?.textContent,
+				label: defaultVoiceOption.querySelector('.voice-mode-onboarding-voice-label')?.textContent,
 				playCount,
 				pauseCount,
 				playingAfterFirstClick,
 				ariaLabelAfterFirstClick,
-				playingAfterSecondClick: maya.classList.contains('playing'),
-				ariaLabelAfterSecondClick: maya.getAttribute('aria-label'),
-				selectedAfterSecondClick: maya.classList.contains('selected'),
+				playingAfterSecondClick: defaultVoiceOption.classList.contains('playing'),
+				ariaLabelAfterSecondClick: defaultVoiceOption.getAttribute('aria-label'),
+				selectedAfterSecondClick: defaultVoiceOption.classList.contains('selected'),
 			},
 			{
-				label: 'Maya (Default)',
+				label: 'Birch (Default)',
 				playCount: 1,
 				pauseCount: 1,
 				playingAfterFirstClick: true,
-				ariaLabelAfterFirstClick: 'Stop Maya (Default) preview.',
+				ariaLabelAfterFirstClick: 'Stop Birch (Default) preview.',
 				playingAfterSecondClick: false,
-				ariaLabelAfterSecondClick: 'Maya (Default). Hear this voice and use it for every conversation.',
+				ariaLabelAfterSecondClick: 'Birch (Default). Hear this voice and use it for every conversation.',
 				selectedAfterSecondClick: true,
 			});
 	});
 
 	test('previews the native voice per language and keeps the chooser only for English', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
-			override readonly onDidChangeScreenReaderOptimized = Event.None;
-			override readonly onDidChangeReducedMotion = Event.None;
-			override isScreenReaderOptimized(): boolean { return false; }
-			override isMotionReduced(): boolean { return false; }
-		});
+		const instantiationService = createTestInstantiationService(disposables);
 
 		// A language Voice Mode speaks natively shows its one voice with no
 		// chooser; English and languages without a native voice keep the four.
@@ -242,13 +235,7 @@ suite('Voice Mode onboarding', () => {
 	});
 
 	test('swaps the chips when the spoken language changes', () => {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
-			override readonly onDidChangeScreenReaderOptimized = Event.None;
-			override readonly onDidChangeReducedMotion = Event.None;
-			override isScreenReaderOptimized(): boolean { return false; }
-			override isMotionReduced(): boolean { return false; }
-		});
+		const instantiationService = createTestInstantiationService(disposables);
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('agents.voice.language', 'en');
 		instantiationService.stub(IConfigurationService, configurationService);

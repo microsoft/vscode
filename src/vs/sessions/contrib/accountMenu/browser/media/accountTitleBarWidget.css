@@ -349,21 +349,28 @@
 	width: 20px;
 	height: 20px;
 	padding: 3px;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-actions .action-label.codicon-sign-out::before {
+	display: inline-block;
+	transform: translateX(1px);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .actions-container,
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-item {
-	width: 100%;
+	width: max-content;
+	max-width: 100%;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-label {
-	width: 100%;
+	width: auto;
+	max-width: 100%;
 	box-sizing: border-box;
 	min-height: 24px;
 	padding: 2px 6px;

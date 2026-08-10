@@ -10,6 +10,7 @@ import { ILogService } from '../../log/common/logService';
 import { Response } from '../../networking/common/fetcherService';
 import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
+import type { AutoModeTier } from '../common/autoModeTiers';
 import { ICAPIClientService } from '../common/capiClient';
 import type { IModelAPIResponse } from '../common/endpointProvider';
 
@@ -72,6 +73,8 @@ export class AutoV2Fetcher {
 			multiTurn?: AutoV2MultiTurnState;
 			conversationId?: string;
 			vscodeRequestId?: string;
+			/** Routing profile for the session. Omitted lets the server pick its own default. */
+			tier?: AutoModeTier;
 			/**
 			 * Set when the call only reads `discounted_costs` for the picker.
 			 * Keeps the placeholder prompt out of telemetry and the request log.
@@ -86,6 +89,9 @@ export class AutoV2Fetcher {
 		}
 		if (options.multiTurn) {
 			requestBody.multi_turn = options.multiTurn;
+		}
+		if (options.tier) {
+			requestBody.tier = options.tier;
 		}
 
 		const copilotToken = (await this._authService.getCopilotToken()).token;
@@ -125,7 +131,7 @@ export class AutoV2Fetcher {
 		if (!result.selected_model?.id) {
 			throw new AutoV2Error('Auto response did not contain a selected model', response.status);
 		}
-		this._logService.trace(`[AutoV2Fetcher] Selected model: ${result.selected_model.id} (e2e_latency_ms: ${e2eLatencyMs}, expires_at: ${result.expires_at})`);
+		this._logService.trace(`[AutoV2Fetcher] Selected model: ${result.selected_model.id} (tier: ${options.tier ?? 'server default'}, e2e_latency_ms: ${e2eLatencyMs}, expires_at: ${result.expires_at})`);
 
 		this._requestLogger.addEntry({
 			type: LoggedRequestKind.MarkdownContentRequest,
@@ -136,6 +142,7 @@ export class AutoV2Fetcher {
 				`# Auto Mode Decision (POST /auto)`,
 				`## Result`,
 				`- **Selected Model**: ${result.selected_model.id}`,
+				`- **Tier**: ${options.tier ?? 'server default'}`,
 				`- **Expires At**: ${new Date(result.expires_at * 1000).toISOString()}`,
 				`## Latency`,
 				`- **E2E Latency**: ${e2eLatencyMs}ms`,
@@ -154,6 +161,7 @@ export class AutoV2Fetcher {
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID in which the selection was made." },
 				"vscodeRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The VS Code chat request id in which the selection was made." },
 				"selectedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model the server selected for this prompt." },
+				"tier": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The routing profile requested for this selection, e.g. eco, balanced, max, fast. Empty when none was requested." },
 				"e2eLatencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The end-to-end latency of the auto request in milliseconds, including network overhead." },
 				"scoreReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for reasoning. -1 if not present in the response." },
 				"scoreCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for code generation. -1 if not present in the response." },
@@ -166,6 +174,7 @@ export class AutoV2Fetcher {
 				conversationId: options.conversationId ?? '',
 				vscodeRequestId: options.vscodeRequestId ?? '',
 				selectedModel: result.selected_model.id,
+				tier: options.tier ?? '',
 			},
 			{
 				e2eLatencyMs,

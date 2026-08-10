@@ -558,7 +558,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getActiveHarnessLabel(): string {
-		return this.harnessService.getActiveDescriptor().label || localize('localHarnessLabel', "Local");
+		const label = this.harnessService.getActiveDescriptor().label;
+		return label || (this.workspaceService.isSessionsWindow ? '' : localize('localHarnessLabel', "Local"));
 	}
 
 	private updateHarnessLabelPresentation(): void {

@@ -19,6 +19,7 @@ import { IAgentHostChangesetService } from '../common/agentHostChangesetService.
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -77,7 +78,7 @@ import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
-import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
+import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
@@ -126,11 +127,13 @@ export interface IAgentSideEffectsOptions {
 	 * GitHub issues the message references).
 	 */
 	readonly onUserMessage?: (session: ProtocolURI, text: string) => void;
+	/** Process launcher used when client-origin metadata is unavailable. */
+	readonly hostLaunchKind?: AgentHostLaunchKind;
 }
 
 interface IQueuedMessageSender {
 	readonly clientId: string | undefined;
-	readonly clientType: AgentHostClientType;
+	readonly clientContext: IAgentHostClientTelemetryContext;
 }
 
 /** A signal that was deferred because its subagent session does not exist yet. */
@@ -558,6 +561,14 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededSet, request });
+		// Record the blocker on the turn so a hang reported while the request is
+		// outstanding is tagged as an expected wait on the user rather than as
+		// an unexplained stall. A `ChatInput` elicitation carries no `turnId`,
+		// so fall back to the chat's active turn.
+		const blockedTurnId = hasKey(request, { turnId: true }) ? request.turnId : this._stateManager.getActiveTurnId(chatUri);
+		if (blockedTurnId) {
+			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind);
+		}
 		if (request.kind !== SessionInputRequestKind.ChatInput) {
 			const agent = this._options.getAgent(sessionUri);
 			if (agent) {
@@ -569,6 +580,7 @@ export class AgentSideEffects extends Disposable {
 	private _removeSessionInputNeeded(chatUri: ProtocolURI, id: string): void {
 		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
 		this._toolCallTracker.toolCallUnblocked(chatUri, id);
+		this._turnTracker.turnUnblocked(chatUri, id);
 		if (!this._stateManager.getSessionState(sessionUri)?.inputNeeded?.some(r => r.id === id)) {
 			return;
 		}
@@ -843,6 +855,15 @@ export class AgentSideEffects extends Disposable {
 
 		this._stateManager.dispatchServerAction(sessionKey, action);
 
+		// Any turn-scoped action counts as activity for the hang watchdog: it is
+		// proof the agent loop is still alive, even when the action produces
+		// nothing visible. Session-scoped actions (title, customizations, MCP
+		// state, …) are deliberately excluded — they can arrive while a turn is
+		// genuinely stuck and would otherwise mask the hang.
+		if (hasKey(action, { turnId: true })) {
+			this._turnTracker.markActivity(sessionKey, turnId, action.type);
+		}
+
 		// Mark first visible progress for TTFT telemetry
 		if (action.type === ActionType.ChatDelta
 			|| action.type === ActionType.ChatResponsePart
@@ -851,7 +872,22 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.markFirstProgress(sessionKey, turnId);
 		}
 
+		if (action.type === ActionType.ChatToolCallStart) {
+			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId);
+		}
+
+		// A denied confirmation is a terminal transition to `cancelled`: the
+		// reducer ignores any later completion for the call, so drop it from
+		// the turn's in-flight set here or a subsequent hang would be reported
+		// as `runningTool` for a tool that will never run. Denials reach the
+		// host on this path as well as via `handleAction`.
+		if (action.type === ActionType.ChatToolCallConfirmed && !action.approved) {
+			this._turnTracker.toolCallEnded(sessionKey, turnId, action.toolCallId);
+		}
+
 		if (action.type === ActionType.ChatToolCallComplete) {
+			this._turnTracker.toolCallEnded(sessionKey, turnId, action.toolCallId);
+
 			// Emit `languageModelToolInvoked` telemetry for the completed tool
 			// call. `action.result` carries `success`/`error.code` even after the
 			// subagent-content merge above (which only touches `result.content`).
@@ -1114,6 +1150,7 @@ export class AgentSideEffects extends Disposable {
 				this._turnTracker.turnCompleted(subagent.chatUri, turnId, 'cancelled');
 			}
 			this._toolCallTracker.clearSession(subagent.chatUri);
+			this._turnTracker.clearSession(subagent.chatUri);
 		}
 		this._subagentChats.deleteAll(parentChatURI);
 		// Drop any buffered events targeted at subagents that never started.
@@ -1163,6 +1200,7 @@ export class AgentSideEffects extends Disposable {
 			if (subagent.sessionUri === parentSession) {
 				this._stateManager.removeChat(subagent.sessionUri, subagent.chatUri);
 				this._toolCallTracker.clearSession(subagent.chatUri);
+				this._turnTracker.clearSession(subagent.chatUri);
 				parentChatURIs.add(subagent.parentChatUri);
 			}
 		}
@@ -1172,8 +1210,15 @@ export class AgentSideEffects extends Disposable {
 		}
 	}
 
-	clearToolCallTelemetry(channel: ProtocolURI): void {
+	/**
+	 * Drops per-channel telemetry tracking on teardown. In-flight tool calls
+	 * and never-completed turns are discarded without reporting, so neither
+	 * their tracking maps nor the turn hang watchdog timers outlive the
+	 * channel they describe.
+	 */
+	clearChannelTelemetry(channel: ProtocolURI): void {
 		this._toolCallTracker.clearSession(channel);
+		this._turnTracker.clearSession(channel);
 	}
 
 	clearInputRequestsForSession(session: ProtocolURI): void {
@@ -1288,9 +1333,18 @@ export class AgentSideEffects extends Disposable {
 			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
 		}
 		this._stateManager.dispatchServerAction(sessionKey, readyAction);
+		// This action is synthesized here rather than routed through
+		// `_dispatchActionForSession`, so feed the hang watchdog explicitly.
+		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientType = AgentHostClientType.Unknown): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
+		let clientContext = typeof clientContextOrType === 'string'
+			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
+			: clientContextOrType;
+		if (this._options.hostLaunchKind !== undefined) {
+			clientContext = { ...clientContext, hostLaunchKind: this._options.hostLaunchKind };
+		}
 		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
 		switch (action.type) {
@@ -1331,7 +1385,7 @@ export class AgentSideEffects extends Disposable {
 					return;
 				}
 				const attachments = action.message.attachments;
-				this._telemetryReporter.userMessageSent(agent.id, clientType, channel, state, 'direct', attachments);
+				this._telemetryReporter.userMessageSent(agent.id, clientId, clientContext, channel, state, 'direct', attachments);
 				const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
 				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel);
 				void this._sendTurnMessage({
@@ -1342,7 +1396,7 @@ export class AgentSideEffects extends Disposable {
 					message: action.message,
 					turnId: action.turnId,
 					senderClientId: clientId,
-					clientType,
+					clientType: clientContext.clientType,
 					turnStopWatch,
 				});
 				break;
@@ -1354,6 +1408,13 @@ export class AgentSideEffects extends Disposable {
 				const toolCallKey = `${channel}:${action.toolCallId}`;
 				if (action.approved) {
 					this._toolCallTracker.toolCallExecutionStarted(channel, action.toolCallId);
+				} else {
+					// A denial is terminal: the reducer moves the call to
+					// `cancelled` and ignores any later completion for it, so
+					// this is the last chance to drop it from the turn's
+					// in-flight set. Leaving it would make a subsequent hang
+					// report `runningTool` for a tool that will never run.
+					this._turnTracker.toolCallEnded(channel, action.turnId, action.toolCallId);
 				}
 				const managedApprovalRequired = this._managedApprovalToolCalls.delete(toolCallKey);
 				const agentId = this._toolCallAgents.get(toolCallKey);
@@ -1420,7 +1481,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const queuedMessageExists = this._stateManager.getChatState(channel)?.queuedMessages?.some(message => message.id === action.id) === true;
 				if (action.kind === PendingMessageKind.Queued && queuedMessageExists) {
-					this._queuedMessageSenders.set({ clientId, clientType }, channel, action.id);
+					this._queuedMessageSenders.set({ clientId, clientContext }, channel, action.id);
 				}
 				this._syncPendingMessages(channel);
 				break;
@@ -1464,6 +1525,16 @@ export class AgentSideEffects extends Disposable {
 				const survivingIds = new Set((this._stateManager.getChatState(chatChannel)?.turns ?? []).map(t => t.id));
 				const removed = this._options.localTurns.getLocalTurnIds(chatChannel).filter(id => !survivingIds.has(id));
 				this._options.localTurns.deleteLocals(sessionChannel, removed);
+				// Turns removed by the truncation will never complete, so their
+				// hang watchdogs must not survive to report a turn that no
+				// longer exists. The active turn is tracked separately from
+				// `turns` in chat state, so keep it explicitly.
+				const trackedTurnIds = new Set(survivingIds);
+				const activeTurnId = this._stateManager.getActiveTurnId(chatChannel);
+				if (activeTurnId) {
+					trackedTurnIds.add(activeTurnId);
+				}
+				this._turnTracker.clearTurnsExcept(chatChannel, trackedTurnIds);
 				this._changesets.onSessionTruncated(sessionChannel);
 				break;
 			}
@@ -1703,7 +1774,13 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const msg = state.queuedMessages[0];
-		const sender = this._queuedMessageSenders.get(session, msg.id) ?? { clientId: undefined, clientType: AgentHostClientType.Unknown };
+		const sender = this._queuedMessageSenders.get(session, msg.id) ?? {
+			clientId: undefined,
+			clientContext: {
+				...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
+				hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
+			},
+		};
 		this._queuedMessageSenders.delete(session, msg.id);
 		const turnId = generateUuid();
 
@@ -1751,7 +1828,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
-		this._telemetryReporter.userMessageSent(agent.id, sender.clientType, session, queuedState, 'queued', attachments);
+		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, session, queuedState, 'queued', attachments);
 		const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
 		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel);
 		// Selection travels on the queued message; it is applied before sending.
@@ -1763,7 +1840,7 @@ export class AgentSideEffects extends Disposable {
 			message: msg.message,
 			turnId,
 			senderClientId: sender.clientId,
-			clientType: sender.clientType,
+			clientType: sender.clientContext.clientType,
 			turnStopWatch,
 		});
 	}

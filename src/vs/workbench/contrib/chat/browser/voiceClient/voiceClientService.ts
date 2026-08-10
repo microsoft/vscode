@@ -33,6 +33,7 @@ import {
 	VoiceConfirmationType,
 	VoiceNarrationKind,
 	isVoiceCheckpointId,
+	normalizeAgentsVoiceId,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -204,13 +205,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}));
 	}
 
-	/**
-	 * Resolve the configured voice key (e.g. ``maya_neutral``) sent to the
-	 * backend on ``start_session`` and via ``set_voice`` when changed live.
-	 */
 	private _getVoice(): string {
-		const raw = this._configurationService.getValue<string>('agents.voice.voice');
-		return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : 'maya_neutral';
+		return normalizeAgentsVoiceId(this._configurationService.getValue<string>('agents.voice.voice'));
 	}
 
 	private _sendSetVoice(): void {

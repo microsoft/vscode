@@ -790,7 +790,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	context: Lazy<ChatEntitlementContext> | undefined;
 
 	readonly organisations: undefined;
-	readonly isInternal = false;
+	readonly isInternal: boolean = false;
 	readonly sku = undefined;
 	readonly copilotTrackingId = undefined;
 

@@ -658,8 +658,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
-	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
-	 * title bar, so they have no top margin. On each window edge this part is the outermost
+	 * `box-sizing: border-box` in `part.css`). On each window edge this part is the outermost
 	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
 	 * margin, so its width inset is larger on that side.
 	 */

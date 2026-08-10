@@ -74,18 +74,27 @@ export class SinglePaneEditorAreaCollapseStrategy extends SinglePaneLayoutStrate
 				void this._coordinator.sequencer.queue(() => this._collapseNonManagedTabs()).catch(onUnexpectedError);
 			}
 		}));
+
+		this._register(this._ctx.onDidEndSessionLayoutRestore(() => this._queueCollapseIfDetailsOnly()));
+		this._register(this._editorService.onDidEditorsChange(() => {
+			if (!this._ctx.isRestoringSessionLayout) {
+				this._queueCollapseIfDetailsOnly();
+			}
+		}));
+	}
+
+	private _queueCollapseIfDetailsOnly(): void {
+		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			void this._coordinator.sequencer.queue(() => this._collapseNonManagedTabs()).catch(onUnexpectedError);
+		}
 	}
 
 	private async _collapseNonManagedTabs(): Promise<void> {
-		if (this._coordinator.collapsedEditors) {
-			return; // already collapsed
-		}
-
 		const group = this._editorGroupsService.mainPart.activeGroup;
-		const captured: { editor: IUntypedEditorInput; index: number }[] = [];
+		const captured: { editor: IUntypedEditorInput; index: number }[] = [...(this._coordinator.collapsedEditors ?? [])];
 		const toClose: EditorInput[] = [];
 		group.editors.forEach((editor, index) => {
-			if (editor instanceof DockedEditorInput) {
+			if (editor instanceof DockedEditorInput || this._coordinator.getChangesEditorResource(editor)) {
 				return;
 			}
 			// Capture editors that can be reopened so they are restored when the

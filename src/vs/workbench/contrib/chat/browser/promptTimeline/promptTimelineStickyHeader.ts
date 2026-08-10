@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import './media/promptTimeline.css';
@@ -54,6 +55,7 @@ export class PromptTimelineStickyHeader extends Disposable {
 	constructor(
 		container: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._domNode = append(container, $('.prompt-timeline-sticky'));
@@ -101,7 +103,7 @@ export class PromptTimelineStickyHeader extends Disposable {
 			const oldLine = this._labelLine;
 			this._labelLine = newLine;
 			// Only roll between prompts while already visible; a first appearance or a jump just snaps.
-			if (this._visible && direction !== 0 && !this._prefersReducedMotion()) {
+			if (this._visible && direction !== 0 && !this.accessibilityService.isMotionReduced()) {
 				this._roll(oldLine, newLine, direction);
 			} else {
 				this._finalizeRoll();
@@ -143,10 +145,6 @@ export class PromptTimelineStickyHeader extends Disposable {
 		this._rollOutAnim?.finish();
 		this._rollOutgoing?.remove();
 		this._rollInAnim = this._rollOutAnim = this._rollOutgoing = undefined;
-	}
-
-	private _prefersReducedMotion(): boolean {
-		return getWindow(this._domNode).matchMedia('(prefers-reduced-motion: reduce)').matches;
 	}
 
 	setVisible(visible: boolean): void {

@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
-	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
+	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
 	readonly id: string;
 	/** Display label (e.g., 'Copilot CLI', 'Cloud'). */
 	readonly label: string;
@@ -41,10 +41,13 @@ export interface ISessionType {
 }
 
 /**
- * What a session type needs before it can serve a request. The three values are
- * mutually exclusive: {@link Unusable} is deliberately distinct from
- * {@link GitHub}, because a type that cannot run at all must not be presented as
- * a reason to demand GitHub sign-in (see `src/vs/sessions/CONTEXT.md`).
+ * What a session type needs before it can serve a request.
+ *
+ * Deliberately three states rather than a boolean. A boolean collapses
+ * {@link Unusable} into {@link GitHub}, which turns "this agent cannot run" into
+ * a sign-in prompt that would not fix anything — the user signs in, and the type
+ * is still broken. Providers resolve the value from what their agent advertises,
+ * so it moves as credentials come and go rather than being a fixed trait.
  */
 export const enum SessionTypeAuthRequirement {
 	/** Runs on the user's own credentials — usable while signed out of GitHub. */
@@ -53,9 +56,8 @@ export const enum SessionTypeAuthRequirement {
 	GitHub = 'github',
 	/**
 	 * Cannot run at all right now, and signing in to GitHub would not help — e.g.
-	 * Claude pinned to native mode by an explicit `claudeUseCopilotProxy: false`
-	 * with no local Claude credentials. Surfaces as "no models", not a sign-in
-	 * prompt.
+	 * Claude advertising the Copilot resource as optional but publishing an empty
+	 * model catalog. Surfaces as "no models", not a sign-in prompt.
 	 */
 	Unusable = 'unusable',
 }
@@ -476,6 +478,12 @@ export interface IChatOrigin {
 	 * resource of the chat that spawned it. Undefined for user-originated chats.
 	 */
 	readonly parentChat?: URI;
+	/**
+	 * For a {@link ChatOriginKind.Fork} or {@link ChatOriginKind.SideChat}, the
+	 * id of the turn in {@link parentChat} the chat branched from. Undefined for
+	 * other origins.
+	 */
+	readonly turnId?: string;
 	readonly selection?: ISideChatSelection;
 }
 

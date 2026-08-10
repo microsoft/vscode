@@ -24,7 +24,7 @@ import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from '../../node/claude/claudeFileEditObserver.js';
 import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
-import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
+import { IEditArcReporterLaunchParams, IEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 interface IObserverHarness {
@@ -32,6 +32,7 @@ interface IObserverHarness {
 	readonly db: TestSessionDatabase;
 	readonly fileService: FileService;
 	readonly mapperState: ClaudeMapperState;
+	readonly arcReports: IEditArcReporterLaunchParams[];
 }
 
 function createObserver(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>): IObserverHarness {
@@ -41,6 +42,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 
 	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
+	const arcReports: IEditArcReporterLaunchParams[] = [];
 
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
@@ -48,7 +50,12 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		[IDiffComputeService, createZeroDiffComputeService()],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
-		[IEditArcReporterService, new NullEditArcReporterService()],
+		[IEditArcReporterService, {
+			_serviceBrand: undefined,
+			reportEdit: async (params: IEditArcReporterLaunchParams) => {
+				arcReports.push(params);
+			},
+		}],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const observer = disposables.add(instantiationService.createInstance(
@@ -56,7 +63,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		'claude:/sess-1',
 		dbRef,
 	));
-	return { observer, db, fileService, mapperState: new ClaudeMapperState() };
+	return { observer, db, fileService, mapperState: new ClaudeMapperState(), arcReports };
 }
 
 function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
@@ -72,12 +79,12 @@ suite('ClaudeFileEditObserver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('observe assistant→user round-trip caches a file edit on the mapper state', async () => {
-		const { observer, fileService, mapperState } = createObserver(disposables);
+		const { observer, fileService, mapperState, arcReports } = createObserver(disposables);
 		await fileService.writeFile(URI.file('/work/a.txt'), VSBuffer.fromString('before'));
 
 		observer.observeAssistant(assistantMessage([
 			{ type: 'tool_use', id: 'tu-1', name: 'Write', input: { file_path: '/work/a.txt', content: 'after' } },
-		]));
+		]), 'plan');
 
 		// Tool runs (we simulate it here): file content changes.
 		await fileService.writeFile(URI.file('/work/a.txt'), VSBuffer.fromString('after'));
@@ -87,8 +94,13 @@ suite('ClaudeFileEditObserver', () => {
 		]), 'turn-1', mapperState);
 
 		const cached = mapperState.takeFileEdit('tu-1');
-		assert.ok(cached, 'expected a cached file edit');
-		assert.strictEqual(cached.type, ToolResultContentType.FileEdit);
+		assert.deepStrictEqual({
+			cachedType: cached?.type,
+			arcMode: arcReports[0]?.mode,
+		}, {
+			cachedType: ToolResultContentType.FileEdit,
+			arcMode: 'plan',
+		});
 	});
 
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {

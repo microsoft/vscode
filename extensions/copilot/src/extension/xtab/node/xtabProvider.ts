@@ -296,7 +296,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget);
+			const rejectedEditHistory = xtabPromptOptions.isRejectedEditMemoryEnabled(promptOptions)
+				? request.xtabRejectedEditHistory
+				: [];
+			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
 			const taggedCurrentFileContentResult = clipCurrentFileToBudget(currentFileBudget + cascade.finalSurplus);
@@ -488,6 +491,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			lintErrors,
 			XtabProvider.computeTokens,
 			promptOptions,
+			request.xtabRejectedEditHistory,
 			neighborSnippets,
 			precomputedCascade,
 		);
@@ -1428,6 +1432,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					request.recordingBookmark,
 					request.recording,
 					request.providerRequestStartDateTime,
+					request.xtabRejectedEditHistory,
 				);
 
 				return yield* this.doGetNextEditWithSelection(
@@ -1567,6 +1572,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				onlyForDocsInPrompt: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffOnlyForDocsInPrompt, this.expService),
 				useRelativePaths: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffUseRelativePaths, this.expService),
 			},
+			memory: undefined,
 			lintOptions: undefined,
 			includePostScript: true,
 			globalBudget: this.getGlobalBudget(),
@@ -1782,6 +1788,7 @@ export function overrideModelConfig(modelConfig: ModelConfig, overridingConfig: 
 			includeTags: overridingConfig.includeTagsInCurrentFile,
 		},
 		recentlyViewedDocuments: { ...modelConfig.recentlyViewedDocuments, ...overridingConfig.recentlyViewedDocuments },
+		memory: overridingConfig.memory ? { ...modelConfig.memory, ...overridingConfig.memory } : modelConfig.memory,
 		lintOptions: overridingConfig.lintOptions
 			? mergeLintOptions(modelConfig.lintOptions, overridingConfig.lintOptions)
 			: modelConfig.lintOptions,

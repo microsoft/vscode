@@ -11,6 +11,30 @@ import { SessionTypeAuthRequirement } from '../services/sessions/common/session.
 import type { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
 
 /**
+ * Predicates behind the Agents window's conditional authentication — when the
+ * window may open for a user who is signed out of GitHub.
+ *
+ * Two gates, at different altitudes, are easy to confuse:
+ *
+ * - The **window gate** is the last-resort, window-level block that forces
+ *   sign-in before *any* of the sessions UI is shown (backed by
+ *   `SessionsWelcomeVisibleContext`). Historically unconditional; it now lifts as
+ *   soon as some session type can work without GitHub. Note the *editor* window
+ *   is untouched by all of this — its chat-setup modal already offers a "Don't
+ *   sign in" escape hatch, and it is that missing escape hatch in the Agents
+ *   window (a non-dismissible modal) that this machinery restores conditionally.
+ * - The **per-type gate** is the on-demand sign-in surfaced when the user selects
+ *   a specific session type that needs GitHub. It already existed
+ *   (`getSessionTypeAvailability()` → `SignInRequired`) and still carries most of
+ *   the work: once the window is open, each type answers for itself.
+ *
+ * "Requires GitHub auth" is a property of a session type *at a moment in time*,
+ * not a fixed trait — Claude and Codex both move as their own credentials come
+ * and go. It is resolved by each provider into
+ * {@link SessionTypeAuthRequirement} and read here provider-agnostically.
+ */
+
+/**
  * Whether the `chat.agentHost.allowSignedOutWhenUsable` experimentation opt-in
  * is enabled. When off (the default), the conditional-auth feature is dark and
  * every caller behaves as it did before.

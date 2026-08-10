@@ -13,6 +13,7 @@ import {
 	resolveGatewaySelection,
 	selectDedicatedGatewayFallback,
 	selectEditorGatewayEndpoint,
+	selectGatewayFallbackAfterRejection,
 	shouldNotifyTunnelFailover,
 	shouldTrackTunnelConnection,
 	TunnelFailoverTracker,
@@ -90,6 +91,36 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 
 		test('selectDedicatedGatewayFallback requests a new dedicated instance when no standalone endpoint exists', () => {
 			assert.deepStrictEqual(selectDedicatedGatewayFallback(inventory([editorEndpoint])), { newDedicated: true });
+		});
+	});
+
+	suite('selectGatewayFallbackAfterRejection', () => {
+		test('a rejected editor endpoint falls back to the deterministic live standalone', () => {
+			assert.deepStrictEqual(
+				selectGatewayFallbackAfterRejection({ instanceId: 'editor-1' }, inventory([editorEndpoint, standaloneEndpoint, secondStandaloneEndpoint])),
+				{ instanceId: 'standalone-1' },
+			);
+		});
+
+		test('a rejected editor endpoint asks for a new dedicated instance when no standalone is live', () => {
+			assert.deepStrictEqual(
+				selectGatewayFallbackAfterRejection({ instanceId: 'editor-1' }, inventory([editorEndpoint, secondEditorEndpoint])),
+				{ newDedicated: true },
+			);
+		});
+
+		test('never retries the instance that was just rejected, even if it is the only standalone left', () => {
+			assert.deepStrictEqual(
+				selectGatewayFallbackAfterRejection({ instanceId: 'standalone-2' }, inventory([standaloneEndpoint])),
+				{ newDedicated: true },
+			);
+		});
+
+		test('a rejected new-dedicated request has no fallback (the gateway failed to spawn, not to reach)', () => {
+			assert.strictEqual(
+				selectGatewayFallbackAfterRejection({ newDedicated: true }, inventory([standaloneEndpoint])),
+				undefined,
+			);
 		});
 	});
 
@@ -216,7 +247,6 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 		test('notifies on a background reconnect that moved from an editor endpoint to a standalone one', () => {
 			assert.strictEqual(shouldNotifyTunnelFailover('editor', 'standalone', false), true);
 		});
-
 		test('does not notify on the initial connect (no previously retained endpoint)', () => {
 			assert.strictEqual(shouldNotifyTunnelFailover(undefined, 'standalone', false), false);
 		});
@@ -240,6 +270,21 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 		test('does not notify when the previous or new server type is "unknown" (legacy protocol-v5 tunnels)', () => {
 			assert.strictEqual(shouldNotifyTunnelFailover('unknown', 'standalone', false), false);
 			assert.strictEqual(shouldNotifyTunnelFailover('editor', 'unknown', false), false);
+		});
+
+		test('notifies for an in-attempt editor -> standalone fallback even with no retained endpoint and a user-initiated connect', () => {
+			assert.deepStrictEqual([
+				shouldNotifyTunnelFailover(undefined, 'standalone', true, /*editorFallback*/ true),
+				shouldNotifyTunnelFailover(undefined, 'standalone', false, /*editorFallback*/ true),
+				shouldNotifyTunnelFailover('editor', 'standalone', true, /*editorFallback*/ true),
+			], [true, true, true]);
+		});
+
+		test('does not repeat the in-attempt fallback notification once the address is already on a standalone host', () => {
+			// A stale editor entry lingers for as long as its PID does, so
+			// every reconnect repeats the same fallback — only the first may
+			// notify.
+			assert.strictEqual(shouldNotifyTunnelFailover('standalone', 'standalone', false, /*editorFallback*/ true), false);
 		});
 	});
 
@@ -287,6 +332,20 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 			// A later background reconnect keeps landing on standalone: no
 			// notification, since there is no editor -> standalone transition.
 			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), false);
+		});
+
+		test('an in-attempt editor fallback notifies once and leaves the address recorded as standalone', () => {
+			const tracker = new TunnelFailoverTracker();
+			assert.deepStrictEqual([
+				// First connect of the window: the gateway rejected a stale
+				// editor endpoint and we fell back inside the same attempt.
+				tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false, /*editorFallback*/ true),
+				// The stale editor entry lingers, so the next reconnect repeats
+				// the very same fallback — it must stay quiet.
+				tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false, /*editorFallback*/ true),
+				// As must a plain reconnect that lands on the same standalone.
+				tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false),
+			], [true, false, false]);
 		});
 	});
 

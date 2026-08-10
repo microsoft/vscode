@@ -299,7 +299,9 @@ export class ChatInputNotificationWidget extends Disposable {
 				this._switchToModel(action.modelIdentifier);
 				break;
 		}
-		this._notificationService.dismissNotification(notification.id);
+		if (!action.keepOpen) {
+			this._notificationService.dismissNotification(notification.id);
+		}
 	}
 
 	private _switchToModel(modelIdentifier: string): void {

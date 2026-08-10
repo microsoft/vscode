@@ -439,6 +439,20 @@ suite('SessionDatabase', () => {
 
 	suite('turn event ids', () => {
 
+		test('getTurnEventId resolves protocol and restored SDK turn IDs', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.deepStrictEqual({
+				protocol: await db.getTurnEventId('turn-1'),
+				restored: await db.getTurnEventId('evt-1'),
+			}, {
+				protocol: 'evt-1',
+				restored: 'evt-1',
+			});
+		});
+
 		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('turn-1');
@@ -578,7 +592,7 @@ suite('SessionDatabase', () => {
 			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', '{"inputTokens":1}']]);
 		});
 
-		test('remapTurnIds carries usage onto the forked turn ids and drops the rest', async () => {
+		test('remapTurnIds carries usage and replaces event IDs on imported forks', async () => {
 			// Fork file-copies the source database then remaps turn ids. Without
 			// remapping `turn_usage` the forked session restores with no gauge
 			// and zero cost, and rows past the fork point leak permanently
@@ -586,13 +600,27 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('old-1');
 			await db.createTurn('old-2');
+			await db.setTurnEventId('old-1', 'old-event-1');
+			await db.setTurnEventId('old-2', 'old-event-2');
 			await db.setTurnUsage('old-1', '{"inputTokens":1}');
 			await db.setTurnUsage('old-2', '{"inputTokens":2}');
 
 			// Fork keeping only `old-1`, remapped to a fresh id.
-			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.remapTurnIds(
+				new Map([['old-1', 'new-1']]),
+				new Map([['new-1', 'new-event-1']]),
+			);
 
-			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['new-1', '{"inputTokens":1}']]);
+			assert.deepStrictEqual({
+				usages: [...(await db.getTurnUsages()).entries()],
+				eventId: await db.getTurnEventId('new-1'),
+			}, {
+				usages: [
+					['new-1', '{"inputTokens":1}'],
+					['new-event-1', '{"inputTokens":1}'],
+				],
+				eventId: 'new-event-1',
+			});
 		});
 	});
 

@@ -142,6 +142,21 @@ export interface IMarketplaceInstalledPlugin {
 	readonly plugin: IMarketplacePlugin;
 }
 
+/**
+ * Options for fetching marketplace plugins.
+ */
+export interface IFetchMarketplacePluginsOptions {
+	/** Bypass the marketplace caches (HTTP TTL cache and cloned-repository TTL) and re-read from the remote. */
+	readonly refresh?: boolean;
+	/**
+	 * Called for each marketplace that could not be read. Individual failures
+	 * are otherwise swallowed so that one bad marketplace cannot fail the
+	 * whole fetch, which leaves callers unable to tell a partial result from
+	 * a complete one.
+	 */
+	readonly onMarketplaceError?: (reference: IMarketplaceReference, error: unknown) => void;
+}
+
 export const IPluginMarketplaceService = createDecorator<IPluginMarketplaceService>('pluginMarketplaceService');
 
 export interface IPluginMarketplaceService {
@@ -165,7 +180,7 @@ export interface IPluginMarketplaceService {
 	readonly recommendedPlugins: IObservable<ReadonlySet<string>>;
 	/** Clears all reported marketplaces, or only the provided canonical IDs. */
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void;
-	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>): Promise<IMarketplacePlugin[]>;
+	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
@@ -431,7 +446,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		this._marketplacesWithUpdates.set(remaining, undefined);
 	}
 
-	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>): Promise<IMarketplacePlugin[]> {
+	async fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
 		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 			return [];
 		}
@@ -470,12 +485,19 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const results = await Promise.all(
 			refsToFetch.map(ref => {
 				if (ref.kind === MarketplaceReferenceKind.GitHubShorthand && ref.githubRepo) {
-					return this._fetchFromGitHubRepo(ref, ref.githubRepo, token);
+					return this._fetchFromGitHubRepo(ref, ref.githubRepo, token, options);
 				}
-				return this._fetchFromClonedRepo(ref, token);
+				return this._fetchFromClonedRepo(ref, token, options);
 			})
 		);
 		const plugins = results.flat();
+
+		// A cancelled fetch yields empty/partial results — committing those
+		// would wipe the observable list and blank out the marketplace UI.
+		if (token.isCancellationRequested) {
+			return plugins;
+		}
+
 		const storedPlugins = marketplaceIds
 			? [...this.lastFetchedPlugins.get().filter(plugin => !marketplaceIds.has(plugin.marketplaceReference.canonicalId)), ...plugins]
 			: plugins;
@@ -483,10 +505,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		return plugins;
 	}
 
-	private async _fetchFromGitHubRepo(reference: IMarketplaceReference, repo: string, token: CancellationToken): Promise<IMarketplacePlugin[]> {
+	private async _fetchFromGitHubRepo(reference: IMarketplaceReference, repo: string, token: CancellationToken, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
 		const cache = this._gitHubMarketplaceCache.value;
 
-		const cached = this._getCachedGitHubMarketplacePlugins(cache, reference.canonicalId);
+		const cached = options?.refresh ? undefined : this._getCachedGitHubMarketplacePlugins(cache, reference.canonicalId);
 		if (cached) {
 			return cached.map(c => ({
 				...c,
@@ -530,7 +552,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		if (repoMayBePrivate) {
 			this._logService.debug(`[PluginMarketplaceService] ${repo} may be private, attempting clone-based marketplace discovery`);
-			return this._fetchFromClonedRepo(reference, token);
+
+			// Drop any raw-fetch entry cached while the repository was still
+			// public, otherwise the next non-forced fetch would serve it in
+			// preference to the clone until its original TTL expired.
+			if (cache.delete(reference.canonicalId)) {
+				this._savePersistedGitHubMarketplaceCache(cache);
+			}
+
+			return this._fetchFromClonedRepo(reference, token, options);
 		}
 
 		this._logService.debug(`[PluginMarketplaceService] No marketplace.json found in ${repo}`);
@@ -865,12 +895,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 	}
 
-	private async _fetchFromClonedRepo(reference: IMarketplaceReference, token: CancellationToken): Promise<IMarketplacePlugin[]> {
+	private async _fetchFromClonedRepo(reference: IMarketplaceReference, token: CancellationToken, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]> {
 		let repoDir: URI;
 		try {
-			repoDir = await this._pluginRepositoryService.ensureRepository(reference);
+			repoDir = await this._pluginRepositoryService.ensureRepository(reference, {
+				refreshIfOlderThanMs: options?.refresh ? 0 : GITHUB_MARKETPLACE_CACHE_TTL_MS,
+				token,
+			});
 		} catch (err) {
 			this._logService.debug(`[PluginMarketplaceService] Failed to prepare marketplace repository ${reference.rawValue}:`, err);
+			options?.onMarketplaceError?.(reference, err);
 			return [];
 		}
 

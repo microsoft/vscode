@@ -13,24 +13,22 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchCon
  *
  * This is the agent-host home for the Copilot extension's `toolUseInstructions`
  * pattern (`defaultAgentInstructions.tsx` and the per-model agent prompts): a
- * sequence of one-line nudges, each gated on the relevant tool being present in
- * the session, composed into the single SDK `tool_instructions` section. The
- * agent host sees client tools under their camelCase `toolReferenceName`, so a
- * line's gate and any tool name it mentions use that form (NOT the extension's
- * snake_case ids).
+ * sequence of one-line nudges, either unconditional or gated on the relevant
+ * tool being present in the session, composed into the single SDK
+ * `tool_instructions` section. The agent host sees client tools under their
+ * camelCase `toolReferenceName`, so a line's gate and any tool name it mentions
+ * use that form (NOT the extension's snake_case ids).
  *
- * To add guidance for a tool, write a {@link ToolInstructionLine} and add it to
- * {@link TOOL_INSTRUCTION_LINES}. The browser guidance ({@link browserToolInstructions})
- * is the first such hookup: it gates on `openBrowserPage` (plus an agentic browser
- * tool) being present and returns the extension's "Use the browser tools (...)"
- * sentence.
+ * To add guidance, write a {@link ToolInstructionLine} and add it to
+ * {@link TOOL_INSTRUCTION_LINES}. The browser guidance
+ * ({@link browserToolInstructions}) demonstrates a line gated on
+ * `openBrowserPage` plus an agentic browser tool.
  */
 
 /**
- * A single gated tool-instructions line. Returns its content (a single
- * sentence, no surrounding newlines) when the session exposes the tools it
- * applies to, or `undefined` to contribute nothing. Mirrors one gated `<>…</>`
- * fragment in the extension's `toolUseInstructions` block.
+ * A single tool-instructions line. Returns its content (a single sentence, no
+ * surrounding newlines) when it applies, or `undefined` to contribute nothing.
+ * Mirrors one `<>…</>` fragment in the extension's `toolUseInstructions` block.
  *
  * @param hasTool predicate for whether a tool name is available in the session.
  */
@@ -42,6 +40,10 @@ type ToolInstructionLine = (hasTool: (name: string) => boolean) => string | unde
  * list so it stays in sync as browser tools are added or removed.
  */
 const agenticBrowserToolNames = browserChatToolReferenceNames.filter(name => name !== BrowserChatToolReferenceName.OpenBrowserPage);
+
+/** Prevents oversized tool-output temp files from being re-offloaded by shell reads. */
+export const COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION = 'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.';
+const largeOutputToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
 
 /**
  * Front-end guidance for the integrated browser tools, ported from the Copilot
@@ -61,10 +63,9 @@ const browserToolInstructions: ToolInstructionLine = hasTool => {
 };
 
 /**
- * The registered tool-instruction lines, in render order. Add new per-tool
- * guidance here.
+ * The registered tool-instruction lines, in render order.
  */
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [browserToolInstructions];
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, browserToolInstructions];
 
 /** Tool-search guidance mirrored from the Copilot extension prompt. */
 const toolSearchToolInstructions: ToolInstructionLine = hasTool =>
