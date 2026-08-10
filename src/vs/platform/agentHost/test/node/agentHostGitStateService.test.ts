@@ -442,26 +442,33 @@ suite('AgentHostGitStateService', () => {
 				baseBranchName: 'main',
 				githubHeadOwner: 'jadefr',
 			};
-			const h = createHarness();
+			const calls: Array<{ branch: string; headOwner: string | undefined }> = [];
+			const h = createHarness({
+				octoKitService: {
+					findPullRequestByHeadBranch: async (_owner: string, _repo: string, branch: string, _token: string, _signal: AbortSignal, headOwner?: string) => {
+						calls.push({ branch, headOwner });
+						return {
+							url: 'https://github.com/microsoft/vscode/pull/328975',
+							number: 328975,
+						};
+					},
+				} as unknown as IAgentHostOctoKitService,
+			});
 			seedSession(h.stateManager, {
 				workingDirectory: WORKING_DIRECTORY,
 				gitState,
 				gitHubState: { owner: 'microsoft', repo: 'vscode' },
 			});
 			h.setGitResult(gitState);
-			h.setPullRequest('feature/alt-click-close-other-tabs', {
-				url: 'https://github.com/microsoft/vscode/pull/328975',
-				number: 328975,
-			});
 
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
 			assert.deepStrictEqual({
-				pullRequestCalls: h.pullRequestCalls,
+				pullRequestCalls: calls,
 				pullRequestShaCalls: h.pullRequestShaCalls,
 				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
 			}, {
-				pullRequestCalls: ['feature/alt-click-close-other-tabs'],
+				pullRequestCalls: [{ branch: 'feature/alt-click-close-other-tabs', headOwner: 'jadefr' }],
 				pullRequestShaCalls: [],
 				github: {
 					owner: 'microsoft',

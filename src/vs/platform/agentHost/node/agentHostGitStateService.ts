@@ -179,7 +179,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
 		const headBranch = upstreamBranch?.branch ?? branchName;
-		const headOwner = upstreamBranch && githubHeadOwner ? githubHeadOwner : owner;
+		const headOwner = githubHeadOwner ?? owner;
 
 		const pullRequestByBranch = await this._octoKitService.findPullRequestByHeadBranch(owner, repo, headBranch, authToken, signal, headOwner);
 		if (pullRequestByBranch) {
