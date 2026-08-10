@@ -59,10 +59,10 @@ function isRecord(value: JsonValue | undefined): value is { [key: string]: JsonV
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const;
 
 /**
- * Rewrites the declared range of every changed dependency to the exact version the lockfile commits,
- * so regeneration resolves what the pull request submitted instead of whatever the registry has
- * published since. npm rejects `overrides` for direct dependencies (EOVERRIDE), so the range itself
- * has to carry the pin.
+ * Rewrites the declared range of every changed direct dependency to the exact version the lockfile
+ * commits, so regeneration resolves what the pull request submitted instead of whatever the registry
+ * has published since. npm rejects `overrides` for direct dependencies (EOVERRIDE), so the range
+ * itself has to carry the pin.
  */
 export function pinChangedPackages(packageJson: JsonValue, changedKeys: readonly string[], submitted: IPackageLock): JsonValue {
 	if (!isRecord(packageJson)) {
@@ -74,7 +74,7 @@ export function pinChangedPackages(packageJson: JsonValue, changedKeys: readonly
 	for (const packageKey of changedKeys) {
 		const record = submittedPackages[packageKey];
 		const name = packageKey.slice(packageKey.lastIndexOf('node_modules/') + 'node_modules/'.length);
-		if (isRecord(record) && typeof record.version === 'string' && record.link !== true && name) {
+		if (packageKey === `node_modules/${name}` && isRecord(record) && typeof record.version === 'string' && record.link !== true && name) {
 			pinnedVersions.set(name, record.version);
 		}
 	}
@@ -200,7 +200,8 @@ function regenerateLockfile(lockPath: string, seed: IPackageLock, pinnedPackageJ
 function main(): void {
 	const args = process.argv.slice(2);
 	const baseRef = args.find(arg => !arg.startsWith('--')) ?? 'origin/main';
-	const changedFiles = new Set(git('diff', '--name-only', `${baseRef}...HEAD`).split('\n'));
+	const baseCommit = git('merge-base', baseRef, 'HEAD');
+	const changedFiles = new Set(git('diff', '--name-only', baseCommit, 'HEAD').split('\n'));
 	if (args.includes('--include-working-tree')) {
 		for (const file of git('diff', '--name-only').split('\n')) {
 			changedFiles.add(file);
@@ -222,7 +223,7 @@ function main(): void {
 
 		console.log(`Regenerating ${relativeLockPath} with npm ${process.env.npm_config_user_agent ?? ''}...`);
 		const submitted = readLockfile(fs.readFileSync(lockPath, 'utf8'), lockPath);
-		const base = getBaseLockfile(baseRef, relativeLockPath);
+		const base = getBaseLockfile(baseCommit, relativeLockPath);
 		const changedKeys = findChangedPackageKeys(base, submitted);
 		const seed = createLockfileRegenerationSeed(base, submitted);
 		const packageJsonPath = path.join(path.dirname(lockPath), 'package.json');
