@@ -4,40 +4,76 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import * as fs from 'fs/promises';
+import { tmpdir } from 'os';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
-import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
-class FailingSessionDatabase extends TestSessionDatabase {
-	private _setMetadataFailures = 0;
-	private _getMetadataFailures = 0;
+class TestAgentHostDatabase implements IAgentHostDatabase {
+	readonly sessions = new Map<string, IAgentHostDatabaseSession>();
+	backfilled = false;
+	private _writeFailures = 0;
+	private _readFailures = 0;
 
-	failNextSetMetadata(): void {
-		this._setMetadataFailures++;
+	failNextWrite(): void {
+		this._writeFailures++;
 	}
 
-	failNextGetMetadata(): void {
-		this._getMetadataFailures++;
+	failNextRead(): void {
+		this._readFailures++;
 	}
 
-	override async getMetadata(key: string): Promise<string | undefined> {
-		if (this._getMetadataFailures > 0) {
-			this._getMetadataFailures--;
-			throw new Error('getMetadata failed');
+	async registerSession(session: string, provider: string, startTime: number): Promise<void> {
+		this._throwWriteFailure();
+		const existing = this.sessions.get(session);
+		this.sessions.set(session, { session, provider, startTime: existing?.startTime ?? startTime });
+	}
+
+	async unregisterSession(session: string): Promise<void> {
+		this._throwWriteFailure();
+		this.sessions.delete(session);
+	}
+
+	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
+		this._throwReadFailure();
+		return [...this.sessions.values()];
+	}
+
+	async isSessionRegistryEmpty(): Promise<boolean> {
+		this._throwReadFailure();
+		return this.sessions.size === 0;
+	}
+
+	async isSessionRegistryBackfilled(): Promise<boolean> {
+		this._throwReadFailure();
+		return this.backfilled;
+	}
+
+	async markSessionRegistryBackfilled(): Promise<void> {
+		this._throwWriteFailure();
+		this.backfilled = true;
+	}
+
+	async close(): Promise<void> { }
+	dispose(): void { }
+
+	private _throwWriteFailure(): void {
+		if (this._writeFailures > 0) {
+			this._writeFailures--;
+			throw new Error('write failed');
 		}
-		return super.getMetadata(key);
 	}
 
-	override async setMetadata(key: string, value: string): Promise<void> {
-		if (this._setMetadataFailures > 0) {
-			this._setMetadataFailures--;
-			throw new Error('setMetadata failed');
+	private _throwReadFailure(): void {
+		if (this._readFailures > 0) {
+			this._readFailures--;
+			throw new Error('read failed');
 		}
-		await super.setMetadata(key, value);
 	}
 }
 
@@ -45,21 +81,20 @@ suite('AgentSessionRegistry', () => {
 
 	const disposables = new DisposableStore();
 
-	let db: TestSessionDatabase;
-	let dataService: ISessionDataService;
+	let database: IAgentHostDatabase;
 
 	setup(() => {
-		db = new TestSessionDatabase();
-		dataService = createSessionDataService(db);
+		database = new AgentHostDatabase(':memory:');
 	});
 
-	teardown(() => disposables.clear());
+	teardown(async () => {
+		disposables.clear();
+		await database.close();
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createRegistry(): AgentSessionRegistry {
-		const registry = new AgentSessionRegistry(dataService, new NullLogService());
-		disposables.add(toDisposable(() => registry.dispose()));
-		return registry;
+		return disposables.add(new AgentSessionRegistry(database));
 	}
 
 	const a = AgentSession.uri('copilot', 'a');
@@ -94,13 +129,33 @@ suite('AgentSessionRegistry', () => {
 		assert.strictEqual(entry.startTime, 100);
 	});
 
-	test('index persists across registry instances', async () => {
-		const first = createRegistry();
-		await first.register(a, 'copilot', 100);
+	test('register and unregister preserve submission order', async () => {
+		const registry = createRegistry();
 
-		// A fresh registry over the same backing store must recover the index.
-		const second = createRegistry();
-		assert.deepStrictEqual((await second.list()).map(s => s.session.toString()), [a.toString()]);
+		await Promise.all([
+			registry.register(a, 'copilot', 100),
+			registry.unregister(a),
+		]);
+
+		assert.deepStrictEqual(await registry.list(), []);
+	});
+
+	test('index persists across database instances', async () => {
+		const tempRoot = await fs.mkdtemp(join(tmpdir(), `agent-host-db-${generateUuid()}`));
+		const databasePath = join(tempRoot, 'agent-host.db');
+		try {
+			await database.close();
+			database = new AgentHostDatabase(databasePath);
+			await createRegistry().register(a, 'copilot', 100);
+			await database.close();
+
+			database = new AgentHostDatabase(databasePath);
+			assert.deepStrictEqual((await createRegistry().list()).map(s => s.session.toString()), [a.toString()]);
+		} finally {
+			await database.close();
+			await fs.rm(tempRoot, { recursive: true, force: true });
+			database = new AgentHostDatabase(':memory:');
+		}
 	});
 
 	test('backfill marker gates the one-time provider seed', async () => {
@@ -120,55 +175,56 @@ suite('AgentSessionRegistry', () => {
 		assert.strictEqual(await second.isBackfilled(), true);
 	});
 
-	test('register persistence failure preserves the cache and can be retried', async () => {
-		db = new FailingSessionDatabase();
-		dataService = createSessionDataService(db);
+	test('register persistence failure can be retried', async () => {
+		await database.close();
+		database = new TestAgentHostDatabase();
 		const registry = createRegistry();
-		(db as FailingSessionDatabase).failNextSetMetadata();
+		(database as TestAgentHostDatabase).failNextWrite();
 
-		await assert.rejects(registry.register(a, 'copilot', 100), /setMetadata failed/);
+		await assert.rejects(registry.register(a, 'copilot', 100), /write failed/);
 		assert.deepStrictEqual(await registry.list(), []);
 
 		await registry.register(a, 'copilot', 100);
 		assert.deepStrictEqual((await registry.list()).map(entry => entry.session.toString()), [a.toString()]);
 	});
 
-	test('unregister persistence failure preserves the cache and can be retried', async () => {
-		db = new FailingSessionDatabase();
-		dataService = createSessionDataService(db);
+	test('unregister persistence failure can be retried', async () => {
+		await database.close();
+		database = new TestAgentHostDatabase();
 		const registry = createRegistry();
 		await registry.register(a, 'copilot', 100);
-		(db as FailingSessionDatabase).failNextSetMetadata();
+		(database as TestAgentHostDatabase).failNextWrite();
 
-		await assert.rejects(registry.unregister(a), /setMetadata failed/);
+		await assert.rejects(registry.unregister(a), /write failed/);
 		assert.deepStrictEqual((await registry.list()).map(entry => entry.session.toString()), [a.toString()]);
 
 		await registry.unregister(a);
 		assert.deepStrictEqual(await registry.list(), []);
 	});
 
-	test('markBackfilled persistence failure preserves the marker and can be retried', async () => {
-		db = new FailingSessionDatabase();
-		dataService = createSessionDataService(db);
+	test('markBackfilled persistence failure can be retried', async () => {
+		await database.close();
+		database = new TestAgentHostDatabase();
 		const registry = createRegistry();
-		(db as FailingSessionDatabase).failNextSetMetadata();
+		(database as TestAgentHostDatabase).failNextWrite();
 
-		await assert.rejects(registry.markBackfilled(), /setMetadata failed/);
+		await assert.rejects(registry.markBackfilled(), /write failed/);
 		assert.strictEqual(await registry.isBackfilled(), false);
 
 		await registry.markBackfilled();
 		assert.strictEqual(await registry.isBackfilled(), true);
 	});
 
-	test('load failure does not cache empty state and a mutation retry preserves persisted sessions', async () => {
-		db = new FailingSessionDatabase();
-		dataService = createSessionDataService(db);
+	test('read failure can be retried without losing persisted sessions', async () => {
+		await database.close();
+		database = new TestAgentHostDatabase();
 		const first = createRegistry();
 		await first.register(a, 'copilot', 100);
 		const second = createRegistry();
-		(db as FailingSessionDatabase).failNextGetMetadata();
+		(database as TestAgentHostDatabase).failNextRead();
 
-		await assert.rejects(second.register(b, 'claude', 200), /getMetadata failed/);
+		await second.register(b, 'claude', 200);
+		await assert.rejects(second.list(), /read failed/);
 		await second.register(b, 'claude', 200);
 
 		assert.deepStrictEqual(

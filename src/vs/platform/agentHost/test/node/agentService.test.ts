@@ -36,6 +36,7 @@ import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind,
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
+import { IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
@@ -104,7 +105,9 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 }
 
-class TransientRegistryWriteDatabase extends TestSessionDatabase {
+class TransientRegistryWriteDatabase implements IAgentHostDatabase {
+	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
+	private _backfilled = false;
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
 
@@ -113,15 +116,43 @@ class TransientRegistryWriteDatabase extends TestSessionDatabase {
 		this._remainingRegistryWriteFailures = count;
 	}
 
-	override async setMetadata(key: string, value: string): Promise<void> {
-		if (key === 'sessionRegistry') {
-			this.registryWriteAttempts++;
-			if (this._remainingRegistryWriteFailures > 0) {
-				this._remainingRegistryWriteFailures--;
-				throw new Error('transient registry write failure');
-			}
+	async registerSession(session: string, provider: string, startTime: number): Promise<void> {
+		this._beforeWrite();
+		const existing = this._sessions.get(session);
+		this._sessions.set(session, { session, provider, startTime: existing?.startTime ?? startTime });
+	}
+
+	async unregisterSession(session: string): Promise<void> {
+		this._beforeWrite();
+		this._sessions.delete(session);
+	}
+
+	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return [...this._sessions.values()];
+	}
+
+	async isSessionRegistryEmpty(): Promise<boolean> {
+		return this._sessions.size === 0;
+	}
+
+	async isSessionRegistryBackfilled(): Promise<boolean> {
+		return this._backfilled;
+	}
+
+	async markSessionRegistryBackfilled(): Promise<void> {
+		this._beforeWrite();
+		this._backfilled = true;
+	}
+
+	async close(): Promise<void> { }
+	dispose(): void { }
+
+	private _beforeWrite(): void {
+		this.registryWriteAttempts++;
+		if (this._remainingRegistryWriteFailures > 0) {
+			this._remainingRegistryWriteFailures--;
+			throw new Error('transient registry write failure');
 		}
-		await super.setMetadata(key, value);
 	}
 }
 
@@ -1708,7 +1739,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('retries a transient registry registration failure before reporting creation success', async () => {
 			const db = new TransientRegistryWriteDatabase();
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			await svc.listSessions();
@@ -1798,10 +1829,10 @@ suite('AgentService (node dispatcher)', () => {
 			let deleteSessionDataCalls = 0;
 			let removeWorktreeCalls = 0;
 			const sessionDataService: ISessionDataService = {
-				...createSessionDataService(db),
+				...createSessionDataService(),
 				deleteSessionData: async () => { deleteSessionDataCalls++; },
 			};
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			const session = await svc.createSession({ provider: 'copilot' });

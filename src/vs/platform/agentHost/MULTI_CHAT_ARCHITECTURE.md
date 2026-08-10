@@ -183,7 +183,7 @@ Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.
 
 ## 3a. Session Registry and Backfill
 
-`AgentSessionRegistry` (`node/agentSessionRegistry.ts`) stores `{ sessionUri → { provider, startTime } }` in the reserved `agent-host-registry:/sessions` database. Writes are serialized; registration is idempotent and preserves the first observed start time.
+`AgentSessionRegistry` (`node/agentSessionRegistry.ts`) stores `{ sessionUri → { provider, startTime } }` in the orchestrator-owned `agent-host.db`. Its normalized `sessions` table supports atomic registration/deletion without serializing a metadata blob; the separate `metadata` table records completion of the one-time provider backfill. Registration is idempotent and preserves the first observed start time.
 
 `AgentService` registers on successful create and restore, unregisters on definitive delete, and enumerates the registry rather than unioning provider SDK catalogs. Per-session metadata still comes from the owning provider and then flows through the normal persisted/live overlays. Idle provisional sessions stay hidden until materialization or turn activity.
 

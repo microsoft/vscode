@@ -46,6 +46,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostDatabase, IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
@@ -268,6 +269,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * driving enumeration.
 	 */
 	private readonly _sessionRegistry: AgentSessionRegistry;
+	private readonly _orchestratorDatabase: IAgentHostDatabase;
 
 	/** Guards the one-time {@link _backfillRegistryFromProviders} sweep. */
 	private _registryBackfill: Promise<void> | undefined;
@@ -441,11 +443,16 @@ export class AgentService extends Disposable implements IAgentService {
 		fetchFn?: typeof globalThis.fetch,
 		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
 		private readonly _hostLaunchKind = AgentHostLaunchKind.Unknown,
+		orchestratorDatabase?: IAgentHostDatabase,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
 		this._authService = new AgentHostAuthenticationService(_logService);
-		this._sessionRegistry = this._register(new AgentSessionRegistry(this._sessionDataService, _logService));
+		const databasePath = this._rootConfigResource
+			? joinPath(resourcesDirname(this._rootConfigResource), 'agent-host.db').fsPath
+			: ':memory:';
+		this._orchestratorDatabase = this._register(orchestratorDatabase ?? new AgentHostDatabase(databasePath));
+		this._sessionRegistry = this._register(new AgentSessionRegistry(this._orchestratorDatabase));
 		this._stateManager = this._register(new AgentHostStateManager(_logService, {
 			hostBuildInfo: hostBuildInfoFromProduct(this._productService),
 			changesetStateRetention: {
@@ -4556,6 +4563,7 @@ export class AgentService extends Disposable implements IAgentService {
 			promises.push(provider.shutdown());
 		}
 		await Promise.all(promises);
+		await this._orchestratorDatabase.close();
 		this._sessionToProvider.clear();
 		this._downloadProgressInterest.clear();
 	}
