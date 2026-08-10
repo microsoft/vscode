@@ -19,6 +19,7 @@ import * as vscode from 'vscode';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
+import { API, Repository } from '../../../../platform/git/vscode/git';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { mock } from '../../../../util/common/test/simpleMock';
@@ -52,20 +53,58 @@ class MockExtensionContext extends mock<IVSCodeExtensionContext>() {
 	override readonly globalState = new MockGlobalState();
 }
 
-class MockGitExtensionService extends mock<IGitExtensionService>() { }
+class MockRepository extends mock<Repository>() {
+	override readonly kind = 'repository' as const;
+	override readonly state: Repository['state'];
+
+	constructor(remoteUrl: string) {
+		super();
+		this.state = {
+			remotes: [{ name: 'origin', fetchUrl: remoteUrl, isReadOnly: false }],
+		} as Repository['state'];
+	}
+}
+
+class MockGitApi extends mock<API>() {
+	override readonly state = 'initialized' as const;
+	override readonly repositories: Repository[];
+
+	constructor(remoteUrls: readonly string[]) {
+		super();
+		this.repositories = remoteUrls.map(remoteUrl => new MockRepository(remoteUrl));
+	}
+}
+
+class MockGitExtensionService extends mock<IGitExtensionService>() {
+	private api: API | undefined;
+
+	override get extensionAvailable(): boolean {
+		return this.api !== undefined;
+	}
+
+	setApi(api: API): void {
+		this.api = api;
+	}
+
+	override getExtensionApi(): API | undefined {
+		return this.api;
+	}
+}
 class MockLogService extends mock<ILogService>() { }
 class MockFileSystemService extends mock<IFileSystemService>() { }
 class MockTelemetryService extends mock<ITelemetryService>() { }
 
 describe('ChatSessionsUriHandler', () => {
 	let extensionContext: MockExtensionContext;
+	let gitExtensionService: MockGitExtensionService;
 	let handler: ChatSessionsUriHandler;
 
 	beforeEach(() => {
 		vi.mocked(vscode.commands.executeCommand).mockClear();
 		extensionContext = new MockExtensionContext();
+		gitExtensionService = new MockGitExtensionService();
 		handler = new ChatSessionsUriHandler(
-			new MockGitExtensionService(),
+			gitExtensionService,
 			extensionContext,
 			new MockLogService(),
 			new MockFileSystemService(),
@@ -83,6 +122,7 @@ describe('ChatSessionsUriHandler', () => {
 	});
 
 	it('opens a task resource saved before a workspace reload', async () => {
+		gitExtensionService.setApi(new MockGitApi(['https://github.com/microsoft/vscode']));
 		await extensionContext.globalState.update(PENDING_CHAT_SESSION_STORAGE_KEY, {
 			type: 'copilot-cloud-agent',
 			id: 'task-456',
@@ -98,5 +138,22 @@ describe('ChatSessionsUriHandler', () => {
 			vscode.Uri.parse('copilot-cloud-agent:/task/task-456'),
 		);
 		expect(extensionContext.globalState.get(PENDING_CHAT_SESSION_STORAGE_KEY)).toBeUndefined();
+	});
+
+	it('keeps a pending task until its repository workspace is open', async () => {
+		gitExtensionService.setApi(new MockGitApi(['https://github.com/microsoft/TypeScript']));
+		const pendingSession = {
+			type: 'copilot-cloud-agent',
+			id: 'task-456',
+			url: 'https://github.com/microsoft/vscode',
+			branch: 'main',
+			timestamp: Date.now(),
+		};
+		await extensionContext.globalState.update(PENDING_CHAT_SESSION_STORAGE_KEY, pendingSession);
+
+		await handler.openPendingSession();
+
+		expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
+		expect(extensionContext.globalState.get(PENDING_CHAT_SESSION_STORAGE_KEY)).toEqual(pendingSession);
 	});
 });

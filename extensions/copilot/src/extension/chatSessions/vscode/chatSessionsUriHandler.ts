@@ -198,6 +198,10 @@ export class ChatSessionsUriHandler extends Disposable implements CustomUriHandl
 			// Check if the pending session is recent (within 10 minutes)
 			const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
 			if (pendingSession.timestamp > tenMinutesAgo) {
+				const gitAPI = await this.waitForGitExtensionAPI(this._gitExtensionService);
+				if (!gitAPI || !this._getAlreadyOpenWorkspace(gitAPI, pendingSession.url)) {
+					return;
+				}
 				taskId = pendingSession.id;
 				type = pendingSession.type;
 			} else {
@@ -216,6 +220,23 @@ export class ChatSessionsUriHandler extends Disposable implements CustomUriHandl
 		await this._extensionContext.globalState.update(PENDING_CHAT_SESSION_STORAGE_KEY, undefined);
 		await vscode.commands.executeCommand('vscode.open', uri);
 
+	}
+
+	private async waitForGitExtensionAPI(gitExtensionService: IGitExtensionService): Promise<API | undefined> {
+		if (!gitExtensionService.extensionAvailable) {
+			return undefined;
+		}
+		let timeout = 5000;
+		let api = gitExtensionService.getExtensionApi();
+		while (!api || api.state === 'uninitialized') {
+			api = gitExtensionService.getExtensionApi();
+			await new Promise(resolve => setTimeout(resolve, 100));
+			timeout -= 100;
+			if (timeout <= 0) {
+				break;
+			}
+		}
+		return api?.state === 'initialized' ? api : undefined;
 	}
 
 	private _getAlreadyOpenWorkspace(gitApi: API, cloneUri: string): Repository | undefined {
