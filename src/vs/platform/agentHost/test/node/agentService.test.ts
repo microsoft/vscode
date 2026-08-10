@@ -1645,7 +1645,8 @@ suite('AgentService (node dispatcher)', () => {
 			svc.registerProvider(agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			svc.setWorktreeIsolation({
-				removeCreatedWorktree: async () => { removeWorktreeCalls++; },
+				prepareSessionDeletion: async () => undefined,
+				removeSessionWorktree: async () => { removeWorktreeCalls++; },
 			} as unknown as WorktreeIsolation);
 			db.failRegistryWrites(2);
 
