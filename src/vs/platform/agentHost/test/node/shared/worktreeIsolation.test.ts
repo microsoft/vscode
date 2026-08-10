@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot, WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 
 /**
@@ -272,12 +272,16 @@ suite('WorktreeIsolation', () => {
 			addWorktreeRoot: addWorktreeRoot?.toString(),
 			includeFileRoot: copyIncludeCalls[0]?.repositoryRoot.toString(),
 			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
+			// A genuinely resolved root is certified, so listing trusts it
+			// without deriving it again.
+			metaRepositoryRootStamp: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
 			project: project && { uri: project.uri.toString(), displayName: project.displayName },
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 			addWorktreeRoot: repoRoot.toString(),
 			includeFileRoot: checkoutRoot.toString(),
 			metaRepositoryRoot: repoRoot.toString(),
+			metaRepositoryRootStamp: WORKTREE_REPOSITORY_ROOT_STAMP,
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
 		});
 	});
@@ -301,9 +305,14 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			worktree: worktree?.toString(),
 			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
+			// The fallback is the linked checkout itself — the very value the
+			// listing repair exists to correct — so it must never be stamped.
+			// Certifying it would make the repair skip this session forever.
+			metaRepositoryRootStamp: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
 		}, {
 			worktree: URI.joinPath(fallbackWorktreesRoot, getWorktreeName(branchName)).toString(),
 			metaRepositoryRoot: checkoutRoot.toString(),
+			metaRepositoryRootStamp: undefined,
 		});
 	});
 

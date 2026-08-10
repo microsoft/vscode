@@ -578,7 +578,7 @@ export class WorktreeIsolation extends Disposable {
 			return workingDirectory;
 		}
 
-		const repositoryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
+		const { root: repositoryRoot, resolved: repositoryRootResolved } = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
 		const worktreesRoot = getWorktreesRoot(repositoryRoot);
 		// Prefix (e.g. the user's `git.branchPrefix`) the client forwards for
 		// worktree-isolated sessions. Prepended ahead of the built-in `agents/`
@@ -634,7 +634,7 @@ export class WorktreeIsolation extends Disposable {
 		// subsequent restore (history) both surface the message in the chat.
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
 		try {
-			await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktree, repositoryRoot });
+			await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktree, repositoryRoot, repositoryRootResolved });
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to persist worktree branch metadata: ${errorMessage(error)}`);
 		}
@@ -904,7 +904,7 @@ export class WorktreeIsolation extends Disposable {
 		}
 		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
 		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
-		await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktreeRoot, repositoryRoot: primaryRoot });
+		await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktreeRoot, repositoryRoot: primaryRoot, repositoryRootResolved: true });
 		return true;
 	}
 
@@ -925,12 +925,18 @@ export class WorktreeIsolation extends Disposable {
 		return meta?.repositoryRoot ? projectFromRepositoryRoot(meta.repositoryRoot) : undefined;
 	}
 
-	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<URI> {
+	/**
+	 * Resolves the repository's primary worktree, reporting whether the answer
+	 * came from the repository or from the caller's fallback. Callers that
+	 * persist the result must not present a fallback as canonical.
+	 */
+	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<{ root: URI; resolved: boolean }> {
 		try {
-			return await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot) ?? fallbackRoot;
+			const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot);
+			return primaryRoot ? { root: primaryRoot, resolved: true } : { root: fallbackRoot, resolved: false };
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}] Failed to resolve primary worktree for '${checkoutRoot.fsPath}': ${errorMessage(error)}`);
-			return fallbackRoot;
+			return { root: fallbackRoot, resolved: false };
 		}
 	}
 
@@ -971,16 +977,21 @@ export class WorktreeIsolation extends Disposable {
 			: selectedBranch;
 	}
 
-	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {
+	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI; repositoryRootResolved: boolean }): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(sessionUri);
 		try {
 			const work: Promise<void>[] = [
 				dbRef.object.setMetadata(WORKTREE_META_BRANCH, metadata.branchName),
 				dbRef.object.setMetadata(WORKTREE_META_PATH, metadata.worktreePath.toString()),
 				dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, metadata.repositoryRoot.toString()),
-				// Written here already canonical, so listing never re-derives it.
-				dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP),
 			];
+			// Only a root the repository actually confirmed may be stamped.
+			// Stamping a fallback would certify the unresolved checkout as
+			// canonical and permanently close the listing repair that exists to
+			// correct it — turning a passing failure into a permanent one.
+			if (metadata.repositoryRootResolved) {
+				work.push(dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP));
+			}
 			if (metadata.baseBranch) {
 				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, metadata.baseBranch));
 			}
@@ -1013,14 +1024,19 @@ export class WorktreeIsolation extends Disposable {
 			let repositoryRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
 			if (repositoryRoot) {
 				const checkoutRoot = worktreePath && await fileExists(worktreePath.fsPath) ? worktreePath : repositoryRoot;
-				const primaryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
-				if (primaryRoot.toString() !== repositoryRoot.toString()) {
-					repositoryRoot = primaryRoot;
+				const { root: primaryRoot, resolved } = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
+				if (resolved) {
 					try {
-						await ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString());
+						if (primaryRoot.toString() !== repositoryRoot.toString()) {
+							await ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString());
+						}
+						// Certify here too, so a session repaired on resume does
+						// not make listing derive the same answer again.
+						await ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP);
 					} catch (error) {
 						this._logService.warn(`[${this._logLabel}] Failed to normalize worktree repository metadata for '${sessionUri.toString()}': ${errorMessage(error)}`);
 					}
+					repositoryRoot = primaryRoot;
 				}
 			}
 			return { branchName, worktreePath, repositoryRoot };
