@@ -44,9 +44,7 @@ export interface IAgentServerToolHost {
 	 * {@link canRequireConfirmation} when the owning group has no
 	 * session-specific condition.
 	 *
-	 * Providers that surface confirmations must consult this before prompting.
-	 * Codex needs no such check: it executes server tools as dynamic tool calls,
-	 * which have no approval round-trip at all.
+	 * Providers must consult this before prompting or executing the tool.
 	 */
 	requiresConfirmation(sessionUri: URI, toolName: string): boolean;
 	/**

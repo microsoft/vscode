@@ -416,7 +416,7 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	}
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
-	async attachSessionGitHubIssues(_sessionKey: string, _text: string): Promise<void> { }
+	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 }
 
 class TestFileMonitorService extends Disposable implements IAgentHostFileMonitorService {
