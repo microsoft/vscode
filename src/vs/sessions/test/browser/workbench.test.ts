@@ -7,10 +7,12 @@ import assert from 'assert';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Part } from '../../../workbench/browser/part.js';
+import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
+import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPart.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
@@ -1286,23 +1288,25 @@ suite('Sessions - Workbench', () => {
 		assert.strictEqual(minimumWidth, SESSIONS_LIST_MINIMUM_WIDTH);
 	});
 
-	test('single-pane editor part hosts breadcrumbs in the group header (scoped to the Agents Window)', () => {
+	test('Agents editor parts configure the editor type picker and single-pane header', () => {
 		// Breadcrumbs render inside the full-width header row between the tab bar
 		// and the editor content only in the single-pane Agents Window. The classic
 		// editor part must keep its default (below-tabs) placement.
-		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => {
-			showHeader?: boolean;
-			menuIds?: { headerPrimary?: object; headerSecondary?: object; headerLayout?: object };
-		};
+		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
+		const getBaseOptions = Reflect.get(MainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
 		const options = getOptions.call({});
 
 		assert.deepStrictEqual({
+			baseHiddenEditorIds: getBaseOptions.call({}).hiddenEditorIds,
 			showHeader: options.showHeader,
+			hiddenEditorIds: options.hiddenEditorIds,
 			headerPrimary: options.menuIds?.headerPrimary,
 			headerSecondary: options.menuIds?.headerSecondary,
 			headerLayout: options.menuIds?.headerLayout,
 		}, {
+			baseHiddenEditorIds: ['vscode.markdown.preview.editor'],
 			showHeader: true,
+			hiddenEditorIds: ['vscode.markdown.preview.editor'],
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
 			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,

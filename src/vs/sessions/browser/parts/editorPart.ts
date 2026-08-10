@@ -5,10 +5,13 @@
 
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import type { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './editorPartSizing.js';
+
+const HIDDEN_EDITOR_IDS = ['vscode.markdown.preview.editor'] as const;
 
 export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_TOP = 0;
@@ -25,6 +28,12 @@ export class MainEditorPart extends MainEditorPartBase {
 	// Making the editor the flex view caused its width to drift to the minimum
 	// when toggling the auxiliary bar across session switches.
 	override priority = LayoutPriority.Normal;
+
+	protected override getGroupViewOptions(): IEditorGroupViewOptions {
+		return {
+			hiddenEditorIds: HIDDEN_EDITOR_IDS
+		};
+	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		const agentLayoutService = this.layoutService as IAgentWorkbenchLayoutService;

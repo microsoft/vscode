@@ -73,4 +73,40 @@ suite('Editor Type Picker', () => {
 			}
 		});
 	});
+
+
+	test('hidden editor types are omitted unless currently active', () => {
+		const resource = URI.file('/workspace/test.md');
+		const registeredEditors = [
+			editor(DEFAULT_EDITOR_ASSOCIATION.id, RegisteredEditorPriority.builtin),
+			editor('test.markdownEditor', RegisteredEditorPriority.option),
+			editor('test.markdownPreview', RegisteredEditorPriority.option),
+		];
+		class TestEditorInput extends EditorInput {
+			constructor(private readonly id: string) {
+				super();
+			}
+
+			override get typeId(): string { return 'test.editor'; }
+			override get editorId(): string { return this.id; }
+			override get resource(): URI { return resource; }
+			override getName(): string { return 'test'; }
+		}
+		const editorResolverService = new class extends mock<IEditorResolverService>() {
+			override getEditors(): RegisteredEditorInfo[] {
+				return registeredEditors;
+			}
+		};
+		const markdownEditor = disposables.add(new TestEditorInput('test.markdownEditor'));
+		const markdownPreview = disposables.add(new TestEditorInput('test.markdownPreview'));
+		const getEditorIds = (input: EditorInput) => getAvailableEditorTypes(input, editorResolverService, ['test.markdownPreview'])?.editors.map(editor => editor.id);
+
+		assert.deepStrictEqual({
+			hidden: getEditorIds(markdownEditor),
+			active: getEditorIds(markdownPreview),
+		}, {
+			hidden: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor'],
+			active: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor', 'test.markdownPreview'],
+		});
+	});
 });

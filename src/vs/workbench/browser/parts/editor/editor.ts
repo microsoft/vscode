@@ -269,6 +269,9 @@ export interface IEditorGroupViewOptions {
 
 	/** Shows the full-width group header with its configured actions and breadcrumbs. */
 	readonly showHeader?: boolean;
+
+	/** Editor ids omitted from the editor type picker unless currently active. */
+	readonly hiddenEditorIds?: readonly string[];
 }
 
 export interface IEditorGroupMenuIds {

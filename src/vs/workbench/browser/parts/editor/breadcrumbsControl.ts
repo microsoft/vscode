@@ -228,6 +228,7 @@ export interface IBreadcrumbsControlOptions {
 	 * the dedicated breadcrumbs bar below tabs, not the inline single-tab breadcrumbs.
 	 */
 	readonly showEditorTypePicker?: boolean;
+	readonly hiddenEditorIds?: readonly string[];
 }
 
 const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight, localize('separatorIcon', 'Icon for the separator in the breadcrumbs.'));
@@ -519,7 +520,7 @@ export class BreadcrumbsControl {
 	private _updateEditorTypeControl(): void {
 		const previousWidth = this._editorTypeNode?.offsetWidth ?? 0;
 
-		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService) : undefined;
+		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService, this._options.hiddenEditorIds) : undefined;
 		if (!available) {
 			this._hideEditorTypeControl();
 		} else {
@@ -575,7 +576,7 @@ export class BreadcrumbsControl {
 		if (!editorTypeNode) {
 			return;
 		}
-		const available = getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService);
+		const available = getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService, this._options.hiddenEditorIds);
 		if (!available) {
 			return;
 		}
