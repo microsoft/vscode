@@ -3257,6 +3257,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			{ ...(options?.model ? { model: options.model } : {}) },
 			{
 				session: sourceSession,
+				chat: source.source,
 				turnId: source.turnId,
 				// The chat-fork source carries no positional index; the turn id
 				// resolves the boundary, and an unresolvable id is rejected.
@@ -3413,16 +3414,20 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * convention that a session id equals its thread id.
 	 */
 	private async _forkSession(config: IAgentCreateSessionConfig, fork: NonNullable<IAgentCreateSessionConfig['fork']>): Promise<IAgentCreateSessionResult> {
-		const sourceRead = await this._readSession(fork.session);
+		const sourceSessionUri = this._resolveConversationSession(fork.chat, { session: fork.session, resource: fork.session });
+		if (!sourceSessionUri) {
+			throw new Error(`Cannot fork codex chat ${fork.chat.toString()}: backing thread could not be resolved`);
+		}
+		const sourceRead = await this._readSession(sourceSessionUri);
 		if (!sourceRead) {
-			throw new Error(`Cannot fork codex session ${fork.session.toString()}: source thread could not be read`);
+			throw new Error(`Cannot fork codex chat ${fork.chat.toString()}: source thread could not be read`);
 		}
 		const sourceThreadId = sourceRead.thread.id;
 		const sourceTurns = sourceRead.thread.turns ?? [];
-		const sourceSession = this._sessions.get(AgentSession.id(fork.session));
+		const sourceSession = this._sessions.get(AgentSession.id(sourceSessionUri));
 		const sourceOverlay = sourceSession ? undefined : await this._metadataStore.read(fork.session);
 		const sourceManagedWorkingDirectory = sourceSession?.managedWorkingDirectory
-			?? this._releasedManagedWorkingDirectories.get(AgentSession.id(fork.session))
+			?? this._releasedManagedWorkingDirectories.get(AgentSession.id(sourceSessionUri))
 			?? (sourceOverlay?.ownsManagedWorkingDirectory ? sourceOverlay.cwd : undefined);
 		const sourcePrimary = sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : config.workingDirectories?.[0];
 		const sourceStoredWorkingDirectories = sourceSession?.workingDirectories ?? sourceRead.persistedWorkingDirectories;

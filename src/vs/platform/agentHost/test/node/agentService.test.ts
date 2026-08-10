@@ -602,7 +602,7 @@ suite('AgentService (node dispatcher)', () => {
 		const inherited = await localService.createSession({
 			provider: agent.id,
 			_meta: { multiRoot: { workspaceFile: 'relative.code-workspace' } },
-			fork: { session, turnIndex: 0, turnId: 'source-turn' },
+			fork: { session, chat: URI.parse(sourceChat), turnIndex: 0, turnId: 'source-turn' },
 		});
 		const override = {
 			workspaceFile: 'file:///work/override.code-workspace',
@@ -610,7 +610,7 @@ suite('AgentService (node dispatcher)', () => {
 		const overridden = await localService.createSession({
 			provider: agent.id,
 			_meta: { multiRoot: override },
-			fork: { session, turnIndex: 0, turnId: 'source-turn' },
+			fork: { session, chat: URI.parse(sourceChat), turnIndex: 0, turnId: 'source-turn' },
 		});
 
 		assert.deepStrictEqual({
@@ -1382,6 +1382,7 @@ suite('AgentService (node dispatcher)', () => {
 				provider: 'copilot',
 				fork: {
 					session: sourceSession,
+					chat: URI.parse(buildDefaultChatUri(sourceSession)),
 					turnIndex: 0,
 					turnId: 'source-turn',
 				},
@@ -7651,7 +7652,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const forked = await service.createSession({
 				provider: 'copilot',
-				fork: { session: sourceSession, turnIndex: 0, turnId: sourceTurnId },
+				fork: { session: sourceSession, chat: URI.parse(buildDefaultChatUri(sourceSession)), turnIndex: 0, turnId: sourceTurnId },
 			});
 			assert.notStrictEqual(forked.toString(), sourceSession.toString(), 'fork should produce a distinct session URI');
 			const forkedStr = forked.toString();

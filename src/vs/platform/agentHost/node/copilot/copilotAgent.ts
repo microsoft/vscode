@@ -2245,9 +2245,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._queueSession(sourceSessionId, async () => {
 				this._logService.info(`[Copilot] Forking session ${sourceSessionId} at turnId=${fork.turnId}`);
 
-				const sourceEntry = fork.chat
-					? await this._resolveOrResumeChatSession(this._resolveChatContext(fork.chat, { session: fork.session, resource: fork.session }))
-					: this._findAnySession(sourceSessionId) ?? await this._resumeSession(sourceSessionId);
+				const sourceEntry = await this._resolveOrResumeChatSession(this._resolveChatContext(fork.chat, { session: fork.session, resource: fork.session }));
 				if (!sourceEntry) {
 					throw new Error(`Cannot fork Copilot session ${sourceSessionId}: source chat could not be resolved`);
 				}

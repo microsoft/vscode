@@ -115,6 +115,10 @@ function defaultChatUri(session: URI): URI {
 	return URI.parse(buildDefaultChatUri(session));
 }
 
+async function bindDefaultChat(agent: ClaudeAgent, session: URI): Promise<void> {
+	await agent.chats.bindSessionChat!(defaultChatUri(session), session);
+}
+
 function inheritedChatContext(workingDirectories: readonly URI[] = [URI.file('/work')], config?: Record<string, unknown>): IAgentInheritedChatContext {
 	return { workingDirectories, ...(config ? { config } : {}) };
 }
@@ -2078,15 +2082,16 @@ suite('ClaudeAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const sourceId = 'src-uuid';
-		const sourceUri = AgentSession.uri('claude', sourceId);
+		const sourceUri = AgentSession.uri('claude', 'ah-source');
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
 		const events: IAgentMaterializeSessionEvent[] = [];
 		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+		await agent.materializeChat(defaultChatUri(sourceUri), { session: sourceUri, resource: sourceUri }, JSON.stringify({ sdkSessionId: sourceId }));
 
-		const result = await agent.createSession({ fork: { session: sourceUri, turnIndex: 0, turnId: 'u1' } });
+		const result = await agent.createSession({ fork: { session: sourceUri, chat: defaultChatUri(sourceUri), turnIndex: 0, turnId: 'u1' } });
 		const newUri = AgentSession.uri('claude', 'forked-1');
 		await agent.chats.bindSessionChat!(defaultChatUri(newUri), newUri);
 
@@ -2148,10 +2153,11 @@ suite('ClaudeAgent', () => {
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: sourcePrimary.fsPath }];
+		await bindDefaultChat(agent, source.session);
 
 		const forked = await agent.createSession({
 			workingDirectories: [requestedPrimary, requestedAdditional],
-			fork: { session: source.session, turnIndex: 0, turnId: 'u1' },
+			fork: { session: source.session, chat: defaultChatUri(source.session), turnIndex: 0, turnId: 'u1' },
 		});
 		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
 		await agent.chats.sendMessage(defaultChatUri(forked.session), 'continue', undefined, undefined, 'turn-fork');
@@ -2174,7 +2180,9 @@ suite('ClaudeAgent', () => {
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
-		await agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 1, turnId: 'u2' } });
+		const source = AgentSession.uri('claude', sourceId);
+		await bindDefaultChat(agent, source);
+		await agent.createSession({ fork: { session: source, chat: defaultChatUri(source), turnIndex: 1, turnId: 'u2' } });
 
 		assert.deepStrictEqual(sdk.forkSessionCalls[0], { sessionId: sourceId, options: { upToMessageId: 'a2' } });
 	});
@@ -2392,8 +2400,9 @@ suite('ClaudeAgent', () => {
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		await bindDefaultChat(agent, sourceUri);
 
-		const result = await agent.createSession({ fork: { session: sourceUri, turnIndex: 0, turnId: 'u1' } });
+		const result = await agent.createSession({ fork: { session: sourceUri, chat: defaultChatUri(sourceUri), turnIndex: 0, turnId: 'u1' } });
 		await agent.chats.bindSessionChat!(defaultChatUri(result.session), result.session);
 
 		// Fork defers the Query; materialize it via the first send. The resume
@@ -2412,9 +2421,10 @@ suite('ClaudeAgent', () => {
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		await bindDefaultChat(agent, AgentSession.uri('claude', sourceId));
 
 		const result = await agent.createSession({
-			fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 0, turnId: 'u1' },
+			fork: { session: AgentSession.uri('claude', sourceId), chat: defaultChatUri(AgentSession.uri('claude', sourceId)), turnIndex: 0, turnId: 'u1' },
 			model: { id: 'claude-opus-4.6' },
 		});
 
@@ -2435,9 +2445,10 @@ suite('ClaudeAgent', () => {
 
 		const sourceId = 'src-uuid';
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		await bindDefaultChat(agent, AgentSession.uri('claude', sourceId));
 
 		await assert.rejects(
-			agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 9, turnId: 'no-such-turn' } }),
+			agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), chat: defaultChatUri(AgentSession.uri('claude', sourceId)), turnIndex: 9, turnId: 'no-such-turn' } }),
 			/not found in transcript/,
 		);
 		assert.strictEqual(sdk.forkSessionCalls.length, 0, 'no fork when the anchor cannot be resolved');
@@ -2450,11 +2461,12 @@ suite('ClaudeAgent', () => {
 		const sourceId = 'src-uuid';
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		await bindDefaultChat(agent, AgentSession.uri('claude', sourceId));
 		// No `sessionList` entry → `getSessionInfo('forked-1')` resolves
 		// undefined (no cwd), and no `config.workingDirectories` is supplied.
 		// Fail fast here rather than at the first `sendMessage`.
 		await assert.rejects(
-			agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 0, turnId: 'u1' } }),
+			agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), chat: defaultChatUri(AgentSession.uri('claude', sourceId)), turnIndex: 0, turnId: 'u1' } }),
 			/no working directory/,
 		);
 	});
@@ -2466,7 +2478,7 @@ suite('ClaudeAgent', () => {
 		const subagentUri = URI.parse(buildSubagentSessionUri(AgentSession.uri('claude', 'parent').toString(), 'tool-call-1'));
 
 		await assert.rejects(
-			agent.createSession({ fork: { session: subagentUri, turnIndex: 0, turnId: 'u1' } }),
+			agent.createSession({ fork: { session: subagentUri, chat: defaultChatUri(subagentUri), turnIndex: 0, turnId: 'u1' } }),
 			/subagent/,
 		);
 		assert.deepStrictEqual({
@@ -2481,9 +2493,10 @@ suite('ClaudeAgent', () => {
 
 		// A plain createSession is provisional until the first sendMessage.
 		const provisional = await agent.createSession({ workingDirectories: [URI.file('/src')] });
+		await bindDefaultChat(agent, provisional.session);
 
 		await assert.rejects(
-			agent.createSession({ fork: { session: provisional.session, turnIndex: 0, turnId: 'u1' } }),
+			agent.createSession({ fork: { session: provisional.session, chat: defaultChatUri(provisional.session), turnIndex: 0, turnId: 'u1' } }),
 			/provisional/,
 		);
 		assert.strictEqual(sdk.forkSessionCalls.length, 0);

@@ -1224,8 +1224,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (isSubagentSession(fork.session)) {
 			throw new Error('Cannot fork a subagent session');
 		}
-		const sourceSessionId = AgentSession.id(fork.session);
-		const existingSource = this._findAnySession(sourceSessionId);
+		const sourceContext = this._resolveChatContext(fork.chat, { session: fork.session, resource: fork.session });
+		const sourceSessionId = await this._resolveChatSdkId(sourceContext);
+		if (!sourceSessionId) {
+			throw new Error(`Cannot fork Claude chat ${fork.chat.toString()}: backing SDK session not found`);
+		}
+		const existingSource = sourceContext.target;
 		if (existingSource && !existingSource.isPipelineReady) {
 			throw new Error('Cannot fork a provisional/never-sent session');
 		}

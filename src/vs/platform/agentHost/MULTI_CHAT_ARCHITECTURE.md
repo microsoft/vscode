@@ -451,6 +451,11 @@ one meaning: add an additional chat to an already-provisioned session.
   the resulting identity. Both paths return `IAgentCreateSessionResult` and
   preserve provisional / `onDidMaterializeSession` / deferred-`sessionAdded`
   semantics. `chats.createChat` only adds an additional chat.
+- **Fork a session.** The AHP request identifies a source session and turn. The
+  protocol adapter derives that session's exact default-chat URI and
+  `IAgentCreateSessionConfig.fork.chat` is required at the provider boundary.
+  Providers therefore resolve the source backing from the chat rather than
+  assuming the Agent Host session id is an SDK conversation/thread id.
 - **Add a chat.** `AgentService.createChat` dispatches to `chats.createChat` /
   `chats.fork` for additional chats only, supplying the owning session's resolved
   context via `IAgentCreateChatOptions.inheritedContext` (`{ workingDirectory,

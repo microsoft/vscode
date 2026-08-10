@@ -3507,7 +3507,7 @@ suite('CopilotAgent', () => {
 			try {
 				await assert.rejects(() => agent.createSession({
 					session,
-					fork: { session, turnIndex: 0, turnId: 'turn-1' },
+					fork: { session, chat: defaultChatUri(session), turnIndex: 0, turnId: 'turn-1' },
 				}), /Cannot fork Copilot session same-session onto itself/);
 				assert.strictEqual(client.startCallCount, 0);
 			} finally {
@@ -3616,6 +3616,7 @@ suite('CopilotAgent', () => {
 					session: target,
 					fork: {
 						session: source,
+						chat: defaultChatUri(source),
 						turnIndex: 0,
 						turnId: sourceTurnId,
 						turnIdMapping: new Map([[sourceTurnId, forkedTurnId]]),

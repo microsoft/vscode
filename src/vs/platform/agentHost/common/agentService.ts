@@ -992,7 +992,7 @@ export interface IAgentCreateSessionConfig {
 	readonly fork?: {
 		readonly session: URI;
 		/** Exact source chat supplied transiently by the orchestrator. */
-		readonly chat?: URI;
+		readonly chat: URI;
 		readonly turnIndex: number;
 		readonly turnId: string;
 		/**

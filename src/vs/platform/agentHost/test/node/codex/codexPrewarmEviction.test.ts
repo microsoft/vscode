@@ -1197,7 +1197,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 			const forkPromise = agent.createSession({
 				workingDirectories: [requestedA, requestedB],
-				fork: { session: source.session, turnId: 'turn-1', turnIndex: 0 },
+				fork: { session: source.session, chat: URI.parse(buildDefaultChatUri(source.session)), turnId: 'turn-1', turnIndex: 0 },
 			});
 
 			test('fork from a workspace-less session owns an independent managed directory', async () => {
@@ -1222,7 +1222,7 @@ suite('CodexAgent prewarm eviction', () => {
 				await fs.promises.writeFile(join(sourceDirectory.fsPath, 'marker.txt'), 'fork me');
 
 				const forking = agent.createSession({
-					fork: { session: source.session, turnId: 'turn-1', turnIndex: 0 },
+					fork: { session: source.session, chat: URI.parse(buildDefaultChatUri(source.session)), turnId: 'turn-1', turnIndex: 0 },
 				});
 				const read = await readNextRequest(peer.outbound);
 				peer.push({
