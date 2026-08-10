@@ -1428,7 +1428,12 @@ export class AgentService extends Disposable implements IAgentService {
 				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(buildDefaultChatUri(config.fork.session).toString(), config.fork.turnId);
 				config = {
 					...config,
-					fork: { ...config.fork, turnIdMapping, ...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}) },
+					fork: {
+						...config.fork,
+						chat: URI.parse(buildDefaultChatUri(config.fork.session)),
+						turnIdMapping,
+						...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}),
+					},
 				};
 			}
 		}

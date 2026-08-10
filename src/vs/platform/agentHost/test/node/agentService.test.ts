@@ -7339,6 +7339,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			assert.notStrictEqual(forked.toString(), sourceSession.toString(), 'fork should produce a distinct session URI');
 			const forkedStr = forked.toString();
+			assert.strictEqual(copilotAgent.lastCreateSessionConfig?.fork?.chat?.toString(), buildDefaultChatUri(sourceSession));
 
 			const forkedState = service.stateManager.getSessionState(forkedStr);
 			assert.ok(forkedState);

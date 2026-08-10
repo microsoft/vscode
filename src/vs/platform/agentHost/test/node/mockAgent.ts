@@ -130,7 +130,9 @@ export class MockAgent implements IAgent {
 	 * or branch setup throwing).
 	 */
 	sendMessageError: Error | undefined;
+	lastCreateSessionConfig: IAgentCreateSessionConfig | undefined;
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+		this.lastCreateSessionConfig = config;
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
 		this._sessions.set(rawId, session);

@@ -3465,17 +3465,20 @@ suite('CopilotAgent', () => {
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
 				usage: {},
 			};
-			setDefaultSessionStub(agent, AgentSession.id(source), {
+			const sourceSession = {
 				getMessages: async () => [{ ...sourceTurn, id: sourceEventId }],
 				getTurnEventId: async (turnId: string) => turnId === sourceTurn.id ? sourceEventId : undefined,
 				workingDirectory: sourceWorkingDirectory,
 				dispose: () => { },
-			});
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), sourceSession);
 
 			let imported: { config: IAgentCreateSessionConfig; sessionId: string; workingDirectory: URI } | undefined;
 			const internals = agent as unknown as {
+				_materializeChatBinding(context: IAgentChatContext): Promise<typeof sourceSession | undefined>;
 				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
 			};
+			internals._materializeChatBinding = async () => sourceSession;
 			internals._importConversation = async (config, sessionId, directory) => {
 				imported = { config, sessionId, workingDirectory: directory };
 				return { session: target, resolvedWorkingDirectory: directory };
@@ -3488,6 +3491,7 @@ suite('CopilotAgent', () => {
 					workingDirectories: [URI.file('/ignored-client-workspace')],
 					fork: {
 						session: source,
+						chat: defaultChatUri(source),
 						turnIndex: 0,
 						turnId: sourceTurn.id,
 						turnIdMapping: new Map([[sourceTurn.id, forkedTurnId]]),

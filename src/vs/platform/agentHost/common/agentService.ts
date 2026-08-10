@@ -993,6 +993,8 @@ export interface IAgentCreateSessionConfig {
 	/** Fork from an existing session at a specific turn. */
 	readonly fork?: {
 		readonly session: URI;
+		/** Exact source chat supplied transiently by the orchestrator. */
+		readonly chat?: URI;
 		readonly turnIndex: number;
 		readonly turnId: string;
 		/**
