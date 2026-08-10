@@ -3236,7 +3236,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
 		const isOmniInput = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
-		hoverDelegate.showNativeHover = isOmniInput;
 		const isVoiceSessionActive = derived(this, reader => {
 			const omniInputActive = this.voiceSessionController.omniInputActive.read(reader);
 			if (omniInputActive) {
@@ -3402,6 +3401,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
+						protected override getHoverContents() {
+							return isOmniInput ? undefined : super.getHoverContents();
+						}
+
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.add('chat-submit-button');
