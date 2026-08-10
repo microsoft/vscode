@@ -874,9 +874,7 @@ export class ChatSessionRoutingController extends Disposable {
 			const preview = isCompleted && response?.isComplete
 				? getResponsePreview(renderAsPlaintext(new MarkdownString(response.response.getMarkdown()), { useLinkFormatter: true }))
 				: undefined;
-			labelElement.textContent = preview
-				? localize('chatSessionRouting.completedInWithResponse', "Completed in {0}: {1}", label, preview)
-				: statusLabel;
+			labelElement.textContent = preview ?? statusLabel;
 			mark.replaceChildren(renderIcon(icon));
 			if (statusLabel !== lastAnnouncement) {
 				lastAnnouncement = statusLabel;
