@@ -205,7 +205,7 @@ export class ChatSessionRoutingController extends Disposable {
 		// widget's own submit state never changes). Cleared when the submission
 		// resolves, is cancelled, or the user edits the draft.
 		this._setSubmissionPhase('routing');
-		ariaAlert(localize('chatSessionRouting.findingDestination', "Finding the best chat for your request."));
+		ariaAlert(localize('chatSessionRouting.checkingIntent', "Checking how to handle your request."));
 
 		// The host cancels the in-flight submission on teardown so we never
 		// dispatch after close.
@@ -257,15 +257,36 @@ export class ChatSessionRoutingController extends Disposable {
 			const command = commandCandidates.find(candidate => candidate.commandId === intent.commandId);
 			if (command) {
 				this._setSubmissionPhase('awaitingChoice');
-				this._beginPendingCommand(command, query, submittedAttachmentIds, cts);
+				this._beginPendingCommand(
+					command,
+					query,
+					submittedAttachmentIds,
+					cts,
+					() => this._routeToChat(query, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts),
+				);
 				return true;
 			}
 		}
+		await this._routeToChat(query, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts);
+		return true;
+	}
+
+	private async _routeToChat(
+		query: string,
+		submittedAttachmentIds: readonly string[],
+		utterance: string,
+		attachedContext: readonly IChatRequestVariableEntry[] | undefined,
+		requestOptions: IChatSendRequestOptions,
+		cts: CancellationTokenSource,
+	): Promise<void> {
+		const token = cts.token;
+		this._setSubmissionPhase('routing');
+		ariaAlert(localize('chatSessionRouting.findingDestination', "Finding the best chat for your request."));
 		this.host.onWillRoute?.();
 
 		const candidates = await this._collectCandidateSessions(token);
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 
 		// Every candidate receives a lightweight semantic pass before we bound the
@@ -275,17 +296,17 @@ export class ChatSessionRoutingController extends Disposable {
 			? await this._route(candidates, utterance, token)
 			: [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 		const shortlist = selectRouterShortlist(candidates, preliminaryResults);
 		const enriched = shortlist.length ? await this._enrichCandidates(shortlist, token) : [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 
 		const results = enriched.length ? await this._route(enriched, utterance, token) : [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 		this._setSubmissionPhase('awaitingChoice');
 
@@ -295,10 +316,9 @@ export class ChatSessionRoutingController extends Disposable {
 		const hasSessionChoice = results.some(result => candidateIds.has(result.sessionId) && isHighConfidenceSessionRoute(result));
 		if (target.kind === 'new' && !hasSessionChoice) {
 			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
-			return true;
+			return;
 		}
 		this._beginPendingSend(target, newSessionTarget, results, enriched, query, submittedAttachmentIds, utterance, requestOptions, cts);
-		return true;
 	}
 
 	private _dispatchImmediately(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, cts: CancellationTokenSource): void {
@@ -563,6 +583,7 @@ export class ChatSessionRoutingController extends Disposable {
 		submittedInput: string,
 		submittedAttachmentIds: readonly string[],
 		cts: CancellationTokenSource,
+		sendToChat: () => Promise<void>,
 	): void {
 		const badge = dom.$('.chat-routing-badge.chat-routing-badge-command');
 		this.host.placeBadge(badge);
@@ -629,8 +650,18 @@ export class ChatSessionRoutingController extends Disposable {
 			this._cancelPending(true);
 			ariaAlert(localize('chatSessionRouting.commandCancelled', "Cancelled command {0}.", command.label));
 		};
+		const routeToChat = () => {
+			if (didRun) {
+				return;
+			}
+			didRun = true;
+			timer.clear();
+			this._pendingSend.clear();
+			void sendToChat();
+		};
 
 		this._addActionLink(store, badge, localize('chatSessionRouting.runNow', "Run Now"), () => void run());
+		this._addActionLink(store, badge, localize('chatSessionRouting.sendToChat', "Send to Chat"), routeToChat);
 		this._addActionLink(store, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel);
 		renderCountdown();
 		ariaAlert(localize('chatSessionRouting.runningCommandIn', "Running command {0} in {1} seconds. Activate Cancel or press Escape to cancel.", command.label, remainingSeconds));

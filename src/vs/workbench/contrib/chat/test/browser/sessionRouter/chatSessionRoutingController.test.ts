@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -55,25 +55,31 @@ suite('ChatSessionRoutingController', () => {
 		);
 		const command = { commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' };
 		let pendingCommand: typeof command | undefined;
-		let collectedSessions = false;
+		let routeToChat: (() => Promise<void>) | undefined;
+		let routedToChat = false;
 		Reflect.set(controller, '_collectCommandCandidates', () => [command]);
-		Reflect.set(controller, '_beginPendingCommand', (candidate: typeof command) => pendingCommand = candidate);
-		Reflect.set(controller, '_collectCandidateSessions', () => {
-			collectedSessions = true;
-			return Promise.resolve([]);
+		Reflect.set(controller, '_beginPendingCommand', (candidate: typeof command, _input: string, _attachmentIds: readonly string[], _cts: CancellationTokenSource, continueToChat: () => Promise<void>) => {
+			pendingCommand = candidate;
+			routeToChat = continueToChat;
+		});
+		Reflect.set(controller, '_routeToChat', () => {
+			routedToChat = true;
+			return Promise.resolve();
 		});
 
 		await controller.handleSubmit('turn on zen mode', ChatModeKind.Agent);
 
 		assert.deepStrictEqual({
 			pendingCommand,
-			collectedSessions,
+			routedToChat,
 			phases,
 		}, {
 			pendingCommand: command,
-			collectedSessions: false,
+			routedToChat: false,
 			phases: [[true, true], [true, false]],
 		});
+		await routeToChat?.();
+		assert.strictEqual(routedToChat, true);
 		controller.dispose();
 	});
 
