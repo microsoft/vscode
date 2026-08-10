@@ -19,7 +19,7 @@ import { getUntitledSessionTitle } from '../../services/sessions/common/session.
 import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
-import { MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
@@ -30,7 +30,6 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
-import { SessionConversationsActionViewItem } from './sessionConversationsActionViewItem.js';
 
 /**
  * An action runner for the session header toolbars that promotes the header's
@@ -195,9 +194,6 @@ export class SessionHeader extends Disposable {
 			// Render every meta action as a consistent `icon title` pill unless it
 			// registers its own action view item via IActionViewItemService.
 			actionViewItemProvider: (action, options) => {
-				if (action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionConversations) {
-					return instantiationService.createInstance(SessionConversationsActionViewItem, action);
-				}
 				if (action instanceof MenuItemAction) {
 					return instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options);
 				}

@@ -3,62 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { hash } from '../../base/common/hash.js';
 import { IExtUri } from '../../base/common/resources.js';
 import { URI } from '../../base/common/uri.js';
-import { Registry } from '../../platform/registry/common/platform.js';
-import { ChatOriginKind, IChat } from '../services/sessions/common/session.js';
+import { localize } from '../../nls.js';
+import { ChatOriginKind, IChat, SessionStatus } from '../services/sessions/common/session.js';
 
 export const SESSION_CONVERSATION_CHATS_GROUP = '1_chats';
-export const SESSION_CONVERSATION_SIDE_CHATS_GROUP = '2_sideChats';
-export const SESSION_CONVERSATION_SUBAGENTS_GROUP = '3_subagents';
+export const SESSION_CONVERSATION_SUBAGENTS_GROUP = '2_subagents';
 
-/** Describes a labeled action-widget section contributed to the Chats dropdown. */
-export interface ISessionConversationGroup {
-	readonly id: string;
-	readonly label: string;
-	readonly order: number;
+export function getSessionConversationActionId(sessionId: string, chatResource: URI): string {
+	return `sessions.openChat.${sessionId}.${hash(chatResource.toString())}`;
 }
 
-/** Registry for contributed Chats dropdown groups. */
-export interface ISessionConversationGroupRegistry {
-	register(group: ISessionConversationGroup): IDisposable;
-	getGroups(): readonly ISessionConversationGroup[];
+export function getSelectedSessionConversationActionId(sessionId: string, activeChat: IChat): string {
+	return getSessionConversationActionId(sessionId, activeChat.resource);
+}
+
+export function getSessionConversationStatusLabel(status: SessionStatus): string {
+	switch (status) {
+		case SessionStatus.Untitled:
+			return localize('sessionConversationStatus.new', "New");
+		case SessionStatus.InProgress:
+			return localize('sessionConversationStatus.inProgress', "In Progress");
+		case SessionStatus.NeedsInput:
+			return localize('sessionConversationStatus.needsInput', "Input Needed");
+		case SessionStatus.Completed:
+			return localize('sessionConversationStatus.completed', "Completed");
+		case SessionStatus.Error:
+			return localize('sessionConversationStatus.failed', "Failed");
+	}
+}
+
+export function getSessionConversationStatusAriaLabel(status: SessionStatus): string {
+	return localize('sessionConversationStatus.ariaLabel', "State: {0}", getSessionConversationStatusLabel(status));
+}
+
+export function getSessionConversationStatusDescription(status: SessionStatus): string | undefined {
+	return status === SessionStatus.Completed ? undefined : getSessionConversationStatusLabel(status);
 }
 
 /** Returns the contributed menu group for a chat in the scoped session. */
-export function getSessionConversationGroupId(chat: IChat, activeChatResource: URI, extUri: IExtUri): string | undefined {
+export function getSessionConversationGroupId(chat: IChat, activeChat: IChat, extUri: IExtUri): string | undefined {
 	if (chat.origin?.kind === ChatOriginKind.Tool) {
-		return chat.origin.parentChat && extUri.isEqual(chat.origin.parentChat, activeChatResource)
+		const activeChatScope = activeChat.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat
+			? activeChat.origin.parentChat
+			: activeChat.resource;
+		return chat.origin.parentChat && extUri.isEqual(chat.origin.parentChat, activeChatScope)
 			? SESSION_CONVERSATION_SUBAGENTS_GROUP
 			: undefined;
 	}
-	if (chat.origin?.kind === ChatOriginKind.SideChat) {
-		return SESSION_CONVERSATION_SIDE_CHATS_GROUP;
-	}
 	return SESSION_CONVERSATION_CHATS_GROUP;
 }
-
-export const SessionConversationExtensions = {
-	Groups: 'sessions.conversationGroups',
-} as const;
-
-class SessionConversationGroupRegistry implements ISessionConversationGroupRegistry {
-
-	private readonly _groups = new Map<string, ISessionConversationGroup>();
-
-	register(group: ISessionConversationGroup): IDisposable {
-		if (this._groups.has(group.id)) {
-			throw new Error(`Session conversation group '${group.id}' is already registered.`);
-		}
-
-		this._groups.set(group.id, group);
-		return toDisposable(() => this._groups.delete(group.id));
-	}
-
-	getGroups(): readonly ISessionConversationGroup[] {
-		return Array.from(this._groups.values()).sort((a, b) => a.order - b.order);
-	}
-}
-
-Registry.add(SessionConversationExtensions.Groups, new SessionConversationGroupRegistry());

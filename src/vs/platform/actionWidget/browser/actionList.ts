@@ -583,6 +583,9 @@ export interface IActionListOptions {
 	 */
 	readonly focusFilterOnOpen?: boolean;
 
+	/** Optional action item id to focus when the list opens. */
+	readonly initialFocusItemId?: string;
+
 	/**
 	 * When false, non-submenu items do not reserve space for the submenu chevron.
 	 * Defaults to true for alignment consistency.
@@ -1288,6 +1291,17 @@ export class ActionListWidget<T> extends Disposable {
 	private _focusCheckedOrFirst(): void {
 		this._suppressHover = true;
 		try {
+			const initialFocusItemId = this._options?.initialFocusItemId;
+			if (initialFocusItemId) {
+				for (let i = 0; i < this._list.length; i++) {
+					const element = this._list.element(i);
+					if (element.kind === ActionListItemKind.Action && (element.item as { id?: string })?.id === initialFocusItemId) {
+						this._list.setFocus([i]);
+						this._list.reveal(i);
+						return;
+					}
+				}
+			}
 			// Try to focus the checked item first
 			for (let i = 0; i < this._list.length; i++) {
 				const element = this._list.element(i);
