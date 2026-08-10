@@ -8,7 +8,7 @@ import { PauseableEmitter } from '../../../../base/common/event.js';
 import * as glob from '../../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename, extname, isEqual } from '../../../../base/common/resources.js';
+import { basename, extname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,6 +19,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, EditorResourceAccessor, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceMultiDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
@@ -79,7 +80,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 		// Read in the cache on statup
@@ -712,7 +714,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		for (const group of orderedGroups) {
 			for (const editor of group.editors) {
-				if (isEqual(editor.resource, resource) && editor.editorId === editorId) {
+				if ((this.uriIdentityService.extUri.isEqual(editor.resource, resource) || this.uriIdentityService.extUri.isEqual(EditorResourceAccessor.getOriginalUri(editor), resource)) && editor.editorId === editorId) {
 					out.push({ editor, group });
 				}
 			}
