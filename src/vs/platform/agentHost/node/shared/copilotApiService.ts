@@ -43,6 +43,8 @@ export interface ICopilotApiServiceRequestOptions {
 	 * `ClaudeStreamingPassThroughEndpoint.getEndpointFetchOptions()`.
 	 */
 	readonly suppressIntegrationId?: boolean;
+	/** Allow utility completions to use the GitHub OAuth token when Copilot token minting is forbidden. */
+	readonly allowGitHubTokenFallback?: boolean;
 }
 
 /**
@@ -704,7 +706,7 @@ export class CopilotApiService implements ICopilotApiService {
 		try {
 			authToken = await this._getCopilotToken(githubToken);
 		} catch (error) {
-			if (!(error instanceof CopilotTokenMintError) || error.status !== 403) {
+			if (!options?.allowGitHubTokenFallback || !(error instanceof CopilotTokenMintError) || error.status !== 403) {
 				throw error;
 			}
 			this._logService.warn('[CopilotApiService] Copilot session token mint was forbidden; using the GitHub OAuth token for utility completion');

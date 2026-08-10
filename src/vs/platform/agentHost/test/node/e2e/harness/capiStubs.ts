@@ -122,7 +122,7 @@ function quotaSnapshots(): Record<string, unknown> {
 	return { chat: { ...snapshot, quota_id: 'chat' }, completions: { ...snapshot, quota_id: 'completions' }, premium_interactions: { ...snapshot, quota_id: 'premium_interactions' } };
 }
 
-/** A fake Copilot token pointing back at the proxy (used only by title/utility calls on replay). */
+/** A fake Copilot token pointing back at the proxy. */
 function tokenStubBody(): string {
 	return JSON.stringify({
 		token: 'replay-copilot-token',
@@ -167,7 +167,10 @@ export function getAncillaryStub(method: string, path: string): IStubResponse | 
 		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ mcp_registries: [] }) };
 	}
 	if (path.startsWith('/copilot_internal/')) {
-		if (path.includes('/token') || path.includes('/nltoken')) {
+		if (path.endsWith('/v2/token')) {
+			return { status: 403, headers: JSON_HEADERS, body: 'Forbidden' };
+		}
+		if (path.includes('/nltoken')) {
 			return { status: 200, headers: JSON_HEADERS, body: tokenStubBody() };
 		}
 		if (path.includes('/user')) {

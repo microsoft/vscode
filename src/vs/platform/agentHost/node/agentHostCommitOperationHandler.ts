@@ -100,7 +100,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		try {
 			message = this._cleanCommitMessage(await this._copilotApiService.utilityChatCompletion(authToken, {
 				messages: this._buildCommitMessagePrompt(workingDirectory, gitState.branchName, diffs),
-			}, { signal }));
+			}, { signal, allowGitHubTokenFallback: true }));
 		} catch (err) {
 			this._throwIfCancelled(token);
 			if (this._isAuthFailure(err)) {

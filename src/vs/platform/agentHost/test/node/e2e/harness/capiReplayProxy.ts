@@ -57,6 +57,7 @@ const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dum
  * cache miss (reusing a stale turn could spin the agent loop forever), whereas
  * idempotent endpoints (`/models`, token) may be safely re-served. */
 const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/messages']);
+const STORED_RESPONSE_HEADERS = new Set(['content-type']);
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
@@ -574,6 +575,7 @@ export class CapiReplayProxy {
 				requestBody: this._normalize(body),
 				response: {
 					...response,
+					headers: filterRecordedResponseHeaders(response.headers),
 					body: this._normalize(response.body),
 				},
 			});
@@ -617,8 +619,7 @@ export class CapiReplayProxy {
 					// filters / codecs can parse them. The live client already
 					// received the original (compressed) chunks above.
 					const decoded = decodeBody(Buffer.concat(respChunks), headers['content-encoding']);
-					const storedHeaders = { ...headers };
-					delete storedHeaders['content-encoding'];
+					const storedHeaders = filterRecordedResponseHeaders(headers);
 					// Rewrite the CAPI origin to a placeholder (so replay re-points
 					// discovery at the proxy), normalize local paths, and redact
 					// response-side secrets.
@@ -1090,4 +1091,8 @@ function flattenHeaders(headers: http.IncomingHttpHeaders): Record<string, strin
 		result[key] = Array.isArray(value) ? value.join(', ') : value;
 	}
 	return result;
+}
+
+function filterRecordedResponseHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
+	return Object.fromEntries(Object.entries(headers).filter(([key]) => STORED_RESPONSE_HEADERS.has(key.toLowerCase())));
 }
