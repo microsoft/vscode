@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
-import { gitHubInfoEqual, IChat, IGitHubInfo, ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, gitHubInfoEqual, IChat, IGitHubInfo, ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { toPRContentUri } from '../../../github/common/utils.js';
 
@@ -35,7 +35,7 @@ class GitRepositoryChangesetResolver implements IChangesetResolver {
 	async resolve(firstCheckpointRef: string, lastCheckpointRef: string | undefined): Promise<IChatSessionFileChange2[] | undefined> {
 		const repositoryUri = this._repositoryUriObs.get();
 		if (!repositoryUri) {
-			return undefined;
+			return [];
 		}
 
 		const repository = await this._gitService.openRepository(repositoryUri);
@@ -166,7 +166,7 @@ abstract class AbstractChangeset implements ISessionChangeset {
  * semi-static — refresh on new commits to either ref.
  */
 export class BranchChangesChangeset extends AbstractChangeset {
-	static readonly ID = 'branchChanges';
+	static readonly ID = BRANCH_CHANGES_CHANGESET_ID;
 
 	readonly id = BranchChangesChangeset.ID;
 	readonly label = localize('branchChanges', "Branch Changes");

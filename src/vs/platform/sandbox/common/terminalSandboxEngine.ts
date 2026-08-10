@@ -18,7 +18,7 @@ import { ILogService } from '../../log/common/log.js';
 import { matchesDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { ISandboxDependencyStatus, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
@@ -42,6 +42,16 @@ interface ITerminalSandboxFileSystemAccessPaths {
 export interface ITerminalSandboxRuntimeInfo {
 	/** Directory that contains `node_modules/@vscode/sandbox-runtime` and `node_modules/@vscode/ripgrep`. */
 	appRoot: string;
+	/**
+	 * Name of the directory (relative to {@link appRoot}) that holds the native
+	 * binaries `ripgrep-universal` and `@microsoft/mxc-sdk`. In a packaged desktop
+	 * build these are unpacked from the archive into `node_modules.asar.unpacked`;
+	 * in dev and on remote they live in plain `node_modules`. Defaults to
+	 * `node_modules`. Note the sandbox-runtime CLI itself is always resolved from
+	 * plain `node_modules` (it is duplicated out of the archive) because it is
+	 * spawned as a standalone Node subprocess without the ASAR resolution hook.
+	 */
+	nativeModulesDir?: string;
 	/** Path of the node/electron executable used to run sandbox-runtime. */
 	execPath?: string;
 	/**
@@ -91,11 +101,9 @@ export interface ITerminalSandboxEngineHost {
 	buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined>;
 	/**
 	 * Returns the effective value of a sandbox-related configuration setting,
-	 * or `undefined` when the setting is not configured. Implementations are
-	 * responsible for mapping deprecated keys to modern ones (the engine
-	 * only ever asks for the modern setting IDs).
+	 * or `undefined` when the setting is not configured.
 	 */
-	getSandboxSetting<T>(settingId: string): T | undefined;
+	getSandboxSetting<T>(settingId: AgentSandboxSettingId | AgentNetworkDomainSettingId): T | undefined;
 	/**
 	 * Fires when any value returned by {@link getSandboxSetting} may have
 	 * changed. The engine invalidates its sandbox-config file on each event.
@@ -132,6 +140,8 @@ export class TerminalSandboxEngine extends Disposable {
 	private _windowsMxcEnvironment: string[] | undefined;
 	private _sandboxConfigPath: string | undefined;
 	private _sandboxDependencyStatus: ISandboxDependencyStatus | undefined;
+	private _enableWeakerNestedSandbox = false;
+	private _apparmorRemediationRequested = false;
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _commandAllowListKeywords: readonly string[] = [];
@@ -190,19 +200,18 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains {
-		const allowedDomains = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
-		const deniedDomains = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
+		const allowedDomains = this._host.getSandboxSetting<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
+		const deniedDomains = this._host.getSandboxSetting<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
 		return { allowedDomains, deniedDomains };
 	}
 
-	async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean, forceSandboxed: boolean = false): Promise<ITerminalSandboxWrapResult> {
+	async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult> {
 		const allowUnsandboxedCommands = this._areUnsandboxedCommandsAllowed();
 		const retryWithAllowNetworkRequests = this._areRetryWithAllowNetworkRequestsAllowed();
-		const shouldInspectBlockedDomains = !forceSandboxed && requestUnsandboxedExecution !== true && requestAllowNetwork !== true && (retryWithAllowNetworkRequests || allowUnsandboxedCommands);
+		const shouldInspectBlockedDomains = requestUnsandboxedExecution !== true && requestAllowNetwork !== true && (retryWithAllowNetworkRequests || allowUnsandboxedCommands);
 		const blockedDomainResult = shouldInspectBlockedDomains ? this._getBlockedDomains(command) : { blockedDomains: [], deniedDomains: [] };
-		const requiresPreflightAllowNetwork = !forceSandboxed && retryWithAllowNetworkRequests && blockedDomainResult.blockedDomains.length > 0;
-		const commandWillRunSandboxed = forceSandboxed || requestUnsandboxedExecution !== true;
-		const allowNetworkForCommand = !forceSandboxed && commandWillRunSandboxed && ((requestAllowNetwork === true && retryWithAllowNetworkRequests) || requiresPreflightAllowNetwork);
+		const requiresPreflightAllowNetwork = retryWithAllowNetworkRequests && blockedDomainResult.blockedDomains.length > 0;
+		const allowNetworkForCommand = requestUnsandboxedExecution !== true && ((requestAllowNetwork === true && retryWithAllowNetworkRequests) || requiresPreflightAllowNetwork);
 		const normalizedCommandDetails = this._normalizeCommandDetails(commandDetails ?? []);
 		const normalizedCommandKeywords = this._normalizeCommandKeywords(normalizedCommandDetails.map(c => c.keyword));
 		const currentReadAllowListPaths = getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails);
@@ -233,9 +242,9 @@ export class TerminalSandboxEngine extends Disposable {
 
 		// If per-command network relaxation is disabled, preserve the existing
 		// unsandbox fallback for commands with statically-detected blocked domains.
-		if (!forceSandboxed && !requestUnsandboxedExecution && !retryWithAllowNetworkRequests && allowUnsandboxedCommands && blockedDomainResult.blockedDomains.length > 0) {
+		if (!requestUnsandboxedExecution && !retryWithAllowNetworkRequests && allowUnsandboxedCommands && blockedDomainResult.blockedDomains.length > 0) {
 			return {
-				command: this._wrapUnsandboxedCommand(command, shell),
+				command: this._wrapUnsandboxedCommand(command, shell, cwd),
 				isSandboxWrapped: false,
 				blockedDomains: blockedDomainResult.blockedDomains,
 				deniedDomains: blockedDomainResult.deniedDomains,
@@ -244,9 +253,9 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
-		if (!forceSandboxed && requestUnsandboxedExecution && allowUnsandboxedCommands) {
+		if (requestUnsandboxedExecution && allowUnsandboxedCommands) {
 			return {
-				command: this._wrapUnsandboxedCommand(command, shell),
+				command: this._wrapUnsandboxedCommand(command, shell, cwd),
 				isSandboxWrapped: false,
 			};
 		}
@@ -322,7 +331,19 @@ export class TerminalSandboxEngine extends Disposable {
 
 		if (!(await this._checkSandboxDependencies(forceRefresh))) {
 			const missingDependencies = await this.getMissingSandboxDependencies();
-			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapInstalled && !this._sandboxDependencyStatus.bubblewrapUsable) {
+			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapUsable === false) {
+				if (this._sandboxDependencyStatus.apparmorRestrictsUnprivilegedUserNamespaces !== true || (forceRefresh && this._apparmorRemediationRequested)) {
+					if (!this._enableWeakerNestedSandbox) {
+						this._enableWeakerNestedSandbox = true;
+						await this.getSandboxConfigPath(true, precheckInputs);
+					}
+					return {
+						enabled: true,
+						sandboxConfigPath: this._sandboxConfigPath,
+						failedCheck: undefined,
+					};
+				}
+				this._apparmorRemediationRequested = true;
 				return {
 					enabled: true,
 					sandboxConfigPath,
@@ -336,6 +357,7 @@ export class TerminalSandboxEngine extends Disposable {
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies,
+				canInstallMissingDependencies: !!this._sandboxDependencyStatus?.dependencyInstallCommand,
 			};
 		}
 
@@ -466,17 +488,18 @@ export class TerminalSandboxEngine extends Disposable {
 			: sandboxRuntimeCommand;
 	}
 
-	private _wrapUnsandboxedCommand(command: string, shell?: string): string {
+	private _wrapUnsandboxedCommand(command: string, shell?: string, cwd?: URI): string {
 		if (this._os === OperatingSystem.Windows) {
 			return this._windowsMxcRuntime.wrapUnsandboxedCommand(command);
 		}
 		if (!this._tempDir?.path) {
 			return command;
 		}
+		const commandWithPreservedCwd = this._getSandboxCommandWithPreservedCwd(command, cwd);
 		if (!shell) {
-			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})`;
+			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${commandWithPreservedCwd})`;
 		}
-		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(command)}`;
+		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(commandWithPreservedCwd)}`;
 	}
 
 	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {
@@ -584,10 +607,11 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 		await this.getOS();
 		if (this._os === OperatingSystem.Windows) {
-			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
+			const value = this._getSandboxConfiguredWindowsEnabledValue();
+			return isAgentSandboxEnabledValue(value);
 		}
 		const value = this._getSandboxConfiguredEnabledValue();
-		return value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
+		return isAgentSandboxEnabledValue(value);
 	}
 
 	private async _resolveRuntimeInfo(): Promise<void> {
@@ -601,10 +625,11 @@ export class TerminalSandboxEngine extends Disposable {
 		this._runAsNode = runtimeInfo.runAsNode ?? false;
 		this._userHome = await this._host.getUserHome();
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
+		const nativeModulesDir = runtimeInfo.nativeModulesDir ?? 'node_modules';
 		const rgPlatform = this._os === OperatingSystem.Windows ? 'win32' : this._os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
 		const rgBinary = this._os === OperatingSystem.Windows ? 'rg.exe' : 'rg';
-		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
-		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, runtimeInfo.arch);
+		this._rgPath = this._pathJoin(this._appRoot, nativeModulesDir, '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
+		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, nativeModulesDir, runtimeInfo.arch);
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -617,18 +642,21 @@ export class TerminalSandboxEngine extends Disposable {
 
 		const allowNetwork = this._commandAllowNetwork || await this.isSandboxAllowNetworkEnabled();
 		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
 			: {};
 		const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
 			: {};
 		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
 			: {};
 		const windowsSchemaVersion = this._os === OperatingSystem.Windows
-			? this._getSettingValue<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
+			? this._host.getSandboxSetting<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
 			: undefined;
-		const runtimeSetting = this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime) ?? {};
+		const runtimeSetting = {
+			...this._host.getSandboxSetting<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime),
+			...(this._enableWeakerNestedSandbox ? { enableWeakerNestedSandbox: true } : undefined),
+		};
 		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
 		const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');
@@ -666,7 +694,6 @@ export class TerminalSandboxEngine extends Disposable {
 			tempDir: this._tempDir,
 			schemaVersion: windowsSchemaVersion,
 			allowNetwork,
-			networkDomains: this.getResolvedNetworkDomains(),
 			allowReadPaths,
 			allowWritePaths,
 			denyReadPaths,
@@ -682,7 +709,7 @@ export class TerminalSandboxEngine extends Disposable {
 		};
 		if (this._os !== OperatingSystem.Windows) {
 			const sandboxRuntimeSettings = sandboxSettings as Record<string, unknown>;
-			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, runtimeSetting);
 			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, commandRuntimeSetting);
 			if (this._os === OperatingSystem.Macintosh) {
 				sandboxRuntimeSettings.allowPty ??= true;
@@ -695,13 +722,13 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private async _getFileSystemAccessPaths(configFilePath: string | undefined): Promise<ITerminalSandboxFileSystemAccessPaths> {
 		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
 			: {};
 		const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
 			: {};
 		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
 			: {};
 		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
@@ -844,12 +871,6 @@ export class TerminalSandboxEngine extends Disposable {
 		return paths.filter((path): path is string => typeof path === 'string');
 	}
 
-	private _withoutNetworkRuntimeSetting(runtimeSetting: Record<string, unknown>): Record<string, unknown> {
-		const sanitizedRuntimeSetting = { ...runtimeSetting };
-		delete sanitizedRuntimeSetting.network;
-		return sanitizedRuntimeSetting;
-	}
-
 	private _mergeAdditionalSandboxConfigProperties(target: Record<string, unknown>, additional: Record<string, unknown>): void {
 		for (const [key, value] of Object.entries(additional)) {
 			if (!Object.prototype.hasOwnProperty.call(target, key)) {
@@ -929,7 +950,19 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
 		const resolvedPaths = await Promise.all((paths ?? []).map(path => this._resolveFileSystemPath(path)));
-		return [...new Set(resolvedPaths.flat())];
+		const seenPaths = new Set<string>();
+		return resolvedPaths.flat().filter(path => {
+			const comparisonKey = this._getFileSystemPathComparisonKey(path);
+			if (seenPaths.has(comparisonKey)) {
+				return false;
+			}
+			seenPaths.add(comparisonKey);
+			return true;
+		});
+	}
+
+	private _getFileSystemPathComparisonKey(path: string): string {
+		return this._os === OperatingSystem.Windows ? path.replace(/\//g, '\\').toLowerCase() : path;
 	}
 
 	private async _resolveFileSystemPath(path: string): Promise<string[]> {
@@ -1031,14 +1064,17 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue {
-		return this._getSettingValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
+		return this._host.getSandboxSetting<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
 	}
 
 	private _getSandboxConfiguredWindowsEnabledValue(): AgentSandboxEnabledValue {
-		return this._getSettingValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled) ?? AgentSandboxEnabledValue.Off;
+		return this._host.getSandboxSetting<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled) ?? AgentSandboxEnabledValue.Off;
 	}
 
 	private _isSandboxAllowNetworkConfigured(): boolean {
+		if (this._host.getSandboxSetting<boolean>(AgentSandboxSettingId.AgentSandboxAllowNetwork) === true) {
+			return true;
+		}
 		if (this._os === OperatingSystem.Windows) {
 			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
 		}
@@ -1046,14 +1082,10 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _areUnsandboxedCommandsAllowed(): boolean {
-		return this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
+		return this._host.getSandboxSetting<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
 	}
 
 	private _areRetryWithAllowNetworkRequestsAllowed(): boolean {
-		return this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
-	}
-
-	private _getSettingValue<T>(settingId: AgentSandboxSettingId | AgentNetworkDomainSettingId): T | undefined {
-		return this._host.getSandboxSetting<T>(settingId);
+		return this._host.getSandboxSetting<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
 	}
 }

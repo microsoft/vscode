@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentHostAgentPickerStorageKey } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
+import type { IChatModeChangeEvent } from '../../widget/input/chatInputPart.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 const AGENT_HOST_SESSION_SCHEME_PREFIX = 'agent-host-';
 
-class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribution {
+export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentHostModeSynchronizer';
 
 	private readonly _widgetListeners = this._register(new DisposableMap<IChatWidget>());
@@ -29,7 +29,6 @@ class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribu
 
 	constructor(
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -55,11 +54,6 @@ class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribu
 				this._syncWidgetFromBackend(widget);
 			}
 		}));
-		this._register(this._agentHostService.onDidAction(envelope => {
-			if (envelope.action.type === ActionType.SessionAgentChanged) {
-				this._syncWidgetsFromBackend();
-			}
-		}));
 	}
 
 	private _attachWidget(widget: IChatWidget): void {
@@ -68,19 +62,21 @@ class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribu
 		}
 
 		const store = new DisposableStore();
-		store.add(widget.input.onDidChangeCurrentChatMode(() => this._onWidgetModeChanged(widget)));
+		store.add(widget.input.onDidChangeCurrentChatMode(e => this._onWidgetModeChanged(widget, e)));
 		store.add(widget.onDidChangeViewModel(() => this._syncWidgetFromBackend(widget)));
+		store.add(autorun(reader => {
+			const modes = widget.input.currentChatModesObs.read(reader);
+			reader.store.add(modes.onDidChange(() => this._syncWidgetFromBackend(widget)));
+		}));
 		this._widgetListeners.set(widget, store);
 		this._syncWidgetFromBackend(widget);
 	}
 
-	private _syncWidgetsFromBackend(): void {
-		for (const widget of this._chatWidgetService.getAllWidgets()) {
-			this._syncWidgetFromBackend(widget);
+	private _onWidgetModeChanged(widget: IChatWidget, e: IChatModeChangeEvent): void {
+		if (!e.isUserInitiated) {
+			return;
 		}
-	}
 
-	private _onWidgetModeChanged(widget: IChatWidget): void {
 		if (this._updatingWidgets.has(widget)) {
 			return;
 		}
@@ -93,17 +89,10 @@ class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribu
 
 		const mode = widget.input.currentModeObs.get();
 		const agentUri = this._agentUriFromMode(mode);
-		this._storeSelectedAgent(sessionResource, agentUri);
-
-		const currentAgentUri = this._readSessionState(backendSession)?.summary.agent?.uri;
-		if (currentAgentUri === agentUri) {
+		if (this._readSelectedAgent(sessionResource) === agentUri) {
 			return;
 		}
-
-		this._agentHostService.dispatch(backendSession.toString(), {
-			type: ActionType.SessionAgentChanged,
-			...(agentUri ? { agent: { uri: agentUri } } : {}),
-		});
+		this._storeSelectedAgent(sessionResource, agentUri);
 	}
 
 	private _syncWidgetFromBackend(widget: IChatWidget): void {
@@ -113,11 +102,23 @@ class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
-		const agentUri = this._readSessionState(backendSession)?.summary.agent?.uri;
+		// The per-scheme stored agent is only a SEED for NEW (untitled) sessions — the same
+		// semantics as the Agents Window new-session picker. An established or restored session's
+		// agent is its own persisted mode, so applying the shared value here would override it
+		// (e.g. flipping the user's `Agent` to a stale custom agent the moment the backend session
+		// resolves on the first send).
+		if (!isUntitledChatSession(sessionResource)) {
+			return;
+		}
+
+		const agentUri = this._readSelectedAgent(sessionResource);
+		if (agentUri === undefined) {
+			return;
+		}
 		void this._applyMode(widget, sessionResource, agentUri);
 	}
 
-	private async _applyMode(widget: IChatWidget, sessionResource: URI, agentUri: string | undefined): Promise<void> {
+	private async _applyMode(widget: IChatWidget, sessionResource: URI, agentUri: string): Promise<void> {
 		const modes = widget.input.currentChatModesObs.get();
 		await modes.waitForPendingUpdates();
 
@@ -125,8 +126,7 @@ class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
-		const modeId = agentUri ?? ChatMode.Agent.id;
-		const mode = this._findMode(modes, modeId);
+		const mode = this._findMode(modes, agentUri);
 		if (!mode || widget.input.currentModeObs.get().id === mode.id) {
 			return;
 		}
@@ -164,9 +164,9 @@ class AgentHostModeSynchronizer extends Disposable implements IWorkbenchContribu
 		}
 	}
 
-	private _readSessionState(backendSession: URI): SessionState | undefined {
-		const value = this._agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
-		return value && !(value instanceof Error) ? value : undefined;
+	private _readSelectedAgent(sessionResource: URI): string | undefined {
+		const key = agentHostAgentPickerStorageKey(sessionResource.scheme);
+		return this._storageService.get(key, StorageScope.PROFILE);
 	}
 
 	private _resolveBackendSession(sessionResource: URI): URI | undefined {

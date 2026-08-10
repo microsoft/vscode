@@ -15,6 +15,7 @@ import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRa
 import { SerializedEdit } from './dataTypes/editUtils';
 import { FetchCancellationError } from './dataTypes/fetchCancellationError';
 import { LanguageContextResponse, SerializedContextResponse, serializeLanguageContext } from './dataTypes/languageContext';
+import { PromptSectionTokenCounts } from './dataTypes/promptSectionTokens';
 import { RootedLineEdit } from './dataTypes/rootedLineEdit';
 import { DebugRecorderBookmark } from './debugRecorderBookmark';
 import { ISerializedNextEditRequest, StatelessNextEditRequest } from './statelessNextEditProvider';
@@ -177,6 +178,31 @@ export class InlineEditRequestLogContext {
 			lines.push('\n</details>\n');
 		}
 
+		if (this._promptSectionTokens) {
+			const t = this._promptSectionTokens;
+			lines.push(`## Prompt section tokens ${fromCacheStatus}`);
+			lines.push('<details><summary>Click to view</summary>\n');
+			lines.push('Approximate (char/4) token counts per prompt section.\n');
+			lines.push('Indented `↳` rows break down `recently_viewed_code_snippets` by source; they do not sum exactly to the section total (section tags and inter-snippet newline glue are excluded).\n');
+			lines.push('| Section | Tokens |');
+			lines.push('| --- | --- |');
+			lines.push(`| system_prompt | ${t.systemPrompt} |`);
+			lines.push(`| recently_viewed_code_snippets | ${t.recentlyViewed} |`);
+			lines.push(`| &nbsp;&nbsp;↳ recently viewed files (xtab history) | ${t.recentlyViewedSubsections.recentlyViewedFiles} |`);
+			lines.push(`| &nbsp;&nbsp;↳ language context | ${t.recentlyViewedSubsections.languageContext} |`);
+			lines.push(`| &nbsp;&nbsp;↳ neighbor files | ${t.recentlyViewedSubsections.neighborFiles} |`);
+			lines.push(`| current_file_content | ${t.currentFile} |`);
+			lines.push(`| lint_errors | ${t.lintErrors} |`);
+			lines.push(`| edit_diff_history | ${t.editHistory} |`);
+			lines.push(`| area_around_code_to_edit | ${t.areaAroundCodeToEdit} |`);
+			lines.push(`| cursor_location | ${t.cursorLocation} |`);
+			lines.push(`| related_information | ${t.relatedInformation} |`);
+			lines.push(`| post_script | ${t.postScript} |`);
+			lines.push(`| overhead (newlines / backticks / trim) | ${t.overhead} |`);
+			lines.push(`| **user_prompt_total** | **${t.userPromptTotal}** |`);
+			lines.push('\n</details>\n');
+		}
+
 		if (this._isAccepted !== undefined) {
 			lines.push(`## Accepted : ${this._isAccepted ? 'Yes' : 'No'}`);
 		}
@@ -302,6 +328,7 @@ export class InlineEditRequestLogContext {
 		if (logContextOfCachedEdit._prompt) {
 			this._prompt = logContextOfCachedEdit._prompt;
 		}
+		this._promptSectionTokens = logContextOfCachedEdit._promptSectionTokens ?? this._promptSectionTokens;
 		this.response = logContextOfCachedEdit.response ?? this.response;
 		this._responseResults = logContextOfCachedEdit._responseResults ?? this._responseResults;
 		if (logContextOfCachedEdit.fullResponsePromise) {
@@ -331,6 +358,7 @@ export class InlineEditRequestLogContext {
 		if (logContextOfReusedRequest._prompt) {
 			this._prompt = logContextOfReusedRequest._prompt;
 		}
+		this._promptSectionTokens = logContextOfReusedRequest._promptSectionTokens ?? this._promptSectionTokens;
 		this.response = logContextOfReusedRequest.response ?? this.response;
 		this._responseResults = logContextOfReusedRequest._responseResults ?? this._responseResults;
 		if (logContextOfReusedRequest.fullResponsePromise) {
@@ -365,6 +393,7 @@ export class InlineEditRequestLogContext {
 
 	public _prompt: string | undefined = undefined;
 	private _rawMessages: Raw.ChatMessage[] | undefined = undefined;
+	public _promptSectionTokens: PromptSectionTokenCounts | undefined = undefined;
 
 	get prompt(): string | undefined {
 		return this._prompt;
@@ -382,6 +411,11 @@ export class InlineEditRequestLogContext {
 			this._rawMessages = prompt;
 			this._prompt = stringifyChatMessages(prompt);
 		}
+		this.fireDidChange();
+	}
+
+	setPromptSectionTokens(counts: PromptSectionTokenCounts) {
+		this._promptSectionTokens = counts;
 		this.fireDidChange();
 	}
 
@@ -412,18 +446,7 @@ export class InlineEditRequestLogContext {
 
 	private _outcome: LogContextOutcome = 'pending';
 
-	/**
-	 * Sets the outcome, warning if already set (i.e., not `pending`).
-	 * Use direct `this._outcome = ...` assignment to bypass the guard
-	 * (e.g., in `setIsCachedResult` which intentionally overrides any inherited outcome).
-	 */
 	private _setOutcome(outcome: LogContextOutcome): void {
-		// 'reusedInFlight' is an intermediate state set when joining an in-flight
-		// request (before the result arrives), so it can legitimately transition
-		// to the final outcome (skipped, errored, etc.) just like 'pending'.
-		if (this._outcome !== 'pending' && this._outcome !== 'reusedInFlight') {
-			console.warn(`[InlineEditRequestLogContext] outcome transition from '${this._outcome}' to '${outcome}' (request #${this.requestId})`);
-		}
 		this._outcome = outcome;
 	}
 
@@ -465,9 +488,7 @@ export class InlineEditRequestLogContext {
 	}
 
 	public markAsPreviouslyRejected() {
-		// Direct assignment — bypasses _setOutcome guard because this transition
-		// legitimately overrides 'succeeded' when a fetched edit turns out to be rejected.
-		this._outcome = 'previouslyRejected';
+		this._setOutcome('previouslyRejected');
 		this._isVisible = true;
 		this.fireDidChange();
 	}

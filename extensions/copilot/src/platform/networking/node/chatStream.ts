@@ -96,8 +96,10 @@ export function sendEngineMessagesLengthTelemetry(telemetryService: ITelemetrySe
 		modelCallId: modelCallId, // Include at telemetry event level too
 	}, telemetryData.measurements);
 
-	telemetryService.sendEnhancedGHTelemetryEvent('engine.messages.length', multiplexProperties(telemetryDataWithPrompt.properties), telemetryDataWithPrompt.measurements);
-	telemetryService.sendInternalMSFTTelemetryEvent('engine.messages.length', multiplexProperties(telemetryDataWithPrompt.properties), telemetryDataWithPrompt.measurements);
+	void multiplexProperties(telemetryDataWithPrompt.properties).then(properties => {
+		telemetryService.sendEnhancedGHTelemetryEvent('engine.messages.length', properties, telemetryDataWithPrompt.measurements);
+		telemetryService.sendInternalMSFTTelemetryEvent('engine.messages.length', properties, telemetryDataWithPrompt.measurements);
+	}).catch(() => { /* best-effort telemetry */ });
 }
 
 // LRU cache from message hash to UUID to ensure same content gets same UUID (limit: 1000 entries)
@@ -454,7 +456,7 @@ export function sendEngineMessagesTelemetry(telemetryService: ITelemetryService,
 		messagesJson: JSON.stringify(messages),
 	});
 
-	telemetryService.sendEnhancedGHTelemetryEvent('engine.messages', multiplexProperties(telemetryDataWithPrompt.properties), telemetryDataWithPrompt.measurements);
+	void multiplexProperties(telemetryDataWithPrompt.properties).then(properties => telemetryService.sendEnhancedGHTelemetryEvent('engine.messages', properties, telemetryDataWithPrompt.measurements)).catch(() => { /* best-effort telemetry */ });
 	// Commenting this out to test a new deduplicated way to collect the same information using sendModelTelemetryEvents()
 	// TO DO remove this line completely if the new way allows for complete reconstruction of entire message arrays with much lower drop rate
 	//telemetryService.sendInternalMSFTTelemetryEvent('engine.messages', multiplexProperties(telemetryDataWithPrompt.properties), telemetryDataWithPrompt.measurements);

@@ -4,27 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
+import { derived, IObservable } from '../../../../base/common/observable.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { isEqual } from '../../../../base/common/resources.js';
 
 export class ChecksViewModel extends Disposable {
-	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly checksObs: IObservable<GitHubPullRequestCIModel | undefined>;
 
 	constructor(
 		@IGitHubService gitHubService: IGitHubService,
-		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
-
-		this.activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
-			const session = sessionsService.activeSession.read(reader);
-			return session?.resource;
-		});
 
 		this.checksObs = derived(this, reader => {
 			return gitHubService.activeSessionPullRequestCIObs.read(reader);

@@ -119,8 +119,6 @@ export class NewChatContextAttachments extends Disposable {
 
 		for (const entry of visibleAttachments) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
-			pill.tabIndex = 0;
-			pill.role = 'button';
 			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
 			if (entry.kind === 'image') {
 				dom.append(pill, renderIcon(Codicon.fileMedia));
@@ -157,10 +155,18 @@ export class NewChatContextAttachments extends Disposable {
 				}));
 			}
 
+			// Only expose the pill itself as a focusable button when it has an open
+			// action; reference pills without a resource (e.g. `#session`) would
+			// otherwise be a focusable control that does nothing.
+			if (imageData || resource) {
+				pill.tabIndex = 0;
+				pill.role = 'button';
+			}
+
 			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
 			removeButton.title = localize('removeAttachment', "Remove");
 			removeButton.tabIndex = -1;
-			dom.append(removeButton, renderIcon(Codicon.close));
+			dom.append(removeButton, renderIcon(Codicon.closeCompact));
 			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, (e) => {
 				e.stopPropagation();
 				this._removeAttachment(entry.id);

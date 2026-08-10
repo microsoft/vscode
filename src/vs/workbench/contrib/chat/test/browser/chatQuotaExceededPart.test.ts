@@ -33,7 +33,6 @@ function createMockEntitlementService(entitlement: ChatEntitlement): IChatEntitl
 		isInternal: false,
 		sku: undefined,
 		copilotTrackingId: undefined,
-		previewFeaturesDisabled: false,
 		clientByokEnabled: false,
 		hasByokModels: false,
 		onDidChangeSentiment: Event.None,

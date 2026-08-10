@@ -151,6 +151,10 @@ export abstract class CachedListVirtualDelegate<T extends object> implements ILi
 		return this.cache.get(element) ?? this.estimateHeight(element);
 	}
 
+	protected getCachedHeight(element: T): number | undefined {
+		return this.cache.get(element);
+	}
+
 	protected abstract estimateHeight(element: T): number;
 	abstract getTemplateId(element: T): string;
 

@@ -9,6 +9,29 @@
 	overflow: hidden;
 }
 
+/* ---- Disabled overlay (shown in place of a sub-view when logging is off) ---- */
+.chat-debug-disabled-overlay {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	overflow-y: auto;
+}
+.chat-debug-logging-disabled {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	max-width: 480px;
+}
+.chat-debug-logging-disabled-message {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 16px;
+}
+
 /* ---- Home view ---- */
 .chat-debug-home {
 	display: flex;
@@ -1784,4 +1807,254 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 .chat-debug-cache-diff-line.remove .chat-debug-cache-diff-inner {
 	background: var(--vscode-diffEditor-removedTextBackground, rgba(244, 135, 113, 0.4));
 	border-radius: 2px;
+}
+
+/* ---- AHP Log (protocol frames) view ---- */
+.chat-debug-wirelog {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	flex: 1;
+	min-height: 0;
+}
+.chat-debug-wirelog-hint {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-editorWidget-background);
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+.chat-debug-wirelog-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 12px;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+	flex-shrink: 0;
+}
+.chat-debug-wirelog-select {
+	min-width: 220px;
+}
+.chat-debug-wirelog-select .monaco-select-box {
+	width: 100%;
+}
+.chat-debug-wirelog-filter {
+	flex: 1 1 auto;
+	min-width: 120px;
+	height: 24px;
+	padding: 2px 6px;
+	font-size: 12px;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 2px;
+}
+.chat-debug-wirelog-filter::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+.chat-debug-wirelog-filter:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+.chat-debug-wirelog-action {
+	flex-shrink: 0;
+	width: auto;
+}
+.chat-debug-wirelog-summary {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	flex-shrink: 0;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+.chat-debug-wirelog-chip {
+	padding: 1px 8px;
+	font-size: 11px;
+	border-radius: 10px;
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+}
+.chat-debug-wirelog-chip-error {
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground));
+	background: var(--vscode-inputValidation-errorBackground, transparent);
+	border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+.chat-debug-wirelog-chip-pending {
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-warningBackground, transparent);
+	border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-editorWarning-foreground));
+}
+.chat-debug-wirelog-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	position: relative;
+	overflow: hidden;
+}
+.chat-debug-wirelog-loadmore {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	padding: 6px 0;
+	flex-shrink: 0;
+	border-top: 1px solid var(--vscode-widget-border, transparent);
+}
+.chat-debug-wirelog-loadmore-status {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-wirelog-list {
+	padding: 4px 0;
+	user-select: text;
+	box-sizing: border-box;
+}
+.chat-debug-wirelog-list.chat-debug-wirelog-message {
+	padding: 12px;
+	color: var(--vscode-descriptionForeground);
+	white-space: pre-wrap;
+}
+.chat-debug-wirelog-noresults {
+	padding: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-wirelog-row {
+	border-bottom: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.15));
+}
+.chat-debug-wirelog-row-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 12px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.chat-debug-wirelog-row-header:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+.chat-debug-wirelog-row-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+.chat-debug-wirelog-row-error {
+	border-left: 2px solid var(--vscode-errorForeground);
+}
+.chat-debug-wirelog-row-error .chat-debug-wirelog-row-header {
+	background: var(--vscode-inputValidation-errorBackground, transparent);
+}
+.chat-debug-wirelog-row-error .chat-debug-wirelog-method {
+	color: var(--vscode-errorForeground);
+}
+.chat-debug-wirelog-chevron {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+}
+.chat-debug-wirelog-dir {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+}
+.chat-debug-wirelog-method {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.chat-debug-wirelog-type {
+	flex-shrink: 0;
+	padding: 0 6px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	border-radius: 3px;
+	color: var(--vscode-textPreformat-foreground);
+	background: var(--vscode-textPreformat-background);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.chat-debug-wirelog-badge {
+	flex-shrink: 0;
+	padding: 0 6px;
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	border-radius: 3px;
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-badge-background);
+}
+.chat-debug-wirelog-status {
+	flex-shrink: 0;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-wirelog-status-ok {
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-wirelog-status-error {
+	color: var(--vscode-errorForeground);
+	font-weight: 600;
+}
+.chat-debug-wirelog-status-pending {
+	color: var(--vscode-editorWarning-foreground);
+}
+.chat-debug-wirelog-time {
+	flex-shrink: 0;
+	margin-left: auto;
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-wirelog-row-details {
+	display: none;
+	padding: 4px 12px 8px 34px;
+}
+.chat-debug-wirelog-row-expanded .chat-debug-wirelog-row-details {
+	display: block;
+}
+.chat-debug-wirelog-detail-section {
+	margin-bottom: 6px;
+}
+.chat-debug-wirelog-detail-title {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 2px;
+}
+.chat-debug-wirelog-detail-json {
+	margin: 0;
+	padding: 6px 8px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	line-height: 1.4;
+	white-space: pre-wrap;
+	word-break: break-word;
+	tab-size: 2;
+	color: var(--vscode-foreground);
+	background: var(--vscode-textCodeBlock-background, var(--vscode-editorWidget-background));
+	border-radius: 3px;
+}
+.chat-debug-wirelog-detail-json-error {
+	color: var(--vscode-errorForeground);
+}
+.chat-debug-wirelog-detail-note {
+	font-size: 11px;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-wirelog-footer {
+	flex-shrink: 0;
+	padding: 4px 12px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	border-top: 1px solid var(--vscode-widget-border, transparent);
+}
+.chat-debug-wirelog-footer:empty {
+	display: none;
 }

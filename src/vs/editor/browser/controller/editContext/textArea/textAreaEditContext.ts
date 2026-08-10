@@ -470,6 +470,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
+		if (position.lineNumber > this._context.viewModel.getLineCount()) {
+			return ['', 0];
+		}
 		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS, []);
@@ -511,6 +514,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	private _getWordBeforePosition(position: Position): string {
+		if (position.lineNumber > this._context.viewModel.getLineCount()) {
+			return '';
+		}
 		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators), []);
 
@@ -530,6 +536,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 	private _getCharacterBeforePosition(position: Position): string {
 		if (position.column > 1) {
+			if (position.lineNumber > this._context.viewModel.getLineCount()) {
+				return '';
+			}
 			const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 			const charBefore = lineContent.charAt(position.column - 2);
 			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {

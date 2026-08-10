@@ -140,12 +140,13 @@ export class AgentHostGenericConfigChips extends Disposable {
 	private _readWorkingDirectory(): URI | undefined {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			const cwd = state.summary.workingDirectory;
+			const cwd = state.workingDirectories?.[0];
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
 			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+			?? this._newSessionFolderService.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
