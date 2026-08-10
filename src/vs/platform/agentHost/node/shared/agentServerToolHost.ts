@@ -55,13 +55,21 @@ export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
 	readonly definitions: readonly ToolDefinition[];
 	/**
-	 * Whether {@link toolName} (one of this group's {@link definitions}) must be
-	 * confirmed by the user before it runs. Providers exclude such tools from
-	 * their server-tool auto-approve lists so the call surfaces a confirmation.
-	 * Absent or `false` means the tool is auto-approved like every other server
-	 * tool.
+	 * Whether {@link toolName} (one of this group's {@link definitions}) can
+	 * ever prompt for confirmation. Providers exclude such tools from their
+	 * server-tool auto-approve lists so the call routes through a confirmation
+	 * path. Absent or `false` means the tool is auto-approved like every other
+	 * server tool.
 	 */
-	requiresConfirmation?(toolName: string): boolean;
+	canRequireConfirmation?(toolName: string): boolean;
+	/**
+	 * Whether {@link toolName} needs to prompt for the invocation currently
+	 * being made against {@link sessionUri}. Implement this for
+	 * state-dependent confirmation (e.g. nothing to confirm yet) while keeping
+	 * {@link canRequireConfirmation} stable for provider allow-lists. Absent
+	 * falls back to {@link canRequireConfirmation}.
+	 */
+	requiresConfirmation?(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string): boolean;
 	/**
 	 * Executes {@link toolName} (one of this group's {@link definitions})
 	 * against the session's state, dispatching any resulting actions through
@@ -71,7 +79,7 @@ export interface IServerToolGroup {
 	 * @throws if {@link toolName} is not owned by this group or the arguments
 	 * are invalid.
 	 */
-	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string;
+	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
 
 	/**
 	 * Display strings for {@link toolName} (one of this group's
@@ -130,11 +138,18 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		});
 	}
 
-	requiresConfirmation(toolName: string): boolean {
-		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
+	canRequireConfirmation(toolName: string): boolean {
+		return this._groupByToolName.get(toolName)?.canRequireConfirmation?.(toolName) ?? false;
 	}
 
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string {
+	requiresConfirmation(sessionUri: URI, toolName: string): boolean {
+		const group = this._groupByToolName.get(toolName);
+		return group?.requiresConfirmation?.(this._stateManager, sessionUri, toolName)
+			?? group?.canRequireConfirmation?.(toolName)
+			?? false;
+	}
+
+	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);

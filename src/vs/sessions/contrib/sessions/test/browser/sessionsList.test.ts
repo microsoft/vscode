@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { computeReorderSortChanges, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -34,6 +34,7 @@ function createSession(id: string, opts: {
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		} : undefined),
+		isQuickChat: observableValue(`isQuickChat-${id}`, opts.workspaceLabel === undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
@@ -48,7 +49,7 @@ function createSession(id: string, opts: {
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: observableValue<IChat>(`mainChat-${id}`, undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -128,6 +129,58 @@ suite('Sessions - SessionsList Helpers', () => {
 			const groups = groupByWorkspace(sessions);
 
 			assert.strictEqual(groups[0].id, 'workspace:MyProject');
+		});
+	});
+
+	suite('groupByDate', () => {
+
+		const DAY_MS = 86_400_000;
+
+		// `groupByDate` expects sessions pre-sorted most-recent-first.
+		function minutesAgo(minutes: number): Date {
+			return new Date(Date.now() - minutes * 60_000);
+		}
+
+		function daysAgo(days: number): Date {
+			return new Date(Date.now() - days * DAY_MS);
+		}
+
+		test('sessions within the last 7 days go to "Recent", older ones to "Older"', () => {
+			const sessions = [
+				createSession('recent-1', { createdAt: minutesAgo(5) }),
+				createSession('recent-2', { createdAt: daysAgo(3) }),
+				createSession('old-1', { createdAt: daysAgo(10) }),
+				createSession('old-2', { createdAt: daysAgo(30) }),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{ id: 'recent', sessions: ['recent-1', 'recent-2'] },
+				{ id: 'older', sessions: ['old-1', 'old-2'] },
+			]);
+		});
+
+		test('"Recent" is capped at 10 sessions; the overflow within 7 days falls into "Older"', () => {
+			const sessions = Array.from({ length: 13 }, (_, i) =>
+				createSession(`s${i}`, { createdAt: minutesAgo(i + 1) }));
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{ id: 'recent', sessions: ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'] },
+				{ id: 'older', sessions: ['s10', 's11', 's12'] },
+			]);
+		});
+
+		test('empty sections are omitted', () => {
+			const sessions = [
+				createSession('only-old', { createdAt: daysAgo(20) }),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => s.id), ['older']);
 		});
 	});
 
@@ -272,6 +325,54 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) })), [
 				{ id: 'pinned', sessions: ['first', 'second'] },
 			]);
+		});
+
+		test('workspace-less sessions form a Chats section directly below Pinned (above groups)', () => {
+			const pinned = createSession('pinned', { workspaceLabel: 'Alpha', createdAt: new Date('2024-06-03') });
+			const quick = createSession('quick', { createdAt: new Date('2024-06-02') });
+			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-06-01') });
+			const archived = createSession('archived', { workspaceLabel: 'Gamma', isArchived: true, createdAt: new Date('2024-05-01') });
+			const sections = groupSessionsForList(
+				[pinned, quick, regular, archived],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				session => session.sessionId === pinned.sessionId,
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
+				{ id: 'pinned', sessions: ['pinned'] },
+				{ id: 'quickchats', sessions: ['quick'] },
+				{ id: 'workspace:Beta', sessions: ['regular'] },
+				{ id: 'archived', sessions: ['archived'] },
+			]);
+		});
+
+		test('pinned quick chat stays in Pinned, not Quick Chats', () => {
+			const quick = createSession('quick', { createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[quick],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => true,
+			);
+
+			assert.deepStrictEqual(sections.map(section => section.id), ['pinned']);
+		});
+
+		test('Chats section sits directly below Pinned when grouping by date', () => {
+			const pinned = createSession('pinned', { createdAt: new Date('2024-06-03') });
+			const quick = createSession('quick', { createdAt: new Date('2024-06-02') });
+			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[pinned, quick, regular],
+				SessionsGrouping.Date,
+				SessionsSorting.Created,
+				session => session.sessionId === pinned.sessionId,
+			);
+
+			assert.strictEqual(sections[0].id, 'pinned');
+			assert.strictEqual(sections[1].id, 'quickchats');
+			assert.deepStrictEqual(sections[1].sessions.map(s => s.sessionId), ['quick']);
 		});
 	});
 

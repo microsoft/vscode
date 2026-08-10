@@ -47,9 +47,16 @@ interface ProxyAgentParams {
 	loadSystemCertificatesFromNode: () => boolean | undefined;
 }
 
+interface ResolvedProxyInfo {
+	url: string | undefined;
+	type: 'DIRECT' | 'PROXY' | 'HTTP' | 'HTTPS' | 'SOCKS' | 'SOCKS5' | 'SOCKS4' | 'EMPTY' | 'UNRECOGNIZED';
+	source: 'localhost' | 'noProxyConfig' | 'noProxyEnv' | 'setting' | 'env' | 'remote' | 'system_cached' | 'system' | 'fallback';
+}
+
 interface ProxyAgent {
 	loadSystemCertificates?(params: ProxyAgentParams): Promise<string[]>;
 	resolveProxyURL?(url: string): Promise<string | undefined>;
+	resolveProxyByURL?(url: string): Promise<ResolvedProxyInfo>;
 }
 
 export class LoggingActionsContrib {
@@ -93,9 +100,9 @@ User Settings:
 			const loadSystemCertificatesFromNode = this.configurationService.getNonExtensionConfig<boolean>('http.systemCertificatesNode');
 			const osCertificates = proxyAgent?.loadSystemCertificates ? await loadSystemCertificates(proxyAgent.loadSystemCertificates, loadSystemCertificatesFromNode, this.logService) : undefined;
 			const urls = [
-				this.capiClientService.dotcomAPIURL,
-				this.capiClientService.capiPingURL,
-				this.capiClientService.proxyBaseURL + '/_ping',
+				{ url: this.capiClientService.dotcomAPIURL, expectedContent: 'current_user_url' },
+				{ url: this.capiClientService.capiPingURL, expectedContent: 'OK' },
+				{ url: this.capiClientService.proxyBaseURL + '/_ping', expectedContent: '"status":"ok"' },
 			];
 			const isGHEnterprise = this.capiClientService.dotcomAPIURL !== 'https://api.github.com';
 			const timeoutSeconds = 10;
@@ -113,7 +120,7 @@ User Settings:
 				nodeFetchFetcher,
 			];
 			const dnsLookup = util.promisify(dns.lookup);
-			for (const url of urls) {
+			for (const { url, expectedContent } of urls) {
 				const authHeaders = await this.getAuthHeaders(isGHEnterprise, url);
 				const host = new URL(url).hostname;
 				await appendText(editor, `\nConnecting to ${url}:\n`);
@@ -193,7 +200,16 @@ User Settings:
 						try {
 							const response = await Promise.race([fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-fetcher-probe' }), timeout(timeoutSeconds * 1000)]);
 							if (response) {
-								await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)\n`);
+								let contentNote = '';
+								try {
+									const body = await response.text();
+									if (!body.includes(expectedContent)) {
+										contentNote = ` - unexpected content: ${formatUnexpectedContent(body)} (expected: '${expectedContent}')`;
+									}
+								} catch (bodyErr) {
+									contentNote = ` - failed to read content: ${collectErrorMessages(bodyErr)}`;
+								}
+								await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)${contentNote}\n`);
 							} else {
 								await appendText(editor, `timed out after ${timeoutSeconds} seconds\n`);
 							}
@@ -316,6 +332,15 @@ async function appendText(editor: vscode.TextEditor, string: string) {
 
 function timeoutAfter(ms: number) {
 	return new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), ms));
+}
+
+/**
+ * Formats an unexpected response body for single-line display: replaces line breaks with `\n`
+ * indicators and truncates to 200 characters.
+ */
+function formatUnexpectedContent(body: string): string {
+	const oneLine = body.replace(/\r\n|\r|\n/g, '\\n');
+	return oneLine.length > 200 ? `${oneLine.slice(0, 200)}…` : oneLine;
 }
 
 /**
@@ -471,6 +496,41 @@ function getProxyEnvVariables() {
 	return res.length ? `\n\nEnvironment Variables:${res.join('')}` : '';
 }
 
+interface ProxyInfo {
+	/** Resolved proxy type: `DIRECT`, `PROXY`, `HTTP`, `HTTPS`, `SOCKS`, `SOCKS5`, `SOCKS4`, `EMPTY`, `UNRECOGNIZED` or `UNKNOWN`. */
+	type: string;
+	/**
+	 * Where the proxy configuration came from: `localhost`, `noProxyConfig`
+	 * (`http.noProxy`), `noProxyEnv` (`no_proxy`), `setting` (`http.proxy`), `env`
+	 * (`http(s)_proxy`), `remote`, `system_cached`, `system` (OS/PAC) or `fallback`
+	 * from `@vscode/proxy-agent`, or one of the failure sentinels `missing`
+	 * (module/API unavailable), `timeout` or `error`.
+	 */
+	source: string;
+}
+
+/**
+ * Resolves the proxy type and configuration source for a URL using the bundled
+ * `@vscode/proxy-agent` module. The source reflects which configuration actually
+ * determined the resolved proxy (see `@vscode/proxy-agent`'s `resolveProxyByURL`).
+ */
+async function resolveProxyInfo(url: string, logService: ILogService): Promise<ProxyInfo> {
+	try {
+		const proxyAgent = loadVSCodeModule<ProxyAgent>('@vscode/proxy-agent');
+		if (!proxyAgent?.resolveProxyByURL) {
+			return { type: 'UNKNOWN', source: 'missing' };
+		}
+		const info = await Promise.race([proxyAgent.resolveProxyByURL(url), timeoutAfter(5000)]);
+		if (info === 'timeout') {
+			return { type: 'UNKNOWN', source: 'timeout' };
+		}
+		return { type: info.type, source: info.source };
+	} catch (err) {
+		logService.debug(`Fetcher telemetry: Failed to resolve proxy info: ${err?.message}`);
+		return { type: 'UNKNOWN', source: 'error' };
+	}
+}
+
 export class FetcherTelemetryContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -485,6 +545,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 	const logService = accessor.get(ILogService);
 	const configurationService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
+	const capiClientService = accessor.get(ICAPIClientService);
 
 	if (!vscode.env.isTelemetryEnabled || extensionContext.extensionMode !== vscode.ExtensionMode.Production || isScenarioAutomation) {
 		return;
@@ -539,6 +600,9 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 			}
 		}
 
+		// Resolve the proxy type and configuration source for the CAPI endpoint.
+		const { type: proxyType, source: proxySource } = await resolveProxyInfo(capiClientService.capiPingURL, logService);
+
 		// Second loop: send the actual telemetry event including probe results.
 		const requestGroupId = generateUuid();
 		const extensionKind = extensionContext.extension.extensionKind === vscode.ExtensionKind.UI ? 'local' : 'remote';
@@ -553,6 +617,8 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 						"clientLibrary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher library used for this request." },
 						"extensionKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the extension runs locally or remotely." },
 						"remoteName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The remote name, if any." },
+						"proxyType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The resolved proxy type for the CAPI endpoint (e.g. DIRECT, PROXY, HTTP, HTTPS, SOCKS, SOCKS5, SOCKS4, EMPTY, UNRECOGNIZED, UNKNOWN)." },
+						"proxySource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Where the proxy configuration came from: localhost, noProxyConfig (http.noProxy), noProxyEnv (no_proxy), setting (http.proxy), env (http(s)_proxy), remote, system_cached, system (OS/PAC), fallback, or a failure sentinel: missing, timeout or error." },
 						"electronfetch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the electron-fetch fetcher." },
 						"nodefetch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the node-fetch fetcher." },
 						"nodehttp": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the node-http fetcher." }
@@ -563,6 +629,8 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 					clientLibrary: fetcher.getUserAgentLibrary(),
 					extensionKind,
 					remoteName: vscode.env.remoteName ?? 'none',
+					proxyType,
+					proxySource,
 					...probeResults,
 				};
 				const response = await sendRawTelemetry(fetcher, envService, oneCollectorTelemetryUrl, extensionContext, 'GitHub.copilot-chat/fetcherTelemetry', properties);

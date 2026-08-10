@@ -5,7 +5,7 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackModel.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 
 export const enum SessionEditorCommentSource {
@@ -185,6 +185,22 @@ export function getResourceEditorComments(resourceUri: URI, comments: readonly I
 
 export function toSessionEditorCommentId(source: SessionEditorCommentSource, sourceId: string): string {
 	return `${source}:${sourceId}`;
+}
+
+/**
+ * Inverse of {@link toSessionEditorCommentId}. Returns `undefined` when the id
+ * does not match the `${source}:${sourceId}` shape produced above.
+ */
+export function fromSessionEditorCommentId(id: string): { readonly source: SessionEditorCommentSource; readonly sourceId: string } | undefined {
+	const separatorIndex = id.indexOf(':');
+	if (separatorIndex === -1) {
+		return undefined;
+	}
+	const source = id.slice(0, separatorIndex);
+	if (source !== SessionEditorCommentSource.AgentFeedback && source !== SessionEditorCommentSource.PRReview) {
+		return undefined;
+	}
+	return { source, sourceId: id.slice(separatorIndex + 1) };
 }
 
 export function getAcceptedAgentFeedbackCommentCount(comments: readonly ISessionEditorComment[]): number {

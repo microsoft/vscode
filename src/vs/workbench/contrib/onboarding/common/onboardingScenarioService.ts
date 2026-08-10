@@ -14,23 +14,41 @@ export const ONBOARDING_ENABLED_CONFIG = 'onboarding.enabled';
 
 /**
  * Developer/advanced setting. A map of scenario/tour id to a boolean: when a
- * scenario's flag is `true`, that scenario bypasses usage-based eligibility
- * gating (e.g. the new-session tour's "first few sessions" check) so it can be
- * triggered on demand for testing. The scenario is still shown at most once per
- * window session (tracked in memory, not persisted), so reload the window to
- * replay it — the "Reset Onboarding Shown State" command only clears the
- * persisted state and does not affect developer-mode replays.
+ * scenario's flag is `true`, that scenario bypasses the gating that normally
+ * keeps it from showing, so it can be triggered on demand for testing. Concretely,
+ * developer mode for a scenario:
+ *  - bypasses usage-based eligibility gating (e.g. the new-session tour's "first
+ *    few sessions" check),
+ *  - bypasses the once-per-user persisted "shown" state, and
+ *  - bypasses the experiment gate: a tour with a linked experiment will show even
+ *    if the experiment is not running, or the user is in the control arm. A
+ *    developer-mode preview never opens the assignment-context telemetry gate (in
+ *    any arm), so it can never affect an experiment scorecard.
+ *
+ * Developer mode does NOT override the global `onboarding.enabled` switch: when
+ * onboarding is disabled, nothing shows automatically regardless of this setting.
+ *
+ * The scenario is still shown at most once per window session (tracked in memory,
+ * not persisted), so reload the window to replay it — the "Reset Onboarding Shown
+ * State" command only clears the persisted state and does not affect developer-mode
+ * replays.
  *
  * The default value lists every registered scenario id set to `false`, so the
  * available ids are discoverable (and toggleable) in the settings editor.
  */
 export const ONBOARDING_DEVELOPER_MODE_CONFIG = 'onboarding.developerMode';
 
+/** Developer override for a scenario's experiment-selected variation. */
+export const ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG = 'onboarding.developerModeVariations';
+
 /**
  * The shape of the {@link ONBOARDING_DEVELOPER_MODE_CONFIG} setting: a map of
  * scenario/tour id to whether developer mode is enabled for that scenario.
  */
 export type OnboardingDeveloperMode = { readonly [scenarioId: string]: boolean };
+
+/** The shape of the {@link ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG} setting. */
+export type OnboardingDeveloperModeVariations = { readonly [scenarioId: string]: string };
 
 /**
  * Whether onboarding developer mode is enabled for the given scenario/tour id.
@@ -40,6 +58,15 @@ export type OnboardingDeveloperMode = { readonly [scenarioId: string]: boolean }
 export function isOnboardingDeveloperModeEnabled(configurationService: IConfigurationService, scenarioId: string): boolean {
 	const value = configurationService.getValue<OnboardingDeveloperMode | undefined>(ONBOARDING_DEVELOPER_MODE_CONFIG);
 	return typeof value === 'object' && value !== null && value[scenarioId] === true;
+}
+
+export function getOnboardingDeveloperModeVariation(configurationService: IConfigurationService, scenarioId: string): string | undefined {
+	if (!isOnboardingDeveloperModeEnabled(configurationService, scenarioId)) {
+		return undefined;
+	}
+	const value = configurationService.getValue<OnboardingDeveloperModeVariations | undefined>(ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG);
+	const variation = typeof value === 'object' && value !== null ? value[scenarioId] : undefined;
+	return typeof variation === 'string' && variation.length > 0 ? variation : undefined;
 }
 
 /**

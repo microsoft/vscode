@@ -1,0 +1,84 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
+    response:
+      content:
+        - type: text
+          text: I'll read the file first, then replace its contents.
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/stored-edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll read the file first, then replace its contents.
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/stored-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tBEFORE_STORED_VALUE"
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: Edit
+          input:
+            file_path: ${workdir}/stored-edit.txt
+            old_string: BEFORE_STORED_VALUE
+            new_string: AFTER_STORED_VALUE
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll read the file first, then replace its contents.
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/stored-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tBEFORE_STORED_VALUE"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/stored-edit.txt
+                old_string: BEFORE_STORED_VALUE
+                new_string: AFTER_STORED_VALUE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/stored-edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+    response:
+      content: done
+      stopReason: end_turn

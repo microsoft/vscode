@@ -24,7 +24,7 @@ import { OnboardingScenarioService } from '../../browser/onboardingService.js';
 import { IOnboardingPresentation, IOnboardingRunContext, onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
 import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
-import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../common/onboardingScenarioService.js';
+import { getOnboardingDeveloperModeVariation, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../common/onboardingScenarioService.js';
 
 function completedResult(outcome: OnboardingOutcome = OnboardingOutcome.Completed): IOnboardingRunResult {
 	const dismissReason = outcome === OnboardingOutcome.Skipped ? OnboardingDismissReason.SkipButton
@@ -115,6 +115,25 @@ suite('OnboardingScenarioService', () => {
 		// The Memento maintains a static cache keyed by id; clear it so each test
 		// starts with fresh persisted state instead of leaking across tests.
 		Memento.clear(StorageScope.APPLICATION);
+	});
+
+	test('developer variation only overrides while developer mode is enabled', () => {
+		const disabled = new TestConfigurationService({
+			[ONBOARDING_DEVELOPER_MODE_CONFIG]: { tour: false },
+			[ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG]: { tour: 'githubPrompt' },
+		});
+		const enabled = new TestConfigurationService({
+			[ONBOARDING_DEVELOPER_MODE_CONFIG]: { tour: true },
+			[ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG]: { tour: 'githubPrompt' },
+		});
+
+		assert.deepStrictEqual({
+			disabled: getOnboardingDeveloperModeVariation(disabled, 'tour'),
+			enabled: getOnboardingDeveloperModeVariation(enabled, 'tour'),
+		}, {
+			disabled: undefined,
+			enabled: 'githubPrompt',
+		});
 	});
 
 	let idSeed = 0;
@@ -231,6 +250,19 @@ suite('OnboardingScenarioService', () => {
 		order.push(...presentation.runs);
 
 		assert.deepStrictEqual(order, ['high', 'low']);
+	});
+
+	test('higher priority wins when eligible scenarios share a seen key', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'low-shared', seenKey: 'shared', priority: 1, trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+		registerScenario({ id: 'high-shared', seenKey: 'shared', priority: 10, trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+
+		assert.deepStrictEqual(presentation.runs, ['high-shared']);
 	});
 
 	test('observable triggers start the scenario when the signal turns true', async () => {
@@ -399,17 +431,29 @@ suite('OnboardingScenarioService', () => {
 			presentation: { kind: presentation.kind, payload: undefined }
 		});
 
-		// Before resolution the id is blocked from telemetry by the prefix filter.
+		const assignmentContext = 'onb-tour-q3:12345';
 		const { service } = createService({}, assignment);
-		assert.strictEqual(assignment.isExcluded('onb-tour-q3'), true, 'blocked before would-show');
+		const excludedBeforeWouldShow = assignment.isExcluded(assignmentContext);
 
 		service.start();
 		await timeout(0);
 		await timeout(0);
 
 		assert.deepStrictEqual(
-			{ runs: presentation.runs, shown: service.hasBeenShown('exp-treat'), excluded: assignment.isExcluded('onb-tour-q3') },
-			{ runs: ['exp-treat'], shown: true, excluded: false }
+			{
+				excludedBeforeWouldShow,
+				runs: presentation.runs,
+				shown: service.hasBeenShown('exp-treat'),
+				excludedAfterWouldShow: assignment.isExcluded(assignmentContext),
+				otherVariantExcluded: assignment.isExcluded('onb-tour-q3-other:12346')
+			},
+			{
+				excludedBeforeWouldShow: true,
+				runs: ['exp-treat'],
+				shown: true,
+				excludedAfterWouldShow: false,
+				otherVariantExcluded: true
+			}
 		);
 	});
 
@@ -431,8 +475,59 @@ suite('OnboardingScenarioService', () => {
 
 		// No tour shown, not marked shown (re-eligible later), but the id now flows.
 		assert.deepStrictEqual(
-			{ runs: presentation.runs, shown: service.hasBeenShown('exp-control'), excluded: assignment.isExcluded('onb-tour-q3') },
+			{ runs: presentation.runs, shown: service.hasBeenShown('exp-control'), excluded: assignment.isExcluded('onb-tour-q3:12345') },
 			{ runs: [], shown: false, excluded: false }
+		);
+	});
+
+	test('developer mode shows an experiment scenario whose experiment is not active', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		// Neither treatment flag resolves: the experiment is inactive, so it would not run
+		// automatically — but developer mode bypasses the experiment gate.
+		const assignment = new FakeAssignmentService({});
+		registerScenario({
+			id: 'exp-dev-inactive',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+
+		const { service } = createService({ [ONBOARDING_DEVELOPER_MODE_CONFIG]: { 'exp-dev-inactive': true } }, assignment);
+		service.start();
+		await timeout(0);
+		await timeout(0);
+
+		// The tour is shown, but since the experiment is not active no telemetry gate is
+		// opened (there is no assignment-context id to flow).
+		assert.deepStrictEqual(
+			{ runs: presentation.runs, excluded: assignment.isExcluded('onb-tour-q3') },
+			{ runs: ['exp-dev-inactive'], excluded: true }
+		);
+	});
+
+	test('developer mode shows the tour even when the user is in the control arm', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const assignment = new FakeAssignmentService({ 'exp.show': false, 'exp.id': 'onb-tour-q3' });
+		registerScenario({
+			id: 'exp-dev-control',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+
+		const { service } = createService({ [ONBOARDING_DEVELOPER_MODE_CONFIG]: { 'exp-dev-control': true } }, assignment);
+		service.start();
+		await timeout(0);
+		await timeout(0);
+
+		// Developer mode shows the tour unconditionally and never opens the telemetry
+		// gate, so the assignment-context id stays excluded even though the user is in
+		// the (active) control arm — a local preview can't affect the scorecard.
+		assert.deepStrictEqual(
+			{ runs: presentation.runs, excluded: assignment.isExcluded('onb-tour-q3') },
+			{ runs: ['exp-dev-control'], excluded: true }
 		);
 	});
 
@@ -458,7 +553,7 @@ suite('OnboardingScenarioService', () => {
 		const secondAssignment = new FakeAssignmentService({ 'exp.show': false, 'exp.id': 'onb-tour-q3' });
 		createService({}, secondAssignment, storage);
 
-		assert.strictEqual(secondAssignment.isExcluded('onb-tour-q3'), false);
+		assert.strictEqual(secondAssignment.isExcluded('onb-tour-q3:12345'), false);
 	});
 
 	test('a second experiment with a new id is blocked for a user who already saw the tour', async () => {

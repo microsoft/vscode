@@ -11,6 +11,13 @@
 	overflow: hidden;
 }
 
+/* Inset button focus rings so they aren't clipped by a widget's overflow:hidden edge. !important overrides button.css. */
+.ai-customization-management-editor .monaco-button:focus,
+.ai-customization-list-widget .monaco-button:focus,
+.mcp-list-widget .monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
 /* Sidebar */
 .ai-customization-management-editor .management-sidebar {
 	height: 100%;
@@ -73,8 +80,80 @@
 }
 
 .ai-customization-management-editor .sidebar-sections-list {
+	flex: 0 0 auto;
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut {
+	flex-shrink: 0;
+	margin-top: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .sidebar-migration-separator {
+	height: var(--vscode-strokeThickness);
+	margin: 0 8px 6px;
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button {
+	all: unset;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 4px 8px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 400;
+	line-height: 18px;
+	font-family: inherit;
+	text-align: left;
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .sidebar-migration-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+	opacity: 1;
+}
+
+.ai-customization-management-editor .sidebar-migration-label {
 	flex: 1;
 	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	font-weight: 400;
+}
+
+.ai-customization-management-editor .sidebar-migration-count {
+	margin-left: auto;
+	flex-shrink: 0;
+	min-width: 14px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 16px;
+	text-align: right;
 }
 
 /* Section list items */
@@ -156,6 +235,11 @@
 	border: 1px solid var(--vscode-agentsPanel-border);
 	border-radius: 6px;
 	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .contributed-section-container {
+	flex: 1 1 auto;
+	min-height: 0;
 }
 
 .ai-customization-management-editor .section-back-arrow-button {
@@ -333,6 +417,20 @@
 
 .ai-customization-list-widget .list-empty-state .empty-state-button {
 	margin-top: 16px;
+}
+
+/* Sessions empty state */
+.agent-sessions-workbench .ai-customization-list-widget .list-empty-state .empty-state-header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .ai-customization-list-widget .list-empty-state .empty-state-header > .empty-state-icon {
+	font-size: 16px;
+	margin-bottom: 0;
+	flex-shrink: 0;
 }
 
 /* Group header styling */
@@ -654,6 +752,13 @@
 	text-decoration: underline;
 }
 
+/* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
+.ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
+.mcp-list-widget .section-title-header .section-title-link:focus-visible,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
+	outline-offset: -1px;
+}
+
 /* Section footer at bottom of list widget */
 .ai-customization-list-widget .section-footer {
 	flex-shrink: 0;
@@ -758,6 +863,7 @@
 
 /* Content container visibility */
 .ai-customization-management-editor .prompts-content-container,
+.ai-customization-management-editor .prompt-migration-content-container,
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container,
@@ -771,6 +877,121 @@
 	border-radius: 6px;
 	overflow: hidden;
 	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .prompt-migration-list-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
+.ai-customization-management-editor .prompt-migration-list {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	padding-bottom: 6px;
+}
+
+.ai-customization-management-editor .prompt-migration-group {
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .prompt-migration-group + .prompt-migration-group {
+	margin-top: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-group-header {
+	cursor: default;
+	margin-bottom: 2px;
+}
+
+.ai-customization-management-editor .prompt-migration-group-header:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+}
+
+.ai-customization-management-editor .prompt-migration-group-checkbox {
+	margin-right: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-group-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .prompt-migration-group-toggle:focus {
+	outline: none;
+}
+
+.ai-customization-management-editor .prompt-migration-group-items {
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .prompt-migration-item {
+	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-checkbox {
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.ai-customization-management-editor .prompt-migration-item-name {
+	color: inherit;
+}
+
+.ai-customization-management-editor .prompt-migration-item .item-left {
+	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	font-size: 16px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .prompt-migration-empty {
+	margin: 0;
+	padding: 8px 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+}
+
+.ai-customization-management-editor .prompt-migration-button {
+	min-width: 96px;
 }
 
 /* Tools section list widget */
@@ -1249,13 +1470,14 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	min-height: 0;
 	overflow: hidden;
 }
 
 .mcp-list-widget .mcp-list-container {
 	flex: 1;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
 }
 
 /* MCP Empty State */
@@ -1285,6 +1507,20 @@
 
 .mcp-list-widget .mcp-empty-state .monaco-button {
 	margin-top: 16px;
+}
+
+/* Sessions empty state */
+.agent-sessions-workbench .mcp-empty-state .empty-state-header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .mcp-empty-state .empty-state-header > .empty-icon {
+	font-size: 16px;
+	margin-bottom: 0;
+	flex-shrink: 0;
 }
 
 /* MCP Disabled (access blocked) state */
@@ -1360,9 +1596,10 @@
 	align-items: center;
 	padding: 6px 8px 6px 30px;
 	cursor: pointer;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 32px;
 	gap: 10px;
+	box-sizing: border-box;
 }
 
 .mcp-server-item:not(.has-detail):not(.builtin) {
@@ -1407,37 +1644,58 @@
 	line-height: 14px;
 }
 
+.mcp-server-item .mcp-server-actions {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.mcp-server-item .mcp-server-sign-in.monaco-button {
+	min-width: 0;
+	min-height: var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-agents-fontSize-label1);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .mcp-server-item .mcp-server-status {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label2);
-	padding: 2px 8px;
-	border-radius: 4px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.mcp-server-item .mcp-server-status-action.monaco-button {
+	min-width: var(--vscode-spacing-size240);
+	min-height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size40);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+}
+
+.mcp-server-item .mcp-server-status-action.monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .mcp-server-item .mcp-server-status.running {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-charts-green);
 }
 
 .mcp-server-item .mcp-server-status.starting {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
 .mcp-server-item .mcp-server-status.auth-required {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
 
 .mcp-server-item .mcp-server-status.error {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 50%, transparent);
-	color: var(--vscode-editor-background);
-}
-
-.mcp-server-item .mcp-server-status.stopped {
-	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
 }
 
 .mcp-server-item.disabled {
@@ -1445,8 +1703,7 @@
 }
 
 .mcp-server-item .mcp-server-status.disabled {
-	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-disabledForeground);
 }
 
 /* Button group for Add Server + Browse Marketplace */
@@ -1454,14 +1711,6 @@
 	display: flex;
 	gap: 4px;
 	flex-shrink: 0;
-	/* Horizontal-only padding so focused button outlines do not clip against */
-	/* the widget's overflow:hidden. Vertical padding is omitted so the button */
-	/* group does not make the search row taller than on other sections. */
-	padding: 0 1px;
-}
-
-.mcp-list-widget .list-button-group .monaco-button:focus-visible {
-	outline-offset: -1px;
 }
 
 /* Embedded Editor View */

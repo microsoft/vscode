@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CopilotSession } from '@github/copilot-sdk';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
@@ -28,38 +29,18 @@ export interface IAgentSandboxFileSystemSetting {
 	denyWrite?: string[];
 }
 
-/**
- * SDK-side sandbox configuration produced by {@link buildSandboxConfigForSdk}.
- *
- * Structurally a narrowed form of the SDK's `SandboxConfig` type (from
- * `@github/copilot-sdk`'s `SessionUpdateOptionsParams.sandboxConfig`) — the
- * same shape the Copilot extension produces via its own `buildSandboxConfigForCLI`.
- * Defined locally because `SandboxConfig` is not re-exported from the SDK's
- * public entry point; this shape stays assignable to it.
- */
-export interface ISdkSandboxConfig {
-	enabled: true;
-	allowBypass?: boolean;
-	userPolicy: {
-		filesystem: {
-			readwritePaths?: string[];
-			readonlyPaths?: string[];
-			deniedPaths?: string[];
-		};
-		network: {
-			allowOutbound: boolean;
-			allowedHosts?: string[];
-			blockedHosts?: string[];
-		};
-	};
-}
+type SdkSandboxConfig = NonNullable<Parameters<CopilotSession['rpc']['options']['update']>[0]['sandboxConfig']>;
+
+export type CopilotSandboxConfig = SdkSandboxConfig & {
+	readonly allowBypass?: boolean;
+};
 
 /**
  * Translate the AgentHost's host-side sandbox configuration into the
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
  * via `session.options.update`.
  *
- * Used when {@link AgentHostConfigKey.EnableCustomTerminalTool} is OFF — the
+ * Used when {@link CopilotCliConfigKey.EnableCustomTerminalTool} is OFF — the
  * SDK's built-in shell tool runs the user's commands, so we have to push the
  * sandbox policy down into the SDK itself. When the custom terminal tool is
  * ON, the AgentHost's own {@link TerminalSandboxEngine} wraps commands and
@@ -85,7 +66,7 @@ export interface ISdkSandboxConfig {
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
-): ISdkSandboxConfig | undefined {
+): CopilotSandboxConfig | undefined {
 	if (!sandbox) {
 		return undefined;
 	}
@@ -131,12 +112,6 @@ export function buildSandboxConfigForSdk(
 
 	const legacyAllowAllNetwork = enabledRaw === AgentSandboxEnabledValue.AllowNetwork;
 	const allowAllNetwork = legacyAllowAllNetwork || (enabledRaw === AgentSandboxEnabledValue.On && sandbox[AgentHostSandboxKey.AllowNetwork] === true);
-	const hostListsEnforceable = false;
-	const rawAllow = sandbox[AgentHostSandboxKey.AllowedNetworkDomains];
-	const rawBlock = sandbox[AgentHostSandboxKey.DeniedNetworkDomains];
-	const allowedHosts = !allowAllNetwork && hostListsEnforceable && rawAllow?.length ? [...rawAllow] : undefined;
-	const blockedHosts = !allowAllNetwork && hostListsEnforceable && rawBlock?.length ? [...rawBlock] : undefined;
-	const allowOutbound = allowAllNetwork || !!allowedHosts || !!blockedHosts;
 	return {
 		enabled: true,
 		allowBypass: true,
@@ -147,9 +122,7 @@ export function buildSandboxConfigForSdk(
 				...(denied.size ? { deniedPaths: [...denied] } : {}),
 			},
 			network: {
-				allowOutbound,
-				...(allowOutbound && allowedHosts ? { allowedHosts } : {}),
-				...(allowOutbound && blockedHosts ? { blockedHosts } : {}),
+				allowOutbound: allowAllNetwork,
 			},
 		},
 	};

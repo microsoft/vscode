@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
-import { IExtraKnownMarketplaceEntry, extraKnownMarketplacesToConfigDict } from '../../../base/common/managedSettings.js';
+import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceEntry, extraKnownMarketplacesToConfigDict } from '../../../base/common/managedSettings.js';
 import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { isEmptyObject, isObject, isString } from '../../../base/common/types.js';
@@ -13,6 +13,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { PolicyDefinition } from './policy.js';
 
 export type { ManagedSettingsData } from '../../../base/common/policy.js';
+
+export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
@@ -35,8 +37,48 @@ export const COPILOT_EXTRA_MARKETPLACES_KEY = 'extraKnownMarketplaces';
 /** Managed-settings key for the strict-marketplace allowlist (carried as a JSON-encoded array of source entries; absent = no restrictions, `[]` = lockdown). */
 export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
 
-/** Managed-settings key for the default chat model (carried as a plain string: `auto`, a model family name, or a full model id). */
-export const COPILOT_MODEL_KEY = 'model';
+/** Managed-settings key for the per-server MCP allowlist (carried as a JSON-encoded array of matcher entries; absent = no allow restriction, `[]` = only servers matching an entry, i.e. block all). */
+export const COPILOT_ALLOWED_MCP_SERVERS_KEY = 'allowedMcpServers';
+
+/** Managed-settings key for the per-server MCP denylist (carried as a JSON-encoded array of matcher entries; deny always takes precedence over allow). */
+export const COPILOT_DENIED_MCP_SERVERS_KEY = 'deniedMcpServers';
+
+/** Managed-settings key that blocks standalone user/workspace customizations. */
+export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY = 'strictPluginOnlyCustomization';
+
+/** Managed-settings key that makes the enterprise MCP allowlist authoritative. */
+export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY = 'allowManagedMcpServersOnly';
+
+/** Managed-settings key that allows hooks only from managed sources. */
+export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
+
+/** Managed-settings transport control that requires a fresh server fetch on startup. */
+export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
+
+/**
+ * Managed-settings controls consumed by the delivery pipeline itself rather than by a
+ * configuration policy. Native MDM must watch these even though no setting declares them.
+ */
+export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
+	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+};
+
+/** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
+export const COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG = 'chat.customizations.strictPluginOnlyCustomization';
+
+/** Policy-only configuration delivery slot for {@link COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY}. */
+export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG = 'chat.mcp.allowManagedServersOnly';
+
+/** Policy-only configuration delivery slot for {@link COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY}. */
+export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG = 'chat.hooks.allowManagedOnly';
+
+/**
+ * Managed-settings key for the default chat model (carried as a plain string: `auto`, a model
+ * family name, or a full model id). Nested under `permissions` in the managed-settings schema
+ * (alongside {@link COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY}), so it flattens to the dot-path
+ * `permissions.model` in the normalized bag — the key policy `value()` callbacks must read.
+ */
+export const COPILOT_MODEL_KEY = 'permissions.model';
 
 /**
  * Enterprise OTel managed-settings keys. These are the scalar leaves of the canonical
@@ -93,12 +135,50 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 	return callback;
 }
 
+/**
+ * Resolves the startup refresh control with native MDM taking precedence over the cached server
+ * response. A malformed native value is treated as absent, matching the managed-settings schema.
+ */
+export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
+	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
+	if (typeof nativeValue === 'boolean') {
+		return nativeValue;
+	}
+	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+}
+
+let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
+
+/**
+ * `value` callback for the default-chat-model managed setting ({@link COPILOT_MODEL_KEY}). Like
+ * {@link managedSettingValue} it locks the setting to the managed value and otherwise falls through
+ * to the user's own value, but it additionally trims the string and treats a blank/whitespace-only
+ * value as "unset" (returns `undefined`) — an admin clearing the field must not lock the setting to
+ * an empty string. The model-specific normalization lives here, alongside the other managed-settings
+ * handling, rather than inline at the policy declaration, so every managed-settings control is wired
+ * the same way.
+ *
+ * Memoized (single key) so repeated calls return the SAME function reference, matching the
+ * reference-identity contract {@link managedSettingValue} relies on for `isSamePolicyDefinition`.
+ */
+export function managedModelValue(): (policyData: IPolicyData) => ManagedSettingValue | undefined {
+	if (!managedModelValueCallback) {
+		managedModelValueCallback = policyData => {
+			const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
+			const trimmed = typeof model === 'string' ? model.trim() : undefined;
+			return trimmed ? trimmed : undefined;
+		};
+	}
+	return managedModelValueCallback;
+}
+
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
 
 export interface INativeManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly managedSettings: ManagedSettingsData;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	initialize(): Promise<ManagedSettingsData>;
 	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData>;
 }
 
@@ -107,6 +187,7 @@ export class NullNativeManagedSettingsService implements INativeManagedSettingsS
 	readonly managedSettings: ManagedSettingsData = {};
 	readonly onDidChangeManagedSettings = Event.None;
 
+	async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 	async updatePolicyDefinitions(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }
 
@@ -139,9 +220,9 @@ function isManagedSettingsObject(value: unknown): value is Record<string, unknow
 
 /**
  * Aggregate the `managedSettings` declarations of every policy definition into a single
- * key -> definition map. This is the single source of truth for which Copilot managed-settings
- * keys (and their value types) are honored, and it drives both delivery channels: the native
- * MDM watcher and the server `managed_settings` endpoint projection.
+ * key -> definition map. This is the single source of truth for policy-backed Copilot
+ * managed-settings keys and drives both server projection and the declaration-driven portion of
+ * the native MDM watcher. Transport controls are declared separately.
  */
 export function collectManagedSettingsDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): IManagedSettingsPolicyDefinitions {
 	const definitions: Record<string, IManagedSettingPolicyDefinition> = {};
@@ -158,8 +239,9 @@ export function collectManagedSettingsDefinitions(policyDefinitions: IStringDict
 
 /**
  * Whether any policy in `policyDefinitions` declares at least one managed-settings key. Cheap
- * existence check (short-circuits) used to decide whether the native MDM watcher is needed at all,
- * without aggregating the full {@link collectManagedSettingsDefinitions} map.
+ * existence check (short-circuits) used to decide whether the declaration-driven portion of the
+ * native MDM watcher needs updating, without aggregating the full
+ * {@link collectManagedSettingsDefinitions} map.
  */
 export function hasManagedSettingsDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
 	for (const policyName in policyDefinitions) {
@@ -197,14 +279,12 @@ export function projectManagedSettings(values: ManagedSettingsData, definitions:
 }
 
 /**
- * The delivery channel that provided the active managed-settings bag. Managed settings can be
- * delivered by more than one channel, so this names the known sources to give policy evaluation
- * and the Policy Diagnostics report one shared vocabulary. Extend this union (and
- * {@link selectManagedSettings}) when adding a new channel.
+ * A delivery channel that can provide managed settings. Managed settings can be delivered by more
+ * than one channel, so this names the known sources to give policy evaluation and the Policy
+ * Diagnostics report one shared vocabulary. Extend this union (and {@link MANAGED_SETTINGS_CHANNELS}
+ * / {@link pickManagedSettings}) when adding a new channel.
  */
-export type ManagedSettingsSource =
-	/** No channel currently provides managed settings. */
-	| 'none'
+export type ManagedSettingsChannel =
 	/** GitHub `/copilot_internal/managed_settings` endpoint (server-delivered). */
 	| 'server'
 	/** Native MDM: OS registry (Windows) / managed preferences (macOS) via `@vscode/policy-watcher`. */
@@ -212,34 +292,105 @@ export type ManagedSettingsSource =
 	/** File on a well-known disk path (`managed-settings.json`). */
 	| 'file';
 
-export interface IManagedSettingsSelection {
-	/** Which channel won. */
-	readonly source: ManagedSettingsSource;
-	/** The winning bag, or `undefined` when {@link source} is `'none'`. */
-	readonly values: ManagedSettingsData | undefined;
+/**
+ * The source attributed to an effective managed setting (or to the overall report). A
+ * {@link ManagedSettingsChannel} once a channel has won, or `'none'` when no channel contributes.
+ */
+export type ManagedSettingsSource = ManagedSettingsChannel | 'none';
+
+/**
+ * The delivery channels in fixed precedence order (highest first): native MDM → server-delivered →
+ * file on disk. This single ordered list drives the per-key resolution in {@link pickManagedSettings}
+ * and is the one place to extend when a new channel is introduced. Rationale for the order: the
+ * server is harder to bypass than local MDM, and a local file is the most easily tampered with.
+ */
+export const MANAGED_SETTINGS_CHANNELS: readonly ManagedSettingsChannel[] = ['nativeMdm', 'server', 'file'];
+
+/** A single channel's contribution to a managed-settings key, for provenance in the resolution. */
+export interface IManagedSettingsContribution {
+	/** The channel that supplied this value. */
+	readonly channel: ManagedSettingsChannel;
+	/** The value the channel supplied for the key. */
+	readonly value: ManagedSettingValue;
+}
+
+/** How a single managed-settings key was resolved across the delivery channels. */
+export interface IManagedSettingResolution {
+	/** The effective (winning) value applied for the key. */
+	readonly value: ManagedSettingValue;
+	/** The channel whose value won (always the first {@link contributions} entry's channel). */
+	readonly source: ManagedSettingsChannel;
+	/** Every channel that supplied this key, in precedence order (winner first, overridden after). */
+	readonly contributions: readonly IManagedSettingsContribution[];
+}
+
+/** The result of merging managed settings from every delivery channel on a per-key basis. */
+export interface IManagedSettingsPick {
+	/** The effective merged bag: the winning value for each key contributed by any channel. */
+	readonly values: ManagedSettingsData;
+	/** Per-key provenance: how each key resolved and which channels were overridden. */
+	readonly resolutions: ReadonlyMap<string, IManagedSettingResolution>;
+	/** The channels that supplied at least one *winning* key, in precedence order. */
+	readonly activeSources: readonly ManagedSettingsChannel[];
 }
 
 /**
- * Select the authoritative managed-settings bag from the available delivery channels.
+ * Merge the managed-settings bags from every delivery channel on a **per-key** basis.
  *
- * Precedence (highest first): server-delivered → native MDM → file on disk. The channels are
- * never merged — managed settings have a single authoritative source, so the first non-empty bag
- * wins outright. Centralizing the precedence here (rather than inlining it at each call site)
- * keeps policy evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics
- * report from drifting apart, and gives one obvious place to extend when a new channel is
- * introduced.
+ * Precedence (highest first): native MDM → server-delivered → file on disk. Unlike a single
+ * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
+ * channel that supplies it wins, but a key that the higher channels never set is still filled in by
+ * a lower channel. A value an admin locks via native MDM therefore cannot be overwritten by the
+ * server or a file, while keys those higher channels leave unset remain available to lower ones.
+ *
+ * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
+ * resolution here (rather than inlining it at each call site) keeps policy evaluation
+ * ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics report from drifting apart,
+ * and gives one obvious place to extend when a new channel is introduced. Empty or absent channels
+ * contribute nothing.
  */
-export function selectManagedSettings(server: ManagedSettingsData | undefined, nativeMdm: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
-	if (server && !isEmptyObject(server)) {
-		return { source: 'server', values: server };
+export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsPick {
+	const bags: Record<ManagedSettingsChannel, ManagedSettingsData | undefined> = { nativeMdm, server, file };
+
+	// Walk channels highest-precedence first: the first channel to supply a key wins, and later
+	// channels are appended as overridden contributions for provenance.
+	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
+	for (const channel of MANAGED_SETTINGS_CHANNELS) {
+		const bag = bags[channel];
+		if (!bag) {
+			continue;
+		}
+		// Iterate own keys only (managed-settings bags are untrusted input): avoids enumerating
+		// inherited enumerable properties the way `for...in` would.
+		for (const key of Object.keys(bag)) {
+			const value = bag[key];
+			if (value === undefined) {
+				continue;
+			}
+			const existing = resolutions.get(key);
+			if (existing) {
+				existing.contributions.push({ channel, value });
+			} else {
+				resolutions.set(key, { value, source: channel, contributions: [{ channel, value }] });
+			}
+		}
 	}
-	if (nativeMdm && !isEmptyObject(nativeMdm)) {
-		return { source: 'nativeMdm', values: nativeMdm };
+
+	const activeSources = new Set<ManagedSettingsChannel>();
+	const entries: [string, ManagedSettingValue][] = [];
+	for (const [key, resolution] of resolutions) {
+		entries.push([key, resolution.value]);
+		activeSources.add(resolution.source);
 	}
-	if (file && !isEmptyObject(file)) {
-		return { source: 'file', values: file };
-	}
-	return { source: 'none', values: undefined };
+
+	return {
+		// Build via Object.fromEntries (define-property semantics) rather than bracket assignment so
+		// an untrusted `__proto__` key can't corrupt the merged bag's prototype chain.
+		values: Object.fromEntries(entries),
+		resolutions,
+		// Preserve precedence order for a stable, readable report.
+		activeSources: MANAGED_SETTINGS_CHANNELS.filter(channel => activeSources.has(channel)),
+	};
 }
 
 // --- File-based managed settings ---
@@ -301,18 +452,45 @@ function encodeStringMap(value: unknown): Record<string, string> | undefined {
 	return out;
 }
 
+/** Pass an object value through unchanged; omit the key for any non-object value. */
+function encodeObject(value: unknown): object | undefined {
+	return isObject(value) ? value : undefined;
+}
+
+/** Pass an array value through unchanged (including an empty array); omit the key otherwise. */
+function encodeArray(value: unknown): unknown[] | undefined {
+	return Array.isArray(value) ? value : undefined;
+}
+
+/**
+ * Encode the schema's `{ [id]: { source, autoUpdate? } }` marketplace map into the canonical
+ * policy dict; drops malformed entries (with an optional warning) and omits
+ * the key when there are none.
+ */
+function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void): ExtraKnownMarketplacesConfigDict | undefined {
+	return extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn));
+}
+
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	{
 		key: COPILOT_ENABLED_PLUGINS_KEY,
-		encode: value => isObject(value) ? value : undefined,
+		encode: encodeObject,
 	},
 	{
 		key: COPILOT_STRICT_MARKETPLACES_KEY,
-		encode: value => Array.isArray(value) ? value : undefined,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_ALLOWED_MCP_SERVERS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_DENIED_MCP_SERVERS_KEY,
+		encode: encodeArray,
 	},
 	{
 		key: COPILOT_EXTRA_MARKETPLACES_KEY,
-		encode: (value, onWarn) => extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn)),
+		encode: encodeExtraMarketplaces,
 	},
 	{
 		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map. Non-string
@@ -378,8 +556,8 @@ function withNestedManagedKeyDeleted(obj: Record<string, unknown>, dottedKey: st
  * - Structured settings (declared in {@link STRUCTURED_MANAGED_SETTINGS}) are carried as canonical
  *   JSON strings under a single key each — the same shape an admin authors via native MDM.
  *   `PolicyConfiguration` parses the JSON back into the object-typed setting on read.
- *   `extraKnownMarketplaces` is normalized from the schema's `{ [id]: { source } }` map to the
- *   `{ [name]: url-or-shorthand }` dict.
+ *   `extraKnownMarketplaces` is normalized from the schema's `{ [id]: { source, autoUpdate? } }`
+ *   map to the policy-backed marketplace dict.
  *
  * Malformed marketplace entries are dropped (with an optional warning via {@link onWarn}) rather
  * than throwing, so a bad enterprise settings file degrades gracefully instead of blocking startup.
@@ -407,7 +585,7 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 }
 
 /**
- * Normalize the schema's `{ [id]: { source } }` marketplace map into an
+ * Normalize the schema's `{ [id]: { source, autoUpdate? } }` marketplace map into an
  * {@link IExtraKnownMarketplaceEntry} array, preserving the marketplace `name`,
  * source discriminator, and any `ref`. Malformed or off-spec entries are dropped
  * (with an optional warning via {@link onWarn}).
@@ -423,12 +601,17 @@ function normalizeExtraKnownMarketplaces(value: unknown, onWarn?: (msg: string) 
 			onWarn?.(`Skipping malformed extraKnownMarketplaces entry "${name}": expected { source: { source, repo|url } }`);
 			continue;
 		}
-		const src = (entry as Record<string, unknown>).source as { source?: string; repo?: string; url?: string; ref?: string };
+		const rawEntry = entry as Record<string, unknown>;
+		const src = rawEntry.source as { source?: string; repo?: string; url?: string; ref?: string };
+		const autoUpdate = typeof rawEntry.autoUpdate === 'boolean' ? rawEntry.autoUpdate : undefined;
+		if (rawEntry.autoUpdate !== undefined && autoUpdate === undefined) {
+			onWarn?.(`Ignoring invalid autoUpdate for extraKnownMarketplaces entry "${name}": expected boolean`);
+		}
 		let normalized: IExtraKnownMarketplaceEntry | undefined;
 		if (src.source === 'github' && isString(src.repo)) {
-			normalized = { name, source: { source: 'github', repo: src.repo, ...(src.ref ? { ref: src.ref } : {}) } };
+			normalized = { name, ...(autoUpdate === undefined ? {} : { autoUpdate }), source: { source: 'github', repo: src.repo, ...(src.ref ? { ref: src.ref } : {}) } };
 		} else if (src.source === 'git' && isString(src.url)) {
-			normalized = { name, source: { source: 'git', url: src.url, ...(src.ref ? { ref: src.ref } : {}) } };
+			normalized = { name, ...(autoUpdate === undefined ? {} : { autoUpdate }), source: { source: 'git', url: src.url, ...(src.ref ? { ref: src.ref } : {}) } };
 		} else if (src.source === 'github' || src.source === 'git') {
 			onWarn?.(`Skipping extraKnownMarketplaces entry "${name}": source "${src.source}" requires ${src.source === 'github' ? '"repo"' : '"url"'}`);
 		} else {
@@ -446,12 +629,16 @@ export const IFileManagedSettingsService = createDecorator<IFileManagedSettingsS
 
 export interface IFileManagedSettingsService {
 	readonly _serviceBrand: undefined;
+	readonly rawManagedSettings: RawManagedSettingsData;
 	readonly managedSettings: ManagedSettingsData;
+	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
 	readonly _serviceBrand: undefined;
+	readonly rawManagedSettings: RawManagedSettingsData = {};
 	readonly managedSettings: ManagedSettingsData = {};
+	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
 }

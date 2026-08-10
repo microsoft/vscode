@@ -10,10 +10,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, readHostBuildInfo, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -109,6 +110,18 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(envelopes[0].origin, undefined);
 	});
 
+	test('emits session title changes and suppresses no-op assignments', () => {
+		manager.createSession(makeSessionSummary());
+
+		const changes: Array<{ session: string; title: string }> = [];
+		disposables.add(manager.onDidChangeSessionTitle(e => changes.push(e)));
+
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated' });
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated' });
+
+		assert.deepStrictEqual(changes, [{ session: sessionUri, title: 'Updated' }]);
+	});
+
 	test('serverSeq increments monotonically', () => {
 		manager.createSession(makeSessionSummary());
 
@@ -183,6 +196,39 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.serverSeq, 3);
 	});
 
+	test('root config replacement preserves provider-backed values', () => {
+		const rootState = manager.rootState;
+		assert.ok(rootState.config);
+		rootState.config.values['codex.personality'] = 'friendly';
+		rootState._meta = withAgentCustomizationSettings(rootState, [{
+			provider: 'codex',
+			title: 'Codex',
+			description: 'Codex settings',
+			settings: [{ key: 'codex.personality', group: 'Personalization' }],
+		}]);
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+		manager.dispatchClientAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { someProviderSetting: 'openai' },
+			replace: true,
+		}, { clientId: 'renderer-1', clientSeq: 1 });
+
+		assert.deepStrictEqual(manager.rootState.config?.values, {
+			someProviderSetting: 'openai',
+			'codex.personality': 'friendly',
+		});
+		assert.deepStrictEqual(envelopes[0].action, {
+			type: ActionType.RootConfigChanged,
+			config: {
+				someProviderSetting: 'openai',
+				'codex.personality': 'friendly',
+			},
+			replace: true,
+		});
+	});
+
 	test('removeSession clears state without notification', () => {
 		manager.createSession(makeSessionSummary());
 
@@ -220,6 +266,25 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications[0].type, NotificationType.SessionAdded);
 	});
 
+	test('default chat inherits the session working directory resolved at materialization', () => {
+		// A deferred (provisional) session is created with a pre-materialization
+		// working directory; materialization later resolves it to a different
+		// one (e.g. a git worktree) via markSessionPersisted. The default chat
+		// has no per-chat working-directory override, so getSessionState must
+		// project the RESOLVED session working directory, never the stale
+		// create-time value that was seeded onto the default chat.
+		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///provisional'] }, { emitNotification: false });
+		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectories: ['file:///resolved-worktree'] });
+
+		assert.deepStrictEqual({
+			session: manager.getSessionState(sessionUri)?.workingDirectories?.[0],
+			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectories?.[0],
+		}, {
+			session: 'file:///resolved-worktree',
+			defaultChat: 'file:///resolved-worktree',
+		});
+	});
+
 	test('getActiveTurnId returns active turn id after turnStarted', () => {
 		manager.createSession(makeSessionSummary());
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -229,6 +294,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
@@ -253,6 +319,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
@@ -268,6 +335,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
@@ -277,6 +345,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
 
 		const activeChanged = envelopes.filter(e => e.action.type === ActionType.RootActiveSessionsChanged);
@@ -295,11 +364,13 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'a', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(buildDefaultChatUri(session2Uri), {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'b', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 2);
@@ -307,12 +378,14 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
 
 		manager.dispatchServerAction(buildDefaultChatUri(session2Uri), {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-2',
+			duration: 1000,
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 0);
 	});
@@ -323,6 +396,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
@@ -364,6 +438,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
@@ -371,6 +446,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'stale-turn',
+			duration: 1000,
 		});
 
 		assert.strictEqual(manager.rootState.activeSessions, 1);
@@ -386,11 +462,13 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'a', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'b', origin: { kind: MessageKind.User } },
 		});
 
@@ -399,6 +477,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-2',
+			duration: 1000,
 		});
 
 		assert.strictEqual(manager.rootState.activeSessions, 0);
@@ -414,15 +493,18 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnComplete,
 			turnId: 'stale-turn',
+			duration: 1000,
 		});
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
+			duration: 1000,
 			error: { errorType: 'failed', message: 'boom' },
 		});
 
@@ -444,15 +526,18 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
 		manager.dispatchServerAction(buildDefaultChatUri(session2Uri), {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hi', origin: { kind: MessageKind.User } },
 		});
 		manager.removeSession(session2Uri);
@@ -498,6 +583,96 @@ suite('AgentHostStateManager', () => {
 		manager.restoreSession(makeSessionSummary(), []);
 
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
+	});
+
+	test('restoreSession emits sessionSummaryChanged clearing the adoptable marker for a previously surfaced session', () => {
+		// A surfaced adoptable-legacy session is announced with the marker; adopting
+		// it via restoreSession must notify clients the marker was cleared so they
+		// update the entry in place instead of dropping the just-opened session.
+		manager.announceSurfacedSession({ ...makeSessionSummary(), _meta: withSessionEhcliAdoptable(undefined) });
+
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+		manager.restoreSession(makeSessionSummary(), []);
+
+		const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
+		assert.strictEqual(changed.length, 1);
+		assert.strictEqual(changed[0].session, sessionUri);
+		assert.strictEqual(Object.prototype.hasOwnProperty.call(changed[0].changes, '_meta'), true);
+		assert.strictEqual(readSessionEhcliAdoptable(changed[0].changes._meta), false);
+	});
+
+	suite('unused-draft tracking', () => {
+
+		test('reports draft status by origin, addressable by session or chat URI', () => {
+			const restoredUri = URI.from({ scheme: 'copilot', path: '/restored-session' }).toString();
+			manager.createSession(makeSessionSummary());
+			manager.restoreSession(makeSessionSummary(restoredUri), []);
+
+			assert.deepStrictEqual({
+				created: manager.isUnusedDraft(sessionUri),
+				createdViaChatUri: manager.isUnusedDraft(sessionChatUri),
+				restored: manager.isUnusedDraft(restoredUri),
+				restoredViaChatUri: manager.isUnusedDraft(buildDefaultChatUri(restoredUri)),
+				unknown: manager.isUnusedDraft(URI.from({ scheme: 'copilot', path: '/nope' }).toString()),
+			}, {
+				created: true,
+				createdViaChatUri: true,
+				restored: false,
+				restoredViaChatUri: false,
+				unknown: undefined,
+			});
+		});
+
+		test('a restored session that was first created is no longer a draft', () => {
+			// `restoreSession` short-circuits when the session is already in state.
+			manager.createSession(makeSessionSummary());
+			manager.restoreSession(makeSessionSummary(), []);
+
+			assert.strictEqual(manager.isUnusedDraft(sessionUri), true);
+		});
+
+		test('draft status is retired by a turn and does not come back on truncate', () => {
+			manager.createSession(makeSessionSummary());
+			const observed: (boolean | undefined)[] = [manager.isUnusedDraft(sessionUri)];
+
+			manager.dispatchServerAction(sessionChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			// Truncate-to-zero empties the chat but must not resurrect the draft.
+			manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatTruncated });
+			observed.push(manager.isUnusedDraft(sessionUri));
+
+			assert.deepStrictEqual({
+				observed,
+				turnsAfterTruncate: manager.getDefaultChatState(sessionUri)?.turns.length,
+			}, {
+				observed: [true, false, false, false],
+				turnsAfterTruncate: 0,
+			});
+		});
+
+		test('seeding turns for a fork retires draft status', () => {
+			manager.createSession(makeSessionSummary());
+			manager.seedDefaultChatTurns(sessionUri, [{
+				id: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}]);
+
+			assert.strictEqual(manager.isUnusedDraft(sessionUri), false);
+		});
 	});
 
 	test('emits sessionSummaryChanged when summary changes', () => {
@@ -596,6 +771,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			});
 
@@ -610,6 +786,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-1',
+				duration: 1000,
 			});
 
 			// Simulate eviction within the 100 ms debounce window.
@@ -779,6 +956,27 @@ suite('AgentHostStateManager', () => {
 					chatAddedEvents: 1,
 				},
 			);
+		});
+
+		test('catalog-only SessionChatAdded does not create chat state', () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionChatAdded,
+				summary: {
+					resource: peerChat,
+					title: 'Catalog only',
+					status: SessionStatus.Idle,
+					modifiedAt: '2025-01-01T00:00:00.000Z',
+				},
+			});
+
+			assert.deepStrictEqual({
+				catalogTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.title,
+				chatState: manager.getChatState(peerChat),
+			}, {
+				catalogTitle: 'Catalog only',
+				chatState: undefined,
+			});
 		});
 
 		test('removeChat shrinks the catalog and refuses the default chat', () => {
@@ -974,6 +1172,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			const afterStart = manager.hasActiveTurn(sessionUri);
@@ -981,6 +1180,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-1',
+				duration: 1000,
 			});
 			const afterComplete = manager.hasActiveTurn(sessionUri);
 
@@ -1004,11 +1204,13 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			manager.dispatchServerAction(sessionChatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-1',
+				duration: 1000,
 			});
 
 			assert.deepStrictEqual(observed, [
@@ -1028,6 +1230,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-default',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			const afterDefaultStart = manager.hasActiveTurn(sessionUri);
@@ -1035,6 +1238,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const afterBothStart = manager.hasActiveTurn(sessionUri);
@@ -1043,6 +1247,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-default',
+				duration: 1000,
 			});
 			const afterDefaultComplete = manager.hasActiveTurn(sessionUri);
 
@@ -1050,6 +1255,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-peer',
+				duration: 1000,
 			});
 			const afterBothComplete = manager.hasActiveTurn(sessionUri);
 
@@ -1070,6 +1276,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const whilePeerRuns = manager.getSessionState(sessionUri)?.status;
@@ -1078,6 +1285,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-peer',
+				duration: 1000,
 			});
 			const afterPeerComplete = manager.getSessionState(sessionUri)?.status;
 
@@ -1112,6 +1320,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const runningCatalog = peerCatalogStatus();
@@ -1120,6 +1329,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-peer',
+				duration: 1000,
 			});
 
 			assert.deepStrictEqual(
@@ -1149,11 +1359,13 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-default',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const activeWhileBothRun = manager.rootState.activeSessions;
@@ -1161,12 +1373,14 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-default',
+				duration: 1000,
 			});
 			const activeAfterFirstCompletes = manager.rootState.activeSessions;
 
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-peer',
+				duration: 1000,
 			});
 
 			assert.deepStrictEqual(
@@ -1198,11 +1412,13 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-default',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'a', origin: { kind: MessageKind.User } },
 			});
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const activeWhileBothRun = manager.hasActiveTurn(sessionUri);
@@ -1216,6 +1432,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(defaultChat, {
 				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-default',
+				duration: 1000,
 			});
 
 			assert.deepStrictEqual(
@@ -1247,6 +1464,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(peerChat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-peer',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'b', origin: { kind: MessageKind.User } },
 			});
 			const activeWhilePeerRuns = manager.hasActiveTurn(sessionUri);
@@ -1267,6 +1485,415 @@ suite('AgentHostStateManager', () => {
 					activeWhilePeerRuns: true,
 					activeAfterPeerRemoved: false,
 					activeSessions: 0,
+				},
+			);
+		});
+	});
+
+	// Characterization tests (task A3): pin down the *current* catalog behavior
+	// — the default-chat pointer set up by `_ensureDefaultChat`, restored peer
+	// resolution, and the rolled-up session summary produced by the
+	// SessionSummaryNotifier — so the upcoming `providerData` change cannot
+	// silently regress them.
+	suite('catalog characterization (A3)', () => {
+		const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+		test('_ensureDefaultChat seeds a single inheriting default chat and points defaultChat at it on createSession', () => {
+			manager.createSession(makeSessionSummary());
+			const state = manager.getSessionState(sessionUri);
+
+			assert.deepStrictEqual(
+				{
+					defaultChat: state?.defaultChat,
+					defaultChatIsDeterministic: state?.defaultChat === buildDefaultChatUri(sessionUri),
+					chatResources: state?.chats.map(c => c.resource.toString()),
+					// Empty title => the default chat inherits the session title for display.
+					defaultChatTitle: state?.chats[0]?.title,
+					defaultChatStatePresent: manager.getDefaultChatState(sessionUri) !== undefined,
+				},
+				{
+					defaultChat: buildDefaultChatUri(sessionUri),
+					defaultChatIsDeterministic: true,
+					chatResources: [buildDefaultChatUri(sessionUri)],
+					defaultChatTitle: '',
+					defaultChatStatePresent: true,
+				},
+			);
+		});
+
+		test('_ensureDefaultChat seeds the default-chat pointer on restoreSession too', () => {
+			const turns = [
+				{
+					id: 'turn-1',
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'world' } satisfies MarkdownResponsePart],
+					usage: undefined,
+					state: TurnState.Complete,
+				},
+			];
+			manager.restoreSession(makeSessionSummary(), turns);
+			const state = manager.getSessionState(sessionUri);
+
+			assert.deepStrictEqual(
+				{
+					defaultChat: state?.defaultChat,
+					chatResources: state?.chats.map(c => c.resource.toString()),
+					defaultChatTurns: manager.getDefaultChatState(sessionUri)?.turns.length,
+				},
+				{
+					defaultChat: buildDefaultChatUri(sessionUri),
+					chatResources: [buildDefaultChatUri(sessionUri)],
+					defaultChatTurns: 1,
+				},
+			);
+		});
+
+		test('registerRestoredChatSummary and resolveChatState hydrate a peer without dispatching SessionChatAdded', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const turns = [
+				{
+					id: 'peer-turn-1',
+					message: { text: 'restored', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'history' } satisfies MarkdownResponsePart],
+					usage: undefined,
+					state: TurnState.Complete,
+				},
+			];
+			const draft = { text: 'work in progress', origin: { kind: MessageKind.User } };
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				title: 'Restored Peer',
+				draft,
+				resolver: async () => ({ turns }),
+			});
+			const peerState = await manager.resolveChatState(peerChat);
+			assert.deepStrictEqual(
+				{
+					chatResources: manager.getSessionState(sessionUri)?.chats.map(c => c.resource.toString()).sort(),
+					restoredTitle: manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.title,
+					peerTurns: peerState?.turns.length,
+					peerDraft: peerState?.draft?.text,
+					chatAddedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatAdded).length,
+				},
+				{
+					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
+					restoredTitle: 'Restored Peer',
+					peerTurns: 1,
+					peerDraft: 'work in progress',
+					chatAddedEvents: 0,
+				},
+			);
+		});
+
+		test('resolveChatState coalesces restored peer resolution and atomically installs its state', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+
+			let resolverCalls = 0;
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				title: 'Restored Peer',
+				draft: { text: 'work in progress', origin: { kind: MessageKind.User } },
+				resolver: async () => {
+					resolverCalls++;
+					return {
+						turns: [{
+							id: 'peer-turn-1',
+							message: { text: 'restored', origin: { kind: MessageKind.User } },
+							responseParts: [],
+							usage: undefined,
+							state: TurnState.Complete,
+						}],
+					};
+				},
+			});
+			const beforeHydration = {
+				summary: manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.title,
+				state: manager.getChatState(peerChat),
+			};
+			const [first, second] = await Promise.all([
+				manager.resolveChatState(peerChat),
+				manager.resolveChatState(peerChat),
+			]);
+			const state = manager.getChatState(peerChat);
+
+			assert.deepStrictEqual({
+				beforeHydration,
+				sameState: first === second,
+				resolverCalls,
+				afterHydration: state && { title: state.title, turns: state.turns.map(turn => turn.id), draft: state.draft?.text },
+			}, {
+				beforeHydration: { summary: 'Restored Peer', state: undefined },
+				sameState: true,
+				resolverCalls: 1,
+				afterHydration: { title: 'Restored Peer', turns: ['peer-turn-1'], draft: 'work in progress' },
+			});
+		});
+
+		test('resolveChatState retries failed restored peer resolution', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			let resolverCalls = 0;
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				resolver: async () => {
+					resolverCalls++;
+					if (resolverCalls === 1) {
+						throw new Error('history unavailable');
+					}
+					return { turns: [] };
+				},
+			});
+
+			await assert.rejects(() => manager.resolveChatState(peerChat), /history unavailable/);
+			const state = await manager.resolveChatState(peerChat);
+
+			assert.deepStrictEqual({
+				resolverCalls,
+				state: state && { title: state.title, turns: state.turns.length },
+			}, {
+				resolverCalls: 2,
+				state: { title: '', turns: 0 },
+			});
+		});
+
+		test('uses the latest unresolved summary when resolving a restored peer chat', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			let resolveHistory!: (state: { turns: Turn[] }) => void;
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				title: 'Original title',
+				resolver: () => new Promise(resolve => { resolveHistory = resolve; }),
+			});
+
+			const resolving = manager.resolveChatState(peerChat);
+			manager.updateChatTitle(sessionUri, peerChat, 'Updated title');
+			resolveHistory({ turns: [] });
+			const state = await resolving;
+
+			assert.deepStrictEqual({
+				catalogTitle: manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.title,
+				stateTitle: state?.title,
+			}, {
+				catalogTitle: 'Updated title',
+				stateTitle: 'Updated title',
+			});
+		});
+
+		test('invalidates a pending restored peer resolver before same-URI reuse', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			let resolveHistory!: (state: { turns: Turn[] }) => void;
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				resolver: () => new Promise(resolve => { resolveHistory = resolve; }),
+			});
+
+			const resolving = manager.resolveChatState(peerChat);
+			manager.removeChat(sessionUri, peerChat);
+			manager.addChat(sessionUri, peerChat, { title: 'Replacement' });
+			resolveHistory({ turns: [] });
+			await assert.rejects(() => resolving, /invalidated/);
+
+			assert.deepStrictEqual({
+				replacement: manager.getChatState(peerChat) && { title: manager.getChatState(peerChat)?.title, turns: manager.getChatState(peerChat)?.turns.length },
+			}, {
+				replacement: { title: 'Replacement', turns: 0 },
+			});
+		});
+
+		test('registerRestoredChatSummary does not replace an already-hydrated chat URI', async () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			let resolverCalls = 0;
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				title: 'Ignored',
+				resolver: async () => {
+					resolverCalls++;
+					return { turns: [] };
+				},
+			});
+			await manager.resolveChatState(peerChat);
+
+			assert.deepStrictEqual(
+				{
+					chatCount: manager.getSessionState(sessionUri)?.chats.length,
+					title: manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.title,
+					peerTurns: manager.getChatState(peerChat)?.turns.length,
+					resolverCalls,
+				},
+				{
+					chatCount: 2,
+					title: 'Peer',
+					peerTurns: 0,
+					resolverCalls: 0,
+				},
+			);
+		});
+
+		test('registerRestoredChatSummary does not register a peer for an unknown session', async () => {
+			const summary = manager.registerRestoredChatSummary('copilot:/missing', peerChat, {
+				resolver: async () => ({ turns: [] }),
+			});
+
+			assert.deepStrictEqual({
+				summary,
+				state: await manager.resolveChatState(peerChat),
+			}, {
+				summary: undefined,
+				state: undefined,
+			});
+		});
+
+		test('SessionSummaryNotifier rolls a running peer chat up onto the session summary and emits one coalesced SessionSummaryChanged', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				manager.createSession(makeSessionSummary());
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+				manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+				const notifications: INotification[] = [];
+				disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+				const summaryHasInProgress = () => ((manager.getSessionSummary(sessionUri)?.status ?? 0) & SessionStatus.InProgress) === SessionStatus.InProgress;
+				const idleRollup = summaryHasInProgress();
+
+				// Only the peer chat streams; the default chat stays idle.
+				manager.dispatchServerAction(peerChat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-peer',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'b', origin: { kind: MessageKind.User } },
+				});
+				const runningRollup = summaryHasInProgress();
+
+				await new Promise(r => setTimeout(r, 150));
+
+				const summaryChanges = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
+
+				assert.deepStrictEqual(
+					{
+						idleRollup,
+						runningRollup,
+						summaryChangedCount: summaryChanges.length,
+						notifiedStatusHasInProgress: ((summaryChanges[0]?.changes.status ?? 0) & SessionStatus.InProgress) === SessionStatus.InProgress,
+						notifiedSession: summaryChanges[0]?.session,
+					},
+					{
+						idleRollup: false,
+						runningRollup: true,
+						summaryChangedCount: 1,
+						notifiedStatusHasInProgress: true,
+						notifiedSession: sessionUri,
+					},
+				);
+			});
+		});
+	});
+
+	// Exercises the opaque, agent-owned `providerData` blob supplied to restored
+	// peer resolvers. The StateManager must pass through the authoritative value
+	// without parsing it, including after updates and retries.
+	suite('providerData (G-B1)', () => {
+		const peerChat = buildChatUri(sessionUri, 'peer-1');
+		const peerChat2 = buildChatUri(sessionUri, 'peer-2');
+
+		test('passes initial providerData verbatim to a restored peer resolver', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const blob = '{"sdkSessionId":"abc-123","model":{"id":"x\\"y"}}';
+			let received: string | undefined;
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				providerData: blob,
+				resolver: async providerData => {
+					received = providerData;
+					return { turns: [] };
+				},
+			});
+
+			await manager.resolveChatState(peerChat);
+
+			assert.strictEqual(received, blob);
+		});
+
+		test('passes providerData updated before resolution to the resolver', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			let received: string | undefined;
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				providerData: 'v1',
+				resolver: async providerData => {
+					received = providerData;
+					return { turns: [] };
+				},
+			});
+			manager.updateChatProviderData(peerChat, 'v2');
+
+			await manager.resolveChatState(peerChat);
+
+			assert.strictEqual(received, 'v2');
+		});
+
+		test('retries resolution with current providerData', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const received: Array<string | undefined> = [];
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				providerData: 'v1',
+				resolver: async providerData => {
+					received.push(providerData);
+					if (received.length === 1) {
+						throw new Error('materialization failed');
+					}
+					return { turns: [] };
+				},
+			});
+
+			await assert.rejects(() => manager.resolveChatState(peerChat), /materialization failed/);
+			manager.updateChatProviderData(peerChat, 'v2');
+			await manager.resolveChatState(peerChat);
+
+			assert.deepStrictEqual(received, ['v1', 'v2']);
+		});
+
+		test('removeChat prevents an unresolved peer resolver from observing stale providerData', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			let resolverCalls = 0;
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				providerData: 'blob',
+				resolver: async () => {
+					resolverCalls++;
+					return { turns: [] };
+				},
+			});
+			manager.removeChat(sessionUri, peerChat);
+
+			assert.deepStrictEqual({
+				state: await manager.resolveChatState(peerChat),
+				resolverCalls,
+			}, {
+				state: undefined,
+				resolverCalls: 0,
+			});
+		});
+
+		test('removeSession prevents unresolved peer resolvers from observing stale providerData', async () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const resolverCalls: string[] = [];
+			for (const chat of [peerChat, peerChat2]) {
+				manager.registerRestoredChatSummary(sessionUri, chat, {
+					providerData: `blob-${chat}`,
+					resolver: async () => {
+						resolverCalls.push(chat);
+						return { turns: [] };
+					},
+				});
+			}
+			manager.removeSession(sessionUri);
+
+			assert.deepStrictEqual(
+				{
+					peer1: await manager.resolveChatState(peerChat),
+					peer2: await manager.resolveChatState(peerChat2),
+					resolverCalls,
+				},
+				{
+					peer1: undefined,
+					peer2: undefined,
+					resolverCalls: [],
 				},
 			);
 		});
@@ -1334,5 +1961,52 @@ suite('Subagent URI helpers', () => {
 			buildSubagentSessionUriPrefix('copilot:/session-1//nested/../kept'),
 			'copilot:/session-1//nested/../kept/subagent/',
 		);
+	});
+
+	suite('mergeSessionWithDefaultChat', () => {
+		function makeSessionState(workingDirectory?: string): SessionState {
+			return {
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+			};
+		}
+
+		function makeChatState(workingDirectory?: string): ChatState {
+			return {
+				resource: 'copilot:/test-session/chat/peer',
+				title: 'Peer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+				turns: [],
+			};
+		}
+
+		test('resolves the per-chat working directory override over the session default', () => {
+			const merged = mergeSessionWithDefaultChat(
+				makeSessionState('file:///session-wd'),
+				makeChatState('file:///peer-worktree'),
+			);
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///peer-worktree');
+		});
+
+		test('falls back to the session working directory when the chat does not override it', () => {
+			const merged = mergeSessionWithDefaultChat(
+				makeSessionState('file:///session-wd'),
+				makeChatState(undefined),
+			);
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///session-wd');
+		});
+
+		test('falls back to the session working directory when no chat state is hydrated', () => {
+			const merged = mergeSessionWithDefaultChat(makeSessionState('file:///session-wd'), undefined);
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///session-wd');
+			assert.deepStrictEqual(merged.turns, []);
+		});
 	});
 });

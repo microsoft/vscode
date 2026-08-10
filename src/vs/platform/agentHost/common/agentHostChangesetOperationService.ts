@@ -117,9 +117,9 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void;
 
 	/**
-	* Returns the operations that should be advertised for the given changeset, or
-	* `undefined` when no operations are available.
-	*/
+	 * Returns the operations that should be advertised for the given changeset, or
+	 * `undefined` when no operations are available.
+	 */
 	getOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] | undefined;
 
 	/**

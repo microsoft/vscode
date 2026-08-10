@@ -19,7 +19,7 @@ import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { AICustomizationManagementSection, AICustomizationSources } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, ICustomizationItemConfig } from '../../browser/customizationsToolbar.contribution.js';
@@ -27,6 +27,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 // Ensure color registrations are loaded
@@ -162,7 +163,6 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 		label: 'Fixture',
 		icon: ThemeIcon.fromId('vm'),
 		hiddenSections,
-		getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 	};
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeSessionResource = observableValue('mockActiveSessionResource', URI.parse(`${descriptor.id}:///session`));
@@ -210,6 +210,9 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			}());
 			reg.defineInstance(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() {
 				override observe() { return observableValue<IToolEnablementState>('mockToolEnablement', { toolSets: new Map(), tools: new Map() }); }
+			}());
+			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
+				override readonly automations = observableValue<readonly never[]>('mockAutomations', []);
 			}());
 		},
 	});

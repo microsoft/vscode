@@ -5,11 +5,13 @@
 
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseUpListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventHelper, EventType, getWindow, isHTMLElement, reset } from '../../../base/browser/dom.js';
 import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun } from '../../../base/common/observable.js';
+import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Action } from '../../../base/common/actions.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -26,13 +28,19 @@ import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
-import { ChatOriginKind, IChat, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
+import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
+import { clearChatReferenceDragData, fillChatReferenceDragData } from '../dnd.js';
+import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -63,7 +71,7 @@ export class ChatCompositeBar extends Disposable {
 	private _editingTab: IChatTab | undefined;
 	private _session: IActiveSession | undefined;
 	private readonly _newChatAction: Action;
-	private readonly _actionMenuToolbar: MenuWorkbenchToolBar;
+	private readonly _newChatContainer: HTMLElement;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -94,6 +102,8 @@ export class ChatCompositeBar extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -114,10 +124,20 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
 
-		// "New Chat" button pinned at the end of the tab strip (after the last
-		// tab). Starting a new chat is offered here while the tabs are shown; when
-		// the session has a single chat the session header toolbar offers it
-		// instead.
+		const preventMiddleButtonDefault = (e: MouseEvent) => {
+			if (e.button === 1 && !this._isInTabInput(e)) {
+				e.preventDefault();
+			}
+		};
+		this._register(addDisposableGenericMouseDownListener(this._tabsContainer, preventMiddleButtonDefault));
+		// Prevent Linux primary-selection paste after the middle-button release (https://github.com/microsoft/vscode/issues/201696).
+		if (isLinux) {
+			this._register(addDisposableGenericMouseUpListener(this._tabsContainer, preventMiddleButtonDefault));
+		}
+
+		// "New Chat" button pinned at the end of the tab strip. Starting a new chat
+		// is offered here while the tabs are shown; when the session has a single
+		// chat the session header toolbar offers it instead.
 		const newChatAction = this._newChatAction = this._register(new Action(
 			'chatCompositeBar.addChat',
 			localize('chatCompositeBar.addChat', "New Chat"),
@@ -133,18 +153,8 @@ export class ChatCompositeBar extends Disposable {
 		));
 		const newChatActionBar = this._register(new ActionBar(this._tabsRow, { actionViewItemProvider: undefined }));
 		newChatActionBar.push(newChatAction, { icon: true, label: false });
-		newChatActionBar.getContainer().classList.add('chat-composite-bar-new-chat');
-
-		// Chat tab bar action menu (e.g. the Conversations dropdown) right-aligned
-		// at the end of the strip; items are contributed into Menus.SessionChatTabBar.
-		const actionMenuContainer = $('.chat-composite-bar-action-menu');
-		this._tabsRow.appendChild(actionMenuContainer);
-		this._actionMenuToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionMenuContainer, Menus.SessionChatTabBar, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			highlightToggledItems: true,
-			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
-		}));
+		this._newChatContainer = newChatActionBar.getContainer();
+		this._newChatContainer.classList.add('chat-composite-bar-new-chat');
 
 		// Keep the visual scrollbar in sync with native scrolling inside the tabs container
 		this._register(addDisposableListener(this._tabsContainer, EventType.SCROLL, () => {
@@ -186,8 +196,6 @@ export class ChatCompositeBar extends Disposable {
 		}
 		this._session = session;
 
-		this._actionMenuToolbar.context = session;
-
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
 
@@ -197,34 +205,26 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
-		// Tab-strip visibility tracks the number of open chats (including in-composer
-		// draft chats): it is shown as soon as the session has more than one open
-		// chat, and hidden again when chats are removed back down to just the main
-		// chat. The strip's own trailing "New Chat" action follows this visibility.
+		// Visibility (and the trailing "New Chat") follow session.shouldShowChatTabs, once created.
 		this._setVisible(false);
 		store.add(autorun(reader => {
-			const openChats = session.openChats.read(reader);
 			const mainChat = session.mainChat.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
 			const mainChatUri = mainChat.resource.toString();
-			const visibleOpenChats = openChats.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool);
-			// Keep the provider's order, but move untitled (in-composer) chats
-			// to the end so a just-completed background chat never jumps last.
-			// Partition so each chat's status is read exactly once (tracked) and
-			// relative order is preserved by construction.
-			const committedOpen: IChat[] = [];
-			const untitledOpen: IChat[] = [];
-			for (const chat of visibleOpenChats) {
-				(chat.status.read(reader) === SessionStatus.Untitled ? untitledOpen : committedOpen).push(chat);
-			}
-			const orderedChats = untitledOpen.length === 0 ? visibleOpenChats : [...committedOpen, ...untitledOpen];
-			this._rebuildTabs(orderedChats, activeChatUri, mainChatUri);
+			const tabs = session.visibleChatTabs.read(reader);
+			this._rebuildTabs(tabs, activeChatUri, mainChatUri);
 
+			// The trailing "New Chat" action only applies to sessions that support
+			// user-created peer chats. Subagent (read-only) tabs can surface in
+			// sessions without that capability, so gate the action on the
+			// capability rather than on tab-strip visibility.
+			const supportsMultipleChats = session.capabilities.read(reader).supportsMultipleChats;
+			this._newChatContainer.classList.toggle('hidden', !supportsMultipleChats);
 			// Archived sessions are read-only, so disable the trailing New Chat
 			// action (mirrors the header action's SessionIsArchivedContext gating).
-			this._newChatAction.enabled = !session.isArchived.read(reader);
+			this._newChatAction.enabled = supportsMultipleChats && !session.isArchived.read(reader);
 
-			this._setVisible(session.isCreated.read(reader) && visibleOpenChats.length > 1);
+			this._setVisible(session.isCreated.read(reader) && session.shouldShowChatTabs.read(reader));
 		}));
 	}
 
@@ -256,12 +256,29 @@ export class ChatCompositeBar extends Disposable {
 		const tab = $('.chat-composite-bar-tab');
 		tab.tabIndex = 0;
 		tab.setAttribute('role', 'tab');
+		// Expose the bound chat resource for diagnostics / test automation.
+		tab.dataset.chatResource = chat.resource.toString();
+		tab.dataset.isMainChat = String(isMainChat);
+
+		const tabFill = $('.chat-composite-bar-tab-fill', { 'aria-hidden': true });
+		tab.appendChild(tabFill);
 
 		const labelEl = $('.chat-composite-bar-tab-label');
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
 			labelEl.textContent = title;
 		}));
+
+		// Lock icon shown for read-only (non-interactive) chats.
+		const lockIcon = $('.chat-composite-bar-tab-lock');
+		lockIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.lock));
+		tab.appendChild(lockIcon);
+		this._tabDisposables.add(autorun(reader => {
+			const isReadOnly = chat.interactivity.read(reader) === ChatInteractivity.ReadOnly;
+			tab.classList.toggle('read-only', isReadOnly);
+			tab.dataset.interactivity = chat.interactivity.read(reader);
+		}));
+
 		tab.appendChild(labelEl);
 
 		// Empty rename host; an InputBox is created inside it only while editing.
@@ -314,33 +331,19 @@ export class ChatCompositeBar extends Disposable {
 
 		tab.appendChild(indicator);
 
-		// Close action — only for non-main chats, always visible. For a committed
-		// chat, closing hides it from the tab strip (reopenable from the chats
-		// dropdown in the session header); use Delete to remove it permanently. For
-		// an untitled (in-composer) draft chat there is nothing to reopen, so the
-		// action deletes the draft outright (no confirmation) and is labelled
-		// accordingly so keyboard/screen-reader users know it is destructive.
-		if (!isMainChat) {
-			const isDraft = chat.status.get() === SessionStatus.Untitled;
-			const closeAction = this._tabDisposables.add(new Action(
-				'chatCompositeBar.closeChat',
-				isDraft ? localize('deleteDraftChat', "Delete Chat") : localize('closeChat', "Close"),
-				ThemeIcon.asClassName(Codicon.close),
-				true,
-				async () => {
-					if (!this._session) {
-						return;
-					}
-					if (chat.status.get() === SessionStatus.Untitled) {
-						await this._sessionsManagementService.deleteChat(this._session, chat.resource, { skipConfirmation: true });
-					} else {
-						await this._sessionsService.closeChat(this._session, chat);
-					}
-				},
-			));
-			const actionBar = this._tabDisposables.add(new ActionBar(tab, { actionViewItemProvider: undefined }));
-			actionBar.push(closeAction, { icon: true, label: false });
-			actionBar.getContainer().classList.add('chat-composite-bar-tab-actions');
+		// Close button — contributed via Menus.SessionChatTab (the chat tab menu).
+		// Only non-main chats can be closed; the main chat lives and dies with its
+		// session, so its tab renders no actions toolbar. The tab's chat (and its
+		// session) is forwarded as the action argument.
+		if (!isMainChat && session) {
+			const actionsContainer = $('.chat-composite-bar-tab-actions');
+			tab.appendChild(actionsContainer);
+			const tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				menuOptions: { shouldForwardArgs: true },
+				toolbarOptions: { primaryGroup: () => true },
+			}));
+			tabToolbar.context = { session, chat };
 		}
 
 		this._tabsContainer.appendChild(tab);
@@ -351,6 +354,64 @@ export class ChatCompositeBar extends Disposable {
 			// Cancel any in-progress rename before switching to the clicked tab.
 			this._cancelTabEditing();
 			this._onTabClicked(chat);
+		}));
+
+		this._tabDisposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
+			if (e.button !== 1) {
+				return;
+			}
+			if (this._isInTabInput(e)) {
+				return;
+			}
+
+			EventHelper.stop(e, true);
+			if (isMainChat || !session) {
+				return;
+			}
+
+			this._cancelTabEditing();
+			void this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, { session, chat }).catch(onUnexpectedError);
+		}));
+
+		// Make the tab a drag source that offers a chat reference, so it can be
+		// dropped into an agent-host chat input to insert an inline `#chat:` ref.
+		tab.draggable = true;
+		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
+			if (!e.dataTransfer) {
+				e.preventDefault();
+				return;
+			}
+
+			// Don't start a drag from the tab's actions toolbar (e.g. close), a
+			// small pointer move during a button click would otherwise swallow it.
+			const target = e.target as HTMLElement | null;
+			if (target?.closest('.chat-composite-bar-tab-actions')) {
+				e.preventDefault();
+				return;
+			}
+
+			// Don't start a drag while any tab rename is in progress.
+			if (this._editingTab) {
+				e.preventDefault();
+				return;
+			}
+
+			e.dataTransfer.effectAllowed = 'copy';
+			// The reference entry must carry the opaque backend chat URI, which only
+			// the owning agent-host provider knows. Look it up; when it is
+			// unavailable (not agent-host backed, or state not yet hydrated) offer
+			// no chat-reference payload — the drag simply carries no reference.
+			const backendChatResource = this._backendChatResource(chat);
+			if (backendChatResource) {
+				fillChatReferenceDragData(e, backendChatResource, chat.resource, chat.title.get());
+			}
+			applyDragImage(e, tab, chat.title.get());
+		}));
+
+		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_END, () => {
+			// Drop the in-process chat-reference transfer so it can't leak into a
+			// later, unrelated drag.
+			clearChatReferenceDragData();
 		}));
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -374,7 +435,7 @@ export class ChatCompositeBar extends Disposable {
 
 		// Double-click the tab to start an inline rename, mirroring the session title.
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
-			if (chat.status.get() === SessionStatus.Untitled) {
+			if (chat.status.get() === SessionStatus.Untitled || !getChatCapabilities(chat, session, undefined).canRename) {
 				return;
 			}
 			e.preventDefault();
@@ -393,9 +454,17 @@ export class ChatCompositeBar extends Disposable {
 			const event = new StandardMouseEvent(getWindow(tab), e);
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => event,
-				getActions: () => isMainChat
-					? [renameAction]
-					: [renameAction, deleteAction]
+				getActions: () => {
+					const capabilities = getChatCapabilities(chat, session, undefined);
+					const actions = [];
+					if (capabilities.canRename) {
+						actions.push(renameAction);
+					}
+					if (capabilities.canDelete) {
+						actions.push(deleteAction);
+					}
+					return actions;
+				}
 			});
 		}));
 
@@ -406,6 +475,26 @@ export class ChatCompositeBar extends Disposable {
 		if (this._session) {
 			this._sessionsService.openChat(this._session, chat.resource);
 		}
+	}
+
+	private _isInTabInput(event: MouseEvent): boolean {
+		return isHTMLElement(event.target) && !!event.target.closest('.chat-composite-bar-tab-input-container');
+	}
+
+	/**
+	 * Resolves the opaque backend chat URI for a chat tab so a dragged `#chat:`
+	 * reference can carry it. Reaches the owning agent-host provider by id and
+	 * asks it to look up the host-supplied backend resource. Returns `undefined`
+	 * when the session is not agent-host backed or the provider has no hydrated
+	 * state for the chat — the caller then offers no chat-reference payload.
+	 */
+	private _backendChatResource(chat: IChat): URI | undefined {
+		const providerId = this._session?.providerId;
+		if (!providerId) {
+			return undefined;
+		}
+		const provider = this._sessionsProvidersService.getProvider(providerId);
+		return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 	}
 
 	/**

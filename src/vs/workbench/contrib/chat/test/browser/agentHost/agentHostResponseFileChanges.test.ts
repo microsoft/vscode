@@ -12,24 +12,45 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ChangesetStatus, StateComponents, type ChangesetState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import {
+	buildDefaultChatUri,
+	ChangesetStatus,
+	ResponsePartKind,
+	SessionStatus,
+	StateComponents,
+	ToolCallConfirmationReason,
+	ToolCallStatus,
+	ToolResultContentType,
+	TurnState,
+	type ChangesetState,
+	type ChatState,
+	type SessionState
+} from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
+import { IChatResponseFileEdit } from '../../../browser/chatResponseFileChangesService.js';
 
 class FakeAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client';
 
 	private readonly _emitters = new Map<string, Emitter<unknown>>();
 	private readonly _values = new Map<string, unknown>();
+	private readonly _subscriptionCounts = new Map<string, number>();
 
 	setState(resource: string, value: unknown): void {
 		this._values.set(resource, value);
 		this._emitters.get(resource)?.fire(value);
 	}
 
+	getSubscriptionCount(resource: string): number {
+		return this._subscriptionCounts.get(resource) ?? 0;
+	}
+
 	override getSubscription<T extends StateComponents>(_kind: T, resource: URI, _owner: string): IReference<IAgentSubscription<never>> {
 		const key = resource.toString();
+		this._subscriptionCounts.set(key, (this._subscriptionCounts.get(key) ?? 0) + 1);
 		let emitter = this._emitters.get(key);
 		if (!emitter) {
 			emitter = new Emitter<unknown>();
@@ -87,9 +108,123 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		} satisfies ChangesetState);
 
 		const { latest } = observe(provider, ds);
-		assert.deepStrictEqual(latest().map(d => ({ added: d.added, removed: d.removed, modified: d.modifiedURI.path })), [
-			{ added: 3, removed: 1, modified: '/repo/a.ts' },
-			{ added: 5, removed: 0, modified: '/repo/b.ts' },
+		assert.deepStrictEqual(latest().map(d => ({
+			added: d.added,
+			removed: d.removed,
+			modified: d.modifiedURI.path,
+			// The RHS diff content is the frozen after-turn snapshot, not the live file.
+			after: d.modifiedSnapshotURI && fromAgentHostUri(d.modifiedSnapshotURI).authority,
+		})), [
+			{ added: 3, removed: 1, modified: '/repo/a.ts', after: 'a-after' },
+			{ added: 5, removed: 0, modified: '/repo/b.ts', after: 'b-after' },
+		]);
+	});
+
+	test('keeps the changeset subscription when session state updates', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
+		observe(provider, ds);
+		const subscriptionCountBeforeUpdate = conn.getSubscriptionCount(turnChangesetUri('t1'));
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+
+		assert.deepStrictEqual([
+			subscriptionCountBeforeUpdate,
+			conn.getSubscriptionCount(turnChangesetUri('t1')),
+		], [1, 1]);
+	});
+
+	test('bounds per-request observable caches', () => {
+		const ds = store.add(new DisposableStore());
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(new FakeAgentConnection(), authority, () => backendSession));
+		const firstChanges = provider.getChangesForRequest(chatResource, 'request-0');
+		const firstFileEdits = provider.getFileEditsForRequest(chatResource, 'request-0');
+
+		for (let index = 1; index <= 1100; index++) {
+			provider.getChangesForRequest(chatResource, `request-${index}`);
+			provider.getFileEditsForRequest(chatResource, `request-${index}`);
+		}
+
+		const perRequest = Reflect.get(provider, '_perRequest') as { readonly size: number };
+		const perRequestFileEdits = Reflect.get(provider, '_perRequestFileEdits') as { readonly size: number };
+		assert.deepStrictEqual({
+			perRequestSize: perRequest.size,
+			perRequestFileEditsSize: perRequestFileEdits.size,
+			firstChangesEvicted: provider.getChangesForRequest(chatResource, 'request-0') !== firstChanges,
+			firstFileEditsEvicted: provider.getFileEditsForRequest(chatResource, 'request-0') !== firstFileEdits,
+		}, {
+			perRequestSize: 1000,
+			perRequestFileEditsSize: 1000,
+			firstChangesEvicted: true,
+			firstFileEditsEvicted: true,
+		});
+	});
+
+	test('classifies project files as workspace files without working directories', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+
+		conn.setState(backendSession.toString(), {
+			project: { uri: URI.file('/repo').toString(), displayName: 'repo' },
+			workingDirectories: [],
+			chats: [],
+		} as unknown as SessionState);
+		conn.setState(defaultChatUri.toString(), {
+			resource: defaultChatUri.toString(),
+			title: 'Chat',
+			status: SessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			turns: [{
+				id: 't1',
+				message: {},
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						toolCallId: 'tool-1',
+						toolName: 'write_file',
+						displayName: 'Write File',
+						invocationMessage: 'Write file',
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						success: true,
+						pastTenseMessage: 'Wrote file',
+						content: [
+							{
+								type: ToolResultContentType.FileEdit,
+								after: { uri: URI.file('/outside/README.md').toString(), content: { uri: 'git-blob://readme-after' } },
+								diff: { added: 7, removed: 0 },
+							},
+							{
+								type: ToolResultContentType.FileEdit,
+								after: { uri: URI.file('/repo/docs.md').toString(), content: { uri: 'git-blob://docs-after' } },
+								diff: { added: 3, removed: 1 },
+							},
+						],
+					},
+				}],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		} as unknown as ChatState);
+
+		const obs = provider.getFileEditsForRequest(chatResource, 't1')!;
+		let latest: readonly IChatResponseFileEdit[] = [];
+		ds.add(autorun(r => { latest = obs.read(r); }));
+
+		assert.deepStrictEqual(latest.map(diff => ({
+			modified: fromAgentHostUri(diff.modifiedURI).path,
+			isOutsideWorkspace: diff.isOutsideWorkspace,
+			added: diff.added,
+			removed: diff.removed,
+		})), [
+			{ modified: '/outside/README.md', isOutsideWorkspace: true, added: 7, removed: 0 },
+			{ modified: '/repo/docs.md', isOutsideWorkspace: false, added: 3, removed: 1 },
 		]);
 	});
 

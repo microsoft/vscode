@@ -6,6 +6,8 @@
 import { Codicon } from '../../../base/common/codicons.js';
 import { getWindowId } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
@@ -14,8 +16,6 @@ import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remo
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IOpenerService } from '../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
@@ -28,8 +28,10 @@ import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWid
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { getOpenInVSCodeUri, getVSCodeProtocolScheme, resolveRemoteAuthority } from '../../browser/openInVSCodeUtils.js';
+import { resolveRemoteAuthority } from '../../browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
+import { IOpenedMainWindow } from '../../../platform/window/common/window.js';
+import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -53,41 +55,49 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
-		const openerService = accessor.get(IOpenerService);
-		const productService = accessor.get(IProductService);
-		const nativeHostService = accessor.get(INativeHostService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-		const scheme = getVSCodeProtocolScheme(productService);
+		const nativeHostService = accessor.get(INativeHostService);
 
+		const folderUri = this.getFolderUriToOpen(sessionsService, sessionsProvidersService, remoteAgentHostService);
+		if (!folderUri) {
+			return nativeHostService.openWindow();
+		}
+
+		// Hand off the active session so the opened window restores it too, not just the folder.
+		const chatSessionToOpen = sessionsService.activeSession.get()?.resource;
+		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true, chatSessionToOpen });
+	}
+
+	private getFolderUriToOpen(sessionsService: ISessionsService, sessionsProvidersService: ISessionsProvidersService, remoteAgentHostService: IRemoteAgentHostService): URI | undefined {
 		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
-			await openerService.open(getOpenInVSCodeUri(scheme, undefined, undefined, undefined), { openExternal: true });
-			return;
+			return undefined;
 		}
 
 		const workspace = activeSession.workspace.get();
-		const folder = workspace?.folders[0];
-		const rawFolderUri = folder?.workingDirectory;
+		const rawFolderUri = workspace?.folders[0]?.workingDirectory;
 		if (!rawFolderUri) {
-			await openerService.open(getOpenInVSCodeUri(scheme, undefined, undefined, undefined), { openExternal: true });
-			return;
+			return undefined;
 		}
 
-		if (workspace?.isVirtualWorkspace) {
-			await nativeHostService.openWindow([{ folderUri: rawFolderUri }], { forceNewWindow: true });
-			return;
+		if (rawFolderUri.scheme !== AGENT_HOST_SCHEME) {
+			return rawFolderUri;
 		}
 
-		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
 		const remoteAuthority = resolveRemoteAuthority(activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
-		await openerService.open(getOpenInVSCodeUri(scheme, folderUri, remoteAuthority, activeSession.resource), { openExternal: true });
+		if (!remoteAuthority) {
+			return rawFolderUri;
+		}
+
+		const agentHostUri = fromAgentHostUri(rawFolderUri);
+		return agentHostUri.with({ authority: remoteAuthority, scheme: Schemas.vscodeRemote });
 	}
 }
 
 export class OpenVSCodeWindowAction extends Action2 {
-	static readonly ID = 'agents.openVSCodeWindow';
+	static readonly ID = OPEN_VSCODE_WINDOW_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -114,6 +124,46 @@ export class OpenVSCodeWindowAction extends Action2 {
 			await nativeHostService.openWindow();
 		}
 	}
+}
+
+export class ReturnToVSCodeEditorAction extends Action2 {
+
+	constructor() {
+		super({
+			id: RETURN_TO_VSCODE_EDITOR_COMMAND_ID,
+			title: localize2('returnToVSCodeEditor', 'Return to VS Code Editor'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		await returnToVSCodeEditor(nativeHostService, getWindowId(mainWindow));
+	}
+}
+
+export class ShouldShowReturnToVSCodeEditorAction extends Action2 {
+
+	constructor() {
+		super({
+			id: SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID,
+			title: localize2('shouldShowReturnToVSCodeEditor', 'Check Whether to Show Return to VS Code Editor'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<boolean> {
+		const nativeHostService = accessor.get(INativeHostService);
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+		return shouldShowReturnToVSCodeEditor(windows, getWindowId(mainWindow));
+	}
+}
+
+export function shouldShowReturnToVSCodeEditor(windows: readonly IOpenedMainWindow[], currentWindowId: number): boolean {
+	return !windows.some(window => window.id !== currentWindowId);
+}
+
+export async function returnToVSCodeEditor(nativeHostService: INativeHostService, currentWindowId: number): Promise<void> {
+	await nativeHostService.openWindow();
+	await nativeHostService.closeWindow({ targetWindowId: currentWindowId });
 }
 
 export class OpenInVSCodeWidgetContribution extends Disposable implements IWorkbenchContribution {

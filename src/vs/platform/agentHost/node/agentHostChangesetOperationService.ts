@@ -12,7 +12,7 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../comm
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ISessionGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import type { IChangesetOperationContribution, IAgentHostChangesetOperationService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 
@@ -25,7 +25,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 	) {
@@ -49,12 +49,12 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	getOperations(sessionKey: string, changeset: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] | undefined {
+	getOperations(sessionKey: string, changeset: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] {
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
 			if (!gitState) {
-				return undefined;
+				return [];
 			}
 		}
 
@@ -64,7 +64,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		const parsed = parseChangesetUri(changeset);
 		if (!parsed) {
-			return undefined;
+			return [];
 		}
 
 		return this._getOperations({
@@ -76,16 +76,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined {
+	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
 		const operations: ChangesetOperation[] = [];
 		for (const contribution of this._handlerRegistrations.keys()) {
 			const contributed = contribution.getOperations(context);
 			if (contributed) {
 				operations.push(...contributed);
 			}
-		}
-		if (operations.length === 0) {
-			return undefined;
 		}
 
 		// Operations are disabled while a turn is active so the working tree /
@@ -123,7 +120,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 			this._stateManager.dispatchServerAction(changeset, {
 				type: ActionType.ChangesetOperationsChanged,
-				operations: operations ? [...operations] : undefined,
+				operations: [...operations],
 			});
 		}
 	}

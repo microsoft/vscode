@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorPartModalContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
@@ -25,14 +27,27 @@ export const NEW_SESSION_TOUR_ID = 'sessions.onboarding.newSession';
 
 /**
  * Shared "shown" persistence key for the new-session onboarding tours. The
- * {@link createNewSessionTour} and `createNewSessionViewTour` variants teach the
- * same new-session pickers, so they record their once-per-user state under this
- * single key: once a user has seen either variant, neither runs again.
+ * The new-session tour variants teach the same setup flow, so they record their
+ * once-per-user state under this single key.
  *
  * The value matches {@link NEW_SESSION_TOUR_ID} so users who already saw the
  * original tour (state persisted under that id) are not shown the variant.
  */
 export const NEW_SESSION_ONBOARDING_SEEN_KEY = NEW_SESSION_TOUR_ID;
+
+/**
+ * ExP treatment flag names for Tour 2's A/B experiment.
+ *
+ * - `behaviorFlag` — boolean: `true` shows the tour (treatment), `false` is control.
+ * - `assignmentContextIdFlag` — string: the current arm's ExP variant name, which
+ *   MUST start with the reserved `onb-` prefix (see
+ *   `ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX`). It is distinct from Tour 1's id so the
+ *   two tours report into separate scorecards.
+ */
+const NEW_SESSION_EXPERIMENT = {
+	behaviorFlag: 'onb.newSession.show',
+	assignmentContextIdFlag: 'onb.newSession.id',
+} as const;
 
 const newSessionPayload: ISpotlightPayload = {
 	steps: [
@@ -59,14 +74,16 @@ const newSessionPayload: ISpotlightPayload = {
  * {@link NewSessionTourContribution}, which flips it after the eligible user
  * presses the pulsing New Session button.
  * `ChatContextKeys.enabled` keeps the tour hidden when AI features are disabled.
+ * The modal-editor gate keeps the tour hidden while a modal editor is showing.
  */
 export function createNewSessionTour(signal: IObservable<boolean>): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: NEW_SESSION_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ChatContextKeys.enabled,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated()),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
+		experiment: NEW_SESSION_EXPERIMENT,
 		presentation: {
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			payload: newSessionPayload,

@@ -5,9 +5,10 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHoverContent, IManagedHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { AnchorAlignment } from '../../../../base/common/layout.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -39,7 +40,7 @@ const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
 const UPDATE_TITLE_BAR_SETTING = 'update.titleBar';
 
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
-const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
+const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting, StateType.Cancelling];
 
 /**
  * Optional secondary placement for the update indicator (e.g. used by the Agents
@@ -61,7 +62,7 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 			title: localize('updateIndicatorTitleBarAction', 'Update'),
 			f1: false,
 			menu: [{
-				id: MenuId.TitleBarAdjacentCenter,
+				id: MenuId.TitleBarUpdate,
 				order: 0,
 				when: ContextKeyExpr.and(UPDATE_TITLE_BAR_CONTEXT, InEditorZenModeContext.negate(), ContextKeyExpr.not('inDebugMode'), UPDATE_TITLE_BAR_CHAT_IN_PROGRESS_CONTEXT.negate()),
 			}]
@@ -80,6 +81,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	private state!: State;
 	private entry: UpdateTitleBarEntry | undefined;
 	private tooltipVisible = false;
+	private tooltipFocused = false;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -118,7 +120,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}));
 
 		this._register(actionViewItemService.register(
-			MenuId.TitleBarAdjacentCenter,
+			MenuId.TitleBarUpdate,
 			UPDATE_TITLE_BAR_ACTION_ID,
 			(action, options) => this.createEntry(instantiationService, action, options)
 		));
@@ -144,27 +146,33 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	}
 
 	private createEntry(instantiationService: IInstantiationService, action: IAction, options: IBaseActionViewItemOptions): UpdateTitleBarEntry {
-		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
+		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, focus => {
+			this.tooltipVisible = true;
+			this.tooltipFocused = focus;
+		}, () => {
 			this.tooltipVisible = false;
+			this.tooltipFocused = false;
 			if (!ACTIONABLE_STATES.includes(this.state.type) && !DETAILED_STATES.includes(this.state.type)) {
 				this.context.set(false);
 			}
 		});
 		if (this.tooltipVisible) {
-			this.entry.showTooltip();
+			this.entry.showTooltip(this.tooltipFocused);
 		}
 		return this.entry;
 	}
 
 	private async onStateChange(startup = false) {
 		if (this.configurationService.getValue<boolean>(UPDATE_TITLE_BAR_SETTING) === false) {
+			this.tooltipVisible = false;
+			this.tooltipFocused = false;
 			this.context.set(false);
 			return;
 		}
 
 		// Tooltip already shown or window not last focused: only sync content and indicator visibility.
 		if (this.tooltipVisible || !await this.hostService.hadLastFocus()) {
-			this.context.set(ACTIONABLE_STATES.includes(this.state.type));
+			this.context.set(this.tooltipVisible || ACTIONABLE_STATES.includes(this.state.type));
 			this.tooltip.renderState(this.state);
 			return;
 		}
@@ -193,6 +201,9 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			case StateType.Overwriting:
 				context = this.state.explicit;
 				break;
+			case StateType.Cancelling:
+				context = true;
+				break;
 			case StateType.Restarting:
 				context = true;
 				break;
@@ -220,12 +231,14 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
  */
 export class UpdateTitleBarEntry extends BaseActionViewItem {
 	private content: HTMLElement | undefined;
-	private showTooltipOnRender = false;
+	private tooltipFocusOnRender: boolean | undefined;
+	private readonly visibleTooltip = this._register(new MutableDisposable<IHoverWidget>());
 
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions,
 		private readonly tooltip: UpdateTooltip,
+		private readonly onDidShowTooltip: (focus: boolean) => void,
 		private readonly onUserDismissedTooltip: () => void,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -242,22 +255,24 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		super.render(container);
 
 		this.content = dom.append(container, dom.$('.update-indicator'));
+		container.setAttribute('role', 'button');
 		this.updateTooltip();
 		this.onStateChange(this.updateService.state);
 
-		if (this.showTooltipOnRender) {
-			this.showTooltipOnRender = false;
-			dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => this.showTooltip());
+		if (this.tooltipFocusOnRender !== undefined) {
+			const focus = this.tooltipFocusOnRender;
+			this.tooltipFocusOnRender = undefined;
+			dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => this.showTooltip(focus));
 		}
 	}
 
 	public showTooltip(focus = false) {
 		if (!this.element?.isConnected) {
-			this.showTooltipOnRender = true;
+			this.tooltipFocusOnRender = focus;
 			return;
 		}
 
-		this.hoverService.showInstantHover({
+		const hover = this.hoverService.showInstantHover({
 			content: this.tooltip.domNode,
 			target: {
 				targetElements: [this.element],
@@ -269,11 +284,21 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			},
 			persistence: { sticky: true },
 			appearance: { showPointer: true, compact: true },
+			position: { anchorAlignment: AnchorAlignment.RIGHT },
 		}, focus);
+
+		if (hover) {
+			this.visibleTooltip.value = hover;
+			this.onDidShowTooltip(focus);
+		}
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
 		return this.tooltip.domNode;
+	}
+
+	protected override getHoverOptions(): IManagedHoverOptions {
+		return { position: { anchorAlignment: AnchorAlignment.RIGHT } };
 	}
 
 	private async runAction() {
@@ -345,10 +370,17 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				this.renderProgressState(this.content);
 				break;
 
+			case StateType.Cancelling:
+				label.textContent = localize('updateIndicator.cancelling', "Cancelling...");
+				this.renderProgressState(this.content);
+				break;
+
 			default:
 				label.textContent = localize('updateIndicator.update', "Update");
 				break;
 		}
+
+		this.element?.setAttribute('aria-label', label.textContent);
 	}
 
 	private renderProgressState(content: HTMLElement, percentage?: number) {

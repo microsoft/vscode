@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -16,12 +16,12 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -159,12 +159,18 @@ suite('aiCustomizationListWidget', () => {
 
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
+		const searchBarHeight = 40;
+		const headerHeight = 30;
+		const setLayoutHeights = (widget: AICustomizationListWidget, clientHeight: number): void => {
+			Object.defineProperty(widget.element, 'clientHeight', { configurable: true, value: clientHeight });
+			Object.defineProperty(widget.element.querySelector('.list-search-and-button-container')!, 'offsetHeight', { configurable: true, value: searchBarHeight });
+			Object.defineProperty(widget.element.querySelector('.section-title-header')!, 'offsetHeight', { configurable: true, value: headerHeight });
+		};
 
 		const descriptor: IHarnessDescriptor = {
 			id: 'test',
 			label: 'Test',
 			icon: Codicon.settingsGear,
-			getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 			itemProvider: {
 				onDidChange: Event.None,
 				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve(undefined),
@@ -239,7 +245,7 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => observableValue('test', [] as readonly never[]),
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
 			});
 		});
 
@@ -250,6 +256,30 @@ suite('aiCustomizationListWidget', () => {
 			widget.dispose();
 			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
+		});
+
+		test('uses the rendered container height for list layout when available', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			setLayoutHeights(widget, 500);
+
+			widget.layout(900, 320);
+
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '430px');
+		});
+
+		test('falls back to supplied layout height when rendered container height is 0', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			setLayoutHeights(widget, 0);
+
+			widget.layout(900, 320);
+
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
 		});
 	});
 });
