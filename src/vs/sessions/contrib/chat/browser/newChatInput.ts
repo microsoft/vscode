@@ -103,7 +103,7 @@ import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agent
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
-import { INewSessionComposer, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 
 
@@ -337,7 +337,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _promptOptionsWidget = this._register(new MutableDisposable<NewSessionPromptOptionsWidget>());
 	private readonly _promptOptionsRefresh = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _promptOptionsState: NewSessionPromptOptionsState | undefined;
-	private _promptOptionsResolver: ((token: CancellationToken) => Promise<NewSessionPromptOptionsState>) | undefined;
+	private _promptOptionsController: INewSessionPromptOptionsController | undefined;
+	private _promptOptionsDismissed = false;
 
 	// Send button
 	private _sendButton: Button | undefined;
@@ -509,16 +510,20 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
 		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer, tipContainer, onDidChangeInputOnboardingVisible));
 
-		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, async (option, expectedInput, animate) => {
-			this.focus();
-			const inserted = animate
-				? await this.animatePrompt(option.prompt, NEW_SESSION_PROMPT_TYPING_DURATION_MS, option.placeholder, CancellationToken.None, expectedInput)
-				: this._replacePrompt(option.prompt, option.placeholder, expectedInput);
-			const generatedValue = option.placeholder ? option.prompt.replace(option.placeholder, '') : option.prompt;
-			if (inserted && (this._editor.getValue() === option.prompt || this._editor.getValue() === generatedValue)) {
-				aria.status(localize('newSessionPromptOptions.inserted', "Inserted prompt: {0}", option.title));
-			}
-			return inserted;
+		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, {
+			selectOption: async (option, expectedInput, animate) => {
+				this.focus();
+				const inserted = animate
+					? await this.animatePrompt(option.prompt, NEW_SESSION_PROMPT_TYPING_DURATION_MS, option.placeholder, CancellationToken.None, expectedInput)
+					: this._replacePrompt(option.prompt, option.placeholder, expectedInput);
+				const generatedValue = option.placeholder ? option.prompt.replace(option.placeholder, '') : option.prompt;
+				if (inserted && (this._editor.getValue() === option.prompt || this._editor.getValue() === generatedValue)) {
+					aria.status(localize('newSessionPromptOptions.inserted', "Inserted prompt: {0}", option.title));
+				}
+				return inserted;
+			},
+			onDidSelectOption: option => this._promptOptionsController?.onDidSelectOption(option),
+			onDidClose: () => this._dismissPromptOptions(),
 		});
 		this._promptOptionsWidget.value.setState(this._promptOptionsState);
 
@@ -1381,6 +1386,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean {
+		if (state && this._promptOptionsDismissed) {
+			return false;
+		}
 		this._promptOptionsState = state;
 		const widget = this._promptOptionsWidget.value;
 		if (!widget) {
@@ -1391,12 +1399,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return true;
 	}
 
-	setPromptOptionsResolver(resolver: (token: CancellationToken) => Promise<NewSessionPromptOptionsState>): void {
-		this._promptOptionsResolver = resolver;
+	setPromptOptionsController(controller: INewSessionPromptOptionsController): void {
+		this._cancelPromptOptionsRefresh(false);
+		this._promptOptionsController = controller;
+		this._promptOptionsDismissed = false;
 	}
 
 	preparePromptOptionsRefresh(): boolean {
-		if (!this._promptOptionsResolver) {
+		if (!this._promptOptionsController || this._promptOptionsDismissed) {
 			return false;
 		}
 		this._cancelPromptOptionsRefresh();
@@ -1409,28 +1419,40 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this.showPromptOptions(undefined);
 	}
 
-	private _cancelPromptOptionsRefresh(): void {
+	private _dismissPromptOptions(): void {
+		if (this._promptOptionsDismissed) {
+			return;
+		}
+		const controller = this._promptOptionsController;
+		this._promptOptionsDismissed = true;
+		this._cancelPromptOptionsRefresh(false);
+		this.showPromptOptions(undefined);
+		this.focus();
+		aria.status(localize('newSessionPromptOptions.closed', "Prompt options closed"));
+		controller?.onDidClose();
+	}
+
+	private _cancelPromptOptionsRefresh(clearGeneratedInput = true): void {
 		const shouldClearInput = this._promptOptionsWidget.value?.shouldClearInputForRefresh() ?? false;
 		this._promptTypingAnimation.clear();
 		this._promptOptionsRefresh.value?.cancel();
 		this._promptOptionsRefresh.clear();
-		if (shouldClearInput) {
+		if (clearGeneratedInput && shouldClearInput) {
 			this._promptTemplatePlaceholder.value?.setPlaceholder(undefined);
 			this._editor.getModel()?.setValue('');
 		}
 	}
 
 	async refreshPromptOptions(token: CancellationToken = CancellationToken.None): Promise<boolean> {
-		const resolver = this._promptOptionsResolver;
-		if (!resolver) {
+		const controller = this._promptOptionsController;
+		if (!controller || !this.preparePromptOptionsRefresh()) {
 			return false;
 		}
-		this.preparePromptOptionsRefresh();
 		const cts = new CancellationTokenSource(token);
 		this._promptOptionsRefresh.value = cts;
 		let state: NewSessionPromptOptionsState;
 		try {
-			state = await resolver(cts.token);
+			state = await controller.resolve(cts.token);
 		} catch (error) {
 			if (this._promptOptionsRefresh.value === cts) {
 				this._promptOptionsRefresh.clear();

@@ -379,26 +379,50 @@ up to two authored pull requests with failing CI or unaddressed review comments.
 `options` is the default when no variation treatment is assigned; `prompt` and
 `githubPrompt` remain available as explicit treatments and developer overrides.
 Any remaining slots are filled, in order, by the standard Implement a feature,
-Fix a bug, and Fix CI options. GitHub work is resolved
-silently with bounded cancellable lookups and shared issue/pull-request state
-icons; failures and timeouts leave every candidate completed by that point in
-place and fill the rest with standard options. Changing the selected workspace
-clears the repository-specific option set immediately, shows loading skeletons,
-and starts a fresh lookup for the replacement draft so cards from the previous
-repository cannot be inserted into the new workspace. Clearing the workspace
-cancels the active lookup, removes only untouched/generated option text, and
-hides the widget so stale results cannot reappear.
+Fix a bug, and Fix CI options. GitHub work is resolved silently with bounded
+cancellable lookups and shared issue/pull-request state icons. The complete
+lookup has a 10-second ceiling; summary requests receive up to 5 seconds,
+issue-linkage requests 2.5 seconds, and review-thread requests 4 seconds within
+that total budget. Failures and timeouts leave every candidate completed by that
+point in place and fill the rest with standard options. Repository discovery and
+API authentication use github.com by default. When GitHub Enterprise is
+configured, repository discovery accepts only that Enterprise host and API calls
+use its endpoint and `github-enterprise` authentication provider; hostless
+session metadata and github.com remotes are not mixed into that connection.
+Changing the selected
+workspace clears the repository-specific option set immediately, shows loading
+skeletons, and starts a fresh lookup for the replacement draft so cards from the
+previous repository cannot be inserted into the new workspace. Clearing the
+workspace cancels the active lookup, removes only untouched/generated option
+text, and hides the widget so stale results cannot reappear.
 
 Selecting the first option focuses the input immediately and animates its prompt
 into an empty input. Later selections replace the generated prompt immediately.
 A different option can replace the input only while it is empty, exactly matches
 the previously selected prompt, or exactly matches that prompt after its editable
 placeholder was activated and removed. Any other edit disables every option but
-preserves the selected presentation; clearing the input or restoring either exact
-generated form enables them again. The option widget remains mounted after
-selection and is disposed with the composer. Standard prompts contain
-action-specific editable placeholders and the same inspect, explain, implement,
-and validate guidance as the prompt variation.
+preserves the selected presentation; clearing the input clears the selection and
+enables every option, while restoring either exact generated form enables the
+options without clearing the selection. The option widget remains mounted after
+selection and is disposed with the composer. Its heading row ends with a close
+action that cancels an in-flight lookup, hides the widget for the lifetime of
+that composer, preserves inserted or partially typed text, and returns focus to
+the input. GitHub numbers and repository titles use the standard foreground so
+they retain contrast across themes. Standard prompts contain action-specific
+editable placeholders and the same inspect, explain, implement, and validate
+guidance as the prompt variation.
+
+Successful option insertions and the close action emit
+`onboarding.promptOptionInteraction`. The event records only the interaction and
+a fixed option category (`implementFeature`, `fixBug`, `fixCI`, `githubIssue`,
+`githubPRCI`, or `githubPRComments`); it never records issue/PR numbers, titles,
+URLs, prompt text, or other repository content.
+
+GitHub prompt personalization must keep repository discovery and API connection
+selection on the same host. Do not add Enterprise hosts to the github.com
+allowlist while routing every API request through Enterprise; either preserve
+the resolved host through the request or make Enterprise discovery exclusive,
+including hostless metadata paths.
 
 The run step awaits typing or option resolution and forwards sequence
 cancellation; cancellation or composer disposal preserves only text already
