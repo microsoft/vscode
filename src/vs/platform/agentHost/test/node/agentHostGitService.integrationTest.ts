@@ -501,6 +501,27 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
 	});
 
+	// Git answers with resolved paths, while a session persists the path it was
+	// created with. Unless both are canonicalized they are different cache keys
+	// for one worktree, and every lookup misses.
+	(hasGit ? test : test.skip)('canonicalizeExistingPath agrees with the paths git reports, and rejects missing paths', async () => {
+		const dir = initRepo();
+		const worktree = join(dir, 'linked');
+		cp.execFileSync('git', ['worktree', 'add', '-q', '--no-checkout', '-b', 'linked', worktree, 'main'], { cwd: dir, env, stdio: 'pipe' });
+
+		const reported = await svc!.getWorktreeRoots(URI.file(worktree));
+		const canonicalWorktree = await svc!.canonicalizeExistingPath(URI.file(worktree));
+		const canonicalPrimary = await svc!.canonicalizeExistingPath(URI.file(dir));
+
+		assert.deepStrictEqual({
+			reportedMatchCanonical: reported.map(root => root.fsPath).sort(),
+			missing: await svc!.canonicalizeExistingPath(URI.file(join(dir, 'never-existed'))),
+		}, {
+			reportedMatchCanonical: [canonicalPrimary!.fsPath, canonicalWorktree!.fsPath].sort(),
+			missing: undefined,
+		});
+	});
+
 	(hasGit ? test : test.skip)('hasUncommittedChanges flips with untracked and committed work', async () => {
 		const dir = initRepo();
 		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);

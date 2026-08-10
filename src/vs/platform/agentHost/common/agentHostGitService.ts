@@ -5,7 +5,6 @@
 
 import { Sequencer } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { LRUCache } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
@@ -94,37 +93,105 @@ export interface IPullOptions {
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
 /**
+ * How long an unresolvable checkout is remembered before Git is asked again.
+ * Bounded rather than permanent: the Agent Host is a long-lived utility process
+ * shared by every window, so a checkout that failed because a volume was still
+ * mounting must recover without the user restarting the application.
+ */
+const UNRESOLVABLE_CHECKOUT_TTL_MS = 60_000;
+
+/**
  * Resolves linked checkouts to their primary worktree and caches successful mappings for every worktree reported by Git.
- * Resolution is serialized so concurrent requests across linked checkouts share one probe, while empty results remain retryable.
+ *
+ * One `git worktree list` teaches the resolver a whole repository's membership,
+ * so a session catalogue collapses to roughly one Git launch per repository.
+ * That only holds if the recorded siblings survive and match later lookups:
+ *
+ * - The map is deliberately unbounded. Its entries *are* the membership Git
+ *   reported, so evicting any of them re-creates the storm this cache exists to
+ *   prevent; a bound only decides how many worktrees it takes to hit it. Entries
+ *   are two short strings and are limited by the checkouts that actually exist
+ *   on disk.
+ * - Keys are canonical paths. Git reports resolved paths, while a session
+ *   persists the path it was created with, so `/tmp/x` and `/private/tmp/x`
+ *   would otherwise be different keys for one worktree — every lookup a miss.
+ * - Launches stay serialized, because that is what lets the first checkout of a
+ *   repository answer every later one instead of each racing its own Git. Only
+ *   lookups that actually need Git reach the queue; anything the cache can
+ *   already answer returns without joining it.
  */
 class PrimaryWorktreeRootResolver {
-	private readonly _roots = new LRUCache<string, URI>(100);
+	private readonly _roots = new Map<string, URI>();
+	private readonly _unresolvable = new Map<string, number>();
 	private readonly _sequencer = new Sequencer();
 
 	constructor(private readonly _gitService: IAgentHostGitService) { }
 
 	async resolve(checkoutRoot: URI): Promise<URI | undefined> {
-		const key = checkoutRoot.toString();
+		// Also acts as an existence check: a path that is gone cannot be
+		// canonicalized, and Git could only be launched to fail on it.
+		const canonical = await this._canonicalize(checkoutRoot);
+		if (!canonical) {
+			return undefined;
+		}
+		const key = canonical.toString();
 		const cached = this._roots.get(key);
 		if (cached) {
 			return cached;
 		}
+		if (this._isKnownUnresolvable(key)) {
+			return undefined;
+		}
 		return this._sequencer.queue(async () => {
+			// Re-check: a concurrent probe of a sibling checkout may have
+			// recorded this repository's membership while this one queued.
 			const cached = this._roots.get(key);
 			if (cached) {
 				return cached;
 			}
-			const roots = await this._gitService.getWorktreeRoots(checkoutRoot);
+			if (this._isKnownUnresolvable(key)) {
+				return undefined;
+			}
+			const roots = await this._gitService.getWorktreeRoots(canonical);
 			const primaryRoot = roots[0];
 			if (!primaryRoot) {
+				this._unresolvable.set(key, Date.now());
 				return undefined;
 			}
 			this._roots.set(key, primaryRoot);
 			for (const root of roots) {
 				this._roots.set(root.toString(), primaryRoot);
+				const canonicalRoot = await this._canonicalize(root);
+				if (canonicalRoot) {
+					this._roots.set(canonicalRoot.toString(), primaryRoot);
+				}
 			}
 			return primaryRoot;
 		});
+	}
+
+	private async _canonicalize(path: URI): Promise<URI | undefined> {
+		const canonicalize = this._gitService.canonicalizeExistingPath;
+		if (!canonicalize) {
+			return path;
+		}
+		try {
+			return await canonicalize.call(this._gitService, path);
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _isKnownUnresolvable(key: string): boolean {
+		const failedAt = this._unresolvable.get(key);
+		if (failedAt === undefined) {
+			return false;
+		}
+		if (Date.now() - failedAt < UNRESOLVABLE_CHECKOUT_TTL_MS) {
+			return true;
+		}
+		this._unresolvable.delete(key);
+		return false;
 	}
 }
 
@@ -208,6 +275,15 @@ export interface IAgentHostGitService {
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
+	/**
+	 * Resolves `path` to its canonical on-disk spelling, or `undefined` when it
+	 * does not exist. Used to key caches so that the several spellings of one
+	 * directory — symlinked prefixes such as `/tmp` vs `/private/tmp`, or
+	 * Windows casing — do not read as different locations. Optional:
+	 * implementations without filesystem access omit it and are keyed by the
+	 * path as given.
+	 */
+	canonicalizeExistingPath?(path: URI): Promise<URI | undefined>;
 	/**
 	 * Creates a worktree for a new branch. `onProgress` receives every checkout
 	 * sample git reports, which can be several per second, so consumers are

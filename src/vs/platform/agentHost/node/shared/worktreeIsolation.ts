@@ -36,6 +36,37 @@ import { ICopilotApiService } from './copilotApiService.js';
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
+/**
+ * Records that {@link WORKTREE_META_REPOSITORY_ROOT} was derived from Git's own
+ * worktree listing, so listing can trust it without launching Git again. Older
+ * builds stored a parent linked checkout there and an unstamped root is
+ * indistinguishable from one of those, so it has to be re-derived once.
+ *
+ * The stamp carries the version of the resolution that produced it *and* the
+ * exact root it certifies, which keeps it honest in both directions: rewriting
+ * the root through any other path invalidates the stamp automatically, and
+ * raising {@link WORKTREE_REPOSITORY_ROOT_STAMP_VERSION} re-migrates roots that
+ * an improved resolution would now answer differently.
+ */
+export const WORKTREE_META_REPOSITORY_ROOT_STAMP = 'copilot.worktree.repositoryRootStamp';
+const WORKTREE_REPOSITORY_ROOT_STAMP_VERSION = '1';
+
+/** Builds the stamp certifying `repositoryRoot`, or `undefined` when it must not be certified. */
+export function buildRepositoryRootStamp(repositoryRoot: URI): string | undefined {
+	// Git answers a submodule or `--separate-git-dir` checkout with its git
+	// directory rather than a working tree. Grouping under that is wrong today
+	// too, but it self-heals on the next listing; certifying it would freeze it.
+	if (repositoryRoot.path.split('/').includes('.git')) {
+		return undefined;
+	}
+	return `${WORKTREE_REPOSITORY_ROOT_STAMP_VERSION}:${repositoryRoot.toString()}`;
+}
+
+/** Whether `stamp` certifies `repositoryRootRaw` as already canonical. */
+export function isRepositoryRootStamped(stamp: string | undefined, repositoryRootRaw: string): boolean {
+	return !!stamp && stamp === `${WORKTREE_REPOSITORY_ROOT_STAMP_VERSION}:${repositoryRootRaw}`;
+}
+
 const WORKTREE_META_CREATION_FAILURE = 'copilot.worktree.creationFailure';
 const MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH = 200;
 
@@ -570,7 +601,7 @@ export class WorktreeIsolation extends Disposable {
 			return workingDirectory;
 		}
 
-		const repositoryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
+		const { root: repositoryRoot, resolved: repositoryRootResolved } = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
 		const worktreesRoot = getWorktreesRoot(repositoryRoot);
 		// Prefix (e.g. the user's `git.branchPrefix`) the client forwards for
 		// worktree-isolated sessions. Prepended ahead of the built-in `agents/`
@@ -626,7 +657,7 @@ export class WorktreeIsolation extends Disposable {
 		// subsequent restore (history) both surface the message in the chat.
 		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
 		try {
-			await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktree, repositoryRoot });
+			await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktree, repositoryRoot, repositoryRootResolved });
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to persist worktree branch metadata: ${errorMessage(error)}`);
 		}
@@ -896,7 +927,7 @@ export class WorktreeIsolation extends Disposable {
 		}
 		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
 		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
-		await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktreeRoot, repositoryRoot: primaryRoot });
+		await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktreeRoot, repositoryRoot: primaryRoot, repositoryRootResolved: true });
 		return true;
 	}
 
@@ -917,12 +948,19 @@ export class WorktreeIsolation extends Disposable {
 		return meta?.repositoryRoot ? projectFromRepositoryRoot(meta.repositoryRoot) : undefined;
 	}
 
-	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<URI> {
+	/**
+	 * Resolves the primary worktree owning `checkoutRoot`, reporting whether Git
+	 * actually answered. Callers must not persist a stamp for a fallback: it is
+	 * the raw checkout root, which is exactly the value this canonicalization
+	 * exists to replace.
+	 */
+	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<{ readonly root: URI; readonly resolved: boolean }> {
 		try {
-			return await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot) ?? fallbackRoot;
+			const resolved = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot);
+			return resolved ? { root: resolved, resolved: true } : { root: fallbackRoot, resolved: false };
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}] Failed to resolve primary worktree for '${checkoutRoot.fsPath}': ${errorMessage(error)}`);
-			return fallbackRoot;
+			return { root: fallbackRoot, resolved: false };
 		}
 	}
 
@@ -963,7 +1001,7 @@ export class WorktreeIsolation extends Disposable {
 			: selectedBranch;
 	}
 
-	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {
+	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI; repositoryRootResolved: boolean }): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(sessionUri);
 		try {
 			const work: Promise<void>[] = [
@@ -971,6 +1009,13 @@ export class WorktreeIsolation extends Disposable {
 				dbRef.object.setMetadata(WORKTREE_META_PATH, metadata.worktreePath.toString()),
 				dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, metadata.repositoryRoot.toString()),
 			];
+			// Certify only a root Git actually answered for, so listing never
+			// re-derives it. A fallback is the raw checkout root, which is the
+			// value the migration exists to replace, and must stay repairable.
+			const stamp = metadata.repositoryRootResolved ? buildRepositoryRootStamp(metadata.repositoryRoot) : undefined;
+			if (stamp) {
+				work.push(dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, stamp));
+			}
 			if (metadata.baseBranch) {
 				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, metadata.baseBranch));
 			}
@@ -983,6 +1028,7 @@ export class WorktreeIsolation extends Disposable {
 	/**
 	 * Reads worktree metadata and migrates repository roots written before linked checkouts were canonicalized.
 	 * It probes an existing worktree when available and otherwise falls back to the persisted root for archived sessions.
+	 * A stamped root is already canonical, so resuming a session costs no Git launch.
 	 */
 	private async _readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
@@ -991,23 +1037,29 @@ export class WorktreeIsolation extends Disposable {
 		}
 
 		try {
-			const [branchName, worktreePathRaw, repositoryRootRaw] = await Promise.all([
+			const [branchName, worktreePathRaw, repositoryRootRaw, stamp] = await Promise.all([
 				ref.object.getMetadata(WORKTREE_META_BRANCH),
 				ref.object.getMetadata(WORKTREE_META_PATH),
 				ref.object.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				ref.object.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
 			]);
 			if (!branchName) {
 				return undefined;
 			}
 			const worktreePath = worktreePathRaw ? URI.parse(worktreePathRaw) : undefined;
 			let repositoryRoot = repositoryRootRaw ? URI.parse(repositoryRootRaw) : undefined;
-			if (repositoryRoot) {
+			if (repositoryRoot && !isRepositoryRootStamped(stamp, repositoryRootRaw!)) {
 				const checkoutRoot = worktreePath && await fileExists(worktreePath.fsPath) ? worktreePath : repositoryRoot;
-				const primaryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
-				if (primaryRoot.toString() !== repositoryRoot.toString()) {
-					repositoryRoot = primaryRoot;
+				const { root: primaryRoot, resolved } = await this._resolvePrimaryWorktreeRoot(checkoutRoot, repositoryRoot);
+				const changed = primaryRoot.toString() !== repositoryRoot.toString();
+				repositoryRoot = primaryRoot;
+				const nextStamp = resolved ? buildRepositoryRootStamp(primaryRoot) : undefined;
+				if (changed || nextStamp) {
 					try {
-						await ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString());
+						await Promise.all([
+							...(changed ? [ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString())] : []),
+							...(nextStamp ? [ref.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, nextStamp)] : []),
+						]);
 					} catch (error) {
 						this._logService.warn(`[${this._logLabel}] Failed to normalize worktree repository metadata for '${sessionUri.toString()}': ${errorMessage(error)}`);
 					}

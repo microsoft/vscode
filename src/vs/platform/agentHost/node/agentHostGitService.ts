@@ -136,6 +136,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
+	async canonicalizeExistingPath(path: URI): Promise<URI | undefined> {
+		try {
+			return URI.file(await fsPromises.realpath(path.fsPath));
+		} catch {
+			// Missing, unreadable, or a broken link: no canonical spelling exists.
+			return undefined;
+		}
+	}
+
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
 		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
 

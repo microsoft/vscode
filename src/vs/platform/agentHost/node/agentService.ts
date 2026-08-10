@@ -9,7 +9,7 @@ import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { LRUCache, ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
@@ -51,7 +51,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionCreationDefaults, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 
-import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildRepositoryRootStamp, buildWorktreeFailureNotification, isRepositoryRootStamped, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, WORKTREE_META_REPOSITORY_ROOT_STAMP, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -150,6 +150,16 @@ function omitHostOwnedSessionConfig<T>(config: Record<string, T>): Record<string
  * envelope replay buffer for the same reason.
  */
 const RESOURCE_WATCH_GRACE_MS = 30_000;
+
+/**
+ * Time one {@link AgentService.listSessions} call may spend repairing repository
+ * roots persisted by builds that predate worktree-identity canonicalization.
+ * Repair is stamped and therefore one-shot per session, but a first listing over
+ * a catalogue spanning many repositories still has to launch Git once per
+ * repository. The budget keeps that bounded; sessions past it keep their
+ * persisted root, stay unstamped, and are repaired by a later listing.
+ */
+const LISTED_WORKTREE_ROOT_MIGRATION_BUDGET_MS = 2_000;
 
 /** Bound on how long {@link AgentService.subscribe} waits for a pending subagent chat to register before giving up. */
 const SUBAGENT_CHAT_PENDING_TIMEOUT_MS = 15_000;
@@ -330,8 +340,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * agents stay unaware of the folder-vs-worktree distinction.
 	 */
 	private _worktree: WorktreeIsolation | undefined;
-	/** Successful list-time repository-root resolutions; eviction only causes safe re-resolution. */
-	private readonly _normalizedWorktreeRepositoryRoots = new LRUCache<string, URI>(100);
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
@@ -937,40 +945,60 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * Repairs repository roots written by older builds that treated a parent linked checkout as the repository.
 	 * Listing performs this migration because archived sessions may never resume through WorktreeIsolation's metadata reader.
+	 *
+	 * A repaired root is stamped, so this costs one resolution per session ever
+	 * rather than one per listing. Persistence is deliberately not awaited: the
+	 * value returned to the client is already correct, and a lost write only
+	 * means the next listing re-derives it.
 	 */
-	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string): Promise<string> {
-		const storedRepositoryRootRaw = repositoryRootRaw;
+	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string, stamp: string | undefined, deadline: number): Promise<string> {
+		if (isRepositoryRootStamped(stamp, repositoryRootRaw)) {
+			return repositoryRootRaw;
+		}
+		// Migrating the rest of the catalogue must not hold up the listing. What
+		// is left stays unstamped and is picked up by a later listing.
+		if (Date.now() > deadline) {
+			return repositoryRootRaw;
+		}
 		const persistedRoot = URI.parse(repositoryRootRaw);
-		const sessionStr = session.session.toString();
-		let primaryRoot = this._normalizedWorktreeRepositoryRoots.get(sessionStr);
+		const workingDirectory = session.workingDirectories?.[0];
+		const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
+		let primaryRoot: URI | undefined;
+		try {
+			primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
+				?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);
+		} catch (error) {
+			this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
+		}
 		if (!primaryRoot) {
-			const workingDirectory = session.workingDirectories?.[0];
-			const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
-			try {
-				primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
-					?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);
-				if (primaryRoot) {
-					this._normalizedWorktreeRepositoryRoots.set(sessionStr, primaryRoot);
-				}
-			} catch (error) {
-				this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
-			}
+			// Leave the root unstamped so a later listing can still repair it,
+			// rather than freezing a value this run could not confirm.
+			return repositoryRootRaw;
 		}
-		if (primaryRoot) {
-			repositoryRootRaw = primaryRoot.toString();
+		const normalized = primaryRoot.toString();
+		const nextStamp = buildRepositoryRootStamp(primaryRoot);
+		const writes: Promise<void>[] = [];
+		if (normalized !== repositoryRootRaw) {
+			writes.push(database.setMetadata(WORKTREE_META_REPOSITORY_ROOT, normalized));
 		}
-		if (repositoryRootRaw !== storedRepositoryRootRaw) {
-			try {
-				await database.setMetadata(WORKTREE_META_REPOSITORY_ROOT, repositoryRootRaw);
-			} catch (error) {
+		if (nextStamp) {
+			writes.push(database.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, nextStamp));
+		}
+		if (writes.length) {
+			Promise.all(writes).catch(error => {
 				this._logService.warn(`[AgentService][listSessions] Failed to normalize worktree repository metadata for ${session.session}`, error);
-			}
+			});
 		}
-		return repositoryRootRaw;
+		return normalized;
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
+		// Caps what one listing spends repairing legacy repository roots. Work
+		// left over stays unstamped and is resumed by the next listing, so a
+		// catalogue spanning unusually many repositories still converges
+		// without ever blocking the window on it.
+		const migrationDeadline = Date.now() + LISTED_WORKTREE_ROOT_MIGRATION_BUDGET_MS;
 		const results = await Promise.all(
 			[...this._providers.values()].map(p => p.listSessions())
 		);
@@ -994,8 +1022,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, [WORKTREE_META_REPOSITORY_ROOT_STAMP]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, [WORKTREE_META_REPOSITORY_ROOT_STAMP]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
 					// Claude peer chat's SDK session, enumerated by the agent's
@@ -1044,7 +1072,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 					let repositoryRootRaw = m[WORKTREE_META_REPOSITORY_ROOT];
 					if (repositoryRootRaw) {
-						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw);
+						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw, m[WORKTREE_META_REPOSITORY_ROOT_STAMP], migrationDeadline);
 					}
 					const worktreeProject = worktreeProjectFromRepositoryRoot(repositoryRootRaw);
 					if (worktreeProject) {

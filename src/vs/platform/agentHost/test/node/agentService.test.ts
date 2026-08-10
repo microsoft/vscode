@@ -42,7 +42,7 @@ import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, WORKTREE_META_REPOSITORY_ROOT_STAMP } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1769,6 +1769,71 @@ suite('AgentService (node dispatcher)', () => {
 				resolvedFrom: [linkedCheckout.toString()],
 				project: { uri: primaryRoot.toString(), displayName: 'vscode' },
 				persistedRepositoryRoot: primaryRoot.toString(),
+			});
+		});
+
+		test('listSessions trusts a stamped repository root after a host restart', async () => {
+			// The stamp, not an in-memory cache, is what has to make the repair
+			// one-shot: a fresh host must re-read the catalogue without Git.
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
+			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
+			const sessionId = 'test-session-stamped-worktree';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const listWith = async () => {
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree], project: { uri: linkedCheckout, displayName: 'parent' } };
+				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+				// A new Git service means a new resolver, i.e. no warm cache.
+				const gitService = createNoopGitService();
+				let worktreeRootCalls = 0;
+				gitService.getWorktreeRoots = async () => {
+					worktreeRootCalls++;
+					return [primaryRoot, linkedCheckout, sessionWorktree];
+				};
+				const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
+				svc.registerProvider(agent);
+				const sessions = await svc.listSessions();
+				return { worktreeRootCalls, project: sessions[0].project?.uri.toString() };
+			};
+
+			const first = await listWith();
+			const afterRestart = await listWith();
+
+			assert.deepStrictEqual({ first, afterRestart }, {
+				first: { worktreeRootCalls: 1, project: primaryRoot.toString() },
+				afterRestart: { worktreeRootCalls: 0, project: primaryRoot.toString() },
+			});
+		});
+
+		test('listSessions leaves a root git could not confirm unstamped', async () => {
+			// Certifying a value this run could not derive would freeze the very
+			// mis-grouping the migration exists to repair.
+			const db = disposables.add(new TestSessionDatabase());
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
+			const sessionId = 'test-session-unresolvable-worktree';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [linkedCheckout] };
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const gitService = createNoopGitService();
+			gitService.getWorktreeRoots = async () => [];
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
+			svc.registerProvider(agent);
+
+			await svc.listSessions();
+
+			assert.deepStrictEqual({
+				stamp: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+			}, {
+				stamp: undefined,
+				persistedRepositoryRoot: linkedCheckout.toString(),
 			});
 		});
 
