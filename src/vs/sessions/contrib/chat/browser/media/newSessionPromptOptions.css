@@ -82,10 +82,24 @@
 }
 
 .new-session-prompt-option-title {
+	display: flex;
 	font-size: var(--vscode-agents-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	gap: var(--vscode-spacing-size40);
 	grid-column: 2;
 	grid-row: 1;
+}
+
+.new-session-prompt-option-title-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.new-session-prompt-option-title-detail {
+	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
+	flex-shrink: 0;
+	font-weight: var(--vscode-agents-fontWeight-regular);
 }
 
 .new-session-prompt-option-description {

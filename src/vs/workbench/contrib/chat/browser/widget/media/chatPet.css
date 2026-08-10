@@ -214,10 +214,8 @@
 	animation: chat-pet-complete-motion 960ms steps(1, end);
 }
 
-.chat-pet-button[data-state='jump'] .chat-pet-sprite,
-.chat-pet-button[data-state='jump'] .chat-pet-eyes {
-	transform-origin: 50% 60%;
-	animation: chat-pet-complete-motion 960ms steps(1, end);
+.chat-pet-button[data-state='jump'][data-hop-direction='left'] .chat-pet-sprite {
+	transform: scaleX(-1);
 }
 
 .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
@@ -445,8 +443,6 @@
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.soft-resisting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.dragging.resisting,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='complete'] .chat-pet-sprite,
-.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='jump'] .chat-pet-sprite,
-.monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='jump'] .chat-pet-eyes,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searching'],
 .monaco-workbench.monaco-reduce-motion .chat-pet-button[data-state='searchingDown'],
