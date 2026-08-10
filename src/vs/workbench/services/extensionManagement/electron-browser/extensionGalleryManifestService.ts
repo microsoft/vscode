@@ -88,7 +88,6 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			updateChannels(manifest);
 			this._register(this.onDidChangeExtensionGalleryManifest(manifest => updateChannels(manifest)));
 		}).catch(error => {
-			// Must not surface as an unhandled rejection; the failure already set a manifest status.
 			this.logService.error('[Marketplace] Error during initial gallery manifest bootstrap', error);
 		});
 	}

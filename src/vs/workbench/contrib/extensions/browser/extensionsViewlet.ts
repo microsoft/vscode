@@ -177,23 +177,10 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			)
 		});
 
+		// Access denied applies to every provider (microsoft/github/default), so gate on status alone.
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('access denied microsoft', "Your Microsoft account does not have access to the Extensions Marketplace. Please contact your administrator."),
-			when: ContextKeyExpr.and(
-				CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied),
-				CONTEXT_MARKETPLACE_AUTH_PROVIDER.isEqualTo('microsoft')
-			)
-		});
-
-		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('access denied github', "Your account does not have access to the Extensions Marketplace. Please contact your administrator."),
-			when: ContextKeyExpr.and(
-				CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied),
-				ContextKeyExpr.or(
-					CONTEXT_MARKETPLACE_AUTH_PROVIDER.isEqualTo('github'),
-					ContextKeyExpr.not('marketplaceAuthProvider')
-				)
-			)
+			content: localize('access denied', "Your account does not have access to the Extensions Marketplace. Please contact your administrator."),
+			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
 		});
 
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
