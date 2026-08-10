@@ -27,8 +27,10 @@ suite('VoiceGlow', () => {
 	});
 
 	test('does not render a pending confirmation when Voice Mode is disabled', () => {
-		assert.strictEqual(shouldRenderVoiceInputGlow(false, true, false, true, false, 'idle'), false);
-		assert.strictEqual(shouldRenderVoiceInputGlow(true, true, false, true, false, 'idle'), true);
+		assert.deepStrictEqual([
+			shouldRenderVoiceInputGlow(false, true, false, true, false, 'idle'),
+			shouldRenderVoiceInputGlow(true, true, false, true, false, 'idle'),
+		], [false, true]);
 	});
 
 	test('renders in an auxiliary owner document', () => {
