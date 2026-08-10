@@ -14,11 +14,13 @@ import { isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessi
 
 const MAX_RECENT_SESSIONS = 15;
 
+/** A workspace resolved by the provider that can create a session for it. */
 export interface IResolvedFolderWorkspace {
 	readonly providerId: string;
 	readonly workspace: ISessionWorkspace;
 }
 
+/** Callbacks that keep provider-specific picker policy outside the fallback. */
 export interface ISessionWorkspaceFallbackOptions {
 	readonly canUseProvider: (providerId: string) => boolean;
 	readonly isProviderUnavailable: (providerId: string) => boolean;
@@ -48,7 +50,6 @@ export class SessionWorkspaceFallback extends Disposable {
 	) {
 		super();
 		this.refreshProviders();
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChange.fire()));
 	}
 
 	refreshProviders(): void {
@@ -60,6 +61,7 @@ export class SessionWorkspaceFallback extends Disposable {
 		}
 	}
 
+	/** Returns the highest-ranked existing workspace among recent sessions. */
 	async findWorkspace(): Promise<IResolvedFolderWorkspace | undefined> {
 		const sessions = this.sessionsProvidersService.getProviders()
 			.filter(provider => this.options.canUseProvider(provider.id))
@@ -101,10 +103,14 @@ export class SessionWorkspaceFallback extends Disposable {
 	}
 
 	private _getWorkspaceFolder(session: ISession): URI | undefined {
-		if (session.isQuickChat?.get()) {
+		if (session.isQuickChat?.get() || session.worktreePending?.get()) {
 			return undefined;
 		}
-		const folderUri = session.workspace.get()?.folders[0]?.root;
+		const folder = session.workspace.get()?.folders[0];
+		if (folder?.gitRepository?.workTreeUri) {
+			return undefined;
+		}
+		const folderUri = folder?.root;
 		return folderUri && !isWorktreeWorkspaceUri(folderUri) ? folderUri : undefined;
 	}
 }

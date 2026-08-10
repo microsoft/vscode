@@ -134,12 +134,6 @@ export class NewChatWidget extends Disposable {
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
 		this._register(toDisposable(() => this._workspacePickerVisibleKey.reset()));
 		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
-		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
-		// which scopes recents to the active host and renders as a bottom
-		// sheet on phone-layout viewports. On Electron desktop, the regular
-		// {@link WorkspacePicker} is fine — phones never run there.
-		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
-		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {}));
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
 
@@ -158,6 +152,15 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			return session?.isQuickChat?.read(reader) ?? false;
 		});
+
+		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
+		// which scopes recents to the active host and renders as a bottom
+		// sheet on phone-layout viewports. On Electron desktop, the regular
+		// {@link WorkspacePicker} is fine — phones never run there.
+		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
+		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
+			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
+		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
 		this._feedbackItems = derived(this, reader => {
@@ -419,7 +422,9 @@ export class NewChatWidget extends Disposable {
 			this._register(autorun(reader => {
 				const isQuickChat = this._isQuickChatComposer.read(reader);
 				if (wasQuickChat && !isQuickChat && !this._session.read(reader)) {
-					this._seedWorkspaceDraft();
+					if (!this._workspacePicker.refreshAutomaticSelection()) {
+						this._seedWorkspaceDraft();
+					}
 				}
 				wasQuickChat = isQuickChat;
 			}));

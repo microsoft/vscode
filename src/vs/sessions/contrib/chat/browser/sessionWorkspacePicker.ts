@@ -80,6 +80,7 @@ export interface IWorkspacePickerItem {
 
 export interface IWorkspacePickerOptions {
 	readonly canSelectWorkspace?: (folderUri: URI, providerId: string | undefined) => Promise<boolean>;
+	readonly canRestoreWorkspace?: () => boolean;
 	readonly restoreFromSessions?: boolean;
 	readonly sessionWorkspaceProviderFilter?: (providerId: string) => boolean;
 }
@@ -1071,38 +1072,47 @@ export class WorkspacePicker extends Disposable {
 		this._restoreAutomaticSelection();
 	}
 
-	private _restoreAutomaticSelection(): void {
-		if (this._userHasPicked) {
-			return;
+	/** Re-runs automatic selection and reports whether it changed synchronously. */
+	refreshAutomaticSelection(): boolean {
+		return this._restoreAutomaticSelection();
+	}
+
+	private _restoreAutomaticSelection(): boolean {
+		if (this._userHasPicked || !this._canRestoreWorkspace()) {
+			return false;
 		}
 		const restored = this._restoreSelectedWorkspace();
 		if (!restored) {
 			if (!this._selectedFolderUri || this._preselectionSource === NewSessionWorkspacePreselectionSource.ExistingSessions) {
 				this._scheduleSessionWorkspaceRestore();
 			}
-			return;
+			return false;
 		}
 		this._sessionRestoreGeneration++;
 		if (this._isSelectedFolder(restored.resolved.workspace.folders[0]?.root)) {
 			this._selectedResolved = restored.resolved;
 			this._preselectionSource = restored.source;
-			return;
+			return false;
 		}
 		this._applySelection(restored.resolved, restored.source);
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 		this._onDidSelectWorkspace.fire(this._selectedFolderUri);
 		this._watchForConnectionFailure(restored.resolved);
+		return true;
 	}
 
 	private _scheduleSessionWorkspaceRestore(): void {
-		if (!this._sessionWorkspaceFallback || this._userHasPicked) {
+		if (!this._sessionWorkspaceFallback || this._userHasPicked || !this._canRestoreWorkspace()) {
 			return;
 		}
 		const restoreGeneration = ++this._sessionRestoreGeneration;
 		const selectionGeneration = this._selectionGeneration;
 		void this._sessionWorkspaceFallback.findWorkspace().then(restored => {
-			if (restoreGeneration !== this._sessionRestoreGeneration || selectionGeneration !== this._selectionGeneration || this._userHasPicked) {
+			if (restoreGeneration !== this._sessionRestoreGeneration
+				|| selectionGeneration !== this._selectionGeneration
+				|| this._userHasPicked
+				|| !this._canRestoreWorkspace()) {
 				return;
 			}
 			if (this._restoreSelectedWorkspace()) {
@@ -1134,6 +1144,10 @@ export class WorkspacePicker extends Disposable {
 
 	private _canRestoreProviderWorkspace(providerId: string): boolean {
 		return !this.options.sessionWorkspaceProviderFilter || this.options.sessionWorkspaceProviderFilter(providerId);
+	}
+
+	private _canRestoreWorkspace(): boolean {
+		return this.options.canRestoreWorkspace?.() ?? true;
 	}
 
 	/**

@@ -313,16 +313,32 @@ function createTestPicker(
 	return disposables.add(instantiationService.createInstance(pickerCtor, options ?? {}));
 }
 
-function createMockSession(provider: ISessionsProvider, folderUri: URI, updatedAt: number): ISession {
+function createMockSession(
+	provider: ISessionsProvider,
+	folderUri: URI,
+	updatedAt: number,
+	options?: { readonly worktreePending?: boolean; readonly workTreeUri?: URI },
+): ISession {
 	const workspace = provider.resolveWorkspace(folderUri);
 	if (!workspace) {
 		throw new Error(`Provider ${provider.id} cannot resolve ${folderUri.toString()}`);
 	}
+	const firstFolder = workspace.folders[0];
+	const sessionWorkspace = options?.workTreeUri && firstFolder?.gitRepository
+		? {
+			...workspace,
+			folders: [
+				{ ...firstFolder, gitRepository: { ...firstFolder.gitRepository, workTreeUri: options.workTreeUri } },
+				...workspace.folders.slice(1),
+			],
+		}
+		: workspace;
 	return upcastPartial<ISession>({
 		providerId: provider.id,
 		updatedAt: constObservable(new Date(updatedAt)),
-		workspace: constObservable(workspace),
+		workspace: constObservable(sessionWorkspace),
 		isQuickChat: constObservable(false),
+		worktreePending: constObservable(options?.worktreePending ?? false),
 	});
 }
 
@@ -583,6 +599,80 @@ suite('WorkspacePicker - Connection Status', () => {
 		}, {
 			checked: [missing.toString(), existing.toString()],
 			folderUri: existing.toString(),
+			source: NewSessionWorkspacePreselectionSource.ExistingSessions,
+		});
+	});
+
+	test('restore excludes pending and resolved worktree sessions using session metadata', async () => {
+		let sessions: ISession[] = [];
+		const provider = createMockProvider('local-1', { getSessions: () => sessions });
+		providersService.setProviders([provider]);
+		const pendingCheckout = URI.file('/local/pending-checkout');
+		const resolvedWorktree = URI.file('/local/feature-checkout');
+		const regularWorkspace = URI.file('/local/regular');
+		sessions = [
+			createMockSession(provider, pendingCheckout, 7, { worktreePending: true }),
+			createMockSession(provider, pendingCheckout, 6, { worktreePending: true }),
+			createMockSession(provider, pendingCheckout, 5, { worktreePending: true }),
+			createMockSession(provider, resolvedWorktree, 4, { workTreeUri: resolvedWorktree }),
+			createMockSession(provider, resolvedWorktree, 3, { workTreeUri: resolvedWorktree }),
+			createMockSession(provider, resolvedWorktree, 2, { workTreeUri: resolvedWorktree }),
+			createMockSession(provider, regularWorkspace, 1),
+		];
+
+		const picker = createTestPicker(disposables, providersService);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			folderUri: picker.selectedFolderUri?.toString(),
+			source: picker.preselectionSource,
+		}, {
+			folderUri: regularWorkspace.toString(),
+			source: NewSessionWorkspacePreselectionSource.ExistingSessions,
+		});
+	});
+
+	test('restore discards a session fallback that completes while restoration is disabled', async () => {
+		let sessions: ISession[] = [];
+		const provider = createMockProvider('local-1', { getSessions: () => sessions });
+		providersService.setProviders([provider]);
+		const folderUri = URI.file('/local/project');
+		sessions = [createMockSession(provider, folderUri, 1)];
+		const firstExists = new DeferredPromise<boolean>();
+		let existsCallCount = 0;
+		const fileService = upcastPartial<IFileService>({
+			hasProvider: () => true,
+			exists: async () => ++existsCallCount === 1 ? firstExists.p : true,
+		});
+		let canRestoreWorkspace = true;
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{ canRestoreWorkspace: () => canRestoreWorkspace },
+			fileService,
+		);
+		canRestoreWorkspace = false;
+		await firstExists.complete(true);
+		await timeout(0);
+		const disabledSelection = picker.selectedFolderUri;
+
+		canRestoreWorkspace = true;
+		picker.refreshAutomaticSelection();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			disabledSelection,
+			folderUri: picker.selectedFolderUri?.toString(),
+			source: picker.preselectionSource,
+		}, {
+			disabledSelection: undefined,
+			folderUri: folderUri.toString(),
 			source: NewSessionWorkspacePreselectionSource.ExistingSessions,
 		});
 	});
