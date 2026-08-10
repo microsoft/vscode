@@ -116,6 +116,11 @@ export interface IModelBilling {
 	restricted_to?: string[];
 	token_prices?: IModelTokenPrices;
 	promo?: IModelPromo;
+	/**
+	 * Discount applied when this model is reached through Auto, as a fraction
+	 * (e.g. `0.1` for 10% off). Only set on models Auto can route to.
+	 */
+	auto_discount?: number;
 }
 
 export interface IModelAPIResponse {

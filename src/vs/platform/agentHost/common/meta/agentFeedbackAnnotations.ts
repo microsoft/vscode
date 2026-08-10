@@ -91,11 +91,9 @@ export interface IFeedbackAnnotationMeta {
 	readonly sourcePRReviewCommentId?: string;
 	/**
 	 * Transient marker set by the client when the user reveals this comment to
-	 * the agent via the `viewUnreviewedComments` tool. The server tool returns
-	 * exactly the comments carrying this flag (so the result is scoped to the
-	 * comments selected for that invocation rather than every accepted review
-	 * comment) and clears it once they have been delivered, so a later
-	 * invocation does not re-return them.
+	 * the agent via the `viewUnreviewedComments` tool. The marker persists until
+	 * the server tool delivers the comment, so an interrupted execution does not
+	 * lose the user's selection. The server tool clears it after delivery.
 	 */
 	readonly pendingAgentReveal?: boolean;
 }

@@ -36,6 +36,7 @@ export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
 export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
+export const hiddenEditorTypesSettingId = 'workbench.editor.hiddenEditorTypes';
 
 /**
  * Setting that controls whether the Markdown editor is the default editor for
@@ -94,6 +95,17 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 			agentsWindow: {
 				default: diffEditorsAssociationsAgentsWindowDefault()
 			}
+		},
+		[hiddenEditorTypesSettingId]: {
+			type: 'array',
+			default: [],
+			items: {
+				type: 'string'
+			},
+			markdownDescription: localize('editor.hiddenEditorTypes', "Configure editor types that are hidden from the editor type picker. The active editor type remains visible."),
+			agentsWindow: {
+				default: ['vscode.markdown.preview.editor']
+			}
 		}
 	}
 };
@@ -144,6 +156,15 @@ export type RegisteredEditorOptions = {
 	 */
 	canSupportResource?: (resource: URI) => boolean;
 };
+
+export interface IEditorResolverServiceGetEditorsOptions {
+	/**
+	 * Excludes optional editors registered for `*`, unless they are configured or currently active.
+	 */
+	readonly excludeUnconfiguredUniversalOptionalEditors?: boolean;
+	readonly currentEditorId?: string;
+	readonly isDiffEditor?: boolean;
+}
 
 export type RegisteredEditorPriorityInfo = {
 	readonly editor: RegisteredEditorPriority;
@@ -268,7 +289,7 @@ export interface IEditorResolverService {
 	 * @param resource The resource
 	 * @returns A list of editor ids
 	 */
-	getEditors(resource: URI): RegisteredEditorInfo[];
+	getEditors(resource: URI, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[];
 
 	/**
 	 * A set of all the editors that are registered to the editor resolver.

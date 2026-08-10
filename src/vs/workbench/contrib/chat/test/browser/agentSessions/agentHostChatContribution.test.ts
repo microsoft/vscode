@@ -10880,6 +10880,25 @@ suite('AgentHostChatContribution', () => {
 			]);
 		});
 
+		test('re-authenticates with the same token when authentication is required', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService(tokenRef) });
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.fireNotification({
+				type: 'auth/required',
+				channel: 'ahp-root://',
+				resource: 'https://api.github.com',
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
+			]);
+		});
+
 		test('skips authenticate when no token is resolvable', async () => {
 			const noTokenService: Partial<IAuthenticationService> = {
 				onDidChangeSessions: Event.None,

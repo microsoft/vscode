@@ -56,6 +56,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -6028,6 +6029,21 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	class FakeServerToolHost implements IAgentServerToolHost {
+		readonly definitions: readonly ToolDefinition[] = [{
+			name: 'viewUnreviewedComments',
+			description: 'View unreviewed comments',
+			inputSchema: { type: 'object', properties: {} },
+		}];
+		readonly toolNames = this.definitions.map(definition => definition.name);
+		confirmationRequiredForSession = false;
+
+		advertise(): void { }
+		canRequireConfirmation(): boolean { return true; }
+		requiresConfirmation(): boolean { return this.confirmationRequiredForSession; }
+		executeTool(): string { return 'ok'; }
+	}
+
 	/**
 	 * Materialize a session and return its captured `canUseTool` closure
 	 * alongside the {@link ITestContext} pieces tests need. Drives a
@@ -6041,13 +6057,16 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 	 * `createSession` does NOT touch state — that's the AgentService
 	 * layer's job, which we don't run here).
 	 */
-	async function materialize(seedConfig?: { permissionMode?: string }): Promise<{
+	async function materialize(seedConfig?: { permissionMode?: string }, serverToolHost?: IAgentServerToolHost): Promise<{
 		ctx: ITestContext;
 		canUseTool: NonNullable<Options['canUseTool']>;
 		sessionUri: URI;
 		sessionId: string;
 	}> {
 		const ctx = createTestContext(disposables);
+		if (serverToolHost) {
+			ctx.agent.setServerToolHost(serverToolHost);
+		}
 		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await ctx.agent.createSession({ workingDirectories: [URI.file('/work')] });
 		const sessionId = AgentSession.id(created.session);
@@ -6113,14 +6132,31 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
 	});
 
+	test('server tool with nothing to confirm is allowed without prompting', async () => {
+		const host = new FakeServerToolHost();
+		const { ctx, canUseTool } = await materialize(undefined, host);
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidSessionProgress(signal => signals.push(signal)));
+
+		const result = await canUseTool('mcp__host__viewUnreviewedComments', {}, makeOptions('tu_empty_comments'));
+
+		assert.deepStrictEqual({
+			result,
+			pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+		}, {
+			result: { behavior: 'allow', updatedInput: {} },
+			pendingConfirmations: 0,
+		});
+	});
+
 	// Tests 3 and 4 (bypassPermissions / acceptEdits auto-allow) intentionally
 	// omitted: the SDK auto-approves under those modes BEFORE invoking
 	// `canUseTool`, so there is no host-side branch to exercise. See
 	// `_handleCanUseTool` JSDoc.
 	//
 	// Tests 5 and 6 (plan-mode auto-deny / live config flip) intentionally
-	// omitted: `_handleCanUseTool` is a pure UI bridge and makes no
-	// permission-mode-aware decisions; whatever the SDK delegates is
+	// omitted: `_handleCanUseTool` makes no permission-mode-aware decisions
+	// for SDK tools; whatever the SDK delegates is
 	// surfaced to the user verbatim. Mode-driven behavior is covered by
 	// the §3.6 SDK-forwarding tests (live `setPermissionMode`).
 

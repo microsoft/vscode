@@ -27,7 +27,7 @@ export const ChangesetHasOperationsContext = new RawContextKey<boolean>('session
 
 const DEFAULT_SECTION_COLLAPSE_STATE: IChangesViewSectionCollapseState = Object.freeze({
 	otherFiles: false,
-	checks: false,
+	checks: true,
 });
 
 export class ChangesViewService extends Disposable implements IChangesViewService {
@@ -224,7 +224,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}
 
 		const next = { ...current, [section]: collapsed };
-		if (!next.otherFiles && !next.checks) {
+		if (next.otherFiles === DEFAULT_SECTION_COLLAPSE_STATE.otherFiles && next.checks === DEFAULT_SECTION_COLLAPSE_STATE.checks) {
 			this._sectionCollapseStateBySession.delete(sessionResource);
 		} else {
 			this._sectionCollapseStateBySession.set(sessionResource, next);
