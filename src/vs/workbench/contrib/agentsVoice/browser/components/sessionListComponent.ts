@@ -98,7 +98,9 @@ function createSessionRow(session: SessionRowData, props: SessionListProps): HTM
 			const nextIndex = getSessionListNavigationIndex(rows.indexOf(row), e.key === 'ArrowUp' ? 'up' : 'down', rows.length);
 			if (nextIndex !== undefined) {
 				rows[nextIndex].focus();
-				rows[nextIndex].click();
+				if (rows[nextIndex].getAttribute('aria-selected') !== 'true') {
+					rows[nextIndex].click();
+				}
 			}
 		}
 	});
