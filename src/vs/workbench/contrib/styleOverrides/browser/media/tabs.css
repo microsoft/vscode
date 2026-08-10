@@ -467,6 +467,11 @@
 	width: auto;
 }
 
+.modern-ui-tabs.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
+	top: 13px;
+	right: var(--vscode-spacing-size20);
+}
+
 .modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > :is(.action-label, .badge) {
 	position: relative;
 	z-index: 1;
