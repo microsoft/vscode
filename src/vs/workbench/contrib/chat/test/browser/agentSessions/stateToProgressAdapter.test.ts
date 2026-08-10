@@ -16,7 +16,7 @@ import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/age
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToParameters, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -1584,9 +1584,17 @@ suite('stateToProgressAdapter', () => {
 
 			// Running → PendingConfirmation via the permission callback.
 			const pending: AnyToolCallState = { toolCallId: 'tc-term', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running `rm -rf build`', toolInput: 'rm -rf build', status: ToolCallStatus.PendingConfirmation, _meta: { toolKind: 'terminal' }, confirmationTitle: 'Run command?' };
-			streaming.requestConfirmation(toolCallStateToPreparedInvocation(pending));
-			assert.strictEqual(streaming.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
-			assert.strictEqual(streaming.toolSpecificData?.kind, 'terminal');
+			streaming.requestConfirmation(toolCallStateToPreparedInvocation(pending), toolCallStateToParameters(pending));
+			const state = streaming.state.get();
+			assert.deepStrictEqual({
+				state: state.type,
+				parameters: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.parameters : undefined,
+				toolSpecificDataKind: streaming.toolSpecificData?.kind,
+			}, {
+				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'rm -rf build' },
+				toolSpecificDataKind: 'terminal',
+			});
 		});
 
 		test('a same-state pending refresh replaces the visible terminal command without replacing its gate', () => {
@@ -1610,7 +1618,7 @@ suite('stateToProgressAdapter', () => {
 				invocationMessage: 'Running `npm install --registry=https://registry.npmjs.org`',
 				toolInput: 'npm install --registry=https://registry.npmjs.org',
 			};
-			invocation.updatePreparedInvocation(toolCallStateToPreparedInvocation(refreshed), invocation.parameters);
+			invocation.updatePreparedInvocation(toolCallStateToPreparedInvocation(refreshed), toolCallStateToParameters(refreshed));
 
 			const state = invocation.state.get();
 			const terminalData = invocation.toolSpecificData;
@@ -1618,9 +1626,11 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual({
 				command: terminalData.commandLine.original,
 				gatePreserved: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirm === initialGate,
+				parameters: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.parameters : undefined,
 			}, {
 				command: 'npm install --registry=https://registry.npmjs.org',
 				gatePreserved: true,
+				parameters: { command: 'npm install --registry=https://registry.npmjs.org' },
 			});
 		});
 
@@ -2198,11 +2208,70 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'input');
 			const state = invocation.state.get();
-			assert.deepStrictEqual(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined, {
-				status: 'complete',
-				explanation: 'The command removes a project file.',
-				safety: 0.15,
+			assert.deepStrictEqual({
+				approvalReason: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined,
+				parameters: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.parameters : undefined,
+				toolData: invocation.toolData,
+			}, {
+				approvalReason: {
+					status: 'complete',
+					explanation: 'The command removes a project file.',
+					safety: 0.15,
+				},
+				parameters: { input: 'echo hello' },
+				toolData: {
+					id: 'bash',
+					source: ToolDataSource.Internal,
+					displayName: 'Bash',
+					modelDescription: 'bash',
+				},
 			});
+		});
+
+		test('preserves tool data for local risk assessment when sdk judgement is unavailable', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-no-judgement',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write package.json',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Write file?',
+				toolInput: '{"path":"package.json","content":"{}"}',
+			});
+			const state = invocation.state.get();
+
+			assert.deepStrictEqual({
+				approvalReason: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined,
+				parameters: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.parameters : undefined,
+				toolData: invocation.toolData,
+			}, {
+				approvalReason: undefined,
+				parameters: { path: 'package.json', content: '{}' },
+				toolData: {
+					id: 'write',
+					source: ToolDataSource.Internal,
+					displayName: 'Write',
+					modelDescription: 'write',
+				},
+			});
+		});
+
+		test('leaves parameters undefined for referenced tool input so risk assessment is suppressed', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-referenced',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write large file',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Write file?',
+				toolInput: { uri: 'content-ref://session/tc-referenced/input', sizeHint: 100000 },
+			});
+			const state = invocation.state.get();
+
+			assert.strictEqual(
+				state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.parameters : 'wrong-state',
+				undefined,
+			);
 		});
 
 		test('creates loading confirmation invocations while judgement is pending', () => {

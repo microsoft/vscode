@@ -286,7 +286,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 	 * as a `footerBanner` for the confirmation widget.
 	 */
 	protected createRiskBadgeDomNode(parameters: unknown): HTMLElement | undefined {
-		return createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, parameters)?.domNode;
+		return createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolData, parameters)?.domNode;
 	}
 
 	/**

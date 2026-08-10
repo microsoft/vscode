@@ -63,6 +63,14 @@
 	opacity: 0.7;
 }
 
+/* The loading icon uses the `codicon-loading-compact` glyph with the `spin`
+ * modifier, which the shared codicon spin rule does not animate. Drive the
+ * spin here, gated on `monaco-enable-motion` so it honors reduced motion. */
+.monaco-enable-motion .tool-risk-badge .tool-risk-icon.codicon-modifier-spin {
+	animation: codicon-spin 1.5s steps(30) infinite;
+	transform-origin: center center;
+}
+
 .chat-confirmation-widget2 > .tool-risk-badge.green {
 	--tool-risk-accent: var(--vscode-charts-green, #388a34);
 }

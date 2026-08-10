@@ -1661,7 +1661,7 @@ suite('AgentHostClientTools', () => {
 					}),
 			}, {
 				stateBeforeApproval: IChatToolInvocation.StateKind.WaitingForConfirmation,
-				parametersBeforeExecution: undefined,
+				parametersBeforeExecution: { task: 'build' },
 				hydratedInvocation: {
 					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
 					parameters: { task: 'build' },

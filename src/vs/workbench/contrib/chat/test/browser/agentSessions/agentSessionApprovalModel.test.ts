@@ -29,6 +29,7 @@ function makeToolInvocationPart(options: {
 		invocationMessage: options.invocationMessage ?? 'Running tool...',
 		pastTenseMessage: undefined,
 		source: undefined!,
+		toolData: { id: 'test-tool', source: undefined!, displayName: 'Test Tool', modelDescription: 'test-tool' },
 		toolId: 'test-tool',
 		toolCallId: options.toolCallId ?? 'call-1',
 		state: observableValue('toolState', options.state),

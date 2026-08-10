@@ -238,6 +238,7 @@ suite('ChatSubagentContentPart', () => {
 			invocationMessage: options.invocationMessage ?? 'Running subagent',
 			pastTenseMessage: undefined,
 			source: ToolDataSource.Internal,
+			toolData: { id: options.toolId ?? RunSubagentTool.Id, source: ToolDataSource.Internal, displayName: 'Subagent', modelDescription: options.toolId ?? RunSubagentTool.Id },
 			toolId: options.toolId ?? RunSubagentTool.Id,
 			toolCallId: toolCallId,
 			subAgentInvocationId: options.subAgentInvocationId,

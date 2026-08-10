@@ -205,7 +205,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}));
 
 		const riskBadge = createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)
-			?? createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
+			?? createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, toolInvocation.toolData, state.parameters, 'terminal');
 
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,

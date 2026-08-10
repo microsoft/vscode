@@ -403,6 +403,22 @@ function getToolRawInput(tc: ToolCallState): unknown {
 	}
 }
 
+/**
+ * Returns the Agent Host tool arguments used by confirmations and risk
+ * assessment, or `undefined` when the arguments are stored by reference (a
+ * protocol {@link ContentRef}) and not yet available inline. `undefined` lets
+ * consumers tell "arguments not available yet" apart from "no arguments" (`{}`)
+ * so they can suppress assessment rather than judge an empty argument set.
+ */
+export function toolCallStateToParameters(tc: ToolCallState): unknown {
+	if (tc.status !== ToolCallStatus.Streaming && tc.toolInput !== undefined && getInlineToolInput(tc.toolInput) === undefined) {
+		return undefined;
+	}
+	return isTerminalToolCall(tc)
+		? { command: getTerminalInput(tc) }
+		: getToolRawInput(tc);
+}
+
 function buildMcpAppToolInputData(tc: ToolCallState, sessionResource: URI, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
 	const mcpAppData = getMcpAppData(tc, sessionResource);
 	if (!mcpAppData) {
@@ -2124,6 +2140,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		// mapper auto-emits `tool_ready` with `confirmed: NotNeeded` paired
 		// with `tool_start`. So no special-case for subagents is needed here.)
 		const confirmationMessages = toolCallConfirmationMessages(tc, connectionAuthority);
+		const parameters = toolCallStateToParameters(tc);
 
 		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | undefined;
 		const pendingEdits = tc.edits?.items;
@@ -2166,9 +2183,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		} else {
 			const toolInput = getInlineToolInput(tc.toolInput);
 			if (toolInput) {
-				let rawInput: unknown;
-				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
-				toolSpecificData = { kind: 'input', rawInput };
+				toolSpecificData = { kind: 'input', rawInput: parameters };
 			}
 		}
 
@@ -2182,7 +2197,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			toolData,
 			tc.toolCallId,
 			subAgentInvocationId,
-			undefined,
+			parameters,
 		);
 	}
 
