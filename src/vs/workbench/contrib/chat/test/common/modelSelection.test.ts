@@ -279,6 +279,25 @@ suite('ModelSelection', () => {
 		});
 	});
 
+	test('a new conversation reapplies the configured default after a restored selection', () => {
+		assert.deepStrictEqual(summarize(transition({
+			session: { modelId: first.identifier },
+			models: { configuredModel: second.metadata.id },
+			previous: {
+				currentModel: first,
+				currentReason: ModelSelectionReason.SessionRestore,
+				lastPushedChatKey: 'chat:previous',
+			},
+		})), {
+			current: second.identifier,
+			pending: undefined,
+			effect: 'apply',
+			applied: second.identifier,
+			reason: ModelSelectionReason.ConfiguredDefault,
+			lastPushedChatKey: 'chat:one',
+		});
+	});
+
 	test('switching untitled drafts for the same provider restores the incoming draft model', () => {
 		assert.deepStrictEqual(summarize(transition({
 			session: { key: 'provider/other-session', modelId: first.identifier },
