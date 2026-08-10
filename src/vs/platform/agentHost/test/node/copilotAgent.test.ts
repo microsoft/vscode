@@ -5406,7 +5406,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'create-default');
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				await agent.chats.bindSessionChat!(defaultChatUri(session), session);
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = () => { throw new Error('_createAgentSession must not be called for the session-backed chat'); };
@@ -5683,7 +5683,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'route-provisional-peer');
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				await agent.materializeChat(chatUri, session, JSON.stringify({ sdkSessionId: 'peer-sdk-id' }));
 
 				const internals = agent as unknown as ChatInternals;

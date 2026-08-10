@@ -2451,7 +2451,7 @@ suite('ClaudeAgent', () => {
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
 		// No `sessionList` entry → `getSessionInfo('forked-1')` resolves
-		// undefined (no cwd), and no `config.workingDirectory` is supplied.
+		// undefined (no cwd), and no `config.workingDirectories` is supplied.
 		// Fail fast here rather than at the first `sendMessage`.
 		await assert.rejects(
 			agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 0, turnId: 'u1' } }),
@@ -3845,7 +3845,7 @@ suite('ClaudeAgent', () => {
 		const agent: ClaudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')] });
 		await agent.chats.bindSessionChat?.(defaultChatUri(created.session), { session: created.session, resource: created.session });
 		const sessionId = AgentSession.id(created.session);
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
@@ -5137,7 +5137,7 @@ suite('ClaudeAgent', () => {
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
 
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')] });
 		await agent.chats.bindSessionChat?.(defaultChatUri(created.session), { session: created.session, resource: created.session });
 		const sessionId = AgentSession.id(created.session);
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
@@ -6098,6 +6098,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			onElicitation: async () => ({ action: 'cancel' }),
 			isResume: false,
 			resource: URI.parse('claude:/session-id'),
+			configResource: URI.parse('claude:/session-id'),
 		});
 
 		const permission = session.requestPermission({
@@ -8193,7 +8194,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
-		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')] });
 		const defaultChat = defaultChatUri(created.session);
 		await agent.chats.bindSessionChat!(defaultChat, created.session);
 		const additionalChat = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
@@ -8269,7 +8270,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		// Parent session with a two-turn transcript; fork the additional chat at u1.
-		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')] });
 		const parentId = AgentSession.id(created.session);
 		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
@@ -8534,7 +8535,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 	test('SDK callbacks route to an additional chat through the reverse SDK id index', async () => {
 		const { agent, proxy, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')] });
 		const chatUri = URI.parse(buildChatUri(created.session, 'chat-1'));
 		const result = await agent.chats.createChat(chatUri, created.session, { inheritedContext: inheritedChatContext() });
 		const additionalId = AgentSession.id(result!.backingSession!);
@@ -8560,7 +8561,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const database = new TestSessionDatabase();
 		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')] });
 		const chat = URI.parse(buildChatUri(created.session, 'chat-1'));
 		const result = await agent.chats.createChat(chat, created.session, { inheritedContext: inheritedChatContext() });
 		const additionalId = AgentSession.id(result!.backingSession!);
@@ -8584,7 +8585,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 	test('onChatConfigChanged keeps the inherited additional mode on the next send', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await agent.createSession({ workingDirectory: URI.file('/work'), config: { permissionMode: 'default' } });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')], config: { permissionMode: 'default' } });
 		const chat = URI.parse(buildChatUri(created.session, 'chat-1'));
 		const result = await agent.chats.createChat(chat, created.session, { inheritedContext: inheritedChatContext() });
 		const additionalId = AgentSession.id(result!.backingSession!);
@@ -8604,7 +8605,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 	test('lazy chat materialization applies the latest persisted permission mode', async () => {
 		const { agent, configService, sdk, stateManager } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await agent.createSession({ workingDirectory: URI.file('/work'), config: { permissionMode: 'default' } });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')], config: { permissionMode: 'default' } });
 		const state = stateManager.createSession({
 			resource: created.session.toString(),
 			provider: 'claude',
@@ -8636,7 +8637,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 	test('onClientToolCallComplete targets the addressed additional chat', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/work')] });
 		const chat = URI.parse(buildChatUri(created.session, 'chat-1'));
 		const result = await agent.chats.createChat(chat, created.session, { inheritedContext: inheritedChatContext() });
 		const backingSession = result!.backingSession!;
@@ -8707,7 +8708,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const session = AgentSession.uri('claude', 'unbound-default');
-		await agent.createSession({ session, workingDirectory: URI.file('/work') });
+		await agent.createSession({ session, workingDirectories: [URI.file('/work')] });
 		await agent.chats.bindSessionChat!(defaultChatUri(session), session);
 		assert.deepStrictEqual(listSessionChatBindings(agent), [defaultChatUri(session).toString()]);
 
@@ -8721,7 +8722,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const session = AgentSession.uri('claude', 'release-session');
 		const defaultChat = defaultChatUri(session);
-		await agent.createSession({ session, workingDirectory: URI.file('/work') });
+		await agent.createSession({ session, workingDirectories: [URI.file('/work')] });
 		await agent.chats.bindSessionChat!(defaultChat, session);
 		const additionalChat = URI.parse(buildChatUri(session, 'additional'));
 		const additionalResult = await agent.chats.createChat(additionalChat, session, { inheritedContext: inheritedChatContext() });

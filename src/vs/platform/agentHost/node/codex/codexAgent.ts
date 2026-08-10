@@ -2994,9 +2994,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	private async _createSession(
 		config: IAgentCreateSessionConfig,
 	): Promise<IAgentCreateSessionResult> {
-		if (!config.workingDirectories && config.workingDirectory) {
-			config = { ...config, workingDirectories: [config.workingDirectory] };
-		}
 		this._logService.info(`[Codex DEBUG] createSession accountStatus=${this._openAIAccountState.status} session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectories?.[0]?.toString() ?? '(none)'}`);
 		if (config.fork) {
 			return this._forkSession(config, config.fork);

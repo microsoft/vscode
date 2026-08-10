@@ -2188,9 +2188,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		sessionConfig: IAgentCreateSessionConfig,
 		chat?: URI,
 	): Promise<IAgentCreateSessionResult> {
-		if (!sessionConfig.workingDirectories && sessionConfig.workingDirectory) {
-			sessionConfig = { ...sessionConfig, workingDirectories: [sessionConfig.workingDirectory] };
-		}
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
 		const sdkSessionId = chat ? generateUuid() : sessionId;

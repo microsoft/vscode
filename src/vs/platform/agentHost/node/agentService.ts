@@ -1628,7 +1628,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0] ?? config?.workingDirectory;
+		const workingDirectory = created.resolvedWorkingDirectory ?? config?.workingDirectories?.[0];
 		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 
 		return session;

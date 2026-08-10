@@ -74,6 +74,7 @@ export interface IMaterializeContext {
 	 * operation. Used transiently; the session never derives it from URI shape.
 	 */
 	readonly resource: URI;
+	readonly configResource: URI;
 	readonly customizations?: readonly Customization[];
 	/**
 	 * Working directory the host resolved for this session's first send (e.g. an
@@ -541,7 +542,7 @@ export class ClaudeAgentSession extends Disposable {
 		this._transportKind = ctx.transport.kind;
 		this._materializedTransport = ctx.transport;
 
-		const permissionMode = resolveCurrentPermissionMode(this._configurationService, ctx.resource, this._inheritedPermissionMode, this._permissionModeFallback);
+		const permissionMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._inheritedPermissionMode, this._permissionModeFallback);
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
@@ -624,7 +625,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 
 		pipeline.attachRematerializer(async (_reason) => {
-			const liveMode = resolveCurrentPermissionMode(this._configurationService, ctx.resource, this._inheritedPermissionMode, this._permissionModeFallback);
+			const liveMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._inheritedPermissionMode, this._permissionModeFallback);
 			const rebuildAbort = new AbortController();
 			let rebuildWarm: WarmQuery | undefined;
 			try {

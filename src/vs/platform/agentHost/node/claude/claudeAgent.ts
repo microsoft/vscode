@@ -915,9 +915,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		config: IAgentCreateSessionConfig,
 		target: { readonly kind: 'unbound' } | { readonly kind: 'chat'; readonly chat: URI },
 	): Promise<IAgentCreateSessionResult> {
-		if (!config.workingDirectories && config.workingDirectory) {
-			config = { ...config, workingDirectories: [config.workingDirectory] };
-		}
 		const chat = target.kind === 'chat' ? target.chat : undefined;
 		this._ensureAuthenticated(config.model);
 		if (config.fork) {
@@ -956,7 +953,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// fork) runs in a stable per-session scratch dir shared with the Copilot
 		// agent; without a cwd Claude throws at materialize. The workspace-less
 		// marker itself is owned/persisted centrally by the AH service.
-		const requestedWorkingDirectory = config.workingDirectories?.[0] ?? config.workingDirectory;
+		const requestedWorkingDirectory = config.workingDirectories?.[0];
 		const workingDirectory = requestedWorkingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, ownerSessionId);
 
 		// Only probe for a project when the caller supplied a real folder; a
@@ -1338,11 +1335,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				onElicitation,
 				isResume: false,
 				resource,
+				configResource: context.session,
 				customizations: this._stateManager.getSessionState(context.session.toString())?.customizations,
 				workingDirectories,
 				serverToolHost: this._serverToolHost,
 			});
-			await this._persistSessionOverlay(resource, session, transport.kind);
+			await this._persistSessionOverlay(resource, context.session, session, transport.kind);
 			if (session.abortController.signal.aborted) {
 				throw new CancellationError();
 			}
@@ -1370,12 +1368,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return session;
 	}
 
-	private async _persistSessionOverlay(resource: URI, session: ClaudeAgentSession, transportKind: ClaudeTransport['kind']): Promise<void> {
+	private async _persistSessionOverlay(resource: URI, configResource: URI, session: ClaudeAgentSession, transportKind: ClaudeTransport['kind']): Promise<void> {
 		try {
 			await this._metadataStore.write(resource, {
 				customizationDirectory: session.workingDirectory,
 				model: session.provisionalModel,
-				permissionMode: readClaudePermissionMode(this._configurationService, resource) ?? session.permissionModeFallback,
+				permissionMode: readClaudePermissionMode(this._configurationService, configResource) ?? session.permissionModeFallback,
 				transport: transportKind,
 				workingDirectories: session.workingDirectories,
 				...(session.provisionalAgent ? { agent: session.provisionalAgent } : {}),
@@ -1432,7 +1430,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const additionalDirectories = workingDirectories
 			? workingDirectories.slice(1)
 			: overlay.workingDirectories?.slice(1) ?? [];
-		const permissionMode = readClaudePermissionMode(this._configurationService, resource)
+		const permissionMode = readClaudePermissionMode(this._configurationService, sessionUri)
 			?? overlay.permissionMode
 			?? 'default';
 		let project: IAgentSessionProjectInfo | undefined;
@@ -1466,11 +1464,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				onElicitation,
 				isResume: true,
 				resource,
+				configResource: sessionUri,
 				customizations: this._stateManager.getSessionState(sessionUri.toString())?.customizations,
 				workingDirectories,
 				serverToolHost: this._serverToolHost,
 			});
-			await this._persistSessionOverlay(resource, session, transport.kind);
+			await this._persistSessionOverlay(resource, sessionUri, session, transport.kind);
 		} catch (err) {
 			this._deleteSession(session);
 			throw err;
@@ -1777,11 +1776,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				onElicitation,
 				isResume: !!sdkInfo,
 				resource,
+				configResource: session,
 				customizations: this._stateManager.getSessionState(session.toString())?.customizations,
 				workingDirectories,
 				serverToolHost: this._serverToolHost,
 			});
-			await this._persistSessionOverlay(resource, chatSession, transport.kind);
+			await this._persistSessionOverlay(resource, session, chatSession, transport.kind);
 		} catch (err) {
 			this._deleteLiveChat(chatKey);
 			throw err;
@@ -1836,7 +1836,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		} catch (err) {
 			this._logService.warn(`[Claude] project resolution failed for chat ${chat.toString()}; continuing without project`, err);
 		}
-		const permissionMode = readClaudePermissionMode(this._configurationService, resource) ?? overlay.permissionMode ?? 'default';
+		const permissionMode = readClaudePermissionMode(this._configurationService, session) ?? overlay.permissionMode ?? 'default';
 		// Overlay takes precedence over the binding: `changeModel` always writes
 		// the overlay first (via `setModel` or `_metadataStore.write`) and then
 		// the binding. If the binding update is lost, the overlay already holds
@@ -2241,7 +2241,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const turns = sideChat ? await this._reconstructTurns(session.sessionId, current.chat, session.subagents) : [];
 			const sdkPrompt = prepareSideChatPrompt(prompt, turns, sideChat);
 			const switchTransport = session.hasPendingTransportSwitch ? this._ensureAuthenticated(session.provisionalModel) : undefined;
-			await session.send(this._buildSdkPrompt(session.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId, current.resource, workingDirectories, switchTransport);
+			await session.send(this._buildSdkPrompt(session.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId, current.session, workingDirectories, switchTransport);
 			if (workingDirectories) {
 				await this._metadataStore.write(current.resource, { workingDirectories });
 			}

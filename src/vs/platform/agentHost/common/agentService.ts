@@ -750,8 +750,6 @@ export interface IAgentSessionMetadata {
 	readonly activity?: string;
 	/** All working directories available to the session (index 0 = primary). */
 	readonly workingDirectories?: readonly URI[];
-	/** @deprecated Use {@link workingDirectories}; retained for direct-provider compatibility. */
-	readonly workingDirectory?: URI;
 	/**
 	 * Aggregate counts (additions / deletions / files) for this session's
 	 * changes. Single-folder sessions derive this from the branch changeset;
@@ -980,8 +978,6 @@ export interface IAgentCreateSessionConfig {
 	 * the compatibility phase callers supply exactly one directory (`[dir]`).
 	 */
 	readonly workingDirectories?: readonly URI[];
-	/** @deprecated Use {@link workingDirectories}; retained for direct-provider compatibility. */
-	readonly workingDirectory?: URI;
 	readonly config?: Record<string, unknown>;
 	/**
 	 * Eagerly claim the active client role for the new session. When provided,
