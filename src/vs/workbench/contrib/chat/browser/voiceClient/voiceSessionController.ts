@@ -26,7 +26,7 @@ import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, 
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
-import { IVoiceAttachmentResult, IVoiceModelSelectionResult, IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
+import { IVoiceModelSelectionResult, IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -915,9 +915,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			getTargetSessionResource: (): URI | undefined => this._targetSession.get(),
 			selectModel: async (requestedModel: string): Promise<IVoiceModelSelectionResult> =>
 				(await this.commandService.executeCommand<IVoiceModelSelectionResult>('_chat.voice.selectModel', requestedModel)
-					.catch(() => undefined)) ?? { ok: false, reason: 'no_input' },
-			attachFiles: async (resources: readonly URI[]): Promise<IVoiceAttachmentResult> =>
-				(await this.commandService.executeCommand<IVoiceAttachmentResult>('_chat.voice.attachFiles', resources.map(resource => resource.toString()))
 					.catch(() => undefined)) ?? { ok: false, reason: 'no_input' },
 			getAutoApprovedSessions: (): Set<string> => {
 				return this._autoApprovedSessions;
