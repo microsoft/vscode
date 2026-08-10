@@ -1,4 +1,3 @@
-**/build/*/**/*.js
 **/dist/**/*
 **/extensions/**/*.d.ts
 **/extensions/**/build/**
@@ -50,9 +49,14 @@
 **/src/typings/**/*.d.ts
 **/src/vs/*/**/*.d.ts
 **/src/vs/base/test/common/filters.perf.data.js
+**/src/vs/platform/agentHost/node/codex/protocol/generated/**
 **/test/unit/assert.js
 **/test/automation/out/**
 **/typings/**
 **/.build/**
 **/.vscode-test/**
 !.vscode
+
+# Vendored third-party libraries
+src/vs/base/common/lit-html/**
+src/vs/base/common/signals-core/**

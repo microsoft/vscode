@@ -10,8 +10,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { GetHandoffsActionId, ExecuteHandoffActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { IChatMode, IChatModes, IChatModeService, ICustomAgentInfo } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
@@ -391,5 +393,55 @@ suite('SwitchToNextPinnedModelAction', () => {
 		assert.ok(handler);
 
 		await runCommandAsync<void>(handler, instantiationService);
+	});
+});
+
+suite('ChatSubmitAction', () => {
+	const store = new DisposableStore();
+	let instantiationService: TestInstantiationService;
+
+	let chatExecuteActions: DisposableStore;
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
+
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('passes acceptInputOptions to the widget', async () => {
+		let acceptedOptions: unknown;
+		const widget = {
+			input: {
+				pendingDelegationTarget: undefined,
+			} as IChatWidget['input'],
+			acceptInput: async (_query: string | undefined, options: IChatAcceptInputOptions | undefined) => {
+				acceptedOptions = options;
+				return undefined;
+			},
+		} satisfies Partial<IChatWidget>;
+
+		instantiationService.set(ITelemetryService, NullTelemetryService);
+		instantiationService.set(IChatWidgetService, new MockChatWidgetService());
+
+		const handler = CommandsRegistry.getCommand(ChatSubmitAction.ID)?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync<void>(handler, instantiationService, {
+			widget: widget as IChatWidget,
+			acceptInputOptions: { cancelCurrentRequest: true },
+		});
+
+		assert.deepStrictEqual(acceptedOptions, { cancelCurrentRequest: true });
 	});
 });

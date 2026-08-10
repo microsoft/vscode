@@ -1,0 +1,34 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./dist/",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"lib": [
+			"es2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [
+			"vscode-webview"
+		],
+		"typeRoots": [
+			"../node_modules/@types"
+		],
+		"preserveSymlinks": true,
+		"paths": {
+			"@vscode/markdown-editor": [
+				"../node_modules/@vscode/markdown-editor/dist/index.d.ts"
+			],
+			"@vscode/markdown-editor/observables": [
+				"../node_modules/@vscode/markdown-editor/dist/observables.d.ts"
+			]
+		},
+		"skipLibCheck": true,
+		"noEmit": true
+	},
+	"include": [
+		"./**/*.ts"
+	]
+}

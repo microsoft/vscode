@@ -13,4 +13,4 @@ Use the GitHub MCP server to create a pull request — do NOT use the `gh` CLI.
 3. Review all changes in the current session
 4. Write a clear, concise PR title with a short area prefix (e.g. "sessions: …", "editor: …")
 5. Write a description covering what changed, why, and anything reviewers should know
-6. Create the pull request
+6. Create the pull request, passing `show_ui=false` so the PR is created without opening a confirmation UI

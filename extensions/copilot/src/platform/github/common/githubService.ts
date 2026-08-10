@@ -83,6 +83,7 @@ export interface IGithubRepositoryService {
 }
 
 export interface IOctoKitUser {
+	id: number;
 	login: string;
 	name: string | null;
 	avatar_url: string;
@@ -190,6 +191,16 @@ export interface PullRequestFile {
 	patch?: string;
 	previous_filename?: string;
 	sha?: string;
+}
+
+/**
+ * Result of comparing two refs via the GitHub REST compare API. `baseSha`/`headSha` are
+ * the resolved commit SHAs that bound the {@link files} diff (base is the merge base).
+ */
+export interface RepositoryComparison {
+	readonly baseSha: string;
+	readonly headSha: string;
+	readonly files: readonly PullRequestFile[];
 }
 
 export interface CreatedPullRequest {
@@ -345,6 +356,23 @@ export interface IOctoKitService {
 	 * @returns An array of changed files with their metadata
 	 */
 	getPullRequestFiles(owner: string, repo: string, pullNumber: number, authOptions: AuthOptions): Promise<PullRequestFile[]>;
+
+	/**
+	 * Compares two refs via the GitHub REST compare API
+	 * (`GET /repos/{owner}/{repo}/compare/{base}...{head}`), returning the changed files plus
+	 * the resolved merge-base and head commit SHAs. Used to surface file changes for cloud
+	 * tasks that pushed a branch but have no pull request yet.
+	 * @param authOptions - Authentication options. By default, uses silent auth and returns undefined if not authenticated.
+	 */
+	compareCommits(owner: string, repo: string, base: string, head: string, authOptions: AuthOptions): Promise<RepositoryComparison | undefined>;
+
+	/**
+	 * Resolves a repository's `{owner, name}` from its numeric database id via
+	 * `GET /repositories/{id}`. Used to recover repo identity for Task API payloads that only
+	 * carry `repository.id` (no name-with-owner).
+	 * @param authOptions - Authentication options. By default, uses silent auth and returns undefined if not authenticated or not found.
+	 */
+	getRepositoryById(id: number, authOptions: AuthOptions): Promise<{ owner: string; name: string } | undefined>;
 
 	/**
 	 * Closes a pull request.
@@ -570,6 +598,37 @@ export class BaseOctoKitService {
 	protected async getPullRequestFilesWithToken(owner: string, repo: string, pullNumber: number, token: string): Promise<PullRequestFile[]> {
 		const result = await makeGitHubAPIRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, `repos/${owner}/${repo}/pulls/${pullNumber}/files`, 'GET', token, { version: '2022-11-28', callSite: 'github-rest-get-pr-files' });
 		return result || [];
+	}
+
+	protected async compareCommitsWithToken(owner: string, repo: string, base: string, head: string, token: string): Promise<RepositoryComparison | undefined> {
+		// Branch names may contain slashes; the GitHub compare route accepts them literally in `base...head`.
+		const route = `repos/${owner}/${repo}/compare/${base}...${head}`;
+		const response = await makeGitHubAPIRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, route, 'GET', token, { version: '2022-11-28', callSite: 'github-rest-compare-commits' });
+		if (!response) {
+			return undefined;
+		}
+		const typed = response as { base_commit?: { sha?: string }; merge_base_commit?: { sha?: string }; commits?: ReadonlyArray<{ sha?: string }>; files?: PullRequestFile[] };
+		const baseSha = typed.merge_base_commit?.sha ?? typed.base_commit?.sha ?? base;
+		const headSha = typed.commits?.[typed.commits.length - 1]?.sha ?? head;
+		return { baseSha, headSha, files: typed.files ?? [] };
+	}
+
+	protected async getRepositoryByIdWithToken(id: number, token: string): Promise<{ owner: string; name: string } | undefined> {
+		const response = await makeGitHubAPIRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, `repositories/${id}`, 'GET', token, { version: '2022-11-28', callSite: 'github-rest-get-repository-by-id' });
+		if (!response) {
+			return undefined;
+		}
+		const typed = response as { name?: string; owner?: { login?: string }; full_name?: string };
+		if (typed.owner?.login && typed.name) {
+			return { owner: typed.owner.login, name: typed.name };
+		}
+		if (typed.full_name) {
+			const [owner, name] = typed.full_name.split('/');
+			if (owner && name) {
+				return { owner, name };
+			}
+		}
+		return undefined;
 	}
 
 	protected async closePullRequestWithToken(owner: string, repo: string, pullNumber: number, token: string): Promise<boolean> {

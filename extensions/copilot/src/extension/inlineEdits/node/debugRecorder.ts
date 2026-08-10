@@ -105,6 +105,32 @@ export class DebugRecorder extends Disposable {
 		return log.map(l => l.entry);
 	}
 
+	/**
+	 * Returns log entries whose recorded instant falls within `[fromTimeMs, toTimeMs]`.
+	 * Each document's framing (`documentEncountered`, `setContent`, `opened`) is still emitted
+	 * so the returned log is self-contained, even when the document's edits started before `fromTimeMs`.
+	 */
+	public getLogInRange(fromTimeMs: number, toTimeMs: number): LogEntry[] | undefined {
+		if (!this._workspaceRoot) {
+			return undefined;
+		}
+
+		const log: {
+			entry: LogEntry;
+			sortTime: number;
+		}[] = [];
+
+		log.push({ entry: { documentType: 'workspaceRecording@1.0', kind: 'header', repoRootUri: this._workspaceRoot.toString(), time: this.getNow(), uuid: generateUuid() }, sortTime: 0 });
+
+		for (const doc of this._documentHistories.values()) {
+			log.push(...doc.getDocumentLogInRange(fromTimeMs, toTimeMs));
+		}
+
+		log.sort(compareBy(e => e.sortTime, numberComparator));
+
+		return log.map(l => l.entry);
+	}
+
 	public createBookmark(): DebugRecorderBookmark {
 		return new DebugRecorderBookmark(this.getNow());
 	}
@@ -191,12 +217,74 @@ class DocumentHistory {
 				// only considers edits that happened before the bookmark
 				break;
 			}
-			docVersion++;
 			if (editOrSelectionChange.kind === 'selections') {
 				const serializedOffsetRange: ISerializedOffsetRange[] = editOrSelectionChange.selections.map(s => [s.start, s.endExclusive]);
 				log.push({ entry: { kind: 'selectionChanged', id: this.id, selection: serializedOffsetRange, time: editOrSelectionChange.instant }, sortTime: editOrSelectionChange.instant });
 			} else {
+				// Only content changes bump the document version, mirroring how VS Code's real
+				// model version works (and matching what `WorkspaceRecorder` writes in production).
+				docVersion++;
 				log.push({ entry: { kind: 'changed', id: this.id, v: docVersion, edit: serializeStringEdit(editOrSelectionChange.edit), time: editOrSelectionChange.instant }, sortTime: editOrSelectionChange.instant });
+			}
+		}
+
+		return log;
+	}
+
+	/**
+	 * Emit a self-contained log for entries with `instant` in `[fromTimeMs, toTimeMs]`.
+	 * Returns `[]` when the document has no entries in range — the caller skips empty docs.
+	 *
+	 * Framing (`documentEncountered`, `setContent`, `opened`) reflects the document state at the
+	 * effective base time. If `fromTimeMs > _baseValueTime`, the base value is fast-forwarded by
+	 * applying edits in `[_baseValueTime, fromTimeMs)` so the emitted `setContent` represents the
+	 * document state at the latest base time `<= fromTimeMs`.
+	 *
+	 * Framing entries carry their **true** times (`creationTime` for `documentEncountered`,
+	 * `baseValueTime` for `setContent`/`opened`), even when those times pre-date `fromTimeMs`.
+	 * This matches what production `WorkspaceRecorder` emits and keeps sorting deterministic by
+	 * real timestamps. Consumers should treat any entry whose `time < fromTimeMs` as framing.
+	 */
+	getDocumentLogInRange(fromTimeMs: number, toTimeMs: number): { entry: LogEntry; sortTime: number }[] {
+		// Intentionally no `cleanUpHistory()` call here. Cleanup uses `getNow() - 5min` as the
+		// cutoff, which can be slightly later than `fromTimeMs` (we computed `fromTimeMs` a few
+		// instants ago in the caller). In that race, cleanup would rotate an edit at the leading
+		// edge of `[fromTimeMs, toTimeMs]` into `baseValue` and we'd silently drop it from the
+		// emitted slice. The buffer is still bounded by the per-edit cleanup in `handleEdit`.
+
+		const inRange = this._edits.filter(e => e.instant >= fromTimeMs && e.instant <= toTimeMs);
+		if (inRange.length === 0) {
+			return [];
+		}
+
+		// Fast-forward base value to fromTimeMs (or stay at _baseValueTime if it's later)
+		let baseValue = this._baseValue;
+		let baseValueTime = this._baseValueTime;
+		if (fromTimeMs > baseValueTime) {
+			for (const e of this._edits) {
+				if (e.instant >= fromTimeMs) { break; }
+				if (e.kind === 'edit') {
+					baseValue = e.edit.applyOnText(baseValue);
+					baseValueTime = e.instant;
+				}
+			}
+		}
+
+		const log: { entry: LogEntry; sortTime: number }[] = [];
+		log.push({ entry: { kind: 'documentEncountered', id: this.id, relativePath: this.relativePath, time: this.creationTime }, sortTime: this.creationTime });
+		let docVersion = 1;
+		log.push({ entry: { kind: 'setContent', id: this.id, v: docVersion, content: baseValue.value, time: baseValueTime }, sortTime: baseValueTime });
+		log.push({ entry: { kind: 'opened', id: this.id, time: baseValueTime }, sortTime: baseValueTime });
+
+		for (const e of inRange) {
+			if (e.kind === 'selections') {
+				const serializedOffsetRange: ISerializedOffsetRange[] = e.selections.map(s => [s.start, s.endExclusive]);
+				log.push({ entry: { kind: 'selectionChanged', id: this.id, selection: serializedOffsetRange, time: e.instant }, sortTime: e.instant });
+			} else {
+				// Only content changes bump the document version (selections don't), matching what
+				// `WorkspaceRecorder` writes in production via VS Code's real model version.
+				docVersion++;
+				log.push({ entry: { kind: 'changed', id: this.id, v: docVersion, edit: serializeStringEdit(e.edit), time: e.instant }, sortTime: e.instant });
 			}
 		}
 

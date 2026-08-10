@@ -16,7 +16,7 @@ export class MockOctoKitService implements IOctoKitService {
 	private orgInstructions: Map<string, string> = new Map();
 	private userOrganizations: string[] = ['testorg'];
 
-	getCurrentAuthedUser = async () => ({ login: 'testuser', name: 'Test User', avatar_url: '' });
+	getCurrentAuthedUser: IOctoKitService['getCurrentAuthedUser'] = async () => ({ id: 1, login: 'testuser', name: 'Test User', avatar_url: '' });
 	getCopilotPullRequestsForUser = async () => [];
 	getGitHubOutageStatus = async (): Promise<GitHubOutageStatus> => GitHubOutageStatus.None;
 	getCopilotSessionsForPR = async () => [];
@@ -31,6 +31,8 @@ export class MockOctoKitService implements IOctoKitService {
 	createPullRequest = async () => ({ number: 0, url: '' });
 	getPullRequestFromGlobalId = async () => null;
 	getPullRequestFiles = async () => [];
+	compareCommits = async () => undefined;
+	getRepositoryById: IOctoKitService['getRepositoryById'] = async () => undefined;
 	closePullRequest = async () => false;
 	findPullRequestByHeadBranch = async () => undefined;
 	getOpenPullRequestsForUser = async () => [];

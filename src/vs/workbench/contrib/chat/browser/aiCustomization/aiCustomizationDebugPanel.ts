@@ -7,16 +7,17 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
-import { type AICustomizationPromptsStorage, AICustomizationManagementSection, BUILTIN_STORAGE, sectionToPromptType } from './aiCustomizationManagement.js';
-import { ICustomizationHarnessService, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
+import { IAICustomizationWorkspaceService, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
+import { type AICustomizationSource, AICustomizationManagementSection, sectionToPromptType } from './aiCustomizationManagement.js';
+import { ICustomizationHarnessService, type ICustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAICustomizationItemSource } from './aiCustomizationItemSource.js';
 
 /**
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly name?: string; readonly storage?: AICustomizationPromptsStorage; readonly groupKey?: string; readonly syncable?: boolean; readonly pluginUri?: URI }[];
+	readonly allItems: readonly { readonly name?: string; readonly source?: AICustomizationSource; readonly groupKey?: string; readonly syncable?: boolean; readonly pluginUri?: URI }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
@@ -34,21 +35,18 @@ export async function generateCustomizationDebugReport(
 	promptsService: IPromptsService,
 	workspaceService: IAICustomizationWorkspaceService,
 	widgetState: IDebugWidgetState,
-	promptsServiceItemProvider: ICustomizationItemProvider,
+	itemSource: IAICustomizationItemSource,
 	harnessService: ICustomizationHarnessService,
 	agentPluginService: IAgentPluginService,
 ): Promise<string> {
 	const promptType = sectionToPromptType(section);
-	const filter = workspaceService.getStorageSourceFilter(promptType);
+	const activeDescriptor = harnessService.getActiveDescriptor();
 	const lines: string[] = [];
 
 	lines.push(`== Customization Debug: ${section} (${promptType}) ==`);
 	lines.push(`Window: ${workspaceService.isSessionsWindow ? 'Sessions' : 'Core VS Code'}`);
 	lines.push(`Active root: ${workspaceService.getActiveProjectRoot()?.fsPath ?? '(none)'}`);
 	lines.push(`Sections: [${workspaceService.managementSections.join(', ')}]`);
-	lines.push(`Filter sources: [${filter.sources.join(', ')}]`);
-
-	const activeDescriptor = harnessService.getActiveDescriptor();
 
 	// Active harness descriptor
 	if (activeDescriptor) {
@@ -59,19 +57,8 @@ export async function generateCustomizationDebugReport(
 		lines.push(`  hasItemProvider: ${!!activeDescriptor.itemProvider}`);
 		lines.push(`  hasDisableProvider: ${!!activeDescriptor.syncProvider}`);
 		lines.push(`  hiddenSections: ${activeDescriptor.hiddenSections ? `[${activeDescriptor.hiddenSections.join(', ')}]` : '(none)'}`);
-		lines.push(`  workspaceSubpaths: ${activeDescriptor.workspaceSubpaths ? `[${activeDescriptor.workspaceSubpaths.join(', ')}]` : '(none)'}`);
 		lines.push(`  hideGenerateButton: ${activeDescriptor.hideGenerateButton ?? false}`);
 		lines.push(`  requiredAgentId: ${activeDescriptor.requiredAgentId ?? '(none)'}`);
-		lines.push(`  instructionFileFilter: ${activeDescriptor.instructionFileFilter ? `[${activeDescriptor.instructionFileFilter.join(', ')}]` : '(none)'}`);
-	}
-	lines.push('');
-	if (filter.includedUserFileRoots) {
-		lines.push(`Filter includedUserFileRoots:`);
-		for (const r of filter.includedUserFileRoots) {
-			lines.push(`  ${r.fsPath}`);
-		}
-	} else {
-		lines.push(`Filter includedUserFileRoots: (all)`);
 	}
 	lines.push('');
 
@@ -81,14 +68,13 @@ export async function generateCustomizationDebugReport(
 	// Stage 1: Provider output
 	if (extensionProvider) {
 		const providerLabel = 'Extension Provider';
-		const sessionResource = harnessService.activeSessionResource.get();
-		await appendProviderData(lines, extensionProvider, sessionResource, promptType, providerLabel);
+		await appendProviderData(lines, itemSource, promptType, providerLabel);
 	} else {
 		// Stage 2: Raw PromptsService data — always useful for diagnostics
 		lines.push('--- Stage 1: No provider available ---');
 		lines.push('');
 		await appendRawServiceData(lines, promptsService, promptType);
-		await appendFilteredData(lines, promptsService, promptType, filter);
+		await appendUnfilteredData(lines, promptsService, promptType);
 	}
 
 
@@ -127,20 +113,19 @@ async function getPromptFilesByStorage(promptsService: IPromptsService, promptTy
 	return { localFiles, userFiles, extensionFiles };
 }
 
-async function appendProviderData(lines: string[], provider: ICustomizationItemProvider, sessionResource: URI, promptType: PromptsType, label: string): Promise<void> {
+async function appendProviderData(lines: string[], itemSource: IAICustomizationItemSource, promptType: PromptsType, label: string): Promise<void> {
 	lines.push(`--- Stage 1: Provider Output (${label}) ---`);
 
-	const allItems = await provider.provideChatSessionCustomizations(sessionResource, CancellationToken.None);
-	if (!allItems) {
-		lines.push('  Provider returned undefined');
-		lines.push('');
-		return;
+	const allItems = await itemSource.fetchProviderItems();
+
+	if (allItems.length === 0) {
+		lines.push(`  Total items from provider: 0 (or provider returned undefined and the item source normalized it to an empty array)`);
+	} else {
+		lines.push(`  Total items from provider: ${allItems.length}`);
 	}
 
-	lines.push(`  Total items from provider: ${allItems.length}`);
-
 	// Group by type for summary
-	const byType = new Map<string, typeof allItems>();
+	const byType = new Map<string, ICustomizationItem[]>();
 	for (const item of allItems) {
 		const existing = byType.get(item.type) ?? [];
 		existing.push(item);
@@ -154,9 +139,7 @@ async function appendProviderData(lines: string[], provider: ICustomizationItemP
 			if (item.description) {
 				lines.push(`      desc: ${item.description}`);
 			}
-			if (item.storage) {
-				lines.push(`      storage: ${item.storage}`);
-			}
+			lines.push(`      source: ${item.source}`);
 			if (item.groupKey) {
 				lines.push(`      groupKey: ${item.groupKey}`);
 			}
@@ -236,26 +219,15 @@ async function appendRawServiceData(lines: string[], promptsService: IPromptsSer
 	lines.push('');
 }
 
-async function appendFilteredData(lines: string[], promptsService: IPromptsService, promptType: PromptsType, filter: IStorageSourceFilter): Promise<void> {
-	lines.push('--- Stage 2b: After applyStorageSourceFilter ---');
+async function appendUnfilteredData(lines: string[], promptsService: IPromptsService, promptType: PromptsType): Promise<void> {
+	lines.push('--- Stage 2b: All files (no filtering applied) ---');
 
 	const { localFiles, userFiles, extensionFiles } = await getPromptFilesByStorage(promptsService, promptType);
 	const all: IPromptPath[] = [...localFiles, ...userFiles, ...extensionFiles];
-	const filtered = applyStorageSourceFilter(all, filter);
-	lines.push(`  Input: ${all.length} → Filtered: ${filtered.length}`);
-	lines.push(`    local:     ${filtered.filter(f => f.storage === PromptsStorage.local).length}`);
-	lines.push(`    user:      ${filtered.filter(f => f.storage === PromptsStorage.user).length}`);
-	lines.push(`    extension: ${filtered.filter(f => f.storage === PromptsStorage.extension).length}`);
-
-	const removedCount = all.length - filtered.length;
-	if (removedCount > 0) {
-		const filteredUris = new Set(filtered.map(f => f.uri.toString()));
-		const removed = all.filter(f => !filteredUris.has(f.uri.toString()));
-		lines.push(`  Removed (${removedCount}):`);
-		for (const f of removed) {
-			lines.push(`    [${f.storage}] ${f.uri.fsPath}`);
-		}
-	}
+	lines.push(`  Count: ${all.length} total`);
+	lines.push(`    local:     ${all.filter(f => f.storage === PromptsStorage.local).length}`);
+	lines.push(`    user:      ${all.filter(f => f.storage === PromptsStorage.user).length}`);
+	lines.push(`    extension: ${all.filter(f => f.storage === PromptsStorage.extension).length}`);
 
 	lines.push('');
 }
@@ -263,18 +235,18 @@ async function appendFilteredData(lines: string[], promptsService: IPromptsServi
 function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 	lines.push('--- Stage 3: Widget State (loadItems → filterItems) ---');
 	lines.push(`  allItems (after loadItems): ${state.allItems.length}`);
-	lines.push(`    local:     ${state.allItems.filter(i => i.storage === PromptsStorage.local).length}`);
-	lines.push(`    user:      ${state.allItems.filter(i => i.storage === PromptsStorage.user).length}`);
-	lines.push(`    extension: ${state.allItems.filter(i => i.storage === PromptsStorage.extension).length}`);
-	lines.push(`    plugin:    ${state.allItems.filter(i => i.storage === PromptsStorage.plugin).length}`);
-	lines.push(`    built-in:  ${state.allItems.filter(i => i.storage === BUILTIN_STORAGE).length}`);
+	lines.push(`    local:     ${state.allItems.filter(i => i.source === AICustomizationSources.local).length}`);
+	lines.push(`    user:      ${state.allItems.filter(i => i.source === AICustomizationSources.user).length}`);
+	lines.push(`    extension: ${state.allItems.filter(i => i.source === AICustomizationSources.extension).length}`);
+	lines.push(`    plugin:    ${state.allItems.filter(i => i.source === AICustomizationSources.plugin).length}`);
+	lines.push(`    built-in:  ${state.allItems.filter(i => i.source === AICustomizationSources.builtin).length}`);
 	const syncableCount = state.allItems.filter(i => i.syncable).length;
 	if (syncableCount > 0) {
 		lines.push(`    syncable:  ${syncableCount}`);
 	}
 
 	for (const item of state.allItems) {
-		const flags: string[] = [`storage=${item.storage ?? '?'}`, `groupKey=${item.groupKey ?? '(none)'}`];
+		const flags: string[] = [`storage=${item.source ?? '?'}`, `groupKey=${item.groupKey ?? '(none)'}`];
 		if (item.syncable) {
 			flags.push('syncable');
 		}

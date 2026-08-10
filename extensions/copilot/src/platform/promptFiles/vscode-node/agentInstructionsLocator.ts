@@ -17,7 +17,7 @@ import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { FileType } from '../../filesystem/common/fileTypes';
 import { ILogService } from '../../log/common/logService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
-import { AgentInstructionFileType, AgentInstructionsLogger, IAgentInstructionFile } from '../common/promptsService';
+import { AgentInstructionFileType, AgentInstructionsLogger, IAgentInstructionFile, PromptConfig } from '../common/promptsService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
 // File and folder name constants. Mirrors the values in
@@ -26,16 +26,11 @@ const AGENT_MD_FILENAME = 'AGENTS.md';
 const CLAUDE_MD_FILENAME = 'CLAUDE.md';
 const CLAUDE_LOCAL_MD_FILENAME = 'CLAUDE.local.md';
 const CLAUDE_CONFIG_FOLDER = '.claude';
+const COPILOT_CONFIG_FOLDER = '.copilot';
 const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 const GITHUB_CONFIG_FOLDER = '.github';
 
-export namespace PromptConfig {
-	// Configuration keys (non-extension settings — read via getNonExtensionConfig).
-	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
-	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
-	export const USE_CLAUDE_MD = 'chat.useClaudeMdFile';
-	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
-}
+
 
 interface IWorkspaceInstructionFile {
 	readonly fileName: string;
@@ -93,14 +88,16 @@ export class AgentInstructionsLocator extends Disposable {
 			promises.push(this.findFilesInRoots([this.envService.userHome], CLAUDE_CONFIG_FOLDER, [claudeMdFile], token, resolvedAgentFiles));
 		}
 
-		// `useCopilotInstructionsFiles` gates only `.github/copilot-instructions.md`.
+		// `useCopilotInstructionsFiles` gates both workspace and personal
+		// `copilot-instructions.md` discovery.
 		// Reuses the existing extension config (default true) instead of hard-coding the qualified key.
 		const useCopilotInstructionsFiles = this.configurationService.getConfig(ConfigKey.UseInstructionFiles) !== false;
 		if (!useCopilotInstructionsFiles) {
 			logger?.logInfo('Copilot instructions files are disabled via configuration.');
 		} else {
-			const githubConfigFiles: IWorkspaceInstructionFile[] = [{ fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentInstructionFileType.copilotInstructionsMd }];
-			promises.push(this.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, githubConfigFiles, token, resolvedAgentFiles));
+			const copilotInstructionsFile: IWorkspaceInstructionFile = { fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentInstructionFileType.copilotInstructionsMd };
+			promises.push(this.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, [copilotInstructionsFile], token, resolvedAgentFiles)); // copilot-instructions.md in .github folder under workspace root
+			promises.push(this.findFilesInRoots([this.envService.userHome], COPILOT_CONFIG_FOLDER, [copilotInstructionsFile], token, resolvedAgentFiles)); // copilot-instructions.md in ~/.copilot folder
 		}
 
 		// Files at the workspace root itself (AGENTS.md / CLAUDE.md / CLAUDE.local.md).

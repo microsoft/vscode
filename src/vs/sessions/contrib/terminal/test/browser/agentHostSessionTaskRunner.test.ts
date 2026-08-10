@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -20,7 +21,10 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IConfigurationResolverService } from '../../../../../workbench/services/configurationResolver/common/configurationResolver.js';
+import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget } from '../../../chat/browser/sessionsTasksService.js';
+import { osToTaskTargetOS } from '../../../chat/browser/taskCommand.js';
 import { AgentHostSessionTaskRunner } from '../../browser/agentHostSessionTaskRunner.js';
 
 function makeSession(opts: { providerId: string; cwd?: URI }): ISession {
@@ -61,8 +65,8 @@ function makeSession(opts: { providerId: string; cwd?: URI }): ISession {
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
 		chats: observableValue('chats', [chat]),
-		mainChat: chat,
-		capabilities: { supportsMultipleChats: false },
+		mainChat: constObservable(chat),
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -72,13 +76,20 @@ suite('AgentHostSessionTaskRunner', () => {
 	let runner: AgentHostSessionTaskRunner;
 	let createdTerminals: { address: string; options?: IAgentHostTerminalCreateOptions }[];
 	let sentText: { text: string; shouldExecute: boolean }[];
+	let disposedTerminals: ITerminalInstance[];
 	let allTasks: ISessionTaskWithTarget[];
-	const fakeInstance = { sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); } } as ITerminalInstance;
+	let resolverCalls: string[];
+	const fakeInstance = {
+		sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
+		dispose: () => { disposedTerminals.push(fakeInstance); },
+	} as unknown as ITerminalInstance;
 
 	setup(() => {
 		createdTerminals = [];
 		sentText = [];
+		disposedTerminals = [];
 		allTasks = [];
+		resolverCalls = [];
 
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -116,6 +127,16 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationResolverService, new class extends mock<IConfigurationResolverService>() {
+			override resolveAsync(folder: IWorkspaceFolderData | undefined, value: any): any {
+				resolverCalls.push(String(value));
+				return Promise.resolve(
+					typeof value === 'string' && folder
+						? value.replaceAll('${workspaceFolder}', folder.uri.path)
+						: value
+				);
+			}
+		});
 
 		runner = instantiationService.createInstance(AgentHostSessionTaskRunner);
 		// Reference unused imports to keep them in the bundle and silence linters.
@@ -146,12 +167,23 @@ suite('AgentHostSessionTaskRunner', () => {
 		const cwd = URI.parse('file:///path/to/worktree');
 		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd });
 
-		await runner.runTask(shellTask(), session);
+		(await runner.runTask(shellTask(), session))?.dispose();
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].address, '__local__');
 		assert.deepStrictEqual(createdTerminals[0].options?.cwd?.toString(), cwd.toString());
 		assert.deepStrictEqual(sentText, [{ text: 'echo hi', shouldExecute: true }]);
+	});
+
+	test('returned handle stops the task by disposing its terminal', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+
+		const handle = await runner.runTask(shellTask(), session);
+		assert.deepStrictEqual(disposedTerminals, []);
+
+		handle?.dispose();
+
+		assert.deepStrictEqual(disposedTerminals, [fakeInstance]);
 	});
 
 	test('agent-host scheme cwds are unwrapped to their original URI', async () => {
@@ -160,7 +192,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		assert.strictEqual(wrapped.scheme, AGENT_HOST_SCHEME, 'precondition: wrapped uri');
 		const session = makeSession({ providerId: 'agenthost-myhost', cwd: wrapped });
 
-		await runner.runTask(shellTask(), session);
+		(await runner.runTask(shellTask(), session))?.dispose();
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].options?.cwd?.toString(), innerCwd.toString());
@@ -169,7 +201,7 @@ suite('AgentHostSessionTaskRunner', () => {
 	test('unknown scheme cwds are omitted (host uses default)', async () => {
 		const session = makeSession({ providerId: 'agenthost-myhost', cwd: URI.parse('vscode-vfs://github/owner/repo') });
 
-		await runner.runTask(shellTask(), session);
+		(await runner.runTask(shellTask(), session))?.dispose();
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].options?.cwd, undefined);
@@ -177,7 +209,7 @@ suite('AgentHostSessionTaskRunner', () => {
 
 	test('skips when no command can be resolved from the task', async () => {
 		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
-		await runner.runTask({ label: 'empty' }, session);
+		(await runner.runTask({ label: 'empty' }, session))?.dispose();
 		assert.deepStrictEqual(createdTerminals, []);
 	});
 
@@ -197,8 +229,62 @@ suite('AgentHostSessionTaskRunner', () => {
 			{ task: top, target: 'workspace' },
 		];
 
-		await runner.runTask(top, session);
+		(await runner.runTask(top, session))?.dispose();
 
 		assert.deepStrictEqual(sentText, [{ text: 'npm run transpile && npm run dev', shouldExecute: true }]);
+	});
+
+	test('local agent-host sessions apply OS-specific command overrides', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		const task: ITaskEntry = {
+			label: 'Run Dev Agents',
+			type: 'shell',
+			command: './scripts/code.sh',
+			windows: { command: '.\\scripts\\code.bat' },
+			args: ['--agents'],
+		};
+
+		(await runner.runTask(task, session))?.dispose();
+
+		const expectedCommand = osToTaskTargetOS(OS) === 'windows' ? '.\\scripts\\code.bat' : './scripts/code.sh';
+		assert.deepStrictEqual(sentText, [{ text: `${expectedCommand} --agents`, shouldExecute: true }]);
+	});
+
+	test('expands ${workspaceFolder} to the session working directory', async () => {
+		const cwd = URI.file('/path/to/worktree');
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd });
+		const task: ITaskEntry = {
+			label: 'Run Client',
+			type: 'shell',
+			command: './scripts/code.sh',
+			args: ['--user-data-dir=${workspaceFolder}/.profile-oss'],
+		};
+
+		(await runner.runTask(task, session))?.dispose();
+
+		assert.deepStrictEqual(sentText, [{
+			text: `./scripts/code.sh --user-data-dir=${cwd.path}/.profile-oss`,
+			shouldExecute: true,
+		}]);
+		assert.deepStrictEqual(resolverCalls, ['./scripts/code.sh', '--user-data-dir=${workspaceFolder}/.profile-oss']);
+	});
+
+	test('remote agent-host sessions expand ${workspaceFolder} from the POSIX host path without the renderer resolver', async () => {
+		const innerCwd = URI.file('/remote/worktree');
+		const session = makeSession({ providerId: 'agenthost-myhost', cwd: toAgentHostUri(innerCwd, 'remote') });
+		const task: ITaskEntry = {
+			label: 'Run Client',
+			type: 'shell',
+			command: './scripts/code.sh',
+			args: ['--user-data-dir=${workspaceFolder}/.profile-oss'],
+		};
+
+		(await runner.runTask(task, session))?.dispose();
+
+		assert.deepStrictEqual(sentText, [{
+			text: `./scripts/code.sh --user-data-dir=${innerCwd.path}/.profile-oss`,
+			shouldExecute: true,
+		}]);
+		assert.deepStrictEqual(resolverCalls, []);
 	});
 });

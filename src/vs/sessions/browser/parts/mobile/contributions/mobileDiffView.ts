@@ -177,12 +177,11 @@ export class MobileDiffView extends Disposable {
 		const backBtn = DOM.append(header, $('button.mobile-overlay-back-btn', { type: 'button' })) as HTMLButtonElement;
 		backBtn.setAttribute('aria-label', localize('diffView.back', "Back"));
 		DOM.append(backBtn, $('span')).classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronLeft));
-		DOM.append(backBtn, $('span.back-btn-label')).textContent = localize('diffView.backLabel', "Back");
 		this.viewStore.add(Gesture.addTarget(backBtn));
 		this.viewStore.add(DOM.addDisposableListener(backBtn, DOM.EventType.CLICK, () => this.dispose()));
 		this.viewStore.add(DOM.addDisposableListener(backBtn, TouchEventType.Tap, () => this.dispose()));
 
-		const info = DOM.append(header, $('div.mobile-overlay-header-info'));
+		const info = DOM.append(header, $('div.mobile-overlay-header-info.inline'));
 		this.titleEl = DOM.append(info, $('div.mobile-overlay-header-title'));
 		this.subtitleEl = DOM.append(info, $('div.mobile-overlay-header-subtitle'));
 

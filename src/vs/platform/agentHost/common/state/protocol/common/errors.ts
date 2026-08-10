@@ -83,6 +83,17 @@ export const AhpErrorCodes = {
 	 * overwriting (e.g. `resourceWrite` with `createOnly: true`).
 	 */
 	AlreadyExists: -32010,
+	/**
+	 * An optimistic-concurrency precondition failed.
+	 *
+	 * Returned when a request carries a precondition token that no longer
+	 * matches the receiver's current state — for example, `resourceWrite`
+	 * with an `ifMatch` etag that has been superseded by a concurrent
+	 * write. Callers SHOULD re-read the resource (e.g. via
+	 * `resourceResolve`) and decide whether to retry the operation with the
+	 * fresh token or surface the conflict to the user.
+	 */
+	Conflict: -32011,
 } as const;
 
 /** Union type of all AHP application error codes. */

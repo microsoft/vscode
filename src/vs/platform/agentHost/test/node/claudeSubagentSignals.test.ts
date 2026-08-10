@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ToolCallConfirmationReason } from '../../common/state/sessionState.js';
+import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { buildTopLevelSubagentReadyAction, mapSubagentSystemMessage } from '../../node/claude/claudeSubagentSignals.js';
@@ -71,7 +71,7 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 		});
 	});
 
-	test('top-level Task SessionToolCallStart carries _meta.toolKind=subagent so the workbench renders the subagent UI', () => {
+	test('top-level Task ChatToolCallStart carries _meta.toolKind=subagent so the workbench renders the subagent UI', () => {
 		const state = new ClaudeMapperState();
 		const log = new NullLogService();
 		const registry = r();
@@ -87,19 +87,19 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 
 		const taskAction = taskSignals[0];
 		const readAction = readSignals[0];
-		assert.ok(taskAction.kind === 'action' && taskAction.action.type === ActionType.SessionToolCallStart, 'Task signal is SessionToolCallStart');
-		assert.ok(readAction.kind === 'action' && readAction.action.type === ActionType.SessionToolCallStart, 'Read signal is SessionToolCallStart');
+		assert.ok(taskAction.kind === 'action' && taskAction.action.type === ActionType.ChatToolCallStart, 'Task signal is ChatToolCallStart');
+		assert.ok(readAction.kind === 'action' && readAction.action.type === ActionType.ChatToolCallStart, 'Read signal is ChatToolCallStart');
 
 		assert.deepStrictEqual({
 			taskMeta: taskAction.action._meta,
 			readMeta: readAction.action._meta,
 		}, {
 			taskMeta: { toolKind: 'subagent' },
-			readMeta: undefined,
+			readMeta: { toolKind: 'read' },
 		});
 	});
 
-	test('top-level canonical assistant for Task emits SessionToolCallReady with confirmed:NotNeeded + _meta.subagentDescription/AgentName AND records metadata onto the spawn', () => {
+	test('top-level canonical assistant for Task emits ChatToolCallReady with confirmed:NotNeeded + _meta.subagentDescription/AgentName AND records metadata onto the spawn', () => {
 		const state = new ClaudeMapperState();
 		const log = new NullLogService();
 		const registry = r();
@@ -117,8 +117,8 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 		}]);
 		const out = mapSDKMessageToAgentSignals(canonical, SESSION, TURN_ID, state, log, registry);
 
-		const ready = out.find(s => s.kind === 'action' && s.action.type === ActionType.SessionToolCallReady);
-		assert.ok(ready && ready.kind === 'action' && ready.action.type === ActionType.SessionToolCallReady, 'Ready emitted');
+		const ready = out.find(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallReady);
+		assert.ok(ready && ready.kind === 'action' && ready.action.type === ActionType.ChatToolCallReady, 'Ready emitted');
 
 		const spawn = registry.getSpawn('toolu_top_task');
 		assert.deepStrictEqual({
@@ -229,8 +229,8 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 
 		const kinds = fromAssistant.map(s => s.kind);
 		const allParentIds = [...fromAssistant, ...fromToolResult].filter(s => s.kind === 'action').map(s => s.kind === 'action' ? s.parentToolCallId : null);
-		const completeAction = fromToolResult.find(s => s.kind === 'action' && s.action.type === ActionType.SessionToolCallComplete);
-		const completePastTense = completeAction?.kind === 'action' && completeAction.action.type === ActionType.SessionToolCallComplete
+		const completeAction = fromToolResult.find(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete);
+		const completePastTense = completeAction?.kind === 'action' && completeAction.action.type === ActionType.ChatToolCallComplete
 			? completeAction.action.result.pastTenseMessage
 			: undefined;
 
@@ -253,7 +253,71 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 		});
 	});
 
-	test('foreground subagent completion: tool_result for a Task spawn emits SessionToolCallComplete AND IAgentSubagentCompletedSignal, then clears the spawn from the registry', () => {
+	test('inner client tools preserve client ownership and generic input across the lifecycle', () => {
+		const state = new ClaudeMapperState();
+		const log = new NullLogService();
+		const registry = r();
+		const parentToolCallId = 'toolu_parent_client';
+		mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, parentToolCallId, 'Task')),
+			SESSION, TURN_ID, state, log, registry,
+		);
+
+		const innerAssistant = makeAssistantMessage(SESSION_ID, [
+			{ type: 'tool_use', id: 'toolu_inner_client', name: 'mcp__client__Bash', input: { command: 'echo client' } },
+		]);
+		innerAssistant.parent_tool_use_id = parentToolCallId;
+		const fromAssistant = mapSDKMessageToAgentSignals(innerAssistant, SESSION, TURN_ID, state, log, registry, () => 'client-1');
+		const innerToolResult = makeUserToolResultMessage(SESSION_ID, 'toolu_inner_client', 'done');
+		innerToolResult.parent_tool_use_id = parentToolCallId;
+		const fromResult = mapSDKMessageToAgentSignals(innerToolResult, SESSION, TURN_ID, state, log, registry);
+
+		const actions = [...fromAssistant, ...fromResult].filter(signal => signal.kind === 'action').map(signal => signal.kind === 'action' ? signal.action : undefined);
+		assert.deepStrictEqual(actions.map(action => {
+			switch (action?.type) {
+				case ActionType.ChatToolCallStart:
+					return {
+						type: action.type,
+						toolName: action.toolName,
+						displayName: action.displayName,
+						contributor: action.contributor,
+						meta: action._meta,
+					};
+				case ActionType.ChatToolCallReady:
+					return {
+						type: action.type,
+						invocationMessage: action.invocationMessage,
+						toolInput: action.toolInput,
+					};
+				case ActionType.ChatToolCallComplete:
+					return {
+						type: action.type,
+						pastTenseMessage: action.result.pastTenseMessage,
+					};
+				default:
+					return undefined;
+			}
+		}).filter(item => item !== undefined), [
+			{
+				type: ActionType.ChatToolCallStart,
+				toolName: 'Bash',
+				displayName: 'Bash',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				meta: undefined,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				invocationMessage: 'Bash',
+				toolInput: '{\n  "command": "echo client"\n}',
+			},
+			{
+				type: ActionType.ChatToolCallComplete,
+				pastTenseMessage: 'Bash',
+			},
+		]);
+	});
+
+	test('foreground subagent completion: tool_result for a Task spawn emits ChatToolCallComplete AND IAgentSubagentCompletedSignal, then clears the spawn from the registry', () => {
 		const state = new ClaudeMapperState();
 		const log = new NullLogService();
 		const registry = r();
@@ -340,7 +404,7 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			registry,
 		);
 
-		assert.ok(malformed.kind === 'action' && malformed.action.type === ActionType.SessionToolCallReady);
+		assert.ok(malformed.kind === 'action' && malformed.action.type === ActionType.ChatToolCallReady);
 		const spawn = registry.getSpawn('toolu_bad');
 		assert.deepStrictEqual({
 			meta: malformed.action._meta,

@@ -71,7 +71,15 @@ export interface FetchTelemetryEvent {
 	latencyMs: number;
 	statusCode: number | undefined;
 	success: boolean;
+	/**
+	 * Cache outcome when the caller opted in via {@link FetchOptions.cache}.
+	 * `undefined` when the caller did not opt in or the selected fetcher does
+	 * not implement caching.
+	 */
+	cacheStatus?: CacheStatus;
 }
+
+export type CacheStatus = 'hit' | 'stale-hit' | 'revalidated' | 'miss' | 'bypass';
 
 /** A basic version of http://developer.mozilla.org/en-US/docs/Web/API/Response */
 export class Response {
@@ -92,6 +100,7 @@ export class Response {
 		private readonly _reportEvent: ReportFetchEvent,
 		private readonly _internalId: string,
 		private readonly _hostname: string,
+		readonly cacheStatus?: CacheStatus,
 	) {
 		const transformer = {
 			transform: (chunk: Uint8Array, controller: TransformStreamDefaultController<Uint8Array>) => {
@@ -169,6 +178,13 @@ export interface FetchOptions {
 	expectJSON?: boolean;
 	useFetcher?: FetcherId;
 	suppressIntegrationId?: boolean;
+	/**
+	 * Opportunistic cache hint. When set to `true`, fetchers that implement
+	 * caching (today only the Node fetch fetcher) will route the request
+	 * through an RFC 9111 cache. Fetchers without cache support ignore this
+	 * flag, and fallback to other fetchers continues to work normally.
+	 */
+	cache?: boolean;
 }
 
 export interface PaginationOptions<T> extends FetchOptions {

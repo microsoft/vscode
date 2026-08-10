@@ -24,6 +24,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
 import { IMarkdownRendererService } from '../../../markdown/browser/markdownRenderer.js';
 import type { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { AnchorAlignment } from '../../../../base/common/layout.js';
 
 suite('HoverService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -180,6 +182,57 @@ suite('HoverService', () => {
 			assert.strictEqual(hover, undefined, 'Hover should not be created for empty content');
 		});
 
+		test('should align the right edge of a hover with its target', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(300, 100, 100, 20);
+			const hover = showHover('Right aligned hover', target, {
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: AnchorAlignment.RIGHT,
+				},
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: 200 });
+
+			hoverWidget.layout();
+
+			assert.strictEqual(hoverWidget.x, 198);
+			hover.dispose();
+		});
+
+		test('should constrain a right-aligned hover to the available width', () => {
+			const target = createTarget();
+			let targetLeft = 100;
+			target.getBoundingClientRect = () => new DOMRect(targetLeft, 100, 50, 20);
+			const hover = showHover('Constrained right aligned hover', target, {
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: AnchorAlignment.RIGHT,
+				},
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', {
+				configurable: true,
+				get: () => Math.min(200, Number.parseFloat(hoverWidget.domNode.style.maxWidth) || 200)
+			});
+
+			hoverWidget.layout();
+			const constrainedMaxWidth = hoverWidget.domNode.style.maxWidth;
+			targetLeft = 300;
+			hoverWidget.layout();
+
+			assert.deepStrictEqual({
+				constrainedMaxWidth,
+				restoredMaxWidth: hoverWidget.domNode.style.maxWidth
+			}, {
+				constrainedMaxWidth: '146px',
+				restoredMaxWidth: ''
+			});
+			hover.dispose();
+		});
+
 		test('should call onDidShow callback when hover is shown', () => {
 			const target = createTarget();
 			let didShowCalled = false;
@@ -196,6 +249,40 @@ suite('HoverService', () => {
 
 			hover.dispose();
 			assertNotInDOM(hover, 'Hover should be removed from DOM after dispose');
+		});
+
+		test('should call onDidHide exactly once when hover is disposed', () => {
+			const target = createTarget();
+			let didHideCount = 0;
+
+			const hover = hoverService.showInstantHover({
+				content: 'Test',
+				target,
+				onDidHide: () => { didHideCount++; }
+			});
+
+			assert.ok(hover);
+			hover.dispose();
+			hover.dispose();
+
+			assert.strictEqual(didHideCount, 1);
+		});
+
+		test('should call onDidHide when hover is hidden during onDidShow', () => {
+			const target = createTarget();
+			const calls: string[] = [];
+
+			hoverService.showInstantHover({
+				content: 'Test',
+				target,
+				onDidShow: () => {
+					calls.push('show');
+					hoverService.hideHover(true);
+				},
+				onDidHide: () => { calls.push('hide'); }
+			});
+
+			assert.deepStrictEqual(calls, ['show', 'hide']);
 		});
 
 		test('should deduplicate hovers by id', () => {
@@ -441,6 +528,20 @@ suite('HoverService', () => {
 			disposable.dispose();
 			hoverService.hideHover(true);
 		}));
+
+		test('should not call onDidHide when delayed hover is never shown', () => {
+			const target = createTarget();
+			let didHideCount = 0;
+
+			const disposable = hoverService.setupDelayedHover(target, {
+				content: 'Test',
+				onDidHide: () => { didHideCount++; }
+			});
+
+			disposable.dispose();
+
+			assert.strictEqual(didHideCount, 0);
+		});
 
 		test('should use reduced delay when reducedDelay is true', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();

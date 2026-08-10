@@ -25,10 +25,10 @@ import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/la
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../common/changes.js';
-import { ChangesViewModel } from './changesViewModel.js';
+import { IChangesViewService } from '../common/changesViewService.js';
 
 const $ = dom.$;
 
@@ -155,7 +155,7 @@ export function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: ICha
 
 interface IChangesTreeTemplate {
 	readonly label: IResourceLabel;
-	readonly toolbar: MenuWorkbenchToolBar | undefined;
+	readonly toolbar: MenuWorkbenchToolBar;
 	readonly changeKindContextKey: IContextKey<'root' | 'folder' | 'file'>;
 	readonly reviewCommentsBadge: HTMLElement;
 	readonly agentFeedbackBadge: HTMLElement;
@@ -172,14 +172,14 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 	readonly templateId: string = ChangesTreeRenderer.TEMPLATE_ID;
 
 	constructor(
-		private viewModel: ChangesViewModel,
 		private labels: ResourceLabels,
 		private actionRunner: ActionRunner | undefined,
 		private getRootUri: () => URI | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IChangesTreeTemplate {
@@ -202,20 +202,22 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		const actionBarContainer = $('.chat-collapsible-list-action-bar');
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		const toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.AgentsChangeInlineToolbar, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
+		const toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.AgentsChangeInlineToolbar, {
+			menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner
+		}));
 		label.element.appendChild(actionBarContainer);
 
 		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.sessionType ?? '';
 		}));
 
 		templateDisposables.add(bindContextKey(ActiveSessionContextKeys.HasGitRepository, contextKeyService, reader => {
-			return this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			return this.changesViewService.activeSessionHasGitRepositoryObs.read(reader);
 		}));
 
 		templateDisposables.add(bindContextKey(ChangesContextKeys.VersionMode, contextKeyService, reader => {
-			return this.viewModel.activeSessionChangesetObs.read(reader)?.id ?? '';
+			return this.changesViewService.activeSessionChangesetObs.read(reader)?.id ?? '';
 		}));
 
 		const changeKindContextKey = ChangesContextKeys.ChangeKind.bindTo(contextKeyService);
@@ -269,7 +271,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 
 	private renderFileElement(data: IChangesFileItem, templateData: IChangesTreeTemplate): void {
 		const root = this.getRootUri();
-		const viewMode = this.viewModel.viewModeObs.get();
+		const viewMode = this.changesViewService.viewModeObs.get();
 
 		templateData.label.setResource({
 			resource: data.uri,
@@ -293,7 +295,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 
 		// Review comments
 		templateData.elementDisposables.add(autorun(reader => {
-			const reviewCommentByFile = this.viewModel.activeSessionReviewCommentCountByFileObs.read(reader);
+			const reviewCommentByFile = this.changesViewService.activeSessionReviewCommentCountByFileObs.read(reader);
 			const reviewCommentCount = reviewCommentByFile?.get(data.uri.fsPath) ?? 0;
 
 			if (reviewCommentCount > 0) {
@@ -311,7 +313,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 
 		// Agent feedback
 		templateData.elementDisposables.add(autorun(reader => {
-			const agentFeedbackByFile = this.viewModel.activeSessionAgentFeedbackCountByFileObs.read(reader);
+			const agentFeedbackByFile = this.changesViewService.activeSessionAgentFeedbackCountByFileObs.read(reader);
 			const agentFeedbackCount = agentFeedbackByFile?.get(data.uri.fsPath) ?? 0;
 
 			if (agentFeedbackCount > 0) {
@@ -358,10 +360,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 			templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 		}
 
-		if (templateData.toolbar) {
-			templateData.toolbar.context = data;
-		}
-
+		templateData.toolbar.context = data;
 		templateData.changeKindContextKey.set('file');
 	}
 
@@ -379,10 +378,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateData.decorationBadge.style.display = 'none';
 		templateData.lineCountsContainer.style.display = 'none';
 
-		if (templateData.toolbar) {
-			templateData.toolbar.context = data.uri;
-		}
-
+		templateData.toolbar.context = data.uri;
 		templateData.changeKindContextKey.set('root');
 	}
 
@@ -398,10 +394,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		templateData.decorationBadge.style.display = 'none';
 		templateData.lineCountsContainer.style.display = 'none';
 
-		if (templateData.toolbar) {
-			templateData.toolbar.context = node;
-		}
-
+		templateData.toolbar.context = node;
 		templateData.changeKindContextKey.set('folder');
 	}
 

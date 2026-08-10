@@ -12,13 +12,20 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
+import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
+import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 
 /**
  * A bidirectional transport for protocol messages. Implementations handle
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Physical transport accepted by the agent host. */
+	readonly transportKind?: AgentHostTransportKind;
+
+	/** Route used by a VS Code client to reach the agent host. */
+	readonly clientConnectionKind?: AgentHostClientConnectionKind;
+
 	/** Fires when a message is received from the remote end. */
 	readonly onMessage: Event<ProtocolMessage>;
 
@@ -33,7 +40,7 @@ export interface IProtocolTransport extends IDisposable {
 	 * - `AhpServerNotification` — server→client notifications.
 	 * - `JsonRpcResponse` — dynamically-constructed success/error responses.
 	 */
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void;
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcParseErrorResponse | JsonRpcResponse | JsonRpcRequest): void;
 }
 
 /**

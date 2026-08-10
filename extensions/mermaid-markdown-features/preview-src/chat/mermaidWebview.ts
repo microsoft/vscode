@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import mermaid, { MermaidConfig } from 'mermaid';
-import { createMermaidErrorElement, markVsCodeContextAsError } from '../shared';
+import { buildMermaidConfig, createMermaidErrorElement, loadExtensionConfig, markVsCodeContextAsError } from '../shared';
+import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 import { VsCodeApi } from './vscodeApi';
 
 interface PanZoomState {
@@ -12,8 +13,18 @@ interface PanZoomState {
 	readonly translateY: number;
 }
 
+interface PanZoomOptions {
+	readonly defaultView?: 'center' | 'fit';
+}
+
+interface Size {
+	readonly width: number;
+	readonly height: number;
+}
+
 export class PanZoomHandler {
 	private scale = 1;
+	private fitScale = 1;
 	private translateX = 0;
 	private translateY = 0;
 
@@ -27,11 +38,13 @@ export class PanZoomHandler {
 	private readonly minScale = 0.1;
 	private readonly maxScale = 5;
 	private readonly zoomFactor = 0.002;
+	private readonly fitPadding = 16;
 
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly content: HTMLElement,
-		private readonly vscode: VsCodeApi
+		private readonly vscode: VsCodeApi,
+		private readonly options: PanZoomOptions = {}
 	) {
 		this.container = container;
 		this.content = content;
@@ -42,13 +55,13 @@ export class PanZoomHandler {
 	}
 
 	/**
-	 * Initializes the pan/zoom state - either restores from saved state or centers the content.
+	 * Initializes the pan/zoom state - either restores from saved state or applies the default view.
 	 */
 	public initialize(): void {
 		if (!this.restoreState()) {
-			// Use requestAnimationFrame to ensure layout is updated before centering
+			// Use requestAnimationFrame to ensure layout is updated before resetting the view
 			requestAnimationFrame(() => {
-				this.centerContent();
+				this.resetView();
 			});
 		}
 	}
@@ -71,7 +84,7 @@ export class PanZoomHandler {
 		window.addEventListener('keydown', e => this.handleKeyChange(e));
 		window.addEventListener('keyup', e => this.handleKeyChange(e));
 
-		// Re-center on resize if user hasn't interacted yet
+		// Reset the view on resize if user hasn't interacted yet
 		window.addEventListener('resize', () => this.handleResize());
 	}
 
@@ -221,6 +234,7 @@ export class PanZoomHandler {
 		const state = this.vscode.getState();
 		if (state?.panZoom) {
 			const panZoom = state.panZoom as PanZoomState;
+			this.updateFitScale();
 			this.scale = panZoom.scale ?? 1;
 			this.translateX = panZoom.translateX ?? 0;
 			this.translateY = panZoom.translateY ?? 0;
@@ -232,29 +246,90 @@ export class PanZoomHandler {
 	}
 
 	private handleResize(): void {
+		this.updateFitScale();
 		if (!this.hasInteracted) {
-			this.centerContent();
+			this.resetView();
 		}
 	}
 
-	/**
-	 * Centers the content within the container.
-	 */
-	private centerContent(): void {
-		const containerRect = this.container.getBoundingClientRect();
+	private updateFitScale(): void {
+		if (this.options.defaultView !== 'fit') {
+			this.fitScale = 1;
+			return;
+		}
 
+		const scale = this.getScaleToFitContainer();
+		if (scale !== undefined) {
+			this.fitScale = scale;
+		}
+	}
+
+	private getSvgSize(): Size | undefined {
 		// Get the SVG element inside the content - mermaid renders to an SVG
 		const svg = this.content.querySelector('svg');
 		if (!svg) {
 			return;
 		}
-		const svgRect = svg.getBoundingClientRect();
 
-		// Calculate the center position based on the SVG dimensions
-		this.translateX = (containerRect.width - svgRect.width) / 2;
-		this.translateY = (containerRect.height - svgRect.height) / 2;
+		const oldTransform = this.content.style.transform;
+		this.content.style.transform = 'none';
+		const svgRect = svg.getBoundingClientRect();
+		this.content.style.transform = oldTransform;
+
+		if (svgRect.width <= 0 || svgRect.height <= 0) {
+			return;
+		}
+
+		return { width: svgRect.width, height: svgRect.height };
+	}
+
+	private resetView(): void {
+		if (this.options.defaultView === 'fit') {
+			this.fitContentToContainer();
+		} else {
+			this.centerContent();
+		}
+	}
+
+	private centerContent(): void {
+		const containerRect = this.container.getBoundingClientRect();
+		const svgSize = this.getSvgSize();
+		if (!svgSize) {
+			return;
+		}
+
+		this.scale = 1;
+		this.fitScale = 1;
+		this.translateX = (containerRect.width - svgSize.width) / 2;
+		this.translateY = (containerRect.height - svgSize.height) / 2;
 
 		this.applyTransform();
+	}
+
+	private fitContentToContainer(): void {
+		const svgSize = this.getSvgSize();
+		if (!svgSize) {
+			return;
+		}
+
+		const containerRect = this.container.getBoundingClientRect();
+		this.scale = this.getScaleToFitContainer(svgSize, containerRect) ?? 1;
+		this.fitScale = this.scale;
+		this.translateX = (containerRect.width - (svgSize.width * this.scale)) / 2;
+		this.translateY = (containerRect.height - (svgSize.height * this.scale)) / 2;
+
+		this.applyTransform();
+	}
+
+	private getScaleToFitContainer(svgSize = this.getSvgSize(), containerRect = this.container.getBoundingClientRect()): number | undefined {
+		if (!svgSize) {
+			return;
+		}
+
+		const availableWidth = Math.max(1, containerRect.width - (this.fitPadding * 2));
+		const availableHeight = Math.max(1, containerRect.height - (this.fitPadding * 2));
+		const scale = Math.min(1, availableWidth / svgSize.width, availableHeight / svgSize.height);
+		return Number.isFinite(scale) && scale > 0 ? scale : undefined;
 	}
 
 	public reset(): void {
@@ -269,9 +344,9 @@ export class PanZoomHandler {
 		delete currentState.panZoom;
 		this.vscode.setState(currentState);
 
-		// Use requestAnimationFrame to ensure layout is updated before centering
+		// Use requestAnimationFrame to ensure layout is updated before resetting the view
 		requestAnimationFrame(() => {
-			this.centerContent();
+			this.resetView();
 		});
 	}
 
@@ -292,7 +367,8 @@ export class PanZoomHandler {
 	}
 
 	private zoomAtPoint(factor: number, x: number, y: number): void {
-		const newScale = Math.min(this.maxScale, Math.max(this.minScale, this.scale * factor));
+		const minAllowedScale = Math.min(this.minScale, this.fitScale, this.scale);
+		const newScale = Math.min(this.maxScale, Math.max(minAllowedScale, this.scale * factor));
 		const scaleFactor = newScale / this.scale;
 		this.translateX = x - (x - this.translateX) * scaleFactor;
 		this.translateY = y - (y - this.translateY) * scaleFactor;
@@ -302,18 +378,11 @@ export class PanZoomHandler {
 	}
 }
 
-export function getMermaidTheme(): 'dark' | 'default' {
-	return document.body.classList.contains('vscode-dark') || (document.body.classList.contains('vscode-high-contrast') && !document.body.classList.contains('vscode-high-contrast-light'))
-		? 'dark'
-		: 'default';
-}
-
 /**
  * Unpersisted state
  */
 interface LocalState {
 	readonly mermaidSource: string;
-	readonly theme: 'dark' | 'default';
 }
 
 interface PersistedState {
@@ -327,31 +396,28 @@ interface PersistedState {
 async function rerenderMermaidDiagram(
 	diagramElement: HTMLElement,
 	diagramText: string,
-	newTheme: 'dark' | 'default'
+	themeTracker: VsCodeMermaidThemeTracker,
 ): Promise<void> {
 	diagramElement.textContent = diagramText;
 	delete diagramElement.dataset.processed;
 
-	mermaid.initialize({
-		theme: newTheme,
-	});
+	mermaid.initialize(buildMermaidConfig(loadExtensionConfig(), themeTracker));
 	await mermaid.run({
 		nodes: [diagramElement]
 	});
 }
 
-export async function initializeMermaidWebview(vscode: VsCodeApi): Promise<PanZoomHandler | undefined> {
+export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZoomOptions): Promise<PanZoomHandler | undefined> {
 	const diagram = document.querySelector<HTMLElement>('.mermaid');
 	if (!diagram) {
 		return;
 	}
 
 	// Capture diagram state
-	const theme = getMermaidTheme();
 	const diagramText = diagram.textContent ?? '';
-	let state: LocalState = {
+	const themeTracker = new VsCodeMermaidThemeTracker();
+	const state: LocalState = {
 		mermaidSource: diagramText,
-		theme
 	};
 
 	// Save the mermaid source in the webview state
@@ -374,11 +440,8 @@ export async function initializeMermaidWebview(vscode: VsCodeApi): Promise<PanZo
 	content.appendChild(diagram);
 	wrapper.appendChild(content);
 
-	// Run mermaid
-	const config: MermaidConfig = {
-		startOnLoad: false,
-		theme,
-	};
+	// Run mermaid using the selected VS Code-themed config
+	const config: MermaidConfig = buildMermaidConfig(loadExtensionConfig(), themeTracker);
 	mermaid.initialize(config);
 	try {
 		await mermaid.run({ nodes: [diagram] });
@@ -395,7 +458,7 @@ export async function initializeMermaidWebview(vscode: VsCodeApi): Promise<PanZo
 	// Show the diagram now that it's rendered
 	diagram.classList.add('rendered');
 
-	const panZoomHandler = new PanZoomHandler(wrapper, content, vscode);
+	const panZoomHandler = new PanZoomHandler(wrapper, content, vscode, options);
 	panZoomHandler.initialize();
 
 	// Listen for messages from the extension
@@ -406,25 +469,18 @@ export async function initializeMermaidWebview(vscode: VsCodeApi): Promise<PanZo
 		}
 	});
 
-	// Re-render when theme changes
-	new MutationObserver(() => {
-		const newTheme = getMermaidTheme();
-		if (state?.theme === newTheme) {
-			return;
-		}
-
+	// Re-render when the active VS Code theme changes. The tracker watches DOM mutations on the
+	// body (theme class / data attributes) and the document element (inline CSS variable updates
+	// from `workbench.colorCustomizations`), and only fires when the resolved colors actually
+	// change.
+	themeTracker.onDidChange(() => {
 		const diagramNode = document.querySelector('.mermaid');
-		if (!diagramNode || !(diagramNode instanceof HTMLElement)) {
+		if (!(diagramNode instanceof HTMLElement)) {
 			return;
 		}
-
-		state = {
-			mermaidSource: state?.mermaidSource ?? '',
-			theme: newTheme
-		};
-
-		rerenderMermaidDiagram(diagramNode, state.mermaidSource, newTheme);
-	}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+		rerenderMermaidDiagram(diagramNode, state.mermaidSource, themeTracker);
+	});
+	themeTracker.observeDomChanges();
 
 	return panZoomHandler;
 }

@@ -12,7 +12,7 @@ import { $, append, EventHelper, addDisposableListener, EventType, getWindow, hi
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
+import { AgentSessionSection, getAgentSessionPullRequestContextValue, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowLessRenderer, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -22,7 +22,7 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Throttler } from '../../../../../base/common/async.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
@@ -43,6 +43,8 @@ import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
@@ -55,6 +57,8 @@ export interface IAgentSessionsControlOptions {
 	readonly hideSessionBadge?: boolean;
 	readonly useStatusOnlyIcons?: boolean;
 	readonly compactShowMore?: boolean;
+	readonly itemHeight?: number;
+	readonly sectionHeight?: number;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
@@ -119,6 +123,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -267,13 +272,20 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			...this.options,
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
 			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
+			pauseSessionUpdates: () => this.pauseUpdates(),
 		}, approvalModel, activeSessionResource));
 		const compact = this.options.compactShowMore;
 		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit));
+		const listDelegate = new AgentSessionsListDelegate(
+			approvalModel,
+			this.options.compactShowMore,
+			() => this.options.itemHeight ?? (this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT : AgentSessionsListDelegate.ITEM_HEIGHT),
+			() => this.options.sectionHeight ?? (this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? AgentSessionsListDelegate.SPACED_SECTION_HEIGHT : AgentSessionsListDelegate.SECTION_HEIGHT),
+		);
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			container,
-			new AgentSessionsListDelegate(approvalModel, this.options.compactShowMore),
+			listDelegate,
 			new AgentSessionsCompressionDelegate(),
 			[
 				sessionRenderer,
@@ -299,6 +311,21 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
 
 		ChatContextKeys.agentSessionsViewerFocused.bindTo(list.contextKeyService);
+
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (!event.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+				return;
+			}
+
+			const nodes = [...list.getNode().children];
+			while (nodes.length > 0) {
+				const node = nodes.pop()!;
+				if (isAgentSession(node.element) || isAgentSessionSection(node.element)) {
+					list.updateElementHeight(node.element, listDelegate.getHeight(node.element));
+				}
+				nodes.push(...node.children);
+			}
+		}));
 
 		this._register(sessionRenderer.onDidChangeItemHeight(session => {
 			if (list.hasNode(session)) {
@@ -686,6 +713,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		contextOverlay.push([ChatContextKeys.isPinnedAgentSession.key, session.isPinned()]);
 		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
 		contextOverlay.push([ChatContextKeys.agentSessionType.key, session.providerType]);
+		contextOverlay.push([ChatContextKeys.agentSessionPullRequest.key, getAgentSessionPullRequestContextValue(session)]);
 
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
@@ -773,12 +801,43 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 	}
 
-	async update(): Promise<void> {
+	async update(): Promise<boolean> {
+		if (this.updatePauseOwner) {
+			// While updates are paused (e.g. a session hover is open), avoid re-sorting the list so items don't jump
+			// around under the user's cursor. Remember that an update is pending and run it once updates are resumed.
+			this.hasPendingUpdate = true;
+			return false;
+		}
+
 		return this.updateSessionsListThrottler.queue(async () => {
+			if (this.updatePauseOwner) {
+				this.hasPendingUpdate = true;
+				return false;
+			}
+
+			this.hasPendingUpdate = false;
 			this.computeRecentRepositoryLabels();
 			await this.sessionsList?.updateChildren();
 
 			this._onDidUpdate.fire();
+			return true;
+		});
+	}
+
+	private updatePauseOwner: object | undefined;
+	private hasPendingUpdate = false;
+
+	private pauseUpdates(): IDisposable {
+		const owner = {};
+		this.updatePauseOwner = owner;
+		return toDisposable(() => {
+			if (this.updatePauseOwner !== owner) {
+				return;
+			}
+			this.updatePauseOwner = undefined;
+			if (this.hasPendingUpdate && this.visible) {
+				this.update();
+			}
 		});
 	}
 
