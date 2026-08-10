@@ -34,6 +34,13 @@ jobs:
         with:
           lfs: true
 
+      - name: Detect Agent Host E2E changes
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        id: agent-host-e2e-changes
+        uses: ./.github/actions/detect-agent-host-e2e-changes
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
@@ -366,6 +373,7 @@ jobs:
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
