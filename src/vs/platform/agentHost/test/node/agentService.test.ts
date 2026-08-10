@@ -1776,6 +1776,62 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('listSessions persists the repaired root before the session database is released', async () => {
+			// The real database rejects writes once its last reference is
+			// dropped, and listing drops that reference as soon as the repair
+			// returns. A repair that does not finish inside the reference is
+			// silently discarded, taking the stamp with it, so the session stays
+			// mis-grouped and re-resolves forever. The in-memory helper cannot
+			// show that on its own, so model the release here.
+			class ReleasableSessionDatabase extends TestSessionDatabase {
+				released = false;
+				override async setMetadata(key: string, value: string): Promise<void> {
+					// The real database queues writes behind a sequencer and only
+					// then checks whether it was closed, so a write issued just
+					// before release still fails. Deferring here reproduces that
+					// ordering; checking synchronously would let a discarded
+					// write look like a successful one.
+					await new Promise(resolve => setTimeout(resolve, 0));
+					if (this.released) {
+						throw new Error('SessionDatabase has been disposed');
+					}
+					return super.setMetadata(key, value);
+				}
+			}
+			const db = disposables.add(new ReleasableSessionDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
+			const sessionId = 'test-session-released-db';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [linkedCheckout] };
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const gitService = createNoopGitService();
+			gitService.getWorktreeRoots = async () => [primaryRoot, linkedCheckout];
+			const reference = () => ({ object: db, dispose: () => { db.released = true; } });
+			const sessionDataService: ISessionDataService = {
+				...createSessionDataService(db),
+				openDatabase: reference,
+				tryOpenDatabase: async () => reference(),
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				project: sessions[0].project?.uri.toString(),
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				persistedStamp: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
+			}, {
+				project: primaryRoot.toString(),
+				persistedRepositoryRoot: primaryRoot.toString(),
+				persistedStamp: WORKTREE_REPOSITORY_ROOT_STAMP,
+			});
+		});
+
 		test('listSessions uses SDK title when no custom title exists', async () => {
 			service.registerProvider(copilotAgent);
 			copilotAgent.sessionMetadataOverrides = { summary: 'Auto-generated Title' };
