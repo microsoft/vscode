@@ -838,6 +838,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
+	private readonly _inFlightTurns = this._register(new DisposableStore());
 	private readonly _turnStopWatches = new Map<string, StopWatch>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
@@ -2614,8 +2615,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
 		onFailureStage('observeTurn');
 		return new Promise<Turn | undefined>(resolve => {
-			const store = new DisposableStore();
-			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
+			const turnStore = this._inFlightTurns.add(new DisposableStore());
+			let completedTurn: Turn | undefined;
+			turnStore.add(toDisposable(() => {
+				this._clientDispatchedTurnIds.delete(turnId);
+				this._activeSessions.get(request.sessionResource)?.complete();
+				resolve(completedTurn);
+			}));
+			const cancelSub = turnStore.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
 				this._config.connection.dispatch(turnChannel, {
@@ -2625,7 +2632,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				});
 			}));
 
-			store.add(this._observeTurn({
+			turnStore.add(this._observeTurn({
 				backendSession: session,
 				sessionResource: request.sessionResource,
 				chatURI,
@@ -2634,10 +2641,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				cancellationToken,
 				suppressErrorMarkdown: true,
 				onTurnEnded: (lastTurn) => {
-					store.dispose();
-					this._clientDispatchedTurnIds.delete(turnId);
-					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
-					resolve(lastTurn);
+					completedTurn = lastTurn;
+					this._inFlightTurns.delete(turnStore);
 				},
 				onFileEdits: (tc) => {
 					const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
@@ -5997,7 +6002,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	override dispose(): void {
+		this._inFlightTurns.clear();
 		for (const [, session] of this._activeSessions) {
+			if (!session.isCompleteObs.get()) {
+				session.complete();
+			}
 			session.dispose();
 		}
 		this._activeSessions.clear();

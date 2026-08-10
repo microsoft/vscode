@@ -4021,6 +4021,28 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(chatSession.isCompleteObs?.get(), true, 'should be complete after turn finishes');
 		}));
 
+		test('disposing the handler settles a live turn without cancelling the backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			let settled = false;
+			void turnPromise.then(() => settled = true);
+			await timeout(0);
+
+			assert.strictEqual(settled, false, 'turn should still be awaiting backend completion');
+
+			sessionHandler.dispose();
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				settled,
+				cancelled: agentHostService.dispatchedActions.some(action => action.action.type === 'chat/turnCancelled'),
+			}, {
+				settled: true,
+				cancelled: false,
+			});
+		}));
+
 		test('live turn returns model credit details from usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
@@ -9259,6 +9281,23 @@ suite('AgentHostChatContribution', () => {
 			const markdownPart = progress.find(p => p.kind === 'markdownContent') as IChatMarkdownContent | undefined;
 			assert.ok(markdownPart, 'Should have markdown content from streaming text');
 			assert.strictEqual(markdownPart!.content.value, 'Partial response so far');
+		});
+
+		test('disposing the handler settles a restored active turn', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-dispose');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-dispose' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.strictEqual(session.isCompleteObs?.get(), false, 'session should initially reflect the active backend turn');
+
+			sessionHandler.dispose();
+
+			assert.strictEqual(session.isCompleteObs?.get(), true, 'obsolete handler should settle its local streamed response');
 		});
 
 		test('does not duplicate system notification progress when reconnecting', async () => {
