@@ -179,7 +179,14 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 
 		const verifyClient = opts.connectionTokenValidate
 			? (info: { req: httpTypes.IncomingMessage }, cb: (res: boolean, code?: number, message?: string) => void) => {
-				const tokens = new URL(info.req.url ?? '', 'http://localhost').searchParams.getAll(connectionTokenQueryName);
+				let tokens: string[];
+				try {
+					tokens = new URL(info.req.url ?? '', 'http://localhost').searchParams.getAll(connectionTokenQueryName);
+				} catch {
+					this._logService.warn('[WebSocketProtocol] Connection rejected: invalid request URL');
+					cb(false, 400, 'Bad Request');
+					return;
+				}
 				const token = tokens.length > 1 ? tokens : tokens[0];
 				if (!opts.connectionTokenValidate!(token)) {
 					this._logService.warn('[WebSocketProtocol] Connection rejected: invalid connection token');
