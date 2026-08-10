@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
+import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar } from '../common/agentHostTelemetry.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 /**
@@ -69,9 +72,14 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 		const env: Record<string, string> = {
 			...shellEnv as Record<string, string>,
+			// Announce that everything spawned below this process is driven by
+			// VS Code's agent, so `gh` inherits it. Set after the inherited
+			// env so it wins.
+			[AiAgentEnvVar]: AiAgentEnvValue,
 			VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
+			[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeCLI,
 		};
 
 		// Forward the Claude/Codex SDK overrides + codex home/args from
@@ -83,12 +91,15 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
 			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
 			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
+			byokModelsEnabled: this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId),
 		}, process.env);
 		Object.assign(env, sdkEnv);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
-		// (developer override) — see `buildAgentHostOTelEnv`.
+		// for user settings, while enterprise policy values win over inherited env —
+		// see `buildAgentHostOTelEnv`.
+		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
@@ -96,7 +107,16 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
 			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
-		}, process.env);
+		}, process.env, {
+			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
+			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
+			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
+			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
+		});
 		Object.assign(env, otelEnv);
 
 		// Forward WebSocket server configuration to the child process via env vars
@@ -139,8 +159,9 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			}
 		}
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
+		await this._removeStaleSocket();
 
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		const store = new DisposableStore();
 		store.add(client);
 
@@ -149,6 +170,30 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			store,
 			onDidProcessExit: client.onDidProcessExit
 		};
+	}
+
+	/**
+	 * Unix domain sockets outlive the process that bound them, so an agent host
+	 * that crashed leaves its socket file behind and the replacement's `listen`
+	 * fails with `EADDRINUSE` — which would burn the whole crash-restart budget
+	 * without ever recovering. Windows named pipes are refcounted by the OS and
+	 * disappear with the process, so they need no cleanup.
+	 */
+	private async _removeStaleSocket(): Promise<void> {
+		const socketPath = this._wsConfig?.socketPath;
+		if (!socketPath || process.platform === 'win32') {
+			return;
+		}
+
+		try {
+			await fs.promises.unlink(socketPath);
+		} catch (error) {
+			// Nothing to clean up in the common case; a genuinely undeletable
+			// path surfaces as a bind failure from the child instead.
+			if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+				this._logService.warn(`AgentHostStarter could not remove stale socket at ${socketPath}`, error);
+			}
+		}
 	}
 
 	private async _resolveShellEnv(): Promise<typeof process.env> {

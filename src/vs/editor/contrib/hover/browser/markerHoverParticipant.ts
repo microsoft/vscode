@@ -25,7 +25,7 @@ import * as nls from '../../../../nls.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -118,8 +118,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {
-		const message = hoverPart.marker.message;
-		return isMarkdownString(message) ? message.plainTextValue ?? message.value : message;
+		const { marker } = hoverPart;
+		const relatedInformation = isNonEmptyArray(marker.relatedInformation)
+			? marker.relatedInformation.map(related => `${basename(related.resource)}(${related.startLineNumber}, ${related.startColumn}): ${related.message}`).join('\n')
+			: undefined;
+		return [getMarkerMessageText(marker.message), relatedInformation].filter(value => !!value).join('\n');
 	}
 
 	private _renderMarkerHover(markerHover: MarkerHover, context: IEditorHoverRenderContext): IRenderedHoverPart<MarkerHover> {
@@ -152,7 +155,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				codeLink.setAttribute('href', code.target.toString(true));
 
 				disposables.add(dom.addDisposableListener(codeLink, 'click', (e) => {
-					this._openerService.open(code.target, { allowCommands: true });
+					this._openerService.open(code.target);
 					e.preventDefault();
 					e.stopPropagation();
 				}));
@@ -294,9 +297,6 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						showing = true;
 						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
-						// Hide the hover pre-emptively, otherwise the editor can close the code actions
-						// context menu as well when using keyboard navigation
-						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left,
 							y: elementPosition.top,

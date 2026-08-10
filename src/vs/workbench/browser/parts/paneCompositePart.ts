@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingPaneCompositeVerticalMargins } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -209,13 +209,16 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private onDidOpen(composite: IComposite): void {
-		this.activePaneContextKey.set(composite.getId());
+		const compositeId = composite.getId();
+		this.activePaneContextKey.set(compositeId);
+		this.element.dataset.activeComposite = compositeId;
 	}
 
 	private onDidClose(composite: IComposite): void {
 		const id = composite.getId();
 		if (this.activePaneContextKey.get() === id) {
 			this.activePaneContextKey.reset();
+			delete this.element.dataset.activeComposite;
 		}
 	}
 
@@ -615,6 +618,18 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
 		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
 
+		// Mirror the panel's outer-edge state onto the workbench container so the
+		// horizontal grid sash highlight can match the panel card's doubled outer
+		// gutter by selecting a direct class, rather than a `:has()` query on the
+		// workbench root (which would force selector invalidation across the whole
+		// workbench on every DOM change). Updated here in lockstep with the part-level
+		// classes above, so the timing is identical.
+		if (this.partId === Parts.PANEL_PART) {
+			const workbenchContainer = this.layoutService.getContainer(getWindow(this.element));
+			workbenchContainer.classList.toggle('floating-panel-outer-left', outerGutter.left);
+			workbenchContainer.classList.toggle('floating-panel-outer-right', outerGutter.right);
+		}
+
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
 
@@ -643,8 +658,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
-	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
-	 * title bar, so they have no top margin. On each window edge this part is the outermost
+	 * `box-sizing: border-box` in `part.css`). On each window edge this part is the outermost
 	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
 	 * margin, so its width inset is larger on that side.
 	 */
@@ -655,13 +669,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
-		const topMargin = this.partId === Parts.PANEL_PART ? margin : 0; // side bars are flush with the title bar
+		const { top, bottom } = getFloatingPaneCompositeVerticalMargins(this.layoutService, this.partId, getWindow(this.element));
 		const outerGutter = this.getFloatingOuterGutterEdges();
 		const leftMargin = outerGutter.left ? margin * 2 : margin;
-		const rightMargin = outerGutter.right ? margin * 2 : margin;
+		const rightMargin = outerGutter.right ? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
 		return {
 			width: leftMargin + rightMargin + borderTotal,
-			height: topMargin + margin + borderTotal
+			height: top + bottom + borderTotal
 		};
 	}
 

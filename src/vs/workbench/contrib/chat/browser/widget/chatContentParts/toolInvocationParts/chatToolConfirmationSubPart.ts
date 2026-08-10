@@ -346,7 +346,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			this.currentWidthDelegate(),
 			{ codeBlockRenderOptions },
 		));
-		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store, this.openedEditors.fileWidgetOptions);
 		container.append(part.domNode);
 
 		return part;

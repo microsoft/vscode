@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IpcMainEvent } from 'electron';
+import { IpcMainEvent, WebContents } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
@@ -19,22 +20,37 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
+import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar } from '../common/agentHostTelemetry.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
-import '../common/agentHost.config.contribution.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
 	private utilityProcessStarted: DeferredPromise<void> | undefined = undefined;
+	private readonly _windowSenders = new Map<number, WebContents>();
+	private readonly _windowSenderCleanup = this._register(new DisposableMap<number>());
 
 	private readonly _onRequestConnection = this._register(new Emitter<void>());
 	readonly onRequestConnection = this._onRequestConnection.event;
+	private readonly _onRequestRestart = this._register(new Emitter<void>());
+	readonly onRequestRestart = this._onRequestRestart.event;
 	private readonly _onWillShutdown = this._register(new Emitter<void>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
+	/**
+	 * Enterprise OTel policy forwarded by the renderer (see `AgentHostOTelPolicyIpcChannel`).
+	 * The main-process config service lacks the managed-settings (`AccountPolicyService`) policy
+	 * layer, so the renderer — which has it — sends the resolved values here before requesting
+	 * the connection that lazily spawns the host. Used as the `policySettings` of
+	 * `buildAgentHostOTelEnv` in `start()`, falling back to main-process policy when absent.
+	 */
+	private _otelPolicyFromRenderer: IAgentHostOTelSettings | undefined = undefined;
+
 	constructor(
+		private readonly _telemetryIds: IAgentHostForwardedTelemetryIds,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
@@ -44,11 +60,30 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 
 		this._register(this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire()));
 
+		// Capture the enterprise OTel policy the renderer forwards before it requests a
+		// connection (FIFO per sender ensures this lands before the spawn in `start()`).
+		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown) => {
+			this._otelPolicyFromRenderer = sanitizeAgentHostOTelPolicySettings(policy);
+		};
+		validatedIpcMain.on(AgentHostOTelPolicyIpcChannel, onOTelPolicy);
+		this._register(toDisposable(() => {
+			validatedIpcMain.removeListener(AgentHostOTelPolicyIpcChannel, onOTelPolicy);
+		}));
+
 		// Listen for new windows to establish a direct MessagePort connection to the agent host
 		const onWindowConnection = (e: IpcMainEvent, nonce: string) => this._onWindowConnection(e, nonce);
 		validatedIpcMain.on('vscode:createAgentHostMessageChannel', onWindowConnection);
 		this._register(toDisposable(() => {
 			validatedIpcMain.removeListener('vscode:createAgentHostMessageChannel', onWindowConnection);
+		}));
+
+		const onRestart = () => {
+			this._notifyWindowsWillRestart();
+			this._onRequestRestart.fire();
+		};
+		validatedIpcMain.on(AgentHostRestartIpcChannel, onRestart);
+		this._register(toDisposable(() => {
+			validatedIpcMain.removeListener(AgentHostRestartIpcChannel, onRestart);
 		}));
 	}
 
@@ -75,11 +110,29 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
 			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
 			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
+			byokModelsEnabled: this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId),
 		}, process.env);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
-		// (developer override) — see `buildAgentHostOTelEnv` for the precedence.
+		// for user settings, while enterprise policy values win over inherited env —
+		// see `buildAgentHostOTelEnv` for the precedence.
+		//
+		// Policy source: prefer the renderer-forwarded policy (its config service
+		// includes the managed-settings `AccountPolicyService` layer that the main
+		// process cannot see); fall back to the main-process policy for the keys it
+		// can resolve (e.g. native MDM via the policy channel).
+		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
+		const policySettings: IAgentHostOTelSettings = this._otelPolicyFromRenderer ?? {
+			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
+			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
+			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
+			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
+		};
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
@@ -87,7 +140,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
 			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
-		}, process.env);
+		}, process.env, policySettings);
 
 		const args = [
 			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
@@ -96,6 +149,11 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		if (this._environmentMainService.disableTelemetry) {
 			args.push('--disable-telemetry');
 		}
+
+		// Forward the host's resolved telemetry identifiers so the agent host
+		// reuses the same persisted machineId/sqmId/devDeviceId instead of
+		// recomputing them live (which can diverge). See `agentHostTelemetryEnv`.
+		const telemetryIdEnv = buildAgentHostTelemetryIdEnv(this._telemetryIds);
 
 		this.utilityProcess.start({
 			type: 'agentHost',
@@ -106,11 +164,17 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			env: {
 				...deepClone(process.env),
 				...shellEnv,
+				// Announce that everything spawned below this process is driven by
+				// VS Code's agent, so `gh` inherits it. Set after the inherited
+				// env so it wins.
+				[AiAgentEnvVar]: AiAgentEnvValue,
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
+				[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeMainProcess,
 				...sdkEnv,
 				...otelEnv,
+				...telemetryIdEnv,
 			}
 		});
 
@@ -127,6 +191,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			}
 			this._logService.error(`[AgentHost:stderr] ${data}`);
 		}));
+		store.add(this.utilityProcess.onExit(() => this._notifyWindowsWillRestart()));
 		store.add(toDisposable(() => {
 			this.utilityProcess?.kill();
 			this.utilityProcess?.dispose();
@@ -151,6 +216,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	}
 
 	private async _onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
+		this._trackWindowSender(e.sender);
 		this._onRequestConnection.fire();
 
 		// Wait for utilityProcess.start() to actually run before calling connect(),
@@ -170,6 +236,27 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		}
 
 		e.sender.postMessage('vscode:createAgentHostMessageChannelResult', nonce, [port]);
+	}
+
+	private _notifyWindowsWillRestart(): void {
+		for (const sender of this._windowSenders.values()) {
+			if (!sender.isDestroyed()) {
+				sender.send(AgentHostWillRestartIpcChannel);
+			}
+		}
+	}
+
+	private _trackWindowSender(sender: WebContents): void {
+		if (this._windowSenders.has(sender.id)) {
+			return;
+		}
+		this._windowSenders.set(sender.id, sender);
+		const onDestroyed = () => this._windowSenderCleanup.deleteAndDispose(sender.id);
+		sender.once('destroyed', onDestroyed);
+		this._windowSenderCleanup.set(sender.id, toDisposable(() => {
+			sender.removeListener('destroyed', onDestroyed);
+			this._windowSenders.delete(sender.id);
+		}));
 	}
 
 	private static readonly _expectedStderrPatterns = [

@@ -14,7 +14,7 @@ import { CommandsRegistry } from '../../../../../../platform/commands/common/com
 import { ContextKeyExpression, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IChat } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -37,6 +37,7 @@ function makeActiveSession(providerId: string): IActiveSession {
 		mode: observableValue('mo', undefined),
 		isArchived: observableValue('ia', false),
 		isRead: observableValue('ir', true),
+		interactivity: observableValue('ii', ChatInteractivity.Full),
 		checkpoints: observableValue('cp', undefined),
 		lastTurnEnd: observableValue('lte', undefined),
 		description: observableValue('d', undefined),
@@ -64,9 +65,14 @@ function makeActiveSession(providerId: string): IActiveSession {
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('ac', chat),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 		isCreated: observableValue('isCreated', true),
 		sticky: observableValue('sticky', false),
+		openChats: observableValue('openChats', [chat]),
+		closedChats: constObservable([]),
+		lastClosedChat: undefined,
+		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
 	} satisfies IActiveSession;
 }
 

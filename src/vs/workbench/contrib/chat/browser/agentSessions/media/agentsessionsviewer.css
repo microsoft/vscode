@@ -26,6 +26,18 @@
 		border-radius: 6px;
 	}
 
+	/* Suppressed while selected so the selection highlight is not overpainted. */
+	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.agent-session-icon.needs-input) {
+		animation: agent-session-needs-input-accent-pulse 3s ease-in-out infinite;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.agent-session-icon.needs-input) {
+			animation: none;
+			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+		}
+	}
+
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}
@@ -68,6 +80,20 @@
 		height: 16px;
 		align-items: center;
 		color: var(--vscode-descriptionForeground);
+		font-size: 12px;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
+	.monaco-list-row .agent-session-pending-voice-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		margin-left: 4px;
+		color: var(--vscode-charts-blue);
 		font-size: 12px;
 		pointer-events: none;
 
@@ -130,7 +156,7 @@
 
 			.agent-session-icon {
 				flex-shrink: 0;
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize, 16px);
 				height: 16px;
 				display: flex;
 				align-items: center;
@@ -430,5 +456,15 @@
 	}
 	50% {
 		opacity: 0.4;
+	}
+}
+
+/* PROTO: yellow background pulse for "Input needed" session rows. */
+@keyframes agent-session-needs-input-accent-pulse {
+	0%, 100% {
+		background-color: transparent;
+	}
+	50% {
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
 	}
 }

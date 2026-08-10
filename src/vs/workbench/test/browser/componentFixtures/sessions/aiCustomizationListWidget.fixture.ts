@@ -12,7 +12,7 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -37,10 +37,6 @@ import '../../../../../platform/theme/common/colors/listColors.js';
 // Mock helpers
 // ============================================================================
 
-const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
-};
-
 interface IFixtureInstructionFile {
 	readonly promptPath: IPromptPath;
 	readonly name?: string;
@@ -54,6 +50,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
 		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeAgentInstructions = Event.None;
 		override readonly onDidChangeHooks = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override async listPromptFiles(type: PromptsType) {
@@ -63,6 +60,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 			return [];
 		}
 		override async listAgentInstructions() { return agentInstructionFiles; }
+		override async listPromptFilesForStorage() { return []; }
 		override async getCustomAgents() { return []; }
 		override async findAgentSkills() { return []; }
 		override async getPromptSlashCommands() { return []; }
@@ -112,13 +110,12 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }
-		override getStorageSourceFilter() { return defaultFilter; }
 		override getSkillUIIntegrations() { return new Map(); }
 	}();
 }
 
 function createMockHarnessService(): ICustomizationHarnessService {
-	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
+	const descriptor = createVSCodeHarnessDescriptor();
 	const activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
@@ -126,7 +123,6 @@ function createMockHarnessService(): ICustomizationHarnessService {
 		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
 		override findHarnessById(id: string) { return id === descriptor.id ? descriptor : undefined; }
-		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }
 		override setActiveSession(sessionResource: URI) { activeSessionResource.set(sessionResource, undefined); }
 		override getSessionResourceForHarness() { return activeSessionResource.get(); }

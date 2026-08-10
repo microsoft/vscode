@@ -34,6 +34,7 @@ export interface IUpdate {
  * Ready: Code will be updated as soon as it restarts (win32, darwin).
  * Downloaded: There is an update ready to be installed in the background (win32).
  * Overwriting: A newer update is being downloaded to replace the pending update (darwin).
+ * Cancelling: Updates are being disabled at runtime; in-flight/pending work is being torn down before Disabled.
  */
 
 export const enum StateType {
@@ -47,6 +48,7 @@ export const enum StateType {
 	Updating = 'updating',
 	Ready = 'ready',
 	Overwriting = 'overwriting',
+	Cancelling = 'cancelling',
 	Restarting = 'restarting',
 }
 
@@ -76,9 +78,10 @@ export type Downloaded = { type: StateType.Downloaded; update: IUpdate; explicit
 export type Updating = { type: StateType.Updating; update: IUpdate; currentProgress?: number; maxProgress?: number; explicit: boolean };
 export type Ready = { type: StateType.Ready; update: IUpdate; explicit: boolean; overwrite: boolean };
 export type Overwriting = { type: StateType.Overwriting; update: IUpdate; explicit: boolean };
+export type Cancelling = { type: StateType.Cancelling };
 export type Restarting = { type: StateType.Restarting; update: IUpdate };
 
-export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready | Overwriting | Restarting;
+export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready | Overwriting | Cancelling | Restarting;
 
 export const State = {
 	Uninitialized: upcast<Uninitialized>({ type: StateType.Uninitialized }),
@@ -91,6 +94,7 @@ export const State = {
 	Updating: (update: IUpdate, explicit: boolean, currentProgress?: number, maxProgress?: number): Updating => ({ type: StateType.Updating, update, explicit, currentProgress, maxProgress }),
 	Ready: (update: IUpdate, explicit: boolean, overwrite: boolean): Ready => ({ type: StateType.Ready, update, explicit, overwrite }),
 	Overwriting: (update: IUpdate, explicit: boolean): Overwriting => ({ type: StateType.Overwriting, update, explicit }),
+	Cancelling: upcast<Cancelling>({ type: StateType.Cancelling }),
 	Restarting: (update: IUpdate): Restarting => ({ type: StateType.Restarting, update }),
 };
 

@@ -32,12 +32,30 @@ export const FEEDBACK_ANNOTATION_META_KEY = 'vscode.agentFeedback';
 export const VIEW_UNREVIEWED_COMMENTS_TOOL_NAME = 'viewUnreviewedComments';
 
 /**
+ * Name of the agent host server tool that adds a comment (agent feedback) to a
+ * file range. Shared here (in the layer-neutral `common` module) so the
+ * node-side server tool implementation and the browser-side chat adapter that
+ * renders its tool call agree on the name without drifting. The agent sees this
+ * name directly (Copilot) or prefixed as `mcp__host__<name>` (Claude).
+ */
+export const ADD_COMMENT_TOOL_NAME = 'addComment';
+
+/**
  * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
  * {@link VIEW_UNREVIEWED_COMMENTS_TOOL_NAME} server tool. Accepts both the bare
  * name and the Claude `mcp__<server>__<name>` prefixed form.
  */
 export function isViewUnreviewedCommentsTool(toolName: string): boolean {
 	return toolName === VIEW_UNREVIEWED_COMMENTS_TOOL_NAME || toolName.endsWith(`__${VIEW_UNREVIEWED_COMMENTS_TOOL_NAME}`);
+}
+
+/**
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
+ * {@link ADD_COMMENT_TOOL_NAME} server tool. Accepts both the bare name and the
+ * Claude `mcp__<server>__<name>` prefixed form.
+ */
+export function isAddCommentTool(toolName: string): boolean {
+	return toolName === ADD_COMMENT_TOOL_NAME || toolName.endsWith(`__${ADD_COMMENT_TOOL_NAME}`);
 }
 
 /**
@@ -73,11 +91,9 @@ export interface IFeedbackAnnotationMeta {
 	readonly sourcePRReviewCommentId?: string;
 	/**
 	 * Transient marker set by the client when the user reveals this comment to
-	 * the agent via the `viewUnreviewedComments` tool. The server tool returns
-	 * exactly the comments carrying this flag (so the result is scoped to the
-	 * comments selected for that invocation rather than every accepted review
-	 * comment) and clears it once they have been delivered, so a later
-	 * invocation does not re-return them.
+	 * the agent via the `viewUnreviewedComments` tool. The marker persists until
+	 * the server tool delivers the comment, so an interrupted execution does not
+	 * lose the user's selection. The server tool clears it after delivery.
 	 */
 	readonly pendingAgentReveal?: boolean;
 }

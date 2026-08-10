@@ -21,6 +21,13 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 
 
+// Keep in sync with `BYOKUtilityModelDefault` in `src/vs/workbench/contrib/chat/common/constants.ts` and the `chat.byokUtilityModelDefault` enum in `chat.shared.contribution.ts`.
+const enum BYOKUtilityModelDefault {
+	None = 'none',
+	MainAgent = 'mainAgent',
+	Copilot = 'copilot',
+}
+
 export class ProductionEndpointProvider extends Disposable implements IEndpointProvider {
 
 	declare readonly _serviceBrand: undefined;
@@ -53,11 +60,14 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 			this._onDidModelsRefresh.fire();
 		}));
 
-		// When the user changes their utility model overrides we need to invalidate any
-		// previously-resolved utility alias endpoints so the next request re-resolves.
+		// Utility model configuration changes invalidate previously resolved aliases.
 		this._register(this._configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ProductionEndpointProvider.UTILITY_MODEL_CONFIG_KEY) || e.affectsConfiguration(ProductionEndpointProvider.UTILITY_SMALL_MODEL_CONFIG_KEY)) {
-				this._logService.trace(`[ProductionEndpointProvider] Utility model override changed; invalidating alias endpoints.`);
+			if (
+				e.affectsConfiguration(ProductionEndpointProvider.UTILITY_MODEL_CONFIG_KEY)
+				|| e.affectsConfiguration(ProductionEndpointProvider.UTILITY_SMALL_MODEL_CONFIG_KEY)
+				|| e.affectsConfiguration(ProductionEndpointProvider.BYOK_UTILITY_MODEL_DEFAULT_CONFIG_KEY)
+			) {
+				this._logService.trace(`[ProductionEndpointProvider] Utility model configuration changed; invalidating alias endpoints.`);
 				// Clear telemetry fingerprints so a re-applied override emits
 				// once for its new value.
 				this._lastOverrideTelemetryFingerprint.clear();
@@ -76,6 +86,8 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	// `vscode.lm.selectChatModels({ vendor, id })`.
 	private static readonly UTILITY_MODEL_CONFIG_KEY = 'chat.utilityModel';
 	private static readonly UTILITY_SMALL_MODEL_CONFIG_KEY = 'chat.utilitySmallModel';
+	private static readonly BYOK_UTILITY_MODEL_DEFAULT_CONFIG_KEY = 'chat.byokUtilityModelDefault';
+	private _mainAgentBYOKModel: LanguageModelChat | undefined;
 
 	/**
 	 * Per-family marker recording that we already emitted a telemetry event
@@ -106,6 +118,18 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 
 		if (!model) {
 			return this.getChatEndpoint('copilot-utility');
+		}
+
+		if (model.id !== 'copilot-utility' && model.id !== 'copilot-utility-small') {
+			const mainAgentBYOKModel = model.vendor !== 'copilot' ? model : undefined;
+			const mainAgentModelChanged = this._mainAgentBYOKModel?.vendor !== mainAgentBYOKModel?.vendor
+				|| this._mainAgentBYOKModel?.id !== mainAgentBYOKModel?.id
+				|| this._mainAgentBYOKModel?.version !== mainAgentBYOKModel?.version;
+			this._mainAgentBYOKModel = mainAgentBYOKModel;
+			if (mainAgentModelChanged) {
+				this._lastOverrideTelemetryFingerprint.clear();
+				this._onDidModelsRefresh.fire();
+			}
 		}
 
 		if (model.vendor !== 'copilot') {
@@ -156,22 +180,60 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	 * `copilot-utility`) to a concrete `CopilotChatEndpoint`. The model
 	 * selection for each family lives in the corresponding resolver
 	 * class so callers don't need to know which CAPI family backs each
-	 * purpose. For any other string, falls through to a direct CAPI
-	 * family lookup so callers can resolve arbitrary CAPI-registered
-	 * model families (e.g. `trajectory-compaction`) by name.
+	 * purpose.
 	 */
-	private async _resolveUtilityFamily(family: ChatEndpointFamily): Promise<IChatEndpoint> {
+	private async _resolveUtilityFamily(family: 'copilot-utility' | 'copilot-utility-small'): Promise<IChatEndpoint> {
 		const override = await this._resolveUtilityOverride(family);
 		if (override) {
 			return override;
 		}
-		if (family === 'copilot-utility-small') {
-			return CopilotUtilitySmallChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
-		} else if (family === 'copilot-utility') {
-			return CopilotUtilityChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
+
+		if (this._mainAgentBYOKModel) {
+			switch (this._getBYOKUtilityModelDefault()) {
+				case BYOKUtilityModelDefault.MainAgent:
+					return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, this._mainAgentBYOKModel);
+				case BYOKUtilityModelDefault.None:
+					throw this._createMissingUtilityModelError(family);
+				case BYOKUtilityModelDefault.Copilot:
+					// Copilot utility models require a Copilot token source (unavailable for air-gapped / signed-out BYOK).
+					if (!this._authService.hasCopilotTokenSource) {
+						throw this._createMissingUtilityModelError(family);
+					}
+					break;
+			}
 		}
-		const modelMetadata = await this._modelFetcher.getChatModelFromCapiFamily(family);
-		return this.getOrCreateChatEndpointInstance(modelMetadata);
+
+		switch (family) {
+			case 'copilot-utility-small':
+				return CopilotUtilitySmallChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
+			case 'copilot-utility':
+				return CopilotUtilityChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
+		}
+	}
+
+	/** Creates an actionable error for when no usable utility model is available for a BYOK main agent model. */
+	private _createMissingUtilityModelError(family: 'copilot-utility' | 'copilot-utility-small'): Error {
+		const utilityModelSetting = family === 'copilot-utility' ? 'chat.utilityModel' : 'chat.utilitySmallModel';
+		// 'copilot' is only usable when a Copilot token is available; for
+		// air-gapped / signed-out BYOK it cannot be used, so don't offer it.
+		const defaultOptions = this._authService.hasCopilotTokenSource ? `'mainAgent' or 'copilot'` : `'mainAgent'`;
+		return new Error(`No utility model is configured for '${family}' while the selected main agent model is BYOK. Configure setting '${utilityModelSetting}' or set 'chat.byokUtilityModelDefault' to ${defaultOptions}.`);
+	}
+
+	private _getBYOKUtilityModelDefault(): BYOKUtilityModelDefault {
+		const value = this._configService.getNonExtensionConfig<unknown>(ProductionEndpointProvider.BYOK_UTILITY_MODEL_DEFAULT_CONFIG_KEY);
+		switch (value) {
+			case undefined:
+				// Preserve the Copilot default when running against a core that does not register this setting.
+				return BYOKUtilityModelDefault.Copilot;
+			case BYOKUtilityModelDefault.None:
+			case BYOKUtilityModelDefault.MainAgent:
+			case BYOKUtilityModelDefault.Copilot:
+				return value;
+			default:
+				this._logService.warn(`[ProductionEndpointProvider] Ignoring invalid ${ProductionEndpointProvider.BYOK_UTILITY_MODEL_DEFAULT_CONFIG_KEY} value: '${String(value)}'.`);
+				return BYOKUtilityModelDefault.None;
+		}
 	}
 
 	/**

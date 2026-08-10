@@ -65,7 +65,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 	}
 
 	private _trackSession(session: ISession): void {
-		if (session.capabilities.runsWorktreeCreatedTasks) {
+		if (session.capabilities.get().runsWorktreeCreatedTasks) {
 			// The session's runtime already runs these tasks itself.
 			return;
 		}

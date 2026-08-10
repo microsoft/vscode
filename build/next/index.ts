@@ -100,6 +100,7 @@ const desktopEntryPoints = [
 	'vs/sessions/sessions.desktop.main',
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
+	'vs/platform/localTranscription/node/localTranscriptionMain',
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/platform/agentHost/node/agentHostMain',
 	'vs/platform/agentHost/node/diffWorkerMain',
@@ -246,6 +247,7 @@ const commonResourcePatterns = [
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
+	'vs/workbench/contrib/chat/browser/widget/media/chatPet/*.{gif,png}',
 	'vs/sessions/contrib/chat/browser/media/*.svg',
 	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
 ];
@@ -282,6 +284,7 @@ const desktopResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
@@ -342,6 +345,7 @@ const serverWebResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
@@ -369,6 +373,7 @@ const webResourcePatterns = [
 
 	// Media - audio
 	'vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',

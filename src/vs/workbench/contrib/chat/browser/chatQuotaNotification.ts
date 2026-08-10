@@ -3,19 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { safeIntl } from '../../../../base/common/date.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
-import { ILanguageModelsService } from '../common/languageModels.js';
-import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { getSelectedModelIdentifier, getSelectedModelMetadata, isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX, SELECTED_MODEL_STORAGE_SCOPE } from '../common/chatSelectedModel.js';
+import { ILanguageModelsService, isAutoLanguageModel } from '../common/languageModels.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
+const SWITCH_TO_AUTO_TREATMENT_NAME = 'config.chatQuotaWarningSwitchToAuto';
+const TRAJECTORY_NUDGE_SPEC = {
+	treatmentName: 'config.chatQuotaTrajectoryNudge',
+	shownStorageKey: 'chat.quotaTrajectory.shownPeriod',
+	averageDailyUsageThreshold: 4.5,
+	minimumPercentUsed: 10,
+	maximumPercentUsed: 35,
+	msPerDay: 24 * 60 * 60 * 1000,
+	learnMoreUrl: 'https://aka.ms/token-usage-tips',
+	learnMoreCommandId: 'workbench.action.chat.learnMoreAboutCreditUsage',
+} as const;
+
+type ChatQuotaTrajectoryNudgeLinkClickedClassification = {
+	owner: 'rfeltis';
+	comment: 'Tracks when users click the chat quota trajectory nudge learn more link.';
+};
+
+type ChatQuotaTrajectoryNudgeEnrollmentEvent = {
+	treatment: boolean;
+	entitlement: string;
+	averageDailyUsage: number;
+	percentUsed: number;
+};
+
+type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
+	owner: 'rfeltis';
+	comment: 'Tracks when a user is assigned to a flight for the chat quota trajectory nudge experiment, to measure experiment exposure.';
+	treatment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The treatment value assigned by the experiment service (true for the treatment arm, false for control).' };
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the user was assigned to the experiment flight.' };
+	averageDailyUsage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The average daily monthly quota usage percentage when the user was assigned to the experiment flight.' };
+	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the user was assigned to the experiment flight.' };
+};
 
 /**
  * Persisted flag remembering that the user dismissed the quota-exceeded
@@ -53,6 +93,11 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevAdditionalUsageEnabled: boolean | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
+	private _switchToAutoTreatment: boolean | undefined;
+	private _switchToAutoAssignmentRequested = false;
+	private _activeQuotaWarning: { percentUsed: number; threshold: number } | undefined;
+	private _trajectoryTreatment: boolean | undefined;
+	private _trajectoryAssignmentRequested = false;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -60,19 +105,25 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
+		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._refreshActiveQuotaApproachingWarning()));
+		this._register(CommandsRegistry.registerCommand(TRAJECTORY_NUDGE_SPEC.learnMoreCommandId, (accessor: ServicesAccessor) => this._handleCreditEfficiencyLearnMoreCommand(accessor)));
 
 		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
 		// The chatModelId context key is widget-scoped and may not bubble to the global
 		// service, so we also listen for storage changes on the persisted model selection key.
 		const storageListener = this._register(new DisposableStore());
-		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, storageListener)(e => {
+		this._register(this._storageService.onDidChangeValue(SELECTED_MODEL_STORAGE_SCOPE, undefined, storageListener)(e => {
 			if (e.key.startsWith(SELECTED_MODEL_STORAGE_KEY_PREFIX)) {
+				this._refreshActiveQuotaApproachingWarning();
 				this._update();
 			}
 		}));
@@ -88,6 +139,57 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		// Check initial state in case quota is already exhausted at startup
 		this._update();
+	}
+
+	private async _resolveSwitchToAutoTreatment(): Promise<void> {
+		const treatment = await this._assignmentService.getTreatment<boolean>(SWITCH_TO_AUTO_TREATMENT_NAME);
+		this._switchToAutoTreatment = treatment;
+		if (treatment === true) {
+			this._refreshActiveQuotaApproachingWarning();
+		}
+	}
+
+	private _requestSwitchToAutoTreatment(): void {
+		if (!this._switchToAutoAssignmentRequested) {
+			this._switchToAutoAssignmentRequested = true;
+			void this._resolveSwitchToAutoTreatment().catch(error => {
+				this._logService.error(`Failed to resolve ${SWITCH_TO_AUTO_TREATMENT_NAME}`, error);
+				this._switchToAutoAssignmentRequested = false;
+			});
+		}
+	}
+
+	/**
+	 * Reads the already-evaluated trajectory experiment cohort. The assignment
+	 * service resolves the cohort asynchronously, so this is requested only once
+	 * the user has met every non-experiment condition required for the nudge.
+	 *
+	 * Stores the raw treatment value. `undefined` means the user is not
+	 * assigned to the flight (or assignments are not available); only a `true`
+	 * treatment renders the nudge. We deliberately do not coerce a missing
+	 * assignment into a synthetic "control" value, since that would assume an
+	 * enrollment that may not exist. Enrollment telemetry is emitted only when
+	 * the user is actually assigned to a flight.
+	 */
+	private async _resolveTrajectoryTreatment(warning: { averageDailyUsage: number; percentUsed: number }): Promise<void> {
+		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_NUDGE_SPEC.treatmentName);
+		this._trajectoryTreatment = treatment;
+		if (treatment !== undefined) {
+			this._logQuotaTrajectoryNudgeEnrolled(treatment, warning);
+		}
+		if (treatment === true) {
+			this._update();
+		}
+	}
+
+	private _requestTrajectoryTreatment(warning: { averageDailyUsage: number; percentUsed: number }): void {
+		if (!this._trajectoryAssignmentRequested) {
+			this._trajectoryAssignmentRequested = true;
+			void this._resolveTrajectoryTreatment(warning).catch(error => {
+				this._logService.error(`Failed to resolve ${TRAJECTORY_NUDGE_SPEC.treatmentName}`, error);
+				this._trajectoryAssignmentRequested = false;
+			});
+		}
 	}
 
 	private _getRelevantSnapshot(): IQuotaSnapshot | undefined {
@@ -179,6 +281,12 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		// Priority 2: Quota approaching threshold
 		if (isQuotaNotificationEligible) {
+			const trajectoryWarning = this._computeQuotaTrajectoryWarning();
+			if (trajectoryWarning) {
+				this._showQuotaTrajectoryWarning(trajectoryWarning);
+				return;
+			}
+
 			const quotaWarning = this._computeQuotaWarning();
 			if (quotaWarning) {
 				this._showQuotaApproachingWarning(quotaWarning);
@@ -202,7 +310,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Threshold crossing detection ----------------------------------------
 
-	private _computeQuotaWarning(): { percentUsed: number } | undefined {
+	private _computeQuotaWarning(): { percentUsed: number; threshold: number } | undefined {
 		const snapshot = this._getRelevantSnapshot();
 		if (!snapshot || snapshot.unlimited) {
 			this._prevQuotaPercentUsed = undefined;
@@ -212,9 +320,89 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const crossed = this._findCrossedThreshold(percentUsed, this._prevQuotaPercentUsed);
 		this._prevQuotaPercentUsed = percentUsed;
 		if (crossed !== undefined) {
-			return { percentUsed: Math.floor(percentUsed) };
+			return { percentUsed: Math.floor(percentUsed), threshold: crossed };
 		}
 		return undefined;
+	}
+
+	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
+		if (this._isTrajectoryShownInCurrentPeriod()) {
+			return undefined;
+		}
+
+		const snapshot = this._getRelevantSnapshot();
+		if (!snapshot || snapshot.unlimited || snapshot.percentRemaining <= 0) {
+			return undefined;
+		}
+
+		const resetDate = this._chatEntitlementService.quotas.resetDate;
+		if (!resetDate) {
+			return undefined;
+		}
+
+		const reset = new Date(resetDate);
+		const resetTime = reset.getTime();
+		if (!Number.isFinite(resetTime)) {
+			return undefined;
+		}
+
+		const periodStart = new Date(resetTime);
+		periodStart.setUTCMonth(periodStart.getUTCMonth() - 1);
+		const periodStartTime = periodStart.getTime();
+		const elapsedDays = (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay;
+		if (elapsedDays < 0) {
+			return undefined;
+		}
+
+		const percentUsed = 100 - snapshot.percentRemaining;
+		if (percentUsed < TRAJECTORY_NUDGE_SPEC.minimumPercentUsed || percentUsed > TRAJECTORY_NUDGE_SPEC.maximumPercentUsed) {
+			return undefined;
+		}
+
+		const averageDailyUsage = percentUsed / Math.max(1, elapsedDays);
+		if (averageDailyUsage < TRAJECTORY_NUDGE_SPEC.averageDailyUsageThreshold) {
+			return undefined;
+		}
+
+		this._requestTrajectoryTreatment({ averageDailyUsage, percentUsed });
+		return this._trajectoryTreatment === true ? { averageDailyUsage, percentUsed } : undefined;
+	}
+
+	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
+		this._showingExhausted = false;
+		this._storeTrajectoryShown();
+		const learnMoreLink = createMarkdownCommandLink({
+			text: localize('quota.trajectory.learnMoreStandalone', "Learn about optimizing usage"),
+			id: TRAJECTORY_NUDGE_SPEC.learnMoreCommandId,
+			tooltip: localize('quota.trajectory.learnMoreTooltip', "Learn about optimizing usage"),
+		});
+		const message = localize({ key: 'quota.trajectory.message', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You're likely to exhaust your AI credits before your billing period. {0}.", learnMoreLink);
+
+		this._setNotification({
+			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'quotaTrajectoryNudge',
+			severity: ChatInputNotificationSeverity.Info,
+			message: new MarkdownString(message, { isTrusted: { enabledCommands: [TRAJECTORY_NUDGE_SPEC.learnMoreCommandId] } }),
+			description: undefined,
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+		});
+	}
+
+	private async _handleCreditEfficiencyLearnMoreCommand(accessor: ServicesAccessor): Promise<void> {
+		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeLinkClickedClassification>('chatQuotaTrajectoryNudgeLinkClicked');
+		queueMicrotask(() => this._hideNotification());
+		await accessor.get(IOpenerService).open(URI.parse(TRAJECTORY_NUDGE_SPEC.learnMoreUrl));
+	}
+
+	private _logQuotaTrajectoryNudgeEnrolled(treatment: boolean, warning: { averageDailyUsage: number; percentUsed: number }): void {
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
+			treatment,
+			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
+			averageDailyUsage: Math.round(warning.averageDailyUsage * 100) / 100,
+			percentUsed: Math.round(warning.percentUsed * 100) / 100,
+		});
 	}
 
 	/**
@@ -247,19 +435,19 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		if (entitlement === ChatEntitlement.Unknown) {
 			description = localize('quota.exhausted.anonymous', "Sign in to keep going.");
-			actions = [{ label: localize('signIn', "Sign In"), commandId: 'workbench.action.chat.triggerSetup' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('signIn', "Sign In"), commandId: 'workbench.action.chat.triggerSetup' }];
 		} else if (entitlement === ChatEntitlement.Free) {
 			description = localize('quota.exhausted.free', "Upgrade to keep going.");
-			actions = [{ label: localize('upgrade', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('upgrade', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
 		} else if (this._isManagedPlan(entitlement)) {
 			description = localize('quota.exhausted.managed', "Contact your admin to increase your limits.");
 			actions = [];
 		} else if (hadOverage) {
 			description = localize('quota.exhausted.hadOverage', "Increase your budget to keep building.");
-			actions = [{ label: localize('manageBudget', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		} else {
 			description = localize('quota.exhausted.default', "Manage your budget to keep building.");
-			actions = [{ label: localize('manageBudget2', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget2', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		}
 
 		this._setNotification({
@@ -293,8 +481,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Quota approaching --------------------------------------------------
 
-	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
+	private _showQuotaApproachingWarning(warning: { percentUsed: number; threshold: number }): void {
 		this._showingExhausted = false;
+		this._activeQuotaWarning = warning;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -304,7 +493,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		if (entitlement === ChatEntitlement.Unknown || entitlement === ChatEntitlement.Free) {
 			description = localize('quota.approaching.free', "Upgrade to continue past the limit.");
-			actions = [{ label: localize('upgrade2', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('upgrade2', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
 		} else if (this._isManagedPlan(entitlement)) {
 			description = localize('quota.approaching.managed', "Contact your admin to increase your limits.");
 			actions = [];
@@ -312,13 +501,23 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			description = localize('quota.approaching.overageEnabled', "Additional budget is enabled to cover extra usage.");
 			actions = [];
 		} else {
-			description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
-			actions = [{ label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			const autoModelIdentifier = this._getAutoModelIdentifier();
+			const canSwitchToAuto = !!autoModelIdentifier && !this._isAutoModelSelected(autoModelIdentifier);
+			if (canSwitchToAuto) {
+				this._requestSwitchToAutoTreatment();
+			}
+			if (this._switchToAutoTreatment === true && canSwitchToAuto) {
+				description = localize('quota.approaching.switchToAuto', "Switch to Auto to reduce credit usage.");
+				actions = [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: localize('switchToAuto', "Switch to Auto"), modelIdentifier: autoModelIdentifier }];
+			} else {
+				description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
+				actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			}
 		}
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
-			telemetryId: 'quotaApproaching',
+			telemetryId: `quotaApproaching${warning.threshold}`,
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,
@@ -399,6 +598,37 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		return isSelectedModelCopilot(this._contextKeyService, this._storageService, this._languageModelsService);
 	}
 
+	private _getAutoModelIdentifier(): string | undefined {
+		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
+			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
+			if (metadata && isAutoLanguageModel({ identifier, metadata })) {
+				return identifier;
+			}
+		}
+		return undefined;
+	}
+
+	private _isAutoModelSelected(autoModelIdentifier: string): boolean {
+		const identifier = getSelectedModelIdentifier(this._contextKeyService, this._storageService);
+		const autoModel = this._languageModelsService.lookupLanguageModel(autoModelIdentifier);
+		if (identifier === autoModelIdentifier || identifier === autoModel?.id) {
+			return true;
+		}
+		const metadata = getSelectedModelMetadata(this._contextKeyService, this._storageService, this._languageModelsService);
+		return !!metadata && isAutoLanguageModel({ identifier: identifier ?? '', metadata });
+	}
+
+	private _refreshActiveQuotaApproachingWarning(): void {
+		const warning = this._activeQuotaWarning;
+		if (!warning || !this._isCopilotModelSelected()) {
+			return;
+		}
+		const notification = this._chatInputNotificationService.getActiveNotification(candidate => candidate.id === QUOTA_NOTIFICATION_ID);
+		if (notification?.telemetryId === `quotaApproaching${warning.threshold}`) {
+			this._showQuotaApproachingWarning(warning);
+		}
+	}
+
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
 		return entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
 	}
@@ -431,6 +661,30 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			? { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }
 			: { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }
 		).value.format(resetDate);
+	}
+
+	private _getTrajectoryPeriodKey(): string | undefined {
+		const resetDate = this._chatEntitlementService.quotas.resetDate;
+		if (!resetDate) {
+			return undefined;
+		}
+		const date = new Date(resetDate);
+		if (!Number.isFinite(date.getTime())) {
+			return undefined;
+		}
+		return `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}`;
+	}
+
+	private _isTrajectoryShownInCurrentPeriod(): boolean {
+		const periodKey = this._getTrajectoryPeriodKey();
+		return !!periodKey && this._storageService.get(TRAJECTORY_NUDGE_SPEC.shownStorageKey, StorageScope.APPLICATION) === periodKey;
+	}
+
+	private _storeTrajectoryShown(): void {
+		const periodKey = this._getTrajectoryPeriodKey();
+		if (periodKey) {
+			this._storageService.store(TRAJECTORY_NUDGE_SPEC.shownStorageKey, periodKey, StorageScope.APPLICATION, StorageTarget.USER);
+		}
 	}
 
 	private _setNotification(notification: IChatInputNotification): void {

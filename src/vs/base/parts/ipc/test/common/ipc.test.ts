@@ -117,6 +117,7 @@ class TestService implements ITestService {
 
 	private readonly _onPong = new Emitter<string>();
 	readonly onPong = this._onPong.event;
+	get hasPongListeners(): boolean { return this._onPong.hasListeners(); }
 
 	marco(): Promise<string> {
 		return Promise.resolve('polo');
@@ -320,6 +321,48 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(messages, ['hello', 'world']);
 		});
 
+		test('unbuffered events subscribe lazily', function () {
+			const service = store.add(new TestService());
+			const channelDisposables = store.add(new DisposableStore());
+			const channel = ProxyChannel.fromService(service, channelDisposables, { unbufferedEvents: ['onPong'] });
+			const onPong = channel.listen<string>('context', 'onPong');
+			const messages: string[] = [];
+
+			service.ping('before');
+			assert.strictEqual(service.hasPongListeners, false);
+
+			const listener = channelDisposables.add(onPong(message => messages.push(message)));
+			assert.strictEqual(service.hasPongListeners, true);
+			service.ping('after');
+			channelDisposables.delete(listener);
+
+			assert.deepStrictEqual({ messages, hasPongListeners: service.hasPongListeners }, {
+				messages: ['after'],
+				hasPongListeners: false
+			});
+		});
+
+		test('listen to events (resubscribe)', async function () {
+			const onPong = ipcService.onPong;
+			const messages: string[] = [];
+
+			const disposable1 = onPong(msg => messages.push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			disposable1.dispose();
+
+			const disposable2 = onPong(msg => (messages as string[]).push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello', 'world']);
+			disposable2.dispose();
+		});
+
 		test('buffers in arrays', async function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.strictEqual(r, 5);
@@ -441,6 +484,27 @@ suite('Base IPC', function () {
 			await timeout(0);
 
 			assert.deepStrictEqual(messages, ['hello', 'world']);
+		});
+
+		test('listen to events (resubscribe)', async function () {
+			const onPong = ipcService.onPong;
+			const messages: string[] = [];
+
+			const disposable1 = onPong(msg => messages.push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			disposable1.dispose();
+
+			const disposable2 = onPong(msg => (messages as string[]).push(msg));
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+			assert.deepStrictEqual(messages, ['hello', 'world']);
+			disposable2.dispose();
 		});
 
 		test('marshalling uri', async function () {

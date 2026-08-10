@@ -104,12 +104,12 @@ export const globalAutoApproveDescription = localize2(
 		comment: [
 			'{Locked=\'](https://github.com/features/codespaces)\'}',
 			'{Locked=\'](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)\'}',
-			'{Locked=\'](https://code.visualstudio.com/docs/copilot/security)\'}',
+			'{Locked=\'](https://code.visualstudio.com/docs/agents/run/security)\'}',
 			'{Locked=\'**\'}',
 			'{Locked=\'[`chat.autoReply`](command:workbench.action.openSettings?%5B%22chat.autoReply%22%5D)\'}',
 		]
 	},
-	'Global auto approve also known as "YOLO mode" disables manual approval completely for _all tools in all workspaces_, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like [Codespaces](https://github.com/features/codespaces) and [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) have user keys forwarded into the container that could be compromised.\n\n**This feature disables [critical security protections](https://code.visualstudio.com/docs/copilot/security) and makes it much easier for an attacker to compromise the machine.**\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use the [`chat.autoReply`](command:workbench.action.openSettings?%5B%22chat.autoReply%22%5D) setting.'
+	'Global auto approve also known as "YOLO mode" disables manual approval completely for _all tools in all workspaces_, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like [Codespaces](https://github.com/features/codespaces) and [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) have user keys forwarded into the container that could be compromised.\n\n**This feature disables [critical security protections](https://code.visualstudio.com/docs/agents/run/security) and makes it much easier for an attacker to compromise the machine.**\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use the [`chat.autoReply`](command:workbench.action.openSettings?%5B%22chat.autoReply%22%5D) setting.'
 );
 
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
@@ -196,6 +196,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.vscode.id),
 				description: localize('copilot.toolSet.vscode.description', 'Use VS Code features'),
+				deprecated: true,
 			}
 		));
 
@@ -207,6 +208,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.terminal.id),
 				description: localize('copilot.toolSet.execute.description', 'Execute code and applications on your machine'),
+				deprecated: true,
 			}
 		));
 
@@ -218,6 +220,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.book.id),
 				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
+				deprecated: true,
 			}
 		));
 
@@ -229,6 +232,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.agent.id),
 				description: localize('copilot.toolSet.agent.description', 'Delegate tasks to other agents'),
+				deprecated: true,
 			}
 		));
 	}
@@ -613,17 +617,28 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const { autoConfirmed: resolvedAutoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, dto.context?.sessionResource);
 				preparedInvocation = updatedPreparedInvocation;
 
+				// A caller (e.g. the agent host) may have resolved auto-approval
+				// out-of-band. Treat it like a local auto-confirmation so the
+				// invocation never briefly enters `WaitingForConfirmation`. A
+				// preToolUse hook that returned `ask` explicitly forces a
+				// confirmation, so never let `preApproved` override it.
+				const preResolvedAutoConfirmed = resolvedAutoConfirmed
+					?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
+
 				// In Autopilot, run the risk classifier on an auto-approved call that would
 				// otherwise show a confirmation. A "red" rating skips the call; anything else
 				// (including a classifier failure) keeps the original auto-confirmation.
-				const { autoConfirmed, skipExplanation: riskSkipExplanation } = await this._maybeApplyAutopilotRiskGate(tool, dto, preparedInvocation, resolvedAutoConfirmed, token);
+				const { autoConfirmed, skipExplanation: riskSkipExplanation } = await this._maybeApplyAutopilotRiskGate(tool, dto, preparedInvocation, preResolvedAutoConfirmed, token);
 
 				// Important: a tool invocation that will be autoconfirmed should never
 				// be in the chat response in the `NeedsConfirmation` state, even briefly,
 				// as that triggers notifications and causes issues in eval.
 				if (hadPendingInvocation && toolInvocation) {
-					// Transition from streaming to executing/waiting state
-					toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters, autoConfirmed);
+					if (toolInvocation.state.get().type === IChatToolInvocation.StateKind.Streaming) {
+						toolInvocation.transitionFromStreaming(preparedInvocation, dto.parameters, autoConfirmed);
+					} else {
+						toolInvocation.updatePreparedInvocation(preparedInvocation, dto.parameters);
+					}
 				} else {
 					// Create a new tool invocation (no streaming phase)
 					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.chatStreamToolCallId ?? dto.callId, dto.subAgentInvocationId, dto.parameters);
@@ -655,7 +670,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					};
 					return toolResult;
 				}
-
 				if (preparedInvocation?.confirmationMessages?.title) {
 					if (!IChatToolInvocation.executionConfirmedOrDenied(toolInvocation) && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation], dto.context?.sessionResource);
@@ -674,7 +688,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 						};
 						return toolResult;
 					}
-
 					if (userConfirmed.type === ToolConfirmKind.UserAction && userConfirmed.selectedButton) {
 						dto.selectedCustomButton = userConfirmed.selectedButton;
 					}
@@ -693,7 +706,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const { autoConfirmed: fallbackAutoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, undefined);
 				preparedInvocation = updatedPreparedInvocation;
-				if (preparedInvocation?.confirmationMessages?.title && !fallbackAutoConfirmed) {
+				const autoConfirmed = fallbackAutoConfirmed
+					?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
+				if (preparedInvocation?.confirmationMessages?.title && !autoConfirmed) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
 					if (!result.confirmed) {
 						throw new CancellationError();
@@ -1731,7 +1746,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return referenceName;
 	}
 
-	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable {
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; detail?: string; legacyFullNames?: string[]; deprecated?: boolean; hiddenInToolsPicker?: boolean }): ToolSet & IDisposable {
 
 		const that = this;
 
@@ -1745,7 +1760,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description, options?.legacyFullNames, this._contextKeyService);
+		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description, options?.detail, options?.legacyFullNames, options?.deprecated, options?.hiddenInToolsPicker, this._contextKeyService);
 
 		this._toolSets.add(result);
 		return result;

@@ -9,7 +9,6 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../base/common/uri.js';
-
 export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray<IDynamicVariable> {
 	if (!widget.viewModel || !widget.supportsFileReferences) {
 		return [];

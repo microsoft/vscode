@@ -21,7 +21,7 @@ import { logChangesToStateModel } from '../../../../../workbench/contrib/chat/co
 import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
-import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { SessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -33,8 +33,8 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
-	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
-	ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
+	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
+	ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
 );
 
 // -- Agent Host Agent Picker Action --
@@ -141,7 +141,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		const factory = (_action: IAction, _options: IActionViewItemOptions, scopedInstantiationService: IInstantiationService) => {
 			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
+			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel, session);
 			const disposableStore = new DisposableStore();
 
 			disposableStore.add(picker.onDidSelect(mode => {

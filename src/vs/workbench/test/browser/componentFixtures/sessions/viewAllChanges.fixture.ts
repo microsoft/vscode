@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionFileChange } from '../../../../../sessions/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ISessionChangeset, ISessionFileChange, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -32,10 +33,46 @@ function createMockChange(insertions: number, deletions: number): ISessionFileCh
 	};
 }
 
+function createMockBranchChangeset(changes: readonly ISessionFileChange[]): ISessionChangeset {
+	return new class extends mock<ISessionChangeset>() {
+		override readonly id = BRANCH_CHANGES_CHANGESET_ID;
+		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(changes);
+		override readonly isEnabled: IObservable<boolean> = constObservable(true);
+		override readonly isDefault: IObservable<boolean> = constObservable(true);
+	}();
+}
+
+function createMockWorkspace(): ISessionWorkspace {
+	const root = URI.file('/repo');
+	return {
+		uri: root,
+		label: 'vscode',
+		icon: Codicon.folder,
+		folders: [{
+			root,
+			workingDirectory: root,
+			name: 'vscode',
+			description: undefined,
+			gitRepository: {
+				uri: root,
+				workTreeUri: undefined,
+				branchName: 'feature/session-changes',
+				baseBranchName: 'main',
+				hasGitHubRemote: false,
+				gitHubInfo: constObservable(undefined),
+			},
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
+}
+
 function createMockSession(changes: readonly ISessionFileChange[]): IActiveSession {
 	return new class extends mock<IActiveSession>() {
 		override readonly resource = URI.parse('session:1');
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(createMockWorkspace());
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = observableValue('changes', changes);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([createMockBranchChangeset(changes)]);
 	}();
 }
 

@@ -18,6 +18,7 @@
     "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentSyntaxHighlighting",
     "editorInsets",
     "embeddings",
     "envIsConnectionMetered",

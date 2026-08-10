@@ -37,6 +37,15 @@ export interface IAgentFeedbackItemsBackend {
 	/** Returns the feedback items for a session in stable display order. */
 	getItems(sessionResource: URI): readonly IAgentFeedback[];
 
+	/**
+	 * Whether {@link getItems} reflects the authoritative item set for the
+	 * session. For the in-memory backend this is always `true`; for the
+	 * annotations-backed backend it is `false` until the session's annotations
+	 * snapshot has been received, so callers that seed items (e.g. mirroring PR
+	 * review comments) can avoid acting on a transiently-empty list.
+	 */
+	hasLoaded(sessionResource: URI): boolean;
+
 	/** Adds a new feedback item or replaces an existing one with the same id. */
 	upsert(feedback: IAgentFeedback): void;
 
@@ -93,6 +102,11 @@ export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAg
 
 	getItems(sessionResource: URI): readonly IAgentFeedback[] {
 		return orderFeedbackItems(this._bySession.get(sessionResource.toString()) ?? []);
+	}
+
+	hasLoaded(_sessionResource: URI): boolean {
+		// In-memory state is always authoritative; there is nothing to await.
+		return true;
 	}
 
 	upsert(feedback: IAgentFeedback): void {
@@ -321,6 +335,13 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	 * spurious feedback-items change (which would bump recency / navigation).
 	 */
 	private readonly _signatureBySession = new Map<string, string>();
+	/**
+	 * Sessions whose annotations snapshot has been received. Used to fire
+	 * {@link onDidChangeItems} exactly once when loading completes (even when the
+	 * loaded feedback set is empty), so consumers that seed feedback can wait for
+	 * the authoritative set before acting.
+	 */
+	private readonly _loadedBySession = new Set<string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -341,6 +362,14 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			return orderFeedbackItems(this._decode(channel.subscription, sessionResource));
 		}
 		return orderFeedbackItems(this._cacheBySession.get(sessionResource.toString()) ?? []);
+	}
+
+	hasLoaded(sessionResource: URI): boolean {
+		// Only authoritative once the session's annotations snapshot has been
+		// received; until then `getItems` falls back to the (possibly empty)
+		// local cache and must not be treated as the full item set.
+		const channel = this._ensureChannel(sessionResource);
+		return channel ? this._hasSnapshot(channel.subscription) : false;
 	}
 
 	upsert(feedback: IAgentFeedback): void {
@@ -442,6 +471,15 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (!channel) {
 			return;
 		}
+		// Fire once when the snapshot first arrives so consumers learn that the
+		// feedback set is now authoritative, even if it is empty (and thus has
+		// the same — empty — signature as before loading).
+		if (this._hasSnapshot(channel.subscription) && !this._loadedBySession.has(key)) {
+			this._loadedBySession.add(key);
+			this._signatureBySession.set(key, this._feedbackSignature(channel.subscription));
+			this._onDidChangeItems.fire(sessionResource);
+			return;
+		}
 		const signature = this._feedbackSignature(channel.subscription);
 		if (this._signatureBySession.get(key) === signature) {
 			return;
@@ -510,6 +548,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		this._sessionResourceByKey.delete(key);
 		this._cacheBySession.delete(key);
 		this._signatureBySession.delete(key);
+		this._loadedBySession.delete(key);
 	}
 
 	private _ensureChannel(sessionResource: URI): ITrackedChannel | undefined {
@@ -540,6 +579,9 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			subscription: ref.object,
 		};
 		this._signatureBySession.set(key, this._feedbackSignature(ref.object));
+		if (this._hasSnapshot(ref.object)) {
+			this._loadedBySession.add(key);
+		}
 		store.add(ref.object.onDidChange(() => this._onAnnotationsChange(sessionResource)));
 
 		this._channels.set(key, store);

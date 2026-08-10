@@ -75,11 +75,15 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_RELEASE
-    displayName: "Release build if successful"
+    displayName: "Release build if successful (ONLY FOR INSIDER)"
     type: boolean
     default: false
   - name: VSCODE_STEP_ON_IT
     displayName: "Skip tests"
+    type: boolean
+    default: false
+  - name: VSCODE_USE_LEGACY_OSS_NOTICE
+    displayName: "Use legacy OSS Notice"
     type: boolean
     default: false
   - name: VSCODE_RUN_APISCAN
@@ -605,7 +609,7 @@ stages:
                   container: ubuntu-24
                   arch: arm64
 
-        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:
