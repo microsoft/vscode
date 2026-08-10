@@ -36,6 +36,7 @@ export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
 export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
+export const hiddenEditorTypesSettingId = 'workbench.editor.hiddenEditorTypes';
 
 /**
  * Setting that controls whether the Markdown editor is the default editor for
@@ -93,6 +94,17 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 			},
 			agentsWindow: {
 				default: diffEditorsAssociationsAgentsWindowDefault()
+			}
+		},
+		[hiddenEditorTypesSettingId]: {
+			type: 'array',
+			default: [],
+			items: {
+				type: 'string'
+			},
+			markdownDescription: localize('editor.hiddenEditorTypes', "Configure editor types that are hidden from the editor type picker. The active editor type remains visible."),
+			agentsWindow: {
+				default: ['vscode.markdown.preview.editor']
 			}
 		}
 	}

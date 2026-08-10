@@ -73,8 +73,6 @@ suite('Editor Type Picker', () => {
 			}
 		});
 	});
-
-
 	test('hidden editor types are omitted unless currently active', () => {
 		const resource = URI.file('/workspace/test.md');
 		const registeredEditors = [
@@ -109,4 +107,5 @@ suite('Editor Type Picker', () => {
 			active: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor', 'test.markdownPreview'],
 		});
 	});
+
 });
