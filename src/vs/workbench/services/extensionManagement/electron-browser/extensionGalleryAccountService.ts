@@ -238,10 +238,6 @@ export class ExtensionGalleryAccountService extends Disposable {
 		// A 200 is definitive — cache it. The server `reason` is NOT persisted: unused for any
 		// UI/gating decision and could carry account/tenant diagnostic text.
 		this.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: result.eligible, serviceUrl: configuredServiceUrl });
-		this.telemetryService.publicLog2<MarketplaceAuthEvent, MarketplaceAuthClassification>('marketplace:auth:checked', {
-			authProvider: 'microsoft',
-			eligible: result.eligible,
-		});
 		return { eligible: result.eligible, manifest };
 	}
 
@@ -423,9 +419,17 @@ export class ExtensionGalleryAccountService extends Disposable {
 			&& typeof candidate.serviceUrl === 'string';
 	}
 
-	/** Persists a durable verdict. Only ever called for definitive (durable) allow/deny outcomes. */
+	/**
+	 * Persists a durable verdict and reports the eligibility check. Only ever called for definitive
+	 * (durable) allow/deny outcomes, so it is the single point that emits `marketplace:auth:checked`
+	 * for both providers — capturing the github vs microsoft distinction and the eligibility result.
+	 */
 	private cacheAccess(access: ICachedAccess): void {
 		this.storageService.store(CACHED_ACCESS_KEY, JSON.stringify(access), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.telemetryService.publicLog2<MarketplaceAuthEvent, MarketplaceAuthClassification>('marketplace:auth:checked', {
+			authProvider: access.authProvider,
+			eligible: access.eligible,
+		});
 	}
 
 	/** Drops the persisted verdict (on sign-out, account/provider/serviceUrl change, or 401). */

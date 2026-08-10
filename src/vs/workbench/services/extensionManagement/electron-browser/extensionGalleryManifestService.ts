@@ -211,17 +211,17 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		this.renderAvailable(account.manifest);
 	}
 
-	/** Publishes the manifest; the github path also reports the custom-marketplace telemetry. */
+	/** Publishes the manifest and reports successful custom-marketplace access (any auth provider). */
 	private renderAvailable(manifest: IExtensionGalleryManifest): void {
 		this.update(manifest);
-		if (this.authProvider === 'github') {
-			this.telemetryService.publicLog2<
-				{},
-				{
-					owner: 'sandy081';
-					comment: 'Reports when a user successfully accesses a custom marketplace';
-				}>('galleryservice:custom:marketplace');
-		}
+		// Fired for every successfully accessed serviceUrl-configured marketplace regardless of auth
+		// provider; the github/microsoft distinction is tracked separately by 'marketplace:auth:checked'.
+		this.telemetryService.publicLog2<
+			{},
+			{
+				owner: 'sandy081';
+				comment: 'Reports when a user successfully accesses a custom marketplace';
+			}>('galleryservice:custom:marketplace');
 	}
 
 	/**
