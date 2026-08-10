@@ -130,6 +130,72 @@ suite('ChatListWidget', () => {
 		]);
 	});
 
+	test('keeps a tall request measured while the list becomes hidden', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
+		instantiationService.stub(IChatAccessibilityService, {
+			acceptRequest: () => { },
+			disposeRequest: () => { },
+			acceptResponse: () => { },
+			acceptElicitation: () => { },
+		});
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'Request';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Response') });
+		request.response?.complete();
+
+		const container = mainWindow.document.createElement('div');
+		container.style.position = 'absolute';
+		container.style.insetBlockStart = '0px';
+		container.style.insetInlineStart = '0px';
+		container.style.width = '500px';
+		container.style.height = '300px';
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const widget = disposables.add(instantiationService.createInstance(ChatListWidget, container, {
+			currentChatMode: () => ChatModeKind.Agent,
+			location: ChatAgentLocation.Chat,
+			editorOptions: {} as ChatEditorOptions,
+		}));
+		widget.setViewModel(viewModel);
+		widget.setVisible(true);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const requestTemplate = widget.getTemplateDataForRequestId(request.id);
+		assert.ok(requestTemplate);
+		requestTemplate.value.style.minHeight = '600px';
+		widget.setVisible(false);
+		await waitForStableLayout(widget);
+		widget.setVisible(true);
+		await nextFrame();
+
+		const requestHeight = requestTemplate.rowContainer.getBoundingClientRect().height;
+		assert.ok(requestHeight > 600, 'request should include the asynchronously rendered content');
+		assert.ok(widget.contentHeight >= requestHeight, `list content height ${widget.contentHeight} should include request height ${requestHeight}`);
+
+		disposables.dispose();
+	});
+
 	// Regression test for the completed-response disclosure ("Completed N steps in ..."): expanding
 	// a collapsible while the transcript is scrolled to the very bottom used to auto-scroll to the
 	// new end, so the revealed content grew *upwards* and pushed the summary off the top of the
