@@ -991,9 +991,6 @@ dispatch after recording the committed session resource on the run row, then
 observes the session's main chat status until it reaches a terminal state. `InProgress`,
 `Untitled`, and `NeedsInput` all keep the automation run `running`; `Completed`
 completes the run and `Error` fails it.
-The run-history Stop action cancels only the current chat request. The resulting
-terminal `Completed` state completes the run with the normal check icon; a
-user-stopped run is not recorded as a cancellation failure.
 Scheduler cancellation also stops the observation and fails the run. On timeout,
 the scheduler records the timeout failure before cancelling the observation, so
 neither path leaves a live observable subscription even though the session may
