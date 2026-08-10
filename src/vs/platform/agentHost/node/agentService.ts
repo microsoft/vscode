@@ -1359,6 +1359,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
+		if (config?.session) {
+			this._cancelPendingSessionGc(config.session);
+			this._cancelPendingSessionRelease(config.session);
+		}
 
 		// Capability gate: only a provider that advertises
 		// `multipleWorkingDirectories` accepts more than one working directory.
@@ -3223,6 +3227,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async restoreSession(session: URI): Promise<void> {
 		const sessionStr = session.toString();
+		this._cancelPendingSessionGc(session);
+		this._cancelPendingSessionRelease(session);
 		await this._releaseSessionInFlight.get(sessionStr);
 
 		const inFlight = this._restoreSessionInFlight.get(sessionStr);
