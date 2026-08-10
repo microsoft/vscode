@@ -226,7 +226,7 @@ export class ChatSessionRoutingController extends Disposable {
 		if (explicitNewSessionTask) {
 			this.host.onWillRoute?.();
 			const target = this._resolveNewSessionTarget(utterance, attachedContext, [], []);
-			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
+			this._dispatchOrReviewNewSession(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
 		const followupResource = isVoiceModeInput ? this.host.getPendingReplySessionResource?.() : undefined;
@@ -273,11 +273,21 @@ export class ChatSessionRoutingController extends Disposable {
 		const candidateIds = new Set(enriched.map(candidate => candidate.sessionId));
 		const hasSessionChoice = results.some(result => candidateIds.has(result.sessionId) && isHighConfidenceSessionRoute(result));
 		if (target.kind === 'new' && !hasSessionChoice) {
-			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
+			this._dispatchOrReviewNewSession(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
 		this._beginPendingSend(target, newSessionTarget, results, enriched, query, submittedAttachmentIds, utterance, requestOptions, cts);
 		return true;
+	}
+
+	private _dispatchOrReviewNewSession(target: NewSessionTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, cts: CancellationTokenSource): void {
+		if (this.workspaceContextService.getWorkspace().folders.length <= 1) {
+			this._dispatchImmediately(target, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
+			return;
+		}
+
+		this._setSubmissionPhase('awaitingChoice');
+		this._beginPendingSend(target, target, [], [], submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
 	}
 
 	private _dispatchImmediately(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, cts: CancellationTokenSource): void {
@@ -474,8 +484,8 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/**
-	 * Show the advisory destination picker. A confident session match counts
-	 * down and auto-sends; an uncertain route waits for an explicit choice.
+	 * Show the advisory destination picker. The selected destination counts down
+	 * and auto-sends unless the user begins changing the selection.
 	 */
 	private _beginPendingSend(
 		target: PendingTarget,
@@ -655,9 +665,7 @@ export class ChatSessionRoutingController extends Disposable {
 		};
 		renderSelection();
 		const initialTarget = options[preselected];
-		ariaAlert(initialTarget.kind === 'session'
-			? localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000))
-			: localize('chatSessionRouting.confirmNewSession', "No confident match. Choose a destination before sending."));
+		ariaAlert(localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000)));
 
 		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
 		const renderCountdown = () => {
@@ -778,11 +786,7 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 		}, true));
 
-		if (target.kind === 'session') {
-			startCountdown();
-		} else {
-			countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
-		}
+		startCountdown();
 	}
 
 	private _showDeliveryConfirmation(label: string, result: IDispatchResult): void {

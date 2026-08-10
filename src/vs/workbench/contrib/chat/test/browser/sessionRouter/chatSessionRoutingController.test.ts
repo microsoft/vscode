@@ -5,8 +5,10 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
@@ -14,6 +16,72 @@ import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../com
 suite('ChatSessionRoutingController', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows the selected folder and folder picker for multi-root new sessions', async () => {
+		const vscode = folder('vscode', '/work/vscode', 0);
+		const docs = folder('docs', '/work/docs', 1);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		let submitted = false;
+		const host = {
+			widget: {
+				inputEditor: {
+					onDidChangeModelContent: Event.None,
+					getValue: () => 'create a new session to update docs',
+				},
+				attachmentModel: {
+					onDidChange: Event.None,
+					attachments: [],
+				},
+				input: { setSubmitPending: () => { } },
+				getSelectedModelRequestOptions: () => ({}),
+				getModeRequestOptions: () => ({}),
+			},
+			getOwnSessionResource: () => undefined,
+			getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot,
+			placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+		} as unknown as IChatSessionRoutingHost;
+		const workspaceContextService = {
+			getWorkspace: () => ({ folders: [vscode, docs] }),
+			getWorkspaceFolder: (resource: URI) => [vscode, docs].find(candidate => candidate.uri.toString() === resource.toString()),
+		} as IWorkspaceContextService;
+		const controller = new ChatSessionRoutingController(
+			host,
+			'test',
+			{ sendRequest: async () => { submitted = true; return { kind: 'rejected' }; } } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			{ warn: () => { } } as never,
+			workspaceContextService,
+			{ getDefaultFolder: () => undefined, setFolder: () => { } } as never,
+			{ pick: async <T>(items: readonly T[]) => items[0] } as never,
+		);
+
+		await controller.handleSubmit('create a new session to update docs', undefined!);
+		const label = container.querySelector<HTMLElement>('.chat-routing-badge-name');
+		const changeFolder = container.querySelector<HTMLButtonElement>('.chat-routing-badge-folder-action');
+		const countdown = container.querySelector<HTMLElement>('.chat-routing-badge-countdown');
+		assert.deepStrictEqual({
+			submitted,
+			label: label?.textContent,
+			changeFolder: changeFolder?.textContent,
+			countdown: countdown?.textContent,
+		}, {
+			submitted: false,
+			label: 'New session in docs',
+			changeFolder: 'Change Folder',
+			countdown: 'sending in 10s',
+		});
+
+		changeFolder?.click();
+		await Promise.resolve();
+		assert.strictEqual(label?.textContent, 'New session in vscode');
+
+		controller.dispose();
+		container.remove();
+	});
 
 	test('returns the stable request id for an immediately sent route', async () => {
 		const resource = URI.parse('agent-host-copilotcli:/untitled-route');
@@ -201,3 +269,8 @@ suite('ChatSessionRoutingController', () => {
 		controller.dispose();
 	});
 });
+
+function folder(name: string, path: string, index: number): IWorkspaceFolder {
+	const uri = URI.file(path);
+	return { uri, name, index, toResource: relativePath => URI.joinPath(uri, relativePath) };
+}
