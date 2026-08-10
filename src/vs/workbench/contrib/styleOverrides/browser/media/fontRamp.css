@@ -150,6 +150,13 @@
 	text-transform: none;
 }
 
+/* Restore the legacy casing for view headers and Explorer titles when requested. */
+.style-override.modern-ui-uppercase-view-headers .monaco-pane-view .pane > .pane-header > .title,
+.style-override.modern-ui-uppercase-view-headers.monaco-workbench .part:not(.editor)[data-active-composite="workbench.view.explorer"] > .title > .title-label h2,
+.style-override.modern-ui-uppercase-view-headers .monaco-pane-view .pane > .pane-header > .icon.codicon-explorer-view-icon + .title {
+	text-transform: uppercase;
+}
+
 /*
  * Chat view title — the conversation title (e.g. "hello") shown in the chat
  * view header. It is dynamic text (user / model generated), so respect its real

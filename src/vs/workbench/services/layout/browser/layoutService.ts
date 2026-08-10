@@ -51,7 +51,8 @@ export const enum LayoutSettings {
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 	SHADOWS = 'workbench.shadows',
-	MODERN_UI = 'workbench.experimental.modernUI'
+	MODERN_UI = 'workbench.experimental.modernUI',
+	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
 }
 
 /**
