@@ -1890,8 +1890,7 @@ suite('AgentService (node dispatcher)', () => {
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
-			// Twice: the deleted repair cached per session, so a single listing
-			// could not have distinguished "never resolves" from "resolves once".
+			// Twice, because the deleted repair cached per session: one listing cannot tell "never resolves" from "resolves once".
 			await svc.listSessions();
 
 			assert.deepStrictEqual({
@@ -1935,8 +1934,7 @@ suite('AgentService (node dispatcher)', () => {
 			agent.sessionMessages = [];
 
 			const before = await svc.listSessions();
-			// Opening the session is what heals it: restore resolves the worktree
-			// project, which canonicalizes the persisted root and writes it back.
+			// Restore heals the metadata by resolving the worktree project, canonicalizing the root, and writing it back.
 			await svc.restoreSession(sessionResource);
 			const after = await svc.listSessions();
 

@@ -1007,9 +1007,7 @@ export class AgentService extends Disposable implements IAgentService {
 						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
 					}
 
-					// The persisted root is used as-is. `WorktreeIsolation`'s metadata
-					// reader canonicalizes and re-persists it whenever a session is
-					// opened, so listing never has to spawn Git to derive the label.
+					// Use the persisted root as-is to keep listing off Git; the metadata reader re-canonicalizes it on open.
 					const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
 					if (worktreeProject) {
 						updated = { ...updated, project: worktreeProject };
