@@ -16,6 +16,23 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Deleting a worktree session can race background Git work
+
+A user can configure ignored files to be copied into an isolated worktree, complete an agent turn, and then delete the session. Session deletion can fail because background changeset or Git-state work is still using the worktree while Git removes it, leaving the session's worktree behind.
+
+- Test: `worktree materialization copies configured ignored files`.
+- Scope: providers with deterministic worktree include-file coverage.
+- Expected: deleting the completed session stops all work associated with it and removes its isolated worktree.
+- Observed: teardown can fail with `git worktree exited with code 255: error: failed to delete '.git/worktrees/<name>': Directory not empty`.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "worktree materialization copies configured ignored files"
+  ```
+
 ### Client plugin skill is missing from Copilot slash completions
 
 A user can add a skill through a client-pushed plugin and invoke it by name in a Copilot session. The skill works when named explicitly, but it is absent from slash completions, so users cannot discover or select it through completion UI.
@@ -457,21 +474,6 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
     --grep "server tool: create_chat defaults"
   ```
 
-### Codex does not surface feedback server-tool confirmation
-
-- Test: `server tool: viewUnreviewedComments returns selected feedback and clears pending reveal state`.
-- Scope: Codex.
-- Expected: `viewUnreviewedComments` reaches `chat/toolCallReady` with an unconfirmed tool call so the client can choose which comments to reveal.
-- Observed: the server tool executes and returns the selected comment, but no pending confirmation is emitted.
-- Gate: the Codex variant is skipped by `supportsViewUnreviewedComments` in `serverToolsSuite.ts`. Its recorded fixture remains because the harness resolves the capture before Mocha applies the provider gate.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "server tool: viewUnreviewedComments"
-  ```
-
 ### Claude omits important tool details when reading another session's transcript
 
 The `get_session_context` tool lets an agent read the conversation history of an existing session. Its most detailed mode includes the tools used in earlier turns and the arguments passed to those tools, which helps the agent understand what work has already been performed.
@@ -655,21 +657,28 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
 
-### Codex structured file-read result text
+### Codex successful shell result text
 
 - Tests:
+  - `worktree session uses the resolved worktree as working directory`
+  - `reads an existing text file`
   - `reads a file from a nested directory`
+  - `lists workspace entries`
   - `reads a value from JSON`
   - `counts lines in a file`
+  - `handles a missing file without a session error`
+  - `runs a deterministic shell command`
+  - `inspects git status`
 - Scope: Codex.
-- Expected: successful file-read tool completions include the file contents in their result text.
+- Expected: successful shell tool completions include the command output in their result text.
 - Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
-- Gate: these three tests remain enabled for other providers and are skipped for Codex.
+- Gate: these nine tests remain enabled for other providers and are skipped for Codex.
 - Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
 - Failing runs:
   - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
   - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
   - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
+  - [PR #329867](https://github.com/microsoft/vscode/actions/runs/31342377741/job/93319069992?pr=329867)
 
 ### Claude subagent replay on Windows
 

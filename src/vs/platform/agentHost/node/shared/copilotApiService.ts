@@ -997,7 +997,7 @@ export class CopilotApiService implements ICopilotApiService {
 
 		if (!response.ok) {
 			const text = await response.text().catch(() => '');
-			throw new Error(`Copilot endpoint discovery failed: ${response.status} ${response.statusText} — ${text}`);
+			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'Copilot endpoint discovery failed');
 		}
 
 		const envelope: ICopilotUserResponse = await response.json();

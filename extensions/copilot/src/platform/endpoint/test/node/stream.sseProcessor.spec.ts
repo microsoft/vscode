@@ -150,6 +150,28 @@ data: [DONE]
 		});
 	});
 
+	// Regression for https://github.com/microsoft/vscode/issues/329963
+	test('delta content is preserved when tool_calls is empty', async function () {
+		const response = `data: {"choices":[{"delta":{"content":" I","tool_calls":[]},"index":0,"finish_reason":null}]}
+data: {"choices":[{"delta":{"content":" am","tool_calls":[]},"index":0,"finish_reason":null}]}
+data: {"choices":[{"delta":{},"index":0,"finish_reason":"stop"}]}
+data: [DONE]
+`;
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		assertSimplifiedResultsEqual(results, {
+			0: {
+				finishReason: FinishedCompletionReason.Stop,
+				chunks: [' I', ' am'],
+			},
+		});
+	});
+
 	test('response with text and without finish_reason yields "DONE" result', async function () {
 		// This is not an expected case, since the OpenAI API should always
 		// include a finish_reason, but we handle it anyway.

@@ -249,6 +249,10 @@
 	margin-bottom: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
 }
 
+.style-override.monaco-workbench .activitybar:not(.top):not(.bottom) > .content > .composite-bar {
+	margin-top: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
+}
+
 .style-override.monaco-workbench .part.basepanel:is(.bottom, .top, .left, .right) .composite.title {
 	padding-right: var(--vscode-spacing-size40);
 	padding-left: var(--vscode-spacing-size20);
