@@ -66,6 +66,40 @@ export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 
 export interface ILocalCustomizationSyncOptions {
 	readonly includeUserStorage?: boolean;
+	/**
+	 * Whether workspace-scoped content — `PromptsStorage.local` files and
+	 * workspace-discovered MCP servers — may be bundled into the synthetic
+	 * synced plugin. Defaults to `true`.
+	 *
+	 * Must be `false` wherever the window's workspace folders are a transient
+	 * reflection of some *other* piece of state rather than a stable, user-chosen
+	 * workspace. The Agents window is exactly that case: it rewrites workspace
+	 * folder 0 to follow the active session (see
+	 * `WorkspaceFolderManagementContribution`), so workspace-scoped content
+	 * belongs to whichever session happens to be focused.
+	 *
+	 * The synthetic bundle, by contrast, is a single window-global artifact
+	 * shared by *every* session of a session type. Mixing the two means each
+	 * focus change rewrites the bundle, which changes its content nonce and
+	 * forces the agent host to destroy and resume every live session
+	 * (`ActiveClient.requiresRestart`). It is also simply wrong: sessions get a
+	 * second copy of another worktree's instructions on top of their own.
+	 *
+	 * Nothing important is lost by excluding it — the agent host natively
+	 * discovers `.github/instructions`, `.github/skills`, `.github/agents` and
+	 * friends from each session's own working directory (see
+	 * `SessionCustomizationDiscovery`), which is the correct source. This
+	 * mirrors the existing rule that local agent hosts exclude user storage
+	 * because native discovery already reads the same machine's user home.
+	 *
+	 * The one type with no native equivalent is workspace `.github/prompts`
+	 * (bundled as `commands/`). Those stop reaching sessions when this is
+	 * `false`, which is deliberate: a slash command from an unrelated worktree
+	 * is worse than no slash command. Skills are the supported replacement for
+	 * prompt files on agent-host harnesses. Restoring them properly means
+	 * bundling per session rather than per window.
+	 */
+	readonly includeWorkspaceStorage?: boolean;
 }
 
 export interface ILocalCustomizationFile {
@@ -319,8 +353,13 @@ export function shouldSyncWorkspaceDotMcp(sessionType: string, workspaceFolderCo
  * relies on the SDK to de-duplicate the primary against the synced set. These
  * are passed as-is: `.mcp.json` supports no `${...}` variables and already
  * carries an explicit absolute `cwd`.
+ *
+ * When {@link includeWorkspaceScoped} is `false`, no workspace-discovered server
+ * is synced at all, because the workspace they were resolved against is not
+ * stable for the lifetime of the bundle. See
+ * {@link ILocalCustomizationSyncOptions.includeWorkspaceStorage}.
  */
-export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, includeWorkspaceDotMcp: boolean): Promise<ISyncableMcpServer[]> {
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, includeWorkspaceDotMcp: boolean, includeWorkspaceScoped: boolean = true): Promise<ISyncableMcpServer[]> {
 	const result: ISyncableMcpServer[] = [];
 	for (const server of mcpService.servers.get()) {
 		if (server.collection.id.startsWith(MCP_PLUGIN_COLLECTION_ID_PREFIX)) {
@@ -347,6 +386,11 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 			continue;
 		}
 		if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection)) {
+			if (!includeWorkspaceScoped) {
+				// The workspace this server was resolved against is transient, so
+				// baking it into the window-global bundle would churn.
+				continue;
+			}
 			if (McpCollectionDefinition.isVscodeMcpJson(collection)) {
 				const resolved = await resolveConfigurationForSync(configurationResolverService, definition.variableReplacement?.folder, configuration);
 				if (!resolved) {
@@ -378,6 +422,11 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
  * belonging to installed plugins are de-duped to a single plugin ref;
  * remaining loose files — together with MCP servers configured directly in
  * VS Code — are bundled into a synthetic Open Plugin.
+ *
+ * Workspace-scoped content is omitted when
+ * {@link ILocalCustomizationSyncOptions.includeWorkspaceStorage} is `false`,
+ * because the bundle is shared by every session of `sessionType` while the
+ * workspace it would be read from is not.
  */
 export async function resolveCustomizationRefs(
 	fileService: IFileService,
@@ -393,6 +442,7 @@ export async function resolveCustomizationRefs(
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
+	const includeWorkspaceScoped = options?.includeWorkspaceStorage !== false;
 
 	const plugins = agentPluginService.plugins.get();
 	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
@@ -435,7 +485,7 @@ export async function resolveCustomizationRefs(
 				continue;
 			}
 			addPluginRef(plugin);
-		} else {
+		} else if (entry.source !== AICustomizationSources.local || includeWorkspaceScoped) {
 			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, pluginUri: entry.pluginUri });
 		}
 	}
@@ -466,7 +516,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, includeWorkspaceDotMcp);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, includeWorkspaceDotMcp, includeWorkspaceScoped);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}

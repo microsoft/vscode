@@ -165,6 +165,23 @@ suite('AgentPluginManager', () => {
 			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-2']));
 		});
 
+		// Content-hash nonces are signed 32-bit integers, so `-N` and `N` both
+		// occur in practice; sanitizing away the sign would map them to one
+		// directory while the LRU tracks them as separate revisions, so evicting
+		// one would delete the other's materialized content.
+		test('negative and positive nonces materialize distinct subdirectories', async () => {
+			await seedPluginDir('signed', { 'index.js': 'v1' });
+			const r1 = await manager.syncCustomizations('test-client', [makeRef('signed', '-28114114')]);
+			const dir1 = r1[0].pluginDir!;
+
+			await seedPluginDir('signed', { 'index.js': 'v2' });
+			const r2 = await manager.syncCustomizations('test-client', [makeRef('signed', '28114114')]);
+			const dir2 = r2[0].pluginDir!;
+
+			assert.notStrictEqual(dir1.toString(), dir2.toString(), 'sign-differing nonces must not share a directory');
+			assert.strictEqual((await fileService.readFile(URI.joinPath(dir2, 'index.js'))).value.toString(), 'v2');
+		});
+
 		test('retains a locked older nonce so both revisions coexist', async () => {
 			await seedPluginDir('rev', { 'index.js': 'v1' });
 			const r1 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);

@@ -945,3 +945,81 @@ suite('shouldSyncWorkspaceDotMcp - multi-root gate', () => {
 		assert.strictEqual(shouldSyncWorkspaceDotMcp('remote-myauthority-copilotcli', 2, true), false);
 	});
 });
+
+suite('resolveCustomizationRefs - workspace-scoped content', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const workspaceRule = URI.file('/repo/.github/instructions/coding.instructions.md');
+	const userRule = URI.file('/home/me/.copilot/instructions/global.instructions.md');
+
+	function promptsServiceWithWorkspaceAndUserRules(): IPromptsService {
+		return makePromptsService(new Map([
+			[`${PromptsType.instructions}/${PromptsStorage.local}`, [makePromptPath(workspaceRule, PromptsType.instructions, PromptsStorage.local)]],
+			[`${PromptsType.instructions}/${PromptsStorage.user}`, [makePromptPath(userRule, PromptsType.instructions, PromptsStorage.user)]],
+		]));
+	}
+
+	function workspaceMcpService(): IMcpService {
+		return makeMcpService([
+			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'user.srv', collectionId: 'user-collection', label: 'user-server', launch: stdioLaunch }),
+		]);
+	}
+
+	function run(bundler: FakeBundler, options?: { includeUserStorage?: boolean; includeWorkspaceStorage?: boolean }) {
+		return resolveCustomizationRefs(
+			makeFileService(),
+			promptsServiceWithWorkspaceAndUserRules(),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			workspaceMcpService(),
+			makeConfigurationResolverService({ '${workspaceFolder}': '/repo' }),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			false,
+			{ includeUserStorage: true, ...options },
+		);
+	}
+
+	test('bundles workspace files and workspace MCP servers by default', async () => {
+		const bundler = new FakeBundler();
+		await run(bundler);
+
+		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [userRule.toString(), workspaceRule.toString()]);
+		assert.deepStrictEqual(bundler.receivedMcp[0].map(s => s.name), ['folder-server', 'user-server']);
+	});
+
+	// The synthetic bundle is a single window-global artifact shared by every
+	// session of a session type, so it must not carry content read from a
+	// workspace that only reflects whichever session is currently focused.
+	test('omits workspace files and workspace MCP servers when workspace storage is excluded', async () => {
+		const bundler = new FakeBundler();
+		await run(bundler, { includeWorkspaceStorage: false });
+
+		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [userRule.toString()]);
+		assert.deepStrictEqual(bundler.receivedMcp[0].map(s => s.name), ['user-server']);
+	});
+
+	test('skips bundling entirely when only workspace-scoped content exists and it is excluded', async () => {
+		const bundler = new FakeBundler();
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map([
+				[`${PromptsType.instructions}/${PromptsStorage.local}`, [makePromptPath(workspaceRule, PromptsType.instructions, PromptsStorage.local)]],
+			])),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService([
+				makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			]),
+			makeConfigurationResolverService({ '${workspaceFolder}': '/repo' }),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			false,
+			{ includeWorkspaceStorage: false },
+		);
+
+		assert.strictEqual(bundler.received.length, 0);
+	});
+});

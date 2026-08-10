@@ -29,6 +29,7 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
@@ -103,6 +104,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
@@ -115,6 +117,14 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration {
 		const store = new DisposableStore();
+		// The Agents window rewrites workspace folder 0 to follow the active
+		// session, so anything workspace-scoped would make this window-global
+		// bundle churn on every focus change — restarting every live session.
+		// See `ILocalCustomizationSyncOptions.includeWorkspaceStorage`.
+		const resolvedOptions: ILocalCustomizationSyncOptions = {
+			includeWorkspaceStorage: !this._environmentService.isSessionsWindow,
+			...options,
+		};
 		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
 		const customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
@@ -132,8 +142,8 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			const seq = ++updateSeq;
 			try {
 				const [refs, agents] = await Promise.all([
-					resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, shouldIncludeWorkspaceDotMcp(), options),
-					resolveLocalCustomAgents(this._fileService, this._promptsService, syncProvider, this._agentPluginService, sessionType, options),
+					resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, shouldIncludeWorkspaceDotMcp(), resolvedOptions),
+					resolveLocalCustomAgents(this._fileService, this._promptsService, syncProvider, this._agentPluginService, sessionType, resolvedOptions),
 				]);
 				if (seq !== updateSeq) {
 					return;

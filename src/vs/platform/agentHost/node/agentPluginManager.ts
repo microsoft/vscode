@@ -6,6 +6,7 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
+import { hash } from '../../../base/common/hash.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
@@ -145,8 +146,27 @@ export class AgentPluginManager implements IAgentPluginManager {
 		return this._sanitize(uri);
 	}
 
+	/**
+	 * Directory-name key for a nonce.
+	 *
+	 * {@link _sanitize} is lossy — content-hash nonces are signed 32-bit
+	 * integers, so roughly half are negative and `-1234` reduces to the same
+	 * `1234` as its positive counterpart. Two genuinely different revisions
+	 * would then share one directory while being tracked as distinct LRU
+	 * entries, so eviction of one deletes the other's materialized content. A
+	 * short hash of the raw value is appended whenever sanitizing changed it,
+	 * which keeps the mapping injective while leaving well-formed nonces
+	 * readable.
+	 */
 	private _keyForNonce(nonce: string | undefined): string {
-		return (nonce && this._sanitize(nonce)) || 'default';
+		if (!nonce) {
+			return 'default';
+		}
+		const sanitized = this._sanitize(nonce);
+		if (sanitized === nonce) {
+			return sanitized;
+		}
+		return `${sanitized || 'nonce'}-${(hash(nonce) >>> 0).toString(16)}`;
 	}
 
 	private _sanitize(value: string): string {
