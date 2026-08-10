@@ -9,7 +9,7 @@ import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { LRUCache, ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
@@ -23,7 +23,7 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
-import { type ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
+import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
@@ -46,7 +46,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
@@ -332,8 +332,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * agents stay unaware of the folder-vs-worktree distinction.
 	 */
 	private _worktree: WorktreeIsolation | undefined;
-	/** Successful list-time repository-root resolutions; eviction only causes safe re-resolution. */
-	private readonly _normalizedWorktreeRepositoryRoots = new LRUCache<string, URI>(100);
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
@@ -936,41 +934,6 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	/**
-	 * Repairs repository roots written by older builds that treated a parent linked checkout as the repository.
-	 * Listing performs this migration because archived sessions may never resume through WorktreeIsolation's metadata reader.
-	 */
-	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string): Promise<string> {
-		const storedRepositoryRootRaw = repositoryRootRaw;
-		const persistedRoot = URI.parse(repositoryRootRaw);
-		const sessionStr = session.session.toString();
-		let primaryRoot = this._normalizedWorktreeRepositoryRoots.get(sessionStr);
-		if (!primaryRoot) {
-			const workingDirectory = session.workingDirectories?.[0];
-			const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
-			try {
-				primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
-					?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);
-				if (primaryRoot) {
-					this._normalizedWorktreeRepositoryRoots.set(sessionStr, primaryRoot);
-				}
-			} catch (error) {
-				this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
-			}
-		}
-		if (primaryRoot) {
-			repositoryRootRaw = primaryRoot.toString();
-		}
-		if (repositoryRootRaw !== storedRepositoryRootRaw) {
-			try {
-				await database.setMetadata(WORKTREE_META_REPOSITORY_ROOT, repositoryRootRaw);
-			} catch (error) {
-				this._logService.warn(`[AgentService][listSessions] Failed to normalize worktree repository metadata for ${session.session}`, error);
-			}
-		}
-		return repositoryRootRaw;
-	}
-
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
 		const results = await Promise.all(
@@ -1044,11 +1007,10 @@ export class AgentService extends Disposable implements IAgentService {
 						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
 					}
 
-					let repositoryRootRaw = m[WORKTREE_META_REPOSITORY_ROOT];
-					if (repositoryRootRaw) {
-						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw);
-					}
-					const worktreeProject = worktreeProjectFromRepositoryRoot(repositoryRootRaw);
+					// The persisted root is used as-is. `WorktreeIsolation`'s metadata
+					// reader canonicalizes and re-persists it whenever a session is
+					// opened, so listing never has to spawn Git to derive the label.
+					const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
 					if (worktreeProject) {
 						updated = { ...updated, project: worktreeProject };
 					}

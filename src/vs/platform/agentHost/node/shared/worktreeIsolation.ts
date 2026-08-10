@@ -983,6 +983,14 @@ export class WorktreeIsolation extends Disposable {
 	/**
 	 * Reads worktree metadata and migrates repository roots written before linked checkouts were canonicalized.
 	 * It probes an existing worktree when available and otherwise falls back to the persisted root for archived sessions.
+	 *
+	 * This is the only place a persisted root is repaired — `listSessions` deliberately
+	 * reads it as-is to stay off Git. The repair is therefore reachable only when
+	 * {@link WORKTREE_META_BRANCH} is also set (see the early return below). Every
+	 * writer of the root key writes the branch alongside it, so that holds in
+	 * practice; note the writes are concurrent rather than transactional, so a
+	 * root persisted without its branch would leave a session whose project label
+	 * could never heal.
 	 */
 	private async _readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(sessionUri);
