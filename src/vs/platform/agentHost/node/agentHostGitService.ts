@@ -895,7 +895,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
-		const githubHeadRepo = upstreamRemote ? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote) : undefined;
+		// `gh pr checkout` can create a local branch whose head lives on a fork but
+		// has no upstream tracking ref; Git still reports the branch's push remote,
+		// which can be a remote name or the literal fork URL.
+		const pushRemote = !upstreamRemote && status.branchName
+			? (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${status.branchName}`]))?.trim() || undefined
+			: undefined;
+		const githubHeadRepo = upstreamRemote
+			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
+			: parseGitHubHeadRepoFromRemoteSelection(remotesOutput, pushRemote);
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -1482,6 +1490,13 @@ export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, rem
 		}
 	}
 	return undefined;
+}
+
+function parseGitHubHeadRepoFromRemoteSelection(remotesOutput: string | undefined, remoteSelection: string | undefined): { owner: string; repo: string } | undefined {
+	if (!remoteSelection) {
+		return undefined;
+	}
+	return parseGitHubRepoFromRemote(remotesOutput, remoteSelection) ?? parseGitHubOwnerRepoFromUrl(remoteSelection);
 }
 
 /**

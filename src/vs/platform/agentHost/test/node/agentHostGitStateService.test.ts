@@ -435,6 +435,44 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('looks a fork pull request up by the local branch name when git inferred the fork head owner from the push remote', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = {
+				branchName: 'feature/alt-click-close-other-tabs',
+				baseBranchName: 'main',
+				githubHeadOwner: 'jadefr',
+			};
+			const h = createHarness();
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+			});
+			h.setGitResult(gitState);
+			h.setPullRequest('feature/alt-click-close-other-tabs', {
+				url: 'https://github.com/microsoft/vscode/pull/328975',
+				number: 328975,
+			});
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+
+			assert.deepStrictEqual({
+				pullRequestCalls: h.pullRequestCalls,
+				pullRequestShaCalls: h.pullRequestShaCalls,
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			}, {
+				pullRequestCalls: ['feature/alt-click-close-other-tabs'],
+				pullRequestShaCalls: [],
+				github: {
+					owner: 'microsoft',
+					repo: 'vscode',
+					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/328975'],
+					pullRequestBranchName: 'feature/alt-click-close-other-tabs',
+				},
+			});
+		});
+	});
+
 	test('falls back to the commit at HEAD when the branch name matches no pull request', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// A branch checked out from a pull request head: no upstream, and a
