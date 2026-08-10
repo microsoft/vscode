@@ -161,4 +161,53 @@ suite('ByokLmBridgeRegistry', () => {
 
 		reg.dispose();
 	});
+
+	test('compares reasoning effort metadata structurally', () => {
+		const registry = new ByokLmBridgeRegistry();
+		const conn = pushable();
+		const reg = store.add(registry.register('client-a', conn.connection));
+		conn.push([{
+			vendor: 'acme',
+			id: 'reasoning',
+			supportedReasoningEfforts: ['low', 'high'],
+			defaultReasoningEffort: 'low',
+		}]);
+
+		let changes = 0;
+		store.add(registry.onDidChangeModels(() => { changes++; }));
+
+		conn.push([{
+			vendor: 'acme',
+			id: 'reasoning',
+			supportedReasoningEfforts: ['low', 'high'],
+			defaultReasoningEffort: 'low',
+		}]);
+		conn.push([{
+			vendor: 'acme',
+			id: 'reasoning',
+			supportedReasoningEfforts: ['low', 'high'],
+			defaultReasoningEffort: 'high',
+		}]);
+		conn.push([{
+			vendor: 'acme',
+			id: 'reasoning',
+			supportedReasoningEfforts: ['low', 'medium', 'high'],
+			defaultReasoningEffort: 'high',
+		}]);
+
+		assert.deepStrictEqual({
+			changes,
+			models: registry.getModels(),
+		}, {
+			changes: 2,
+			models: [{
+				vendor: 'acme',
+				id: 'reasoning',
+				supportedReasoningEfforts: ['low', 'medium', 'high'],
+				defaultReasoningEffort: 'high',
+			}],
+		});
+
+		reg.dispose();
+	});
 });

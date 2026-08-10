@@ -25,10 +25,20 @@ export interface IByokLmTextPart {
 	readonly text: string;
 }
 
+export type ByokLmImageMimeType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | 'image/bmp';
+
+export interface IByokLmImagePart {
+	readonly type: 'image';
+	readonly mimeType: ByokLmImageMimeType;
+	readonly data: string;
+}
+
+export type IByokLmContentPart = IByokLmTextPart | IByokLmImagePart;
+
 export interface IByokLmMessageItem {
 	readonly type: 'message';
 	readonly role: 'system' | 'developer' | 'user' | 'assistant';
-	readonly content: IByokLmTextPart[];
+	readonly content: IByokLmContentPart[];
 }
 
 export interface IByokLmReasoningItem {
@@ -143,6 +153,22 @@ export interface IByokLmModelInfo {
 	readonly maxContextWindowTokens?: number;
 	/** Whether the model accepts image inputs, when known. */
 	readonly supportsVision?: boolean;
+	/** Reasoning effort values advertised by the renderer model, when known. */
+	readonly supportedReasoningEfforts?: readonly string[];
+	/** Default reasoning effort advertised by the renderer model, when known. */
+	readonly defaultReasoningEffort?: string;
+}
+
+/**
+ * Returns the provider-local selection id used by the agent host. Configured
+ * provider groups remain part of the id so models with the same vendor and
+ * provider-local id do not collide.
+ */
+export function getByokLmSelectionModelId(model: IByokLmModelInfo): string {
+	const vendorPrefix = `${model.vendor}/`;
+	return model.modelIdentifier?.startsWith(vendorPrefix)
+		? model.modelIdentifier.slice(vendorPrefix.length)
+		: model.id;
 }
 
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');

@@ -919,7 +919,7 @@ describe('CopilotCLISession', () => {
 		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
-	it('applies the configured sandbox for a request running with default approvals', async () => {
+	it('applies the configured sandbox for a request running with default permissions', async () => {
 		const session = await createSession({ sandboxEnabled: true });
 		session.attachStream(new MockChatResponseStream());
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run' }, [], undefined, authInfo, CancellationToken.None);

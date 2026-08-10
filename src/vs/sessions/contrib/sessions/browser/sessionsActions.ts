@@ -27,8 +27,9 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
+import { CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -51,6 +52,7 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
+import { groupSessionsForPicker } from './sessionsPicker.js';
 import './media/newSessionActionViewItem.css';
 
 // -- Show Sessions Picker --
@@ -81,9 +83,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 
 		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
-		const recentSessions = recent.filter(s => !s.isArchived.get());
-		const otherSessions = other.filter(s => !s.isArchived.get());
-
+		const sessionGroups = groupSessionsForPicker(recent, other);
 		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
@@ -91,14 +91,13 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		}
 
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
+		let firstSessionItem: ISessionPickItem | undefined;
 
 		// New session item
 		items.push({
 			label: `$(add) ${localize('newSession', "New Session")}`,
 			session: undefined,
 		});
-
-		let activeItem: ISessionPickItem | undefined;
 
 		const toPickItem = (session: ISession): ISessionPickItem => {
 			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
@@ -125,33 +124,30 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			}
 			detailParts.push(fromNow(session.updatedAt.get(), true, true));
 
-			const isActive = activeSessionId !== undefined && session.sessionId === activeSessionId;
-			const item: ISessionPickItem = {
+			return {
 				label: title,
 				detail: detailParts.join(' \u00B7 '),
 				iconClass: ThemeIcon.asClassName(icon),
 				session,
-				picked: isActive,
 			};
-			if (isActive) {
-				activeItem = item;
-			}
-			return item;
 		};
 
-		if (recentSessions.length > 0) {
-			items.push({ type: 'separator', label: localize('recentlyOpened', "recently opened") });
-			for (const session of recentSessions) {
-				items.push(toPickItem(session));
+		const appendSessions = (label: string, sessions: readonly ISession[]): void => {
+			if (sessions.length === 0) {
+				return;
 			}
-		}
+			items.push({ type: 'separator', label });
+			for (const session of sessions) {
+				const item = toPickItem(session);
+				firstSessionItem ??= item;
+				items.push(item);
+			}
+		};
 
-		if (otherSessions.length > 0) {
-			items.push({ type: 'separator', label: localize('otherSessions', "other sessions") });
-			for (const session of otherSessions) {
-				items.push(toPickItem(session));
-			}
-		}
+		appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+		appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
+		appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
+		appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
 
 		const picker = quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true });
 		picker.items = items;
@@ -159,10 +155,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
-
-		// Default to the currently active session so it is selected on open.
-		if (activeItem) {
-			picker.activeItems = [activeItem];
+		if (firstSessionItem) {
+			picker.activeItems = [firstSessionItem];
 		}
 
 		const disposables = new DisposableStore();
@@ -533,7 +527,7 @@ export interface IChatTabContext {
 registerAction2(class CloseChatAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.closeChat',
+			id: CLOSE_CHAT_COMMAND_ID,
 			title: localize2('closeActiveChat', "Close Chat"),
 			icon: Codicon.close,
 			// Hidden from the palette: closing a specific chat is contextual (the
@@ -625,7 +619,10 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 			if (chat.status.get() === SessionStatus.Untitled) {
 				await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
 			} else {
-				await sessionsService.closeChat(session, chat);
+				// Closing the whole batch is one gesture, so it is not offered to
+				// Reopen Closed Chat or Session — that would reopen only the last
+				// chat of the batch.
+				await sessionsService.closeChat(session, chat, { skipHistory: true });
 			}
 		}
 	}
@@ -677,13 +674,6 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			precondition: SessionSupportsMultipleChatsContext,
-			keybinding: {
-				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				// Like Cmd/Ctrl+Shift+T in a browser — reopens the most recently
-				// closed chat tab. Scoped to the agents window, outside editor area.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
-			},
 		});
 	}
 
@@ -700,6 +690,33 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 		}
 		await sessionsService.openChat(session, lastClosed.resource);
 		sessionsPartService.focusSession(session);
+	}
+});
+
+registerAction2(class ReopenLastClosedItemAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.reopenLastClosedItem',
+			title: localize2('reopenLastClosedItem', "Reopen Closed Chat or Session"),
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Ctrl/Cmd+Shift+T in a browser. Outside the editor scope the
+				// chord always belongs to the sessions area (it is a no-op when
+				// nothing was closed); inside it, VS Code's own Reopen Closed
+				// Editor takes over.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsEditorScopeContext.negate()),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsHasClosedItemContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ISessionsService).reopenLastClosedItem();
 	}
 });
 

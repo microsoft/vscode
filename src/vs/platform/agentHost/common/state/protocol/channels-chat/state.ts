@@ -393,6 +393,17 @@ export type ChatInputQuestion = ChatInputTextQuestion
 	| ChatInputMultiSelectQuestion;
 
 /**
+ * Why the agent requested chat input.
+ *
+ * @category Chat Input Types
+ */
+export const enum ChatInputRequestPurpose {
+	AskUser = 'askUser',
+	Elicitation = 'elicitation',
+	PlanReview = 'planReview',
+}
+
+/**
  * The request payload carried by an {@link InputRequestResponsePart}.
  *
  * The server creates or replaces the containing response part with
@@ -404,6 +415,8 @@ export type ChatInputQuestion = ChatInputTextQuestion
 export interface ChatInputRequest {
 	/** Stable request identifier */
 	id: string;
+	/** Input lifecycle classification. Missing for requests from older clients or persisted sessions. */
+	purpose?: ChatInputRequestPurpose;
 	/** Display message for the request as a whole */
 	message?: string;
 	/** URL the user should review or open, for URL-style elicitations */
@@ -873,7 +886,7 @@ export interface MarkdownResponsePart {
  *
  * @category Response Parts
  */
-export interface ResourceReponsePart extends ContentRef {
+export interface ResourceResponsePart extends ContentRef {
 	/** Discriminant */
 	kind: ResponsePartKind.ContentRef;
 }
@@ -913,7 +926,7 @@ export interface ReasoningResponsePart {
  */
 export type ResponsePart =
 	| MarkdownResponsePart
-	| ResourceReponsePart
+	| ResourceResponsePart
 	| ToolCallResponsePart
 	| ReasoningResponsePart
 	| SystemNotificationResponsePart
@@ -1177,9 +1190,23 @@ interface ToolCallBase {
 interface ToolCallParameterFields {
 	/** Message describing what the tool will do */
 	invocationMessage: StringOrMarkdown;
-	/** Raw tool input */
-	toolInput?: string;
+	/**
+	 * Final tool input.
+	 *
+	 * Referenced input is mutable until the tool call leaves
+	 * `pending-confirmation`. When the client confirms with `editedToolInput`,
+	 * the host MUST replace the resource contents before echoing the accepted
+	 * confirmation action. Clients MUST NOT cache tool input across confirmation.
+	 */
+	toolInput?: ToolInput;
 }
+
+/**
+ * Tool input represented inline or by reference.
+ *
+ * @category Tool Call Types
+ */
+export type ToolInput = string | ContentRef;
 
 /**
  * Tool execution result details, available after execution completes.
@@ -1214,7 +1241,7 @@ export interface ToolCallResult {
  */
 export interface ToolCallStreamingState extends ToolCallBase {
 	status: ToolCallStatus.Streaming;
-	/** Partial parameters accumulated so far */
+	/** Partial parameters accumulated from tool-call deltas. */
 	partialInput?: string;
 	/** Progress message shown while parameters are streaming */
 	invocationMessage?: StringOrMarkdown;
