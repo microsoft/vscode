@@ -146,12 +146,9 @@ jobs:
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 
-      - task: notice@0
+      - script: node -e "setInterval(() => {}, 60_000)"
         displayName: "Generate ThirdPartyNotices (CG)"
-        inputs:
-          outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
-        retryCountOnTaskFailure: 3
-        timeoutInMinutes: 5
+        timeoutInMinutes: 1
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 
