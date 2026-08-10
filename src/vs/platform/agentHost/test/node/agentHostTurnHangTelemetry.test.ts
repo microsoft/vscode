@@ -18,7 +18,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -442,6 +442,89 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			{ hangReason: 'waitingOnUser', isExpected: true },
 			{ hangReason: 'stalledAfterProgress', isExpected: false },
 		]);
+	});
+
+	test('tags a client-executed tool as runningTool, not as a wait on the user', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-client');
+			fire({
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-client',
+				toolCallId: 'tc-client',
+				toolName: 'run_tests',
+				displayName: 'run_tests',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			});
+			// Confirmation is not needed, so the call goes straight to running
+			// and is surfaced as a `toolClientExecution` input request. That is
+			// delegated work, not a prompt — the turn is not waiting on a human.
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-client',
+				toolCallId: 'tc-client',
+				invocationMessage: 'Run tests',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			hangReason: e.data.hangReason,
+			isExpected: e.data.isExpected,
+			blockedOn: e.data.blockedOn,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{
+			hangReason: 'runningTool',
+			isExpected: true,
+			blockedOn: undefined,
+			inFlightToolCallCount: 1,
+		}]);
+	});
+
+	test('reports a real stall when the agent goes quiet after a denied confirmation', async () => {
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-denied');
+			fire({
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-denied',
+				toolCallId: 'tc-denied',
+				toolName: 'write',
+				displayName: 'write',
+			});
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-denied',
+				toolCallId: 'tc-denied',
+				invocationMessage: 'Write file',
+				confirmationTitle: 'Write file',
+			});
+
+			// Denial is terminal — no `ChatToolCallComplete` follows, so the
+			// tool must not stay in the turn's in-flight set.
+			const denied: ChatAction = {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: 'turn-denied',
+				toolCallId: 'tc-denied',
+				approved: false,
+				reason: ToolCallCancellationReason.Denied,
+			};
+			stateManager.dispatchClientAction(defaultChatUri, denied, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, denied);
+
+			await timeout(TURN_HANG_THRESHOLD_MS);
+		});
+
+		assert.deepStrictEqual(hangEvents().map(e => ({
+			hangReason: e.data.hangReason,
+			isExpected: e.data.isExpected,
+			inFlightToolCallCount: e.data.inFlightToolCallCount,
+		})), [{
+			hangReason: 'stalledAfterProgress',
+			isExpected: false,
+			inFlightToolCallCount: 0,
+		}]);
 	});
 
 	test('does not report after a turn is cancelled or its session is torn down', async () => {

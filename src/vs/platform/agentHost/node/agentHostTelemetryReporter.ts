@@ -235,12 +235,14 @@ export interface IAgentHostTurnCompletedReport {
  *
  * Expected (the turn is legitimately waiting; reported so the two populations
  * can be told apart in queries rather than silently dropped):
- *  - `waitingOnUser`: a session input request (tool confirmation, client tool
- *    execution, tool authentication, or an elicitation) is outstanding, so the
- *    turn is blocked on a human.
+ *  - `waitingOnUser`: a request that blocks on a *human* is outstanding — a
+ *    tool confirmation, a tool authentication, or an elicitation. Client tool
+ *    execution is deliberately excluded: it is delegated running work rather
+ *    than a prompt, and is reported as `runningTool` instead.
  *  - `runningTool`: a tool call is still in flight. Covers genuinely long tool
- *    invocations (builds, test runs) and subagents, whose work is reported on
- *    the subagent's own chat channel rather than the parent turn's.
+ *    invocations (builds, test runs), client-executed tools, and subagents,
+ *    whose work is reported on the subagent's own chat channel rather than the
+ *    parent turn's.
  */
 export type AgentHostTurnHangReason = 'noProgress' | 'stalledAfterProgress' | 'waitingOnUser' | 'runningTool';
 
@@ -273,7 +275,7 @@ export type IAgentHostTurnHungClassification = {
 	isExpected: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the quiet period is explained by a legitimate wait (blocked on the user or running a tool) rather than an unexplained hang.' };
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
 	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The protocol action type of the last observed turn activity, or none when the turn never produced any.' };
-	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding session input request the turn is blocked on, when there is one.' };
+	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
 	inFlightToolCallCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of tool calls that had started but not completed when the watchdog fired.' };
 	quietTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds since the last observed turn activity.' };
 	turnElapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the hang report.' };

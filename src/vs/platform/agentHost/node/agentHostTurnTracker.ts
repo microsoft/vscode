@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import type { SessionInputRequestKind } from '../common/state/protocol/state.js';
+import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, AgentHostTurnHangReason, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
@@ -50,8 +50,7 @@ interface ITurnTiming {
 	/** Tool calls that have started but not completed, by tool call id. */
 	readonly inFlightToolCalls: Set<string>;
 	/** Outstanding session input requests for this turn, by request id. */
-	readonly blockers: Map<string, SessionInputRequestKind>;
-	/** Hang reasons already reported, so each is emitted at most once per turn. */
+	readonly blockers: Map<string, SessionInputRequestKind>;	/** Hang reasons already reported, so each is emitted at most once per turn. */
 	readonly reportedHangReasons: Set<AgentHostTurnHangReason>;
 	/** Number of hang reports emitted for this turn. */
 	hangReportCount: number;
@@ -187,11 +186,20 @@ export class AgentHostTurnTracker extends Disposable {
 	}
 
 	/**
-	 * Records that the turn is blocked on a session input request (tool
-	 * confirmation, client tool execution, tool authentication, or an
-	 * elicitation). These are legitimate waits on a human, so a hang reported
-	 * while one is outstanding is tagged `waitingOnUser` and can be filtered
-	 * apart from real hangs.
+	 * Records that a session input request is outstanding for the turn.
+	 *
+	 * Only requests that block on a *human* make the turn `waitingOnUser`.
+	 * {@link SessionInputRequestKind.ToolClientExecution} is delegated running
+	 * work, not a prompt: the call has already cleared its confirmation gate
+	 * and is simply executing on a client. Counting it would report every
+	 * long-running client tool as waiting on the user. This mirrors the
+	 * `awaitsUser` predicate the protocol reducer uses for session status
+	 * (`channels-session/reducer.ts`), which cannot be imported here because
+	 * that file is generated. Client execution is still represented — the
+	 * in-flight tool set covers it and yields `runningTool`.
+	 *
+	 * Every outstanding request is recorded regardless, so unblocking can find
+	 * its turn and teardown can clean up its bookkeeping.
 	 */
 	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind): void {
 		const turnKey = this._key(session, turnId);
@@ -338,7 +346,7 @@ export class AgentHostTurnTracker extends Disposable {
 			timing.hangReportCount++;
 			timing.lastHangReason = hangReason;
 			timing.lastHangStopWatch = StopWatch.create(true);
-			const blockedOn = timing.blockers.values().next();
+			const userBlocker = this._firstUserBlocker(timing);
 			this._reporter.turnHung({
 				provider: timing.provider,
 				session: timing.session,
@@ -346,7 +354,7 @@ export class AgentHostTurnTracker extends Disposable {
 				hangReason,
 				hadAnyProgress: timing.lastActivityKind !== TURN_ACTIVITY_NONE,
 				lastActivityKind: timing.lastActivityKind,
-				blockedOn: blockedOn.done ? undefined : blockedOn.value,
+				blockedOn: userBlocker,
 				inFlightToolCallCount: timing.inFlightToolCalls.size,
 				quietTimeMs: timing.quietStopWatch.elapsed(),
 				turnElapsedMs: timing.stopWatch.elapsed(),
@@ -362,11 +370,25 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 	}
 
+	/**
+	 * The kind of the first outstanding request that blocks on the user, or
+	 * `undefined` when none does. See {@link turnBlocked} for why client tool
+	 * execution is not a user blocker.
+	 */
+	private _firstUserBlocker(timing: ITurnTiming): SessionInputRequestKind | undefined {
+		for (const kind of timing.blockers.values()) {
+			if (kind !== SessionInputRequestKind.ToolClientExecution) {
+				return kind;
+			}
+		}
+		return undefined;
+	}
+
 	private _deriveHangReason(timing: ITurnTiming): AgentHostTurnHangReason {
-		// A blocker takes precedence over an in-flight tool call: a tool call
-		// awaiting confirmation is both, and the human is the real reason the
-		// turn is quiet.
-		if (timing.blockers.size > 0) {
+		// A user blocker takes precedence over an in-flight tool call: a tool
+		// call awaiting confirmation is both, and the human is the real reason
+		// the turn is quiet.
+		if (this._firstUserBlocker(timing) !== undefined) {
 			return 'waitingOnUser';
 		}
 		if (timing.inFlightToolCalls.size > 0) {

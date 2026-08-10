@@ -876,6 +876,15 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId);
 		}
 
+		// A denied confirmation is a terminal transition to `cancelled`: the
+		// reducer ignores any later completion for the call, so drop it from
+		// the turn's in-flight set here or a subsequent hang would be reported
+		// as `runningTool` for a tool that will never run. Denials reach the
+		// host on this path as well as via `handleAction`.
+		if (action.type === ActionType.ChatToolCallConfirmed && !action.approved) {
+			this._turnTracker.toolCallEnded(sessionKey, turnId, action.toolCallId);
+		}
+
 		if (action.type === ActionType.ChatToolCallComplete) {
 			this._turnTracker.toolCallEnded(sessionKey, turnId, action.toolCallId);
 
@@ -1399,6 +1408,13 @@ export class AgentSideEffects extends Disposable {
 				const toolCallKey = `${channel}:${action.toolCallId}`;
 				if (action.approved) {
 					this._toolCallTracker.toolCallExecutionStarted(channel, action.toolCallId);
+				} else {
+					// A denial is terminal: the reducer moves the call to
+					// `cancelled` and ignores any later completion for it, so
+					// this is the last chance to drop it from the turn's
+					// in-flight set. Leaving it would make a subsequent hang
+					// report `runningTool` for a tool that will never run.
+					this._turnTracker.toolCallEnded(channel, action.turnId, action.toolCallId);
 				}
 				const managedApprovalRequired = this._managedApprovalToolCalls.delete(toolCallKey);
 				const agentId = this._toolCallAgents.get(toolCallKey);
