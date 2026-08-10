@@ -81,8 +81,8 @@
 }
 
 .xterm .composition-view {
-	/* TODO: Composition position got messed up somewhere */
-	background: #000;
+	/* Use terminal theme background instead of hardcoded black to prevent black background from showing after spaces */
+	background: var(--vscode-terminal-background, var(--vscode-panel-background, #000));
 	color: #FFF;
 	display: none;
 	position: absolute;
