@@ -1709,6 +1709,36 @@ suite('RemoteAgentHostProtocolClient', () => {
 			});
 		});
 
+		test('retries with a fresh initialize when the factory transport closes during initial connect', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = assert.rejects(client.connect());
+
+			client.notifyTransportClosed();
+			await waitForReconnecting(client);
+			transports[0].connectDeferred.error(new Error('Initial transport closed'));
+			await connectPromise;
+
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			await flushMicrotasks();
+
+			assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+		});
+
 		test('falls back to initialize with client info when the server forgot the client', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient(createPermissionService(), agentsWindowAgentHostClientInfo);

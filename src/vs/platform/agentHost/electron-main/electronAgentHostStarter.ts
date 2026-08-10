@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { IpcMainEvent, WebContents } from 'electron';
@@ -22,7 +22,7 @@ import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProces
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar } from '../common/agentHostTelemetry.js';
-import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostProcessExitIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
 
@@ -30,11 +30,13 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
 	private utilityProcessStarted: DeferredPromise<void> | undefined = undefined;
-	private readonly _windowSenders = new Map<WebContents, () => void>();
-	private _isShuttingDown = false;
+	private readonly _windowSenders = new Map<number, WebContents>();
+	private readonly _windowSenderCleanup = this._register(new DisposableMap<number>());
 
 	private readonly _onRequestConnection = this._register(new Emitter<void>());
 	readonly onRequestConnection = this._onRequestConnection.event;
+	private readonly _onRequestRestart = this._register(new Emitter<void>());
+	readonly onRequestRestart = this._onRequestRestart.event;
 	private readonly _onWillShutdown = this._register(new Emitter<void>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
@@ -56,16 +58,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	) {
 		super();
 
-		this._register(this._lifecycleMainService.onWillShutdown(() => {
-			this._isShuttingDown = true;
-			this._onWillShutdown.fire();
-		}));
-		this._register(toDisposable(() => {
-			for (const [sender, listener] of this._windowSenders) {
-				sender.removeListener('destroyed', listener);
-			}
-			this._windowSenders.clear();
-		}));
+		this._register(this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire()));
 
 		// Capture the enterprise OTel policy the renderer forwards before it requests a
 		// connection (FIFO per sender ensures this lands before the spawn in `start()`).
@@ -82,6 +75,15 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		validatedIpcMain.on('vscode:createAgentHostMessageChannel', onWindowConnection);
 		this._register(toDisposable(() => {
 			validatedIpcMain.removeListener('vscode:createAgentHostMessageChannel', onWindowConnection);
+		}));
+
+		const onRestart = () => {
+			this._notifyWindowsWillRestart();
+			this._onRequestRestart.fire();
+		};
+		validatedIpcMain.on(AgentHostRestartIpcChannel, onRestart);
+		this._register(toDisposable(() => {
+			validatedIpcMain.removeListener(AgentHostRestartIpcChannel, onRestart);
 		}));
 	}
 
@@ -189,11 +191,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			}
 			this._logService.error(`[AgentHost:stderr] ${data}`);
 		}));
-		store.add(this.utilityProcess.onExit(() => {
-			if (!this._isShuttingDown) {
-				this._notifyWindowsOfProcessExit();
-			}
-		}));
+		store.add(this.utilityProcess.onExit(() => this._notifyWindowsWillRestart()));
 		store.add(toDisposable(() => {
 			this.utilityProcess?.kill();
 			this.utilityProcess?.dispose();
@@ -218,7 +216,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	}
 
 	private async _onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
-		this._trackWindow(e.sender);
+		this._trackWindowSender(e.sender);
 		this._onRequestConnection.fire();
 
 		// Wait for utilityProcess.start() to actually run before calling connect(),
@@ -240,21 +238,25 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		e.sender.postMessage('vscode:createAgentHostMessageChannelResult', nonce, [port]);
 	}
 
-	private _trackWindow(sender: WebContents): void {
-		if (this._windowSenders.has(sender)) {
-			return;
-		}
-		const onDestroyed = () => this._windowSenders.delete(sender);
-		this._windowSenders.set(sender, onDestroyed);
-		sender.once('destroyed', onDestroyed);
-	}
-
-	private _notifyWindowsOfProcessExit(): void {
-		for (const sender of this._windowSenders.keys()) {
+	private _notifyWindowsWillRestart(): void {
+		for (const sender of this._windowSenders.values()) {
 			if (!sender.isDestroyed()) {
-				sender.send(AgentHostProcessExitIpcChannel);
+				sender.send(AgentHostWillRestartIpcChannel);
 			}
 		}
+	}
+
+	private _trackWindowSender(sender: WebContents): void {
+		if (this._windowSenders.has(sender.id)) {
+			return;
+		}
+		this._windowSenders.set(sender.id, sender);
+		const onDestroyed = () => this._windowSenderCleanup.deleteAndDispose(sender.id);
+		sender.once('destroyed', onDestroyed);
+		this._windowSenderCleanup.set(sender.id, toDisposable(() => {
+			sender.removeListener('destroyed', onDestroyed);
+			this._windowSenders.delete(sender.id);
+		}));
 	}
 
 	private static readonly _expectedStderrPatterns = [

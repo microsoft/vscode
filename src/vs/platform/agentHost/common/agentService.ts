@@ -108,12 +108,7 @@ export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowS
  * the agent host process. When `false`, the agent host skips registering the
  * Claude provider regardless of SDK availability. Defaults to `true`.
  *
- * Independent of {@link ClaudePreferAgentHostAgentsSettingId} /
- * {@link ClaudePreferAgentHostEditorSettingId}, which control whether the
- * workbench surfaces the agent host's Claude provider (vs. the GitHub Copilot
- * Chat extension's). This setting is strictly about whether the agent host
- * advertises Claude at all. The agent host process must be restarted for
- * changes to take effect.
+ * The agent host process must be restarted for changes to take effect.
  */
 export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
 
@@ -222,50 +217,19 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
 
 /**
- * Selects which Claude integration fulfills Claude sessions opened from the
- * **Agents Window**:
- *  - `true` (default) — Claude is provided by the agent host process.
- *  - `false` — Claude is provided by the GitHub Copilot Chat extension.
- *
- * When Agent Host is enabled, this controls whether the per-window bridge in
- * `AgentHostContribution` surfaces the AH provider in the Agents Window. The
- * extension's `chatSessions` contribution mirrors the rule declaratively and
- * remains visible when Agent Host is unavailable.
- *
- * Paired with {@link ClaudePreferAgentHostEditorSettingId} which governs the
- * regular workbench (sidebar). EXP-backed (`experiment: { mode: 'startup' }`).
- */
-export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAgentHost';
-
-/**
- * Sibling of {@link ClaudePreferAgentHostAgentsSettingId} that selects the
- * Claude implementation for the **regular workbench** (sidebar chat in a
- * non-Agents-Window window). Same shape, same semantics — just a different
- * surface scope.
- */
-export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
-
-/**
  * Selects whether the regular workbench surfaces Codex from the agent host
  * instead of the OpenAI extension.
  */
 export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
 
-export function claudePreferAgentHostSettingId(isSessionsWindow: boolean): string {
-	return isSessionsWindow
-		? ClaudePreferAgentHostAgentsSettingId
-		: ClaudePreferAgentHostEditorSettingId;
-}
-
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
-	return event.affectsConfiguration(claudePreferAgentHostSettingId(isSessionsWindow))
-		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+	return event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
 	switch (provider) {
 		case CLAUDE_AGENT_PROVIDER_ID:
-			return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
+			return true;
 		case CODEX_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
 		default:
@@ -417,8 +381,11 @@ export interface IAgentHostOTelSettings {
  */
 export const AgentHostOTelPolicyIpcChannel = 'vscode:agentHostOTelPolicy';
 
-/** IPC channel (main -> renderer) notifying that the local Agent Host process exited. */
-export const AgentHostProcessExitIpcChannel = 'vscode:agentHostProcessExit';
+/** Renderer-to-main request to replace the shared local Agent Host process. */
+export const AgentHostRestartIpcChannel = 'vscode:restartAgentHost';
+
+/** Main-to-renderer notification sent before replacement so each local client reconnects immediately. */
+export const AgentHostWillRestartIpcChannel = 'vscode:agentHostWillRestart';
 
 /**
  * Resolve the enterprise-policy values for the `chat.agentHost.otel.*` settings from a
@@ -724,6 +691,9 @@ export interface IAgentHostNetworkFetchResult {
 export interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
 
+	/** Resolves after the WebSocket listener configured at process startup is bound. */
+	waitForConfiguredWebSocketServer(): Promise<void>;
+
 	/**
 	 * Request the agent host to start a WebSocket server on a local
 	 * pipe/socket. Returns the socket path.
@@ -780,9 +750,9 @@ export interface IAgentSessionMetadata {
 	/** All working directories available to the session (index 0 = primary). */
 	readonly workingDirectories?: readonly URI[];
 	/**
-	 * Aggregate counts (additions / deletions / files) describing the
-	 * `changeKind: 'session'` changeset for this session — the chip
-	 * aggregate previously embedded in the catalogue entry. Mirrors
+	 * Aggregate counts (additions / deletions / files) for this session's
+	 * changes. Single-folder sessions derive this from the branch changeset;
+	 * multi-folder sessions aggregate it across all folders. Mirrors
 	 * `SessionSummary.changes`.
 	 */
 	readonly changes?: ChangesSummary;
@@ -1585,6 +1555,18 @@ export interface IActiveClient {
 }
 
 /**
+ * Outcome of {@link IAgent.ensureSessionAdopted}. `adopted` is true iff this
+ * call newly seeded metadata for the session; `eligible` is true iff the session
+ * is a legacy on-disk session that was a genuine adoption candidate (whether or
+ * not it was adopted this call), so callers can distinguish a migration that did
+ * not happen from an ordinary native restore.
+ */
+export interface IAgentSessionAdoptionResult {
+	readonly adopted: boolean;
+	readonly eligible: boolean;
+}
+
+/**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
@@ -1645,12 +1627,13 @@ export interface IAgent {
 	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
 	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
 	 * no agent-host metadata yet, seed that metadata in place — reusing the event
-	 * log verbatim — so the normal restore flow can resume it. Returns `true` iff
-	 * it newly adopted the session (so the caller can run a one-time checkpoint
-	 * bridge), `false` otherwise. Optional: providers without a legacy on-disk
-	 * format omit it.
+	 * log verbatim — so the normal restore flow can resume it. Reports whether the
+	 * session was newly adopted (so the caller can run a one-time checkpoint
+	 * bridge) and whether it was an eligible legacy session at all (so the caller
+	 * can tell a genuine migration candidate apart from an ordinary native
+	 * restore). Optional: providers without a legacy on-disk format omit it.
 	 */
-	ensureSessionAdopted?(session: URI): Promise<boolean>;
+	ensureSessionAdopted?(session: URI): Promise<IAgentSessionAdoptionResult>;
 
 	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;

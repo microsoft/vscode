@@ -19,7 +19,7 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
@@ -3379,8 +3379,9 @@ suite('LayoutController (desktop)', () => {
 
 		assert.deepStrictEqual({
 			hasChangesTab: hasChangesTab(),
+			changesTabAvailable: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabAvailableContext.key),
 			changesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key)
-		}, { hasChangesTab: false, changesTabMissing: true });
+		}, { hasChangesTab: false, changesTabAvailable: true, changesTabMissing: true });
 	});
 
 	test('[managed tabs / add-tab] a missing Files tab flips SinglePaneFilesTabMissingContext', async () => {
@@ -3400,8 +3401,9 @@ suite('LayoutController (desktop)', () => {
 
 		assert.deepStrictEqual({
 			hasFilesTab: hasFilesTab(),
+			filesTabAvailable: harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabAvailableContext.key),
 			filesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabMissingContext.key)
-		}, { hasFilesTab: false, filesTabMissing: true });
+		}, { hasFilesTab: false, filesTabAvailable: true, filesTabMissing: true });
 	});
 
 	test('[managed tabs / add-tab] reopening the Changes tab clears the missing context and is retained', async () => {

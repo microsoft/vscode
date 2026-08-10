@@ -27,12 +27,26 @@ export interface IAgentServerToolHost {
 	/** Advertises all server tools on the session's `serverTools`. */
 	advertise(sessionUri: URI): void;
 	/**
-	 * Whether {@link toolName} must be confirmed by the user before it runs.
-	 * Providers exclude such tools from their server-tool auto-approve lists so
-	 * the call surfaces a confirmation instead of executing silently. Returns
-	 * `false` for unknown tools and for tools that are auto-approved.
+	 * Whether {@link toolName} can ever prompt for confirmation, independent of
+	 * any session's current state. Providers use this to decide up front which
+	 * tools must route through their confirmation path; a tool that answers
+	 * `false` is auto-approved and never asks {@link requiresConfirmation}.
+	 * Returns `false` for unknown tools.
+	 *
+	 * This must stay session-independent: providers bake the answer into
+	 * long-lived SDK allow-lists, so a state-dependent value would go stale.
 	 */
-	requiresConfirmation(toolName: string): boolean;
+	canRequireConfirmation(toolName: string): boolean;
+	/**
+	 * Whether {@link toolName} needs to prompt for *this* invocation, given the
+	 * current state of {@link sessionUri}. Lets a tool that normally confirms
+	 * run silently when it has nothing to confirm. Defaults to
+	 * {@link canRequireConfirmation} when the owning group has no
+	 * session-specific condition.
+	 *
+	 * Providers must consult this before prompting or executing the tool.
+	 */
+	requiresConfirmation(sessionUri: URI, toolName: string): boolean;
 	/**
 	 * Executes a server tool against the session's state, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.

@@ -1215,6 +1215,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.monaco-workbench .interactive-session .interactive-input-part:not(.compact) .chat-input-container.working > .chat-editor-container {
+	margin-right: calc(-1 * var(--vscode-spacing-size60));
+	padding-right: var(--vscode-spacing-size60);
+	border-top-right-radius: inherit;
+}
+
 .monaco-workbench .interactive-session .chat-input-container.working.focused {
 	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
 }

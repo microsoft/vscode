@@ -22,7 +22,7 @@ import { NullWorkbenchAssignmentService } from '../../../../../workbench/service
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
 import { GitHubAuthenticationError } from '../../../github/browser/githubApiClient.js';
 import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -77,19 +77,21 @@ suite('NewSessionViewV3Prompt', () => {
 			issue: selectNewSessionViewV3GitHubCandidate({ pullRequests: [], issues: [olderIssue, recentIssue] }),
 			none: selectNewSessionViewV3GitHubCandidate({ pullRequests: [pullRequest('Addressed', '2026-08-07T14:00:00Z', undefined, '2026-08-07T11:00:00Z', '2026-08-07T10:00:00Z')], issues: [] }),
 		}, {
-			ci: { title: 'Recent failure', url: 'https://github.com/o/r/pull/Recent%20failure', strategy: 'githubCiFailure' },
-			review: { title: 'Review', url: 'https://github.com/o/r/pull/Review', strategy: 'githubReviewComments' },
-			issue: { title: 'Recent issue', url: 'https://github.com/o/r/issues/Recent%20issue', strategy: 'githubIssue' },
+			ci: { number: 1, title: 'Recent failure', url: 'https://github.com/o/r/pull/Recent%20failure', strategy: 'githubCiFailure' },
+			review: { number: 1, title: 'Review', url: 'https://github.com/o/r/pull/Review', strategy: 'githubReviewComments' },
+			issue: { number: 1, title: 'Recent issue', url: 'https://github.com/o/r/issues/Recent%20issue', strategy: 'githubIssue' },
 			none: undefined,
 		});
 	});
 
 	test('uses prompt treatments only as a complete pair and permits literal prompts', async () => {
 		const complete = await runPrompt({
+			'onb.newSessionViewV3.variation': 'prompt',
 			'onb.newSessionViewV3.promptTemplate': 'Inspect this project and suggest the next task.',
 			'onb.newSessionViewV3.placeholder': '[custom task]',
 		});
 		const incomplete = await runPrompt({
+			'onb.newSessionViewV3.variation': 'prompt',
 			'onb.newSessionViewV3.promptTemplate': 'Please complete {0}.',
 		});
 
@@ -103,6 +105,39 @@ suite('NewSessionViewV3Prompt', () => {
 				durationMs: 2_500,
 				placeholder: '[describe the coding task]',
 			},
+		});
+	});
+
+	test('uses prompt options as the default variation', async () => {
+		const result = await runPrompt({});
+
+		assert.deepStrictEqual({
+			animation: result.animation,
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			animation: undefined,
+			states: [
+				{ kind: 'loading' },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
+						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
+						{ title: 'Fix CI', description: 'Describe a failing check or paste a link', icon: { id: 'run-errors', color: undefined } },
+					],
+				},
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
+					fallbackReason: 'noCandidate',
+					shown: true,
+				},
+			}],
 		});
 	});
 
@@ -159,6 +194,124 @@ suite('NewSessionViewV3Prompt', () => {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
 					configuredVariation: 'githubPrompt',
 					effectiveStrategy: 'prompt',
+					fallbackReason: 'noAuthentication',
+					shown: true,
+				},
+			}],
+		});
+	});
+
+	test('shows loading skeletons and resolves issue-first GitHub prompt options', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{
+				issues: [
+					issue('Older assigned issue', '2026-08-07T11:00:00Z', 12),
+					issue('Newest assigned issue', '2026-08-07T14:00:00Z', 14),
+					issue('Third assigned issue', '2026-08-07T10:00:00Z', 10),
+				],
+				pullRequests: [
+					pullRequest('CI is failing', '2026-08-07T13:00:00Z', 'FAILURE', undefined, undefined, 21),
+					pullRequest('Review feedback', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z', 22),
+				],
+			},
+		);
+
+		assert.deepStrictEqual({
+			animation: result.animation,
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			animation: undefined,
+			states: [
+				{ kind: 'loading' },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Fix CI #21', description: 'CI is failing', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
+					],
+				},
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
+					fallbackReason: 'none',
+					shown: true,
+				},
+			}],
+		});
+	});
+
+	test('fills missing prompt options from the fixed standard order after a partial timeout', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{ pullRequests: [], issues: [issue('Ready issue', '2026-08-07T13:00:00Z', 7)] },
+			{ pullRequestLookupNeverResolves: true },
+		);
+
+		assert.deepStrictEqual({
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			states: [
+				{ kind: 'loading' },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
+						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
+					],
+				},
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
+					fallbackReason: 'timeout',
+					shown: true,
+				},
+			}],
+		});
+	});
+
+	test('uses all standard prompt options when GitHub authentication is unavailable', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			new GitHubAuthenticationError(),
+		);
+
+		assert.deepStrictEqual({
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			states: [
+				{ kind: 'loading' },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
+						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
+						{ title: 'Fix CI', description: 'Describe a failing check or paste a link', icon: { id: 'run-errors', color: undefined } },
+					],
+				},
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
 					fallbackReason: 'noAuthentication',
 					shown: true,
 				},
@@ -279,6 +432,7 @@ suite('NewSessionViewV3Prompt', () => {
 						prompt = text;
 						return true;
 					},
+					showPromptOptions: () => true,
 				});
 			}(),
 			new class extends mock<IGitService>() {
@@ -335,6 +489,7 @@ suite('NewSessionViewV3Prompt', () => {
 						prompt = text;
 						return true;
 					},
+					showPromptOptions: () => true,
 				});
 			}(),
 			new class extends mock<IGitService>() { }(),
@@ -380,10 +535,12 @@ async function runPrompt(
 	options: { readonly workspaceUri?: URI; readonly includeGitHubInfo?: boolean; readonly gitRemoteUrl?: string; readonly pullRequestLookupNeverResolves?: boolean; readonly issueLinkageLookupNeverResolves?: boolean } = {},
 ): Promise<{
 	readonly animation: { readonly prompt: string; readonly durationMs: number; readonly placeholder: string } | undefined;
+	readonly promptOptionStates: readonly NewSessionPromptOptionsState[];
 	readonly telemetry: readonly { readonly name: string; readonly data: object | undefined }[];
 	readonly gitHubRequests: readonly TestGitHubRequest[];
 }> {
 	let animation: { prompt: string; durationMs: number; placeholder: string } | undefined;
+	const promptOptionStates: NewSessionPromptOptionsState[] = [];
 	const workspaceUri = options.workspaceUri ?? URI.file('C:\\repo');
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
@@ -394,6 +551,12 @@ async function runPrompt(
 		override readonly activeComposer = constObservable({
 			animatePrompt: async (prompt: string, durationMs: number, placeholder: string) => {
 				animation = { prompt, durationMs, placeholder };
+				return true;
+			},
+			showPromptOptions: (state: NewSessionPromptOptionsState | undefined) => {
+				if (state) {
+					promptOptionStates.push(state);
+				}
 				return true;
 			},
 		});
@@ -464,7 +627,7 @@ async function runPrompt(
 	);
 
 	await runner.run(CancellationToken.None);
-	return { animation, telemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
+	return { animation, promptOptionStates, telemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
 }
 
 function pullRequest(title: string, updatedAt: string, statusCheckRollupState?: string, latestCommitAt?: string, latestCommentAt?: string, number = 1) {
@@ -517,4 +680,17 @@ function createSession(workspace: ISessionWorkspace): IActiveSession {
 		override readonly isCreated = constObservable(false);
 		override readonly workspace = constObservable(workspace);
 	}();
+}
+
+function summarizePromptOptionStates(states: readonly NewSessionPromptOptionsState[]): object[] {
+	return states.map(state => state.kind === 'loading'
+		? { kind: state.kind }
+		: {
+			kind: state.kind,
+			options: state.options.map(option => ({
+				title: option.titleDetail ? `${option.title} ${option.titleDetail}` : option.title,
+				description: option.description,
+				icon: option.icon ? { id: option.icon.id, color: option.icon.color?.id } : undefined,
+			})),
+		});
 }

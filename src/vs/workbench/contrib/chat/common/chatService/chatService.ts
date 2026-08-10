@@ -1752,6 +1752,7 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
+	readonly reasonCode?: 'cancelled' | 'providerRemoved';
 	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
 	readonly newSessionResource?: URI;
 }
@@ -1765,6 +1766,8 @@ export interface ChatSendResultSent {
 
 export interface ChatSendResultQueued {
 	readonly kind: 'queued';
+	/** The id of the request model created for this queued message. */
+	readonly requestId: string;
 	/**
 	 * Promise that resolves when the queued message is actually processed.
 	 * Will resolve to a 'sent' or 'rejected' result.
@@ -1891,6 +1894,9 @@ export interface IChatSendRequestOptions {
 	 * such as terminal command completion.
 	 */
 	isSystemInitiated?: boolean;
+
+	/** Hide the request and its response from the transcript while retaining them in history. */
+	hideFromTranscript?: boolean;
 
 	/**
 	 * Display label for system-initiated requests. When set, the request row renders

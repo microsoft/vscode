@@ -5,22 +5,55 @@
 
 import assert from 'assert';
 import { Color, HSLA } from '../../../../../../base/common/color.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { chartsOrange } from '../../../../../../platform/theme/common/colors/chartsColors.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
 import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
 import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { createVoiceGlowController } from '../../../browser/voiceClient/voiceGlowController.js';
 
 suite('VoiceGlow', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('only the talking states glow', () => {
-		const states = ['idle', 'listening', 'speaking', 'processing', 'error'] as const;
+	test('only talking and confirmation states glow', () => {
+		const states = ['idle', 'listening', 'speaking', 'confirmation', 'processing', 'error'] as const;
 		assert.deepStrictEqual(
 			states.filter(isGlowingVoiceState),
-			['listening', 'speaking']
+			['listening', 'speaking', 'confirmation']
 		);
+	});
+
+	test('renders in an auxiliary owner document', () => {
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		disposables.add(toDisposable(() => iframe.remove()));
+
+		const auxiliaryDocument = iframe.contentDocument!;
+		const target = auxiliaryDocument.createElement('div');
+		auxiliaryDocument.body.appendChild(target);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		disposables.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		const controller = disposables.add(createVoiceGlowController(target));
+		controller.render('listening', 0.5, false);
+
+		assert.deepStrictEqual({
+			active: target.classList.contains('voice-active'),
+			listening: target.classList.contains('voice-listening'),
+			slots: target.querySelectorAll('.voice-glow-slot').length,
+			layers: target.querySelectorAll('.voice-glow-rim-corners, .voice-glow-rim-bloom').length,
+		}, {
+			active: true,
+			listening: true,
+			slots: 2,
+			layers: 2,
+		});
 	});
 
 	test('derives the speaking accent from the theme base color', () => {
@@ -44,6 +77,12 @@ suite('VoiceGlow', () => {
 			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF') : id === chatVoiceSpeakingGlow ? pinned : undefined,
 		});
 		assert.strictEqual(colors.speaking.toString(), pinned.toString());
+	});
+
+	test('confirmation uses the theme orange', () => {
+		const orange = Color.fromHex('#F97316');
+		const colors = resolveVoiceGlowColors({ getColor: id => id === chartsOrange ? orange : undefined });
+		assert.strictEqual(colors.confirmation.toString(), orange.toString());
 	});
 
 	test('the dictation microphone paints the listening rim color', () => {

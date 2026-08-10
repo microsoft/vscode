@@ -107,6 +107,9 @@ const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 /** Breathing room rendered beneath the last file row when the whole list fits. */
 const TREE_PANE_LIST_BOTTOM_PADDING = 12;
 
+/** The file changes section always reserves room for at least this many file rows. */
+const TREE_PANE_MIN_VISIBLE_ROWS = 5;
+
 // --- ButtonBar widget
 
 /**
@@ -215,10 +218,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			}
 			return { showIcon: false, showLabel: true, isSecondary: false, customLabel: `$(loading) ${labelWithCount}` };
 		}
-		if (
-			action.id === 'github.copilot.claude.sessions.sync' ||
-			action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID
-		) {
+		if (action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID) {
 			const customLabel = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
 				: action.label;
@@ -240,9 +240,6 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 			action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
 			action.id === 'pr.checkoutFromChat' ||
 			action.id === 'github.copilot.sessions.initializeRepository' ||
-			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
-			action.id === 'github.copilot.claude.sessions.commit' ||
-			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
 			action.id === 'agentSession.restore' ||
 			action.id === 'sessions.action.fixCIChecks' ||
 			isAgentHostSkillButtonId(action.id)
@@ -1061,7 +1058,7 @@ export class ChangesViewPane extends ViewPane {
 			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
 
-		const desiredSize = this.getTreePaneDesiredSize();
+		const desiredSize = Math.max(this.getTreePaneDesiredSize(), this.getTreePaneReservedRowsSize());
 		const availableSize = this.getSplitViewAvailableHeight() - reservedSectionHeight;
 		return Math.min(desiredSize, Math.max(EMPTY_FILE_CHANGES_MIN_HEIGHT, availableSize));
 	}
@@ -1077,8 +1074,18 @@ export class ChangesViewPane extends ViewPane {
 		return filesHeaderHeight + treeContentHeight + bottomPadding;
 	}
 
+	/** Height needed to show {@link TREE_PANE_MIN_VISIBLE_ROWS} file rows, regardless of how many are listed. */
+	private getTreePaneReservedRowsSize(): number {
+		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
+		return filesHeaderHeight + TREE_PANE_MIN_VISIBLE_ROWS * ChangesTreeDelegate.ROW_HEIGHT + TREE_PANE_LIST_BOTTOM_PADDING;
+	}
+
 	private getTreePaneMaximumSize(): number {
-		return this.getTreePaneDesiredSize();
+		if (this.listContainer?.style.display === 'none') {
+			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
+		}
+
+		return Math.max(this.getTreePaneDesiredSize(), this.getTreePaneReservedRowsSize());
 	}
 
 	private fireTreePaneSizeChange(): void {

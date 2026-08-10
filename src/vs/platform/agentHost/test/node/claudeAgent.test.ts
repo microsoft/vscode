@@ -56,6 +56,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -1007,7 +1008,7 @@ suite('ClaudeAgent', () => {
 			resource_name: 'GitHub Copilot',
 			authorization_servers: ['https://github.com/login/oauth'],
 			scopes_supported: ['read:user', 'user:email'],
-			required: false,
+			required: true,
 		}, {
 			resource: 'https://api.github.com/repos',
 			resource_name: 'GitHub Repository',
@@ -1167,6 +1168,51 @@ suite('ClaudeAgent', () => {
 		await agent.refreshModels();
 
 		assert.deepStrictEqual(agent.models.get(), []);
+	});
+
+	test('first sign-in keeps the native catalog published while the proxy catalog enumerates', async () => {
+		// The window gate reads an agent with no models as `Unusable`, so a *first*
+		// sign-in must never blank the bootstrap native catalog: it has no
+		// superseded account to drop, and blanking would close the
+		// `allowSignedOutWhenUsable` gate mid-startup and force the sign-in dialog
+		// on a user who is already signing in.
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-first-signin-`));
+		await fs.mkdir(join(userHome.fsPath, '.claude'), { recursive: true });
+		await fs.writeFile(join(userHome.fsPath, '.claude', 'settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'sk-ant-test-key' } }), 'utf8');
+		try {
+			const { agent, api, sdk } = createTestContext(disposables, { userHome });
+			sdk.supportedModelsResult = [
+				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+			];
+			// The constructor's bootstrap refresh publishes native-only (no token yet).
+			for (let i = 0; i < 100 && agent.models.get().length === 0; i++) {
+				await tick();
+			}
+			const bootstrap = agent.models.get().map(model => model.name);
+
+			// Hold the CAPI enumeration open so the post-sign-in refresh is still in
+			// flight when we sample the catalog — that pending window is exactly what
+			// the renderer saw as an empty (and therefore `Unusable`) agent.
+			const gate = new DeferredPromise<void>();
+			api.models = async () => { await gate.p; return [...ALL_MODELS]; };
+			await agent.authenticate('https://api.github.com', 'tok');
+			const whileEnumerating = agent.models.get().map(model => model.name);
+
+			gate.complete();
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				bootstrap,
+				whileEnumerating,
+				merged: agent.models.get().map(model => model.name),
+			}, {
+				bootstrap: ['Claude Sonnet 4.5'],
+				whileEnumerating: ['Claude Sonnet 4.5'],
+				merged: ['Claude Opus 4.6', 'Claude Sonnet 4.6', 'Claude Sonnet 4.5'],
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
 	});
 
 	test('signed out with a local setup: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
@@ -1423,11 +1469,6 @@ suite('ClaudeAgent', () => {
 		// `capabilities.supports.reasoning_effort` list — different
 		// Claude models support different effort subsets (some
 		// `['low','medium','high']`, some `['high']`, some none at all).
-		// Mirror of the extension pattern at
-		// extensions/copilot/src/extension/chatSessions/claude/node/
-		// claudeCodeModels.ts:208-212 (`pickReasoningEffort`), which
-		// reads `endpoint.supportsReasoningEffort` per-endpoint.
-		//
 		// CAPI's `/models` JSON exposes `reasoning_effort: string[]` and
 		// `adaptive_thinking: boolean` on each model's `supports` bag,
 		// but the published `@vscode/copilot-api` types don't yet
@@ -5711,19 +5752,42 @@ suite('ClaudeAgent — per-session provider', () => {
 		});
 	});
 
-	test('getProtectedResources advertises Copilot as optional even in the proxy default', () => {
-		// Per-session routing means no host-global mode can make Copilot strictly
-		// required — each session's transport comes from its picked model — so the
-		// resource is always advertised optional (mirroring Codex). The proxy-only
-		// session that needs it is gated later, in `_ensureAuthenticated(model)`.
-		const { agent } = createTestContext(disposables);
-		assert.deepStrictEqual(
-			agent.getProtectedResources().map(r => ({ resource: r.resource, required: r.required })),
-			[
+	test('the Copilot resource is optional only when the opt-in AND a BYO-Anthropic credential are both present', async () => {
+		// Full 2x2 so no single input can carry the result on its own: in
+		// particular `optInOnNoCredential` is the regression this guards — the
+		// requirement must survive the opt-in being on when the user has no
+		// Anthropic credential to run on.
+		const copilotRequired = (agent: ClaudeAgent) =>
+			agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required;
+		const optIn = { rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true } };
+		await withNativeSetup(async userHome => {
+			assert.deepStrictEqual({
+				optInOnNoCredential: copilotRequired(createTestContext(disposables, { ...optIn }).agent),
+				optInOnWithCredential: copilotRequired(createTestContext(disposables, { ...optIn, userHome }).agent),
+				optInOffWithCredential: copilotRequired(createTestContext(disposables, { userHome }).agent),
+				optInOffNoCredential: copilotRequired(createTestContext(disposables).agent),
+			}, {
+				optInOnNoCredential: true,
+				optInOnWithCredential: false,
+				optInOffWithCredential: true,
+				optInOffNoCredential: true,
+			});
+		});
+	});
+
+	test('the Copilot resource is advertised, never dropped, so the silent token probe survives', async () => {
+		// `authenticateProtectedResources` matches on `resource` and ignores
+		// `required`, so dropping it would break sign-in forwarding.
+		await withNativeSetup(async userHome => {
+			const optional = createTestContext(disposables, {
+				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
+				userHome,
+			}).agent.getProtectedResources();
+			assert.deepStrictEqual(optional.map(r => ({ resource: r.resource, required: r.required })), [
 				{ resource: 'https://api.github.com', required: false },
 				{ resource: 'https://api.github.com/repos', required: false },
-			],
-		);
+			]);
+		});
 	});
 
 	test('merged catalog lists both providers, each id provider-qualified', async () => {
@@ -5965,6 +6029,21 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	class FakeServerToolHost implements IAgentServerToolHost {
+		readonly definitions: readonly ToolDefinition[] = [{
+			name: 'viewUnreviewedComments',
+			description: 'View unreviewed comments',
+			inputSchema: { type: 'object', properties: {} },
+		}];
+		readonly toolNames = this.definitions.map(definition => definition.name);
+		confirmationRequiredForSession = false;
+
+		advertise(): void { }
+		canRequireConfirmation(): boolean { return true; }
+		requiresConfirmation(): boolean { return this.confirmationRequiredForSession; }
+		executeTool(): string { return 'ok'; }
+	}
+
 	/**
 	 * Materialize a session and return its captured `canUseTool` closure
 	 * alongside the {@link ITestContext} pieces tests need. Drives a
@@ -5978,13 +6057,16 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 	 * `createSession` does NOT touch state — that's the AgentService
 	 * layer's job, which we don't run here).
 	 */
-	async function materialize(seedConfig?: { permissionMode?: string }): Promise<{
+	async function materialize(seedConfig?: { permissionMode?: string }, serverToolHost?: IAgentServerToolHost): Promise<{
 		ctx: ITestContext;
 		canUseTool: NonNullable<Options['canUseTool']>;
 		sessionUri: URI;
 		sessionId: string;
 	}> {
 		const ctx = createTestContext(disposables);
+		if (serverToolHost) {
+			ctx.agent.setServerToolHost(serverToolHost);
+		}
 		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await ctx.agent.createSession({ workingDirectories: [URI.file('/work')] });
 		const sessionId = AgentSession.id(created.session);
@@ -6050,14 +6132,31 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
 	});
 
+	test('server tool with nothing to confirm is allowed without prompting', async () => {
+		const host = new FakeServerToolHost();
+		const { ctx, canUseTool } = await materialize(undefined, host);
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidSessionProgress(signal => signals.push(signal)));
+
+		const result = await canUseTool('mcp__host__viewUnreviewedComments', {}, makeOptions('tu_empty_comments'));
+
+		assert.deepStrictEqual({
+			result,
+			pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+		}, {
+			result: { behavior: 'allow', updatedInput: {} },
+			pendingConfirmations: 0,
+		});
+	});
+
 	// Tests 3 and 4 (bypassPermissions / acceptEdits auto-allow) intentionally
 	// omitted: the SDK auto-approves under those modes BEFORE invoking
 	// `canUseTool`, so there is no host-side branch to exercise. See
 	// `_handleCanUseTool` JSDoc.
 	//
 	// Tests 5 and 6 (plan-mode auto-deny / live config flip) intentionally
-	// omitted: `_handleCanUseTool` is a pure UI bridge and makes no
-	// permission-mode-aware decisions; whatever the SDK delegates is
+	// omitted: `_handleCanUseTool` makes no permission-mode-aware decisions
+	// for SDK tools; whatever the SDK delegates is
 	// surfaced to the user verbatim. Mode-driven behavior is covered by
 	// the §3.6 SDK-forwarding tests (live `setPermissionMode`).
 

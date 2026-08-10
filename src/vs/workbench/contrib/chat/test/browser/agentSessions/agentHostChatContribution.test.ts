@@ -7561,7 +7561,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('unsupported session reference variable is dropped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
-			const sessionReference = URI.from({ scheme: 'claude-code', path: '/session-123' });
+			const sessionReference = URI.from({ scheme: 'unsupported-agent', path: '/session-123' });
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'continue #review',
