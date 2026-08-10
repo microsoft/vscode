@@ -16,6 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
 export interface ISpeechProviderDescriptor {
 	readonly name: string;
@@ -66,7 +67,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 		@IHostService private readonly hostService: IHostService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 
@@ -228,7 +230,16 @@ export class SpeechService extends Disposable implements ISpeechService {
 	private async getProvider(): Promise<ISpeechProvider> {
 
 		// Send out extension activation to ensure providers can register
-		await this.extensionService.activateByEvent('onSpeech');
+		if (this.providers.size === 0) {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('speech.downloadingModel', "Downloading dictation model..."),
+			}, async () => {
+				await this.extensionService.activateByEvent('onSpeech');
+			});
+		} else {
+			await this.extensionService.activateByEvent('onSpeech');
+		}
 
 		const provider = Array.from(this.providers.values()).at(0);
 		if (!provider) {
