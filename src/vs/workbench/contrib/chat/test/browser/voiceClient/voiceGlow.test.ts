@@ -30,7 +30,8 @@ suite('VoiceGlow', () => {
 		assert.deepStrictEqual([
 			shouldRenderVoiceInputGlow(false, true, false, true, false, 'idle'),
 			shouldRenderVoiceInputGlow(true, true, false, true, false, 'idle'),
-		], [false, true]);
+			shouldRenderVoiceInputGlow(true, true, true, true, false, 'idle'),
+		], [false, false, true]);
 	});
 
 	test('renders in an auxiliary owner document', () => {

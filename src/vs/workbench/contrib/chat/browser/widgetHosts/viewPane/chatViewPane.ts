@@ -578,7 +578,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const currentSession = this._currentSessionResource.get();
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const glowActive = voiceEnabled.get() && (confirmationPending || (connected && isGlowingVoiceState(voiceState) && (simulating || isOwner)));
+				const glowActive = voiceEnabled.get() && connected && (confirmationPending || (isGlowingVoiceState(voiceState) && (simulating || isOwner)));
 
 				if (!glowActive) {
 					glowController.clear();
@@ -628,7 +628,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (voiceEnabled.read(reader) && (confirmationPending || simGlow || (connected && isGlowingVoiceState(voiceState)))) {
+			if (voiceEnabled.read(reader) && connected && (confirmationPending || simGlow || isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();

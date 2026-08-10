@@ -33,7 +33,7 @@ export function isGlowingVoiceState(voiceState: VoiceGlowState): boolean {
  * Whether the input glow should be rendered for the current voice state.
  */
 export function shouldRenderVoiceInputGlow(voiceEnabled: boolean, confirmationPending: boolean, connected: boolean, active: boolean, ownsVoice: boolean, voiceState: VoiceGlowState): boolean {
-	return voiceEnabled && (confirmationPending || (connected && active && ownsVoice && isGlowingVoiceState(voiceState)));
+	return voiceEnabled && connected && (confirmationPending || (active && ownsVoice && isGlowingVoiceState(voiceState)));
 }
 
 /**
