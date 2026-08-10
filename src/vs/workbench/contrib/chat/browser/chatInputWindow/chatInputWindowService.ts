@@ -249,15 +249,14 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._window = auxiliaryWindow;
 		this._auxiliaryWindowRef.value = auxiliaryWindow;
 		this.voiceSessionController.setOmniInputOpen(true);
+		const surface = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window'));
 
 		const workspace = this.workspaceContextService.getWorkspace();
 		const projectName = workspace.folders.length > 0 ? workspace.folders[0].name : '';
 		auxiliaryWindow.window.document.title = projectName
 			? localize('chatInputWindow.titleWithProject', "Chat Input — {0}", projectName)
 			: localize('chatInputWindow.title', "Chat Input");
-
 		auxiliaryWindow.container.style.overflow = 'hidden';
-		auxiliaryWindow.container.classList.add('chat-input-window');
 		auxiliaryWindow.window.document.body.classList.add('chat-input-window-body');
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
 		auxiliaryWindow.window.document.body.style.setProperty('overflow', 'visible', 'important');
@@ -266,17 +265,19 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		const applyThemeColors = () => {
 			const theme = this.themeService.getColorTheme();
-			const surface = theme.getColor(inputBackground)?.toString() ?? '#3c3c3c';
+			const surfaceColor = theme.getColor(inputBackground)?.toString() ?? '#3c3c3c';
 			const border = theme.getColor(inputBorder)?.toString() ?? 'transparent';
 			auxiliaryWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
-			auxiliaryWindow.container.style.backgroundColor = surface;
-			auxiliaryWindow.container.style.border = `1px solid ${border}`;
+			surface.style.backgroundColor = surfaceColor;
+			surface.style.border = `1px solid ${border}`;
 		};
 
-		auxiliaryWindow.container.style.display = 'flex';
-		auxiliaryWindow.container.style.flexDirection = 'column';
+		surface.style.display = 'flex';
+		surface.style.flex = '1 1 auto';
+		surface.style.flexDirection = 'column';
+		surface.style.minHeight = '0';
 
-		const row = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-row'));
+		const row = dom.append(surface, dom.$('.chat-input-window-row'));
 		this._row = row;
 		const lead = dom.append(row, dom.$('.chat-input-window-lead', {
 			'aria-hidden': 'true',
@@ -293,7 +294,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// compact ChatWidget. The response list is filtered out so only the input
 		// box shows. Submission is intercepted via submitHandler (the routing
 		// seam) and routed to the best-matching existing session.
-		this._renderChatWidget(auxiliaryWindow, row, bounds);
+		this._renderChatWidget(auxiliaryWindow, surface, row, bounds);
 		const pendingActiveWindowSync = this._windowDisposables.add(new MutableDisposable());
 		this._windowDisposables.add(autorun(reader => {
 			const ownsVoice = this.voiceSessionController.omniInputActive.read(reader);
@@ -323,7 +324,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this.closeWindow();
 			}
 		}));
-		this._renderPendingPrompts(auxiliaryWindow);
+		this._renderPendingPrompts(auxiliaryWindow, surface);
 
 		// Clean up when the user closes the window via OS controls. Guard by window
 		// identity so a stale unload after a quick reopen can't tear down the new one.
@@ -388,7 +389,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return true;
 	}
 
-	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, row: HTMLElement, openingBounds: IRectangle): void {
+	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement, row: HTMLElement, openingBounds: IRectangle): void {
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` - the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
@@ -459,7 +460,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					accessibilityService: this.accessibilityService,
 				}, {
 					inputContainer,
-					glowContainer: auxiliaryWindow.container,
+					glowContainer: surface,
 					isActive: this.voiceSessionController.omniInputActive,
 					isOwner: this.voiceSessionController.omniInputActive,
 				}));
@@ -492,9 +493,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this.commandService.executeCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, resource?.toString(), kind).catch(() => { });
 			},
 			placeBadge: (badge) => {
-				const container = this._window?.container;
 				const row = this._row;
-				if (!container || !row) {
+				if (!surface.isConnected || !row) {
 					return;
 				}
 				row.after(badge);
@@ -510,7 +510,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					}
 				});
 				observerDisposables.add(toDisposable(() => observer.disconnect()));
-				observer.observe(container, { childList: true });
+				observer.observe(surface, { childList: true });
 			},
 		};
 		this._routingController = this._windowDisposables.add(this.instantiationService.createInstance(ChatSessionRoutingController, host, 'chatInputWindow'));
@@ -548,7 +548,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			const width = Math.max(this._defaultWidth(), win.outerWidth);
 			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
-			const extraHeight = Array.from(auxiliaryWindow.container.children)
+			const extraHeight = Array.from(surface.children)
 				.filter(child => child !== this._row)
 				.reduce((height, child) => {
 					const element = child as HTMLElement;
@@ -631,8 +631,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'resize', layout));
 	}
 
-	private _renderPendingPrompts(auxiliaryWindow: IAuxiliaryWindow): void {
-		const panel = dom.append(auxiliaryWindow.container, dom.$('.chat-input-window-pending-panel'));
+	private _renderPendingPrompts(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement): void {
+		const panel = dom.append(surface, dom.$('.chat-input-window-pending-panel'));
 		const header = dom.append(panel, dom.$('.chat-input-window-pending-header', { 'aria-live': 'polite' }));
 		const marker = dom.append(header, dom.$('span.chat-input-window-pending-marker', { 'aria-hidden': 'true' }));
 		marker.appendChild(renderIcon(Codicon.gripper));
@@ -661,16 +661,19 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				return;
 			}
 			const messages = state.confirmationMessages;
-			approvalTitle.textContent = renderAsPlaintext(messages?.title ?? approval.invocation.invocationMessage);
-			approvalMessage.textContent = renderAsPlaintext(messages?.message ?? '');
-			approvalMessage.classList.toggle('hidden', !approvalMessage.textContent);
+			const confirmationTitle = renderAsPlaintext(messages?.title ?? approval.invocation.invocationMessage);
+			approvalTitle.textContent = confirmationTitle;
+			const confirmationMessage = renderAsPlaintext(messages?.message ?? '');
+			const showConfirmationMessage = !!confirmationMessage && confirmationMessage !== confirmationTitle;
+			approvalMessage.textContent = showConfirmationMessage ? confirmationMessage : '';
+			dom.setVisibility(showConfirmationMessage, approvalMessage);
 			approvalCommand.textContent = getVoiceToolApprovalCommand(approval.invocation) ?? '';
-			approvalCommand.classList.toggle('hidden', !approvalCommand.textContent);
+			dom.setVisibility(!!approvalCommand.textContent, approvalCommand);
 			const approvalReason = messages?.approvalReason?.status === 'complete'
 				? renderAsPlaintext(messages.approvalReason.explanation)
 				: '';
 			approvalDisclaimer.textContent = [renderAsPlaintext(messages?.disclaimer ?? ''), approvalReason].filter(Boolean).join('\n');
-			approvalDisclaimer.classList.toggle('hidden', !approvalDisclaimer.textContent);
+			dom.setVisibility(!!approvalDisclaimer.textContent, approvalDisclaimer);
 
 			const confirm = (reason: Parameters<typeof IChatToolInvocation.confirmWith>[1]) => {
 				markPendingIdResolved(approval.occurrence);
