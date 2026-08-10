@@ -316,9 +316,13 @@ Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Ch
    → Management fires onWillSendRequest(session); the view follows the send to
      keep the newest chat active in the visible slot
   → ChatView clears the embedded ChatWidget before loading a different chat,
-    then locks it to the contributed chat session type (for example
-    agent-host-codex) before setting the model, so follow-up turns keep routing
-    to the provider that owns the session; local chat sessions unlock
+    while its session-target picker keeps the destination chat's exact type
+    (including extension-host Copilot CLI); before any chat is assigned it
+    defaults to Agent Host Copilot. Chat input context keys also derive model
+    targeting from that delegated type while the model resource is absent, so
+    the model picker remains mounted during loading. The view then locks to the
+    contributed chat session type (for example agent-host-codex) before setting
+    the model, so follow-up turns keep routing to the owning provider
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
@@ -332,6 +336,13 @@ the sent chat the active chat by reacting to the send events. When
 `onWillSendRequest` notification, so the view's send-follow never navigates the
 visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
+
+When fixing transient picker state during chat loading, keep the fallback in
+`ChatView`'s session-type delegate; changing the shared picker's defaults or
+visibility would alter intentional picker behavior outside that transition.
+All chat-input context derived from the session type must use the same effective
+type (the scoped delegate when provided, otherwise the model resource), or
+individual picker slots can disappear during the handoff.
 
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible

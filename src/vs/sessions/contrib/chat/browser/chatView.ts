@@ -27,7 +27,7 @@ import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { ChatInteractivity, IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -42,6 +42,10 @@ import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBa
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
+
+export function getChatViewSessionType(chatResource: URI | undefined): string {
+	return chatResource ? getChatSessionType(chatResource) : SessionType.AgentHostCopilot;
+}
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -210,7 +214,10 @@ export class ChatView extends AbstractChatView {
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
 				inputEditorMinLines: 2,
-				isSessionsWindow: true
+				isSessionsWindow: true,
+				sessionTypePickerDelegate: {
+					getActiveSessionProvider: () => getChatViewSessionType(this._currentChatResource)
+				}
 			},
 			this._buildStyles(this._isActive)
 		));
