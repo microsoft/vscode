@@ -568,15 +568,12 @@ export async function mapSessionEvents(
 				if (!notification) {
 					break;
 				}
-				if (rootAssistantTurnActive && parentBuilder) {
+				if (parentBuilder && (rootAssistantTurnActive || notification.startsTurn)) {
 					parentBuilder.responseParts.push({
 						kind: ResponsePartKind.SystemNotification,
 						content: notification.messageText,
 					});
 					touch(parentBuilder);
-				} else if (notification.startsTurn) {
-					flushParent();
-					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification, startedAt: currentEventTimestamp });
 				}
 				break;
 			}
