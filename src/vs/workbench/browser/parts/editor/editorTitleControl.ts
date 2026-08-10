@@ -49,6 +49,7 @@ export class EditorTitleControl extends Themable {
 		private readonly model: IReadonlyEditorGroupModel,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		private readonly showHeader: boolean,
+		private readonly hiddenEditorIds: readonly string[] | undefined,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -78,7 +79,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private createHeaderControl(): EditorHeaderControl {
-		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader);
+		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader, this.hiddenEditorIds);
 		this.headerControlDisposable.value = control;
 		return control;
 	}

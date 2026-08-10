@@ -32,7 +32,7 @@ export interface IAvailableEditorTypes {
  * there is nothing meaningful to switch between: no resource, only the default text editor, or an
  * exclusive editor (e.g. the hex editor, for which `getEditors` returns an empty list).
  */
-export function getAvailableEditorTypes(activeEditor: EditorInput | null | undefined, editorResolverService: IEditorResolverService): IAvailableEditorTypes | undefined {
+export function getAvailableEditorTypes(activeEditor: EditorInput | null | undefined, editorResolverService: IEditorResolverService, hiddenEditorIds?: readonly string[]): IAvailableEditorTypes | undefined {
 	const standardDiffResources = isDiffEditorInput(activeEditor) ? {
 		original: activeEditor.original.resource,
 		modified: activeEditor.modified.resource,
@@ -43,11 +43,12 @@ export function getAvailableEditorTypes(activeEditor: EditorInput | null | undef
 		return undefined;
 	}
 	const currentId = activeEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id;
+	const hiddenEditorIdSet = new Set(hiddenEditorIds);
 	const editors = editorResolverService.getEditors(resource, {
 		excludeUnconfiguredUniversalOptionalEditors: true,
 		currentEditorId: currentId,
 		isDiffEditor: !!diffResources,
-	});
+	}).filter(editor => editor.id === currentId || !hiddenEditorIdSet.has(editor.id));
 	if (editors.length <= 1) {
 		return undefined;
 	}
