@@ -1772,6 +1772,44 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('listSessions retains normalized worktree roots for the complete session catalog', async () => {
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			const databases = new Map<string, TestSessionDatabase>();
+			for (let index = 0; index < 101; index++) {
+				const session = AgentSession.uri('copilot', `session-${index}`);
+				await agent.createSession({ session });
+				const database = disposables.add(new TestSessionDatabase());
+				await database.setMetadata(WORKTREE_META_REPOSITORY_ROOT, URI.file(`/workspace/repository-${index}`).toString());
+				databases.set(session.toString(), database);
+			}
+			const sessionDataService: ISessionDataService = {
+				...nullSessionDataService,
+				openDatabase: session => {
+					const database = databases.get(session.toString());
+					assert.ok(database);
+					return { object: database, dispose: () => { } };
+				},
+				tryOpenDatabase: async session => {
+					const database = databases.get(session.toString());
+					return database ? { object: database, dispose: () => { } } : undefined;
+				},
+			};
+			const gitService = createNoopGitService();
+			const resolvedFrom: URI[] = [];
+			gitService.getWorktreeRoots = async workingDirectory => {
+				resolvedFrom.push(workingDirectory);
+				return [workingDirectory];
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.registerProvider(agent);
+
+			await svc.listSessions();
+			await svc.listSessions();
+
+			assert.strictEqual(resolvedFrom.length, 101);
+		});
+
 		test('listSessions uses SDK title when no custom title exists', async () => {
 			service.registerProvider(copilotAgent);
 			copilotAgent.sessionMetadataOverrides = { summary: 'Auto-generated Title' };

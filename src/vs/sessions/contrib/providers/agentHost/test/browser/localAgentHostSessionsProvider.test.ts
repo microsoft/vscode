@@ -1208,6 +1208,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('hydrates the latest persisted changes summary before the live list is available', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const host = new MockAgentHostService();
+		disposables.add(toDisposable(() => host.dispose()));
+		host.addSession(createSession('cached-changes', { summary: 'Cached Changes' }));
+		createProvider(disposables, host, undefined, { storageService });
+		await timeout(0);
+		fireSessionSummaryChanged(host, 'cached-changes', { changes: { files: 3, additions: 21, deletions: 8 } });
+		await storageService.flush();
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		assert.deepStrictEqual(provider.getSessions()[0]?.changesSummary?.get(), {
+			files: 3,
+			additions: 21,
+			deletions: 8,
+		});
+	}));
+
 	test('discards a legacy cache entry so read state is rebuilt from the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Storage-key literals of the pre-`.v2` cache schema, whose entries
 		// carried a stale `isRead: true` written by the old always-read adapter.

@@ -103,6 +103,12 @@ class PrimaryWorktreeRootResolver {
 
 	constructor(private readonly _gitService: IAgentHostGitService) { }
 
+	ensureCapacity(minimum: number): void {
+		if (this._roots.limit < minimum) {
+			this._roots.limit = minimum;
+		}
+	}
+
 	async resolve(checkoutRoot: URI): Promise<URI | undefined> {
 		const key = checkoutRoot.toString();
 		const cached = this._roots.get(key);
@@ -131,14 +137,23 @@ class PrimaryWorktreeRootResolver {
 /** Resolver lifetime follows the injected Git service; each resolver owns a bounded path cache. */
 const primaryWorktreeRootResolvers = new WeakMap<IAgentHostGitService, PrimaryWorktreeRootResolver>();
 
-/** Resolves the primary worktree root when Git reports a worktree listing. */
-export function tryResolvePrimaryWorktreeRoot(gitService: IAgentHostGitService, checkoutRoot: URI): Promise<URI | undefined> {
+function getPrimaryWorktreeRootResolver(gitService: IAgentHostGitService): PrimaryWorktreeRootResolver {
 	let resolver = primaryWorktreeRootResolvers.get(gitService);
 	if (!resolver) {
 		resolver = new PrimaryWorktreeRootResolver(gitService);
 		primaryWorktreeRootResolvers.set(gitService, resolver);
 	}
-	return resolver.resolve(checkoutRoot);
+	return resolver;
+}
+
+/** Ensures one Git worktree listing can cache at least the complete session catalog. */
+export function ensurePrimaryWorktreeRootCacheCapacity(gitService: IAgentHostGitService, minimum: number): void {
+	getPrimaryWorktreeRootResolver(gitService).ensureCapacity(minimum);
+}
+
+/** Resolves the primary worktree root when Git reports a worktree listing. */
+export function tryResolvePrimaryWorktreeRoot(gitService: IAgentHostGitService, checkoutRoot: URI): Promise<URI | undefined> {
+	return getPrimaryWorktreeRootResolver(gitService).resolve(checkoutRoot);
 }
 
 export interface IRefQuery {

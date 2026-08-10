@@ -44,7 +44,7 @@ import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHost
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { ensurePrimaryWorktreeRootCacheCapacity, IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
@@ -975,6 +975,10 @@ export class AgentService extends Disposable implements IAgentService {
 			[...this._providers.values()].map(p => p.listSessions())
 		);
 		const flat = results.flat();
+		if (this._normalizedWorktreeRepositoryRoots.limit < flat.length) {
+			this._normalizedWorktreeRepositoryRoots.limit = flat.length;
+		}
+		ensurePrimaryWorktreeRootCacheCapacity(this._gitService, flat.length);
 
 		// Overlay persisted custom titles from per-session databases.
 		const overlaid = await Promise.all(flat.map(async (s): Promise<IAgentSessionMetadata | undefined> => {

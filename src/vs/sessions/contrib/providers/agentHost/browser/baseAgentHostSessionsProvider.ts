@@ -81,8 +81,8 @@ const CACHED_SESSIONS_MAX_PER_HOST = 100;
 /**
  * Serialized shape of an {@link IAgentSessionMetadata} suitable for
  * persisting via {@link IStorageService}. URIs are stored as strings
- * and diffs are intentionally omitted (they are re-populated when the
- * connection refreshes sessions).
+ * and full diffs are intentionally omitted (they are re-populated when
+ * the connection refreshes sessions).
  */
 interface ISerializedSessionMetadata {
 	readonly session: string;
@@ -99,6 +99,7 @@ interface ISerializedSessionMetadata {
 	/** @deprecated Legacy name for `isArchived`. */
 	readonly isDone?: boolean;
 	readonly project?: { readonly uri: string; readonly displayName: string };
+	readonly changes?: ChangesSummary;
 	/**
 	 * Whether the session is a workspace-less quick chat. Persisted because the
 	 * adapter seeds its session-kind from this tag at construction (see
@@ -125,6 +126,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		workingDirectory: meta.workingDirectories?.[0]?.toString(),
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
+		changes: meta.changes,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
 	};
@@ -142,6 +144,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			workingDirectories: raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined,
 			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
+			changes: raw.changes,
 			...(_meta ? { _meta } : {}),
 		};
 	} catch {
@@ -4591,6 +4594,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				...base,
 				summary: adapter.title.get() || base.summary,
 				modifiedTime: adapter.updatedAt.get().getTime(),
+				changes: adapter.changesSummary.get(),
 				status: withSessionStatusFlag(
 					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
 					ProtocolSessionStatus.IsArchived,

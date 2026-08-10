@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { tryResolvePrimaryWorktreeRoot, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { ensurePrimaryWorktreeRootCacheCapacity, tryResolvePrimaryWorktreeRoot, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
 import { projectFromCopilotContext, projectFromRepository, resolveGitProject } from '../../node/copilot/copilotGitProject.js';
 
 class TestAgentHostGitService implements IAgentHostGitService {
@@ -110,6 +110,24 @@ suite('Copilot Git Project', () => {
 		}, {
 			worktreeRootCalls: 1,
 			roots: [primaryRoot.toString(), primaryRoot.toString()],
+		});
+	});
+
+	test('retains every linked worktree in a large session catalog', async () => {
+		const primaryRoot = URI.file('/workspace/source-repo');
+		const worktrees = Array.from({ length: 101 }, (_, index) => URI.file(`/workspace/source-repo.worktrees/${index}`));
+		gitService.worktreeRoots = [primaryRoot, ...worktrees];
+		ensurePrimaryWorktreeRootCacheCapacity(gitService, gitService.worktreeRoots.length);
+
+		await tryResolvePrimaryWorktreeRoot(gitService, worktrees[0]);
+		const roots = await Promise.all(worktrees.map(worktree => tryResolvePrimaryWorktreeRoot(gitService, worktree)));
+
+		assert.deepStrictEqual({
+			worktreeRootCalls: gitService.worktreeRootCalls,
+			uniqueRoots: new Set(roots.map(root => root?.toString())).size,
+		}, {
+			worktreeRootCalls: 1,
+			uniqueRoots: 1,
 		});
 	});
 
