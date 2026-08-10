@@ -145,6 +145,15 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
+export interface IEditorResolverServiceGetEditorsOptions {
+	/**
+	 * Excludes optional editors registered for `*`, unless they are configured or currently active.
+	 */
+	readonly excludeUnconfiguredUniversalOptionalEditors?: boolean;
+	readonly currentEditorId?: string;
+	readonly isDiffEditor?: boolean;
+}
+
 export type RegisteredEditorPriorityInfo = {
 	readonly editor: RegisteredEditorPriority;
 	readonly diff: RegisteredEditorPriority;
@@ -268,7 +277,7 @@ export interface IEditorResolverService {
 	 * @param resource The resource
 	 * @returns A list of editor ids
 	 */
-	getEditors(resource: URI): RegisteredEditorInfo[];
+	getEditors(resource: URI, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[];
 
 	/**
 	 * A set of all the editors that are registered to the editor resolver.
