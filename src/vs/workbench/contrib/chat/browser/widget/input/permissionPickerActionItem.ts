@@ -29,6 +29,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
+import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -62,13 +64,10 @@ export interface IPermissionPickerDelegate {
 	readonly setExtensionPermission?: (groupId: string, item: IChatSessionProviderOptionItem) => void;
 	readonly getPermissionLevelHover?: (level: ChatPermissionLevel, meta: IPermissionLevelMeta) => string | undefined;
 	/**
-	 * Whether the experimental "Sandboxing for terminal" toggle may be shown on
-	 * the Default permissions option. The toggle is specific to the local harness
-	 * (which runs the built-in terminal tool); agent-host harnesses such as
-	 * Copilot CLI and Claude Code do not implement this and never show it.
-	 * Evaluated each time the picker opens so a harness switch is reflected.
+	 * The session type used to select the sandbox setting for the experimental
+	 * "Sandboxing for terminal" toggle.
 	 */
-	readonly isSandboxToggleApplicable?: () => boolean;
+	readonly getSandboxSessionType?: () => string | undefined;
 }
 
 /** Default level set offered when a delegate does not specify {@link IPermissionPickerDelegate.availableLevels}. */
@@ -140,8 +139,20 @@ function sanitizeIdSegment(value: string): string {
 	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-function getSandboxEnabledSettingId(): AgentSandboxSettingId.AgentSandboxEnabled | AgentSandboxSettingId.AgentSandboxWindowsEnabled {
-	return isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
+type SandboxSettingId =
+	| AgentSandboxSettingId.AgentSandboxEnabled
+	| AgentSandboxSettingId.AgentSandboxWindowsEnabled
+	| typeof AgentHostSdkSandboxEnabledSettingId
+	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
+
+export function getPermissionSandboxSettingId(sessionType: string | undefined, customTerminalToolEnabled: boolean, windows = isWindows): SandboxSettingId | undefined {
+	if (sessionType === SessionType.Local || (sessionType === SessionType.AgentHostCopilot && customTerminalToolEnabled)) {
+		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
+	}
+	if (sessionType === SessionType.AgentHostCopilot) {
+		return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+	}
+	return undefined;
 }
 
 export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
@@ -196,11 +207,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				}
 				const currentLevel = delegate.currentPermissionLevel.get();
 				const policyRestricted = isAutoApprovePolicyRestricted();
-				const sandboxToggleEnabled = this.isSandboxToggleAvailable();
+				const sandboxSettingId = this.getSandboxSettingId();
+				const sandboxToggleEnabled = this.isSandboxToggleSettingEnabled() && sandboxSettingId !== undefined;
 				const setSandboxEnabled = async (enableSandbox: boolean) => {
 					const target: AgentSandboxEnabledValue = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
-					if (this.isSandboxingEnabled() !== enableSandbox) {
-						await configurationService.updateValue(getSandboxEnabledSettingId(), target);
+					if (sandboxSettingId && this.isSandboxingEnabled(sandboxSettingId) !== enableSandbox) {
+						await configurationService.updateValue(sandboxSettingId, target);
 					}
 				};
 				const levels = delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
@@ -218,7 +230,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						? {
 							label: localize('permissions.default.sandbox.toggle', "Sandboxing for terminal"),
 							title: localize('permissions.default.sandbox.toggle.title', "Run terminal commands inside a sandbox that restricts file system and network access"),
-							checked: this.isSandboxingEnabled(),
+							checked: sandboxSettingId ? this.isSandboxingEnabled(sandboxSettingId) : false,
 							onChange: (checked: boolean) => { void setSandboxEnabled(checked); },
 						}
 						: undefined;
@@ -276,28 +288,28 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if ((e.affectsConfiguration(getSandboxEnabledSettingId()) || e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)) && this.element) {
+			const sandboxSettingId = this.getSandboxSettingId();
+			if ((e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
+				|| e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)
+				|| (sandboxSettingId && e.affectsConfiguration(sandboxSettingId))) && this.element) {
 				this.renderLabel(this.element);
 			}
 		}));
 	}
 
-	private isSandboxingEnabled(): boolean {
-		const value = this.configurationService.getValue<AgentSandboxEnabledSettingValue>(getSandboxEnabledSettingId());
+	private getSandboxSettingId(): SandboxSettingId | undefined {
+		const sessionType = this.delegate.getSandboxSessionType?.();
+		const customTerminalToolEnabled = this.configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true;
+		return getPermissionSandboxSettingId(sessionType, customTerminalToolEnabled);
+	}
+
+	private isSandboxingEnabled(settingId: SandboxSettingId): boolean {
+		const value = this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId);
 		return isAgentSandboxEnabledValue(value);
 	}
 
 	private isSandboxToggleSettingEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true;
-	}
-
-	/**
-	 * Whether the sandbox toggle should surface for the current harness: the
-	 * experimental setting must be on and the delegate must opt in (only the
-	 * local harness does).
-	 */
-	private isSandboxToggleAvailable(): boolean {
-		return this.isSandboxToggleSettingEnabled() && this.delegate.isSandboxToggleApplicable?.() === true;
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
@@ -320,7 +332,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			icon = meta.icon;
 			label = meta.shortLabel;
 			tooltip = this.delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
-			if (level === ChatPermissionLevel.Default && this.isSandboxToggleAvailable() && this.isSandboxingEnabled()) {
+			const sandboxSettingId = this.getSandboxSettingId();
+			if (level === ChatPermissionLevel.Default && this.isSandboxToggleSettingEnabled() && sandboxSettingId && this.isSandboxingEnabled(sandboxSettingId)) {
 				label = localize('permissions.defaultSandboxed.label', "Default permissions (sandboxed)");
 			}
 		}
