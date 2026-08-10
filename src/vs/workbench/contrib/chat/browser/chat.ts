@@ -386,6 +386,17 @@ export interface IChatWidgetViewModelChangeEvent {
 	readonly currentSessionResource: URI | undefined;
 }
 
+/**
+ * Visual presentation state restored when a widget is rebound to a chat.
+ * Composer data such as text, attachments, mode, and model belongs in {@link IChatModelInputState}.
+ */
+export interface IChatWidgetViewState {
+	readonly scrollTop: number;
+	readonly isAtBottom?: boolean;
+}
+
+export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
+
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
 	/** DOM node of the scrollable transcript area, excluding the input part. */
@@ -502,7 +513,9 @@ export interface IChatWidget {
 	 */
 	holdAutoScroll(): IDisposable;
 	clear(targetSessionType?: string): Promise<void>;
-	getViewState(): IChatModelInputState | undefined;
+	getInputState(): IChatModelInputState | undefined;
+	getViewState(): IChatWidgetViewState;
+	restoreViewState(state: IChatWidgetViewState): void;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;

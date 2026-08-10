@@ -8,7 +8,7 @@ import './media/chatInputMobile.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -103,6 +103,8 @@ import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agent
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
+import { INewSessionComposer, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -294,7 +296,7 @@ function getRandomChatInputPlaceholder(): string {
 
 // #region --- New Chat Widget ---
 
-export class NewChatInputWidget extends Disposable implements IHistoryNavigationWidget {
+export class NewChatInputWidget extends Disposable implements IHistoryNavigationWidget, INewSessionComposer {
 	private static readonly compactModelPickerWidth = 280;
 
 	readonly sessionTypePicker: SessionTypePicker;
@@ -312,6 +314,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
 	get selectedModelState() { return this._sessionModelSelectionModel.state; }
 
+	get workspacePreselectionSource(): NewSessionWorkspacePreselectionSource | undefined {
+		return this.options.getWorkspacePreselectionSource?.();
+	}
+
 	/** Opens the model picker dropdown. */
 	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
 
@@ -328,6 +334,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _editorContainer!: HTMLElement;
 	private _sessionControlsContainer: HTMLElement | undefined;
 	private readonly _promptTemplatePlaceholder = this._register(new MutableDisposable<PromptTemplatePlaceholderController>());
+	private readonly _promptOptionsWidget = this._register(new MutableDisposable<NewSessionPromptOptionsWidget>());
+	private readonly _promptOptionsRefresh = this._register(new MutableDisposable<CancellationTokenSource>());
+	private _promptOptionsState: NewSessionPromptOptionsState | undefined;
+	private _promptOptionsResolver: ((token: CancellationToken) => Promise<NewSessionPromptOptionsState>) | undefined;
 
 	// Send button
 	private _sendButton: Button | undefined;
@@ -364,6 +374,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		private readonly options: {
 			session: IObservable<IActiveSession | undefined>;
 			getContextFolderUri: () => URI | undefined;
+			getWorkspacePreselectionSource?: () => NewSessionWorkspacePreselectionSource;
 			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
 			canSendRequest: IObservable<boolean>;
 			canSubmitWithoutSession?: IObservable<boolean>;
@@ -497,6 +508,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// so it reads as one stack with it - the same slot the chat view uses.
 		const dictationOnboardingContainer = dom.append(chatInputContainer, dom.$('.dictation-onboarding-container'));
 		this._register(this.dictationOnboardingService.registerHost(dictationOnboardingContainer, chatInputContainer, tipContainer, onDidChangeInputOnboardingVisible));
+
+		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, async (option, expectedInput, animate) => {
+			this.focus();
+			const inserted = animate
+				? await this.animatePrompt(option.prompt, NEW_SESSION_PROMPT_TYPING_DURATION_MS, option.placeholder, CancellationToken.None, expectedInput)
+				: this._replacePrompt(option.prompt, option.placeholder, expectedInput);
+			const generatedValue = option.placeholder ? option.prompt.replace(option.placeholder, '') : option.prompt;
+			if (inserted && (this._editor.getValue() === option.prompt || this._editor.getValue() === generatedValue)) {
+				aria.status(localize('newSessionPromptOptions.inserted', "Inserted prompt: {0}", option.title));
+			}
+			return inserted;
+		});
+		this._promptOptionsWidget.value.setState(this._promptOptionsState);
 
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));
@@ -632,6 +656,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			wrappingStrategy: 'advanced',
 			stickyScroll: { enabled: false },
 			renderWhitespace: 'none',
+			scrollbar: {
+				horizontal: 'hidden',
+				alwaysConsumeMouseWheel: false,
+				vertical: 'auto',
+				verticalScrollbarSize: 7,
+			},
 			overflowWidgetsDomNode,
 			suggest: {
 				showIcons: true,
@@ -778,6 +808,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._updateDraftState();
 			this._updateSendButtonState();
 			this._updateEditorFontFamily();
+			this._promptOptionsWidget.value?.setInputValue(this._editor.getValue());
 		}));
 	}
 
@@ -1287,13 +1318,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._editor?.focus();
 	}
 
-	async animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean> {
+	async animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken, expectedValue = ''): Promise<boolean> {
 		const editor = this._editor;
 		const model = editor?.getModel();
-		if (!editor || !model || !text || model.getValue() || token.isCancellationRequested) {
+		if (!editor || !model || !text || model.getValue() !== expectedValue || token.isCancellationRequested) {
 			return false;
 		}
 
+		this._promptTypingAnimation.clear();
+		if (expectedValue) {
+			model.setValue('');
+		}
 		this._promptTemplatePlaceholder.value?.setPlaceholder(placeholder);
 		const targetWindow = dom.getWindow(this._editorContainer);
 		const effectiveDuration = this.accessibilityService.isMotionReduced() || this.accessibilityService.isScreenReaderOptimized() ? 0 : durationMs;
@@ -1325,6 +1360,102 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this._promptTypingAnimation.clear();
 			}
 		}
+	}
+
+	private _replacePrompt(text: string, placeholder: string, expectedValue: string): boolean {
+		const model = this._editor.getModel();
+		if (!model || model.getValue() !== expectedValue) {
+			return false;
+		}
+		this._promptTypingAnimation.clear();
+		this._promptTemplatePlaceholder.value?.setPlaceholder(placeholder);
+		this._editor.pushUndoStop();
+		const edited = this._editor.executeEdits('sessions.promptOption', [{ range: model.getFullModelRange(), text }]);
+		if (!edited) {
+			return false;
+		}
+		this._editor.pushUndoStop();
+		const lastLine = model.getLineCount();
+		this._editor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
+		return true;
+	}
+
+	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean {
+		this._promptOptionsState = state;
+		const widget = this._promptOptionsWidget.value;
+		if (!widget) {
+			return false;
+		}
+		widget.setState(state);
+		widget.setInputValue(this._editor.getValue());
+		return true;
+	}
+
+	setPromptOptionsResolver(resolver: (token: CancellationToken) => Promise<NewSessionPromptOptionsState>): void {
+		this._promptOptionsResolver = resolver;
+	}
+
+	preparePromptOptionsRefresh(): boolean {
+		if (!this._promptOptionsResolver) {
+			return false;
+		}
+		this._cancelPromptOptionsRefresh();
+		this.showPromptOptions({ kind: 'loading' });
+		return true;
+	}
+
+	clearPromptOptions(): void {
+		this._cancelPromptOptionsRefresh();
+		this.showPromptOptions(undefined);
+	}
+
+	private _cancelPromptOptionsRefresh(): void {
+		const shouldClearInput = this._promptOptionsWidget.value?.shouldClearInputForRefresh() ?? false;
+		this._promptTypingAnimation.clear();
+		this._promptOptionsRefresh.value?.cancel();
+		this._promptOptionsRefresh.clear();
+		if (shouldClearInput) {
+			this._promptTemplatePlaceholder.value?.setPlaceholder(undefined);
+			this._editor.getModel()?.setValue('');
+		}
+	}
+
+	async refreshPromptOptions(token: CancellationToken = CancellationToken.None): Promise<boolean> {
+		const resolver = this._promptOptionsResolver;
+		if (!resolver) {
+			return false;
+		}
+		this.preparePromptOptionsRefresh();
+		const cts = new CancellationTokenSource(token);
+		this._promptOptionsRefresh.value = cts;
+		let state: NewSessionPromptOptionsState;
+		try {
+			state = await resolver(cts.token);
+		} catch (error) {
+			if (this._promptOptionsRefresh.value === cts) {
+				this._promptOptionsRefresh.clear();
+				if (cts.token.isCancellationRequested) {
+					this.showPromptOptions(undefined);
+					return false;
+				}
+			}
+			throw error;
+		}
+		if (this._promptOptionsRefresh.value !== cts) {
+			return false;
+		}
+		if (cts.token.isCancellationRequested) {
+			this._promptOptionsRefresh.clear();
+			this.showPromptOptions(undefined);
+			return false;
+		}
+		this._promptOptionsRefresh.clear();
+		return this.showPromptOptions(state);
+	}
+
+	override dispose(): void {
+		this._cancelPromptOptionsRefresh();
+		super.dispose();
 	}
 
 	/** See {@link INewChatVoiceComposer.routesWhileSessionActive}. */

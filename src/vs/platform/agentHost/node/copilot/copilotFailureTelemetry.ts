@@ -14,6 +14,8 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 
 export type CopilotClientFailureOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage' | 'startClient';
 export type CopilotClientFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed' | 'startupFailed';
+type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited';
+type CopilotStartupFailureResource = 'runtime' | 'cliNative' | 'conpty' | 'sandbox' | 'other';
 
 export interface ICopilotFailureCorrelation {
 	readonly agentSessionId?: string;
@@ -55,6 +57,7 @@ export function classifyCopilotClientFailure(error: unknown): CopilotClientFailu
 	return error.message.startsWith('Failed to start CLI server:')
 		|| error.message.startsWith('CLI server exited with code ')
 		|| error.message.startsWith('CLI server exited unexpectedly with code ')
+		|| error.message === 'Timeout waiting for CLI server to start'
 		? 'startupFailed'
 		: undefined;
 }
@@ -63,6 +66,9 @@ type CopilotClientFailureEvent = ICopilotFailureCorrelation & {
 	clientFailureId: string;
 	failureKind: CopilotClientFailureKind;
 	operation: CopilotClientFailureOperation;
+	startupFailureCause?: CopilotStartupFailureCause;
+	startupFailureResource?: CopilotStartupFailureResource;
+	startupExitCode?: number;
 	activeTurnCount: number;
 	recoveryStarted: boolean;
 	errorName: string | undefined;
@@ -75,6 +81,9 @@ type CopilotClientFailureClassification = {
 	clientFailureId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shared by detections and recovery telemetry for one Copilot client failure episode.' };
 	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded category of Copilot client failure that was detected.' };
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot provider operation that detected the client failure.' };
+	startupFailureCause?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded cause extracted from a Copilot client startup failure.' };
+	startupFailureResource?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded Copilot CLI resource involved in a startup failure.' };
+	startupExitCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The Copilot CLI process exit code reported for a startup failure.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier, when the failing operation targeted a session.' };
 	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier, when the failing operation targeted a chat.' };
 	turnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host turn identifier, when available.' };
@@ -88,6 +97,67 @@ type CopilotClientFailureClassification = {
 	owner: 'roblourens';
 	comment: 'Tracks detected Copilot client failures and whether recovery was started.';
 };
+
+function getCopilotStartupFailureCause(message: string): CopilotStartupFailureCause {
+	const normalizedMessage = message.toLowerCase();
+	if (normalizedMessage.includes('specified procedure could not be found')) {
+		return 'nativeModuleProcedureNotFound';
+	}
+	if (normalizedMessage.includes('dynamic link library') && normalizedMessage.includes('initialization')) {
+		return 'nativeModuleInitializationFailed';
+	}
+	if (normalizedMessage.includes('permission denied') || /\b(?:eacces|eperm)\b/.test(normalizedMessage)) {
+		return 'permissionDenied';
+	}
+	if (normalizedMessage.includes('cannot find module')) {
+		return 'nativeModuleNotFound';
+	}
+	if (message === 'Timeout waiting for CLI server to start') {
+		return 'timeout';
+	}
+	if (message.startsWith('Failed to start CLI server:')) {
+		return 'spawnFailed';
+	}
+	return message.startsWith('CLI server exited unexpectedly with code ')
+		? 'processExitedUnexpectedly'
+		: 'processExited';
+}
+
+function getCopilotStartupFailureResource(message: string): CopilotStartupFailureResource {
+	const normalizedMessage = message.toLowerCase();
+	if (normalizedMessage.includes('cli-native')) {
+		return 'cliNative';
+	}
+	if (normalizedMessage.includes('conpty')) {
+		return 'conpty';
+	}
+	if (normalizedMessage.includes('runtime.node') || normalizedMessage.includes('runtime.win32') || normalizedMessage.includes('native addon "runtime"')) {
+		return 'runtime';
+	}
+	if (normalizedMessage.includes('sandbox')
+		|| normalizedMessage.includes('lxc-exec')
+		|| normalizedMessage.includes('mxc-exec-mac')
+		|| normalizedMessage.includes('wxc-exec.exe')) {
+		return 'sandbox';
+	}
+	return 'other';
+}
+
+function getCopilotStartupFailureDetails(error: unknown): Pick<CopilotClientFailureEvent, 'startupFailureCause' | 'startupFailureResource' | 'startupExitCode'> {
+	if (!(error instanceof Error) || classifyCopilotClientFailure(error) !== 'startupFailed') {
+		return {};
+	}
+
+	const message = error.message;
+	const exitCodeMatch = /^CLI server exited(?: unexpectedly)? with code (?<exitCode>\d+)/.exec(message);
+	const parsedExitCode = exitCodeMatch?.groups?.exitCode === undefined ? undefined : Number(exitCodeMatch.groups.exitCode);
+
+	return {
+		startupFailureCause: getCopilotStartupFailureCause(message),
+		startupFailureResource: getCopilotStartupFailureResource(message),
+		startupExitCode: parsedExitCode !== undefined && Number.isSafeInteger(parsedExitCode) ? parsedExitCode : undefined,
+	};
+}
 
 export function reportCopilotClientFailure(
 	telemetryService: ITelemetryService,
@@ -104,6 +174,7 @@ export function reportCopilotClientFailure(
 		clientFailureId,
 		failureKind,
 		operation,
+		...getCopilotStartupFailureDetails(error),
 		...correlation,
 		activeTurnCount,
 		recoveryStarted,

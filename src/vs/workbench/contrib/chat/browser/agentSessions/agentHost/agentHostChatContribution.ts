@@ -163,10 +163,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._handleRootStateChange(rootState);
 		}));
 
-		// Clear the auth cache whenever the local agent host (re)starts so the
-		// first post-restart authenticate RPC is never skipped as "unchanged".
-		this._register(this._agentHostService.onAgentHostStart(() => {
-			this._authTokenCache.clear();
+		this._register(this._agentHostService.onDidNotification(notification => {
+			if (notification.type !== NotificationType.AuthRequired) {
+				return;
+			}
+			this._authTokenCache.clear(notification.resource);
+			this._authenticateWithServer(this._getRootAgents())
+				.catch(() => { /* best-effort */ });
 		}));
 
 		// Surface the agent host's lazy, first-use SDK download as a progress

@@ -1895,6 +1895,9 @@ export interface IChatSendRequestOptions {
 	 */
 	isSystemInitiated?: boolean;
 
+	/** Hide the request and its response from the transcript while retaining them in history. */
+	hideFromTranscript?: boolean;
+
 	/**
 	 * Display label for system-initiated requests. When set, the request row renders
 	 * this label as a compact progress-style message instead of the full request text.

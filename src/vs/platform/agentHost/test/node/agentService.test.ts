@@ -14,6 +14,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -27,10 +28,11 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { META_GITHUB_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -39,6 +41,7 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
@@ -511,10 +514,16 @@ suite('AgentService (node dispatcher)', () => {
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
 		};
+		const github = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+			pullRequestBranchName: 'feature',
+		};
 		const session = await localService.createSession({
 			provider: agent.id,
 			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
-			_meta: { multiRoot, ignored: 'client value' },
+			_meta: { github, multiRoot, ignored: 'client value' },
 		});
 		const sourceChat = buildDefaultChatUri(session.toString());
 		localService.dispatchAction(sourceChat, {
@@ -545,11 +554,13 @@ suite('AgentService (node dispatcher)', () => {
 		assert.deepStrictEqual({
 			state: localService.stateManager.getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			github: readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta),
 			inherited: readSessionMultiRootMetadata(localService.stateManager.getSessionState(inherited.toString())?._meta),
 			overridden: readSessionMultiRootMetadata(localService.stateManager.getSessionState(overridden.toString())?._meta),
 		}, {
-			state: { multiRoot },
+			state: { github, multiRoot },
 			persisted: JSON.stringify(override),
+			github,
 			inherited: multiRoot,
 			overridden: override,
 		});
@@ -582,26 +593,43 @@ suite('AgentService (node dispatcher)', () => {
 		const multiRoot = {
 			workspaceFile: 'file:///work/demo.code-workspace',
 		};
+		const github = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+			pullRequestBranchName: 'feature',
+		};
 		const session = await localService.createSession({
 			provider: agent.id,
 			workingDirectories: [URI.file('/work/one'), URI.file('/work/two')],
-			_meta: { multiRoot },
+			_meta: { github, multiRoot },
 		});
 		const before = readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta);
 		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
+		const githubBefore = readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta);
+		const persistedGitHubBefore = await db.getMetadata(META_GITHUB_STATE);
 
 		agent.materialize(session, [URI.file('/work/materialized'), URI.file('/work/two')]);
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			before,
 			persistedBefore,
+			githubBefore,
+			persistedGitHubBefore,
 			after: readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta),
 			persistedAfter: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			githubAfter: readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta),
+			persistedGitHubAfter: await db.getMetadata(META_GITHUB_STATE),
 		}, {
 			before: multiRoot,
 			persistedBefore: undefined,
+			githubBefore: github,
+			persistedGitHubBefore: undefined,
 			after: multiRoot,
 			persistedAfter: JSON.stringify(multiRoot),
+			githubAfter: github,
+			persistedGitHubAfter: JSON.stringify(github),
 		});
 	});
 
@@ -713,6 +741,140 @@ suite('AgentService (node dispatcher)', () => {
 					&& error.code === JSON_RPC_INTERNAL_ERROR
 					&& error.message === `Failed to read content: ${uri.toString()}: Injected unknown read failure`
 			);
+		});
+
+		// ---- git-blob: content resolution (AC-5, Q5 Option A) ---------------
+		//
+		// A `git-blob:` URI carries the changed file's ABSOLUTE path (as the URI
+		// path) plus the session it belongs to. The host must run `git show` in
+		// the repository that actually contains that file, chosen SERVER-SIDE
+		// from the session's own working directories — never from a
+		// client-supplied directory.
+
+		/**
+		 * Builds a git service whose {@link IAgentHostGitService.getRepositoryRoot}
+		 * maps each working directory to a repo root via {@link repoRootByDir}
+		 * and whose {@link IAgentHostGitService.showBlob} records the working
+		 * directory it is asked to run in (so tests can assert the server picked
+		 * the right repository).
+		 */
+		function createBlobGitService(repoRootByDir: ReadonlyMap<string, URI>, showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }>) {
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async workingDirectory => repoRootByDir.get(workingDirectory.toString());
+			gitService.showBlob = async (workingDirectory, ref, repoRelativePath) => {
+				showBlobCalls.push({ workingDirectory: workingDirectory.toString(), ref, repoRelativePath });
+				return VSBuffer.fromString(`blob:${repoRelativePath}`);
+			};
+			return gitService;
+		}
+
+		async function createBlobSession(gitService: ReturnType<typeof createNoopGitService>, workingDirectories: readonly URI[]): Promise<{ service: AgentService; session: URI }> {
+			// Advertise `multipleWorkingDirectories` so the full multi-root set is
+			// retained in session state (a provider without it is truncated to
+			// the primary at create time).
+			class MultiRootMockAgent extends MockAgent {
+				override getDescriptor(): IAgentDescriptor {
+					return { provider: this.id, displayName: this.id, description: this.id, capabilities: { multipleWorkingDirectories: { immutablePrimary: true } } };
+				}
+			}
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MultiRootMockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot', workingDirectories: [...workingDirectories] });
+			return { service: localService, session };
+		}
+
+		test('git-blob resolves against the containing repo root of a NON-primary folder (multi-root)', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const repoB = URI.file('/workspace/repoB');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [repoB.toString(), repoB]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA, repoB]);
+
+			// A file changed in the NON-primary folder (repoB).
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/workspace/repoB/src/app.ts'));
+			const result = await localService.resourceRead(blobUri);
+
+			// showBlob ran in repoB's root — not the primary (repoA) — and its
+			// content was returned.
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: repoB.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }]);
+			assert.strictEqual(result.data, 'blob:src/app.ts');
+		});
+
+		test('git-blob whose absolute path is under no session repo root maps to NotFound (no wrong-primary fallback)', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const repoB = URI.file('/workspace/repoB');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [repoB.toString(), repoB]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA, repoB]);
+
+			// Absolute path is outside every session repository root.
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'x.ts', '/workspace/outside/x.ts'));
+
+			await assert.rejects(
+				() => localService.resourceRead(blobUri),
+				(error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound,
+			);
+			// The primary was NOT used as a wrong fallback — showBlob never ran.
+			assert.deepStrictEqual(showBlobCalls, []);
+		});
+
+		test('git-blob resolves against the sole repo root in a single-folder session (unchanged behavior)', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA]);
+
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/workspace/repoA/src/app.ts'));
+			const result = await localService.resourceRead(blobUri);
+
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: repoA.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }]);
+			assert.strictEqual(result.data, 'blob:src/app.ts');
+		});
+
+		test('single-folder git-blob uses the primary directory even for a path outside the root (AC-1.1 unchanged)', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA]);
+
+			// Absolute path is OUTSIDE the (single) working directory — e.g. a
+			// relocated/remapped worktree. Pre-multi-root single-folder behavior
+			// ran `git show` from the primary directory regardless of the path;
+			// single-folder sessions must keep doing so (no containment check),
+			// rather than returning NotFound as the multi-root path would.
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/somewhere/else/src/app.ts'));
+			const result = await localService.resourceRead(blobUri);
+
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: repoA.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }]);
+			assert.strictEqual(result.data, 'blob:src/app.ts');
+		});
+
+		test('git-blob runs showBlob in a server-derived repo root, never a directory read from the URI', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			// The repoB working directory is a SUBDIRECTORY of its repo root, so
+			// the resolved repo root differs from both the working directory and
+			// the URI path's parent directory.
+			const repoBWorkingDir = URI.file('/workspace/repoB/nested/sub');
+			const repoBRoot = URI.file('/workspace/repoB');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [repoBWorkingDir.toString(), repoBRoot]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA, repoBWorkingDir]);
+
+			// The URI path's parent directory (/workspace/repoB/src) must NOT be
+			// used as the cwd; the repo root is what runs `git show`.
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/workspace/repoB/src/app.ts'));
+			await localService.resourceRead(blobUri);
+
+			assert.strictEqual(showBlobCalls.length, 1);
+			// cwd is a session-resolved repo root...
+			const resolvedRepoRoots = [repoA.toString(), repoBRoot.toString()];
+			assert.ok(resolvedRepoRoots.includes(showBlobCalls[0].workingDirectory), 'cwd must be one of the session repo roots');
+			assert.strictEqual(showBlobCalls[0].workingDirectory, repoBRoot.toString());
+			// ...and NOT a value derived from the URI (parent dir) or the working directory.
+			assert.notStrictEqual(showBlobCalls[0].workingDirectory, URI.file('/workspace/repoB/src').toString());
+			assert.notStrictEqual(showBlobCalls[0].workingDirectory, repoBWorkingDir.toString());
 		});
 	});
 
@@ -1562,12 +1724,36 @@ suite('AgentService (node dispatcher)', () => {
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			svc.setWorktreeIsolation({
-				removeCreatedWorktree: async () => { order.push('removeCreatedWorktree'); },
+				prepareSessionDeletion: async () => {
+					order.push('prepareSessionDeletion');
+					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree') };
+				},
+				removeSessionWorktree: async (_sessionId: string, worktree: { readonly worktree: URI } | undefined) => {
+					order.push(`removeSessionWorktree:${worktree?.worktree.toString()}`);
+				},
 			} as unknown as WorktreeIsolation);
 
 			await svc.disposeSession(session);
 
-			assert.deepStrictEqual(order, ['deleteSessionData', 'removeCreatedWorktree']);
+			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree:file:///worktree']);
+		});
+
+		test('preserves session data when worktree metadata cannot be read', async () => {
+			let deletedSessionData = false;
+			const sessionDataService: ISessionDataService = {
+				...nullSessionDataService,
+				deleteSessionData: async () => { deletedSessionData = true; },
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			svc.setWorktreeIsolation({
+				prepareSessionDeletion: async () => { throw new Error('metadata unavailable'); },
+			} as unknown as WorktreeIsolation);
+
+			await assert.rejects(() => svc.disposeSession(session), /metadata unavailable/);
+
+			assert.strictEqual(deletedSessionData, false);
 		});
 	});
 
@@ -1709,9 +1895,8 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(readSessionMultiRootMetadata(sessions[0]._meta), undefined);
 		});
 
-		test('listSessions normalizes a persisted linked-worktree project without probing a missing session worktree', async () => {
+		test('listSessions surfaces the persisted worktree repository root without resolving it', async () => {
 			const db = disposables.add(new TestSessionDatabase());
-			const primaryRoot = URI.file('/workspace/vscode');
 			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
 			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
 			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
@@ -1719,30 +1904,73 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionUri = AgentSession.uri('copilot', sessionId);
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			agent.sessionMetadataOverrides = {
-				workingDirectories: [sessionWorktree],
-				project: { uri: linkedCheckout, displayName: 'parent' },
-			};
+			agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree] };
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const gitService = createNoopGitService();
-			const resolvedFrom: URI[] = [];
-			gitService.getWorktreeRoots = async workingDirectory => {
-				resolvedFrom.push(workingDirectory);
-				return [primaryRoot, linkedCheckout, sessionWorktree];
+			let worktreeRootResolutions = 0;
+			gitService.getWorktreeRoots = async () => {
+				worktreeRootResolutions++;
+				return [];
 			};
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
+			// Twice, because the deleted repair cached per session: one listing cannot tell "never resolves" from "resolves once".
 			await svc.listSessions();
 
 			assert.deepStrictEqual({
-				resolvedFrom: resolvedFrom.map(uri => uri.toString()),
+				worktreeRootResolutions,
 				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
 				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
 			}, {
-				resolvedFrom: [linkedCheckout.toString()],
-				project: { uri: primaryRoot.toString(), displayName: 'vscode' },
+				worktreeRootResolutions: 0,
+				project: { uri: linkedCheckout.toString(), displayName: 'parent' },
+				persistedRepositoryRoot: linkedCheckout.toString(),
+			});
+		});
+
+		test('listSessions reports the repository root once opening the session heals it', async () => {
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
+			await Promise.all([
+				db.setMetadata('copilot.worktree.branchName', 'agents/child'),
+				db.setMetadata('copilot.worktree.path', sessionWorktree.toString()),
+				db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString()),
+			]);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree] };
+			const gitService = createNoopGitService();
+			gitService.getWorktreeRoots = async () => [primaryRoot, linkedCheckout, sessionWorktree];
+			const sessionDataService = createSessionDataService(db);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			)));
+			svc.registerProvider(agent);
+			await agent.createSession();
+			const sessionResource = (await agent.listSessions())[0].session;
+			agent.sessionMessages = [];
+
+			const before = await svc.listSessions();
+			// Restore heals the metadata by resolving the worktree project, canonicalizing the root, and writing it back.
+			await svc.restoreSession(sessionResource);
+			const after = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				before: before[0].project?.uri.toString(),
+				after: after[0].project?.uri.toString(),
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+			}, {
+				before: linkedCheckout.toString(),
+				after: primaryRoot.toString(),
 				persistedRepositoryRoot: primaryRoot.toString(),
 			});
 		});
@@ -2820,6 +3048,50 @@ suite('AgentService (node dispatcher)', () => {
 			await service.shutdown();
 			assert.ok(copilotShutdown);
 		});
+
+		test('preserves worktrees owned by persistent sessions', async () => {
+			const workingDirectory = URI.file(mkdtempSync(join(tmpdir(), 'agent-service-shutdown-')));
+			const worktreesRoot = getWorktreesRoot(workingDirectory);
+			disposables.add(toDisposable(() => {
+				rmSync(workingDirectory.fsPath, { recursive: true, force: true });
+				rmSync(worktreesRoot.fsPath, { recursive: true, force: true });
+			}));
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => workingDirectory;
+			gitService.revParse = async () => 'head';
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			gitService.addWorktree = async () => { };
+			let removeWorktreeCalls = 0;
+			gitService.removeWorktree = async () => { removeWorktreeCalls++; };
+			const isolation = disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				nullSessionDataService,
+				new NullLogService(),
+			));
+			service.setWorktreeIsolation(isolation);
+			service.registerProvider(copilotAgent);
+			await isolation.resolveWorkingDirectory({
+				sessionUri: AgentSession.uri('copilot', 'session'),
+				sessionId: 'session',
+				workingDirectory,
+				config: {
+					[SessionConfigKey.Isolation]: 'worktree',
+					[SessionConfigKey.Branch]: 'main',
+				},
+			});
+
+			await service.shutdown();
+
+			assert.deepStrictEqual({
+				removeWorktreeCalls,
+				resolvedWorktree: isolation.getResolvedWorktree('session')?.toString(),
+			}, {
+				removeWorktreeCalls: 0,
+				resolvedWorktree: URI.joinPath(getWorktreesRoot(workingDirectory), 'test').toString(),
+			});
+		});
 	});
 
 	// ---- restoreSession -------------------------------------------------
@@ -3573,6 +3845,38 @@ suite('AgentService (node dispatcher)', () => {
 				messageCalls: 1,
 				childTurns: 1,
 			});
+		});
+
+		test('restores an evicted subagent before applying a dispatched chat action', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner', result: { success: true, pastTenseMessage: 'Ran ls', content: [{ type: ToolResultContentType.Text, text: 'file1.ts' }] }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found files' }] } },
+			];
+			await service.restoreSession(sessionResource);
+
+			const childSession = URI.parse(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub'));
+			service.stateManager.deleteSession(childSession.toString());
+			const childChat = buildDefaultChatUri(childSession);
+			service.dispatchAction(childChat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'continued-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Continue', origin: { kind: MessageKind.User } },
+			}, 'client-1', 1);
+
+			for (let i = 0; i < 50 && service.stateManager.getChatState(childChat.toString())?.activeTurn?.id !== 'continued-turn'; i++) {
+				await timeout(0);
+			}
+
+			assert.strictEqual(service.stateManager.getChatState(childChat.toString())?.activeTurn?.id, 'continued-turn');
 		});
 	});
 
@@ -5232,6 +5536,94 @@ suite('AgentService (node dispatcher)', () => {
 				materializeCalls: 1,
 				stateWhileBlocked: undefined,
 				activeTurnAfterResolution: 'turn-1',
+			});
+		});
+
+		test('restores an evicted session before applying a dispatched default-chat action', async () => {
+			const restoration = new DeferredPromise<void>();
+			let restoreCalls = 0;
+			class RestoringAgent extends MockAgent {
+				override async getSessionMessages(): Promise<readonly Turn[]> {
+					restoreCalls++;
+					await restoration.p;
+					return [];
+				}
+			}
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new RestoringAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session);
+			localService.stateManager.deleteSession(session.toString());
+
+			localService.dispatchAction(chat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Hello after restart', origin: { kind: MessageKind.User } },
+			}, 'client-1', 1);
+			for (let i = 0; i < 50 && restoreCalls === 0; i++) {
+				await timeout(0);
+			}
+			const stateWhileBlocked = localService.stateManager.getChatState(chat.toString());
+			restoration.complete();
+			for (let i = 0; i < 50 && localService.stateManager.getChatState(chat.toString())?.activeTurn?.id !== 'turn-1'; i++) {
+				await timeout(0);
+			}
+			const stateAfterRestoration = localService.stateManager.getChatState(chat.toString());
+
+			assert.deepStrictEqual({
+				restoreCalls,
+				stateWhileBlocked,
+				activeTurnAfterRestoration: stateAfterRestoration?.activeTurn?.id,
+			}, {
+				restoreCalls: 1,
+				stateWhileBlocked: undefined,
+				activeTurnAfterRestoration: 'turn-1',
+			});
+		});
+
+		test('restores an evicted session before applying a dispatched session action', async () => {
+			const restoration = new DeferredPromise<void>();
+			let restoreCalls = 0;
+			class RestoringAgent extends MockAgent {
+				override async getSessionMessages(): Promise<readonly Turn[]> {
+					restoreCalls++;
+					await restoration.p;
+					return [];
+				}
+			}
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new RestoringAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({
+				provider: 'copilot',
+				config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			localService.stateManager.deleteSession(session.toString());
+
+			localService.dispatchAction(session.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AutoApprove]: 'default' },
+			}, 'client-1', 1);
+			for (let i = 0; i < 50 && restoreCalls === 0; i++) {
+				await timeout(0);
+			}
+			const stateWhileBlocked = localService.stateManager.getSessionState(session.toString());
+			restoration.complete();
+			for (let i = 0; i < 50 && localService.stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.AutoApprove] !== 'default'; i++) {
+				await timeout(0);
+			}
+			const stateAfterRestoration = localService.stateManager.getSessionState(session.toString());
+
+			assert.deepStrictEqual({
+				restoreCalls,
+				stateWhileBlocked,
+				autoApproveAfterRestoration: stateAfterRestoration?.config?.values[SessionConfigKey.AutoApprove],
+			}, {
+				restoreCalls: 1,
+				stateWhileBlocked: undefined,
+				autoApproveAfterRestoration: 'default',
 			});
 		});
 
