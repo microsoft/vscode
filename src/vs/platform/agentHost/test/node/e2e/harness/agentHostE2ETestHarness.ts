@@ -31,7 +31,7 @@ import {
 } from '../../../../common/state/sessionActions.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../../common/agentService.js';
-import { CapiReplayMode } from './capiReplayProxy.js';
+import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
@@ -530,7 +530,11 @@ export async function driveTurnWithCancelledInputToCompletion(c: TestProtocolCli
 	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
 }
 
-async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept): Promise<IDrivenTurnResult> {
+export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, getAnswers: (request: ChatInputRequest) => Record<string, ChatInputAnswer>): Promise<IDrivenTurnResult> {
+	return driveTurn(c, session, turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
+}
+
+async function driveTurn(c: TestProtocolClient, session: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
@@ -593,7 +597,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 					type: ActionType.ChatInputCompleted,
 					requestId: action.request.id,
 					response: inputResponse,
-					answers: inputResponse === ChatInputResponseKind.Accept ? getAcceptedAnswers(action.request) : undefined,
+					answers: inputResponse === ChatInputResponseKind.Accept ? answerProvider(action.request) : undefined,
 				},
 			});
 			continue;
@@ -939,6 +943,14 @@ export class AgentHostE2EServerLease {
 		await client.connect();
 		this._client = client;
 		return client;
+	}
+
+	setRecordingModelResponse(response: ICapiReplayResponse): void {
+		const proxy = this._server?.capiReplay;
+		if (!proxy) {
+			throw new Error('[agent-host-e2e] no replay-backed server');
+		}
+		proxy.setRecordingModelResponse(response);
 	}
 
 	/**

@@ -377,7 +377,7 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getTurnEventId(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
-		const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?', [turnId]);
+		const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1', [turnId]);
 		return row?.event_id as string | undefined ?? undefined;
 	}
 
@@ -751,7 +751,7 @@ export class SessionDatabase implements ISessionDatabase {
 		return !!row;
 	}
 
-	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
+	remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
 		// Mutates `turn_usage`, so it must serialize with every other such
 		// mutation — a usage write racing the fork transaction would otherwise
 		// land against either the old or the new turn id unpredictably.
@@ -777,6 +777,9 @@ export class SessionDatabase implements ISessionDatabase {
 				for (const [oldId, newId] of mapping) {
 					await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
 					await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				}
+				for (const [turnId, eventId] of eventIds ?? []) {
+					await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ?', [eventId, turnId]);
 				}
 
 				if (oldIds.length > 0) {

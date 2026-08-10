@@ -38,7 +38,6 @@ export const CLOUD_SANDBOX_SEALED_TOKEN_PREFIX = 'copilot-sealed.v1.';
 export function isCloudSandboxSealedToken(token: string | undefined): boolean {
 	return typeof token === 'string' && token.startsWith(CLOUD_SANDBOX_SEALED_TOKEN_PREFIX);
 }
-
 /** The Mission Control environment id encoded in a cloud sandbox connection address, if any. */
 export function cloudSandboxEnvironmentId(address: string): string | undefined {
 	return address.startsWith(CLOUD_SANDBOX_ADDRESS_PREFIX)
@@ -319,4 +318,3 @@ export interface ICloudSandboxAgentHostService {
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
 }
-

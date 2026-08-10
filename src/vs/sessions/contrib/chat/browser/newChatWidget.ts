@@ -48,7 +48,7 @@ import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constant
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 
 // #region --- New Chat Widget ---
 
@@ -134,12 +134,6 @@ export class NewChatWidget extends Disposable {
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
 		this._register(toDisposable(() => this._workspacePickerVisibleKey.reset()));
 		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
-		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
-		// which scopes recents to the active host and renders as a bottom
-		// sheet on phone-layout viewports. On Electron desktop, the regular
-		// {@link WorkspacePicker} is fine — phones never run there.
-		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
-		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {}));
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
 
@@ -158,6 +152,15 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			return session?.isQuickChat?.read(reader) ?? false;
 		});
+
+		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
+		// which scopes recents to the active host and renders as a bottom
+		// sheet on phone-layout viewports. On Electron desktop, the regular
+		// {@link WorkspacePicker} is fine — phones never run there.
+		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
+		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
+			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
+		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
 		this._feedbackItems = derived(this, reader => {
@@ -187,6 +190,9 @@ export class NewChatWidget extends Disposable {
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
+			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
+				? NewSessionWorkspacePreselectionSource.None
+				: this._workspacePicker.preselectionSource,
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			canSubmitWithoutSession,
@@ -279,13 +285,30 @@ export class NewChatWidget extends Disposable {
 
 		// Re-sync the picker's displayed selection when the session's workspace
 		// changes externally (e.g. sessionsService.openNewSession({ folderUri })).
+		let previousFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
 			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;
+			this._handlePromptOptionsWorkspaceChange(previousFolderUri, folderUri);
+			previousFolderUri = folderUri;
 			if (folderUri && !this.uriIdentityService.extUri.isEqual(folderUri, this._workspacePicker.selectedFolderUri)) {
 				this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
 			}
 		}));
+	}
+
+	private _handlePromptOptionsWorkspaceChange(previousFolderUri: URI | undefined, folderUri: URI | undefined): void {
+		const workspaceChanged = previousFolderUri
+			? !folderUri || !this.uriIdentityService.extUri.isEqual(previousFolderUri, folderUri)
+			: !!folderUri;
+		if (!workspaceChanged) {
+			return;
+		}
+		if (folderUri) {
+			void this._refreshPromptOptions();
+		} else {
+			this._newChatInput.clearPromptOptions();
+		}
 	}
 
 	// --- Rendering ---
@@ -399,7 +422,9 @@ export class NewChatWidget extends Disposable {
 			this._register(autorun(reader => {
 				const isQuickChat = this._isQuickChatComposer.read(reader);
 				if (wasQuickChat && !isQuickChat && !this._session.read(reader)) {
-					this._seedWorkspaceDraft();
+					if (!this._workspacePicker.refreshAutomaticSelection()) {
+						this._seedWorkspaceDraft();
+					}
 				}
 				wasQuickChat = isQuickChat;
 			}));
@@ -935,6 +960,10 @@ export class NewChatWidget extends Disposable {
 	private async _onWorkspaceSelected(folderUri: URI | undefined): Promise<void> {
 		// Cancel any in-flight upgrade for a previous selection.
 		this._pendingPreferredUpgrade.clear();
+		const currentFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
+		const refreshingPromptOptions = !!currentFolderUri
+			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))
+			&& this._newChatInput.preparePromptOptionsRefresh();
 
 		if (!folderUri) {
 			this.sessionsService.unsetNewSession();
@@ -946,9 +975,21 @@ export class NewChatWidget extends Disposable {
 		}
 
 		const result = await this._createNewSession(folderUri);
+		if (refreshingPromptOptions && !result.session) {
+			this._newChatInput.showPromptOptions(undefined);
+		}
 		if (result.trustDeclined) {
 			// Don't leave the picker showing the declined folder as selected.
 			this._workspacePicker.removeFromRecents(folderUri);
+		}
+	}
+
+	private async _refreshPromptOptions(): Promise<void> {
+		try {
+			await this._newChatInput.refreshPromptOptions();
+		} catch (error) {
+			this.logService.error('Failed to refresh new-session prompt options:', error);
+			this._newChatInput.showPromptOptions(undefined);
 		}
 	}
 

@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
-import { CHAT_PET_IDLE_SLEEP_DELAY, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldFlipChatPetWideSprite, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_IDLE_SLEEP_DELAY, ChatPetHopController, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, isChatPetImageSource, isChatPetVisible, shouldFlipChatPetWideSprite, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	class TestTelemetryService extends NullTelemetryServiceShape {
 		readonly events: { readonly name: string; readonly data: unknown }[] = [];
@@ -24,14 +27,189 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
+	function createHopHarness(initialLeft = 48, minimumLeft = 0, maximumLeft = 96) {
+		const events: string[] = [];
+		let left = initialLeft;
+		const controller = new ChatPetHopController({
+			onDirectionChange: direction => events.push(`direction:${direction}`),
+			onMove: delta => {
+				left = getChatPetHorizontalPosition(left + delta, minimumLeft, maximumLeft);
+				events.push(`move:${delta}:${left}`);
+			},
+			onStart: () => events.push('start'),
+			onReducedMotionStart: () => events.push('reduced'),
+			onRequest: () => events.push('request'),
+		});
+		return { controller, events, getLeft: () => left };
+	}
+
+	test('runs one timed hop for a single key press', () => {
+		const clock = sinon.useFakeTimers();
+		const { controller, events } = createHopHarness();
+		try {
+			controller.request(1, false);
+			clock.tick(299);
+			clock.tick(1);
+			clock.tick(300);
+			controller.onAnimationComplete();
+			clock.tick(1_000);
+
+			assert.deepStrictEqual(events, [
+				'direction:1',
+				'request',
+				'start',
+				'move:24:72',
+			]);
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	test('repeats hops while key requests remain within the hold grace period', () => {
+		const clock = sinon.useFakeTimers();
+		const { controller, events } = createHopHarness();
+		try {
+			controller.request(1, false);
+			clock.tick(300);
+			controller.request(1, false);
+			clock.tick(300);
+			controller.onAnimationComplete();
+			clock.tick(90);
+			clock.tick(300);
+
+			assert.deepStrictEqual(events, [
+				'direction:1',
+				'request',
+				'start',
+				'move:24:72',
+				'direction:1',
+				'request',
+				'start',
+				'move:24:96',
+			]);
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	test('uses the latest direction when a hop changes direction before its step', () => {
+		const clock = sinon.useFakeTimers();
+		const { controller, events, getLeft } = createHopHarness();
+		try {
+			controller.request(-1, false);
+			clock.tick(100);
+			controller.request(1, false);
+			clock.tick(200);
+
+			assert.deepStrictEqual({
+				events,
+				left: getLeft(),
+			}, {
+				events: [
+					'direction:-1',
+					'request',
+					'start',
+					'direction:1',
+					'request',
+					'move:24:72',
+				],
+				left: 72,
+			});
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	test('moves immediately without repetition when motion is reduced', () => {
+		const clock = sinon.useFakeTimers();
+		const { controller, events } = createHopHarness();
+		try {
+			controller.request(-1, true);
+			clock.tick(1_000);
+			controller.onAnimationComplete();
+
+			assert.deepStrictEqual(events, [
+				'direction:-1',
+				'request',
+				'move:-24:24',
+				'reduced',
+			]);
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	test('clamps repeated hop steps to the movement bounds', () => {
+		const clock = sinon.useFakeTimers();
+		const { controller, events, getLeft } = createHopHarness(0, 0, 24);
+		try {
+			controller.request(-1, false);
+			clock.tick(600);
+			controller.onAnimationComplete();
+			controller.request(1, false);
+			clock.tick(600);
+			controller.onAnimationComplete();
+			controller.request(1, false);
+			clock.tick(300);
+
+			assert.deepStrictEqual({
+				moves: events.filter(event => event.startsWith('move:')),
+				left: getLeft(),
+			}, {
+				moves: [
+					'move:-24:0',
+					'move:24:24',
+					'move:24:24',
+				],
+				left: 24,
+			});
+		} finally {
+			controller.dispose();
+		}
+	});
+
+	test('cancels pending steps and rests when disabled or sent on the run', () => {
+		const clock = sinon.useFakeTimers();
+		const { controller, events } = createHopHarness();
+		try {
+			controller.request(1, false);
+			clock.tick(100);
+			controller.cancel();
+			clock.tick(1_000);
+
+			controller.request(1, false);
+			clock.tick(300);
+			controller.request(1, false);
+			clock.tick(300);
+			controller.onAnimationComplete();
+			controller.cancel();
+			clock.tick(1_000);
+
+			assert.deepStrictEqual(events, [
+				'direction:1',
+				'request',
+				'start',
+				'direction:1',
+				'request',
+				'start',
+				'move:24:72',
+				'direction:1',
+				'request',
+			]);
+		} finally {
+			controller.dispose();
+		}
+	});
+
 	test('maps chat activity to pet states by priority', () => {
 		assert.deepStrictEqual([
-			getChatPetBaseState(false, false, false, false),
-			getChatPetBaseState(false, false, false, true),
-			getChatPetBaseState(false, false, true, false),
-			getChatPetBaseState(false, false, true, true),
-			getChatPetBaseState(true, false, true, true),
-			getChatPetBaseState(true, true, true, true),
+			getChatPetBaseState(false, false, false, false, false),
+			getChatPetBaseState(false, false, false, false, true),
+			getChatPetBaseState(false, false, false, true, false),
+			getChatPetBaseState(false, false, false, true, true),
+			getChatPetBaseState(true, false, false, true, true),
+			getChatPetBaseState(true, true, false, true, true),
+			getChatPetBaseState(true, true, true, true, true),
 		], [
 			'idle',
 			'sleep',
@@ -39,7 +217,12 @@ suite('ChatPetWidget', () => {
 			'sleep',
 			'rendering',
 			'clapping',
+			'idle',
 		]);
+	});
+
+	test('limits confirmation attention to two seconds', () => {
+		assert.strictEqual(CHAT_PET_CONFIRMATION_ATTENTION_DURATION, 2_000);
 	});
 
 	test('only shows in the latest focused chat widget when enabled', () => {
@@ -122,31 +305,34 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('includes button press among click interactions with a rare spin easter egg', () => {
+	test('cycles through click interactions without repeating and keeps the rare spin easter egg', () => {
+		const interactionInterval = 0.99 / 7;
 		assert.deepStrictEqual([
 			getChatPetClickInteraction(0),
-			getChatPetClickInteraction(0.000_999),
-			getChatPetClickInteraction(0.001),
-			getChatPetClickInteraction(0.201),
-			getChatPetClickInteraction(0.401),
-			getChatPetClickInteraction(0.601),
-			getChatPetClickInteraction(0.801),
-			getChatPetClickInteraction(0.5),
+			getChatPetClickInteraction(0.009_999),
+			getChatPetClickInteraction(0.01),
+			getChatPetClickInteraction(0.01 + interactionInterval * 1.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 2.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 3.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 4.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 5.5),
+			getChatPetClickInteraction(0.01 + interactionInterval * 6.5),
 			getChatPetClickInteraction(0.99),
-			getChatPetClickInteraction(0.001, 'buttonPress'),
-			getChatPetClickInteraction(0.99, 'yapping'),
+			getChatPetClickInteraction(0.01, 'buttonPress'),
+			getChatPetClickInteraction(0.99, 'worry'),
 		], [
 			'complete',
 			'complete',
 			'buttonPress',
 			'love',
-			'jump',
 			'cool',
 			'yapping',
-			'jump',
-			'yapping',
+			'sing',
+			'speechless',
+			'worry',
+			'worry',
 			'love',
-			'cool',
+			'speechless',
 		]);
 	});
 
@@ -159,10 +345,14 @@ suite('ChatPetWidget', () => {
 			doesChatPetStateTrackCursor('rendering'),
 			doesChatPetStateTrackCursor('buttonPress'),
 			doesChatPetStateTrackCursor('complete'),
+			doesChatPetStateTrackCursor('jump'),
 			doesChatPetStateTrackCursor('love'),
 			doesChatPetStateTrackCursor('cool'),
 			doesChatPetStateTrackCursor('yapping'),
 			doesChatPetStateTrackCursor('yappingMouthOpen'),
+			doesChatPetStateTrackCursor('sing'),
+			doesChatPetStateTrackCursor('speechless'),
+			doesChatPetStateTrackCursor('worry'),
 			doesChatPetStateTrackCursor('falling'),
 			doesChatPetStateTrackCursor('splat'),
 			doesChatPetStateTrackCursor('onTheRun'),
@@ -177,7 +367,11 @@ suite('ChatPetWidget', () => {
 			false,
 			false,
 			false,
+			false,
 			true,
+			false,
+			false,
+			false,
 			false,
 			false,
 			false,
@@ -197,7 +391,15 @@ suite('ChatPetWidget', () => {
 			getChatPetSpriteName('cool', 'stable'),
 			getChatPetSpriteName('searching', 'stable'),
 			getChatPetSpriteName('yappingMouthOpen', 'insider'),
+			getChatPetSpriteName('sing', 'stable'),
+			getChatPetSpriteName('sing', 'insider'),
+			getChatPetSpriteName('speechless', 'stable'),
+			getChatPetSpriteName('speechless', 'insider'),
+			getChatPetSpriteName('worry', 'stable'),
+			getChatPetSpriteName('worry', 'insider'),
 			getChatPetSpriteName('falling', 'stable'),
+			getChatPetSpriteName('jump', 'stable'),
+			getChatPetSpriteName('jump', 'insider'),
 			getChatPetSpriteName('splat', 'insider'),
 		], [
 			'buddy-idle-insiders',
@@ -209,7 +411,15 @@ suite('ChatPetWidget', () => {
 			'buddy-cool-stable',
 			'buddy-search-stable',
 			'buddy-yapping-insiders',
+			'buddy-sing-stable',
+			'buddy-sing-insiders',
+			'buddy-speechless-stable',
+			'buddy-speechless-insiders',
+			'buddy-worry-stable',
+			'buddy-worry-insiders',
 			'buddy-falling-stable',
+			'buddy-jump-stable',
+			'buddy-jump-insiders',
 			'buddy-splat-insiders',
 		]);
 	});
@@ -225,10 +435,14 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('clapping'),
 			getChatPetFrameDurations('love'),
 			getChatPetFrameDurations('cool'),
+			getChatPetFrameDurations('sing'),
+			getChatPetFrameDurations('speechless'),
+			getChatPetFrameDurations('worry'),
 			getChatPetFrameDurations('searching'),
 			getChatPetFrameDurations('yapping'),
 			getChatPetFrameDurations('yappingMouthOpen'),
 			getChatPetFrameDurations('falling'),
+			getChatPetFrameDurations('jump'),
 			getChatPetFrameDurations('splat'),
 			getChatPetRespawnFrameDurations(),
 			getChatPetSpeechFrameDurations(),
@@ -242,10 +456,14 @@ suite('ChatPetWidget', () => {
 			[80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80],
 			[200, 200, 380, 100, 80, 1_980],
 			[600, 120, 120, 120, 160, 80, 80, 80, 1_640],
+			[180, 180, 180, 180],
+			[400, 120, 1_000, 120, 1_080],
+			[600, 600],
 			[500, 500, 500, 500],
 			[],
 			[],
 			Array.from({ length: 4 }, () => 120),
+			[70, 80, 90, 160, 100, 100],
 			[120, 100, 100, 200],
 			[120, 100, 120, 240, 100, 120],
 			[220, 220, 220, 100, 160, 180],
@@ -451,8 +669,12 @@ suite('ChatPetWidget', () => {
 			shouldFlipChatPetWideSprite('typing', 965, 1000),
 			shouldFlipChatPetWideSprite('buttonPress', 967, 1000),
 			shouldFlipChatPetWideSprite('buttonPress', 969, 1000),
+			shouldFlipChatPetWideSprite('sing', 966, 1000),
+			shouldFlipChatPetWideSprite('sing', 967, 1000),
 			shouldFlipChatPetWideSprite('idle', 1000, 1000),
 		], [
+			false,
+			true,
 			false,
 			true,
 			false,

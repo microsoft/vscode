@@ -22,13 +22,13 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
 import { type ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isSessionAction, type ChatAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -98,6 +98,32 @@ import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+
+type AgentHostLegacyMigrationEvent = {
+	provider: string;
+	outcome: 'migrated' | 'skipped' | 'failed';
+	success: boolean;
+	turnCount: number;
+	durationMs: number;
+	hasProject: boolean;
+	hasWorktree: boolean;
+	workingDirectoryCount: number;
+	errorMessage: string | undefined;
+};
+
+type AgentHostLegacyMigrationClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider id whose legacy session was migrated (e.g. copilotcli).' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated (adoption + restore completed), skipped (eligible legacy session not adopted this pass, e.g. migrate flag not yet applied), or failed (adoption or restore threw).' };
+	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migration completed with at least one restored turn.' };
+	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns restored from the migrated session.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds to adopt and restore the legacy session.' };
+	hasProject: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session resolved to a project/repository.' };
+	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session ran in a pre-existing git worktree that was bridged during adoption.' };
+	workingDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working directories associated with the migrated session.' };
+	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
+	owner: 'vijayupadya';
+	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
+};
 
 const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.Isolation,
@@ -1623,7 +1649,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = this._findProviderForSession(session);
 		this._sideEffects.clearQueuedMessageSenders(chat.toString());
 		this._sideEffects.cancelSubagentSessions(chat.toString());
-		this._sideEffects.clearToolCallTelemetry(chat.toString());
+		this._sideEffects.clearChannelTelemetry(chat.toString());
 		this._stateManager.removeChat(sessionKey, chat.toString());
 		// Drop the chat from the orchestrator-owned catalog so it isn't
 		// re-materialized on the next restore.
@@ -1934,7 +1960,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The agent no longer knows about worktrees; the host's worktree project
 		// (created in the first-send hook) wins for worktree-isolated sessions, and
 		// falls back to whatever the agent reported for folder sessions.
-		const project = this._worktree?.createdWorktreeProject(AgentSession.id(e.session)) ?? e.project;
+		const project = this._worktree?.sessionWorktreeProject(AgentSession.id(e.session)) ?? e.project;
 		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
 		const summary: SessionSummary = {
 			...currentSummary,
@@ -2172,9 +2198,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
 		this._stateManager.invalidateSessionChatResolutions(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
-			this._sideEffects.clearToolCallTelemetry(chat.resource);
+			this._sideEffects.clearChannelTelemetry(chat.resource);
 		}
-		this._sideEffects.clearToolCallTelemetry(session.toString());
+		this._sideEffects.clearChannelTelemetry(session.toString());
 		// Resolve the working directories up front and pass them explicitly:
 		// the checkpoint and review services need them to locate the
 		// repositories holding this session's refs, and reading them from
@@ -2195,10 +2221,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// session the working directory *is* the worktree, so once it is gone
 		// the repository can no longer be resolved and the refs would leak
 		// into the main repository (`refs/agents/*` is shared, not per-worktree).
+		const sessionId = AgentSession.id(session);
+		const worktree = await this._worktree?.prepareSessionDeletion(session, sessionId);
 		await this._sessionDataService.deleteSessionData(session, workingDirectories);
-		// Remove any worktree this process created for the session (host-owned;
-		// agents stay unaware).
-		await this._worktree?.removeCreatedWorktree(AgentSession.id(session));
+		await this._worktree?.removeSessionWorktree(sessionId, worktree);
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
@@ -2610,15 +2636,25 @@ export class AgentService extends Disposable implements IAgentService {
 		// lookup, telemetry, permissions — all keyed by session).
 		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
+		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresPeerResolution && !requiresAttachmentRewrite) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
+			if (requiresSessionRestore) {
+				const sessionUri = URI.parse(sessionChannel);
+				const subagent = parseSubagentSessionUri(sessionUri);
+				if (subagent) {
+					await this._restoreSubagentSession(sessionChannel, subagent.parentSession);
+				} else {
+					await this.restoreSession(sessionUri);
+				}
+			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
 			}
@@ -2903,6 +2939,26 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Emits one {@link AgentHostLegacyMigrationEvent} for a legacy-session adoption attempt. */
+	private _reportLegacyMigration(
+		provider: string,
+		outcome: AgentHostLegacyMigrationEvent['outcome'],
+		startTime: number,
+		extra: { turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; errorMessage?: string },
+	): void {
+		this._telemetryService.publicLog2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', {
+			provider,
+			outcome,
+			success: outcome === 'migrated' && (extra.turnCount ?? 0) > 0,
+			turnCount: extra.turnCount ?? 0,
+			durationMs: Date.now() - startTime,
+			hasProject: extra.hasProject ?? false,
+			hasWorktree: extra.hasWorktree ?? false,
+			workingDirectoryCount: extra.workingDirectoryCount ?? 0,
+			errorMessage: extra.errorMessage,
+		});
+	}
+
 	private async _doRestoreSession(session: URI, sessionStr: string): Promise<void> {
 		if (this._stateManager.getSessionState(sessionStr)) {
 			return;
@@ -2918,11 +2974,72 @@ export class AgentService extends Disposable implements IAgentService {
 		// (non-migration) restore path does no extra work; a no-op for native /
 		// already-adopted sessions.
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
-		const adopted = migrateLegacyEnabled ? (await agent.ensureSessionAdopted?.(session) ?? false) : false;
+		const migrationStartTime = Date.now();
+		let adoption: IAgentSessionAdoptionResult = { adopted: false, eligible: false };
+		if (migrateLegacyEnabled && agent.ensureSessionAdopted) {
+			try {
+				adoption = await agent.ensureSessionAdopted(session);
+			} catch (err) {
+				// Adoption itself threw — a genuine migration failure worth surfacing.
+				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
+				throw err;
+			}
+		}
+		const adopted = adoption.adopted;
 
-		const meta = await this._getSessionMetadataForRestore(agent, session);
+		// From here the whole restore is wrapped so `migrated` is reported only
+		// after every required step succeeds, and any failure after a successful
+		// adoption is surfaced as a migration failure.
+		try {
+			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted);
+			if (adopted) {
+				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, facts);
+			} else if (adoption.eligible) {
+				// Migrate setting on and a genuine legacy candidate, but not adopted
+				// this pass (e.g. its on-disk working directory could not be resolved).
+				this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, { hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount });
+			}
+		} catch (err) {
+			if (adopted) {
+				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
+			}
+			throw err;
+		}
+	}
+
+	/**
+	 * Hydrates a restored (or freshly-adopted) session into the state manager and
+	 * completes all required restore work (turns, metadata, peer chats, config).
+	 * Returns the facts used for migration telemetry; throws if any required step
+	 * fails so the caller can report the outcome accurately.
+	 */
+	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+		let meta = await this._getSessionMetadataForRestore(agent, session);
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
+		}
+
+		// A freshly-adopted legacy session whose working directory is a
+		// pre-existing git worktree keeps no worktree metadata (adoption seeds
+		// `isolation: folder` in place). Bridge it now so the session groups under
+		// its repository and diffs against the right base, matching native
+		// worktree-isolated sessions. No-op for folder / primary-checkout cwds.
+		let adoptedWorktree = false;
+		if (adopted && this._worktree) {
+			const adoptedWorkingDirectory = meta.workingDirectories?.[0];
+			if (adoptedWorkingDirectory) {
+				try {
+					if (await this._worktree.adoptExistingWorktreeMetadata(session, adoptedWorkingDirectory)) {
+						adoptedWorktree = true;
+						const worktreeProject = await this._worktree.resolveWorktreeProject(session);
+						if (worktreeProject) {
+							meta = { ...meta, project: worktreeProject };
+						}
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentService] adopt: worktree metadata bridge failed for ${sessionStr}`, err);
+				}
+			}
 		}
 
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
@@ -3146,6 +3263,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 
 		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr, meta.workingDirectories?.[0]);
+
+		return {
+			turnCount: mergedTurns.length,
+			hasProject: !!meta.project,
+			hasWorktree: adoptedWorktree,
+			workingDirectoryCount: meta.workingDirectories?.length ?? 0,
+		};
 	}
 
 	/**
@@ -4102,8 +4226,6 @@ export class AgentService extends Disposable implements IAgentService {
 			promises.push(provider.shutdown());
 		}
 		await Promise.all(promises);
-		// Drain any worktrees this process created so none leak on shutdown.
-		await this._worktree?.removeAllCreatedWorktrees();
 		this._sessionToProvider.clear();
 		this._downloadProgressInterest.clear();
 	}

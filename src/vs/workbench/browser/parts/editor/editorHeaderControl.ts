@@ -59,7 +59,7 @@ export class EditorHeaderControl extends Disposable {
 			this._register(this.groupView.onDidActiveEditorChange(() => this.renderActions(true)));
 		}
 
-		if (groupsView.partOptions.showTabs !== 'single') {
+		if (showHeader || groupsView.partOptions.showTabs !== 'single') {
 			this.breadcrumbsContainer = append(breadcrumbsParent, $('.breadcrumbs-below-tabs'));
 			this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, this.breadcrumbsContainer, this.groupView, {
 				showFileIcons: true,
