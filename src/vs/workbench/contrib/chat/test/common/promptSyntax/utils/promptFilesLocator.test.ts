@@ -2764,6 +2764,25 @@ suite('PromptFilesLocator', () => {
 			);
 		});
 
+		testT('stops at a linked worktree .git file', async () => {
+			setWorkspaceFoldersForRoots(['/repos/feature/src']);
+			await mockFiles(fileService, [
+				{ path: '/repos/feature/.git', contents: ['gitdir: /repos/main/.git/worktrees/feature'] },
+			]);
+
+			workspaceTrustService.setTrustedUris([URI.file('/repos/feature')]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.path).sort(),
+				[
+					'/repos/feature',
+					'/repos/feature/src',
+				].sort(),
+				'Should stop at the linked worktree root',
+			);
+		});
+
 		testT('walks up to parent with .git when workspace folder has no .git', async () => {
 			setWorkspaceFoldersForRoots(['/repos/monorepo/packages/my-app']);
 			await mockFiles(fileService, [
