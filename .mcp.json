@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "productivity-suite": {
+      "type": "http",
+      "url": "https://productivity-suite-mcp.onrender.com/mcp"
+    }
+  }
+}
