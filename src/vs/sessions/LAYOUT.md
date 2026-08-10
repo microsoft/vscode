@@ -42,6 +42,8 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 | Auxiliary Bar | Right side | Visible | Changes view, file tree |
 | Panel | Below Sessions Part + Aux Bar | Hidden | Terminal, debug output |
 
+The Panel and Auxiliary Bar tab strips inherit the shared Modern UI pane-tab presentation from `workbench/contrib/styleOverrides/browser/media/tabs.css` through the workbench root's `modern-ui-tabs` class. Sessions-owned styles define only the part surface and inset; action geometry, active/hover/focus states, and badge placement remain owned by the shared pane-tab stylesheet so the Editor and Agents windows stay aligned.
+
 ### 2.2 Grid Tree
 
 ```

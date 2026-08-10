@@ -56,7 +56,7 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	return element;
 }
 
-function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean): { actionItem: HTMLElement; indicator: HTMLElement } {
+function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; indicator: HTMLElement } {
 	root.style.setProperty('--vscode-spacing-size20', '2px');
 	root.style.setProperty('--vscode-spacing-size40', '4px');
 	root.style.setProperty('--vscode-spacing-size240', '24px');
@@ -68,7 +68,7 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 	const compositeBar = appendElement(compositeBarContainer, 'composite-bar');
 	const actionBar = appendElement(compositeBar, 'monaco-action-bar');
 	const actionsContainer = appendElement(actionBar, 'actions-container');
-	const actionItem = appendElement(actionsContainer, `action-item${checked ? ' checked' : ''}`);
+	const actionItem = appendElement(actionsContainer, `action-item${checked ? ' checked' : ''}${icon ? ' icon' : ''}`);
 	actionItem.tabIndex = 0;
 	appendElement(actionItem, 'action-label');
 	const indicator = appendElement(actionItem, 'active-item-indicator');
@@ -155,24 +155,50 @@ suite('StyleOverridesContribution', () => {
 		store.add(toDisposable(() => regularRoot.remove()));
 		// Taller container than the fixed 32px override, so the override is verified rather than a 100% fallback.
 		const regular = createCompositeAction(regularRoot, 40, true);
+		const regularIcon = createCompositeAction(regularRoot, 40, true, true);
+		const regularIconBadge = appendElement(regularIcon.actionItem, 'badge compact');
+		const regularIconBadgeContent = appendElement(regularIconBadge, 'badge-content');
+		regularIcon.actionItem.insertBefore(regularIconBadge, regularIcon.indicator);
 
 		const agentsRoot = document.createElement('div');
 		agentsRoot.className = 'monaco-workbench modern-ui-tabs';
 		document.body.appendChild(agentsRoot);
 		store.add(toDisposable(() => agentsRoot.remove()));
 		const agents = createCompositeAction(agentsRoot, 35, false);
+		const agentsIcon = createCompositeAction(agentsRoot, 35, true, true);
+		const agentsIconBadge = appendElement(agentsIcon.actionItem, 'badge compact');
+		const agentsIconBadgeContent = appendElement(agentsIconBadge, 'badge-content');
+		agentsIcon.actionItem.insertBefore(agentsIconBadge, agentsIcon.indicator);
 
 		const targetWindow = getWindow(agents.actionItem);
+		const agentsIconTargetBounds = agentsIcon.actionItem.getBoundingClientRect();
+		const agentsIconIndicatorBounds = agentsIcon.indicator.getBoundingClientRect();
 		assert.deepStrictEqual({
 			regularTargetHeight: targetWindow.getComputedStyle(regular.actionItem).height,
 			regularIndicatorHeight: targetWindow.getComputedStyle(regular.indicator).height,
+			regularIconBadgeTop: targetWindow.getComputedStyle(regularIconBadgeContent).top,
+			regularIconBadgeRight: targetWindow.getComputedStyle(regularIconBadgeContent).right,
 			agentsTargetHeight: targetWindow.getComputedStyle(agents.actionItem).height,
 			agentsIndicatorHeight: targetWindow.getComputedStyle(agents.indicator).height,
+			agentsIconTargetHeight: targetWindow.getComputedStyle(agentsIcon.actionItem).height,
+			agentsIconIndicatorHeight: targetWindow.getComputedStyle(agentsIcon.indicator).height,
+			agentsIconIndicatorTopInset: agentsIconIndicatorBounds.top - agentsIconTargetBounds.top,
+			agentsIconIndicatorBottomInset: agentsIconTargetBounds.bottom - agentsIconIndicatorBounds.bottom,
+			agentsIconBadgeTop: targetWindow.getComputedStyle(agentsIconBadgeContent).top,
+			agentsIconBadgeRight: targetWindow.getComputedStyle(agentsIconBadgeContent).right,
 		}, {
 			regularTargetHeight: '32px',
 			regularIndicatorHeight: '24px',
+			regularIconBadgeTop: '13px',
+			regularIconBadgeRight: '2px',
 			agentsTargetHeight: '35px',
 			agentsIndicatorHeight: '24px',
+			agentsIconTargetHeight: '35px',
+			agentsIconIndicatorHeight: '24px',
+			agentsIconIndicatorTopInset: 5.5,
+			agentsIconIndicatorBottomInset: 5.5,
+			agentsIconBadgeTop: '13px',
+			agentsIconBadgeRight: '2px',
 		});
 	});
 
