@@ -7,9 +7,11 @@ import assert from 'assert';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IValueWithChangeEvent } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { CheckBoxAccessibleState } from '../../../../base/browser/ui/list/listView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
@@ -21,6 +23,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 interface ICapturedAction {
 	readonly id: string;
 	readonly checked: boolean | undefined;
+	readonly checkedState: CheckBoxAccessibleState | IValueWithChangeEvent<CheckBoxAccessibleState> | undefined;
 	readonly hideIcon: boolean | undefined;
 	readonly iconId: string | undefined;
 	readonly role: string | undefined;
@@ -50,6 +53,7 @@ class TestActionWidgetService extends mock<IActionWidgetService>() {
 			return action ? [{
 				id: action.id,
 				checked: action.checked,
+				checkedState: accessibilityProvider?.isChecked?.(item),
 				hideIcon: item.hideIcon,
 				iconId: item.group?.icon?.id,
 				role: accessibilityProvider?.getRole?.(item),
@@ -114,9 +118,9 @@ suite('ActionWidgetDropdown', () => {
 			initialFocusItemId: actionWidgetService.initialFocusItemId,
 		}, {
 			actions: [
-				{ id: 'navigation', checked: undefined, hideIcon: false, iconId: navigationAction.icon.id, role: 'menuitem' },
-				{ id: 'unchecked', checked: false, hideIcon: false, iconId: Codicon.blank.id, role: 'menuitemcheckbox' },
-				{ id: 'checked', checked: true, hideIcon: false, iconId: Codicon.check.id, role: 'menuitemcheckbox' },
+				{ id: 'navigation', checked: undefined, checkedState: undefined, hideIcon: false, iconId: navigationAction.icon.id, role: 'menuitem' },
+				{ id: 'unchecked', checked: false, checkedState: false, hideIcon: false, iconId: Codicon.blank.id, role: 'menuitemcheckbox' },
+				{ id: 'checked', checked: true, checkedState: true, hideIcon: false, iconId: Codicon.check.id, role: 'menuitemcheckbox' },
 			],
 			initialFocusItemId: 'navigation',
 		});

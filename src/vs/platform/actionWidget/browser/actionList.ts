@@ -658,6 +658,7 @@ export class ActionListWidget<T> extends Disposable {
 	public readonly domNode: HTMLElement;
 
 	private readonly _list: List<IActionListItem<T>>;
+	private _initialFocusItemId: string | undefined;
 
 	protected readonly _actionLineHeight: number;
 	protected readonly _headerLineHeight = 24;
@@ -706,6 +707,7 @@ export class ActionListWidget<T> extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._initialFocusItemId = this._options?.initialFocusItemId;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
@@ -1291,7 +1293,8 @@ export class ActionListWidget<T> extends Disposable {
 	private _focusCheckedOrFirst(): void {
 		this._suppressHover = true;
 		try {
-			const initialFocusItemId = this._options?.initialFocusItemId;
+			const initialFocusItemId = this._initialFocusItemId;
+			this._initialFocusItemId = undefined;
 			if (initialFocusItemId) {
 				for (let i = 0; i < this._list.length; i++) {
 					const element = this._list.element(i);
@@ -1300,6 +1303,14 @@ export class ActionListWidget<T> extends Disposable {
 						this._list.reveal(i);
 						return;
 					}
+				}
+			}
+			const [focusedIndex] = this._list.getFocus();
+			if (focusedIndex !== undefined) {
+				const focusedElement = this._list.element(focusedIndex);
+				if (focusedElement && this.focusCondition(focusedElement)) {
+					this._list.reveal(focusedIndex);
+					return;
 				}
 			}
 			// Try to focus the checked item first

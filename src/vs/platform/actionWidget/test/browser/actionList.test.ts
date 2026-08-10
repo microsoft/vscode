@@ -426,4 +426,18 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'active');
 	});
 
+	test('consumes initial focus before later filtering and refocusing', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('match-first'), action('match-initial'), action('other')],
+			listOptions: { initialFocusItemId: 'match-initial' },
+		});
+
+		widget.focus();
+		widget.focusPrevious();
+		typeFilter(widget, 'match');
+		widget.focus();
+
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'match-first');
+	});
+
 });

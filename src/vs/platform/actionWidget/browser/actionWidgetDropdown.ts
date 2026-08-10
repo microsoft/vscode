@@ -267,7 +267,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
-				return element.kind === ActionListItemKind.Action && element.item?.checked === true;
+				return element.kind === ActionListItemKind.Action ? element.item?.checked : undefined;
 			},
 			getSetSize: () => nonSeparatorItems.length,
 			getPosInSet: (_element, index) => {
