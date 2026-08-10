@@ -870,7 +870,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 		}
 
-		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this) && !isQuickChat(this)) {
+		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this) && !this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key)) {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
