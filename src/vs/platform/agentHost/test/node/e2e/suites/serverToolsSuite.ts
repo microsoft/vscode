@@ -79,8 +79,6 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	const supportsSelfSendRejection = config.provider === 'copilotcli';
 	// Model ids are not provider-qualified; Claude and Codex selections currently resolve to Copilot.
 	const supportsProviderModelSessionCreation = config.provider === 'copilotcli';
-	// Codex executes this server tool without surfacing its required confirmation.
-	const supportsViewUnreviewedComments = config.provider !== 'codex';
 	// Claude's create_chat server-tool turn does not complete after confirmation.
 	const supportsServerToolCreateChat = config.provider === 'copilotcli';
 	let nextClientSequence = 10_000;
@@ -414,7 +412,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			pendingAgentReveal: undefined,
 			result: ['reveal-me'],
 		});
-	}, supportsViewUnreviewedComments);
+	});
 
 	serverToolTest('server tool: get_current_session returns the invoking session metadata and open link', async function () {
 		const session = await createSession('current-session');

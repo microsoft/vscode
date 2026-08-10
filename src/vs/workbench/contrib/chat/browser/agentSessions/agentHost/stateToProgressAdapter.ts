@@ -2176,7 +2176,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			{
 				invocationMessage: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
 				confirmationMessages,
-				presentation: ToolInvocationPresentation.HiddenAfterComplete,
+				presentation: isAgentHostAskUserTool(tc.toolName) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 				toolSpecificData,
 			},
 			toolData,
@@ -2541,8 +2541,6 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	if (isCompleted) {
 		const resultToolSpecificData = buildSessionCreatedToolData(tc) ?? buildAutomationConfiguredToolData(tc);
 		if (resultToolSpecificData) {
-			// The tool required confirmation, so it was created with
-			// `HiddenAfterComplete`; clear it so the result pill stays visible.
 			invocation.presentation = undefined;
 			invocation.toolSpecificData = resultToolSpecificData;
 			invocation.notifyToolSpecificDataChanged();

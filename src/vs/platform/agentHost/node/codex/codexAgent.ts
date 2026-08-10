@@ -53,6 +53,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostState
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -1787,6 +1788,22 @@ export class CodexAgent extends Disposable implements IAgent {
 		const host = this._serverToolHost;
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
+				const entry = session.mapState.itemToToolCall.get(params.callId);
+				if (entry && host.requiresConfirmation(session.sessionUri.toString(), params.tool)) {
+					const invocationMessage = getServerToolDisplay(params.tool, params.arguments)?.invocationMessage ?? `Calling ${params.tool}`;
+					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
+						this._fire(session.sessionUri, {
+							type: ActionType.ChatToolCallReady,
+							turnId: entry.turnId,
+							toolCallId: entry.toolCallId,
+							invocationMessage,
+							confirmationTitle: localize('codex.serverToolConfirmation.title', "Allow tool call?"),
+						});
+					});
+					if (decision !== 'accept' && decision !== 'acceptForSession') {
+						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
+					}
+				}
 				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
