@@ -56,7 +56,7 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	return element;
 }
 
-function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean): { actionItem: HTMLElement; indicator: HTMLElement } {
+function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; indicator: HTMLElement } {
 	root.style.setProperty('--vscode-spacing-size20', '2px');
 	root.style.setProperty('--vscode-spacing-size40', '4px');
 	root.style.setProperty('--vscode-spacing-size240', '24px');
@@ -68,7 +68,7 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 	const compositeBar = appendElement(compositeBarContainer, 'composite-bar');
 	const actionBar = appendElement(compositeBar, 'monaco-action-bar');
 	const actionsContainer = appendElement(actionBar, 'actions-container');
-	const actionItem = appendElement(actionsContainer, `action-item${checked ? ' checked' : ''}`);
+	const actionItem = appendElement(actionsContainer, `action-item${checked ? ' checked' : ''}${icon ? ' icon' : ''}`);
 	actionItem.tabIndex = 0;
 	appendElement(actionItem, 'action-label');
 	const indicator = appendElement(actionItem, 'active-item-indicator');
@@ -161,18 +161,29 @@ suite('StyleOverridesContribution', () => {
 		document.body.appendChild(agentsRoot);
 		store.add(toDisposable(() => agentsRoot.remove()));
 		const agents = createCompositeAction(agentsRoot, 35, false);
+		const agentsIcon = createCompositeAction(agentsRoot, 35, true, true);
 
 		const targetWindow = getWindow(agents.actionItem);
+		const agentsIconTargetBounds = agentsIcon.actionItem.getBoundingClientRect();
+		const agentsIconIndicatorBounds = agentsIcon.indicator.getBoundingClientRect();
 		assert.deepStrictEqual({
 			regularTargetHeight: targetWindow.getComputedStyle(regular.actionItem).height,
 			regularIndicatorHeight: targetWindow.getComputedStyle(regular.indicator).height,
 			agentsTargetHeight: targetWindow.getComputedStyle(agents.actionItem).height,
 			agentsIndicatorHeight: targetWindow.getComputedStyle(agents.indicator).height,
+			agentsIconTargetHeight: targetWindow.getComputedStyle(agentsIcon.actionItem).height,
+			agentsIconIndicatorHeight: targetWindow.getComputedStyle(agentsIcon.indicator).height,
+			agentsIconIndicatorTopInset: agentsIconIndicatorBounds.top - agentsIconTargetBounds.top,
+			agentsIconIndicatorBottomInset: agentsIconTargetBounds.bottom - agentsIconIndicatorBounds.bottom,
 		}, {
 			regularTargetHeight: '32px',
 			regularIndicatorHeight: '24px',
 			agentsTargetHeight: '35px',
 			agentsIndicatorHeight: '24px',
+			agentsIconTargetHeight: '35px',
+			agentsIconIndicatorHeight: '24px',
+			agentsIconIndicatorTopInset: 5.5,
+			agentsIconIndicatorBottomInset: 5.5,
 		});
 	});
 
