@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
-import { getEffectiveAuthProvider, MarketplaceMisconfiguredError } from './extensionGalleryAccess.js';
+import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, MarketplaceMisconfiguredError } from './extensionGalleryAccess.js';
 import { ExtensionGalleryAccountService, IExtensionGalleryAccount } from './extensionGalleryAccountService.js';
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
@@ -46,6 +46,9 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	// `token.isCancellationRequested` and skips its status/cache/manifest mutation.
 	private readonly _validationTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
 
+	// Effective marketplace auth provider (microsoft/github), resolved once with the product gate applied.
+	private readonly authProvider: ExtensionGalleryAccessProviderId;
+
 	constructor(
 		@IProductService productService: IProductService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -60,9 +63,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	) {
 		super(productService);
 
-		// Entra (microsoft) is gated behind a product flag; when off, `getEffectiveAuthProvider`
+		// Entra (microsoft) is gated behind a product flag; when off, the effective provider
 		// coerces to github so the UI never advertises Microsoft sign-in.
-		CONTEXT_MARKETPLACE_AUTH_PROVIDER.bindTo(contextKeyService).set(getEffectiveAuthProvider(configurationService, productService));
+		this.authProvider = getEffectiveAuthProvider(configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey), !!productService.enableExtensionGalleryEntraAuth);
+		CONTEXT_MARKETPLACE_AUTH_PROVIDER.bindTo(contextKeyService).set(this.authProvider);
 
 		const channels = [sharedProcessService.getChannel('extensionGalleryManifest')];
 		const remoteConnection = remoteAgentService.getConnection();
@@ -211,7 +215,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	/** Publishes the manifest; the github path also reports the custom-marketplace telemetry. */
 	private renderAvailable(manifest: IExtensionGalleryManifest): void {
 		this.update(manifest);
-		if (getEffectiveAuthProvider(this.configurationService, this.productService) === 'github') {
+		if (this.authProvider === 'github') {
 			this.telemetryService.publicLog2<
 				{},
 				{

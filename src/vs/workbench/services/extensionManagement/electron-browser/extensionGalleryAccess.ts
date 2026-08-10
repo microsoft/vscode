@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ExtensionGalleryAuthProviderConfigKey } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 
 /**
  * Identifies which authentication provider gates Private Marketplace access.
@@ -58,16 +55,13 @@ export class MarketplaceMisconfiguredError extends Error {
 
 /**
  * Resolves the effective marketplace auth provider, applying the Entra (microsoft) product gate.
- * When `product.enableExtensionGalleryEntraAuth` is falsy, a configured `microsoft` provider is
- * downgraded to the GitHub/default provider so the Entra path stays dormant until the Private
- * Marketplace is publicly released.
+ * When Entra auth is not enabled in the product, a configured `microsoft` provider is downgraded to
+ * the GitHub/default provider so the Entra path stays dormant until the Private Marketplace is
+ * publicly released. Kept dependency-free (primitives in, verdict out) so it never reaches into a
+ * service; callers read `extensions.gallery.authProvider` and `product.enableExtensionGalleryEntraAuth`.
  */
-export function getEffectiveAuthProvider(configurationService: IConfigurationService, productService: IProductService): ExtensionGalleryAccessProviderId {
-	const configuredAuthProvider = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey);
-	if (configuredAuthProvider === 'microsoft' && !productService.enableExtensionGalleryEntraAuth) {
-		return 'github';
-	}
-	return configuredAuthProvider === 'microsoft' ? 'microsoft' : 'github';
+export function getEffectiveAuthProvider(configuredProvider: string | undefined, entraAuthEnabled: boolean): ExtensionGalleryAccessProviderId {
+	return configuredProvider === 'microsoft' && entraAuthEnabled ? 'microsoft' : 'github';
 }
 
 /**

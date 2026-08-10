@@ -130,9 +130,6 @@ export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authPro
  * user's identity for the Private Marketplace eligibility check.
  *
  * Only standard OpenID Connect sign-in scopes are requested — enough to obtain a
- * Microsoft session that identifies the user. This intentionally does NOT request a
- * resource-scoped token (e.g. `api://<client-id>/access_as_user`). Acquiring resource
- * tokens for Private Marketplace API calls, per the server's Protected Resource
- * Metadata (RFC 9728), is deferred to a follow-up change.
+ * Microsoft session that identifies the user.
  */
 export const PRIVATE_MARKETPLACE_SCOPES: string[] = ['openid', 'profile', 'email', 'offline_access'];
