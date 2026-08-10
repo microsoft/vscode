@@ -316,6 +316,41 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('resolveWorkingDirectory leaves the root unstamped when storing it fails', async () => {
+		// A stamp that survived a failed root write would certify whatever value
+		// was already there, and listing skips stamped sessions, so the repair
+		// could never correct it.
+		const failingDb = new class extends TestSessionDatabase {
+			override async setMetadata(key: string, value: string): Promise<void> {
+				if (key === 'copilot.worktree.repositoryRoot') {
+					throw new Error('disk full');
+				}
+				return super.setMetadata(key, value);
+			}
+		}();
+		db = failingDb;
+		const checkoutRoot = URI.joinPath(repoRoot, 'linked-checkout');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => checkoutRoot;
+		gitService.getWorktreeRoots = async () => [repoRoot, checkoutRoot];
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: checkoutRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+
+		assert.deepStrictEqual({
+			metaRepositoryRoot: await failingDb.getMetadata('copilot.worktree.repositoryRoot'),
+			metaRepositoryRootStamp: await failingDb.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP),
+		}, {
+			metaRepositoryRoot: undefined,
+			metaRepositoryRootStamp: undefined,
+		});
+	});
+
 	test('resolveWorkingDirectory names each creation phase, rounding percentages down and debouncing updates', async () => {
 		const gitService = createGitService();
 		gitService.addWorktree = async (_root, worktree, branch, startPoint, track, onProgress) => {

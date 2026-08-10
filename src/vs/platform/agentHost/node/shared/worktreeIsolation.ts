@@ -985,17 +985,19 @@ export class WorktreeIsolation extends Disposable {
 				dbRef.object.setMetadata(WORKTREE_META_PATH, metadata.worktreePath.toString()),
 				dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, metadata.repositoryRoot.toString()),
 			];
-			// Only a root the repository actually confirmed may be stamped.
-			// Stamping a fallback would certify the unresolved checkout as
-			// canonical and permanently close the listing repair that exists to
-			// correct it — turning a passing failure into a permanent one.
-			if (metadata.repositoryRootResolved) {
-				work.push(dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP));
-			}
 			if (metadata.baseBranch) {
 				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, metadata.baseBranch));
 			}
 			await Promise.all(work);
+			// Stamped last, and only once the root it vouches for is stored.
+			// Issued alongside the root it would survive a failed root write and
+			// certify whatever value was there before, permanently closing the
+			// listing repair. Only a root the repository actually confirmed may
+			// be stamped at all: certifying a fallback would freeze the
+			// unresolved checkout the repair exists to correct.
+			if (metadata.repositoryRootResolved) {
+				await dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP, WORKTREE_REPOSITORY_ROOT_STAMP);
+			}
 		} finally {
 			dbRef.dispose();
 		}
