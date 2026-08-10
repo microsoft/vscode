@@ -37,7 +37,7 @@ import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from '../speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
-import { DictationDownloadRing, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationDownloadHoverContent, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
@@ -412,7 +412,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._dictationCell.setAttribute('role', 'button');
 		this._dictationIcon = dom.append(this._dictationCell, dom.$('span.chat-voice-input-mode-icon'));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._dictationCell,
-			() => getDictationHoverContent(this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID), this.configurationService)));
+			() => this.chatSpeechToTextService.isPreparingModel
+				? getDictationDownloadHoverContent(this.chatSpeechToTextService)
+				: getDictationHoverContent(this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID), this.configurationService)));
 		this._register(dom.addDisposableListener(this._dictationCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
