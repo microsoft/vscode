@@ -7,12 +7,13 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
-import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
+import { type Tokens } from '../../../../../../base/common/marked/marked.js';
+import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, isMessageHiddenFromTranscript, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -22,6 +23,7 @@ import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationI
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
@@ -36,7 +38,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -393,10 +395,11 @@ function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData
 }
 
 function getToolRawInput(tc: ToolCallState): unknown {
+	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
 	try {
-		return tc.status === ToolCallStatus.Streaming || !tc.toolInput ? {} : JSON.parse(tc.toolInput);
+		return toolInput ? JSON.parse(toolInput) : {};
 	} catch {
-		return { input: tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput };
+		return { input: toolInput };
 	}
 }
 
@@ -436,12 +439,16 @@ export function isSubagentToolName(toolName: string): boolean {
 	return SUBAGENT_TOOL_NAMES.has(toolName);
 }
 
-export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string): IChatProgress | undefined {
+export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>): IChatProgress | undefined {
 	if (!content) {
 		return undefined;
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
-	return { kind: 'systemNotification', content: typeof value === 'string' ? new MarkdownString(value) : value };
+	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
+	const meta = readAgentSystemNotificationMeta({ _meta });
+	return meta.kind === AgentSystemNotificationKind.WorktreeCreationFailure && meta.severity === AgentSystemNotificationSeverity.Warning
+		? { kind: 'warning', content: markdown }
+		: { kind: 'systemNotification', content: markdown };
 }
 
 /**
@@ -476,6 +483,8 @@ export function getTerminalContent(content: ToolResultContent[] | undefined): Ex
 export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
+	/** Returns the registered display name for a raw AHP model id. */
+	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
@@ -541,12 +550,13 @@ function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | 
 	return model.name;
 }
 
-export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
+export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayNameResolver?: (rawModelId: string) => string | undefined): IChatUsage | undefined {
 	// Shared with the host's restore path, so "this turn has usage worth
 	// showing" cannot drift between the two.
 	if (!hasReportedUsage(usage)) {
 		return undefined;
 	}
+	const turnTokenTotals = readUsageInfoMeta(usage).turnTokenTotals;
 	return {
 		kind: 'usage',
 		promptTokens: usage?.inputTokens ?? 0,
@@ -554,6 +564,10 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		copilotCredits: getCopilotCredits(usage),
 		sessionCopilotCredits: getSessionCopilotCredits(usage),
 		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
+		modelTotals: turnTokenTotals?.map(total => ({
+			...total,
+			model: modelDisplayNameResolver?.(total.model) ?? total.model,
+		})),
 	};
 }
 
@@ -821,6 +835,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			modelId,
 			...(turn.startedAt !== undefined && Number.isFinite(Date.parse(turn.startedAt)) ? { timestamp: Date.parse(turn.startedAt) } : {}),
 			variableData,
+			...(isMessageHiddenFromTranscript(turn.message) ? { isHidden: true } : {}),
 			...(isSystemInitiated ? {
 				isSystemInitiated: true,
 			} : {}),
@@ -835,7 +850,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		if (autoModeResolution) {
 			parts.push(autoModeResolution);
 		}
-		const usage = usageInfoToChatUsage(turn.usage);
+		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName);
 		if (usage) {
 			parts.push(usage);
 		}
@@ -865,7 +880,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					break;
 				case ResponsePartKind.SystemNotification:
 					{
-						const progress = systemNotificationToChatPart(rp.content, connectionAuthority);
+						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta);
 						if (progress) {
 							parts.push(progress);
 						}
@@ -1096,6 +1111,12 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			};
 		}
 	}
+	if (attachment.type === MessageAttachmentKind.Simple && modelRepresentation !== undefined) {
+		const transcriptContextEntry = restoreChatTranscriptContextVariableEntry(attachment.label, modelRepresentation, attachment._meta);
+		if (transcriptContextEntry) {
+			return transcriptContextEntry;
+		}
+	}
 	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
 		return {
 			kind: 'workspace',
@@ -1176,9 +1197,9 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup): IChatProgress[] {
 	const parts: IChatProgress[] = [];
-	const usage = usageInfoToChatUsage(activeTurn.usage);
+	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
 	if (usage) {
 		parts.push(usage);
 	}
@@ -1211,7 +1232,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 			}
 			case ResponsePartKind.SystemNotification:
 				{
-					const progress = systemNotificationToChatPart(rp.content, connectionAuthority);
+					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta);
 					if (progress) {
 						parts.push(progress);
 					}
@@ -1226,11 +1247,12 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 }
 
 function getTerminalInput(tc: ToolCallState): string | undefined {
-	if (tc.status !== ToolCallStatus.Streaming && tc.toolInput) {
+	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
+	if (toolInput) {
 		try {
-			return JSON.parse(tc.toolInput).command || tc.toolInput;
+			return JSON.parse(toolInput).command || toolInput;
 		} catch {
-			return tc.toolInput;
+			return toolInput;
 		}
 	}
 
@@ -1244,13 +1266,15 @@ function getTerminalOutput(tc: ToolCallState) {
 
 	const terminalContent = getTerminalContent(tc.content);
 	const terminalResult = getTerminalCommandResult(tc);
+	const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 
-	// Prefer the structured terminal snapshot. Text content is a compatibility
-	// fallback for older/restored results and can include legacy bookkeeping.
-	let text = terminalResult?.preview;
+	// A truncated preview omits the completion text that tells the user where the full output was saved.
+	// TODO: Use an SDK API for the large-output file path instead of relying on the tool completion display text.
+	let text = terminalResult?.truncated === true && fallbackText !== undefined
+		? stripLegacyTerminalExitMarkers(fallbackText)
+		: terminalResult?.preview;
 	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
 	if (text === undefined && terminalContent?.isPty !== false) {
-		const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
 	}
 	if (text === undefined || (!text && !hasRetainedNonPtySnapshot && terminalResult?.truncated !== true)) {
@@ -1264,7 +1288,7 @@ function getTerminalOutput(tc: ToolCallState) {
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {
-	return text.replace(/<shellId:[^>\r\n]*completed with exit code \d+>\s*$/i, '');
+	return text.replace(/<shellId:[^>\r\n]*completed with exit code -?\d+>\s*$/i, '');
 }
 
 function isToolResultTextContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.Text }> {
@@ -1405,7 +1429,7 @@ function buildTerminalToolSpecificData(
 }
 
 function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined, includeMcpOutput: boolean, connectionAuthority: string): IToolResultInputOutputDetails | undefined {
-	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput;
+	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
 	if (!toolInput) {
 		return undefined;
 	}
@@ -1549,7 +1573,7 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	// A chat-scoped link (create_chat, or send_message targeting a specific chat)
 	// shows the conversation icon; a session-scoped link shows the agent icon.
 	const isChat = isCreateChatTool(tc.toolName) || (isSend && !!parseOpenSessionLinkChatId(openLink));
-	const label = createSessionTitleFromArgs(tc.toolInput) ?? (backend.path.replace(/^\//, '') || backend.toString());
+	const label = createSessionTitleFromArgs(getInlineToolInput(tc.toolInput)) ?? (backend.path.replace(/^\//, '') || backend.toString());
 	return { kind: 'sessionCreated', openLink, label, isChat };
 }
 
@@ -1800,41 +1824,9 @@ const EXTERNAL_LINK_SCHEMES: ReadonlySet<string> = new Set([
  * with no nested link tokens).
  */
 export function rewriteMarkdownLinks(markdown: string, connectionAuthority: string): string {
-	let tokens: TokensList;
-	try {
-		tokens = marked.lexer(markdown);
-	} catch {
-		return markdown;
-	}
-
-	const edits: { raw: string; replacement: string }[] = [];
-	marked.walkTokens(tokens, token => {
-		if (token.type !== 'link' && token.type !== 'image') {
-			return;
-		}
-		const replacement = rewriteLinkTokenRaw(token as Tokens.Link | Tokens.Image, connectionAuthority);
-		if (replacement !== undefined) {
-			edits.push({ raw: (token as Token & { raw: string }).raw, replacement });
-		}
+	return rewriteMarkdownSource(markdown, {
+		rewriteLink: token => rewriteLinkTokenRaw(token, connectionAuthority),
 	});
-
-	if (edits.length === 0) {
-		return markdown;
-	}
-
-	// Apply edits sequentially against the original markdown. walkTokens
-	// visits tokens in document order so a forward scan is sufficient.
-	let out = '';
-	let pos = 0;
-	for (const { raw, replacement } of edits) {
-		const idx = markdown.indexOf(raw, pos);
-		if (idx < 0) {
-			continue;
-		}
-		out += markdown.substring(pos, idx) + replacement;
-		pos = idx + raw.length;
-	}
-	return out + markdown.substring(pos);
 }
 
 /**
@@ -2083,7 +2075,10 @@ function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
 	if (tc.status === ToolCallStatus.Streaming || !tc.toolInput) {
 		return undefined;
 	}
-	const toolInput = tc.toolInput;
+	const toolInput = getInlineToolInput(tc.toolInput);
+	if (!toolInput) {
+		return undefined;
+	}
 	let args: { resourceUri?: unknown; range?: unknown; text?: unknown };
 	try {
 		args = JSON.parse(toolInput);
@@ -2173,12 +2168,15 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 					};
 				}),
 			};
-		} else if (getToolKind(tc) === 'terminal' && tc.toolInput) {
+		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
 			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-		} else if (tc.toolInput) {
-			let rawInput: unknown;
-			try { rawInput = JSON.parse(tc.toolInput); } catch { rawInput = { input: tc.toolInput }; }
-			toolSpecificData = { kind: 'input', rawInput };
+		} else {
+			const toolInput = getInlineToolInput(tc.toolInput);
+			if (toolInput) {
+				let rawInput: unknown;
+				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
+				toolSpecificData = { kind: 'input', rawInput };
+			}
 		}
 
 		return new ChatToolInvocation(
@@ -2324,6 +2322,12 @@ function getStreamingToolInputForDisplay(tc: ToolCallState): unknown | undefined
 
 export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: ToolCallState, connectionAuthority: string): unknown | undefined {
 	if (tc.status !== ToolCallStatus.Streaming) {
+		return undefined;
+	}
+	// Partial read paths render as misleading file links, so wait for the complete input.
+	if (getToolKind(tc) === 'read') {
+		existing.updatePartialInput(undefined);
+		existing.updateStreamingMessage(localize('agentHost.streaming.readingFile', "Reading file"));
 		return undefined;
 	}
 	const partialInput = getStreamingToolInputForDisplay(tc);

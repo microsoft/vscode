@@ -14,7 +14,7 @@ import { IModelService } from '../../editor/common/services/model.js';
 import { Schemas } from '../../base/common/network.js';
 import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
-import { DEFAULT_EDITOR_ASSOCIATION, isDiffEditorInput } from './editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, isDiffEditorInput } from './editor.js';
 
 //#region < --- Workbench --- >
 
@@ -68,6 +68,7 @@ export const ActiveCompareEditorCanSwapContext = new RawContextKey<boolean>('act
 export const ActiveEditorCanToggleReadonlyContext = new RawContextKey<boolean>('activeEditorCanToggleReadonly', true, localize('activeEditorCanToggleReadonly', "Whether the active editor can toggle between being read-only or writeable"));
 export const ActiveEditorCanRevertContext = new RawContextKey<boolean>('activeEditorCanRevert', false, localize('activeEditorCanRevert', "Whether the active editor can revert"));
 export const ActiveEditorCanSplitInGroupContext = new RawContextKey<boolean>('activeEditorCanSplitInGroup', true);
+export const ActiveEditorCannotCloseContext = new RawContextKey<boolean>('activeEditorCannotClose', false, localize('activeEditorCannotClose', "Whether the active editor cannot be closed through standard user actions"));
 
 // Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null, { type: 'string', description: localize('activeEditor', "The identifier of the active editor") });
@@ -356,8 +357,9 @@ function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEdit
 	}
 
 	// Normal editors.
-	if (editor.resource) {
-		return editorResolverService.getEditors(editor.resource).map(editor => editor.id);
+	const resource = EditorResourceAccessor.getOriginalUri(editor);
+	if (resource) {
+		return editorResolverService.getEditors(resource).map(editor => editor.id);
 	}
 
 	return [];

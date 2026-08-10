@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
-import { ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
+import { ChatInputRequestPurpose, ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
+import { extractServerToolName } from './claudeServerToolMcpServer.js';
 import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
 import { CLAUDE_PLAN_DECLINED_MESSAGE, CLAUDE_QUESTION_CANCELLED_MESSAGE, CLAUDE_USER_DECLINED_MESSAGE } from './claudeToolDenial.js';
 import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermissionKind, getClaudeToolDisplayName, getClaudeToolInputString, getClaudeToolPath, INTERACTIVE_CLAUDE_TOOLS, buildClaudeToolMeta } from './claudeToolDisplay.js';
@@ -24,6 +26,7 @@ import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermis
 export interface IClaudeCanUseToolDeps {
 	readonly getSession: (sessionId: string) => ClaudeAgentSession | undefined;
 	readonly configurationService: IAgentConfigurationService;
+	readonly serverToolHost: IAgentServerToolHost | undefined;
 }
 
 /**
@@ -51,11 +54,11 @@ export interface IClaudeCanUseToolOptions {
  * {@link ClaudeAgentSession.requestUserInput} for `AskUserQuestion`)
  * until the workbench dispatches a response.
  *
- * **Pure UI bridge.** No permission judgement of its own — the SDK
- * owns auto-approval / auto-denial via `permissionMode`
+ * The SDK owns general auto-approval / auto-denial via `permissionMode`
  * ([sdk.d.ts:1558](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1558))
  * and only invokes `canUseTool` for tools it has decided the host
- * needs to surface. The interactive built-ins (`AskUserQuestion`,
+ * needs to surface. The bridge additionally allows a server tool when its
+ * current session state has nothing to confirm. The interactive built-ins (`AskUserQuestion`,
  * `ExitPlanMode`) are exempt from auto-approval and always reach
  * `canUseTool` regardless of mode — their "permission" is itself the
  * user-facing question.
@@ -119,6 +122,15 @@ async function dispatchCanUseTool(
 	// `requestUserInput` / `ChatInputRequested`.
 	if (INTERACTIVE_CLAUDE_TOOLS.has(toolName)) {
 		return handleInteractiveTool(deps, session, toolName, input, options);
+	}
+
+	const serverToolName = extractServerToolName(toolName);
+	const serverToolHost = deps.serverToolHost;
+	if (serverToolName
+		&& serverToolHost?.toolNames.includes(serverToolName)
+		&& !serverToolHost.requiresConfirmation(session.chatChannelUri.toString(), serverToolName)
+	) {
+		return { behavior: 'allow', updatedInput: input };
 	}
 
 	const permissionKind = getClaudePermissionKind(toolName);
@@ -263,6 +275,7 @@ async function handleAskUserQuestion(
 	const parentToolCallId = resolveSubagentParent(session, options);
 	const answer = await session.requestUserInput({
 		id: toolUseID,
+		purpose: ChatInputRequestPurpose.AskUser,
 		questions: buildAskUserSessionInputQuestions(askInput),
 	}, parentToolCallId);
 	if (answer.response !== ChatInputResponseKind.Accept || !answer.answers) {

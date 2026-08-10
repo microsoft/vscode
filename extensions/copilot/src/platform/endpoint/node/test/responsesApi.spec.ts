@@ -1026,7 +1026,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
-	it('does not attach prompt_cache_breakpoint to function_call_output', () => {
+	it('uses cacheable content blocks for function_call_output when enabled and supported', () => {
 		const messages: Raw.ChatMessage[] = [
 			{
 				role: Raw.ChatRole.Assistant,
@@ -1048,9 +1048,41 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect(body.input?.[1]).toMatchObject({
 			type: 'function_call_output',
 			call_id: 'call_1',
+			output: [{
+				type: 'input_text',
+				text: 'result',
+				prompt_cache_breakpoint: expectedPromptCacheBreakpoint,
+			}],
+		});
+	});
+
+	it.each([
+		{ name: 'the experiment flag is disabled', endpoint: cacheBreakpointEndpoint, enabled: false },
+		{ name: 'the model does not support cache breakpoints', endpoint: testEndpoint, enabled: true },
+	])('keeps string function_call_output when $name', ({ endpoint, enabled }) => {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_1',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'result' },
+					cacheBreakpoint(),
+				],
+			},
+		];
+
+		const body = buildBody(messages, endpoint, enabled);
+
+		expect(body.input?.[1]).toMatchObject({
+			type: 'function_call_output',
+			call_id: 'call_1',
 			output: 'result',
 		});
-		expect(body.input?.[1]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
 	it('does not attach prompt_cache_breakpoint to assistant messages or function calls', () => {
@@ -1099,15 +1131,15 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 
 		const body = buildBody(messages);
 
-		expect(body.input?.at(-1)).toMatchObject({
-			type: 'message',
-			role: 'user',
-			content: [
-				{ type: 'input_text', text: 'Image associated with the above tool call:' },
-				{ type: 'input_image', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
+		expect(body.input?.[1]).toMatchObject({
+			type: 'function_call_output',
+			call_id: 'call_img',
+			output: [
+				{ type: 'input_text', text: 'see image' },
+				{ type: 'input_image', image_url: 'data:image/png;base64,abc', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
 			],
 		});
-		expect(body.input?.[1]).not.toHaveProperty('prompt_cache_breakpoint');
+		expect(body.input).toHaveLength(2);
 	});
 
 	it('does not synthesize a whitespace text block when the marked message has no other content', () => {

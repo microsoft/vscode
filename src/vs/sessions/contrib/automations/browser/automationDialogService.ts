@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/automationDialog.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
@@ -113,6 +114,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
 		let getModelId: () => string | undefined = () => initial?.modelId;
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
+		let waitForAutomationSessionSync: () => Promise<void> = async () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
 
@@ -170,6 +172,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					getPermissionLevel = handle.getPermissionLevel;
 					getModelId = handle.getModelId;
 					getBranch = handle.getBranch;
+					waitForAutomationSessionSync = handle.waitForAutomationSessionSync;
 					getFocusableElements = handle.getFocusableElements;
 					const keyboardNavigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 						DOM.getWindow(container),
@@ -205,6 +208,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
 				return undefined;
 			}
+			await waitForAutomationSessionSync();
 
 			const schedule: IAutomationSchedule = {
 				interval: state.interval,

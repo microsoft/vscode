@@ -218,6 +218,89 @@ suite('TreeSitterCommandParser', () => {
 		});
 	});
 
+	suite('extractAutoApprovalSubCommands', () => {
+		test('detects bash shell state mutations', async () => {
+			const commandLines = [
+				'FOO=bar && git status',
+				'export FOO=bar && git status',
+				'declare -x FOO=bar && git status',
+				'typeset FOO=bar && git status',
+				'readonly FOO=bar && git status',
+				'local FOO=bar && git status',
+			];
+			deepStrictEqual(await Promise.all(commandLines.map(commandLine => parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.Bash, commandLine))), commandLines.map(() => ({
+				subCommands: ['git status'],
+				hasUnanalyzableSyntax: true,
+			})));
+		});
+
+		test('preserves bash command assignments and arguments', async () => {
+			deepStrictEqual(await Promise.all([
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.Bash, 'FOO=bar git status'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.Bash, 'make install PREFIX=/usr/local'),
+			]), [
+				{ subCommands: ['FOO=bar git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['make install PREFIX=/usr/local'], hasUnanalyzableSyntax: false },
+			]);
+		});
+
+		test('detects PowerShell assignments and preserves equals arguments', async () => {
+			deepStrictEqual(await Promise.all([
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '$env:FOO="bar"; git status'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '[System.Environment]::SetEnvironmentVariable("FOO", "bar"); git status'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git log --format="%h|%s" -5'),
+			]), [
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
+				{ subCommands: ['git log --format="%h|%s" -5'], hasUnanalyzableSyntax: false },
+			]);
+		});
+
+		test('marks incomplete PowerShell parses as unanalyzable for auto-approve', async () => {
+			const results = await Promise.all([
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					'Write-Output before; "unterminated',
+				),
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					'Write-Output before; `Write-Output after',
+				),
+			]);
+			deepStrictEqual(results.map(result => result.hasUnanalyzableSyntax), [true, true]);
+			ok(results.every(result => result.subCommands.some(command => /Write-Output/i.test(command))));
+		});
+
+		test('marks PowerShell method invocations as unanalyzable for auto-approve', async () => {
+			const results = await Promise.all([
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					'Write-Output ([Math]::Max(1, 2))',
+				),
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					'[Math]::Max(1, 2) | Out-String',
+				),
+				parser.extractAutoApprovalSubCommands(
+					TreeSitterCommandParserLanguage.PowerShell,
+					`Out-String -InputObject ([scriptblock]::Create('Write-Output ok').Invoke())`,
+				),
+			]);
+			deepStrictEqual(results.map(result => result.hasUnanalyzableSyntax), [true, true, true]);
+		});
+
+		test('keeps clean PowerShell commands analyzable', async () => {
+			const result = await parser.extractAutoApprovalSubCommands(
+				TreeSitterCommandParserLanguage.PowerShell,
+				'Get-ChildItem -Recurse',
+			);
+			deepStrictEqual(result, {
+				subCommands: ['Get-ChildItem -Recurse'],
+				hasUnanalyzableSyntax: false,
+			});
+		});
+	});
+
 	suite('extractCommands', () => {
 		async function t(languageId: TreeSitterCommandParserLanguage, commandLine: string, expectedCommands: { keyword: string; args: string[] }[]) {
 			const result = await parser.extractCommands(languageId, commandLine);

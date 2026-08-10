@@ -156,8 +156,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EditorPreferCopilotHarness) ||
 				e.affectsConfiguration(ChatConfiguration.DefaultToCopilotHarness) ||
-				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled) ||
-				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
+				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
 					this.renderLabel(this.element);
@@ -196,10 +195,10 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _getLearnMore(): IAction {
-		const learnMoreUrl = 'https://code.visualstudio.com/docs/copilot/agents/overview';
+		const learnMoreUrl = 'https://aka.ms/vscode-concept-harnesses';
 		return {
 			id: 'workbench.action.chat.agentOverview.learnMore',
-			label: localize('chat.learnMoreAgentTypes', "Learn about agent types..."),
+			label: localize('chat.learnMoreAgentTypes', "Learn about harnesses..."),
 			tooltip: learnMoreUrl,
 			class: undefined,
 			enabled: true,

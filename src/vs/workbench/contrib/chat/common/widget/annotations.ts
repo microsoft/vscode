@@ -96,6 +96,8 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 				result.splice(previousItemIndex, 1);
 				result.push({ ...previousItem, content: merged });
 			}
+		} else if (item.kind === 'voiceProgress') {
+			continue;
 		} else {
 			result.push(item);
 		}
