@@ -6,7 +6,8 @@
 import './media/chatView.css';
 import './media/voiceChatView.css';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,11 +24,12 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
-import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ISessionTypePickerDelegate, setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { ChatInteractivity, IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -43,8 +45,25 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 
-export function getChatViewSessionType(chatResource: URI | undefined): string {
+export function getChatViewSessionType(chatResource: URI | undefined): AgentSessionTarget {
 	return chatResource ? getChatSessionType(chatResource) : SessionType.AgentHostCopilot;
+}
+
+export class ChatViewSessionTypeDelegate extends Disposable implements ISessionTypePickerDelegate {
+
+	private readonly _onDidChangeActiveSessionProvider = this._register(new Emitter<AgentSessionTarget>());
+	readonly onDidChangeActiveSessionProvider = this._onDidChangeActiveSessionProvider.event;
+
+	private _chatResource: URI | undefined;
+
+	getActiveSessionProvider(): AgentSessionTarget {
+		return getChatViewSessionType(this._chatResource);
+	}
+
+	setChatResource(resource: URI): void {
+		this._chatResource = resource;
+		this._onDidChangeActiveSessionProvider.fire(this.getActiveSessionProvider());
+	}
 }
 
 /**
@@ -153,6 +172,7 @@ export class ChatView extends AbstractChatView {
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
 	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
+	private readonly _sessionTypeDelegate = this._register(new ChatViewSessionTypeDelegate());
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -173,7 +193,6 @@ export class ChatView extends AbstractChatView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -215,9 +234,7 @@ export class ChatView extends AbstractChatView {
 				supportsChangingModes: true,
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
-				sessionTypePickerDelegate: {
-					getActiveSessionProvider: () => getChatViewSessionType(this._currentChatResource)
-				}
+				sessionTypePickerDelegate: this._sessionTypeDelegate
 			},
 			this._buildStyles(this._isActive)
 		));
@@ -307,11 +324,11 @@ export class ChatView extends AbstractChatView {
 		}
 
 		this._currentChatResource = resource;
+		this._sessionTypeDelegate.setChatResource(resource);
 		this._currentChatResourceObs.set(resource, undefined);
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
-		this._updateWidgetLockState(getChatViewSessionType(resource));
 		if (previousChatResource) {
 			this._clearCurrentChat();
 		}
@@ -375,20 +392,6 @@ export class ChatView extends AbstractChatView {
 	private _applyHistoryKey(): void {
 		const scopedHistory = this.configurationService.getValue<boolean>(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING) !== false;
 		this._widget.inputPart.setHistoryKey(scopedHistory ? this._historyKey : undefined);
-	}
-
-	private _updateWidgetLockState(sessionType: string): void {
-		if (sessionType === localChatSessionType) {
-			this._widget.unlockFromCodingAgent();
-			return;
-		}
-
-		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
-		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
-		} else {
-			this._widget.unlockFromCodingAgent();
-		}
 	}
 
 	override toJSON(): object {

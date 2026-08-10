@@ -8,13 +8,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getChatViewSessionType, NewChatView } from '../../browser/chatView.js';
+import { ChatViewSessionTypeDelegate, getChatViewSessionType, NewChatView } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 
 suite('Sessions - Chat View', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('forwards new chat visibility to the aquarium host', () => {
 		const forwarded: boolean[] = [];
@@ -47,6 +47,23 @@ suite('Sessions - Chat View', () => {
 			beforeChatAssigned: SessionType.AgentHostCopilot,
 			agentHost: SessionType.AgentHostClaude,
 			extensionHost: SessionType.CopilotCLI,
+		});
+	});
+
+	test('announces the destination session type before its chat model loads', () => {
+		const delegate = disposables.add(new ChatViewSessionTypeDelegate());
+		const changes: string[] = [];
+		disposables.add(delegate.onDidChangeActiveSessionProvider(type => changes.push(type)));
+
+		delegate.setChatResource(URI.parse(`${SessionType.AgentHostClaude}:///chat`));
+		delegate.setChatResource(URI.parse(`${SessionType.CopilotCLI}:///chat`));
+
+		assert.deepStrictEqual({
+			initial: getChatViewSessionType(undefined),
+			changes,
+		}, {
+			initial: SessionType.AgentHostCopilot,
+			changes: [SessionType.AgentHostClaude, SessionType.CopilotCLI],
 		});
 	});
 

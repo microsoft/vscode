@@ -339,8 +339,10 @@ visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
 
 When fixing transient picker state during chat loading, keep the fallback in
-`ChatView`'s session-type delegate; changing the shared picker's defaults or
-visibility would alter intentional picker behavior outside that transition.
+`ChatView`'s reactive session-type delegate; it announces the destination as
+soon as `setChat` assigns it, and the rendered target picker and chat input
+context keys react before the model loads. Changing the shared picker's defaults
+or visibility would alter intentional behavior outside that transition.
 All chat-input context derived from the session type must use the same effective
 type (the scoped delegate when provided, otherwise the model resource), or
 individual picker slots can disappear during the handoff.
