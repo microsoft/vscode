@@ -13,7 +13,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -58,7 +57,6 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IFileService fileService: IFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
@@ -80,7 +78,6 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			contextKeyService,
 			instantiationService,
 			fileDialogService,
-			fileService,
 			telemetryService,
 			notificationService,
 		);

@@ -25,12 +25,11 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -43,10 +42,11 @@ import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 
+export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
 const FILTER_THRESHOLD = 10;
-const MAX_RECENT_SESSIONS_FOR_WORKSPACE_RESTORE = 15;
 
 /**
  * Fixed picker width when the categorical tab bar is shown. Keeps the tab
@@ -62,18 +62,6 @@ const TABBED_PICKER_WIDTH = 360;
  * selection than leave the user staring at an unreachable workspace.
  */
 const RESTORE_CONNECT_GRACE_MS = 5000;
-
-/**
- * A workspace as resolved from a folder URI for rendering. The `providerId`
- * is the provider that resolved the URI (first match in iteration order,
- * or the preferred hint when honored). For local URIs that any local
- * provider can resolve, this is the first registered local provider; for
- * remote URIs it is the remote provider for that authority.
- */
-export interface IResolvedFolderWorkspace {
-	readonly providerId: string;
-	readonly workspace: ISessionWorkspace;
-}
 
 /**
  * Item type used in the action list.
@@ -106,13 +94,6 @@ interface IRestoredWorkspaceSelection {
 	readonly source: NewSessionWorkspacePreselectionSource;
 }
 
-interface ISessionWorkspaceCandidate {
-	readonly folderUri: URI;
-	readonly providerId: string;
-	readonly count: number;
-	readonly firstIndex: number;
-}
-
 type IWorkspacePickerAction = IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
 
 /**
@@ -133,7 +114,7 @@ export class WorkspacePicker extends Disposable {
 	private _preselectionSource = NewSessionWorkspacePreselectionSource.None;
 	private _selectionGeneration = 0;
 	private _sessionRestoreGeneration = 0;
-	private readonly _providerSessionListeners = this._register(new DisposableStore());
+	private readonly _sessionWorkspaceFallback: SessionWorkspaceFallback | undefined;
 
 	/**
 	 * Set to `true` once the user has explicitly picked or cleared a workspace.
@@ -215,7 +196,6 @@ export class WorkspacePicker extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IFileService private readonly fileService: IFileService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
@@ -232,7 +212,16 @@ export class WorkspacePicker extends Disposable {
 			this._pickerGroupContext.reset();
 		}));
 
-		this._refreshProviderSessionListeners();
+		this._sessionWorkspaceFallback = this.options.restoreFromSessions === false
+			? undefined
+			: this._register(this.instantiationService.createInstance(SessionWorkspaceFallback, {
+				canUseProvider: providerId => this._canRestoreProviderWorkspace(providerId),
+				isProviderUnavailable: providerId => this._isProviderUnavailable(providerId),
+				resolveWorkspace: (folderUri, preferredProviderId) => this._resolveFolder(folderUri, preferredProviderId),
+			}));
+		if (this._sessionWorkspaceFallback) {
+			this._register(this._sessionWorkspaceFallback.onDidChange(() => this._restoreAutomaticSelection()));
+		}
 
 		// Restore selected workspace from storage
 		const restored = this._restoreSelectedWorkspace();
@@ -248,7 +237,7 @@ export class WorkspacePicker extends Disposable {
 		// from storage so we upgrade from any fallback to the user's actual
 		// stored selection once its provider arrives.
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
-			this._refreshProviderSessionListeners();
+			this._sessionWorkspaceFallback?.refreshProviders();
 			if (this._selectedFolderUri) {
 				// Re-resolve in case the previous resolving provider was removed.
 				const reresolved = this._resolveFolder(this._selectedFolderUri);
@@ -271,12 +260,6 @@ export class WorkspacePicker extends Disposable {
 		this._register(this.recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
 			this._restoreAutomaticSelection();
 		}));
-		if (this.options.restoreFromSessions !== false) {
-			this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => {
-				this._restoreAutomaticSelection();
-			}));
-		}
-
 		// Re-arm auto-tab whenever the workspace selection changes to a new
 		// value, but only while the picker is closed. This way picking a tab
 		// and then a workspace within the same open keeps that tab active for
@@ -1047,19 +1030,6 @@ export class WorkspacePicker extends Disposable {
 		return this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folderUri);
 	}
 
-	private _refreshProviderSessionListeners(): void {
-		this._providerSessionListeners.clear();
-		if (this.options.restoreFromSessions === false) {
-			return;
-		}
-		for (const provider of this.sessionsProvidersService.getProviders()) {
-			if (!this._canRestoreProviderWorkspace(provider.id)) {
-				continue;
-			}
-			this._providerSessionListeners.add(provider.onDidChangeSessions(() => this._restoreAutomaticSelection()));
-		}
-	}
-
 	private _restoreSelectedWorkspace(): IRestoredWorkspaceSelection | undefined {
 		// Try the checked entry first
 		const checked = this._restoreCheckedWorkspace();
@@ -1097,7 +1067,7 @@ export class WorkspacePicker extends Disposable {
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 		this._onDidSelectWorkspace.fire(undefined);
-		this._refreshProviderSessionListeners();
+		this._sessionWorkspaceFallback?.refreshProviders();
 		this._restoreAutomaticSelection();
 	}
 
@@ -1126,12 +1096,12 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _scheduleSessionWorkspaceRestore(): void {
-		if (this.options.restoreFromSessions === false || this._userHasPicked) {
+		if (!this._sessionWorkspaceFallback || this._userHasPicked) {
 			return;
 		}
 		const restoreGeneration = ++this._sessionRestoreGeneration;
 		const selectionGeneration = this._selectionGeneration;
-		void this._findSessionWorkspace().then(restored => {
+		void this._sessionWorkspaceFallback.findWorkspace().then(restored => {
 			if (restoreGeneration !== this._sessionRestoreGeneration || selectionGeneration !== this._selectionGeneration || this._userHasPicked) {
 				return;
 			}
@@ -1162,49 +1132,8 @@ export class WorkspacePicker extends Disposable {
 		}).catch(onUnexpectedError);
 	}
 
-	private async _findSessionWorkspace(): Promise<IResolvedFolderWorkspace | undefined> {
-		const sessions = this.sessionsProvidersService.getProviders()
-			.filter(provider => this._canRestoreProviderWorkspace(provider.id))
-			.flatMap(provider => provider.getSessions())
-			.sort((a, b) => b.updatedAt.get().getTime() - a.updatedAt.get().getTime())
-			.slice(0, MAX_RECENT_SESSIONS_FOR_WORKSPACE_RESTORE);
-		const candidates = new Map<string, ISessionWorkspaceCandidate>();
-		for (let index = 0; index < sessions.length; index++) {
-			const session = sessions[index];
-			const folderUri = this._getSessionWorkspaceFolder(session);
-			if (!folderUri) {
-				continue;
-			}
-			const key = this.uriIdentityService.extUri.getComparisonKey(folderUri);
-			const candidate = candidates.get(key);
-			candidates.set(key, candidate
-				? { ...candidate, count: candidate.count + 1 }
-				: { folderUri, providerId: session.providerId, count: 1, firstIndex: index });
-		}
-
-		const ranked = [...candidates.values()].sort((a, b) => b.count - a.count || a.firstIndex - b.firstIndex);
-		for (const candidate of ranked) {
-			const resolved = this._resolveFolder(candidate.folderUri, candidate.providerId);
-			if (!resolved || !this._canRestoreProviderWorkspace(resolved.providerId) || this._isProviderUnavailable(resolved.providerId) || !this.fileService.hasProvider(candidate.folderUri)) {
-				continue;
-			}
-			if (await this.fileService.exists(candidate.folderUri)) {
-				return resolved;
-			}
-		}
-		return undefined;
-	}
-
 	private _canRestoreProviderWorkspace(providerId: string): boolean {
 		return !this.options.sessionWorkspaceProviderFilter || this.options.sessionWorkspaceProviderFilter(providerId);
-	}
-
-	private _getSessionWorkspaceFolder(session: ISession): URI | undefined {
-		if (session.isQuickChat?.get()) {
-			return undefined;
-		}
-		const folderUri = session.workspace.get()?.folders[0]?.root;
-		return folderUri && !isWorktreeWorkspaceUri(folderUri) ? folderUri : undefined;
 	}
 
 	/**

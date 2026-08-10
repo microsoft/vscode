@@ -26,6 +26,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Keep workspace fallback discovery out of the picker UI class**: provider-session subscriptions, ranking, deduplication, and existence checks belong in a focused helper such as `SessionWorkspaceFallback`. The picker should only enforce source priority, reject stale async results, and publish the selected workspace.
+
 - **Paired experiment treatments must resolve atomically**: when a prompt and its editable placeholder are separate treatment values, use them only when both are non-empty; otherwise use both defaults so copy from different variants is never mixed. The prompt may omit the placeholder token entirely, in which case it is used literally and placeholder highlighting is simply absent.
 
 - **Onboarding variations share structural steps and vary only their run step**: keep one scenario for workspace selection, then resolve the experiment/developer variation when the run step executes. Personalized GitHub prompts use existing authentication silently, stay within a bounded cancellable lookup, verify that the selected draft workspace is still current, and fall back to the default prompt without surfacing an error.
