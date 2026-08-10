@@ -12,7 +12,7 @@ import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { EditorResolverService } from '../../browser/editorResolverService.js';
 import { IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { diffEditorsAssociationsAgentsWindowDefault, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
+import { diffEditorsAssociationsAgentsWindowDefault, EditorInputFactoryObject, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -747,6 +747,92 @@ suite('EditorResolverService', () => {
 		assert.strictEqual(eventCounter, 2);
 		assert.strictEqual(service.getEditors().length, editors.length);
 		assert.strictEqual(service.getEditors().some(editor => editor.id === 'TEST_EDITOR'), false);
+	});
+
+	test('getEditors excludes inactive universal optional editors when requested', async () => {
+		const [, service] = await createEditorResolverService();
+		const resource = URI.file('/workspace/index.html');
+		const factory: EditorInputFactoryObject = {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) })
+		};
+		disposables.add(service.registerEditor('*', {
+			id: 'test.universalOptional',
+			label: 'Universal Optional',
+			priority: RegisteredEditorPriority.option
+		}, {}, factory));
+		disposables.add(service.registerEditor('*.html', {
+			id: 'test.specificOptional',
+			label: 'Specific Optional',
+			priority: RegisteredEditorPriority.option
+		}, {}, factory));
+
+		const relevantIds = (currentEditorId?: string) => service.getEditors(resource, {
+			excludeUnconfiguredUniversalOptionalEditors: true,
+			currentEditorId
+		}).map(editor => editor.id).filter(id => id.startsWith('test.'));
+
+		assert.deepStrictEqual({
+			all: service.getEditors(resource).map(editor => editor.id).filter(id => id.startsWith('test.')),
+			filtered: relevantIds(),
+			currentUniversal: relevantIds('test.universalOptional'),
+			diff: service.getEditors(resource, {
+				excludeUnconfiguredUniversalOptionalEditors: true,
+				isDiffEditor: true
+			}).map(editor => editor.id).filter(id => id.startsWith('test.'))
+		}, {
+			all: ['test.specificOptional', 'test.universalOptional'],
+			filtered: ['test.specificOptional'],
+			currentUniversal: ['test.specificOptional', 'test.universalOptional'],
+			diff: []
+		});
+	});
+
+	test('getEditors uses the effective diff priority', async () => {
+		const [, service] = await createEditorResolverService();
+		const resource = URI.file('/workspace/index.html');
+		disposables.add(service.registerEditor('*.html', {
+			id: 'test.exclusiveDiff',
+			label: 'Exclusive Diff',
+			priority: {
+				editor: RegisteredEditorPriority.option,
+				diff: RegisteredEditorPriority.exclusive
+			}
+		}, {}, {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) }),
+			createDiffEditorInput: () => { throw new Error('Unexpected diff editor creation.'); }
+		}));
+
+		assert.deepStrictEqual({
+			editor: service.getEditors(resource).map(editor => editor.id).filter(id => id.startsWith('test.')),
+			diff: service.getEditors(resource, { isDiffEditor: true }).map(editor => editor.id).filter(id => id.startsWith('test.'))
+		}, {
+			editor: ['test.exclusiveDiff'],
+			diff: []
+		});
+	});
+
+	test('getEditors preserves configured universal optional editors', async () => {
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				[editorsAssociationsSettingId]: {
+					'*.html': 'test.universalOptional'
+				}
+			})
+		}, disposables);
+		const [, service] = await createEditorResolverService(instantiationService);
+		const resource = URI.file('/workspace/index.html');
+		disposables.add(service.registerEditor('*', {
+			id: 'test.universalOptional',
+			label: 'Universal Optional',
+			priority: RegisteredEditorPriority.option
+		}, {}, {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) })
+		}));
+
+		assert.deepStrictEqual(
+			service.getEditors(resource, { excludeUnconfiguredUniversalOptionalEditors: true }).map(editor => editor.id).filter(id => id.startsWith('test.')),
+			['test.universalOptional']
+		);
 	});
 
 	test('Multiple registrations to same glob and id #155859', async () => {

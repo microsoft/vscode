@@ -25,7 +25,7 @@ import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorIn
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
-import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
+import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, IEditorResolverServiceGetEditorsOptions, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
 import { PreferredGroup } from '../common/editorService.js';
 
 interface RegisteredEditor {
@@ -473,14 +473,26 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	public getEditors(resource?: URI): RegisteredEditorInfo[] {
+	public getEditors(resource?: URI, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[] {
 		this._flattenedEditors = this._flattenEditorsMap();
 
 		// By resource
 		if (URI.isUri(resource)) {
-			const editors = this.findMatchingEditors(resource);
-			if (editors.find(e => e.editorInfo.priority.editor === RegisteredEditorPriority.exclusive)) {
+			const associationType = options?.isDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
+			let editors = this.findMatchingEditors(resource, associationType);
+			if (editors.find(editor => this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.exclusive)) {
 				return [];
+			}
+			if (options?.excludeUnconfiguredUniversalOptionalEditors) {
+				const configuredEditorIds = new Set(this.getAssociationsForResourceByType(resource, associationType).map(association => association.viewType));
+				editors = editors.filter(editor => {
+					const priority = this.getEffectivePriority(editor.editorInfo, associationType);
+					return editor.globPattern !== '*'
+						|| priority !== RegisteredEditorPriority.option
+						|| editor.editorInfo.id === options.currentEditorId
+						|| configuredEditorIds.has(editor.editorInfo.id);
+				});
+				return distinct(editors.map(editor => editor.editorInfo), editor => editor.id);
 			}
 			return editors.map(editor => editor.editorInfo);
 		}
