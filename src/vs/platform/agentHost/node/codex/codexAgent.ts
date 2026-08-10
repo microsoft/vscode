@@ -1467,6 +1467,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				try { ready.child.kill('SIGKILL'); } catch { /* already dead */ }
 				throw new Error('Codex app-server was replaced while starting');
 			}
+			// Authentication can complete while the connection is starting; apply the latest token before publishing ready.
+			ready.proxyHandle.setToken(this._githubToken ?? '');
 			this._connection = { kind: 'ready', ...ready };
 			return ready;
 		}).catch(err => {
