@@ -2770,6 +2770,50 @@ suite('SessionsManagementService', () => {
 				closedChats: ['b'],
 			});
 		});
+
+		test('a batch close is not offered for reopening', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b'), chat('c')]);
+			const { view, canReopen } = setup([sessionA]);
+
+			await view.openSession(sessionA.resource);
+			const active = view.activeSession.get()!;
+			// Mirrors "Close All Chats", which closes every non-main chat.
+			for (const target of ['b', 'c']) {
+				await view.closeChat(active, sessionA.chats.get().find(c => c.title.get() === target)!, { skipHistory: true });
+			}
+
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual({
+				canReopen: canReopen(),
+				closed: view.activeSession.get()!.closedChats.get().map(c => c.title.get()),
+			}, {
+				canReopen: false,
+				closed: ['b', 'c'],
+			});
+		});
+
+		test('a stale entry is dropped when its session vanished without a delete event', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const sessions = [sessionA, sessionB];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessionA); }
+				override getSessions(): ISession[] { return sessions; }
+			};
+			const { view, contextKeyService } = createSessionsManagementService(sessionA, disposables, provider);
+			const canReopen = () => contextKeyService.getContextKeyValue(SessionsHasClosedItemContext.key) === true;
+
+			await view.openSession(sessionA.resource);
+			await view.closeChat(view.activeSession.get()!, sessionA.chats.get().find(c => c.title.get() === 'b')!);
+
+			// The provider drops the session from its catalog without firing
+			// onDidDeleteSession, so the recorded entry can never be reopened.
+			sessions.splice(0, 1);
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual({ canReopen: canReopen() }, { canReopen: false });
+		});
 	});
 
 	suite('createQuickChat', () => {

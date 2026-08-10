@@ -106,13 +106,20 @@ export class ClosedItemHistory extends Disposable {
 	 */
 	async reopenLast(): Promise<void> {
 		const item = this._item.get();
-		// The recorded session may be a wrapper that was disposed along with its
-		// grid slot, and it may have disappeared entirely since.
-		const session = item && this._sessionsManagementService.getSessions().find(s => s.sessionId === item.session.sessionId);
-		if (!item || !session) {
+		if (!item) {
 			return;
 		}
+		// Consume up front: a stale entry must not survive a failed reopen, or
+		// the command would stay enabled while permanently doing nothing.
 		this._item.set(undefined, undefined);
+
+		// The recorded session may be a wrapper that was disposed along with its
+		// grid slot, and a provider can drop it from its catalog without ever
+		// firing `onDidDeleteSession`.
+		const session = this._sessionsManagementService.getSessions().find(s => s.sessionId === item.session.sessionId);
+		if (!session) {
+			return;
+		}
 
 		// Reopening re-activates sessions and can evict grid slots itself; keep
 		// its own side effects out of the history.

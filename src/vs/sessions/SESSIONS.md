@@ -529,9 +529,15 @@ reload starts empty. Exactly three things record into it —
 `recordReplacedSlot`, which `VisibleSessions.setActive` reports through a
 constructor callback when a newly opened slot pushes a non-sticky session out.
 An untitled draft is discarded rather than hidden, so it never records;
-close-all commands, deletions, and grid restores never record either.
-`reopenLast()` re-resolves the session by id (the recorded one may be a
-disposed wrapper) and reopens a chat with the service's `openChat`; a session
+deletions and grid restores never record either. **Close All Chats** closes
+each chat through the same `closeChat` path, so it passes
+`{ skipHistory: true }` — remembering only the final chat of a batch would make
+one arbitrary member of it reopenable. `reopenLast()` consumes the entry
+**before** acting, then re-resolves the session by id (the recorded one may be
+a disposed wrapper, and a provider can drop a session from its catalog without
+firing `onDidDeleteSession`); consuming first means a no-longer-resolvable
+entry cannot linger and leave the command enabled but permanently inert. A
+chat is reopened with the service's `openChat`; a session
 that was closed explicitly returns via `insertAtIndex` to the grid index it
 occupied, while a session that was pushed out uses `replaceSlot` to take its
 slot back, removing whatever replaced it (including the empty new-session
