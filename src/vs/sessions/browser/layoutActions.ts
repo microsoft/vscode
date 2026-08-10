@@ -14,6 +14,7 @@ import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
+import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActions.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext, CustomViewVisibleContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
@@ -76,7 +77,7 @@ const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(
 
 MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	command: {
-		id: 'workbench.action.togglePanel',
+		id: TogglePanelAction.ID,
 		title: localize('showPanel', "Show Panel"),
 		icon: Codicon.layoutPanelOff,
 		precondition: CustomViewVisibleContext.negate()
@@ -88,7 +89,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 
 MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	command: {
-		id: 'workbench.action.togglePanel',
+		id: TogglePanelAction.ID,
 		title: localize('hidePanel', "Hide Panel"),
 		icon: Codicon.layoutPanel,
 		precondition: CustomViewVisibleContext.negate()

@@ -12,7 +12,6 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/com
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
-import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext, PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
@@ -20,6 +19,8 @@ import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
 // Import layout actions to trigger menu registration
 import '../../browser/layoutActions.js';
+
+const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
 
 suite('Sessions - Layout Actions', () => {
 
@@ -47,7 +48,7 @@ suite('Sessions - Layout Actions', () => {
 	test('bottom panel layout action replaces the terminal action in the session title bar', () => {
 		const items = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem);
 		const panelActions = items
-			.filter(item => item.command.id === TogglePanelAction.ID)
+			.filter(item => item.command.id === TOGGLE_PANEL_ACTION_ID)
 			.map(item => ({
 				group: item.group,
 				order: item.order,
@@ -58,7 +59,7 @@ suite('Sessions - Layout Actions', () => {
 			.sort((a, b) => (a.icon ?? '').localeCompare(b.icon ?? ''));
 
 		assert.deepStrictEqual({
-			commandRegistered: Boolean(CommandsRegistry.getCommand(TogglePanelAction.ID)),
+			commandRegistered: Boolean(CommandsRegistry.getCommand(TOGGLE_PANEL_ACTION_ID)),
 			panelActions,
 			terminalActionPresent: items.some(item => item.command.id === 'agentSession.openInTerminal'),
 		}, {
