@@ -51,16 +51,24 @@ export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
 export const WORKTREE_META_REPOSITORY_ROOT_STAMP = 'copilot.worktree.repositoryRootStamp';
 const WORKTREE_REPOSITORY_ROOT_STAMP_VERSION = '1';
 
+/**
+ * Whether `path` names a git directory rather than a working tree. Git answers a
+ * submodule with `<super>/.git/modules/<name>`, and a bare repository's worktree
+ * listing with the bare directory itself. Neither is a repository root: deriving
+ * a worktree location from one would place the session's worktree inside the
+ * repository's own metadata, and grouping under one is meaningless.
+ *
+ * A conservative refusal by name, not a classification — a `--separate-git-dir`
+ * target can be called anything and is not recognisable from its path.
+ */
+export function isGitDirectoryPath(path: URI): boolean {
+	const segments = path.path.split('/');
+	return segments.includes('.git') || !!segments[segments.length - 1]?.endsWith('.git');
+}
+
 /** Builds the stamp certifying `repositoryRoot`, or `undefined` when it must not be certified. */
 export function buildRepositoryRootStamp(repositoryRoot: URI): string | undefined {
-	// Git answers a submodule with its git directory rather than a working
-	// tree, and a bare repository's worktrees with the bare directory. Neither
-	// is a repository root worth freezing, so decline to certify them. This is
-	// a conservative refusal by name, not a classification: a
-	// `--separate-git-dir` target can be called anything, so it is not caught
-	// here and keeps the behaviour it has today.
-	const segments = repositoryRoot.path.split('/');
-	if (segments.includes('.git') || segments[segments.length - 1]?.endsWith('.git')) {
+	if (isGitDirectoryPath(repositoryRoot)) {
 		return undefined;
 	}
 	return `${WORKTREE_REPOSITORY_ROOT_STAMP_VERSION}:${repositoryRoot.toString()}`;
@@ -926,7 +934,8 @@ export class WorktreeIsolation extends Disposable {
 		}
 		const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, worktreeRoot).catch(() => undefined);
 		// A primary checkout (not a linked worktree) resolves to itself; nothing to bridge.
-		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
+		// A git directory is not a repository root at all, so there is nothing to adopt either.
+		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot) || isGitDirectoryPath(primaryRoot)) {
 			return false;
 		}
 		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
@@ -961,7 +970,14 @@ export class WorktreeIsolation extends Disposable {
 	private async _resolvePrimaryWorktreeRoot(checkoutRoot: URI, fallbackRoot: URI): Promise<{ readonly root: URI; readonly resolved: boolean }> {
 		try {
 			const resolved = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot);
-			return resolved ? { root: resolved, resolved: true } : { root: fallbackRoot, resolved: false };
+			if (resolved && !isGitDirectoryPath(resolved)) {
+				return { root: resolved, resolved: true };
+			}
+			// Git answered with its own git directory — a submodule, or a bare
+			// repository. Adopting it would group the session under a path
+			// inside the repository's metadata, and worse, place its worktree
+			// there: the worktrees directory is derived from this value.
+			return { root: fallbackRoot, resolved: false };
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}] Failed to resolve primary worktree for '${checkoutRoot.fsPath}': ${errorMessage(error)}`);
 			return { root: fallbackRoot, resolved: false };

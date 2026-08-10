@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, isGitDirectoryPath, normalizeWorktreeFailureDiagnostic, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 
 /**
@@ -881,5 +881,20 @@ suite('WorktreeIsolation', () => {
 			retryRepositoryRoot: repoRoot.toString(),
 			retryWorktree: worktree.toString(),
 		});
+	});
+	test('recognizes the git directories git answers with instead of a working tree', () => {
+		// Verified against real git: from a submodule checkout `git worktree
+		// list --porcelain` reports `<super>/.git/modules/<name>`, and a bare
+		// repository's listing reports the bare directory itself. Deriving a
+		// worktrees directory from either would place a session's worktree
+		// inside the repository's own metadata.
+		assert.deepStrictEqual([
+			'/work/super/.git/modules/vendored',
+			'/work/repo.git',
+			'/work/repo/.git',
+			'/work/repo',
+			'/work/repo.worktrees/feature',
+			'/work/gitlab/repo',
+		].map(path => isGitDirectoryPath(URI.file(path))), [true, true, true, false, false, false]);
 	});
 });
