@@ -228,7 +228,9 @@ class PrimaryWorktreeRootResolver {
 		try {
 			return await canonicalize.call(this._gitService, path);
 		} catch {
-			return undefined;
+			// A thrown error is not an answer either, so it must not read as
+			// absence: fall back to the path as given and let Git decide.
+			return path;
 		}
 	}
 }
@@ -321,12 +323,17 @@ export interface IAgentHostGitService {
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
-	 * Resolves `path` to its canonical on-disk spelling, or `undefined` when it
-	 * does not exist. Used to key caches so that the several spellings of one
-	 * directory — symlinked prefixes such as `/tmp` vs `/private/tmp`, or
-	 * Windows casing — do not read as different locations. Optional:
-	 * implementations without filesystem access omit it and are keyed by the
-	 * path as given.
+	 * Resolves `path` to its canonical on-disk spelling. Used to key caches so
+	 * that the several spellings of one directory — symlinked prefixes such as
+	 * `/tmp` vs `/private/tmp`, or Windows casing — do not read as different
+	 * locations.
+	 *
+	 * Returns `undefined` only when the path is genuinely absent, because that
+	 * is the one answer letting a caller skip Git entirely. When the filesystem
+	 * cannot answer — an unreadable parent, a symlink loop, a volume briefly
+	 * away — it returns the path unchanged, so the caller still asks Git rather
+	 * than mistaking silence for absence. Optional: implementations without
+	 * filesystem access omit it and are keyed by the path as given.
 	 */
 	canonicalizeExistingPath?(path: URI): Promise<URI | undefined>;
 	/**

@@ -501,6 +501,27 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
 	});
 
+	// Only genuine absence lets a caller skip Git. Anything else the filesystem
+	// refuses to answer must not read as absence.
+	(hasGit && process.getuid?.() !== 0 ? test : test.skip)('canonicalizeExistingPath reports absence only for a path that is really gone', async () => {
+		const dir = initRepo();
+		const denied = join(dir, 'denied');
+		const fs = await import('fs/promises');
+		await fs.mkdir(join(denied, 'inner'), { recursive: true });
+		await fs.chmod(denied, 0o000);
+		try {
+			assert.deepStrictEqual({
+				missing: await svc!.canonicalizeExistingPath(URI.file(join(dir, 'never-existed'))),
+				unreadable: (await svc!.canonicalizeExistingPath(URI.file(join(denied, 'inner'))))?.fsPath,
+			}, {
+				missing: undefined,
+				unreadable: URI.file(join(denied, 'inner')).fsPath,
+			});
+		} finally {
+			await fs.chmod(denied, 0o755);
+		}
+	});
+
 	// Git answers with resolved paths, while a session persists the path it was
 	// created with. Unless both are canonicalized they are different cache keys
 	// for one worktree, and every lookup misses.

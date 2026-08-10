@@ -207,6 +207,25 @@ suite('Copilot Git Project', () => {
 		assert.deepStrictEqual({ root, worktreeRootCalls: gitService.worktreeRootCalls }, { root: undefined, worktreeRootCalls: 0 });
 	});
 
+	test('still asks git when the filesystem cannot say whether a checkout exists', async () => {
+		// An unreadable parent or a volume that is briefly away is not absence.
+		// Treating it as such would skip Git for a checkout that is really there.
+		const primaryRoot = URI.file('/workspace/source-repo');
+		const checkout = URI.file('/workspace/source-repo.worktrees/a');
+		gitService.worktreeRoots = [primaryRoot, checkout];
+		gitService.canonicalizeExistingPath = async () => { throw Object.assign(new Error('permission denied'), { code: 'EACCES' }); };
+
+		const root = await tryResolvePrimaryWorktreeRoot(gitService, checkout);
+
+		assert.deepStrictEqual({
+			root: root?.toString(),
+			worktreeRootCalls: gitService.worktreeRootCalls,
+		}, {
+			root: primaryRoot.toString(),
+			worktreeRootCalls: 1,
+		});
+	});
+
 	test('probes a checkout git could not describe once per pass, and again in the next one', async () => {
 		// Git reports "not a worktree" and "git could not run" identically, so a
 		// failure must never outlive the pass that saw it -- otherwise a repo

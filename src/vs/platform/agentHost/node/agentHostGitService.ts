@@ -139,9 +139,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async canonicalizeExistingPath(path: URI): Promise<URI | undefined> {
 		try {
 			return URI.file(await fsPromises.realpath(path.fsPath));
-		} catch {
-			// Missing, unreadable, or a broken link: no canonical spelling exists.
-			return undefined;
+		} catch (error) {
+			// Only absence is an answer. An unreadable parent, a symlink loop or
+			// a volume that is briefly away all mean the question went
+			// unanswered, and reporting those as absence would silently skip
+			// Git for a checkout that is really there. Fall back to the path as
+			// given and let Git be the one to fail.
+			const code = (error as NodeJS.ErrnoException).code;
+			return code === 'ENOENT' || code === 'ENOTDIR' ? undefined : path;
 		}
 	}
 
