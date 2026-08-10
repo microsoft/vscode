@@ -182,14 +182,14 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(part.maximumHeight, Number.POSITIVE_INFINITY);
 	});
 
-	test('floating panels reserves horizontal gutter space on the left', () => {
+	test('floating panels reserves outer and inner padding on the left', () => {
 		const { part } = createActivitybarPart(false, true);
 
 		assert.deepStrictEqual(
 			{ min: part.minimumWidth, max: part.maximumWidth },
 			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN,
 			}
 		);
 	});
@@ -200,8 +200,8 @@ suite('ActivitybarPart', () => {
 		assert.deepStrictEqual(
 			{ min: part.minimumWidth, max: part.maximumWidth },
 			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN,
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN * 2,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN * 2,
 			}
 		);
 	});
@@ -278,7 +278,7 @@ suite('ActivitybarPart', () => {
 		fireConfigChange(configService, LayoutSettings.MODERN_UI);
 
 		assert.deepStrictEqual(events, [undefined]);
-		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2);
+		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN);
 	});
 
 	// --- CSS custom properties on element -----------------------------------
