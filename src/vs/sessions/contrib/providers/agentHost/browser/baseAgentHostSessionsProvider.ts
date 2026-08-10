@@ -2482,7 +2482,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.map((agent): ISessionType => ({
 				id: agent.provider,
 				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
-				authRequirement: resolveAgentAuthRequirement(agent),
+				authRequirement: this._resolveAgentAuthRequirement(agent),
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
 				// not the bare provider id, so carry it for availability lookups.
@@ -2497,6 +2497,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._sessionTypes = next;
 		this._onDidChangeSessionTypes.fire();
+	}
+
+	protected _resolveAgentAuthRequirement(agent: AgentInfo): SessionTypeAuthRequirement {
+		return resolveAgentAuthRequirement(agent);
 	}
 
 	/**
