@@ -189,7 +189,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Only the action items need to change here, not labels/decorations/toolbar/layout.
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTabAction(tabIndex, tabContainer, tabActionBar);
+			this.redrawTabAction(editor, tabIndex, tabContainer, tabActionBar);
 		});
 	}
 
@@ -1611,7 +1611,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	// Split out from redrawTab() so updateTabActionsForAltState() can refresh just the action items, not a full tab bar redraw.
-	private redrawTabAction(tabIndex: number, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
+	private redrawTabAction(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
 		const isCloseable = !editor.hasCapability(EditorInputCapabilities.CannotClose);
 		const options = this.groupsView.partOptions;
@@ -1658,7 +1658,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
-		this.redrawTabAction(tabIndex, tabContainer, tabActionBar);
+		this.redrawTabAction(editor, tabIndex, tabContainer, tabActionBar);
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
 		for (const option of ['fit', 'shrink', 'fixed']) {
