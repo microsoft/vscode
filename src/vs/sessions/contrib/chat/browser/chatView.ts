@@ -8,7 +8,7 @@ import './media/voiceChatView.css';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -473,12 +473,6 @@ export class ChatView extends AbstractChatView {
 		if (!inputContainerEl) {
 			return;
 		}
-		const confirmationPending = derived(this, reader => {
-			const current = this._currentChatResourceObs.read(reader);
-			return !!current && this.voiceSessionController.pendingToolConfirmations.read(reader)
-				.some(confirmation => isEqual(confirmation.sessionResource, current));
-		});
-
 		this._register(setupVoiceInputDecorations({
 			voiceSessionController: this.voiceSessionController,
 			ttsPlaybackService: this.ttsPlaybackService,
@@ -490,7 +484,6 @@ export class ChatView extends AbstractChatView {
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,
-			confirmationPending,
 			getCurrentResource: () => this._currentChatResource,
 			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));

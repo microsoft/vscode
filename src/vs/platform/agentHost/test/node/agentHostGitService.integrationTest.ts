@@ -118,6 +118,27 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('reports the GitHub owner of a branch push remote without an upstream', async () => {
+		const dir = initRepo({ remote: 'https://github.com/base-owner/repo.git' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.remote', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.pushremote', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({
+			githubOwner: result?.githubOwner,
+			githubHeadOwner: result?.githubHeadOwner,
+			githubRepo: result?.githubRepo,
+			upstreamBranchName: result?.upstreamBranchName,
+		}, {
+			githubOwner: 'base-owner',
+			githubHeadOwner: 'fork-owner',
+			githubRepo: 'repo',
+			upstreamBranchName: undefined,
+		});
+	});
+
 	(hasGit ? test : test.skip)('resolves the default branch name and remote-tracking start point', async () => {
 		const dir = initRepo();
 		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });

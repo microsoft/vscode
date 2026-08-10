@@ -251,6 +251,15 @@ suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('cancelCurrentRequest cancels the main chat request', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+
+		await service.cancelCurrentRequest(session);
+
+		assert.deepStrictEqual(chatService.cancelledResources, [stubChat.resource]);
+	});
+
 	test('openSession waits for a loading session before opening chat content', async () => {
 		const loading = observableValue('loading', true);
 		const session = stubSession({ sessionId: 'loading', providerId: 'test', loading });
