@@ -12,13 +12,15 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/com
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
-import { AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext, PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
 import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
 // Import layout actions to trigger menu registration
 import '../../browser/layoutActions.js';
+
+const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
 
 suite('Sessions - Layout Actions', () => {
 
@@ -27,7 +29,10 @@ suite('Sessions - Layout Actions', () => {
 	// Dynamic import in `suiteSetup` (not a static top-level import, which layering
 	// rules disallow here) so its permanent registrations predate any per-test leak tracking.
 	suiteSetup(async () => {
-		await import('../../contrib/editor/browser/editor.contribution.js');
+		await Promise.all([
+			import('../../contrib/editor/browser/editor.contribution.js'),
+			import('../../contrib/terminal/browser/sessionsTerminalContribution.js')
+		]);
 	});
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
@@ -38,6 +43,45 @@ suite('Sessions - Layout Actions', () => {
 
 		assert.ok(toggleAlwaysOnTop, 'toggleWindowAlwaysOnTop should be contributed to TitleBarRight');
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
+	});
+
+	test('bottom panel layout action replaces the terminal action in the session title bar', () => {
+		const items = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem);
+		const panelActions = items
+			.filter(item => item.command.id === TOGGLE_PANEL_ACTION_ID)
+			.map(item => ({
+				group: item.group,
+				order: item.order,
+				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+				hasToggledState: Boolean(item.command.toggled),
+				when: item.when?.serialize(),
+			}))
+			.sort((a, b) => (a.icon ?? '').localeCompare(b.icon ?? ''));
+
+		assert.deepStrictEqual({
+			commandRegistered: Boolean(CommandsRegistry.getCommand(TOGGLE_PANEL_ACTION_ID)),
+			panelActions,
+			terminalActionPresent: items.some(item => item.command.id === 'agentSession.openInTerminal'),
+		}, {
+			commandRegistered: true,
+			panelActions: [
+				{
+					group: 'navigation',
+					order: 10,
+					icon: Codicon.layoutPanel.id,
+					hasToggledState: false,
+					when: `${PanelVisibleContext.key} && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible`,
+				},
+				{
+					group: 'navigation',
+					order: 10,
+					icon: Codicon.layoutPanelOff.id,
+					hasToggledState: false,
+					when: `!isAuxiliaryWindow && !${PanelVisibleContext.key} && !sessionsIsPhoneLayout && !sessionsWelcomeVisible`,
+				},
+			],
+			terminalActionPresent: false,
+		});
 	});
 
 	test('original-layout auxiliary bar toggle reuses the core command with state-dependent icons on the editor title layout menu', () => {
