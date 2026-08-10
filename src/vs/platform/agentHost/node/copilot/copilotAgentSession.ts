@@ -636,6 +636,7 @@ class CopilotTurn {
 export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly resourceUri: URI;
+	private readonly _ownerSessionUri: URI;
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
 	private _chatChannelUri: URI;
@@ -920,6 +921,7 @@ export class CopilotAgentSession extends Disposable {
 		super();
 		this._abortCts.value = new CancellationTokenSource();
 		this.sessionId = options.rawSessionId;
+		this._ownerSessionUri = options.sessionUri;
 		this.resourceUri = options.resource ?? options.sessionUri;
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands), this._logService);
 		this._chatChannelUri = options.chatChannelUri;
@@ -1012,7 +1014,7 @@ export class CopilotAgentSession extends Disposable {
 	private _emitAction(action: SessionAction | ChatAction, parentToolCallId?: string): void {
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			resource: isChatAction(action) ? this._chatChannelUri : this.resourceUri,
+			resource: isChatAction(action) ? this._chatChannelUri : this._ownerSessionUri,
 			action,
 			parentToolCallId,
 		});

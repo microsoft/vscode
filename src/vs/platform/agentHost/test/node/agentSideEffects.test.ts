@@ -18,7 +18,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgent, SubagentChatSignal } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, IAgent, SubagentChatSignal } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -2745,9 +2745,8 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
-		test('routes session actions emitted from a peer chat to its owning session', () => {
+		test('rejects session actions emitted on a peer chat channel', () => {
 			setupSession();
-			disposables.add(sideEffects.registerProgressListener(agent));
 			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-customization'));
 			stateManager.addChat(sessionUri.toString(), peerChatUri.toString());
 			const customization: PluginCustomization = {
@@ -2758,23 +2757,13 @@ suite('AgentSideEffects', () => {
 				enabled: true,
 				load: { kind: CustomizationLoadStatus.Loaded },
 			};
-			const envelopes: ActionEnvelope[] = [];
-			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
-
-			agent.fireProgress({
+			const handleAgentSignal: (agent: IAgent, signal: AgentSignal) => void = Reflect.get(Object.getPrototypeOf(sideEffects), '_handleAgentSignal');
+			assert.throws(() => handleAgentSignal.call(sideEffects, agent, {
 				kind: 'action',
 				resource: peerChatUri,
 				action: { type: ActionType.SessionCustomizationUpdated, customization },
-			});
-
-			const update = envelopes.find(e => e.action.type === ActionType.SessionCustomizationUpdated);
-			assert.deepStrictEqual({
-				channel: update?.channel,
-				customizations: stateManager.getSessionState(sessionUri.toString())?.customizations,
-			}, {
-				channel: sessionUri.toString(),
-				customizations: [customization],
-			});
+			}), /must not be dispatched on chat channel/);
+			assert.strictEqual(stateManager.getSessionState(sessionUri.toString())?.customizations, undefined);
 		});
 
 		test('clears client customizations when activeClient has no customizations', () => {

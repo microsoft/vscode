@@ -18,7 +18,7 @@ import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentSession } from '../common/agentService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
@@ -271,8 +271,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
-		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
-		return this._stateManager.getSessionState(sessionUri)?.config?.values;
+		if (isAhpChatChannel(session)) {
+			throw new Error(`Expected a session URI, received chat channel ${session}`);
+		}
+		return this._stateManager.getSessionState(session)?.config?.values;
 	}
 
 	getRootValue<D extends SchemaDefinition, K extends keyof D & string>(

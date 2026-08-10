@@ -26,7 +26,8 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { AgentSession } from '../../../common/agentService.js';
+import { AgentSession, type AgentSignal } from '../../../common/agentService.js';
+import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -291,6 +292,23 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 suite('CodexAgent prewarm eviction', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('session actions target the owning session after the chat is bound', async () => {
+		const agent = await createAgent(disposables);
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidSessionProgress(signal => signals.push(signal)));
+		const { session } = await agent.createSession({ workingDirectories: [URI.file('/repo')] });
+
+		agent['_fire'](session, { type: ActionType.SessionActivityChanged, activity: 'Working' });
+
+		assert.deepStrictEqual(signals.map(signal => signal.kind === 'action' ? {
+			resource: signal.resource.toString(),
+			type: signal.action.type,
+		} : undefined), [{
+			resource: session.toString(),
+			type: ActionType.SessionActivityChanged,
+		}]);
+	});
 
 	test('immediately releases, restores, and sends a workspace-less peer before metadata flushes', async () => {
 		const agent = await createAgent(disposables);

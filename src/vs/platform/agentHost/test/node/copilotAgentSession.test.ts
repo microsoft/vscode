@@ -5435,6 +5435,21 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
+		test('assistant.intent from a peer chat targets the owning session', async () => {
+			const sessionUri = AgentSession.uri('copilot', 'owner');
+			const chatChannelUri = URI.parse(buildChatUri(sessionUri, 'peer'));
+			const { mockSession, signals } = await createAgentSession(disposables, { sessionUri, chatChannelUri });
+
+			mockSession.fire('assistant.intent', { intent: 'Reading peer context' });
+
+			assert.deepStrictEqual(signals
+				.filter(signal => isAction(signal, ActionType.SessionActivityChanged))
+				.map(signal => ({ resource: signal.resource.toString(), activity: (signal.action as { activity: string | undefined }).activity })), [{
+					resource: sessionUri.toString(),
+					activity: 'Reading peer context',
+				}]);
+		});
+
 		test('assistant.intent clears session activity', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('assistant.intent', { intent: 'Reading repo docs' });

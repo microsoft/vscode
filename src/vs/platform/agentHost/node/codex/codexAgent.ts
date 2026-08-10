@@ -3609,8 +3609,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * if `threadId` is already populated, just returns. Called from
 	 * `sendMessage` before the first `turn/start`.
 	 */
-	private async _materializeIfNeeded(session: ICodexSession, configResourceOrFire: URI | boolean = session.chatChannel ?? session.sessionUri, fireMaterializedEvent = true): Promise<void> {
-		const configResource = URI.isUri(configResourceOrFire) ? configResourceOrFire : session.chatChannel ?? session.sessionUri;
+	private async _materializeIfNeeded(session: ICodexSession, configResourceOrFire: URI | boolean = session.sessionUri, fireMaterializedEvent = true): Promise<void> {
+		const configResource = URI.isUri(configResourceOrFire) ? configResourceOrFire : session.sessionUri;
 		if (typeof configResourceOrFire === 'boolean') {
 			fireMaterializedEvent = configResourceOrFire;
 		}
@@ -3749,7 +3749,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * session's current client tools are registered as `dynamicTools`.
 	 * Only safe before any turn has committed history on the thread.
 	 */
-	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.chatChannel ?? session.sessionUri): Promise<void> {
+	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.sessionUri): Promise<void> {
 		const conn = this._connection;
 		const oldThreadId = session.threadId;
 		this._logService.info(`[Codex:${session.sessionId}] restarting thread ${oldThreadId} to apply client tools [${session.clientToolSet.merged().map(t => t.name).join(', ') || '(none)'}]`);
@@ -5333,12 +5333,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	// #endregion
 
 	private _fire(sessionUri: URI, action: SessionAction | ChatAction): void {
-		const entry = this._sessions.get(AgentSession.id(sessionUri));
-		if (isChatAction(action) && !entry?.chatChannel) {
-			throw new Error(`Codex session ${sessionUri.toString()} has no bound chat channel`);
+		if (isChatAction(action)) {
+			const chatChannel = this._sessions.get(AgentSession.id(sessionUri))?.chatChannel;
+			if (!chatChannel) {
+				throw new Error(`Codex session ${sessionUri.toString()} has no bound chat channel`);
+			}
+			this._onDidSessionProgress.fire({ kind: 'action', resource: chatChannel, action });
+			return;
 		}
-		const resource = entry?.chatChannel ?? sessionUri;
-		this._onDidSessionProgress.fire({ kind: 'action', resource, action });
+		this._onDidSessionProgress.fire({ kind: 'action', resource: sessionUri, action });
 	}
 
 	override dispose(): void {

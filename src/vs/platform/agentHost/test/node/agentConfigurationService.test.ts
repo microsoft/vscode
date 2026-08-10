@@ -71,12 +71,12 @@ suite('AgentConfigurationService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves session config from an exact peer chat resource', () => {
+	test('rejects a chat channel when reading session config', () => {
 		const session = URI.from({ scheme: 'copilot', path: '/chat-owner' }).toString();
 		manager.createSession(makeSummary(session));
 		seedSessionConfig(session, { level: 'high' });
 
-		assert.deepStrictEqual(service.getSessionConfigValues(buildChatUri(session, 'peer')), { level: 'high' });
+		assert.throws(() => service.getSessionConfigValues(buildChatUri(session, 'peer')), /Expected a session URI/);
 	});
 
 	// ---- getEffectiveValue ------------------------------------------------
