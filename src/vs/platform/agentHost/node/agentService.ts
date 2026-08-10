@@ -581,8 +581,7 @@ export class AgentService extends Disposable implements IAgentService {
 				void this._gitStateService.attachSessionGitHubPullRequest(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
 			},
 			onUserMessage: (session, text) => {
-				// Record the GitHub issues the message references on the session.
-				void this._gitStateService.attachSessionGitHubIssues(session.toString(), text);
+				void this._gitStateService.attachSessionGitHubReferences(session.toString(), text);
 			},
 		}));
 

@@ -121,11 +121,7 @@ export interface IAgentSideEffectsOptions {
 	 * excluded — only the parent session URI is passed.
 	 */
 	readonly onTurnComplete: (session: ProtocolURI) => void;
-	/**
-	 * Called with the text of every user message that is forwarded to an agent,
-	 * so the host can derive session state from what the user wrote (e.g. the
-	 * GitHub issues the message references).
-	 */
+	/** Called for user messages so the host can record referenced GitHub work. */
 	readonly onUserMessage?: (session: ProtocolURI, text: string) => void;
 	/** Process launcher used when client-origin metadata is unavailable. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;

@@ -57,6 +57,12 @@ The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only
 
 These session-type icons are specific to the Agents window provider. In the editor window, `agentSessions.ts` maps local Agent Host Copilot to the Local harness's `Codicon.vm` picker icon, while `agentSessionsViewer.ts` uses the same session-list status dot as the Local harness.
 
+## Pull Request Provenance
+
+Agent Host metadata keeps the complete pull-request history discovered for a checkout so branch operations can detect an existing PR. Folder-isolated sessions additionally persist `initialPullRequestUrls`; the provider filters those pre-existing PRs from session presentation and `withPullRequest` queries.
+
+A baseline PR becomes session-related when the user references it in a message or deliberately invokes a create-PR operation that resolves to it. Explicit references are stored separately from checkout PRs and only surface after checkout discovery confirms the same PR, so an unrelated mention cannot change branch operations or session presentation. Pull requests created after the session began are related automatically. Worktree and legacy sessions have no baseline and retain the complete discovered history.
+
 ## IDs and URI Schemes
 
 A single agent host session uses several distinct identifiers:
