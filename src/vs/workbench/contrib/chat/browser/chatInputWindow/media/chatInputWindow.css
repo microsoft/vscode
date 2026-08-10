@@ -46,6 +46,7 @@
 }
 
 .chat-input-window .chat-input-window-lead .codicon {
+	-webkit-app-region: no-drag;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
