@@ -42,7 +42,7 @@ import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/brows
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { EditorResourceAccessor, IEditorPartOptions, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { hiddenEditorTypesSettingId, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
@@ -51,7 +51,7 @@ import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
-import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes } from './editorTypePicker.js';
+import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes, IAvailableEditorTypes } from './editorTypePicker.js';
 import './media/breadcrumbscontrol.css';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -228,7 +228,6 @@ export interface IBreadcrumbsControlOptions {
 	 * the dedicated breadcrumbs bar below tabs, not the inline single-tab breadcrumbs.
 	 */
 	readonly showEditorTypePicker?: boolean;
-	readonly hiddenEditorIds?: readonly string[];
 }
 
 const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight, localize('separatorIcon', 'Icon for the separator in the breadcrumbs.'));
@@ -302,7 +301,7 @@ export class BreadcrumbsControl {
 		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService
 	) {
@@ -311,11 +310,11 @@ export class BreadcrumbsControl {
 		this.domNode.classList.toggle('with-editor-type', !!_options.showEditorTypePicker);
 		dom.append(container, this.domNode);
 
-		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(configurationService);
-		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(configurationService);
-		this._cfShowEditorType = BreadcrumbsConfig.ShowEditorType.bindTo(configurationService);
-		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
-		this._cfTitleScrollbarVisibility = BreadcrumbsConfig.TitleScrollbarVisibility.bindTo(configurationService);
+		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
+		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
+		this._cfShowEditorType = BreadcrumbsConfig.ShowEditorType.bindTo(_configurationService);
+		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
+		this._cfTitleScrollbarVisibility = BreadcrumbsConfig.TitleScrollbarVisibility.bindTo(_configurationService);
 
 		this._labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
 
@@ -336,6 +335,11 @@ export class BreadcrumbsControl {
 
 		if (this._options.showEditorTypePicker) {
 			this._disposables.add(this._cfShowEditorType.onDidChange(() => this._updateEditorTypeControl()));
+			this._disposables.add(_configurationService.onDidChangeConfiguration(event => {
+				if (event.affectsConfiguration(hiddenEditorTypesSettingId)) {
+					this._updateEditorTypeControl();
+				}
+			}));
 		}
 
 		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
@@ -520,7 +524,7 @@ export class BreadcrumbsControl {
 	private _updateEditorTypeControl(): void {
 		const previousWidth = this._editorTypeNode?.offsetWidth ?? 0;
 
-		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService, this._options.hiddenEditorIds) : undefined;
+		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? this._getAvailableEditorTypes() : undefined;
 		if (!available) {
 			this._hideEditorTypeControl();
 		} else {
@@ -538,6 +542,14 @@ export class BreadcrumbsControl {
 		if (this._lastLayoutDimension && currentWidth !== previousWidth) {
 			this.layout(this._lastLayoutDimension);
 		}
+	}
+
+	private _getAvailableEditorTypes(): IAvailableEditorTypes | undefined {
+		return getAvailableEditorTypes(
+			this._editorGroup.activeEditor,
+			this._editorResolverService,
+			this._configurationService.getValue<readonly string[]>(hiddenEditorTypesSettingId)
+		);
 	}
 
 	private _createEditorTypeControl(): { label: HTMLSpanElement; hover: IManagedHover } {
@@ -576,7 +588,7 @@ export class BreadcrumbsControl {
 		if (!editorTypeNode) {
 			return;
 		}
-		const available = getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService, this._options.hiddenEditorIds);
+		const available = this._getAvailableEditorTypes();
 		if (!available) {
 			return;
 		}

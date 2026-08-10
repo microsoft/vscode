@@ -40,7 +40,6 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
 		return {
-			...super.getGroupViewOptions(),
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
 				headerSecondary: Menus.SessionsEditorHeaderSecondary,

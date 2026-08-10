@@ -44,7 +44,6 @@ export class EditorHeaderControl extends Disposable {
 		groupsView: IEditorGroupsView,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		showHeader: boolean,
-		hiddenEditorIds: readonly string[] | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -69,7 +68,6 @@ export class EditorHeaderControl extends Disposable {
 				showPlaceholder: true,
 				dragEditor: false,
 				showEditorTypePicker: true,
-				hiddenEditorIds,
 			}));
 			this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.updateBreadcrumbsVisibility(true)));
 			this._register(this.breadcrumbsControlFactory.onDidVisibilityChange(() => this.updateBreadcrumbsVisibility(true)));
