@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -14,6 +15,7 @@ import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsMode
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';
 import { GitHubIssueModel, GitHubIssueModelReferenceCollection } from './models/githubIssueModel.js';
 import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
+import { GitHubRecentUserWorkFetcher, IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentPullRequestReviewThread } from './fetchers/githubRecentUserWorkFetcher.js';
 import { GitHubPullRequestsFetcher } from './fetchers/githubPullRequestsFetcher.js';
 import { GitHubPullRequestContextFetcher } from './fetchers/githubPullRequestContextFetcher.js';
 import { getPullRequestKey } from '../common/utils.js';
@@ -81,6 +83,11 @@ export interface IGitHubService {
 	 * not cached, so a later retry can succeed once a PR is created.
 	 */
 	findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined>;
+
+	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentIssue[]>;
+	getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentPullRequest[]>;
+	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken): Promise<readonly IGitHubRecentPullRequestReviewThread[]>;
+	getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], token: CancellationToken): Promise<ReadonlySet<number>>;
 }
 
 export const IGitHubService = createDecorator<IGitHubService>('sessionsGitHubService');
@@ -94,6 +101,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	readonly activeSessionPullRequestReviewThreadsObs: IObservable<GitHubPullRequestReviewThreadsModel | undefined>;
 
 	private readonly _changesFetcher: GitHubChangesFetcher;
+	private readonly _recentUserWorkFetcher: GitHubRecentUserWorkFetcher;
 	private readonly _pullRequestsFetcher: GitHubPullRequestsFetcher;
 	private readonly _pullRequestContextFetcher: GitHubPullRequestContextFetcher;
 	private readonly _repositoryReferences: GitHubRepositoryModelReferenceCollection;
@@ -123,6 +131,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._apiClient = apiClient;
 
 		this._changesFetcher = new GitHubChangesFetcher(apiClient);
+		this._recentUserWorkFetcher = new GitHubRecentUserWorkFetcher(apiClient);
 		this._pullRequestsFetcher = new GitHubPullRequestsFetcher(apiClient);
 		this._pullRequestContextFetcher = new GitHubPullRequestContextFetcher(apiClient);
 
@@ -219,6 +228,22 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel> {
 		return this._issueReferences.acquire(`${owner}/${repo}/issues/${issueNumber}`, owner, repo, issueNumber);
+	}
+
+	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentIssue[]> {
+		return this._recentUserWorkFetcher.getRecentAssignedIssues(owner, repo, token);
+	}
+
+	getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentPullRequest[]> {
+		return this._recentUserWorkFetcher.getRecentAuthoredPullRequests(owner, repo, token);
+	}
+
+	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken): Promise<readonly IGitHubRecentPullRequestReviewThread[]> {
+		return this._recentUserWorkFetcher.getPullRequestReviewThreads(owner, repo, pullRequestNumber, token);
+	}
+
+	getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], token: CancellationToken): Promise<ReadonlySet<number>> {
+		return this._recentUserWorkFetcher.getIssuesWithLinkedPullRequests(owner, repo, issueNumbers, token);
 	}
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {

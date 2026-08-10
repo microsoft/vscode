@@ -14,10 +14,12 @@ import { DebugAgentHostInDevToolsAction } from './debugAgentHostAction.js';
 import './exportAgentHostDebugLogsService.js';
 import { ProfileAgentHostAction, StopAgentHostProfileAction } from './profileAgentHostAction.js';
 import { registerNetworkDiagnosticsAction } from './networkDiagnosticsAction.js';
+import { RestartLocalAgentHostAction } from './restartAgentHostAction.js';
 
 export function registerChatDeveloperActions() {
 	registerAction2(OpenChatStorageFolderAction);
 	registerAction2(DebugAgentHostInDevToolsAction);
+	registerAction2(RestartLocalAgentHostAction);
 	registerAction2(ProfileAgentHostAction);
 	registerAction2(StopAgentHostProfileAction);
 	registerNetworkDiagnosticsAction();

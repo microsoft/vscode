@@ -15,12 +15,10 @@ import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionT
 suite('NewSessionViewV3Tour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('reuses V2 criteria and workspace step, then runs the cancellable task template step', async () => {
+	test('reuses V2 criteria and workspace step, then runs the variation step', async () => {
 		const trigger = observableValue<boolean>(disposables, false);
-		const inserted: { readonly prompt: string; readonly durationMs: number; readonly taskPlaceholder: string }[] = [];
 		let receivedToken: CancellationToken | undefined;
-		const scenario = createNewSessionViewV3Tour(trigger, (prompt, durationMs, taskPlaceholder, token) => {
-			inserted.push({ prompt, durationMs, taskPlaceholder });
+		const scenario = createNewSessionViewV3Tour(trigger, token => {
 			receivedToken = token;
 			return true;
 		});
@@ -49,12 +47,12 @@ suite('NewSessionViewV3Tour', () => {
 			seenKey: scenario.seenKey,
 			priority: scenario.priority,
 			experiment: scenario.experiment,
+			developerModeVariations: scenario.developerModeVariations,
 			criteriaMatchV2: scenario.when?.serialize() === v2Scenario.when?.serialize(),
 			presentationKind: scenario.presentation.kind,
 			steps: steps.map(step => ({ id: step.id, kind: step.kind })),
 			workspaceStep: summarizeWorkspaceStep(workspaceStep),
 			v2WorkspaceStep: summarizeWorkspaceStep(v2WorkspaceStep),
-			inserted,
 			receivedTokenIsForwarded: receivedToken === CancellationToken.None,
 			runResult,
 		}, {
@@ -65,6 +63,7 @@ suite('NewSessionViewV3Tour', () => {
 				behaviorFlag: 'onb.newSessionViewV3.show',
 				assignmentContextIdFlag: 'onb.newSessionViewV3.id',
 			},
+			developerModeVariations: ['prompt', 'githubPrompt', 'options'],
 			criteriaMatchV2: true,
 			presentationKind: 'sequence',
 			steps: [
@@ -95,11 +94,6 @@ suite('NewSessionViewV3Tour', () => {
 				allowTargetInteraction: true,
 				advanceWhen: 'sessionHasWorkspace',
 			},
-			inserted: [{
-				prompt: 'Help me complete [describe the coding task] in this project. First, inspect the relevant files and explain your approach briefly. Then implement the solution using existing project conventions, avoid unrelated changes, and run the most relevant tests or checks. If anything is unclear, make a reasonable assumption and state it. When finished, summarize what changed and mention any remaining issues.',
-				durationMs: 2_500,
-				taskPlaceholder: '[describe the coding task]',
-			}],
 			receivedTokenIsForwarded: true,
 			runResult: { shown: true },
 		});

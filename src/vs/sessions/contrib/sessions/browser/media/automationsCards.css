@@ -9,11 +9,10 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .automations-cards-content:focus,
 .monaco-workbench .automations-cards-widget:focus {
 	outline: none;
 }
-
-
 
 .automations-cards-widget > .monaco-scrollable-element {
 	width: 100%;

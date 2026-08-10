@@ -8,7 +8,8 @@ import './media/voiceChatView.css';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -42,9 +43,9 @@ import { ResponseSelectionSideChatController } from './responseSelectionSideChat
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
+import { ISessionsChatViewStateService } from './chatViewStateService.js';
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -184,6 +185,7 @@ export class ChatView extends AbstractChatView {
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@ISessionChatPillsDebugService private readonly chatPillsDebugService: ISessionChatPillsDebugService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
+		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 	) {
 		super();
 
@@ -300,6 +302,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override dispose(): void {
+		this._saveCurrentViewState();
 		this._loadCts.value?.cancel();
 		super.dispose();
 	}
@@ -323,6 +326,11 @@ export class ChatView extends AbstractChatView {
 		this.chatPillsDebugService.clear(this._chatPills);
 		this._currentSessionObs.set(session, undefined);
 		const resource = chat.resource;
+		const previousChatResource = this._currentChatResource;
+		const chatChanged = !isEqual(previousChatResource, resource);
+		if (chatChanged) {
+			this._saveCurrentViewState();
+		}
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
@@ -340,11 +348,10 @@ export class ChatView extends AbstractChatView {
 		});
 
 		// Skip loading if we're already showing this chat
-		if (isEqual(this._currentChatResource, resource)) {
+		if (!chatChanged) {
 			return;
 		}
 
-		const previousChatResource = this._currentChatResource;
 		this._currentChatResource = resource;
 		this._currentChatResourceObs.set(resource, undefined);
 
@@ -369,6 +376,10 @@ export class ChatView extends AbstractChatView {
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
+			const widgetViewState = this.viewStateService.get(resource);
+			if (widgetViewState) {
+				this._widget.restoreViewState(widgetViewState);
+			}
 			// Expose the bound chat resource on the DOM so test automation
 			// can synchronize with the post-rebind state without polling timeouts.
 			// Set AFTER `setModel` so observers see the attribute only once the
@@ -388,6 +399,13 @@ export class ChatView extends AbstractChatView {
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
 		this.showProgressWhile(loadPromise, 800);
+	}
+
+	private _saveCurrentViewState(): void {
+		const resource = this._widget.viewModel?.sessionResource;
+		if (resource) {
+			this.viewStateService.set(resource, this._widget.getViewState());
+		}
 	}
 
 	private _clearCurrentChat(): void {
@@ -455,6 +473,11 @@ export class ChatView extends AbstractChatView {
 		if (!inputContainerEl) {
 			return;
 		}
+		const confirmationPending = derived(this, reader => {
+			const current = this._currentChatResourceObs.read(reader);
+			return !!current && this.voiceSessionController.pendingToolConfirmations.read(reader)
+				.some(confirmation => isEqual(confirmation.sessionResource, current));
+		});
 
 		this._register(setupVoiceInputDecorations({
 			voiceSessionController: this.voiceSessionController,
@@ -467,6 +490,7 @@ export class ChatView extends AbstractChatView {
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,
+			confirmationPending,
 			getCurrentResource: () => this._currentChatResource,
 			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));

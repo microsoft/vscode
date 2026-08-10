@@ -446,6 +446,28 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
+	test('handshake retains an initial subscription whose state has not materialized', () => {
+		const transport = connectClient('client-1', [defaultChatUri]);
+		const response = findResponse(transport.sent, 1) as { result: InitializeResult };
+		assert.deepStrictEqual(response.result.snapshots, []);
+		transport.sent.length = 0;
+
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello after restore', origin: { kind: MessageKind.User } },
+		});
+
+		const actionMessages = findNotifications(transport.sent, 'action');
+		const turnStarted = actionMessages.find(message => {
+			const envelope = message.params as unknown as { action?: { type: string } };
+			return envelope.action?.type === ActionType.ChatTurnStarted;
+		});
+		assert.ok(turnStarted, 'should deliver actions after the initially missing state materializes');
+	});
+
 	test('ping responds before initialize', async () => {
 		const transport = new MockProtocolTransport();
 		disposables.add(transport);
@@ -871,6 +893,30 @@ suite('ProtocolServerHandler', () => {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			_meta,
+		});
+	});
+
+	test('createSession rejects a fork targeting its source session', async () => {
+		const transport = connectClient('client-self-fork');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		const session = URI.parse('copilot:///same-session').toString();
+
+		transport.simulateMessage(request(2, 'createSession', {
+			channel: session,
+			provider: 'copilot',
+			fork: { session, turnId: 'turn-1' },
+		}));
+		const response = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.deepStrictEqual({
+			errorCode: response.error?.code,
+			errorMessage: response.error?.message,
+			createCalls: agentService.createSessionConfigs.length,
+		}, {
+			errorCode: AhpErrorCodes.SessionAlreadyExists,
+			errorMessage: `Fork target session must differ from source session: ${session}`,
+			createCalls: 0,
 		});
 	});
 

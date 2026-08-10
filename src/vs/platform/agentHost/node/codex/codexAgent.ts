@@ -49,9 +49,10 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -876,10 +877,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._publishAccountInfo({ status: 'unknown' });
+
+		this._register(this._stateManager.onDidChangeSessionTitle(({ session, title }) => {
+			if (AgentSession.provider(session) === this.id) {
+				this._otelService.emitSessionTitleChanged(AgentSession.id(session), session, title);
+			}
+		}));
+
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			const signInRequest = this._configurationService.getRootConfigValues?.()[CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY];
 			if (typeof signInRequest === 'string' && signInRequest !== this._lastSignInRequest) {

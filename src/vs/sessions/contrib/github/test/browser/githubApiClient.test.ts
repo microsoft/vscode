@@ -12,8 +12,8 @@ import { IRequestContext, IRequestOptions } from '../../../../../base/parts/requ
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRequestCompleteEvent, IRequestService } from '../../../../../platform/request/common/request.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
-import { GitHubApiClient } from '../../browser/githubApiClient.js';
+import { AuthenticationSession, IAuthenticationGetSessionsOptions, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { GitHubApiClient, GitHubAuthenticationError } from '../../browser/githubApiClient.js';
 
 /**
  * Captures the options passed to {@link IRequestService.request} and returns a
@@ -40,14 +40,17 @@ class FakeRequestService extends Disposable implements Partial<IRequestService> 
 
 class FakeAuthenticationService implements Partial<IAuthenticationService> {
 	readonly _serviceBrand: undefined;
+	readonly getSessionsOptions: (IAuthenticationGetSessionsOptions | undefined)[] = [];
+	sessions: readonly AuthenticationSession[] = [{
+		id: 'session-1',
+		accessToken: 'token-123',
+		account: { id: 'account-1', label: 'octocat' },
+		scopes: ['repo'],
+	}];
 
-	async getSessions(): Promise<readonly AuthenticationSession[]> {
-		return [{
-			id: 'session-1',
-			accessToken: 'token-123',
-			account: { id: 'account-1', label: 'octocat' },
-			scopes: ['repo'],
-		}];
+	async getSessions(...args: Parameters<IAuthenticationService['getSessions']>): Promise<readonly AuthenticationSession[]> {
+		this.getSessionsOptions.push(args[2]);
+		return this.sessions;
 	}
 }
 
@@ -55,13 +58,15 @@ suite('GitHubApiClient', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let requestService: FakeRequestService;
+	let authenticationService: FakeAuthenticationService;
 	let client: GitHubApiClient;
 
 	setup(() => {
 		requestService = store.add(new FakeRequestService());
+		authenticationService = new FakeAuthenticationService();
 		client = store.add(new GitHubApiClient(
 			requestService as unknown as IRequestService,
-			new FakeAuthenticationService() as unknown as IAuthenticationService,
+			authenticationService as unknown as IAuthenticationService,
 			new NullLogService(),
 		));
 	});
@@ -87,5 +92,16 @@ suite('GitHubApiClient', () => {
 			{ statusCode: response.statusCode, data: response.data, etag: response.etag },
 			{ statusCode: 304, data: undefined, etag: '"etag-2"' },
 		);
+	});
+
+	test('does not create an authentication session for a silent request', async () => {
+		authenticationService.sessions = [];
+
+		await assert.rejects(
+			client.graphql('query Test { viewer { login } }', 'test', undefined, { createAuthenticationSession: false }),
+			GitHubAuthenticationError,
+		);
+
+		assert.deepStrictEqual(authenticationService.getSessionsOptions, [{ silent: true }]);
 	});
 });

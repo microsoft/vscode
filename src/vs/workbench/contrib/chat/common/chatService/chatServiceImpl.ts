@@ -1118,7 +1118,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		this.trace('sendRequest', `Queued message for session ${sessionResource}`);
-		return { kind: 'queued', deferred: deferred.p };
+		return { kind: 'queued', requestId: requestModel.id, deferred: deferred.p };
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
@@ -2182,7 +2182,7 @@ export class ChatService extends Disposable implements IChatService {
 		// Reject the deferred promise for the removed request
 		const deferred = this._queuedRequestDeferreds.get(requestId);
 		if (deferred) {
-			deferred.complete({ kind: 'rejected', reason: 'Request was removed from queue' });
+			deferred.complete({ kind: 'rejected', reason: 'Request was removed from queue', reasonCode: 'cancelled' });
 			this._queuedRequestDeferreds.delete(requestId);
 		}
 	}
@@ -2233,7 +2233,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 			const deferred = this._queuedRequestDeferreds.get(local.request.id);
 			if (deferred) {
-				deferred.complete({ kind: 'rejected', reason: 'Request was removed from queue' });
+				deferred.complete({ kind: 'rejected', reason: 'Request is no longer in the provider queue', reasonCode: 'providerRemoved' });
 				this._queuedRequestDeferreds.delete(local.request.id);
 			}
 		}

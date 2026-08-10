@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestContextFetcher } from '../../browser/fetchers/githubPullRequestContextFetcher.js';
 import { GitHubPullRequestsFetcher } from '../../browser/fetchers/githubPullRequestsFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
+import { GitHubRecentUserWorkFetcher } from '../../browser/fetchers/githubRecentUserWorkFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
 import { GitHubApiClient, GitHubApiError, IGitHubApiRequestOptions } from '../../browser/githubApiClient.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReview, IGitHubPullRequest, MergeBlockerKind } from '../../common/types.js';
@@ -20,7 +22,7 @@ class MockApiClient {
 	private _responses: unknown[] = [];
 	private _nextError: Error | undefined;
 	readonly requestCalls: { method: string; path: string; body?: unknown }[] = [];
-	readonly graphqlCalls: { query: string; variables?: Record<string, unknown> }[] = [];
+	readonly graphqlCalls: { query: string; variables?: Record<string, unknown>; options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'> }[] = [];
 
 	setNextResponse(data: unknown): void {
 		this._nextResponse = data;
@@ -47,14 +49,121 @@ class MockApiClient {
 		return { data: (this._responses.length > 0 ? this._responses.shift() : this._nextResponse) as T, statusCode: 200 };
 	}
 
-	async graphql<T>(query: string, _callSite: string, variables?: Record<string, unknown>): Promise<T> {
-		this.graphqlCalls.push({ query, variables });
+	async graphql<T>(query: string, _callSite: string, variables?: Record<string, unknown>, options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'>): Promise<T> {
+		this.graphqlCalls.push({ query, variables, options });
 		if (this._nextError) {
 			throw this._nextError;
 		}
 		return this._nextResponse as T;
 	}
 }
+
+suite('GitHubRecentUserWorkFetcher', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('queries assigned issue summaries independently', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setNextResponse({
+			search: {
+				nodes: [
+					null,
+					{ __typename: 'Issue', number: 1, title: 'First issue', url: 'https://github.com/o/r/issues/1', updatedAt: '2026-08-07T10:00:00Z' },
+					{ __typename: 'Issue', number: 2, title: 'Second issue', url: 'https://github.com/o/r/issues/2', updatedAt: '2026-08-07T11:00:00Z' },
+				],
+			}
+		});
+		const fetcher = new GitHubRecentUserWorkFetcher(mockApi as unknown as GitHubApiClient);
+
+		assert.deepStrictEqual({
+			issues: await fetcher.getRecentAssignedIssues('o', 'r', CancellationToken.None),
+			variables: mockApi.graphqlCalls[0].variables,
+			createAuthenticationSession: mockApi.graphqlCalls[0].options?.createAuthenticationSession,
+		}, {
+			issues: [
+				{ number: 1, title: 'First issue', url: 'https://github.com/o/r/issues/1', updatedAt: '2026-08-07T10:00:00Z' },
+				{ number: 2, title: 'Second issue', url: 'https://github.com/o/r/issues/2', updatedAt: '2026-08-07T11:00:00Z' },
+			],
+			variables: { query: 'repo:o/r is:issue is:open assignee:@me sort:updated-desc' },
+			createAuthenticationSession: false,
+		});
+	});
+
+	test('queries pull request summaries without review threads', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setNextResponse({
+			search: {
+				nodes: [{
+					__typename: 'PullRequest',
+					number: 3,
+					title: 'Fix CI',
+					url: 'https://github.com/o/r/pull/3',
+					updatedAt: '2026-08-07T12:00:00Z',
+					commits: { nodes: [{ commit: { committedDate: '2026-08-07T09:00:00Z', statusCheckRollup: { state: 'FAILURE' } } }] },
+				}],
+			},
+		});
+		const fetcher = new GitHubRecentUserWorkFetcher(mockApi as unknown as GitHubApiClient);
+
+		assert.deepStrictEqual({
+			pullRequests: await fetcher.getRecentAuthoredPullRequests('o', 'r', CancellationToken.None),
+			variables: mockApi.graphqlCalls[0].variables,
+		}, {
+			pullRequests: [{
+				number: 3,
+				title: 'Fix CI',
+				url: 'https://github.com/o/r/pull/3',
+				updatedAt: '2026-08-07T12:00:00Z',
+				statusCheckRollupState: 'FAILURE',
+				latestCommitAt: '2026-08-07T09:00:00Z',
+			}],
+			variables: { query: 'repo:o/r is:pr is:open author:@me sort:updated-desc' },
+		});
+	});
+
+	test('queries review threads for one pull request independently', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setNextResponse({
+			repository: {
+				pullRequest: {
+					reviewThreads: {
+						nodes: [{
+							isResolved: false,
+							comments: { nodes: [{ createdAt: '2026-08-07T10:00:00Z' }] },
+						}],
+					},
+				},
+			},
+		});
+		const fetcher = new GitHubRecentUserWorkFetcher(mockApi as unknown as GitHubApiClient);
+
+		assert.deepStrictEqual({
+			reviewThreads: await fetcher.getPullRequestReviewThreads('o', 'r', 3, CancellationToken.None),
+			variables: mockApi.graphqlCalls[0].variables,
+		}, {
+			reviewThreads: [{ isResolved: false, latestCommentAt: '2026-08-07T10:00:00Z' }],
+			variables: { owner: 'o', repo: 'r', pullRequestNumber: 3 },
+		});
+	});
+
+	test('checks pull request linkage for issue summaries in one request', async () => {
+		const mockApi = new MockApiClient();
+		mockApi.setNextResponse({
+			repository: {
+				issue0: { closedByPullRequestsReferences: { totalCount: 1 } },
+				issue1: { closedByPullRequestsReferences: { totalCount: 0 } },
+			},
+		});
+		const fetcher = new GitHubRecentUserWorkFetcher(mockApi as unknown as GitHubApiClient);
+
+		assert.deepStrictEqual({
+			linkedIssues: [...await fetcher.getIssuesWithLinkedPullRequests('o', 'r', [1, 2], CancellationToken.None)],
+			variables: mockApi.graphqlCalls[0].variables,
+		}, {
+			linkedIssues: [1],
+			variables: { owner: 'o', repo: 'r', issue0: 1, issue1: 2 },
+		});
+	});
+});
 
 suite('GitHubRepositoryFetcher', () => {
 

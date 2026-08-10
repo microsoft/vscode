@@ -6,18 +6,18 @@
 import assert from 'assert';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentHostCodexAgentEnabledSettingId, AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentSession, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -77,6 +77,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
+	public onDisposeSession: ((session: URI) => void) | undefined;
+	public failDisposeSessionFor: string | undefined;
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
@@ -116,8 +118,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 */
 	public failListSessionsCount = 0;
 	public listSessionsCallCount = 0;
+	public listSessionsBarrier: DeferredPromise<void> | undefined;
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this.listSessionsCallCount++;
+		await this.listSessionsBarrier?.p;
 		if (this.failListSessionsCount > 0) {
 			this.failListSessionsCount--;
 			throw new Error('AHP_AUTH_REQUIRED');
@@ -128,7 +132,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async disposeSession(session: URI): Promise<void> {
 		this.disposedSessions.push(session);
 		const rawId = AgentSession.id(session);
+		if (rawId === this.failDisposeSessionFor) {
+			throw new Error(`Failed to dispose ${rawId}`);
+		}
 		this._sessions.delete(rawId);
+		this.onDisposeSession?.(session);
 	}
 
 	public disposedChats: URI[] = [];
@@ -354,9 +362,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string } }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean }): IAgentSessionMetadata {
 	let _meta = opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
+	if (opts?.adoptable) {
+		_meta = withSessionEhcliAdoptable(_meta);
+	}
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilotcli', id),
 		startTime: opts?.startTime ?? 1000,
@@ -706,7 +717,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('session type icons use per-agent codicons', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
 			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
 		]);
@@ -715,20 +726,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
 			[
 				{ id: 'copilotcli', icon: 'copilot' },
-				{ id: 'claude-code', icon: 'claude' },
+				{ id: 'claude', icon: 'claude' },
 				{ id: 'openai', icon: 'openai' },
 				{ id: 'unknown-agent', icon: 'vm' },
 			],
 		);
 	});
-
-	// ---- AH/EH gate (preferAgentHost) -------
-
-	// The agent host's Claude provider id is `claude`. In a window that prefers
-	// the extension-host Claude (the GitHub Copilot Chat extension's), the local
-	// provider must NOT advertise its own `claude` session type, otherwise the
-	// welcome picker lists Claude twice. Mirrors the EH-side gate in
-	// `copilotChatSessionsProvider`.
 
 	function fireConfigChange(configService: TestConfigurationService, settingId: string): void {
 		configService.onDidChangeConfigurationEmitter.fire({
@@ -739,26 +742,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
-	test('hides agent-host Claude when the Agents window prefers extension-host Claude', () => {
+	test('always advertises agent-host Claude', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli']);
-	});
-
-	test('shows agent-host Claude when the Agents window prefers agent-host Claude', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+		const provider = createProvider(disposables, agentHost);
 
 		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'claude']);
 	});
@@ -788,61 +777,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('gates agent-host Claude on the editor-window setting outside the Agents window', () => {
-		agentHost.setAgents([
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		// Editor-window setting on; Agents-window setting deliberately left off to
-		// prove the non-sessions-window provider reads the editor-window setting.
-		configService.setUserConfiguration(ClaudePreferAgentHostEditorSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: false });
-
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['claude']);
-	});
-
-	test('adds agent-host Claude live when preferAgentHost flips on', () => {
+	test('getSessions includes agent-host Claude sessions', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli']);
-
-		let fired = false;
-		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
-
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		fireConfigChange(configService, ClaudePreferAgentHostAgentsSettingId);
-
-		assert.ok(fired, 'onDidChangeSessionTypes should fire when the gate flips');
-		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), ['copilotcli', 'claude']);
-	});
-
-	test('getSessions hides agent-host Claude sessions when extension-host Claude is preferred', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
-		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
-
-		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['copilotcli']);
-	});
-
-	test('getSessions shows agent-host Claude sessions when agent-host Claude is preferred', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
 		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
 
@@ -850,72 +790,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.getSessions().map(s => s.sessionType).sort(),
 			['claude', 'copilotcli'],
 		);
-	});
-
-	test('flipping preferAgentHost reveals agent-host Claude sessions and fires a refresh', () => {
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
-		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
-		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['copilotcli']);
-
-		let fired = false;
-		disposables.add(provider.onDidChangeSessions(() => { fired = true; }));
-
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		fireConfigChange(configService, ClaudePreferAgentHostAgentsSettingId);
-
-		assert.ok(fired, 'onDidChangeSessions should fire so the open list re-queries');
-		assert.deepStrictEqual(
-			provider.getSessions().map(s => s.sessionType).sort(),
-			['claude', 'copilotcli'],
-		);
-	});
-
-	test('flipping preferAgentHost off does not announce hidden sessions as removed', () => {
-		// The list refresh fires an empty-payload change: hidden Claude sessions
-		// are filtered out at read time, not reported as `removed` (which the
-		// sessions telemetry contribution would misread as a remote deletion).
-		agentHost.setAgents([
-			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
-		]);
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
-		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
-		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), ['claude']);
-
-		const removed: string[] = [];
-		disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.sessionType))));
-
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, false);
-		fireConfigChange(configService, ClaudePreferAgentHostAgentsSettingId);
-
-		assert.deepStrictEqual(removed, [], 'hidden sessions must not be reported as removed');
-		assert.deepStrictEqual(provider.getSessions().map(s => s.sessionType), []);
 	});
 
 	test('session icons match the session type icon', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
 		]);
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'cli-sess', { title: 'CLI', provider: 'copilotcli' });
-		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude-code' });
+		fireSessionAdded(agentHost, 'claude-sess', { title: 'Claude', provider: 'claude' });
 		fireSessionAdded(agentHost, 'unknown-sess', { title: 'Unknown', provider: 'unknown-agent' });
 
 		assert.deepStrictEqual(
 			provider.getSessions().map(s => ({ sessionType: s.sessionType, icon: s.icon.id })).sort((a, b) => a.sessionType.localeCompare(b.sessionType)),
 			[
-				{ sessionType: 'claude-code', icon: 'claude' },
+				{ sessionType: 'claude', icon: 'claude' },
 				{ sessionType: 'copilotcli', icon: 'copilot' },
 				{ sessionType: 'unknown-agent', icon: 'vm' },
 			],
@@ -958,17 +849,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes[0].added[0].title.get(), 'Notif Session');
 	});
 
-	test('session removed notification removes from cache', () => {
+	test('session removed notification clears cache and metadata', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'to-remove', { title: 'Removed' });
+		const metadata = Reflect.get(provider, '_metaByRawId') as Map<string, IAgentSessionMetadata>;
 
 		const changes: ISessionChangeEvent[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
 		fireSessionRemoved(agentHost, 'to-remove');
 
-		assert.strictEqual(changes.length, 1);
-		assert.strictEqual(changes[0].removed.length, 1);
+		assert.deepStrictEqual({
+			removed: changes[0]?.removed.length,
+			session: provider.getSessions().find(s => s.title.get() === 'Removed'),
+			metadata: metadata.get('to-remove'),
+		}, {
+			removed: 1,
+			session: undefined,
+			metadata: undefined,
+		});
 	});
 
 	test('identical session added notification is ignored', () => {
@@ -1519,6 +1418,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ branch: undefined, files: undefined },
 			{ branch: 'feature', files: 2 },
 		]);
+	}));
+
+	test('a summaryChanged delta clearing the adoptable marker opens the passive state subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A surfaced-but-un-adopted legacy Copilot CLI session is not subscribed
+		// passively (subscribing would trigger an adopting restore). Once it is
+		// adopted, the host emits a `summaryChanged` clearing the marker; the
+		// client must then open the state subscription it previously skipped.
+		agentHost.addSession(createSession('adopt-sub', { summary: 'Legacy', adoptable: true }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		const lastStates = (provider as unknown as { _lastSessionStates: Map<string, SessionState> })._lastSessionStates;
+
+		const state: SessionState = {
+			provider: 'copilotcli',
+			title: 'Legacy',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+		};
+		// While adoptable the channel has no subscriber, so pushing a state has
+		// no effect on the client.
+		agentHost.setSessionState('adopt-sub', 'copilotcli', state);
+		assert.strictEqual(lastStates.get(session.sessionId), undefined, 'no passive subscription while adoptable');
+
+		fireSessionSummaryChanged(agentHost, 'adopt-sub', { _meta: undefined });
+		await timeout(0);
+
+		assert.strictEqual(lastStates.get(session.sessionId), state, 'subscription opens and applies the state once the marker clears');
 	}));
 
 	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -2225,10 +2155,57 @@ suite('LocalAgentHostSessionsProvider', () => {
 				children: [{ type: CustomizationType.Agent, id: 'agent://only', uri: 'agent://only', name: 'only' }],
 			}],
 		});
+
 		assert.deepStrictEqual(provider.getCustomAgents(session.sessionId), [
 			{ type: CustomizationType.Agent, id: 'agent://only', uri: 'agent://only', name: 'only' },
 		]);
 		assert.ok(fired > after, 'expected onDidChangeCustomAgents to fire again on a second update');
+	});
+
+	test('NewSession publishes Agent Host git metadata before the first message', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), sessionTypeId);
+		await timeout(0);
+		const rawId = session.resource.path.substring(1);
+
+		agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			customizations: [],
+			_meta: {
+				github: {
+					owner: 'partial-owner',
+				},
+				git: {
+					hasGitHubRemote: true,
+					githubOwner: 'microsoft',
+					githubRepo: 'vscode',
+					branchName: 'main',
+				},
+			},
+		});
+
+		const gitRepository = session.workspace.get()?.folders[0]?.gitRepository;
+		assert.deepStrictEqual({
+			hasGitHubRemote: gitRepository?.hasGitHubRemote,
+			branchName: gitRepository?.branchName,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		}, {
+			hasGitHubRemote: true,
+			branchName: 'main',
+			gitHubInfo: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequests: undefined,
+				pullRequest: undefined,
+				issues: undefined,
+			},
+		});
 	});
 
 	test('NewSession releases observed changeset subscriptions when inactive', async () => {
@@ -3408,21 +3385,85 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session actions -------
 
-	test('deleteSession calls disposeSession and removes from cache', async () => {
+	test('deleteSession releases all cached provider state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'del-sess', { title: 'To Delete' });
 
 		const sessions = provider.getSessions();
 		const target = sessions.find(s => s.title.get() === 'To Delete');
 		assert.ok(target);
+		const state: SessionState = {
+			provider: 'copilotcli',
+			title: 'To Delete',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+		};
+		agentHost.setSessionState('del-sess', 'copilotcli', state);
+		provider.getSessionConfig(target.sessionId);
 
-		await provider.deleteSession(target!.sessionId);
+		const metadata = Reflect.get(provider, '_metaByRawId') as Map<string, IAgentSessionMetadata>;
+		const lastStates = Reflect.get(provider, '_lastSessionStates') as Map<string, SessionState>;
+		const subscriptions = Reflect.get(provider, '_sessionStateSubscriptions') as DisposableMap<string, DisposableStore>;
+		const idleTimers = Reflect.get(provider, '_sessionStateIdleTimers') as DisposableMap<string>;
+		assert.deepStrictEqual({
+			metadata: metadata.has('del-sess'),
+			state: lastStates.has(target.sessionId),
+			subscription: subscriptions.has(target.sessionId),
+			timer: idleTimers.has(target.sessionId),
+		}, {
+			metadata: true,
+			state: true,
+			subscription: true,
+			timer: true,
+		});
 
-		assert.strictEqual(agentHost.disposedSessions.length, 1);
-		const disposedUri = agentHost.disposedSessions[0];
-		assert.strictEqual(AgentSession.provider(disposedUri), 'copilotcli');
-		assert.strictEqual(AgentSession.id(disposedUri), 'del-sess');
-		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'To Delete'), undefined);
+		await provider.deleteSession(target.sessionId);
+
+		assert.deepStrictEqual({
+			disposedSessions: agentHost.disposedSessions.map(uri => ({
+				provider: AgentSession.provider(uri),
+				id: AgentSession.id(uri),
+			})),
+			session: provider.getSessions().find(s => s.title.get() === 'To Delete'),
+			metadata: metadata.get('del-sess'),
+			state: lastStates.get(target.sessionId),
+			subscription: subscriptions.has(target.sessionId),
+			timer: idleTimers.has(target.sessionId),
+			unsubscribeCount: agentHost.sessionUnsubscribeCounts.get(AgentSession.uri('copilotcli', 'del-sess').toString()),
+		}, {
+			disposedSessions: [{ provider: 'copilotcli', id: 'del-sess' }],
+			session: undefined,
+			metadata: undefined,
+			state: undefined,
+			subscription: false,
+			timer: false,
+			unsubscribeCount: 1,
+		});
+	}));
+
+	test('deleteSession does not remove a session twice when the host also notifies', async () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'delete-notified', { title: 'Delete Notified' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Delete Notified');
+		assert.ok(target);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+		agentHost.onDisposeSession = session => fireSessionRemoved(agentHost, AgentSession.id(session));
+
+		await provider.deleteSession(target.sessionId);
+
+		assert.deepStrictEqual({
+			disposedSessions: agentHost.disposedSessions.length,
+			removedEvents: changes.filter(change => change.removed.length > 0).length,
+			session: provider.getSessions().find(s => s.title.get() === 'Delete Notified'),
+		}, {
+			disposedSessions: 1,
+			removedEvents: 1,
+			session: undefined,
+		});
 	});
 
 	test('deleteSessions disposes all sessions and removes them from cache', async () => {
@@ -3441,6 +3482,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.disposedSessions.map(uri => AgentSession.id(uri)).sort(), ['del-1', 'del-2']);
 		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'First'), undefined);
 		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'Second'), undefined);
+	});
+
+	test('deleteSessions publishes successful removals before propagating a later failure', async () => {
+		agentHost.addSession(createSession('delete-success', { summary: 'Delete Success' }));
+		agentHost.addSession(createSession('delete-failure', { summary: 'Delete Failure' }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const successful = provider.getSessions().find(s => s.title.get() === 'Delete Success');
+		const failing = provider.getSessions().find(s => s.title.get() === 'Delete Failure');
+		assert.ok(successful);
+		assert.ok(failing);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+		agentHost.failDisposeSessionFor = 'delete-failure';
+
+		await assert.rejects(provider.deleteSessions([successful.sessionId, failing.sessionId]), /Failed to dispose delete-failure/);
+
+		assert.deepStrictEqual({
+			removed: changes.flatMap(change => change.removed.map(session => session.title.get())),
+			successful: provider.getSessions().find(s => s.title.get() === 'Delete Success'),
+			failing: provider.getSessions().find(s => s.title.get() === 'Delete Failure')?.title.get(),
+		}, {
+			removed: ['Delete Success'],
+			successful: undefined,
+			failing: 'Delete Failure',
+		});
 	});
 
 	// ---- Rename -------
@@ -3688,9 +3756,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 				{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 			]);
-			const configService = new TestConfigurationService();
-			configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-			const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, isSessionsWindow: true });
+			const provider = createProvider(disposables, agentHost);
 			fireSessionAdded(agentHost, 'claude-sub', { title: 'Claude', provider: 'claude' });
 			const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'claude-sub');
 			assert.ok(session);
@@ -4457,6 +4523,82 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const committed = await request;
 		assert.strictEqual(committed.title.get(), 'Committed Late');
 	}));
+
+	test('sendRequest does not advertise a cached committed session alongside its draft', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (resource): Promise<ChatSendResult> => {
+				const rawId = AgentSession.id(resource);
+				agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+				fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		await timeout(0);
+
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		await draftAdvertised.p;
+		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+		agentHost.listSessionsBarrier.complete();
+		await request;
+
+		assert.deepStrictEqual({
+			count: advertised.length,
+			isDraft: advertised[0] === session,
+			resources: advertised.map(candidate => candidate.resource.toString()),
+		}, {
+			count: 1,
+			isDraft: true,
+			resources: [session.resource.toString()],
+		});
+	});
+
+	test('sessionAdded does not advertise a committed session alongside its pending draft', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		await timeout(0);
+
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const draftAdvertised = new DeferredPromise<void>();
+		disposables.add(provider.onDidChangeSessions(e => {
+			if (e.added.includes(session)) {
+				draftAdvertised.complete();
+			}
+		}));
+		agentHost.listSessionsBarrier = new DeferredPromise<void>();
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		await draftAdvertised.p;
+		const rawId = AgentSession.id(session.resource);
+		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
+		agentHost.listSessionsBarrier.complete();
+		await request;
+
+		assert.deepStrictEqual({
+			count: advertised.length,
+			isDraft: advertised[0] === session,
+			resources: advertised.map(candidate => candidate.resource.toString()),
+		}, {
+			count: 1,
+			isDraft: true,
+			resources: [session.resource.toString()],
+		});
+	});
 
 	test('sendRequest rejects when the provisional session is abandoned before commit', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {

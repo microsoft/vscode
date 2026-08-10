@@ -325,6 +325,33 @@ suite('SessionsLifecycleTracker', () => {
 		});
 	});
 
+	test('summary reports the multi-root workspace topology captured at first observation', () => {
+		const workspaceUri = URI.parse('file:///repo');
+		const gitFolder = URI.parse('file:///repo/app');
+		const nonGitFolder = URI.parse('file:///repo/notes');
+		const workspace = createWorkspace(workspaceUri, [
+			createFolder(gitFolder, { withGitRepository: true }),
+			createFolder(nonGitFolder),
+		]);
+		const session = createSession('s1', { workspace });
+
+		tracker.recordNewChatRequestSent(session);
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		assert.ok(summary);
+		assert.deepStrictEqual({
+			isMultiRoot: summary!.isMultiRoot,
+			folderCount: summary!.folderCount,
+			gitFolderCount: summary!.gitFolderCount,
+			nonGitFolderCount: summary!.nonGitFolderCount,
+		}, {
+			isMultiRoot: true,
+			folderCount: 2,
+			gitFolderCount: 1,
+			nonGitFolderCount: 1,
+		});
+	});
+
 	test('recordFirstRequestTaskInfo is a no-op when the session is not tracked', () => {
 		const session = createSession('s1');
 

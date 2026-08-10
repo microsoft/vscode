@@ -623,9 +623,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace('ahp-changeset-discard-added-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-added');
 		const changeset = buildUncommittedChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		await runBangTurn(sessionUri, 'turn-changeset-discard-added', writeFileCommand('untracked.txt', 'untracked'), 1);
 		const [file] = await waitForChangesetFiles(changeset, ['untracked.txt']);
+		await waitForIdleResourceOnlyOperation(changeset, 'discard-changes', initialOperations);
 
 		const statuses = await invokeDiscard(changeset, fileUri(file));
 
@@ -642,9 +644,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace('ahp-changeset-discard-deleted-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-deleted');
 		const changeset = buildUncommittedChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		await runBangTurn(sessionUri, 'turn-changeset-discard-deleted', deleteFileCommand('seed.txt'), 1);
 		const [file] = await waitForChangesetFiles(changeset, ['seed.txt']);
+		await waitForIdleResourceOnlyOperation(changeset, 'discard-changes', initialOperations);
 
 		const statuses = await invokeDiscard(changeset, fileUri(file));
 
@@ -665,7 +669,8 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git commit -q -m "sibling seed"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-one');
 		const changeset = buildUncommittedChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		await runBangTurn(
 			sessionUri,
 			'turn-changeset-discard-one',
@@ -673,6 +678,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			1,
 		);
 		const [first] = await waitForChangesetFiles(changeset, ['first.txt', 'second.txt']);
+		await waitForIdleResourceOnlyOperation(changeset, 'discard-changes', initialOperations);
 
 		await invokeDiscard(changeset, fileUri(first));
 		const state = await retry(async () => {
@@ -820,10 +826,12 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const branchChangeset = buildBranchChangesetUri(sessionUri);
 		const uncommittedChangeset = buildUncommittedChangesetUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchChangeset });
-		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedChangeset });
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedChangeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		await runBangTurn(sessionUri, 'turn-changeset-discard-last', writeFileCommand('seed.txt', 'edited'), 1);
 		await waitForChangesetFiles(branchChangeset, ['seed.txt']);
 		const [file] = await waitForChangesetFiles(uncommittedChangeset, ['seed.txt']);
+		await waitForIdleResourceOnlyOperation(uncommittedChangeset, 'discard-changes', initialOperations);
 
 		await invokeDiscard(uncommittedChangeset, fileUri(file));
 		await retry(async () => {

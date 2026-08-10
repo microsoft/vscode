@@ -73,7 +73,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -794,6 +794,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.scrollTop = value;
 	}
 
+	getViewState(): IChatWidgetViewState {
+		return {
+			scrollTop: this.listWidget.scrollTop,
+			isAtBottom: this.listWidget.isScrolledToBottom,
+		};
+	}
+
+	restoreViewState(state: IChatWidgetViewState): void {
+		if (state.isAtBottom) {
+			this.listWidget.scrollToEnd();
+		} else {
+			this.listWidget.scrollTop = state.scrollTop;
+		}
+	}
+
 	holdAutoScroll(): IDisposable {
 		return this.listWidget.acquireAutoScrollHold();
 	}
@@ -1290,6 +1305,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderGettingStartedTipIfNeeded(): void {
+		if (this.viewOptions.renderGettingStartedTip === false) {
+			this.clearGettingStartedTip();
+			return;
+		}
 		if (!this.inputPart || !this.viewModel) {
 			return;
 		}
@@ -2169,6 +2188,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
 			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
+			onDidChangeModelPickerVisibility: this.viewOptions.onDidChangeModelPickerVisibility,
+			inputPickerPosition: this.viewOptions.inputPickerPosition,
+			inputPickerContainer: this.viewOptions.inputPickerContainer,
+			inputPickerAnchor: this.viewOptions.inputPickerAnchor,
+			inputPickerOpenOnMouseUp: this.viewOptions.inputPickerOpenOnMouseUp,
 			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
 		};
 
@@ -2840,7 +2864,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Check if a custom submit handler wants to handle this submission
 		if (this.viewOptions.submitHandler) {
 			const inputValue = !query ? this.getInput() : query.query;
-			const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind);
+			const attachedContext = this.input.getAttachedContext().asArray();
+			const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
 			if (handled) {
 				return;
 			}
@@ -3495,7 +3520,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// no-op
 	}
 
-	getViewState(): IChatModelInputState | undefined {
+	getInputState(): IChatModelInputState | undefined {
 		return this.input.getCurrentInputState();
 	}
 
