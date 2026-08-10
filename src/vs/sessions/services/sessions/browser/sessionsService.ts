@@ -20,6 +20,7 @@ import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
@@ -172,6 +173,19 @@ export interface ISessionsService {
 	closeChat(session: IActiveSession, chat: IChat): Promise<void>;
 
 	/**
+	 * Reopen the single most recently closed chat or session and focus it.
+	 *
+	 * A closed chat is un-hidden in its session. A session that was closed
+	 * explicitly returns to the grid at the index it occupied; a session that
+	 * was pushed out of the grid by a newly opened one takes its slot back,
+	 * removing the session that replaced it.
+	 *
+	 * The entry is consumed, so pressing the shortcut repeatedly does not walk
+	 * further back through history. No-op when nothing is remembered.
+	 */
+	reopenLastClosedItem(): Promise<void>;
+
+	/**
 	 * Open the new-session composer.
 	 *
 	 * - Without `options.folderUri`: switch to the new-session view, restoring
@@ -274,6 +288,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _visibility: VisibleSessions;
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
 
+	/** Remembers the single most recently closed chat or session for {@link reopenLastClosedItem}. */
+	private readonly _closedItems: ClosedItemHistory;
+
 	/** The canonical active session — the visible active slot. */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
@@ -335,9 +352,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 			VisibleSessions,
 			session => this._restoreInitialChat(session),
 			session => this._restoreClosedChats(session),
+			(replaced, index, sticky, replacedBySessionId) => this._closedItems.recordReplacedSlot(replaced, index, sticky, replacedBySessionId),
 		));
 		this.visibleSessions = this._visibility.visibleSessions;
 		this.activeSession = this._visibility.activeSession;
+
+		this._closedItems = this._register(this.instantiationService.createInstance(
+			ClosedItemHistory,
+			this._visibility,
+			(session, chatResource) => this.openChat(session, chatResource),
+		));
 
 		// Bind active-session context keys. These reflect the visible active
 		// slot (the view's `activeSession`); `isNewChatSession` also consults
@@ -669,6 +693,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// session header's chats dropdown.
 		this._visibility.closeChat(session, chat);
 		this._setChatClosedState(session, chat, true);
+		this._closedItems.recordClosedChat(session, chat.resource);
+	}
+
+	reopenLastClosedItem(): Promise<void> {
+		return this._closedItems.reopenLast();
 	}
 
 	/**
@@ -885,6 +914,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// here means the empty slot is active.
 		const activeSessionId = this._visibility.activeSession.get()?.sessionId;
 		const wasActive = activeSessionId === sessionId;
+
+		// Remember the slot so Reopen Closed Chat or Session can put it back
+		// exactly where it was.
+		if (session) {
+			this._closedItems.recordClosedSession(session);
+		}
 
 		// Discard the in-progress new session when its slot (or the empty slot)
 		// is the one being closed; closing an unrelated session leaves it intact.

@@ -39,6 +39,7 @@ import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 
 const stubChat = {
@@ -196,15 +197,16 @@ function createSessionsManagementService(
 	provider: ISessionsProvider | readonly ISessionsProvider[] = new TestSessionsProvider(session),
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = new TestChatService();
 	const providers = Array.isArray(provider) ? provider : [provider];
+	const contextKeyService = disposables.add(new MockContextKeyService());
 
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
-	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(providers));
 	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
@@ -220,7 +222,7 @@ function createSessionsManagementService(
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const view = createView(instantiationService, service, disposables);
-	return { service, view, chatWidgetService, chatService };
+	return { service, view, chatWidgetService, chatService, contextKeyService };
 }
 
 /**
@@ -2638,6 +2640,135 @@ suite('SessionsManagementService', () => {
 			await second.restoreVisibleSessions();
 			await second.openSession(sessionB.resource);
 			assert.deepStrictEqual((second.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get()), ['b2']);
+		});
+	});
+
+	suite('reopenLastClosedItem', () => {
+
+		function chat(title: string): IChat {
+			return {
+				...stubChat,
+				resource: URI.parse(`test:///chat/${title}`),
+				title: constObservable(title),
+				status: constObservable(SessionStatus.Completed),
+			};
+		}
+
+		function multiChatSession(id: string, chats: IChat[]): ISession {
+			return stubSession({
+				sessionId: id,
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable(chats),
+				mainChat: constObservable(chats[0]),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+		}
+
+		function setup(sessions: ISession[]) {
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessions[0]); }
+				override getSessions(): ISession[] { return sessions; }
+			};
+			const { view, contextKeyService } = createSessionsManagementService(sessions[0], disposables, provider);
+			// The context key drives the command's palette visibility, and is the
+			// only external signal of whether an entry is remembered.
+			return { view, canReopen: () => contextKeyService.getContextKeyValue(SessionsHasClosedItemContext.key) === true };
+		}
+
+		const grid = (view: SessionsService) => ({
+			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
+			sticky: view.visibleSessions.get().map(s => s?.sticky.get() ?? false),
+			active: view.activeSession.get()?.sessionId ?? null,
+		});
+
+		test('reopens a closed chat, consuming the entry', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const { view, canReopen } = setup([sessionA]);
+
+			await view.openSession(sessionA.resource);
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(view.activeSession.get()!, chatB);
+			const afterClose = canReopen();
+
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual({
+				afterClose,
+				closed: view.activeSession.get()!.closedChats.get().map(c => c.title.get()),
+				open: view.activeSession.get()!.openChats.get().map(c => c.title.get()),
+				canReopenAgain: canReopen(),
+			}, {
+				afterClose: true,
+				closed: [],
+				open: ['mainA', 'b'],
+				canReopenAgain: false,
+			});
+		});
+
+		test('an explicitly closed session returns to its grid index', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			// Pin A so opening B adds a second slot instead of replacing it.
+			await view.openSession(sessionA.resource);
+			view.toggleSessionStickiness(sessionA);
+			await view.openSession(sessionB.resource);
+
+			view.closeSession(sessionA);
+			const afterClose = grid(view);
+
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual({ afterClose, afterReopen: grid(view) }, {
+				afterClose: { visible: ['B'], sticky: [false], active: 'B' },
+				afterReopen: { visible: ['A', 'B'], sticky: [true, false], active: 'A' },
+			});
+		});
+
+		test('a session pushed out of the grid takes its slot back', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openSession(sessionB.resource);
+			const afterReplace = grid(view);
+
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual({ afterReplace, afterReopen: grid(view) }, {
+				afterReplace: { visible: ['B'], sticky: [false], active: 'B' },
+				afterReopen: { visible: ['A'], sticky: [false], active: 'A' },
+			});
+		});
+
+		test('remembers only the most recently closed item', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(view.activeSession.get()!, chatB);
+			// Opening B pushes A out of the grid, superseding the closed-chat entry.
+			await view.openSession(sessionB.resource);
+
+			await view.reopenLastClosedItem();
+			// The entry is consumed, so pressing again must not walk back to the
+			// superseded closed chat.
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual({
+				...grid(view),
+				closedChats: view.activeSession.get()!.closedChats.get().map(c => c.title.get()),
+			}, {
+				visible: ['A'],
+				sticky: [false],
+				active: 'A',
+				closedChats: ['b'],
+			});
 		});
 	});
 
