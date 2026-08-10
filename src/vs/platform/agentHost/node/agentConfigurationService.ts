@@ -17,7 +17,7 @@ import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
-import { ActionType } from '../common/state/sessionActions.js';
+import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentSession } from '../common/agentService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -28,6 +28,7 @@ export const IAgentConfigurationService = createDecorator<IAgentConfigurationSer
 export interface IAgentSessionConfigurationChangeEvent {
 	readonly session: ProtocolURI;
 	readonly config: Record<string, unknown>;
+	readonly origin: ActionOrigin | undefined;
 }
 
 /**
@@ -205,6 +206,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				this._onDidSessionConfigChange.fire({
 					session: envelope.channel,
 					config: envelope.action.config,
+					origin: envelope.origin,
 				});
 			}
 		}));

@@ -32,7 +32,6 @@ import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.j
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
-	buildDefaultChatUri,
 	buildSubagentChatUri,
 	chatStorageUri,
 	getToolFileEdits,
@@ -1632,23 +1631,6 @@ export class AgentSideEffects extends Disposable {
 					} else if (isolation === 'folder') {
 						this._worktree.clearPending(sessionId);
 					}
-				}
-				// This case is reached only for client-dispatched config changes
-				// (a user picker edit); internal server-side writes use
-				// `dispatchServerAction` and never land here. So the provider can
-				// forward a live, session-mutable change (e.g. Claude's
-				// `permissionMode`) to its running SDK without re-entering its own
-				// tool callbacks.
-				const agent = this._options.getAgent(channel);
-				if (agent?.onChatConfigChanged) {
-					const chats = sessionState?.chats.length
-						? sessionState.chats.map(chat => URI.parse(chat.resource))
-						: [URI.parse(buildDefaultChatUri(channel))];
-					for (const chat of chats) {
-						agent.onChatConfigChanged(chat, values ?? {});
-					}
-				} else {
-					agent?.onSessionConfigChanged?.(URI.parse(channel), values ?? {});
 				}
 				break;
 			}

@@ -1931,20 +1931,6 @@ export interface IAgent {
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
-	 * Notifies the provider that a **client** (user) changed this session's
-	 * config — e.g. via an approvals/model picker. `values` is the post-reducer
-	 * merged config. Lets the provider propagate a session-mutable change (such
-	 * as Claude's `permissionMode`) to a running SDK mid-turn. Fires only for
-	 * client-originated changes; internal server-side config writes (e.g. a tool
-	 * persisting a mode) do NOT trigger it, so a provider can forward freely
-	 * without re-entering its own SDK callbacks. Optional.
-	 */
-	onSessionConfigChanged?(session: URI, values: Record<string, unknown>): void;
-
-	/** Notifies the provider that a client changed the addressed chat's inherited session config. */
-	onChatConfigChanged?(chat: URI, values: Record<string, unknown>): void;
-
-	/**
 	 * Get (or lazily create) the per-session handle for an active client,
 	 * identified by `clientId`. Mutating the returned {@link IActiveClient}'s
 	 * `tools` / `customizations` updates only that client's contribution; the

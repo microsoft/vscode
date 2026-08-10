@@ -601,6 +601,16 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
+		this._register(this._configurationService.onDidSessionConfigChange(event => {
+			if (!event.origin || event.session !== ctx.configResource.toString()) {
+				return;
+			}
+			const inheritedMode = readClaudePermissionMode(this._configurationService, ctx.configResource);
+			const mode = inheritedMode ?? this.permissionModeFallback;
+			this.setInheritedPermissionMode(inheritedMode).catch(err => {
+				this._logService.warn(`[Claude:${this.sessionId}] mid-turn setPermissionMode(${mode}) failed`, err);
+			});
+		}));
 		// The materialize succeeded with the staged anchor applied to `Options`
 		// — clear it now so it isn't re-applied. A throw before this point (e.g.
 		// `startup` / pipeline-create) leaves it staged for the next retry.

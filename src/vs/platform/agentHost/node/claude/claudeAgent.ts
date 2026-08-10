@@ -2355,18 +2355,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	onChatConfigChanged(chat: URI, values: Record<string, unknown>): void {
-		const target = this._resolveChatContext(chat).target;
-		if (!target) {
-			return;
-		}
-		const narrowed = narrowClaudePermissionMode(values[ClaudeSessionConfigKey.PermissionMode]);
-		const mode = narrowed ?? target.permissionModeFallback;
-		target.setInheritedPermissionMode(narrowed).catch(err => {
-			this._logService.warn(`[Claude:${target.sessionId}] mid-turn setPermissionMode(${mode}) failed`, err);
-		});
-	}
-
 	private async _changeModel(chat: URI, model: ModelSelection, operationContext?: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(context.sequencerKey, async () => {

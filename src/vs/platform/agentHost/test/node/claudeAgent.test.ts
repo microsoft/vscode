@@ -4083,13 +4083,8 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('onChatConfigChanged forwards a mid-turn picker change and reverts to the fallback when the key is deleted (issue #321691)', async () => {
-		// The host calls this hook for user/picker changes only (internal server
-		// writes like ExitPlanMode never route here), so it forwards the new mode
-		// to the live Query so the next tool this turn auto-approves — without
-		// waiting for the next send(). A `replace` that deletes `permissionMode`
-		// reverts the Query to the fallback the next send() would apply.
-		const { agent, sdk } = createTestContext(disposables);
+	test('configuration events forward a mid-turn picker change and revert to the fallback when the key is deleted (issue #321691)', async () => {
+		const { agent, sdk, stateManager } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const created = await agent.createSession({
@@ -4097,6 +4092,18 @@ suite('ClaudeAgent', () => {
 			config: { permissionMode: 'default' },
 		});
 		const sessionId = AgentSession.id(created.session);
+		stateManager.createSession({
+			resource: created.session.toString(),
+			provider: agent.id,
+			title: '',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		});
+		stateManager.setSessionConfig(created.session.toString(), {
+			schema: { type: 'object', properties: {} },
+			values: { permissionMode: 'default' },
+		});
 
 		// Park the turn mid-flight (materialized, query live) until released.
 		const reached = new DeferredPromise<void>();
@@ -4112,11 +4119,16 @@ suite('ClaudeAgent', () => {
 		const turn = agent.chats.sendMessage(defaultChatUri(created.session), 'edit a file', undefined, undefined, 't1');
 		await reached.p;
 
-		// Picker switches to Bypass Permissions...
-		agent.onChatConfigChanged(defaultChatUri(created.session), { permissionMode: 'bypassPermissions' });
+		stateManager.dispatchClientAction(created.session.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { permissionMode: 'bypassPermissions' },
+		}, { clientId: 'picker', clientSeq: 1 });
 		await tick();
-		// ...then a `replace` deletes the key, reverting to the 'default' fallback.
-		agent.onChatConfigChanged(defaultChatUri(created.session), {});
+		stateManager.dispatchClientAction(created.session.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: {},
+			replace: true,
+		}, { clientId: 'picker', clientSeq: 2 });
 		await tick();
 
 		const recordedMidTurn = [...(sdk.warmQueries.at(-1)?.produced?.recordedPermissionModes ?? [])];
@@ -6078,6 +6090,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		// loop unwinds and the subprocess shuts down cleanly.
 		const sdk = new FakeClaudeAgentSdkService();
 		const fakeConfigService: IAgentConfigurationService = {
+			onDidSessionConfigChange: Event.None,
 			getSessionConfigValues: () => undefined,
 		} as unknown as IAgentConfigurationService;
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -6566,14 +6579,13 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'The user cancelled the question' });
 	});
 
-	test('Test 12b — ExitPlanMode: Approve persists permissionMode=acceptEdits to session config and returns allow without a live SDK call', async () => {
+	test('Test 12b — ExitPlanMode: Approve persists permissionMode=acceptEdits without a reentrant live SDK call', async () => {
 		// Calling `Query.setPermissionMode` synchronously inside
 		// `canUseTool` collides with the SDK's control channel (which
 		// is mid-flight delivering the canUseTool request) and leaves
 		// the turn unable to resume. Mirror production: write the new
-		// mode to `IAgentConfigurationService` and let the next
-		// `sendMessage` forward it via `entry.setPermissionMode(...)`
-		// between turns.
+		// mode to `IAgentConfigurationService`. The session ignores this
+		// server-originated event to avoid a reentrant SDK control request.
 		const { ctx, canUseTool, sessionUri } = await materialize();
 
 		const signals: AgentSignal[] = [];
@@ -8595,10 +8607,22 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('onChatConfigChanged keeps the inherited additional mode on the next send', async () => {
-		const { agent, sdk } = createTestContext(disposables);
+	test('configuration events keep the inherited additional mode on the next send', async () => {
+		const { agent, sdk, stateManager } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await agent.createSession({ workingDirectories: [URI.file('/work')], config: { permissionMode: 'default' } });
+		stateManager.createSession({
+			resource: created.session.toString(),
+			provider: agent.id,
+			title: '',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		});
+		stateManager.setSessionConfig(created.session.toString(), {
+			schema: { type: 'object', properties: {} },
+			values: { permissionMode: 'default' },
+		});
 		const chat = URI.parse(buildChatUri(created.session, 'chat-1'));
 		const result = await agent.chats.createChat(chat, created.session, { inheritedContext: inheritedChatContext() });
 		const additionalId = AgentSession.id(result!.backingSession!);
@@ -8608,7 +8632,10 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		];
 		await agent.chats.sendMessage(chat, 'first', undefined, undefined, 'turn-1');
 
-		agent.onChatConfigChanged(chat, { permissionMode: 'bypassPermissions' });
+		stateManager.dispatchClientAction(created.session.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { permissionMode: 'bypassPermissions' },
+		}, { clientId: 'picker', clientSeq: 1 });
 		await tick();
 		await agent.chats.sendMessage(chat, 'second', undefined, undefined, 'turn-2');
 
@@ -8639,7 +8666,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats.releaseChat(chat);
 
 		configService.updateSessionConfig(created.session.toString(), { permissionMode: 'bypassPermissions' });
-		agent.onChatConfigChanged(chat, { permissionMode: 'bypassPermissions' });
 		sdk.sessionList = [{ sessionId: additionalId, summary: 'additional', lastModified: 1, cwd: URI.file('/work').fsPath }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(additionalId), makeResultSuccess(additionalId)];
 		await agent.chats.sendMessage(chat, 'second', undefined, undefined, 'turn-2');

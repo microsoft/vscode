@@ -465,9 +465,10 @@ one meaning: add an additional chat to an already-provisioned session.
   peers first and the default last. Each chat hook is exact; an agent never
   cascades from the default chat to siblings. Providers without `releaseChat`
   retain the legacy `releaseSession` fallback.
-- **Config.** `AgentSideEffects` fans merged session config values out through
-  optional `onChatConfigChanged(chat, values)`. Providers without it retain the
-  legacy `onSessionConfigChanged` hook.
+- **Config.** Live provider runtimes that react to session config subscribe to
+  `IAgentConfigurationService.onDidSessionConfigChange` using their explicit
+  config resource. `AgentSideEffects` does not enumerate chats or fan config
+  values through provider hooks.
 - **Enumerate.** `AgentService.listSessions` enumerates
   `AgentSessionRegistry`, asks the registered provider for that exact session's
   metadata via `getSessionMetadata`, and applies persisted and live state

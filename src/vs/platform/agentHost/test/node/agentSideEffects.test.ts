@@ -1686,7 +1686,11 @@ suite('AgentSideEffects', () => {
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(chatChannel) }]);
+			assert.deepStrictEqual(agent.changeModelCalls.map(call => ({
+				session: call.session.toString(),
+				model: call.model,
+				chat: call.chat?.toString(),
+			})), [{ session: sessionUri.toString(), model: { id: 'gpt-5' }, chat: chatChannel }]);
 		});
 	});
 
@@ -1720,7 +1724,11 @@ suite('AgentSideEffects', () => {
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: URI.parse(chatChannel) }]);
+			assert.deepStrictEqual(agent.changeAgentCalls.map(call => ({
+				session: call.session.toString(),
+				agent: call.agent,
+				chat: call.chat?.toString(),
+			})), [{ session: sessionUri.toString(), agent: { uri: 'file:///agents/reviewer.md' }, chat: chatChannel }]);
 		});
 	});
 
@@ -2558,11 +2566,15 @@ suite('AgentSideEffects', () => {
 			});
 
 			await waitForSendMessageCalls(1);
-			assert.deepStrictEqual(agent.sendMessageCalls, [{
-				session: URI.parse(sessionUri.toString()),
+			assert.deepStrictEqual(agent.sendMessageCalls.map(call => ({
+				...call,
+				session: call.session.toString(),
+				chat: call.chat?.toString(),
+			})), [{
+				session: sessionUri.toString(),
 				prompt: 'peer queued',
 				attachments: undefined,
-				chat: URI.parse(chatUri.toString()),
+				chat: chatUri.toString(),
 			}]);
 		});
 
@@ -4359,95 +4371,6 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
-		test('SessionConfigChanged notifies the agent with the post-reducer merged values', async () => {
-			// The client-action side-effects path is where a picker edit lands
-			// (internal server writes use `dispatchServerAction` and never reach
-			// `handleAction`), so forwarding a live config change to the provider
-			// from here is inherently client-only. Pins that `onSessionConfigChanged`
-			// receives the full merged config, not just the patch.
-			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const localAgent = new MockAgent();
-			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
-				getAgent: () => localAgent,
-				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
-				sessionDataService: createSessionDataService(sessionDb),
-				onTurnComplete: () => { },
-			});
-
-			const session = localStateManager.createSession({
-				resource: sessionUri.toString(),
-				provider: 'mock',
-				title: 'Initial',
-				status: SessionStatus.Idle,
-				createdAt: new Date().toISOString(),
-				modifiedAt: new Date().toISOString(),
-			});
-			// Seed a second key the patch does NOT touch: if the hook received the
-			// raw patch instead of the merged values, `autoApprove` would be
-			// missing — so asserting it survives pins the "merged values" contract.
-			session.config = { schema: { type: 'object', properties: {} }, values: { permissionMode: 'default', autoApprove: 'default' } };
-
-			localStateManager.dispatchClientAction(sessionUri.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: { permissionMode: 'bypassPermissions' },
-			}, { clientId: 'test-client', clientSeq: 1 });
-			localSideEffects.handleAction(sessionUri.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: { permissionMode: 'bypassPermissions' },
-			});
-
-			assert.deepStrictEqual(localAgent.onSessionConfigChangedCalls.map(c => ({ session: c.session.toString(), values: c.values })), [{
-				session: sessionUri.toString(),
-				values: { permissionMode: 'bypassPermissions', autoApprove: 'default' },
-			}]);
-		});
-
-		test('SessionConfigChanged fans merged values out to concrete chats when supported', () => {
-			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const localAgent = new MockAgent();
-			disposables.add(toDisposable(() => localAgent.dispose()));
-			const chatConfigCalls: { chat: string; values: Record<string, unknown> }[] = [];
-			const localAgentContract: IAgent = localAgent;
-			localAgentContract.onChatConfigChanged = (chat, values) => chatConfigCalls.push({ chat: chat.toString(), values });
-			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
-				getAgent: () => localAgent,
-				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
-				sessionDataService: createSessionDataService(sessionDb),
-				onTurnComplete: () => { },
-			});
-			const session = localStateManager.createSession({
-				resource: sessionUri.toString(),
-				provider: 'mock',
-				title: 'Initial',
-				status: SessionStatus.Idle,
-				createdAt: new Date().toISOString(),
-				modifiedAt: new Date().toISOString(),
-			});
-			session.config = { schema: { type: 'object', properties: {} }, values: { permissionMode: 'default', autoApprove: 'default' } };
-			const peerChat = buildChatUri(sessionUri, 'peer-1');
-			localStateManager.addChat(sessionUri.toString(), peerChat, {});
-
-			localStateManager.dispatchClientAction(sessionUri.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: { permissionMode: 'bypassPermissions' },
-			}, { clientId: 'test-client', clientSeq: 1 });
-			localSideEffects.handleAction(sessionUri.toString(), {
-				type: ActionType.SessionConfigChanged,
-				config: { permissionMode: 'bypassPermissions' },
-			});
-
-			assert.deepStrictEqual({
-				chatConfigCalls,
-				sessionConfigCalls: localAgent.onSessionConfigChangedCalls,
-			}, {
-				chatConfigCalls: [
-					{ chat: defaultChatUri, values: { permissionMode: 'bypassPermissions', autoApprove: 'default' } },
-					{ chat: peerChat, values: { permissionMode: 'bypassPermissions', autoApprove: 'default' } },
-				],
-				sessionConfigCalls: [],
-			});
-		});
 	});
 
 	// ---- Subagent sessions ----------------------------------------------
