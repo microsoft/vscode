@@ -759,4 +759,7 @@ export const codiconsLibrary = {
 	cloudUploadCompact: register('cloud-upload-compact', 0xece9),
 	micCompact: register('mic-compact', 0xecea),
 	arrowUpCompact: register('arrow-up-compact', 0xeceb),
+	xai: register('xai', 0xecec),
+	arrowCircleUpSparkle: register('arrow-circle-up-sparkle', 0xeced),
+	closeSmall: register('close-small', 0xecee),
 } as const;

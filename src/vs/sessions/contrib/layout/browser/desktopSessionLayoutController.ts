@@ -470,11 +470,8 @@ export class LayoutController extends BaseLayoutController {
 	 * outcome just captures the resulting state, preserving an explicit aux-bar
 	 * hide. See `desktopSessionLayoutController.md`.
 	 */
-	protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean): void {
+	protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
 		if (this.multipleSessionsVisibleObs.get()) {
-			return;
-		}
-		if (this._layoutService.isEditorMaximized()) {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
@@ -482,7 +479,7 @@ export class LayoutController extends BaseLayoutController {
 			return;
 		}
 		if (!activeSession.isCreated.get()) {
-			this._setNewSessionViewState({ auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) });
+			this._setNewSessionViewState({ auxiliaryBarVisible });
 			return;
 		}
 		if (collapsed && previousAuxiliaryBarVisible) {

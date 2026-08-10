@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { mkdtempSync, rmSync } from 'fs';
+import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -94,6 +94,49 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.strictEqual(result.upstreamBranchName, undefined);
 		assert.strictEqual(result.outgoingChanges, undefined);
 		assert.strictEqual(result.incomingChanges, undefined);
+	});
+
+	(hasGit ? test : test.skip)('reports the GitHub owner of the branch upstream remote', async () => {
+		const dir = initRepo({ remote: 'https://github.com/base-owner/repo.git' });
+		cp.execFileSync('git', ['remote', 'add', 'fork', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/fork/feature', 'HEAD'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '--set-upstream-to', 'fork/feature'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({
+			githubOwner: result?.githubOwner,
+			githubHeadOwner: result?.githubHeadOwner,
+			githubRepo: result?.githubRepo,
+			upstreamBranchName: result?.upstreamBranchName,
+		}, {
+			githubOwner: 'base-owner',
+			githubHeadOwner: 'fork-owner',
+			githubRepo: 'repo',
+			upstreamBranchName: 'fork/feature',
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports the GitHub owner of a branch push remote without an upstream', async () => {
+		const dir = initRepo({ remote: 'https://github.com/base-owner/repo.git' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.remote', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.pushremote', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({
+			githubOwner: result?.githubOwner,
+			githubHeadOwner: result?.githubHeadOwner,
+			githubRepo: result?.githubRepo,
+			upstreamBranchName: result?.upstreamBranchName,
+		}, {
+			githubOwner: 'base-owner',
+			githubHeadOwner: 'fork-owner',
+			githubRepo: 'repo',
+			upstreamBranchName: undefined,
+		});
 	});
 
 	(hasGit ? test : test.skip)('resolves the default branch name and remote-tracking start point', async () => {
@@ -529,6 +572,109 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const wtPath = join(dir, '..', `wt-dirty-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/dirty-worktree', 'main');
+			await fs.writeFile(join(wtPath, 'untracked.txt'), 'keep me');
+
+			let safeRemovalFailed = false;
+			try {
+				await svc!.removeWorktree(URI.file(dir), URI.file(wtPath));
+			} catch {
+				safeRemovalFailed = true;
+			}
+			const existsAfterSafeRemoval = existsSync(wtPath);
+
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+
+			assert.deepStrictEqual({
+				safeRemovalFailed,
+				existsAfterSafeRemoval,
+				existsAfterForcedRemoval: existsSync(wtPath),
+			}, {
+				safeRemovalFailed: true,
+				existsAfterSafeRemoval: true,
+				existsAfterForcedRemoval: false,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/dirty-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('removeWorktree prunes a lingering admin entry when the working tree is already gone', async () => {
+		const dir = initRepo();
+		const suffix = `wt-prune-${Date.now()}`;
+		const wtPath = join(dir, '..', suffix);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/prune-worktree', 'main');
+			// Reproduce the CI teardown race: the working tree directory is gone
+			// but git still holds the `.git/worktrees/<id>` admin entry, so a plain
+			// `git worktree remove` fails — removeWorktree must fall back to prune.
+			rmSync(wtPath, { recursive: true, force: true });
+			const listedBefore = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+
+			const listedAfter = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+			assert.deepStrictEqual({
+				registeredBefore: listedBefore.includes(suffix),
+				registeredAfter: listedAfter.includes(suffix),
+			}, {
+				registeredBefore: true,
+				registeredAfter: false,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/prune-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	// Windows is excluded like the other chmod-based tests above: `chmod` does not
+	// convey POSIX directory permissions there, so prune's delete still succeeds
+	// and the masking scenario cannot be reproduced.
+	(hasGit && !isWindows ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async function () {
+		// Root bypasses the directory permission that makes prune fail, so this
+		// masking scenario cannot be reproduced there.
+		if (typeof process.getuid === 'function' && process.getuid() === 0) {
+			this.skip();
+		}
+		const dir = initRepo();
+		const suffix = `wt-leak-${Date.now()}`;
+		const wtPath = join(dir, '..', suffix);
+		const adminParent = join(dir, '.git', 'worktrees');
+		let adminDir: string | undefined;
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/leak-worktree', 'main');
+			adminDir = join(adminParent, readdirSync(adminParent)[0]);
+			// Working tree gone → removeWorktree takes the prune path. Making the
+			// admin dir read-only forces prune's recursive delete to fail; git
+			// can exit 0 while leaving the entry registered (the masking bug).
+			rmSync(wtPath, { recursive: true, force: true });
+			chmodSync(adminDir, 0o500);
+
+			await assert.rejects(
+				svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }),
+				'removeWorktree must reject when the worktree stays registered, not report a false success',
+			);
+
+			const listed = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+			assert.ok(listed.includes(suffix), 'the still-registered worktree must surface as a leak, not be masked');
+		} finally {
+			if (adminDir) {
+				try { chmodSync(adminDir, 0o700); } catch { /* best-effort cleanup */ }
+			}
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/leak-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
 	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
@@ -547,7 +693,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
 			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
 		} finally {
-			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
@@ -625,7 +771,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				progressDone: 5,
 			});
 		} finally {
-			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}

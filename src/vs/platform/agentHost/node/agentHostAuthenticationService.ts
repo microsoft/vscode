@@ -76,6 +76,27 @@ export class AgentHostAuthenticationService {
 		return { authenticated };
 	}
 
+	async replay(provider: IAgent): Promise<void> {
+		const protectedResources = new Set(provider.getProtectedResources().map(resource => resource.resource));
+		for (const stored of this._tokens.values()) {
+			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, token: stored.token };
+			if (protectedResources.has(stored.resource)) {
+				try {
+					await provider.authenticate(stored.resource, stored.token);
+				} catch (error) {
+					this._logService.error(error, `[AgentHostAuthenticationService] Provider '${provider.id}' rejected replayed authentication for resource=${stored.resource}`);
+				}
+			}
+			if (provider.handleAuthenticationToken) {
+				try {
+					await provider.handleAuthenticationToken(params);
+				} catch (error) {
+					this._logService.error(error, `[AgentHostAuthenticationService] Provider '${provider.id}' rejected replayed session authentication for resource=${stored.resource}`);
+				}
+			}
+		}
+	}
+
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
 		const scopes = this._normalizeScopes(request.scopes);
 		const exact = this._tokens.get(this._key(request.resource, scopes));

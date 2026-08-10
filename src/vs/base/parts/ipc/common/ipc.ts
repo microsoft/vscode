@@ -1138,11 +1138,18 @@ export namespace ProxyChannel {
 		disableMarshalling?: boolean;
 	}
 
-	export interface ICreateServiceChannelOptions extends IProxyOptions { }
+	export interface ICreateServiceChannelOptions extends IProxyOptions {
+
+		/**
+		 * Events that should subscribe lazily and not replay emissions before the first IPC listener.
+		 */
+		unbufferedEvents?: readonly string[];
+	}
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options?.disableMarshalling;
+		const unbufferedEvents = options?.unbufferedEvents ? new Set(options.unbufferedEvents) : undefined;
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
@@ -1151,7 +1158,7 @@ export namespace ProxyChannel {
 		// still need to check later (see below).
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
-			if (propertyIsEvent(key)) {
+			if (propertyIsEvent(key) && !unbufferedEvents?.has(key)) {
 				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables));
 			}
 		}
@@ -1171,6 +1178,10 @@ export namespace ProxyChannel {
 					}
 
 					if (propertyIsEvent(event)) {
+						if (unbufferedEvents?.has(event)) {
+							return handler[event] as Event<T>;
+						}
+
 						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
