@@ -36,7 +36,7 @@ suite('toolRiskBadgeHelper', () => {
 		]);
 	});
 
-	function createFakes(store: DisposableStore) {
+	function createFakes(store: Pick<DisposableStore, 'add'>) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IHoverService, NullHoverService);
 		const languageModelToolsService = new class extends mock<ILanguageModelToolsService>() {
