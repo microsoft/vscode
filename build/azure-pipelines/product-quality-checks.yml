@@ -367,8 +367,8 @@ jobs:
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
         displayName: "Build merged NOTICE (scan extensions + merge into .new.txt)"
+        timeoutInMinutes: 10
         continueOnError: true
-        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 
       - task: AzureCLI@2
         displayName: Fetch secrets
