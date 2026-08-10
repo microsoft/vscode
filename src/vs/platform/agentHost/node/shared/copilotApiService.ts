@@ -43,8 +43,6 @@ export interface ICopilotApiServiceRequestOptions {
 	 * `ClaudeStreamingPassThroughEndpoint.getEndpointFetchOptions()`.
 	 */
 	readonly suppressIntegrationId?: boolean;
-	/** Allow utility completions to use the GitHub OAuth token when Copilot token minting is forbidden. */
-	readonly allowGitHubTokenFallback?: boolean;
 }
 
 /**
@@ -281,17 +279,6 @@ export class CopilotApiError extends Error {
 	) {
 		super(message ?? envelope.error.message);
 		this.name = 'CopilotApiError';
-	}
-}
-
-class CopilotTokenMintError extends Error {
-	constructor(
-		readonly status: number,
-		statusText: string,
-		bodyText: string,
-	) {
-		super(`Copilot session token mint failed: ${status} ${statusText} \u2014 ${bodyText}`);
-		this.name = 'CopilotTokenMintError';
 	}
 }
 
@@ -701,18 +688,6 @@ export class CopilotApiService implements ICopilotApiService {
 		options?: ICopilotApiServiceRequestOptions,
 	): Promise<string> {
 		const capiClient = await this._getClientForToken(githubToken);
-		let authToken: string;
-		let usingGitHubToken = false;
-		try {
-			authToken = await this._getCopilotToken(githubToken);
-		} catch (error) {
-			if (!options?.allowGitHubTokenFallback || !(error instanceof CopilotTokenMintError) || error.status !== 403) {
-				throw error;
-			}
-			this._logService.warn('[CopilotApiService] Copilot session token mint was forbidden; using the GitHub OAuth token for utility completion');
-			authToken = githubToken;
-			usingGitHubToken = true;
-		}
 		const modelId = await this._resolveUtilityModelId(githubToken, UTILITY_DEFAULT_MODEL_FAMILY);
 		const requestId = generateUuid();
 
@@ -733,7 +708,7 @@ export class CopilotApiService implements ICopilotApiService {
 				headers: {
 					...options?.headers,
 					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${authToken}`,
+					'Authorization': `Bearer ${githubToken}`,
 					'X-Request-Id': requestId,
 					'OpenAI-Intent': UTILITY_INTENT,
 				},
@@ -745,11 +720,7 @@ export class CopilotApiService implements ICopilotApiService {
 
 		if (!response.ok) {
 			if (response.status === 401 || response.status === 403) {
-				if (usingGitHubToken) {
-					this._invalidateClientForToken(githubToken);
-				} else {
-					this._invalidateCopilotTokenForGithub(githubToken);
-				}
+				this._invalidateClientForToken(githubToken);
 			}
 			const text = await response.text().catch(() => '');
 			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI chat completion request failed');
@@ -1062,10 +1033,6 @@ export class CopilotApiService implements ICopilotApiService {
 	 * deliberately NOT forwarded so cancelling one caller does not poison
 	 * the shared mint for the others.
 	 */
-	private _getCopilotToken(githubToken: string): Promise<string> {
-		return this._getCopilotTokenEntry(githubToken).then(entry => entry.token);
-	}
-
 	private _getCopilotTokenEntry(githubToken: string): Promise<ICachedCopilotToken> {
 		const nowSeconds = Date.now() / 1000;
 		const existing = this._copilotTokensByGithub.get(githubToken);
@@ -1125,7 +1092,7 @@ export class CopilotApiService implements ICopilotApiService {
 
 		if (!response.ok) {
 			const text = await response.text().catch(() => '');
-			throw new CopilotTokenMintError(response.status, response.statusText, text);
+			throw new Error(`Copilot session token mint failed: ${response.status} ${response.statusText} \u2014 ${text}`);
 		}
 
 		const envelope = await response.json() as ICopilotTokenEnvelope;
@@ -1155,10 +1122,6 @@ export class CopilotApiService implements ICopilotApiService {
 			isInternal: organizationList.some(organization => INTERNAL_COPILOT_ORGANIZATIONS.has(organization)),
 			isVscodeTeamMember: organizationList.some(organization => VSCODE_COPILOT_ORGANIZATIONS.has(organization)),
 		};
-	}
-
-	private _invalidateCopilotTokenForGithub(githubToken: string): void {
-		this._copilotTokensByGithub.delete(githubToken);
 	}
 
 	/**

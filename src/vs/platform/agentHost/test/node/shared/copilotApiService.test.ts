@@ -595,14 +595,11 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(JSON.parse(capturedBody ?? '{}').max_tokens, 32);
 		});
 
-		test('uses the minted Copilot token for utility completions', async () => {
+		test('uses the GitHub OAuth token directly for utility completions', async () => {
 			const requests: Array<{ url: string; authorization: string | undefined }> = [];
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
 				requests.push({ url, authorization: (init?.headers as Record<string, string> | undefined)?.['Authorization'] });
-				if (url.endsWith('/copilot_internal/v2/token')) {
-					return tokenResponse();
-				}
 				if (url.endsWith('/models')) {
 					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
 				}
@@ -618,68 +615,13 @@ suite('CopilotApiService', () => {
 				authorization: request.authorization,
 			})), [
 				{ path: '/copilot_internal/user', authorization: 'Bearer gh-oauth-token' },
-				{ path: '/copilot_internal/v2/token', authorization: 'token gh-oauth-token' },
-				{ path: '/models', authorization: 'Bearer gh-oauth-token' },
-				{ path: '/chat/completions', authorization: 'Bearer copilot-tok-abc' },
-			]);
-		});
-
-		test('falls back to the GitHub OAuth token when Copilot token minting is forbidden', async () => {
-			const requests: Array<{ url: string; authorization: string | undefined }> = [];
-			const service = createService(async (input, init) => {
-				const url = getUrl(input);
-				requests.push({ url, authorization: (init?.headers as Record<string, string> | undefined)?.['Authorization'] });
-				if (url.endsWith('/copilot_internal/v2/token')) {
-					return new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
-				}
-				if (url.endsWith('/models')) {
-					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
-				}
-				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
-			});
-
-			await service.utilityChatCompletion('gh-oauth-token', {
-				messages: [{ role: 'user', content: 'Generate a title' }],
-			}, { allowGitHubTokenFallback: true });
-
-			assert.deepStrictEqual(requests.map(request => ({
-				path: new URL(request.url).pathname,
-				authorization: request.authorization,
-			})), [
-				{ path: '/copilot_internal/user', authorization: 'Bearer gh-oauth-token' },
-				{ path: '/copilot_internal/v2/token', authorization: 'token gh-oauth-token' },
 				{ path: '/models', authorization: 'Bearer gh-oauth-token' },
 				{ path: '/chat/completions', authorization: 'Bearer gh-oauth-token' },
 			]);
 		});
 
-		test('does not fall back to the GitHub OAuth token for other mint failures', async () => {
-			const paths: string[] = [];
-			const service = createService(async input => {
-				const url = getUrl(input);
-				paths.push(new URL(url).pathname);
-				if (url.endsWith('/copilot_internal/v2/token')) {
-					return new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' });
-				}
-				return tokenResponse();
-			});
-
-			await assert.rejects(
-				() => service.utilityChatCompletion('gh-oauth-token', {
-					messages: [{ role: 'user', content: 'Generate a title' }],
-				}, { allowGitHubTokenFallback: true }),
-				/Copilot session token mint failed: 401 Unauthorized/,
-			);
-
-			assert.deepStrictEqual(paths, [
-				'/copilot_internal/user',
-				'/copilot_internal/v2/token',
-			]);
-		});
-
-		test('fallback auth failure rediscovers endpoints and utility model', async () => {
+		test('utility auth failure rediscovers endpoints and utility model', async () => {
 			let userCount = 0;
-			let mintCount = 0;
 			let modelsCount = 0;
 			let completionCount = 0;
 			const service = createService(async input => {
@@ -687,10 +629,6 @@ suite('CopilotApiService', () => {
 				if (url.endsWith('/copilot_internal/user')) {
 					userCount++;
 					return userResponse();
-				}
-				if (url.endsWith('/copilot_internal/v2/token')) {
-					mintCount++;
-					return new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
 				}
 				if (url.endsWith('/models')) {
 					modelsCount++;
@@ -703,50 +641,12 @@ suite('CopilotApiService', () => {
 			});
 			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }] };
 
-			await assert.rejects(() => service.utilityChatCompletion('gh-oauth-token', request, { allowGitHubTokenFallback: true }));
-			await service.utilityChatCompletion('gh-oauth-token', request, { allowGitHubTokenFallback: true });
-
-			assert.deepStrictEqual({ userCount, mintCount, modelsCount, completionCount }, {
-				userCount: 2,
-				mintCount: 2,
-				modelsCount: 2,
-				completionCount: 2,
-			});
-		});
-
-		test('minted auth failure re-mints without rediscovering endpoints or utility model', async () => {
-			let userCount = 0;
-			let mintCount = 0;
-			let modelsCount = 0;
-			let completionCount = 0;
-			const service = createService(async input => {
-				const url = getUrl(input);
-				if (url.endsWith('/copilot_internal/user')) {
-					userCount++;
-					return userResponse();
-				}
-				if (url.endsWith('/copilot_internal/v2/token')) {
-					mintCount++;
-					return tokenResponse({ token: `copilot-token-${mintCount}` });
-				}
-				if (url.endsWith('/models')) {
-					modelsCount++;
-					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
-				}
-				completionCount++;
-				return completionCount === 1
-					? new Response('Forbidden', { status: 403, statusText: 'Forbidden' })
-					: new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
-			});
-			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }] };
-
 			await assert.rejects(() => service.utilityChatCompletion('gh-oauth-token', request));
 			await service.utilityChatCompletion('gh-oauth-token', request);
 
-			assert.deepStrictEqual({ userCount, mintCount, modelsCount, completionCount }, {
-				userCount: 1,
-				mintCount: 2,
-				modelsCount: 1,
+			assert.deepStrictEqual({ userCount, modelsCount, completionCount }, {
+				userCount: 2,
+				modelsCount: 2,
 				completionCount: 2,
 			});
 		});

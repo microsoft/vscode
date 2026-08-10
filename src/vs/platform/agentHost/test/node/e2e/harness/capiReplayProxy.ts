@@ -473,7 +473,7 @@ export class CapiReplayProxy {
 
 		// Ancillary bootstrap endpoints are never recorded — serve them from
 		// hardcoded stubs (keeps identity/model-catalog out of fixtures).
-		const stub = getAncillaryStub(method, path);
+		const stub = getAncillaryStub(method, path, body);
 		if (stub) {
 			res.writeHead(stub.status, { ...stub.headers });
 			res.end(replaceAll(stub.body, CAPI_PLACEHOLDER, this.url));
@@ -562,6 +562,12 @@ export class CapiReplayProxy {
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
 		const method = req.method ?? 'GET';
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+		const stub = getAncillaryStub(method, path, body);
+		if (stub) {
+			res.writeHead(stub.status, { ...stub.headers });
+			res.end(replaceAll(stub.body, CAPI_PLACEHOLDER, this.url));
+			return;
+		}
 		if (MODEL_ENDPOINTS.has(path)) {
 			this._observedModelRequestBodies.push(this._normalize(body));
 		}
@@ -612,7 +618,7 @@ export class CapiReplayProxy {
 					res.end();
 					// Ancillary bootstrap endpoints are forwarded (so the live run
 					// works) but never stored — they are served from stubs on replay.
-					if (getAncillaryStub(method, path)) {
+					if (getAncillaryStub(method, path, body)) {
 						return;
 					}
 					// Decompress so stored bodies are readable text and the model

@@ -10,11 +10,3 @@ exchanges:
     response:
       content: AUTHENTICATED
       stopReason: end_turn
-  - method: POST
-    path: /chat/completions
-    response:
-      status: 200
-      headers:
-        content-type: application/json
-      body: |
-        {"choices":[{"finish_reason":"stop","index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"message":{"content":"Create new file, delete old file, edit existing file, and rename file","padding":"abcdef","role":"assistant"}}],"id":"chatcmpl-EB92okaXXVCwGypl4Nk20Y6rcj144","usage":{"completion_tokens":16,"completion_tokens_details":{"accepted_prediction_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens":298,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":314},"model":"gpt-4o-mini-2024-07-18","prompt_filter_results":[{"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}},"prompt_index":0}],"service_tier":"default","system_fingerprint":"fp_2a5d1eed47","copilot_usage":{"token_details":[{"batch_size":1000000,"cost_per_batch":0,"token_count":298,"token_type":"input"},{"batch_size":1000000,"cost_per_batch":0,"token_count":0,"token_type":"cache_read"},{"batch_size":1000000,"cost_per_batch":0,"token_count":0,"token_type":"cache_write"},{"batch_size":1000000,"cost_per_batch":0,"token_count":16,"token_type":"output"}],"total_nano_aiu":0}}
