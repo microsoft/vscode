@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -17,6 +17,7 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AgentHostByokLmHandler } from '../../../browser/agentSessions/agentHost/agentHostByokLmHandler.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 import { ChatMessageRole, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelsService } from '../../../common/languageModels.js';
 
 interface ICapturedRequest {
@@ -36,12 +37,16 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 	captured: ICapturedRequest | undefined;
 
 	override readonly onDidChangeLanguageModels = Event.None;
+	override readonly onDidChangeModelVisibility: Event<void>;
 
 	constructor(
 		private readonly _models: ReadonlyMap<string, ILanguageModelChatMetadata>,
 		private readonly _respond: (request: ICapturedRequest) => ILanguageModelChatResponse,
+		onDidChangeModelVisibility = Event.None,
+		private readonly _isModelHidden: (identifier: string) => boolean = () => false,
 	) {
 		super();
+		this.onDidChangeModelVisibility = onDidChangeModelVisibility;
 	}
 
 	override getLanguageModelIds(): string[] {
@@ -50,6 +55,10 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 
 	override lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined {
 		return this._models.get(modelId);
+	}
+
+	override isModelHidden(identifier: string): boolean {
+		return this._isModelHidden(identifier);
 	}
 
 	override async sendChatRequest(modelId: string, _from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, _token: CancellationToken): Promise<ILanguageModelChatResponse> {
@@ -186,6 +195,62 @@ suite('AgentHostByokLmHandler', () => {
 			{ vendor: 'openrouter', id: 'ai21/jamba-large-1.7', name: 'openrouter ai21/jamba-large-1.7', modelIdentifier: groupedId, maxContextWindowTokens: 2000, supportsVision: false },
 			{ vendor: 'openrouter', id: 'gpt-4', name: 'openrouter gpt-4', modelIdentifier: 'openrouter/gpt-4', maxContextWindowTokens: 2000, supportsVision: false },
 		]);
+	});
+
+	test('listModels excludes hidden BYOK sources and Agent Host copies', async () => {
+		const sourceIdentifier = 'openrouter/OpenRouter 2/ai21/jamba-large-1.7';
+		const agentHostIdentifier = `${SessionType.AgentHostCopilot}:openrouter/OpenRouter 2/ai21/jamba-large-1.7`;
+		const hidden = new Set<string>();
+		const visibilityChanges = store.add(new Emitter<void>());
+		const service = new TestLanguageModelsService(
+			new Map([[sourceIdentifier, byokModel('openrouter', 'ai21/jamba-large-1.7')]]),
+			() => responseOf([]),
+			visibilityChanges.event,
+			identifier => hidden.has(identifier),
+		);
+		const handler = createHandler(service);
+		let modelChangeCount = 0;
+		store.add(handler.onDidChangeModels(() => modelChangeCount++));
+
+		const visibleModels = await handler.listModels(CancellationToken.None);
+		hidden.add(sourceIdentifier);
+		visibilityChanges.fire();
+		const sourceHiddenModels = await handler.listModels(CancellationToken.None);
+		hidden.delete(sourceIdentifier);
+		hidden.add(agentHostIdentifier);
+		visibilityChanges.fire();
+		const copyHiddenModels = await handler.listModels(CancellationToken.None);
+		hidden.clear();
+		visibilityChanges.fire();
+		const restoredModels = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			modelChangeCount,
+			visibleModels,
+			sourceHiddenModels,
+			copyHiddenModels,
+			restoredModels,
+		}, {
+			modelChangeCount: 3,
+			visibleModels: [{
+				vendor: 'openrouter',
+				id: 'ai21/jamba-large-1.7',
+				name: 'openrouter ai21/jamba-large-1.7',
+				modelIdentifier: sourceIdentifier,
+				maxContextWindowTokens: 2000,
+				supportsVision: false,
+			}],
+			sourceHiddenModels: [],
+			copyHiddenModels: [],
+			restoredModels: [{
+				vendor: 'openrouter',
+				id: 'ai21/jamba-large-1.7',
+				name: 'openrouter ai21/jamba-large-1.7',
+				modelIdentifier: sourceIdentifier,
+				maxContextWindowTokens: 2000,
+				supportsVision: false,
+			}],
+		});
 	});
 
 	test('listModels carries string reasoning effort metadata from renderer BYOK schemas', async () => {

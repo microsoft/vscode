@@ -2694,6 +2694,9 @@ suite('CopilotAgent', () => {
 			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
 			await waitForState(agent.models, models => models.length === 1);
 			const optionalWithByok = copilotRequired();
+			modelSnapshots.fire([]);
+			await waitForState(agent.models, models => models.length === 0);
+			const requiredAfterHide = copilotRequired();
 			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: false });
 			const requiredAfterDisable = copilotRequired();
 
@@ -2701,11 +2704,13 @@ suite('CopilotAgent', () => {
 				initiallyRequired,
 				requiredWithoutByok,
 				optionalWithByok,
+				requiredAfterHide,
 				requiredAfterDisable,
 			}, {
 				initiallyRequired: true,
 				requiredWithoutByok: true,
 				optionalWithByok: false,
+				requiredAfterHide: true,
 				requiredAfterDisable: true,
 			});
 		} finally {
