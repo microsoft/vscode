@@ -257,7 +257,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			? localize('chatInputWindow.titleWithProject', "Chat Input — {0}", projectName)
 			: localize('chatInputWindow.title', "Chat Input");
 		auxiliaryWindow.container.style.overflow = 'hidden';
-		auxiliaryWindow.container.style.overflow = 'hidden';
 		auxiliaryWindow.window.document.body.classList.add('chat-input-window-body');
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
 		auxiliaryWindow.window.document.body.style.setProperty('overflow', 'visible', 'important');
@@ -662,10 +661,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				return;
 			}
 			const messages = state.confirmationMessages;
-			approvalTitle.textContent = renderAsPlaintext(messages?.title ?? approval.invocation.invocationMessage);
-			const invocationMessage = renderAsPlaintext(approval.invocation.invocationMessage);
+			const confirmationTitle = renderAsPlaintext(messages?.title ?? approval.invocation.invocationMessage);
+			approvalTitle.textContent = confirmationTitle;
 			const confirmationMessage = renderAsPlaintext(messages?.message ?? '');
-			const showConfirmationMessage = !!confirmationMessage && confirmationMessage !== invocationMessage;
+			const showConfirmationMessage = !!confirmationMessage && confirmationMessage !== confirmationTitle;
 			approvalMessage.textContent = showConfirmationMessage ? confirmationMessage : '';
 			dom.setVisibility(showConfirmationMessage, approvalMessage);
 			approvalCommand.textContent = getVoiceToolApprovalCommand(approval.invocation) ?? '';
