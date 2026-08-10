@@ -225,7 +225,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				this.renderState();
 			}
 		}));
-		// Toggling the opt-in flips the signed-out affordance between calm and alarming states.
+		// A signed-out user sees either a quiet "Sign In" (the opt-in is on, so signing
+		// in is optional) or a prominent "Agents Signed Out". Re-render so toggling the
+		// setting switches between them while the window is open.
 		this._register(runOnChange(this.allowSignedOutWhenUsable, () => this.renderState()));
 		this.refreshAccount();
 	}
