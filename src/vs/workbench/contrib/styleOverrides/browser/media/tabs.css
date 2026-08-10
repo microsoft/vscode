@@ -121,11 +121,11 @@
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
 	flex-direction: row;
-	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60) !important;
 }
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.close-action-off:not(.sticky-compact) {
-	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40) !important;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60) !important;
 }
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top),
