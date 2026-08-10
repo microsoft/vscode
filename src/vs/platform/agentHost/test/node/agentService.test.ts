@@ -42,7 +42,7 @@ import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, WORKTREE_META_REPOSITORY_ROOT_STAMP } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, isRepositoryRootStamped, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, WORKTREE_META_REPOSITORY_ROOT_STAMP } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1896,6 +1896,58 @@ suite('AgentService (node dispatcher)', () => {
 				project: persistedRoot.toString(),
 				persistedRepositoryRoot: persistedRoot.toString(),
 				stamp: undefined,
+			});
+		});
+
+		test('listSessions does not certify a root whose write failed', async () => {
+			// A stamp must certify only what is durable. Issued alongside the
+			// root, it can land when the root write does not -- so it embeds the
+			// root it vouches for, and a mismatch reads as uncertified.
+			class FailingRootWriteDatabase extends TestSessionDatabase {
+				failRootWrites = false;
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (this.failRootWrites && key === WORKTREE_META_REPOSITORY_ROOT) {
+						throw new Error('write failed');
+					}
+					return super.setMetadata(key, value);
+				}
+			}
+			const db = disposables.add(new FailingRootWriteDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
+			db.failRootWrites = true;
+			const sessionId = 'test-session-failed-root-write';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [linkedCheckout] };
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const gitService = createNoopGitService();
+			let worktreeRootCalls = 0;
+			gitService.getWorktreeRoots = async () => {
+				worktreeRootCalls++;
+				return [primaryRoot, linkedCheckout];
+			};
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
+			svc.registerProvider(agent);
+
+			await svc.listSessions();
+			const callsAfterFirst = worktreeRootCalls;
+			// A stamp certifying a root that was never stored must not stop the
+			// next listing from repairing it.
+			await svc.listSessions();
+
+			assert.deepStrictEqual({
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				stampCertifiesStoredRoot: isRepositoryRootStamped(await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT_STAMP), linkedCheckout.toString()),
+				callsAfterFirst,
+				retriedOnNextListing: worktreeRootCalls > callsAfterFirst,
+			}, {
+				persistedRepositoryRoot: linkedCheckout.toString(),
+				stampCertifiesStoredRoot: false,
+				callsAfterFirst: 1,
+				retriedOnNextListing: true,
 			});
 		});
 
