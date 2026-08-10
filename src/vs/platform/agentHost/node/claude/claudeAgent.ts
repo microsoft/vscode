@@ -430,6 +430,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
+	private _findUnboundSessionForChat(session: URI, chatKey: string): ClaudeAgentSession | undefined {
+		const sessionId = AgentSession.id(session);
+		return chatKey === session.toString()
+			? this._findAnySession(sessionId)
+			: this._findLiveSessionForChat(sessionId, chatKey);
+	}
+
 	/**
 	 * Resolves a host-addressed chat operation against the exact chat URI it was
 	 * addressed to. AH may additionally supply transient `{ session, resource }`
@@ -439,22 +446,43 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private _resolveChatContext(chat: URI, sessionOrContext?: URI | IAgentChatContext): IResolvedClaudeChatContext {
 		const explicit = sessionOrContext ? resolveAgentChatContext(sessionOrContext, chat) : undefined;
+		return explicit
+			? this._resolveExplicitChatContext(chat, explicit)
+			: this._resolveImplicitChatContext(chat);
+	}
+
+	private _resolveExplicitChatContext(chat: URI, context: IAgentChatContext): IResolvedClaudeChatContext {
 		const chatKey = chat.toString();
 		const backing = this._chatBackings.get(chatKey);
 		const boundTarget = backing ? this._findAnySession(backing.sdkSessionId) : undefined;
-		const session = explicit?.session ?? chat;
-		const sessionId = AgentSession.id(session);
-		const sessionAddressedTarget = !backing && chatKey === session.toString()
-			? this._findAnySession(sessionId)
-			: undefined;
+		const sessionId = AgentSession.id(context.session);
 		const target = backing
 			? boundTarget
-			: sessionAddressedTarget ?? this._findLiveSessionForChat(sessionId, chatKey);
+			: this._findUnboundSessionForChat(context.session, chatKey);
 		const sdkSessionId = backing?.sdkSessionId ?? target?.sessionId;
 		return {
-			session,
+			session: context.session,
 			sessionId,
-			resource: explicit?.resource ?? session,
+			resource: context.resource,
+			chat,
+			chatKey,
+			sdkSessionId,
+			sequencerKey: sdkSessionId ?? chatKey,
+			target,
+		};
+	}
+
+	private _resolveImplicitChatContext(chat: URI): IResolvedClaudeChatContext {
+		const chatKey = chat.toString();
+		const backing = this._chatBackings.get(chatKey);
+		const target = backing
+			? this._findAnySession(backing.sdkSessionId)
+			: this._findUnboundSessionForChat(chat, chatKey);
+		const sdkSessionId = backing?.sdkSessionId ?? target?.sessionId;
+		return {
+			session: chat,
+			sessionId: AgentSession.id(chat),
+			resource: chat,
 			chat,
 			chatKey,
 			sdkSessionId,
@@ -1937,7 +1965,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				return [];
 			}
 			const parentChat = URI.parse(origin.chat);
-			const parentContext = this._resolveChatContext(parentChat, context);
+			const parentContext = context
+				? this._resolveChatContext(parentChat, { session: context.session, resource: parentChat })
+				: this._resolveChatContext(parentChat);
 			const parentSessionId = await this._resolveChatSdkId(parentContext);
 			if (!parentSessionId) {
 				return [];

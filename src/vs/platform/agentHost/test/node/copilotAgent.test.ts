@@ -4854,6 +4854,7 @@ suite('CopilotAgent', () => {
 			_getOrCreateSessionLifetime: (sessionId: string) => { queueSession<T>(task: () => Promise<T>): Promise<T> } | undefined;
 			_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 			_resolveAgentName: (snapshot: IActiveClientSnapshot, agent: AgentSelection) => string | undefined;
+			_resolveChatContext: (chat: URI, context: IAgentChatContext) => unknown;
 		};
 
 		interface IFakeChatRecorder {
@@ -5419,6 +5420,21 @@ suite('CopilotAgent', () => {
 				}, {
 					tracked: 0,
 					providerData: { sdkSessionId: AgentSession.id(session) },
+				});
+
+				test('rejects explicit context whose owner contradicts a live chat', async () => {
+					const agent = createTestAgent(disposables);
+					try {
+						const owner = AgentSession.uri('copilotcli', 'owner');
+						const other = AgentSession.uri('copilotcli', 'other');
+						const chat = URI.parse(buildChatUri(owner, 'peer'));
+						setPeerChatStub(agent, chat, {});
+
+						const internals = agent as unknown as ChatInternals;
+						assert.throws(() => internals._resolveChatContext(chat, { session: other, resource: chat }), /is bound to session copilotcli:\/owner, not copilotcli:\/other/);
+					} finally {
+						await disposeAgent(agent);
+					}
 				});
 			} finally {
 				await disposeAgent(agent);

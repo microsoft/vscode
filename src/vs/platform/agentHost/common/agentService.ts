@@ -9,6 +9,7 @@ import { IReference } from '../../../base/common/lifecycle.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -1044,9 +1045,13 @@ export interface IAgentChatContext {
  * {@link IAgentChatContext} shape by attaching the host-supplied `resource`.
  */
 export function resolveAgentChatContext(sessionOrContext: URI | IAgentChatContext, resource: URI): IAgentChatContext {
-	return URI.isUri(sessionOrContext)
+	const context = URI.isUri(sessionOrContext)
 		? { session: sessionOrContext, resource }
 		: sessionOrContext;
+	if (!isEqual(context.resource, context.session) && !isEqual(context.resource, resource)) {
+		throw new Error(`Chat context resource must be the owning session or addressed chat: ${context.resource.toString()}`);
+	}
+	return context;
 }
 
 /** Options for creating an additional chat within a session. */

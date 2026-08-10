@@ -2089,26 +2089,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
+	private _findUnboundSessionForChat(session: URI, chatKey: string): CopilotAgentSession | undefined {
+		const sessionId = AgentSession.id(session);
+		return chatKey === session.toString()
+			? this._findAnySession(sessionId)
+			: this._findLiveSessionForChat(sessionId, chatKey);
+	}
+
 	private _resolveChatContext(chat: URI, sessionOrContext?: URI | IAgentChatContext): IResolvedCopilotChatContext {
 		const explicit = sessionOrContext ? resolveAgentChatContext(sessionOrContext, chat) : undefined;
+		return explicit
+			? this._resolveExplicitChatContext(chat, explicit)
+			: this._resolveImplicitChatContext(chat);
+	}
+
+	private _resolveExplicitChatContext(chat: URI, context: IAgentChatContext): IResolvedCopilotChatContext {
 		const chatKey = chat.toString();
 		const backing = this._chatBackings.get(chatKey);
 		const boundTarget = backing ? this._findSessionBySdkId(backing.sdkSessionId) : undefined;
-		const session = explicit?.session
-			?? boundTarget?.sessionUri
-			?? (backing ? AgentSession.uri(this.id, backing.sdkSessionId) : chat);
-		const sessionId = AgentSession.id(session);
+		if (boundTarget && !isEqual(boundTarget.sessionUri, context.session)) {
+			throw new Error(`Chat ${chatKey} is bound to session ${boundTarget.sessionUri.toString()}, not ${context.session.toString()}`);
+		}
+		const sessionId = AgentSession.id(context.session);
 		const target = backing
 			? boundTarget
-			: this._findLiveSessionForChat(sessionId, chatKey);
+			: this._findUnboundSessionForChat(context.session, chatKey);
 		const sdkSessionId = backing?.sdkSessionId ?? target?.sessionId;
-		const inferredResource = boundTarget
-			? (boundTarget.sessionId === AgentSession.id(boundTarget.sessionUri) ? boundTarget.sessionUri : chat)
-			: session;
+		return {
+			session: context.session,
+			sessionId,
+			resource: context.resource,
+			chat,
+			chatKey,
+			sdkSessionId,
+			sequencerKey: sdkSessionId ?? chatKey,
+			target,
+		};
+	}
+
+	private _resolveImplicitChatContext(chat: URI): IResolvedCopilotChatContext {
+		const chatKey = chat.toString();
+		const backing = this._chatBackings.get(chatKey);
+		const boundTarget = backing ? this._findSessionBySdkId(backing.sdkSessionId) : undefined;
+		const session = boundTarget?.sessionUri ?? (backing ? AgentSession.uri(this.id, backing.sdkSessionId) : chat);
+		const sessionId = AgentSession.id(session);
+		const target = backing ? boundTarget : this._findUnboundSessionForChat(session, chatKey);
+		const sdkSessionId = backing?.sdkSessionId ?? target?.sessionId;
+		const resource = boundTarget && boundTarget.sessionId !== AgentSession.id(boundTarget.sessionUri) ? chat : session;
 		return {
 			session,
 			sessionId,
-			resource: explicit?.resource ?? inferredResource,
+			resource,
 			chat,
 			chatKey,
 			sdkSessionId,

@@ -182,6 +182,26 @@ suite('AgentService (node dispatcher)', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('resolveAgentChatContext', () => {
+
+		test('accepts session- and chat-scoped resources and rejects unrelated resources', () => {
+			const session = AgentSession.uri('copilot', 'owner');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+
+			assert.throws(
+				() => resolveAgentChatContext({ session, resource: URI.parse('copilot:/other') }, chat),
+				/Chat context resource must be the owning session or addressed chat/,
+			);
+			assert.deepStrictEqual({
+				sessionScoped: resolveAgentChatContext({ session, resource: session }, chat).resource.toString(),
+				chatScoped: resolveAgentChatContext({ session, resource: chat }, chat).resource.toString(),
+			}, {
+				sessionScoped: session.toString(),
+				chatScoped: chat.toString(),
+			});
+		});
+	});
+
 	// ---- Provider registration ------------------------------------------
 
 	suite('registerProvider', () => {

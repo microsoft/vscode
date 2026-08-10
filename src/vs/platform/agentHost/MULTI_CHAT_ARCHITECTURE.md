@@ -474,6 +474,17 @@ one meaning: add an additional chat to an already-provisioned session.
 
 AH supplies both the chat URI and its owning session explicitly on every chat operation. Claude and Copilot record only `chat → SDK conversation`; Codex records only `chat → thread runtime`. Providers consume the owning session, persistence resource, and origin from transient context rather than decoding membership from chat URI shape. Legacy session-addressed adapters may construct the deterministic default-chat URI only to bridge old callers.
 
+Provider chat resolution has four valid states:
+
+| State | Backing | Live runtime | Explicit context |
+|---|---|---|---|
+| Live exact chat | Present | Present | Optional for chat-only operations |
+| Cold exact chat | Present | Absent | Required before operations needing AH owner/storage context |
+| Fresh additional chat | Absent | Absent | Required; creation records the returned provider backing |
+| Legacy direct session | Absent | Present under provider session id | Temporary compatibility until `bindSessionChat` records the concrete chat URI |
+
+`IAgentChatContext.resource` is either the owning session (default-chat storage) or the addressed chat (additional-chat storage); unrelated resources are rejected. When Copilot has both an explicit owner and a live exact-chat runtime, they must agree. Claude and Codex deliberately do not retain AH ownership on provider backing records, so their cold backing resolution relies on the transient owner context instead of attempting to validate or reconstruct membership.
+
 ### Storage-preservation
 
 All three harnesses implement `createSessionChat`; the compatibility
