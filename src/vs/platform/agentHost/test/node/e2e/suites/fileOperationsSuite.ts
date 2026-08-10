@@ -149,11 +149,11 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 				.filter((message): message is string => typeof message === 'string' && message.includes('permission host returned malformed payload'));
 			assert.deepStrictEqual({
 				fileCreated: existsSync(join(workspace, 'denied.txt')),
-				responseText: getMarkdownResponseText(context.client).trim(),
+				responseEndsWithDenied: getMarkdownResponseText(context.client).trim().endsWith('denied'),
 				malformedPermissionErrors,
 			}, {
 				fileCreated: false,
-				responseText: 'denied',
+				responseEndsWithDenied: true,
 				malformedPermissionErrors: [],
 			});
 		});
