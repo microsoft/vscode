@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.133.0",
+  "version": "1.134.0",
   "distro": "0a2adcd7a64dfe443b6122097cd88f5958c22147",
   "author": {
     "name": "Microsoft Corporation"
@@ -17,6 +17,7 @@
     "test-extension": "vscode-test",
     "test-build-scripts": "cd build && npm run test",
     "test-agent-host-e2e": "node scripts/test-agent-host-e2e.ts",
+    "markdown-editor-package-json-check": "npm --prefix extensions/markdown-language-features run check-markdown-editor-package-json",
     "test-agent-host-e2e-coverage": "node scripts/agent-host-e2e-coverage.ts",
     "check-cyclic-dependencies": "node build/lib/checkCyclicDependencies.ts out",
     "preinstall": "node build/npm/preinstall.ts",
@@ -98,8 +99,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "1.0.79-2",
-    "@github/copilot-sdk": "^1.0.9-preview.3",
+    "@github/copilot": "1.0.79-6",
+    "@github/copilot-sdk": "1.0.9",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -157,7 +158,7 @@
     "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
     "tar": "^7.5.20",
-    "tas-client": "0.3.1",
+    "tas-client": "0.4.2",
     "undici": "^7.28.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",

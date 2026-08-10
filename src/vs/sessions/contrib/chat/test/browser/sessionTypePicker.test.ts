@@ -217,9 +217,8 @@ suite('SessionTypePicker', () => {
 	});
 
 	test('a draft never displays a harness the picker no longer offers', () => {
-		// `chat.agents.copilotCli.hideExtensionHost`: the extension-host Copilot
-		// CLI ('copilot' provider) stops being advertised, leaving only the agent
-		// host's entry — which shares the 'copilotcli' session type id.
+		// The extension-host Copilot CLI stops being advertised, leaving only the
+		// agent host's entry, which shares the 'copilotcli' session type id.
 		management.setSessionTypes([sessionType('local-agent-host', 'copilotcli', 'Copilot')]);
 		const picker = createPicker(disposables, session, management, storage);
 
@@ -641,7 +640,7 @@ suite('SessionTypePicker', () => {
 		// favor of the stored pick rather than the folder's preferred (first) type.
 		const picker = createPicker(disposables, observableValue<ISession | undefined>('session2', undefined), management, storage);
 		picker.setFolderSource(observableValue<URI | undefined>('folder', folderA), {
-			initialPick: { providerId: 'claude', sessionTypeId: 'claude-code' },
+			initialPick: { providerId: 'local-agent-host', sessionTypeId: 'claude' },
 		});
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });

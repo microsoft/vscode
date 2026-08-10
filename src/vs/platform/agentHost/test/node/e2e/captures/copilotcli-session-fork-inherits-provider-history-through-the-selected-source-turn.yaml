@@ -1,0 +1,25 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember FORK_ALPHA. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember FORK_ALPHA. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Reply with only the code word you were asked to remember.
+    response:
+      content: FORK_ALPHA
+      stopReason: end_turn

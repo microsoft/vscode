@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -20,6 +21,7 @@ import { IChatEditingSession } from '../../common/editing/chatEditingService.js'
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
@@ -334,6 +336,9 @@ async function runNewChatAction(
 		return;
 	}
 
+	const voiceSessionController = accessor.get(IVoiceSessionController);
+	const voiceTarget = voiceSessionController.targetSession.get();
+	const currentSession = widget.viewModel?.sessionResource;
 	const dialogService = accessor.get(IDialogService);
 
 	const model = widget.viewModel?.model;
@@ -345,6 +350,13 @@ async function runNewChatAction(
 
 	// Create a new session, preserving the session type (or using the specified one)
 	await instantiationService.invokeFunction(clearChatSessionPreservingType, widget, sessionType);
+
+	const newSession = widget.viewModel?.sessionResource;
+	if ((voiceSessionController.isConnected.get() || voiceSessionController.isConnecting.get())
+		&& (!voiceTarget || (!!currentSession && isEqual(voiceTarget, currentSession)))
+		&& newSession) {
+		voiceSessionController.setTargetSession(newSession);
+	}
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();

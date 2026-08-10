@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, append, getWindow } from '../../../../browser/dom.js';
-import { unthemedButtonStyles } from '../../../../browser/ui/button/button.js';
+import { Button, unthemedButtonStyles } from '../../../../browser/ui/button/button.js';
 import { Dialog, IDialogStyles } from '../../../../browser/ui/dialog/dialog.js';
 import { unthemedInboxStyles } from '../../../../browser/ui/inputbox/inputBox.js';
 import { ICheckboxStyles } from '../../../../browser/ui/toggle/toggle.js';
@@ -116,6 +116,47 @@ suite('Dialog', () => {
 		assert.strictEqual(detailElement.contains(rendered), true);
 		assert.strictEqual(detailElement.textContent, 'Command Link');
 		assert.strictEqual(link.tabIndex, 0);
+
+		dialog.dispose();
+		await result;
+	});
+
+	test('focuses a footer-only action without applying hyperlink styles to it', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		let action!: Button;
+		let link!: HTMLAnchorElement;
+		const dialog = disposables.add(new Dialog(container, 'Message', [], {
+			disableDefaultAction: true,
+			renderFooter: footer => {
+				action = disposables.add(new Button(footer, { buttonForeground: 'rgb(1, 2, 3)' }));
+				action.label = 'Cancel';
+				link = append(footer, $('a'));
+				link.textContent = 'Terms';
+			},
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: {
+				...unthemedDialogStyles,
+				textLinkForeground: 'rgb(4, 5, 6)',
+			},
+		}));
+		const result = dialog.show();
+
+		assert.deepStrictEqual({
+			activeElement: getWindow(action.element).document.activeElement,
+			actionColor: action.element.style.color,
+			actionTextDecoration: action.element.style.textDecoration,
+			linkColor: link.style.color,
+			linkTextDecoration: link.style.textDecoration,
+		}, {
+			activeElement: action.element,
+			actionColor: 'rgb(1, 2, 3)',
+			actionTextDecoration: '',
+			linkColor: 'rgb(4, 5, 6)',
+			linkTextDecoration: 'underline',
+		});
 
 		dialog.dispose();
 		await result;

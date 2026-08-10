@@ -29,6 +29,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		private readonly groupView: IEditorGroupView,
 		private readonly model: IReadonlyEditorGroupModel,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
+		private readonly breadcrumbsInHeader: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -36,8 +37,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		const stickyModel = this._register(new StickyEditorGroupModel(this.model));
 		const unstickyModel = this._register(new UnstickyEditorGroupModel(this.model));
 
-		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel, this.menuIds));
-		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, unstickyModel, this.menuIds));
+		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel, this.menuIds, this.breadcrumbsInHeader));
+		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, unstickyModel, this.menuIds, this.breadcrumbsInHeader));
 
 		this.handleTabBarsStateChange();
 	}
@@ -181,6 +182,10 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 
 	updateEditorLabel(editor: EditorInput): void {
 		this.getEditorTabsController(editor).updateEditorLabel(editor);
+	}
+
+	updateEditorCapabilities(editor: EditorInput): void {
+		this.getEditorTabsController(editor).updateEditorCapabilities(editor);
 	}
 
 	updateEditorDirty(editor: EditorInput): void {

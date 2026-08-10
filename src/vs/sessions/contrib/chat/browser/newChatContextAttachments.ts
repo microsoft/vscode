@@ -198,7 +198,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
 			removeButton.title = localize('removeAttachment', "Remove");
 			removeButton.tabIndex = -1;
-			dom.append(removeButton, renderIcon(Codicon.close));
+			dom.append(removeButton, renderIcon(Codicon.closeCompact));
 			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, (e) => {
 				e.stopPropagation();
 				this.removeAttachment(entry.id);
