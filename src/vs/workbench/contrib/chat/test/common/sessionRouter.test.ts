@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildRouterMessages, heuristicScore, isHighConfidenceSessionRoute, ISessionRouteRequest, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { buildCommandIntentMessages, buildRouterMessages, heuristicScore, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteRequest, parseCommandIntentResponse, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 
 suite('SessionRouter helpers', () => {
 
@@ -18,6 +18,60 @@ suite('SessionRouter helpers', () => {
 			{ sessionId: 's2', label: 'docs cleanup', repo: 'microsoft/vscode-docs' }
 		]
 	};
+
+	const commands = [
+		{ commandId: 'workbench.action.files.save', label: 'File: Save' },
+		{ commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' },
+	];
+
+	test('buildCommandIntentMessages runs before session routing', () => {
+		const messages = buildCommandIntentMessages({ utterance: 'turn on zen mode', commands });
+		assert.deepStrictEqual({
+			roles: messages.map(message => message.role),
+			hasRequest: messages[1].content.includes('turn on zen mode'),
+			hasCommands: commands.every(command => messages[1].content.includes(command.commandId)),
+			fallsBackToChat: messages[0].content.includes('When uncertain, choose chat'),
+		}, {
+			roles: ['system', 'user'],
+			hasRequest: true,
+			hasCommands: true,
+			fallsBackToChat: true,
+		});
+	});
+
+	test('parseCommandIntentResponse accepts only known commands', () => {
+		const known = new Set(commands.map(command => command.commandId));
+		assert.deepStrictEqual(
+			parseCommandIntentResponse('{"intent":"command","commandId":"workbench.action.toggleZenMode","confidence":1.4,"reason":"exact"}', known),
+			{ kind: 'command', commandId: 'workbench.action.toggleZenMode', confidence: 1, reason: 'exact' },
+		);
+		assert.strictEqual(
+			parseCommandIntentResponse('{"intent":"command","commandId":"unknown.command","confidence":0.99}', known),
+			undefined,
+		);
+		assert.deepStrictEqual(parseCommandIntentResponse('{"intent":"chat"}', known), { kind: 'chat' });
+	});
+
+	test('high-confidence command intent must exceed 80 percent', () => {
+		assert.deepStrictEqual([
+			isHighConfidenceCommandIntent({ kind: 'chat' }),
+			isHighConfidenceCommandIntent({ kind: 'command', commandId: 'command', confidence: 0.8 }),
+			isHighConfidenceCommandIntent({ kind: 'command', commandId: 'command', confidence: 0.81 }),
+		], [false, false, true]);
+	});
+
+	test('selectCommandIntentCandidates bounds and ranks commands by lexical relevance', () => {
+		assert.deepStrictEqual(
+			selectCommandIntentCandidates('please turn on zen mode', [
+				...commands,
+				{ commandId: 'workbench.action.closeWindow', label: 'File: Close Window' },
+			], 2),
+			[
+				{ commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' },
+			],
+		);
+		assert.deepStrictEqual(selectCommandIntentCandidates('explain polymorphism', commands), []);
+	});
 
 	test('buildRouterMessages embeds utterance and every session id', () => {
 		const messages = buildRouterMessages(request);

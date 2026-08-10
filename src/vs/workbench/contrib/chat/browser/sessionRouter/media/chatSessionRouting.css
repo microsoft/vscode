@@ -31,6 +31,14 @@
 	font-variant-numeric: tabular-nums;
 }
 
+.chat-routing-badge.chat-routing-badge-command {
+	border-top-color: var(--vscode-focusBorder);
+}
+
+.chat-routing-badge-command .chat-routing-badge-label {
+	font-weight: 500;
+}
+
 .chat-routing-badge .chat-routing-badge-action {
 	flex-shrink: 0;
 	cursor: pointer;

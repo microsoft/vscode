@@ -16,15 +16,19 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { MenuItemAction, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { heuristicScore, IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { heuristicScore, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -169,6 +173,10 @@ export class ChatSessionRoutingController extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 	}
@@ -239,6 +247,19 @@ export class ChatSessionRoutingController extends Disposable {
 			};
 			this._dispatchImmediately(followupTarget, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
+		}
+		const commandCandidates = selectCommandIntentCandidates(utterance, this._collectCommandCandidates());
+		const intent = await this._detectIntent(commandCandidates, utterance, token);
+		if (token.isCancellationRequested) {
+			return true;
+		}
+		if (isHighConfidenceCommandIntent(intent)) {
+			const command = commandCandidates.find(candidate => candidate.commandId === intent.commandId);
+			if (command) {
+				this._setSubmissionPhase('awaitingChoice');
+				this._beginPendingCommand(command, query, submittedAttachmentIds, cts);
+				return true;
+			}
 		}
 		this.host.onWillRoute?.();
 
@@ -313,6 +334,33 @@ export class ChatSessionRoutingController extends Disposable {
 
 	private _setSubmissionPhase(phase: SubmissionPhase): void {
 		this.host.widget.input.setSubmitPending(phase !== 'idle', phase === 'routing' || phase === 'dispatching');
+	}
+
+	private _collectCommandCandidates(): ICommandIntentCandidate[] {
+		const contextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		const actions = this.menuService.getMenuActions(MenuId.CommandPalette, contextKeyService)
+			.flatMap(([, groupActions]) => groupActions)
+			.filter((action): action is MenuItemAction => action instanceof MenuItemAction && action.enabled);
+		const commands = new Map<string, ICommandIntentCandidate>();
+		for (const action of actions) {
+			const category = typeof action.item.category === 'string' ? action.item.category : action.item.category?.value;
+			commands.set(action.id, {
+				commandId: action.id,
+				label: category ? `${category}: ${action.label}` : action.label,
+			});
+		}
+		return [...commands.values()];
+	}
+
+	private async _detectIntent(commands: readonly ICommandIntentCandidate[], utterance: string, token: CancellationToken): Promise<ICommandIntentResult> {
+		try {
+			return await this.sessionRouter.detectIntent({ utterance, commands }, token);
+		} catch (err) {
+			if (!token.isCancellationRequested) {
+				this.logService.warn('[chatSessionRouting] command intent detection failed:', err);
+			}
+			return { kind: 'chat' };
+		}
 	}
 
 	/** Run the router, degrading to an empty ranking on failure/cancellation. */
@@ -508,6 +556,122 @@ export class ChatSessionRoutingController extends Disposable {
 		this._pendingSend.value = store;
 
 		this._renderCountdownBadge(badge, store, target, newSessionTarget, results, candidates, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
+	}
+
+	private _beginPendingCommand(
+		command: ICommandIntentCandidate,
+		submittedInput: string,
+		submittedAttachmentIds: readonly string[],
+		cts: CancellationTokenSource,
+	): void {
+		const badge = dom.$('.chat-routing-badge.chat-routing-badge-command');
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			this.logService.warn('[chatSessionRouting] no surface available for command review; preserving draft');
+			cts.cancel();
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('idle');
+			return;
+		}
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		this._pendingSend.value = store;
+
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(Codicon.play));
+		const label = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		const countdown = dom.append(badge, dom.$('span.chat-routing-badge-countdown'));
+		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
+		const renderCountdown = () => {
+			label.textContent = localize('chatSessionRouting.runCommand', "Running command {0}", command.label);
+			countdown.textContent = localize('chatSessionRouting.commandCountdown', "in {0}s", remainingSeconds);
+		};
+
+		let didRun = false;
+		const timer = store.add(new MutableDisposable());
+		const run = async () => {
+			if (didRun) {
+				return;
+			}
+			didRun = true;
+			timer.clear();
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('dispatching');
+			mark.replaceChildren(renderIcon(Codicon.loading));
+			label.textContent = localize('chatSessionRouting.runningCommand', "Running command {0}…", command.label);
+			countdown.textContent = '';
+			try {
+				if (!this._collectCommandCandidates().some(candidate => candidate.commandId === command.commandId)) {
+					throw new Error(`Command is no longer available: ${command.commandId}`);
+				}
+				await this.commandService.executeCommand(command.commandId);
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
+				this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
+				this._setSubmissionPhase('idle');
+				this._pendingSend.clear();
+				this._submitCts.clear();
+				this._showCommandResult(command.label, true);
+			} catch (err) {
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
+				this.logService.warn('[chatSessionRouting] command execution failed:', command.commandId, err);
+				this._setSubmissionPhase('idle');
+				this._pendingSend.clear();
+				this._submitCts.clear();
+				this._showCommandResult(command.label, false);
+			}
+		};
+		const cancel = () => {
+			this._cancelPending(true);
+			ariaAlert(localize('chatSessionRouting.commandCancelled', "Cancelled command {0}.", command.label));
+		};
+
+		this._addActionLink(store, badge, localize('chatSessionRouting.runNow', "Run Now"), () => void run());
+		this._addActionLink(store, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel);
+		renderCountdown();
+		ariaAlert(localize('chatSessionRouting.runningCommandIn', "Running command {0} in {1} seconds. Activate Cancel or press Escape to cancel.", command.label, remainingSeconds));
+		const targetWindow = dom.getWindow(badge);
+		const handle = targetWindow.setInterval(() => {
+			remainingSeconds--;
+			if (remainingSeconds <= 0) {
+				void run();
+				return;
+			}
+			renderCountdown();
+		}, 1000);
+		timer.value = toDisposable(() => targetWindow.clearInterval(handle));
+
+		store.add(dom.addDisposableListener(targetWindow, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Escape)) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				cancel();
+			}
+		}, true));
+	}
+
+	private _showCommandResult(label: string, success: boolean): void {
+		const badge = dom.$('.chat-routing-badge.chat-routing-badge-command');
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(success ? Codicon.pass : Codicon.error));
+		const message = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		message.textContent = success
+			? localize('chatSessionRouting.commandRan', "Ran command {0}", label)
+			: localize('chatSessionRouting.commandFailed', "Could not run command {0}. Your draft was preserved.", label);
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
+		this._pendingSend.value = store;
+		ariaAlert(message.textContent);
 	}
 
 	/**

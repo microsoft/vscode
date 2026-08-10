@@ -5,15 +5,77 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatModeKind } from '../../../common/constants.js';
 
 suite('ChatSessionRoutingController', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('detects command intent before collecting chat sessions', async () => {
+		const phases: Array<[boolean, boolean]> = [];
+		const host = {
+			widget: {
+				input: { setSubmitPending: (pending: boolean, showingProgress: boolean) => phases.push([pending, showingProgress]) },
+				inputEditor: {
+					onDidChangeModelContent: Event.None,
+					getValue: () => 'turn on zen mode',
+				},
+				attachmentModel: {
+					onDidChange: Event.None,
+					attachments: [],
+				},
+				getSelectedModelRequestOptions: () => ({}),
+				getModeRequestOptions: () => ({}),
+			},
+		} as unknown as IChatSessionRoutingHost;
+		const controller = new ChatSessionRoutingController(
+			host,
+			'test',
+			undefined!,
+			undefined!,
+			undefined!,
+			{
+				detectIntent: async () => ({ kind: 'command', commandId: 'workbench.action.toggleZenMode', confidence: 0.95 }),
+			} as never,
+			undefined!,
+			{ warn: () => { } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const command = { commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' };
+		let pendingCommand: typeof command | undefined;
+		let collectedSessions = false;
+		Reflect.set(controller, '_collectCommandCandidates', () => [command]);
+		Reflect.set(controller, '_beginPendingCommand', (candidate: typeof command) => pendingCommand = candidate);
+		Reflect.set(controller, '_collectCandidateSessions', () => {
+			collectedSessions = true;
+			return Promise.resolve([]);
+		});
+
+		await controller.handleSubmit('turn on zen mode', ChatModeKind.Agent);
+
+		assert.deepStrictEqual({
+			pendingCommand,
+			collectedSessions,
+			phases,
+		}, {
+			pendingCommand: command,
+			collectedSessions: false,
+			phases: [[true, true], [true, false]],
+		});
+		controller.dispose();
+	});
 
 	test('returns the stable request id for an immediately sent route', async () => {
 		const resource = URI.parse('agent-host-copilotcli:/untitled-route');
@@ -39,6 +101,10 @@ suite('ChatSessionRoutingController', () => {
 			{ warn: () => { } } as never,
 			undefined!,
 			{ setFolder: () => { } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
 			undefined!,
 		);
 		const sendRequest = Reflect.get(controller, '_sendRequest') as (resource: URI, utterance: string, options: object) => Promise<{ status: string; resource?: URI; requestId?: string }>;
@@ -83,6 +149,10 @@ suite('ChatSessionRoutingController', () => {
 			host,
 			'test',
 			chatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -146,6 +216,10 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			{ setFolder: () => { } } as never,
 			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
 		);
 		const dispatch = Reflect.get(controller, '_dispatchToNewSession') as (
 			input: string,
@@ -189,6 +263,10 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			{ warn: () => { } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
 			undefined!,
 			undefined!,
 			undefined!,

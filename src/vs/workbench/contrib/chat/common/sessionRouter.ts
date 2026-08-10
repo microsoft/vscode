@@ -14,9 +14,69 @@ export const OmniChatEnabledSettingId = 'chat.omni.enabled';
 
 /** Existing sessions must exceed this confidence to be shown or selected. */
 export const SESSION_ROUTE_CONFIDENCE_THRESHOLD = 0.8;
+export const COMMAND_INTENT_CONFIDENCE_THRESHOLD = 0.8;
+export const COMMAND_INTENT_MAX_CANDIDATES = 80;
+const COMMAND_INTENT_LABEL_CLIP_LENGTH = 120;
 
 export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boolean {
 	return result.confidence > SESSION_ROUTE_CONFIDENCE_THRESHOLD;
+}
+
+export function isHighConfidenceCommandIntent(result: ICommandIntentResult): result is ICommandIntentCommandResult {
+	return result.kind === 'command' && result.confidence > COMMAND_INTENT_CONFIDENCE_THRESHOLD;
+}
+
+export interface ICommandIntentCandidate {
+	readonly commandId: string;
+	readonly label: string;
+}
+
+export interface ICommandIntentRequest {
+	readonly utterance: string;
+	readonly commands: readonly ICommandIntentCandidate[];
+}
+
+export interface ICommandIntentCommandResult {
+	readonly kind: 'command';
+	readonly commandId: string;
+	readonly confidence: number;
+	readonly reason?: string;
+}
+
+export interface ICommandIntentChatResult {
+	readonly kind: 'chat';
+}
+
+export type ICommandIntentResult = ICommandIntentCommandResult | ICommandIntentChatResult;
+
+export function selectCommandIntentCandidates(
+	utterance: string,
+	commands: readonly ICommandIntentCandidate[],
+	limit: number = COMMAND_INTENT_MAX_CANDIDATES,
+): ICommandIntentCandidate[] {
+	const utteranceTerms = new Set(tokenizeCommandIntent(utterance));
+	if (!utteranceTerms.size) {
+		return [];
+	}
+	return commands
+		.map(command => {
+			const commandTerms = new Set(tokenizeCommandIntent(`${command.label} ${command.commandId}`));
+			let matches = 0;
+			for (const term of commandTerms) {
+				if (utteranceTerms.has(term)) {
+					matches++;
+				}
+			}
+			const coverage = commandTerms.size ? matches / commandTerms.size : 0;
+			const precision = matches / utteranceTerms.size;
+			return { command, score: matches * 4 + coverage * 2 + precision };
+		})
+		.filter(candidate => candidate.score > 0)
+		.sort((a, b) => b.score - a.score
+			|| a.command.label.localeCompare(b.command.label)
+			|| a.command.commandId.localeCompare(b.command.commandId))
+		.slice(0, limit)
+		.map(candidate => candidate.command);
 }
 
 /**
@@ -73,6 +133,12 @@ export interface ISessionRouter {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * First determine whether the utterance asks to run an available VS Code
+	 * command. Chat intent continues to session routing.
+	 */
+	detectIntent(request: ICommandIntentRequest, token: CancellationToken): Promise<ICommandIntentResult>;
+
+	/**
 	 * Rank the candidate sessions for the given utterance, best match first.
 	 * Returns no matches when model scoring is unavailable so callers safely
 	 * create a new session instead of guessing from lexical overlap.
@@ -86,6 +152,73 @@ export interface ISessionRouter {
 export interface ISessionRouterMessage {
 	readonly role: 'system' | 'user';
 	readonly content: string;
+}
+
+export function buildCommandIntentMessages(request: ICommandIntentRequest): ISessionRouterMessage[] {
+	const commandLines = request.commands
+		.slice(0, COMMAND_INTENT_MAX_CANDIDATES)
+		.map(command => `- id=${command.commandId} label=${JSON.stringify(clip(command.label, COMMAND_INTENT_LABEL_CLIP_LENGTH))}`)
+		.join('\n');
+	const system = [
+		'Determine whether the user wants to run one available VS Code command or continue to a coding chat.',
+		'Choose command only for a clear application or editor action that exactly matches one listed command and needs no arguments.',
+		'Questions, explanations, coding tasks, repository work, file edits, debugging, and requests that need command arguments are chat.',
+		'When uncertain, choose chat.',
+		'Respond with ONLY one JSON object and no prose:',
+		'{"intent":"command","commandId":string,"confidence":number,"reason":string}',
+		'or {"intent":"chat"}.',
+	].join('\n');
+	return [
+		{ role: 'system', content: system },
+		{ role: 'user', content: `Request: ${JSON.stringify(request.utterance)}\nAvailable commands:\n${commandLines}` },
+	];
+}
+
+function tokenizeCommandIntent(text: string): string[] {
+	return text
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+		.toLowerCase()
+		.split(/[^a-z0-9]+/)
+		.filter(term => term.length > 1 && !COMMAND_INTENT_STOP_WORDS.has(term));
+}
+
+const COMMAND_INTENT_STOP_WORDS = new Set([
+	'action', 'and', 'can', 'command', 'could', 'execute', 'for', 'in', 'my', 'of', 'on', 'please', 'run', 'the', 'to', 'vscode', 'want', 'workbench', 'would',
+]);
+
+export function parseCommandIntentResponse(text: string, validCommandIds: ReadonlySet<string>): ICommandIntentResult | undefined {
+	const start = text.indexOf('{');
+	const end = text.lastIndexOf('}');
+	if (start < 0 || end <= start) {
+		return undefined;
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text.slice(start, end + 1));
+	} catch {
+		return undefined;
+	}
+	if (!parsed || typeof parsed !== 'object') {
+		return undefined;
+	}
+	const record = parsed as Record<string, unknown>;
+	if (record.intent === 'chat') {
+		return { kind: 'chat' };
+	}
+	if (record.intent !== 'command'
+		|| typeof record.commandId !== 'string'
+		|| !validCommandIds.has(record.commandId)
+		|| typeof record.confidence !== 'number'
+		|| !isFinite(record.confidence)) {
+		return undefined;
+	}
+	return {
+		kind: 'command',
+		commandId: record.commandId,
+		confidence: Math.max(0, Math.min(1, record.confidence)),
+		reason: typeof record.reason === 'string' ? record.reason : undefined,
+	};
 }
 
 /**
