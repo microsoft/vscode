@@ -41,6 +41,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -917,16 +918,19 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 
 	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
 	private readonly templatesById = new Map<string, ISessionSectionTemplate>();
+	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const runs = this.automationService.runs.read(reader);
 		if (runs.some(run => run.status === 'pending' || run.status === 'running')) {
 			return SessionStatus.InProgress;
 		}
+		const automationSessions = this.automationSessions.read(reader);
 		const hasUnreadRun = runs.some(run => {
 			if ((run.status !== 'completed' && run.status !== 'failed') || !run.sessionResource) {
 				return false;
 			}
-			const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
+			const sessionResource = URI.parse(run.sessionResource);
+			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
 			return !!session && !session.isRead.read(reader);
 		});
 		if (hasUnreadRun) {
@@ -940,7 +944,8 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
-		private readonly sessionsManagementService: ISessionsManagementService,
+		private readonly automationSessions: IObservable<readonly ISession[]>,
+		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
 	) { }
 
@@ -1798,6 +1803,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
+	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private visible = true;
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
@@ -1858,6 +1864,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IVoicePlaybackService private readonly _listVoicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -1937,7 +1944,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this._sessionsManagementService, this.customViewService);
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
@@ -2253,6 +2260,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	refresh(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
+		this.automationSessions.set(this.sessions, undefined);
 		for (const session of this.sessions) {
 			this._sessionsListModelService.migrateLegacyReadState(session);
 		}
