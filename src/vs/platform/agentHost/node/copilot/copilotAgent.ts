@@ -2227,9 +2227,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 					throw new Error(`Cannot fork Copilot session ${sourceSessionId}: source chat could not be resolved`);
 				}
 				const sourceTurns = await sourceEntry.getMessages();
-				const sourceTurnEventId = await sourceEntry.getTurnEventId(fork.turnId)
-					?? (sourceTurns.some(turn => turn.id === fork.turnId) ? fork.turnId : undefined);
-				const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === sourceTurnEventId);
+				const sourceTurnEventId = await sourceEntry.getTurnEventId(fork.turnId);
+				const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === fork.turnId || turn.id === sourceTurnEventId);
 				if (sourceTurnIndex < 0) {
 					throw new Error(`Cannot fork Copilot session ${sourceSessionId}: turn ${fork.turnId} is not in the provider history`);
 				}
@@ -2238,8 +2237,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const targetTurnIdByEventId = new Map<string, string>();
 				if (turnIdMapping) {
 					await Promise.all([...turnIdMapping].map(async ([sourceTurnId, targetTurnId]) => {
-						const eventId = await sourceEntry.getTurnEventId(sourceTurnId)
-							?? (sourceTurns.some(turn => turn.id === sourceTurnId) ? sourceTurnId : undefined);
+						targetTurnIdByEventId.set(sourceTurnId, targetTurnId);
+						const eventId = await sourceEntry.getTurnEventId(sourceTurnId);
 						if (eventId) {
 							targetTurnIdByEventId.set(eventId, targetTurnId);
 						}
