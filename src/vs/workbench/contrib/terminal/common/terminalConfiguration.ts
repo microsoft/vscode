@@ -717,7 +717,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	.registerConfigurationMigrations([{
 		key: TerminalContribSettingId.AgentSandboxEnabled,
 		migrateFn: (value: unknown, valueAccessor) => {
-			if (value !== AgentSandboxEnabledValue.AllowNetwork) {
+			if (value !== 'allowNetwork') {
 				return [];
 			}
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxEnabled, { value: AgentSandboxEnabledValue.On }]];
@@ -729,7 +729,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	}, {
 		key: TerminalContribSettingId.AgentSandboxWindowsEnabled,
 		migrateFn: (value: unknown, valueAccessor) => {
-			if (value !== AgentSandboxEnabledValue.AllowNetwork) {
+			if (value !== 'allowNetwork') {
 				return [];
 			}
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxWindowsEnabled, { value: AgentSandboxEnabledValue.On }]];

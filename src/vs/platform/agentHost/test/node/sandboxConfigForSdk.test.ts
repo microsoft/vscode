@@ -24,6 +24,7 @@ function sandbox(
 	enabled: AgentSandboxEnabledValue | undefined,
 	fs?: IAgentSandboxFileSystemSetting,
 	hosts?: { allowedHosts?: readonly string[]; blockedHosts?: readonly string[] },
+	allowNetwork?: boolean,
 ): ISandboxConfigValue | undefined {
 	if (!enabled && !fs && !hosts) {
 		return undefined;
@@ -45,6 +46,9 @@ function sandbox(
 	}
 	if (hosts?.blockedHosts?.length) {
 		cfg[AgentHostSandboxKey.DeniedNetworkDomains] = [...hosts.blockedHosts];
+	}
+	if (allowNetwork !== undefined) {
+		cfg[AgentHostSandboxKey.AllowNetwork] = allowNetwork;
 	}
 	return cfg;
 }
@@ -107,15 +111,20 @@ suite('buildSandboxConfigForSdk', () => {
 			assert.strictEqual(buildSandboxConfigForSdk('win32', sandbox('win32', AgentSandboxEnabledValue.Off)), undefined);
 		});
 
+		test('returns undefined for `off` when allowNetwork is set', () => {
+			assert.strictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.Off, undefined, undefined, true)), undefined);
+			assert.strictEqual(buildSandboxConfigForSdk('win32', sandbox('win32', AgentSandboxEnabledValue.Off, undefined, undefined, true)), undefined);
+		});
+
 		test('enables sandbox for `on` on supported platforms', () => {
 			for (const platform of ['darwin', 'linux', 'win32'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On)), expectedSandboxConfig());
 			}
 		});
 
-		test('normalizes the legacy `allowNetwork` mode to enabled with outbound network', () => {
+		test('enables outbound network through the separate allowNetwork policy', () => {
 			for (const platform of ['darwin', 'linux', 'win32'] as const) {
-				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.AllowNetwork)), expectedSandboxConfig({ allowOutbound: true }));
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, undefined, true)), expectedSandboxConfig({ allowOutbound: true }));
 			}
 		});
 
@@ -218,7 +227,7 @@ suite('buildSandboxConfigForSdk', () => {
 
 		test('allows all outbound network through the separate allowNetwork policy', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
-				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.AllowNetwork, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }))?.userPolicy?.network, {
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }, true))?.userPolicy?.network, {
 					allowLocalNetwork: false,
 					allowOutbound: true,
 					proxy: undefined,

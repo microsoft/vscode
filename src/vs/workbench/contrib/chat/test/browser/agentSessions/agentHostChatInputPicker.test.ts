@@ -9,7 +9,10 @@ import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/com
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, isAgentHostSandboxToggleItem, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { getAgentHostSandboxSettingId, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, isAgentHostSandboxToggleItem, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatPermissionLevel } from '../../../common/constants.js';
@@ -65,6 +68,22 @@ suite('AgentHostChatInputPicker - list options', () => {
 			defaultPermissions: true,
 			assistedPermissions: false,
 			modeDefault: false,
+		});
+	});
+
+	test('resolves the Copilot Agent Host sandbox setting', () => {
+		assert.deepStrictEqual({
+			sdk: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false, false),
+			sdkWindows: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false, true),
+			customTerminal: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true, false),
+			customTerminalWindows: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true, true),
+			claude: getAgentHostSandboxSettingId(SessionType.AgentHostClaude, false, false),
+		}, {
+			sdk: AgentHostSdkSandboxEnabledSettingId,
+			sdkWindows: AgentHostSdkSandboxWindowsEnabledSettingId,
+			customTerminal: AgentSandboxSettingId.AgentSandboxEnabled,
+			customTerminalWindows: AgentSandboxSettingId.AgentSandboxWindowsEnabled,
+			claude: undefined,
 		});
 	});
 });

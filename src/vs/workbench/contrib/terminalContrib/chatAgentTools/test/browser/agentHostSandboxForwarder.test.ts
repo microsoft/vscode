@@ -250,7 +250,7 @@ suite('AgentHostSandboxForwarder', () => {
 		// Initial state already matches → no dispatch.
 		assert.deepStrictEqual(local.dispatched, []);
 
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			source: ConfigurationTarget.USER,
 			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
@@ -260,7 +260,7 @@ suite('AgentHostSandboxForwarder', () => {
 
 		assert.deepStrictEqual(local.dispatched, [{
 			type: ActionType.RootConfigChanged,
-			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.AllowNetwork } },
+			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off } },
 		}]);
 	});
 
@@ -375,7 +375,8 @@ suite('AgentHostSandboxForwarder', () => {
 	suite('SDK-sandbox gating', () => {
 		test('forwards user values verbatim when customTerminalTool is enabled, regardless of sdkSandbox', () => {
 			const { local } = setup(disposables, {
-				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.AllowNetwork,
+				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
+				[AgentSandboxSettingId.AgentSandboxAllowNetwork]: true,
 				[AgentHostCustomTerminalToolEnabledSettingId]: true,
 				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.Off,
 			});
@@ -384,13 +385,19 @@ suite('AgentHostSandboxForwarder', () => {
 
 			assert.deepStrictEqual(local.dispatched, [{
 				type: ActionType.RootConfigChanged,
-				config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.AllowNetwork } },
+				config: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+						[AgentHostSandboxKey.AllowNetwork]: true,
+					}
+				},
 			}]);
 		});
 
 		test('forwards an empty sandbox object when both customTerminalTool and sdkSandbox are off (default)', () => {
 			const { local } = setup(disposables, {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
+				[AgentSandboxSettingId.AgentSandboxAllowNetwork]: true,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
 				// sdkSandbox unset → defaults to 'off'.
 			});
@@ -525,7 +532,7 @@ suite('AgentHostSandboxForwarder', () => {
 			}]);
 		});
 
-		test('normalizes the legacy SDK `allowNetwork` mode to `on` plus allowNetwork policy', () => {
+		test('forwards the separate allowNetwork policy when SDK sandboxing is on', () => {
 			const { local, configurationService } = setup(disposables, {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
@@ -537,12 +544,12 @@ suite('AgentHostSandboxForwarder', () => {
 			}));
 			assert.deepStrictEqual(local.dispatched, []);
 
-			configurationService.setUserConfiguration(AgentHostSdkSandboxEnabledSettingId, AgentSandboxEnabledValue.AllowNetwork);
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				source: ConfigurationTarget.USER,
-				affectsConfiguration: (key: string) => key === AgentHostSdkSandboxEnabledSettingId,
-				affectedKeys: new Set([AgentHostSdkSandboxEnabledSettingId]),
-				change: { keys: [AgentHostSdkSandboxEnabledSettingId], overrides: [] },
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowNetwork,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowNetwork]),
+				change: { keys: [AgentSandboxSettingId.AgentSandboxAllowNetwork], overrides: [] },
 			});
 
 			assert.deepStrictEqual(local.dispatched, [{

@@ -176,8 +176,6 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	 *        settings. The SDK sandbox modes are independent of the
 	 *        engine sandbox mode, so the user can run the SDK sandboxed
 	 *        even when the engine sandbox is off.
-	 *      - legacy `'allowNetwork'` values are normalized to `'on'` plus the
-	 *        existing `allowNetwork: true` policy.
 	 */
 	private _computeDesired(): Record<string, unknown> {
 		const customTerminalToolEnabled = this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true;
@@ -187,16 +185,13 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 		}
 		const sdkSandbox = this._configurationService.getValue<AgentSandboxEnabledValue>(AgentHostSdkSandboxEnabledSettingId) ?? AgentSandboxEnabledValue.Off;
 		const windowsSdkSandbox = this._configurationService.getValue<AgentSandboxEnabledValue>(AgentHostSdkSandboxWindowsEnabledSettingId) ?? AgentSandboxEnabledValue.Off;
-		const sdkSandboxEnabled = sdkSandbox === AgentSandboxEnabledValue.On || sdkSandbox === AgentSandboxEnabledValue.AllowNetwork;
-		const windowsSdkSandboxEnabled = windowsSdkSandbox === AgentSandboxEnabledValue.On || windowsSdkSandbox === AgentSandboxEnabledValue.AllowNetwork;
+		const sdkSandboxEnabled = sdkSandbox === AgentSandboxEnabledValue.On;
+		const windowsSdkSandboxEnabled = windowsSdkSandbox === AgentSandboxEnabledValue.On;
 		if (!sdkSandboxEnabled && !windowsSdkSandboxEnabled) {
 			return {};
 		}
 		values[AgentHostSandboxKey.Enabled] = sdkSandboxEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 		values[AgentHostSandboxKey.WindowsEnabled] = windowsSdkSandboxEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
-		if (sdkSandbox === AgentSandboxEnabledValue.AllowNetwork || windowsSdkSandbox === AgentSandboxEnabledValue.AllowNetwork) {
-			values[AgentHostSandboxKey.AllowNetwork] = true;
-		}
 		return values;
 	}
 

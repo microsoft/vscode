@@ -19,6 +19,9 @@ export interface IAgentSandboxFileSystemSetting {
 	denyWrite?: string[];
 }
 
+// These interfaces mirror the sandbox configuration contract currently accepted
+// by the Copilot SDK. Replace them with the SDK-exported types once those become
+// available so this file refers to the SDK contract directly.
 export interface SandboxConfig {
 	/** Whether to auto-add the current working directory to readwritePaths. Default: true. */
 	addCurrentWorkingDirectory?: boolean;
@@ -124,7 +127,6 @@ export type CopilotSandboxConfig = SandboxConfig & {
  *    Each path appears in exactly one of `deniedPaths` / `readonlyPaths` /
  *    `readwritePaths`.
  *  - Network: the separate `allowNetwork` policy opens outbound to everything.
- *    The legacy `allowNetwork` enablement value is treated equivalently.
  *    Domain allow/deny lists are ignored because the SDK's `SandboxConfig`
  *    does not support host-level rules.
  *
@@ -143,7 +145,7 @@ export function buildSandboxConfigForSdk(
 	const enabledRaw = platform === 'win32'
 		? sandbox[AgentHostSandboxKey.WindowsEnabled]
 		: sandbox[AgentHostSandboxKey.Enabled];
-	if (enabledRaw !== AgentSandboxEnabledValue.On && enabledRaw !== AgentSandboxEnabledValue.AllowNetwork) {
+	if (enabledRaw !== AgentSandboxEnabledValue.On) {
 		return undefined;
 	}
 
@@ -173,7 +175,7 @@ export function buildSandboxConfigForSdk(
 		}
 	}
 
-	const allowAllNetwork = enabledRaw === AgentSandboxEnabledValue.AllowNetwork || sandbox[AgentHostSandboxKey.AllowNetwork] === true;
+	const allowAllNetwork = sandbox[AgentHostSandboxKey.AllowNetwork] === true;
 	return {
 		addCurrentWorkingDirectory: true,
 		allowBypass: true,
