@@ -19,12 +19,18 @@ import { hashAsync } from '../../../../base/common/hash.js';
 const MetaModulesToLookFor = [
 	// Azure packages
 	'@azure',
+	'@azure/',
+	'@azure-rest/',
 	'@azure/ai',
+	'@azure/arm',
+	'@azure/communication',
 	'@azure/core',
 	'@azure/cosmos',
 	'@azure/event',
 	'@azure/identity',
 	'@azure/keyvault',
+	'@azure/monitor',
+	'@azure/provisioning',
 	'@azure/search',
 	'@azure/storage'
 ];
@@ -305,6 +311,25 @@ const ModulesToLookFor = [
 	'microsoft-cognitiveservices-speech-sdk',
 	'@google/generative-ai'
 ];
+
+/**
+ * Returns the exact and prefix-based telemetry tags for an npm package.
+ */
+export function getNodeModuleTags(packageName: string): string[] {
+	const result: string[] = [];
+
+	if (ModulesToLookFor.indexOf(packageName) > -1) {
+		result.push(packageName);
+	}
+
+	for (const metaModule of MetaModulesToLookFor) {
+		if (packageName.startsWith(metaModule)) {
+			result.push(metaModule);
+		}
+	}
+
+	return result;
+}
 
 const PyMetaModulesToLookFor = [
 	'azure-ai',
@@ -609,12 +634,18 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.aws-amplify-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure-rest/" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/arm" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/communication" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/cosmos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/event" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/identity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/keyvault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/monitor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/provisioning" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/search" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@google-cloud/aiplatform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -1543,13 +1574,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 							tags['workspace.reactNative'] = true;
 						} else if ('tns-core-modules' === dependency || '@nativescript/core' === dependency) {
 							tags['workspace.nativescript'] = true;
-						} else if (ModulesToLookFor.indexOf(dependency) > -1) {
-							tags['workspace.npm.' + dependency] = true;
 						} else {
-							for (const metaModule of MetaModulesToLookFor) {
-								if (dependency.startsWith(metaModule)) {
-									tags['workspace.npm.' + metaModule] = true;
-								}
+							for (const module of getNodeModuleTags(dependency)) {
+								tags['workspace.npm.' + module] = true;
 							}
 						}
 					}
