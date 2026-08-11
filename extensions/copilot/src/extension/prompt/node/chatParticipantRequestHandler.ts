@@ -33,7 +33,6 @@ import { getAgentForIntent, Intent } from '../../common/constants';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { IIntentService } from '../../intents/node/intentService';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
-import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { UnknownIntent } from '../../intents/node/unknownIntent';
 import { formatAutoModeDetails, formatModelDetails } from '../../../platform/chat/common/chatModelDetails';
 import { ContributedToolName } from '../../tools/common/toolNames';
@@ -89,7 +88,6 @@ export class ChatParticipantRequestHandler {
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IAuthenticationChatUpgradeService private readonly _authenticationUpgradeService: IAuthenticationChatUpgradeService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
-		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) {
 		this.location = this.getLocation(request);
 
@@ -262,9 +260,10 @@ export class ChatParticipantRequestHandler {
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				const hideAutoModelName = isAutoModel(endpoint) === 1
-					&& this._experimentationService.getTreatmentVariable<boolean>('copilotchat.hideAutoModelName') === true;
-				if (hideAutoModelName) {
+				// Auto reports the user's choice ("Auto") rather than the model it
+				// picked: the resolved model and the routing rationale are surfaced in
+				// the footer's hover, via the auto-mode resolution part pushed above.
+				if (isAutoModel(endpoint) === 1) {
 					result.details = formatAutoModeDetails(creditsUsed, endpoint.multiplier);
 				} else if (this._authService.copilotToken?.isNoAuthUser) {
 					result.details = endpoint.name;
