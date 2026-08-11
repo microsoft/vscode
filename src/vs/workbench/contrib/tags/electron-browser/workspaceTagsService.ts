@@ -312,25 +312,6 @@ const ModulesToLookFor = [
 	'@google/generative-ai'
 ];
 
-/**
- * Returns the exact and prefix-based telemetry tags for an npm package.
- */
-export function getNodeModuleTags(packageName: string): string[] {
-	const result: string[] = [];
-
-	if (ModulesToLookFor.indexOf(packageName) > -1) {
-		result.push(packageName);
-	}
-
-	for (const metaModule of MetaModulesToLookFor) {
-		if (packageName.startsWith(metaModule)) {
-			result.push(metaModule);
-		}
-	}
-
-	return result;
-}
-
 const PyMetaModulesToLookFor = [
 	'azure-ai',
 	'azure-cognitiveservices',
@@ -1574,9 +1555,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 							tags['workspace.reactNative'] = true;
 						} else if ('tns-core-modules' === dependency || '@nativescript/core' === dependency) {
 							tags['workspace.nativescript'] = true;
+						} else if (ModulesToLookFor.indexOf(dependency) > -1) {
+							tags['workspace.npm.' + dependency] = true;
 						} else {
-							for (const module of getNodeModuleTags(dependency)) {
-								tags['workspace.npm.' + module] = true;
+							for (const metaModule of MetaModulesToLookFor) {
+								if (dependency.startsWith(metaModule)) {
+									tags['workspace.npm.' + metaModule] = true;
+								}
 							}
 						}
 					}
