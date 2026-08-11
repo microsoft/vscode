@@ -906,8 +906,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			if (run.status !== 'running' || !run.sessionResource) {
 				return false;
 			}
-			const sessionResource = URI.parse(run.sessionResource);
-			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
+			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, run.sessionResource));
 			return !!session && session.status.read(reader) === SessionStatus.NeedsInput;
 		});
 		if (hasNeedsInput) {
@@ -1338,15 +1337,15 @@ class SessionsAccessibilityProvider {
 				return this.automationStatus
 					? derived(this, reader => {
 						switch (this.automationStatus?.read(reader)) {
-								case SessionStatus.NeedsInput:
-									return localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
-								case SessionStatus.InProgress:
-									return localize('automationsActiveAria', "{0}, run in progress", element.label);
-								case SessionStatus.Completed:
-									return localize('automationsUnreadRunAria', "{0}, unread run", element.label);
-								default:
-									return element.label;
-							}
+							case SessionStatus.NeedsInput:
+								return localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
+							case SessionStatus.InProgress:
+								return localize('automationsActiveAria', "{0}, run in progress", element.label);
+							case SessionStatus.Completed:
+								return localize('automationsUnreadRunAria', "{0}, unread run", element.label);
+							default:
+								return element.label;
+						}
 					})
 					: element.label;
 			}

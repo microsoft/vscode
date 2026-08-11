@@ -106,9 +106,9 @@ export class AutomationsCardsWidget extends Disposable {
 						session,
 						isRead: session.isRead.read(reader),
 						supportsDelete: session.capabilities.read(reader).supportsDelete === true,
-							sessionStatus: run.status === 'running' ? session.status.read(reader) : undefined,
-						});
-					}
+						sessionStatus: run.status === 'running' ? session.status?.read(reader) : undefined,
+					});
+				}
 			}
 			this.historySection.render(allRuns, items, sessions);
 		}));
@@ -525,6 +525,8 @@ class AutomationHistorySection extends Disposable {
 			this.disposables.add(createPixelSpinner(spinnerContainer, { variant: isNeedsInput ? 'ring' : 'grid' }));
 			if (isNeedsInput) {
 				card.classList.add('needs-input');
+				const needsInputLabel = DOM.append(statusRow, $('span.automations-run-card-needs-input-label'));
+				needsInputLabel.textContent = localize('automationRunNeedsInputLabel', "Input needed");
 			}
 		} else {
 			const statusInfo = runStatusIcon(run.status);
