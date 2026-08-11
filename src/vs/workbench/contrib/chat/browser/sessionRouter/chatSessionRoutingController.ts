@@ -143,7 +143,7 @@ export interface IChatSessionRoutingHost {
 	 */
 	placeBadge(badge: HTMLElement): void;
 	/** Prepare or release a host-owned action-widget surface. */
-	onDidChangeActionWidgetVisibility?(visible: boolean): void | Promise<void>;
+	onDidChangeActionWidgetVisibility?(visible: boolean, anchor?: HTMLElement): void | Promise<void>;
 	/** Container used to render action widgets, when the host owns a separate surface. */
 	getActionWidgetContainer?(): HTMLElement | undefined;
 	/** Translate an element anchor into the host's action-widget coordinate space. */
@@ -621,7 +621,7 @@ export class ChatSessionRoutingController extends Disposable {
 			folderIcon.setAttribute('aria-hidden', 'true');
 			const label = dom.append(changeFolderAction, dom.$('span.chat-routing-badge-folder-action-label'));
 			label.textContent = selectedFolderName ?? localize('chatSessionRouting.chooseFolder', "Choose Folder");
-			const chevron = dom.append(changeFolderAction, renderIcon(expanded ? Codicon.chevronUp : Codicon.chevronDown));
+			const chevron = dom.append(changeFolderAction, renderIcon(expanded ? Codicon.chevronLeft : Codicon.chevronRight));
 			chevron.setAttribute('aria-hidden', 'true');
 			changeFolderAction.title = selectedFolderName
 				? localize('chatSessionRouting.changeTargetFolderWithName', "Change target folder ({0})", selectedFolderName)
@@ -796,7 +796,7 @@ export class ChatSessionRoutingController extends Disposable {
 					};
 					folderPickerSurfaceOpen = true;
 					try {
-						await this.host.onDidChangeActionWidgetVisibility?.(true);
+						await this.host.onDidChangeActionWidgetVisibility?.(true, changeFolder);
 						showFolderPicker();
 					} catch (error) {
 						this.logService.error('[chatSessionRouting] Failed to show folder picker', error);
