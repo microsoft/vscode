@@ -141,6 +141,29 @@ suite('NewSessionViewV3Prompt', () => {
 		});
 	});
 
+	test('uses concise task-specific standard prompts', async () => {
+		const result = await runPrompt({});
+		const resolvedState = result.promptOptionStates.find(state => state.kind === 'resolved');
+
+		assert.deepStrictEqual(resolvedState?.options.map(option => ({
+			prompt: option.prompt,
+			placeholder: option.placeholder,
+		})), [
+			{
+				prompt: 'Help me implement [describe the feature] in this project. Ask me questions if anything is unclear regarding the intended behaviour.',
+				placeholder: '[describe the feature]',
+			},
+			{
+				prompt: 'Help me fix [describe the bug] in this project. Ask me questions if anything is unclear regarding the bug or the intended behaviour.',
+				placeholder: '[describe the bug]',
+			},
+			{
+				prompt: 'Help me fix the failing CI for [describe the CI failure or paste a link] in this project. Ask me questions if anything is unclear regarding the CI failure or how it should be fixed.',
+				placeholder: '[describe the CI failure or paste a link]',
+			},
+		]);
+	});
+
 	test('developer override selects a GitHub CI prompt and reports telemetry', async () => {
 		const result = await runPrompt({
 			'onb.newSessionViewV3.variation': 'prompt',
