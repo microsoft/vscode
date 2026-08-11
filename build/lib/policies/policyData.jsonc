@@ -437,6 +437,21 @@
             "included": true
         },
         {
+            "key": "chat.editor.preferCopilotHarness",
+            "name": "ChatEditorPreferCopilotHarness",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.134",
+            "localization": {
+                "description": {
+                    "key": "chat.editor.preferCopilotHarness.policy",
+                    "value": "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.extensionTools.enabled",
             "name": "ChatAgentExtensionTools",
             "category": "InteractiveSession",

@@ -3574,23 +3574,6 @@
               "experimental"
             ]
           },
-          "github.copilot.chat.cloudAgentBackend.version": {
-            "type": "string",
-            "default": "v1",
-            "enum": [
-              "v1",
-              "v2"
-            ],
-            "enumDescriptions": [
-              "%github.copilot.config.cloudAgentBackend.version.v1%",
-              "%github.copilot.config.cloudAgentBackend.version.v2%"
-            ],
-            "markdownDescription": "%github.copilot.config.cloudAgentBackend.version%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.switchAgent.enabled": {
             "type": "boolean",
             "default": false,
@@ -7093,7 +7076,7 @@
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
-    "@vscode/copilot-api": "^0.5.1",
+    "@vscode/copilot-api": "^0.5.2",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",
