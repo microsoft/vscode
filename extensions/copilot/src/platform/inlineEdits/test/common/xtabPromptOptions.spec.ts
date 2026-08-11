@@ -5,8 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
-import { InlineEditsUnification } from '../../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, InlineEditsUnification, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
