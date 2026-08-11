@@ -339,6 +339,28 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(notificationService.dismissed.join(','), 'info');
 	});
 
+	test('keep-open actions execute without dismissing the notification', async () => {
+		const commandService = new TestCommandService();
+		const { notificationService, widget } = createWidget({ commandService });
+		showNotification(notificationService, {
+			id: 'setup',
+			message: 'Setup',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Sign In', commandId: 'test.signIn', keepOpen: true }],
+		});
+
+		clickAction(widget);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			executed: commandService.executed,
+			dismissed: notificationService.dismissed,
+		}, {
+			executed: [{ id: 'test.signIn', args: [] }],
+			dismissed: [],
+		});
+	});
+
 	test('catches rejected command actions', async () => {
 		const logService = store.add(new RecordingLogService());
 		const commandService = new class extends TestCommandService {
@@ -495,6 +517,32 @@ suite('ChatInputNotificationWidget', () => {
 		});
 
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Agent Host promo');
+	});
+
+	test('matches a notification scoped to both Copilot model targets', () => {
+		const currentSessionType = observableValue<string | undefined>('currentSessionType', SessionType.AgentHostCopilot);
+		const { notificationService, widget } = createWidget({
+			delegate: { modelTargetChatSessionType: currentSessionType },
+		});
+
+		showNotification(notificationService, {
+			id: 'copilot-model-setup',
+			message: 'Choose how you want to use Copilot.',
+			actions: [],
+			sessionTypes: [SessionType.AgentHostCopilot, SessionType.CopilotCLI],
+		});
+		const text = () => widget.domNode.querySelector('.chat-input-notification')?.textContent;
+		const agentHostText = text();
+		currentSessionType.set(SessionType.CopilotCLI, undefined);
+		const copilotCliText = text();
+
+		assert.deepStrictEqual({
+			agentHostText,
+			copilotCliText,
+		}, {
+			agentHostText: 'Choose how you want to use Copilot.',
+			copilotCliText: 'Choose how you want to use Copilot.',
+		});
 	});
 
 	test('announces only the notification rendered in the current session', () => {

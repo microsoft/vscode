@@ -11,7 +11,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { localize } from '../../../../nls.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
@@ -19,7 +18,7 @@ import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
+import { getTurnChangesEditorLabel, LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
@@ -222,14 +221,11 @@ export class SessionChatInputToolbar extends Disposable {
 		if (!chat) {
 			return;
 		}
-		// Open the multi-diff editor scoped to this chat's last turn. Its resource
-		// list is resolved reactively via the `LastTurnChangesMultiDiffSourceResolver`
-		// registered as a workbench contribution, so it live-updates as further
-		// edits stream in.
+		// The resolver live-updates the resources and title as the turn progresses.
 		const multiDiffSource = LastTurnChangesMultiDiffSourceResolver.getMultiDiffSourceUri(chat.resource);
 		await this._editorService.openEditor({
 			multiDiffSource,
-			label: localize('sessions.lastTurnChanges.title', "Last Turn Changes"),
+			label: getTurnChangesEditorLabel(isActiveSessionStatus(chat.status.get())),
 		});
 	}
 

@@ -571,7 +571,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			}
 
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				await group.closeAllEditors({ excludeConfirming: true });
+				await group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
 
 			const closed = (part as unknown as IAuxiliaryEditorPart).close(); // will move remaining editors to main part

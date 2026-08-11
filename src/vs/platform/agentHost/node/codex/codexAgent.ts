@@ -23,12 +23,14 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostCodexMultiRootEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
+import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
+import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { AuthRequiredParams } from '../../common/state/protocol/common/notifications.js';
@@ -47,8 +49,11 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -63,6 +68,7 @@ import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAns
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
 import { buildCodexLaunchConfig, buildCodexResumeParams } from './codexLaunchConfig.js';
+import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
@@ -118,6 +124,7 @@ import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/gener
 import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
+import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
 const CLIENT_INFO = {
 	name: 'vscode_agent_host',
@@ -179,6 +186,7 @@ const MCP_TOOL_APPROVAL_ANSWER_DECLINE = '__codex_mcp_decline__';
  */
 const CODEX_RESPONSES_ENDPOINT = '/responses';
 const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
+const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
 
 export function toCodexModelSelectionId(modelProvider: string, modelId: string): string {
@@ -463,12 +471,11 @@ interface ICodexSession {
 	 */
 	workingDirectory: URI | undefined;
 	/**
-	 * The full resolved working-directory set handed to the first send (index 0
-	 * = the process root, mirrored in {@link workingDirectory}; the tail carries
-	 * any additional session roots). Populated only when the host-owned send hook
-	 * supplied a set, so the materialization receipt can record the lossless set;
-	 * `undefined` on the resume/restore path (the receipt then emits the singular
-	 * `workingDirectory`).
+	 * The current full working-directory set (index 0 = the process root,
+	 * mirrored in {@link workingDirectory}; the tail carries additional session
+	 * roots). Workspace-folder reconciliation can replace the tail before a
+	 * turn; `turn/start.runtimeWorkspaceRoots` applies the latest set to the
+	 * existing thread.
 	 */
 	workingDirectories?: readonly URI[];
 	readonly multiRootEnabled: boolean;
@@ -863,6 +870,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
@@ -870,10 +878,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._publishAccountInfo({ status: 'unknown' });
+
+		this._register(this._stateManager.onDidChangeSessionTitle(({ session, title }) => {
+			if (AgentSession.provider(session) === this.id) {
+				this._otelService.emitSessionTitleChanged(AgentSession.id(session), session, title);
+			}
+		}));
+
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			const signInRequest = this._configurationService.getRootConfigValues?.()[CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY];
 			if (typeof signInRequest === 'string' && signInRequest !== this._lastSignInRequest) {
@@ -1398,8 +1414,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			const configResponse = await connection.client.request<'config/read', ConfigReadResponse>('config/read', { includeLayers: false });
-			const modelProvider = configResponse.config.model_provider ?? 'openai';
-			const pickerProvider = account.status === 'signedIn' && account.authType === 'chatgpt' ? 'chatgpt' : modelProvider;
+			const modelProvider = configResponse.config.model_provider ?? CODEX_OPENAI_MODEL_PROVIDER;
+			const usesChatGPTSubscription = modelProvider === CODEX_OPENAI_MODEL_PROVIDER && account.status === 'signedIn' && account.authType === 'chatgpt';
+			const pickerProvider = usesChatGPTSubscription ? 'chatgpt' : modelProvider;
 			const data = [] as ModelListResponse['data'];
 			let cursor: string | null = null;
 			do {
@@ -1416,6 +1433,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					name: model.displayName,
 					supportsVision: model.inputModalities.includes('image'),
 					configSchema,
+					_meta: createAgentModelSourceMeta(usesChatGPTSubscription ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
 				}));
 			this._codexModels = models;
 		} catch (err) {
@@ -1450,6 +1468,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				try { ready.child.kill('SIGKILL'); } catch { /* already dead */ }
 				throw new Error('Codex app-server was replaced while starting');
 			}
+			// Authentication can complete while the connection is starting; apply the latest token before publishing ready.
+			ready.proxyHandle.setToken(this._githubToken ?? '');
 			this._connection = { kind: 'ready', ...ready };
 			return ready;
 		}).catch(err => {
@@ -1770,6 +1790,25 @@ export class CodexAgent extends Disposable implements IAgent {
 		const host = this._serverToolHost;
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
+				if (host.requiresConfirmation(session.sessionUri.toString(), params.tool)) {
+					const entry = session.mapState.itemToToolCall.get(params.callId);
+					if (!entry) {
+						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
+					}
+					const invocationMessage = getServerToolDisplay(params.tool, params.arguments)?.invocationMessage ?? `Calling ${params.tool}`;
+					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
+						this._fire(session.sessionUri, {
+							type: ActionType.ChatToolCallReady,
+							turnId: entry.turnId,
+							toolCallId: entry.toolCallId,
+							invocationMessage,
+							confirmationTitle: localize('codex.serverToolConfirmation.title', "Allow tool call?"),
+						});
+					});
+					if (decision !== 'accept' && decision !== 'acceptForSession') {
+						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
+					}
+				}
 				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
@@ -2070,6 +2109,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			'thread/settings/updated', // VS Code owns session config; Codex settings echoes are not consumed yet.
 			'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
 			'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
+			'thread/compacted', // Deprecated completion echo; the contextCompaction item owns UI progress.
 			'remoteControl/status/changed', // Remote-control state is not part of the VS Code integration.
 			'serverRequest/resolved', // We resolve requests through JSON-RPC responses, so this echo is informational.
 			'item/autoApprovalReview/started', // Informational; the completed notification drives the denied-action card.
@@ -2966,7 +3006,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			sessionId,
 			threadId,
 			sessionUri,
-			workingDirectory,
+			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
 			multiRootEnabled: multiRootEnabled ?? (effectiveWorkingDirectories?.length ?? 0) > 1,
 			managedWorkingDirectory: undefined,
@@ -3495,15 +3535,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error(`Codex session not found: ${sessionUri.toString()}`);
 		}
 		this._ensureModelProviderAuthenticated(session.model);
-		// The host hands us the resolved working directories (index 0 = the process
-		// root) on the first send; adopt index 0 as the codex subprocess cwd before
-		// materialize locks it. The agent stays unaware of worktrees.
+		// The host hands us the complete resolved snapshot (index 0 = the process
+		// root) on every send. Adopt index 0 before first materialization locks the
+		// subprocess cwd; an existing thread keeps its cwd and receives the full
+		// replacement below through native turn/start options.
 		await this._adoptWorkingDirectoryBeforeSend(session, workingDirectories?.[0]);
-		// Record the full set for the materialization receipt OUTSIDE the adoption
-		// path: a prewarm may have already materialized the thread, yet the receipt
-		// is fired on this first send and must still carry the resolved set. Only
-		// assign when the send supplied one, so the resume path keeps emitting the
-		// singular working directory.
+		// Record the full set OUTSIDE the adoption path: a prewarm may have
+		// already materialized the thread, yet the receipt is fired on this first
+		// send and must still carry the resolved set. Replace, rather than merge,
+		// the previous snapshot before any start, resume, or turn request is
+		// constructed. A missing snapshot is retained only for legacy cold-resume
+		// callers that rely on restored metadata.
 		if (workingDirectories) {
 			session.workingDirectories = session.multiRootEnabled && workingDirectories.length > 1
 				? distinctWorkingDirectories([
@@ -3534,6 +3576,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 			return;
 		}
+
+		// Check needsResume before the resume block clears it so restored sessions never receive a late baseline.
+		if (!session.firstTurnSent && !session.needsResume) {
+			const baselineWorkingDirectories = session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined);
+			this._checkpointService.captureBaselineCheckpoint(sessionUri, baselineWorkingDirectories).catch(err => {
+				this._logService.warn(`[Codex:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
+			});
+		}
+
 		// Codex registers client tools and MCP servers only at `thread/start`.
 		// If the thread was prewarmed (or otherwise started) before the current
 		// client tools / MCP servers were known, restart it now — before any
@@ -3606,18 +3657,26 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 
-		const { input, cleanupPaths } = resolveCodexInput(prompt, attachments);
 		// Buffer the prompt text for `turn/started`'s userMessage fallback.
 		session.lastPromptText = prompt;
 		session.currentTurnId = effectiveTurnId;
 		this._startTurnStopWatch(session);
+		let cleanupPaths: readonly string[] = [];
+		const isCompactCommand = parseLeadingSlashCommand(prompt)?.command === CODEX_COMPACT_SLASH_COMMAND;
 		try {
+			if (isCompactCommand) {
+				await conn.client.request<'thread/compact/start'>('thread/compact/start', { threadId }, this._traceContext(session));
+				session.firstTurnSent = true;
+				return;
+			}
+			const resolvedInput = resolveCodexInput(prompt, attachments);
+			cleanupPaths = resolvedInput.cleanupPaths;
 			const model = await this._resolveModel(session);
 			const resolvedModel = parseCodexModelSelection(model);
 			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, customizationLaunch.developerInstructions);
 			await conn.client.request<'turn/start'>('turn/start', {
 				threadId,
-				input: input.slice(),
+				input: resolvedInput.input.slice(),
 				model: resolvedModel.modelId,
 				...turnOptions,
 			}, this._traceContext(session));
@@ -3632,13 +3691,14 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			const message = err instanceof Error ? err.message : String(err);
-			this._logService.error(`[Codex:${sessionId}] turn/start error: ${message}`);
+			const operation = isCompactCommand ? 'thread/compact/start' : 'turn/start';
+			this._logService.error(`[Codex:${sessionId}] ${operation} error: ${message}`);
 			const duration = this._clearTurnStopWatch(session);
 			this._fire(sessionUri, {
 				type: ActionType.ChatError,
 				turnId: effectiveTurnId,
 				duration,
-				error: { errorType: 'CodexTurnError', ...extractForwardedErrorInfo(message) },
+				error: { errorType: isCompactCommand ? 'CodexCompactionError' : 'CodexTurnError', ...extractForwardedErrorInfo(message) },
 			});
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 		} finally {
@@ -4048,11 +4108,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		// Reject rather than reporting an empty list while the GitHub token is
-		// still landing: the workbench treats a successful listing as the
-		// authoritative session set and would evict — and permanently unpin and
-		// ungroup — every Codex session. A rejection instead leaves the cached
-		// list intact and self-heals through the caller's backoff retry.
 		// Don't connect (and trigger a cold SDK download) just to list threads
 		// at startup. When the SDK isn't local yet, surface an empty list; the
 		// download fires (with host-level progress) once the user starts a
@@ -4064,9 +4119,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		try {
 			const conn = await this._ensureConnection();
-			const response = await conn.client.request<'thread/list', ThreadListResponse>('thread/list', {
-				limit: 200,
-			});
+			const threads = await collectThreadListPages<Thread>(
+				request => conn.client.request<'thread/list', ThreadListResponse>('thread/list', request),
+				collected => this._logService.warn(`[Codex] thread/list hit the ${THREAD_LIST_MAX_PAGES}-page cap after ${collected} threads; some sessions may be missing`),
+			);
 			// Map persisted threads back to the URI the workbench already
 			// knows them by. After `_materializeIfNeeded` runs, the codex
 			// thread is persisted to disk under its thread id but the
@@ -4081,12 +4137,18 @@ export class CodexAgent extends Disposable implements IAgent {
 					liveUriByThreadId.set(s.threadId, s.sessionUri);
 				}
 			}
-			return response.data.map(thread => {
+			return threads.map(thread => {
 				const sessionUri = liveUriByThreadId.get(thread.id) ?? AgentSession.uri(this.id, thread.id);
 				const liveWorkingDirectories = this._sessions.get(AgentSession.id(sessionUri))?.workingDirectories;
 				return this._withWorkingDirectories(this._threadToMetadata(thread, sessionUri), liveWorkingDirectories);
 			});
 		} catch (err) {
+			// `AgentService.listSessions` fans out across all providers via
+			// `Promise.all`, so a rejection here takes the sibling Copilot and
+			// Claude listings down with it. Returning empty is a workaround for
+			// that aggregation, not a correct signal — an empty list is
+			// indistinguishable from "this agent has no sessions" and the
+			// workbench may reconcile against it.
 			this._logService.warn(`[Codex] thread/list failed: ${err instanceof Error ? err.message : String(err)}`);
 			return [];
 		}
@@ -4680,6 +4742,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
 		}));
 		return Promise.resolve({ values: resolvedValues, schema });
+	}
+
+	getInheritedSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		const inherited: Record<string, unknown> = migrateCodexPermissionValues(config, {
+			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
+			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
+		});
+		if (config[SessionConfigKey.Permissions] !== undefined) {
+			inherited[SessionConfigKey.Permissions] = config[SessionConfigKey.Permissions];
+		}
+		return Object.keys(inherited).length > 0 ? inherited : undefined;
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
