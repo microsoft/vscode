@@ -1,0 +1,77 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { ManagedSettingsPermissions } from '@github/copilot-sdk';
+import type { IConfigurationService } from '../../configuration/common/configuration.js';
+import { getExplicitGlobalConfigurationValue, getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
+import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from './agentHostSchema.js';
+
+type ManagedSettingsPermissionsContribution = Pick<ManagedSettingsPermissions, 'disableBypassPermissionsMode' | 'deny' | 'ask'>;
+
+export const AgentHostMapLegacySettingsToManagedSettingsSettingId = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
+
+interface IManagedPermissionsSettingMapping {
+	readonly settingId: string;
+	contribute(configurationService: IConfigurationService): ManagedSettingsPermissionsContribution | undefined;
+}
+
+function managedPermissionsSetting<T>(settingId: string, transform: (value: T) => ManagedSettingsPermissionsContribution | undefined): IManagedPermissionsSettingMapping {
+	return {
+		settingId,
+		contribute: configurationService => {
+			const value = getExplicitGlobalConfigurationValue<T>(configurationService, settingId);
+			return value === undefined ? undefined : transform(value);
+		},
+	};
+}
+
+/** Compatibility mappings for legacy settings only; new controls belong directly in the SDK. */
+const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] = [
+	managedPermissionsSetting<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID, value => value === false ? { disableBypassPermissionsMode: 'disable' } : undefined),
+	managedPermissionsSetting<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, value => value === false ? { ask: ['Shell'] } : undefined),
+];
+
+export const managedPermissionsConfigurationIds = [
+	AgentHostMapLegacySettingsToManagedSettingsSettingId,
+	...managedPermissionsSettings.map(mapping => mapping.settingId),
+];
+
+export function isManagedSettingsPermissions(value: unknown): value is ManagedSettingsPermissions {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return false;
+	}
+	const permissions = value as Record<string, unknown>;
+	if (Object.keys(permissions).some(key => key !== 'disableBypassPermissionsMode' && key !== 'deny' && key !== 'ask')) {
+		return false;
+	}
+	return (permissions.disableBypassPermissionsMode === undefined || permissions.disableBypassPermissionsMode === 'disable')
+		&& isStringArrayOrUndefined(permissions.deny)
+		&& isStringArrayOrUndefined(permissions.ask);
+}
+
+function isStringArrayOrUndefined(value: unknown): boolean {
+	return value === undefined || (Array.isArray(value) && value.every(item => typeof item === 'string'));
+}
+
+export function resolveManagedSettingsPermissions(configurationService: IConfigurationService): ManagedSettingsPermissions {
+	if (getGlobalConfigurationValue<boolean>(configurationService, AgentHostMapLegacySettingsToManagedSettingsSettingId) !== true) {
+		return {};
+	}
+
+	const permissions: ManagedSettingsPermissions = {};
+	for (const mapping of managedPermissionsSettings) {
+		const contribution = mapping.contribute(configurationService);
+		if (contribution?.disableBypassPermissionsMode) {
+			permissions.disableBypassPermissionsMode = contribution.disableBypassPermissionsMode;
+		}
+		if (contribution?.deny) {
+			permissions.deny = [...permissions.deny ?? [], ...contribution.deny];
+		}
+		if (contribution?.ask) {
+			permissions.ask = [...permissions.ask ?? [], ...contribution.ask];
+		}
+	}
+	return permissions;
+}

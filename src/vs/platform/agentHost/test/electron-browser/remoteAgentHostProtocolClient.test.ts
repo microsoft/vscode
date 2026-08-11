@@ -1742,9 +1742,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 		test('falls back to initialize with client info when the server forgot the client', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient(createPermissionService(), agentsWindowAgentHostClientInfo);
+			let connectedRequest = Disposable.None;
 			try {
 				const connectPromise = client.connect();
 				await completeHandshake(transports[0], connectPromise);
+				connectedRequest = Event.once(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected))(() => {
+					void client.listSessions().catch(() => { });
+				});
 
 				transports[0].fireClose();
 				await waitForReconnecting(client);
@@ -1765,8 +1769,12 @@ suite('RemoteAgentHostProtocolClient', () => {
 					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
 				});
 				await flushMicrotasks();
+				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
 			} finally {
+				connectedRequest.dispose();
 				client.dispose();
 			}
 		});

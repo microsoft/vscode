@@ -15,6 +15,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentSession, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -473,6 +474,17 @@ export class ProtocolServerHandler extends Disposable {
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
+				if ((msg as { method: string }).method === 'setClientManagedSettingsPermissions') {
+					if (client && this._config.allowExtensionMethods !== false) {
+						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
+						if (isManagedSettingsPermissions(permissions)) {
+							void this._agentService.setClientManagedSettingsPermissions(client.clientId, permissions);
+						} else {
+							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings permissions contribution.');
+						}
+					}
+					return;
+				}
 				// Notification — fire-and-forget
 				switch (msg.method) {
 					case 'unsubscribe':
@@ -904,6 +916,13 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _handleClientDisconnected(clientId: string): void {
+		const record = this._clients.get(clientId);
+		if (record?.state === 'grace') {
+			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
+				record.disconnectTimeouts.deleteAndDispose('managed-settings');
+				this._agentService.removeClientManagedSettingsPermissions(clientId);
+			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
+		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
 			const isActive = state ? this._isActiveClient(state, clientId) : false;

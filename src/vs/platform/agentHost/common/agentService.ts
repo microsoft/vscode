@@ -12,6 +12,7 @@ import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { ManagedSettingsPermissions } from '@github/copilot-sdk';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
@@ -2063,6 +2064,9 @@ export interface IAgentService {
 
 	/** Resolve managed settings through each provider's native SDK/runtime implementation. */
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
+
+	setClientManagedSettingsPermissions(clientId: string, permissions: ManagedSettingsPermissions): Promise<void>;
+	removeClientManagedSettingsPermissions(clientId: string): void;
 
 	/**
 	 * Probe connectivity from the agent host process to a single `url`,

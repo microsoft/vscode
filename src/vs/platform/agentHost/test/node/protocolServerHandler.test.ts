@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { ManagedSettingsPermissions } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -126,6 +127,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
+	readonly managedSettingsPermissionsByClient = new Map<string, ManagedSettingsPermissions>();
 	shutdownCalls = 0;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
@@ -193,6 +195,12 @@ class MockAgentService implements IAgentService {
 	async shutdown(): Promise<void> { this.shutdownCalls++; }
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
+	async setClientManagedSettingsPermissions(clientId: string, permissions: ManagedSettingsPermissions): Promise<void> {
+		this.managedSettingsPermissionsByClient.set(clientId, permissions);
+	}
+	removeClientManagedSettingsPermissions(clientId: string): void {
+		this.managedSettingsPermissionsByClient.delete(clientId);
+	}
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
@@ -2450,6 +2458,38 @@ suite('ProtocolServerHandler', () => {
 
 		assert.ok(!response.error, `unexpected error: ${response.error?.message}`);
 		assert.deepStrictEqual(response.result, agentService.managedSettingsDiagnostics);
+	});
+
+	test('setClientManagedSettingsPermissions validates and attributes contributions to the connected client', async () => {
+		const transport = connectClient('client-managed-settings-contribution');
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		}));
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { allow: ['Shell'] },
+		}));
+		await Promise.resolve();
+
+		assert.deepStrictEqual(agentService.managedSettingsPermissionsByClient.get('client-managed-settings-contribution'), {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+	});
+
+	test('removes a managed settings contribution after disconnect grace expires', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const transport = connectClient('client-managed-settings-disconnect');
+			transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+				permissions: { ask: ['Shell'] },
+			}));
+			transport.simulateClose();
+
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+
+			assert.strictEqual(agentService.managedSettingsPermissionsByClient.has('client-managed-settings-disconnect'), false);
+		});
 	});
 
 	test('extension request preserves ProtocolError code and data', async () => {
