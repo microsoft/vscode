@@ -30,11 +30,18 @@ const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 
 /**
- * Soft upper bound, in characters, for the first-turn context fed to the
- * utility model when refining a session title. Sized to stay well within the
- * small model's context window while leaving room for the prompt scaffolding.
+ * Soft upper bound, in characters, for the whole context fed to the utility
+ * model when titling a session, including any appended GitHub context. Sized
+ * to stay well within the small model's context window while leaving room for
+ * the prompt scaffolding.
  */
 const MAX_TITLE_CONTEXT_CHARS = 20000;
+
+/**
+ * Slice of {@link MAX_TITLE_CONTEXT_CHARS} always available to GitHub context,
+ * so a referenced issue title survives even a budget-filling conversation.
+ */
+const MIN_GITHUB_CONTEXT_CHARS = 4_000;
 
 type GitHubReferenceKind = 'issue' | 'pull request';
 
@@ -56,12 +63,7 @@ interface ITitlePromptContext {
 	readonly content: string;
 	/** Whether {@link content} is a whole conversation rather than a single request. */
 	readonly isConversation: boolean;
-	/**
-	 * Text scanned for GitHub issue / pull request links whose title and body
-	 * are appended to {@link content}. Usually the user's request: links the
-	 * agent merely mentioned in its response should not pull in context.
-	 * Omitted when no enrichment should happen.
-	 */
+	/** Text scanned for GitHub links to enrich {@link content} with, or `undefined` to skip enrichment. */
 	readonly gitHubReferenceSource?: string;
 	/** The title in place already, offered to the model as the incumbent. */
 	readonly currentTitle?: string;
@@ -224,14 +226,6 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * for the very first turn and only when the current title is still the one
 	 * this controller last applied — a manual `/rename`, a user edit, or a
 	 * forked session's inherited title all suppress it.
-	 *
-	 * The request is re-scanned for GitHub issue / pull request links and the
-	 * referenced titles and bodies are appended, exactly as when the opening
-	 * message was titled: a request that is little more than an issue link
-	 * carries all of its meaning there, and dropping that context made this
-	 * pass regress such titles to a generic restatement of the link. The
-	 * incumbent title is passed along too, so the model only replaces it when
-	 * the completed turn is genuinely more informative.
 	 *
 	 * Only normal text response parts are considered (tool calls, reasoning,
 	 * and other parts are ignored). If the context still exceeds the budget
@@ -441,10 +435,12 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	/**
-	 * Appends the title and body of every GitHub issue / pull request linked
-	 * from `referenceSource` to `promptContent`. The two differ when titling a
-	 * conversation: the links are taken from the user's request alone, while
-	 * the enriched text is the whole conversation.
+	 * Appends the GitHub issue / pull requests linked from `referenceSource` to
+	 * `promptContent`, keeping the combined text within
+	 * {@link MAX_TITLE_CONTEXT_CHARS}. Enrichment is guaranteed
+	 * {@link MIN_GITHUB_CONTEXT_CHARS}; whatever it leaves over bounds
+	 * `promptContent`, whose middle is dropped so the request at its head and
+	 * the response tail both survive.
 	 */
 	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
 		const references = this._parseGitHubReferences(referenceSource);
@@ -478,7 +474,12 @@ export class AgentHostSessionTitleController extends Disposable {
 			if (successfulContexts.length === 0) {
 				return promptContent;
 			}
-			return `${promptContent}\n\n${this._formatGitHubContexts(successfulContexts)}`;
+			const separator = '\n\n';
+			const gitHubBudget = Math.max(MIN_GITHUB_CONTEXT_CHARS, MAX_TITLE_CONTEXT_CHARS - promptContent.length - separator.length);
+			const gitHubContext = this._formatGitHubContexts(successfulContexts, gitHubBudget);
+			const contentBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - gitHubContext.length - separator.length);
+			const content = promptContent.length > contentBudget ? truncateMiddle(promptContent, contentBudget) : promptContent;
+			return `${content}${separator}${gitHubContext}`;
 		} finally {
 			limiter.dispose();
 		}
@@ -516,12 +517,12 @@ export class AgentHostSessionTitleController extends Disposable {
 		return normalizedHost === 'www.github.com' ? 'github.com' : normalizedHost;
 	}
 
-	private _formatGitHubContexts(contexts: readonly IGitHubReferenceContext[]): string {
+	private _formatGitHubContexts(contexts: readonly IGitHubReferenceContext[], budget: number): string {
 		const heading = 'GitHub issue and pull request context:\n\n';
 		const fixedLength = heading.length + contexts.reduce((length, context, index) => {
 			return length + this._formatGitHubContext(context.reference, context.value, '').length + (index === 0 ? 0 : 2);
 		}, 0);
-		let remainingBodyBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - fixedLength);
+		let remainingBodyBudget = Math.max(0, budget - fixedLength);
 		const sections = contexts.map((context, index) => {
 			const bodyBudget = Math.min(
 				MAX_GITHUB_CONTEXT_BODY_CHARS,
@@ -531,7 +532,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			remainingBodyBudget -= body.length;
 			return this._formatGitHubContext(context.reference, context.value, body);
 		});
-		return truncateMiddle(`${heading}${sections.join('\n\n')}`, MAX_TITLE_CONTEXT_CHARS);
+		return truncateMiddle(`${heading}${sections.join('\n\n')}`, budget);
 	}
 
 	private _formatGitHubContext(reference: IGitHubReference, value: GitHubIssueOrPullRequest, body: string): string {
