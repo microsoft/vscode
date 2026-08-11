@@ -32,8 +32,8 @@ export function areLocalModelsLoaded(extensionsRegistered: boolean, configuratio
 	return extensionsRegistered && configurationLoaded && configuredByokVendors.every(hasResolvedVendor);
 }
 
-export function hasAvailableAgentHostByokModels(isClientByokEnabled: boolean, hasTargetedModels: boolean, hasSourceModels: boolean): boolean {
-	return isClientByokEnabled && (hasTargetedModels || hasSourceModels);
+export function hasAvailableAgentHostByokModels(isClientByokEnabled: boolean, hasTargetedModels: boolean): boolean {
+	return isClientByokEnabled && hasTargetedModels;
 }
 
 /**
@@ -130,16 +130,9 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			&& !(rootState instanceof Error)
 			&& rootState.agents.some(agent => agent.provider === COPILOT_AGENT_HOST_PROVIDER_ID)
 			&& this._languageModelsService.hasResolvedVendor(SessionType.AgentHostCopilot);
-		const hasVisibleLocalByokModels = this._languageModelsService.getLanguageModelIds().some(identifier => {
-			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
-			return metadata?.isBYOK === true
-				&& !metadata.targetChatSessionType
-				&& !this._languageModelsService.isModelHidden(identifier);
-		});
 		const hasVisibleAgentHostByokModels = hasAvailableAgentHostByokModels(
 			this._chatEntitlementService.clientByokEnabled,
 			hasVisibleByokModelsTargetingSessionType(this._languageModelsService, SessionType.AgentHostCopilot),
-			hasVisibleLocalByokModels,
 		);
 		this._setNotification(
 			SIGNED_OUT_MODELS_NOTIFICATION_ID,
