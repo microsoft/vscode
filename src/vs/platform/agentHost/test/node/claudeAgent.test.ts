@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { IActiveClient, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -2331,7 +2331,7 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(sdk.forkSessionCalls[0], { sessionId: sourceId, options: { upToMessageId: 'a2' } });
 	});
 
-	test('truncateSession(turnId) resolves the anchor, restarts at it on the same id, and prunes the DB', async () => {
+	test('truncateChat(turnId) resolves the anchor, restarts at it on the same id, and prunes the DB', async () => {
 		const database = new TestSessionDatabase();
 		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -2344,7 +2344,7 @@ suite('ClaudeAgent', () => {
 		];
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
-		await agent.truncateSession(created.session, 'u1', defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+		await agent.truncateChat(defaultChatUri(created.session), 'u1', chatContext(defaultChatUri(created.session)));
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		assert.deepStrictEqual({
@@ -2364,7 +2364,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('truncateSession cold-resumes an unloaded session, then applies the anchor on the next turn', async () => {
+	test('truncateChat cold-resumes an unloaded chat, then applies the anchor on the next turn', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
@@ -2378,7 +2378,7 @@ suite('ClaudeAgent', () => {
 		assert.strictEqual(agent.getSessionForTesting(created.session), undefined, 'unloaded');
 		sdk.sessionList = [{ sessionId, cwd: '/work', summary: '', lastModified: Date.now() }];
 
-		await agent.truncateSession(created.session, 'u1', defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+		await agent.truncateChat(defaultChatUri(created.session), 'u1', chatContext(defaultChatUri(created.session)));
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -2394,7 +2394,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('truncateSession throws when the turn is not in the transcript', async () => {
+	test('truncateChat throws when the turn is not in the transcript', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
@@ -2403,15 +2403,15 @@ suite('ClaudeAgent', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		await assert.rejects(() => agent.truncateSession(created.session, 'no-such-turn', defaultChatUri(created.session), chatContext(defaultChatUri(created.session))), /turn no-such-turn not found/);
+		await assert.rejects(() => agent.truncateChat(defaultChatUri(created.session), 'no-such-turn', chatContext(defaultChatUri(created.session))), /turn no-such-turn not found/);
 	});
 
-	test('truncateSession on a provisional session is a no-op', async () => {
+	test('truncateChat on a provisional chat is a no-op', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 
-		await agent.truncateSession(created.session, 'u1', defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+		await agent.truncateChat(defaultChatUri(created.session), 'u1', chatContext(defaultChatUri(created.session)));
 
 		assert.deepStrictEqual({
 			startupCount: sdk.startupCallCount,
@@ -2422,7 +2422,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('truncateSession() with no turnId clears the session in place (deleteSession + fresh same id)', async () => {
+	test('truncateChat() with no turnId clears the chat in place (deleteSession + fresh same id)', async () => {
 		const database = new TestSessionDatabase();
 		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -2434,7 +2434,7 @@ suite('ClaudeAgent', () => {
 		];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		await agent.truncateSession(created.session, undefined, defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+		await agent.truncateChat(defaultChatUri(created.session), undefined, chatContext(defaultChatUri(created.session)));
 
 		// The next turn materializes FRESH (non-resume) on the SAME id.
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
@@ -2456,7 +2456,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('truncateSession() with no turnId awaits the live query teardown (subprocess exit) before deleteSession', async () => {
+	test('truncateChat() with no turnId awaits the live query teardown (subprocess exit) before deleteSession', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
@@ -2472,7 +2472,7 @@ suite('ClaudeAgent', () => {
 		const exitGate = new DeferredPromise<void>();
 		sdk.queryReturnGate = exitGate.p;
 
-		const truncated = agent.truncateSession(created.session, undefined, defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+		const truncated = agent.truncateChat(defaultChatUri(created.session), undefined, chatContext(defaultChatUri(created.session)));
 		await timeout(0);
 		// deleteSession MUST NOT run while the subprocess is still alive: a
 		// premature delete would race the dying writer re-flushing `<id>.jsonl`.
@@ -2483,7 +2483,7 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(sdk.deleteSessionCalls, [sessionId]);
 	});
 
-	test('truncateSession() with no turnId on an UNLOADED session deletes + recreates fresh on the same id, preserving the overlay (cold remove-all)', async () => {
+	test('truncateChat() with no turnId on an unloaded chat deletes + recreates fresh on the same id, preserving the overlay', async () => {
 		const database = new TestSessionDatabase();
 		const { agent, sdk, instantiationService } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -2504,7 +2504,7 @@ suite('ClaudeAgent', () => {
 		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore);
 		await metaStore.write(created.session, { permissionMode: 'plan' });
 
-		await agent.truncateSession(created.session, undefined, defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+		await agent.truncateChat(defaultChatUri(created.session), undefined, chatContext(defaultChatUri(created.session)));
 
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
@@ -5374,7 +5374,7 @@ suite('ClaudeAgent', () => {
 		const session = URI.parse('claude:/sess-1');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		assert.doesNotThrow(() => {
-			agent.onClientToolCallComplete(session, chat, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
+			agent.onClientToolCallComplete(chat, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
 		});
 	});
 
@@ -5598,13 +5598,9 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const root = URI.parse('claude:/root-1');
 		const chat = URI.parse(buildDefaultChatUri(root));
-		// Build a depth-2 subagent URI (subagent of a subagent).
-		const depth1 = URI.parse(buildSubagentSessionUri(root, 'tu_outer'));
-		const depth2 = URI.parse(buildSubagentSessionUri(depth1, 'tu_inner'));
-		// No session is registered for `root`; the walk should reach root and
-		// then silently no-op (entry not found). Just assert no throw.
+		// No runtime is registered for the exact chat; completion is a no-op.
 		assert.doesNotThrow(() => {
-			agent.onClientToolCallComplete(depth2, chat, 'tu_anything', { success: true, pastTenseMessage: 'ran' });
+			agent.onClientToolCallComplete(chat, 'tu_anything', { success: true, pastTenseMessage: 'ran' });
 		});
 	});
 
@@ -9007,7 +9003,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(usage?.type === ActionType.ChatUsage ? usage.usage._meta?.copilotUsage : undefined, { totalNanoAiu: 42 });
 	});
 
-	test('truncateSession targets the addressed additional SDK session', async () => {
+	test('truncateChat targets the addressed SDK session', async () => {
 		const database = new TestSessionDatabase();
 		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -9019,7 +9015,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(additionalId), makeResultSuccess(additionalId)];
 		await agent.chats.sendMessage(chat, 'additional', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
 
-		await agent.truncateSession(created.session, 'u1', chat, chatContext(chat));
+		await agent.truncateChat(chat, 'u1', chatContext(chat));
 
 		assert.deepStrictEqual({
 			getMessagesCall: sdk.getSessionMessagesCalls.at(-1),
@@ -9112,7 +9108,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		let settled = false;
 		void additional.pendingClientToolCalls.register('tool-1').then(() => settled = true, () => undefined);
 
-		agent.onClientToolCallComplete(created.session, chat, 'tool-1', { success: true, pastTenseMessage: 'ran' });
+		agent.onClientToolCallComplete(chat, 'tool-1', { success: true, pastTenseMessage: 'ran' });
 		await tick();
 
 		assert.strictEqual(settled, true);
@@ -9714,13 +9710,13 @@ suite('ClaudeAgent — host seams', () => {
 		// The routing target is the subagent chat itself (no runtime of its
 		// own); only the host-supplied `Tool` origin names the conversation
 		// that owns the parked call.
-		agent.onClientToolCallComplete(created.session, subagentChat, 'tu_1', { success: true, pastTenseMessage: 'ran' }, {
+		agent.onClientToolCallComplete(subagentChat, 'tu_1', { success: true, pastTenseMessage: 'ran' }, {
 			configurationResource: created.session,
 			resource: subagentChat,
 			origin: { kind: ChatOriginKind.Tool, chat: spawningChat.toString(), toolCallId: 'tool-call-1' },
 		});
 		// Without an origin there is nothing to route to — silent no-op.
-		agent.onClientToolCallComplete(created.session, subagentChat, 'tu_2', { success: true, pastTenseMessage: 'ran' }, {
+		agent.onClientToolCallComplete(subagentChat, 'tu_2', { success: true, pastTenseMessage: 'ran' }, {
 			configurationResource: created.session,
 			resource: subagentChat,
 		});
@@ -9791,7 +9787,7 @@ suite('ClaudeAgent — host seams', () => {
 		];
 		await agent.chats.sendMessage(chat, 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
 
-		await agent.truncateSession(session, undefined, chat, chatContext(chat));
+		await agent.truncateChat(chat, undefined, chatContext(chat));
 		await agent.chats.sendMessage(chat, 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(chat));
 
 		const last = sdk.capturedStartupOptions.at(-1);

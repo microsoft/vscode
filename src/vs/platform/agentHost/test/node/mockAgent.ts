@@ -10,7 +10,7 @@ import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/c
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -86,8 +86,8 @@ export class MockAgent implements IAgent {
 	readonly activeClientCalls: { chat: URI; context: URI | IAgentChatContext; clientId: string; hostCustomizations: readonly Customization[] | undefined }[] = [];
 	/** Host customizations handed to {@link getChatCustomizations}. */
 	readonly sessionCustomizationsCalls: { session: URI; hostCustomizations: readonly Customization[] | undefined }[] = [];
-	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult; context?: IAgentChatContext }[] = [];
-	readonly truncateSessionCalls: { session: URI; turnId: string | undefined; chat: URI | undefined }[] = [];
+	readonly clientToolCallCompleteCalls: { chat: URI; toolCallId: string; result: ToolCallResult; context?: IAgentChatContext }[] = [];
+	readonly truncateChatCalls: { chat: URI; turnId: string | undefined; context: URI | IAgentChatContext | undefined }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
 	private readonly _onDidCustomizationsChange = new Emitter<void>();
@@ -238,8 +238,8 @@ export class MockAgent implements IAgent {
 		this._sessions.delete(AgentSession.id(session));
 	}
 
-	async truncateSession(session: URI, turnId?: string, chat?: URI): Promise<void> {
-		this.truncateSessionCalls.push({ session, turnId, chat });
+	async truncateChat(chat: URI, turnId?: string, context?: URI | IAgentChatContext): Promise<void> {
+		this.truncateChatCalls.push({ chat, turnId, context });
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
@@ -405,8 +405,8 @@ export class MockAgent implements IAgent {
 		this.removeActiveClientCalls.push({ chat, clientId });
 	}
 
-	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
-		this.clientToolCallCompleteCalls.push({ session, chat, toolCallId, result, context });
+	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
+		this.clientToolCallCompleteCalls.push({ chat, toolCallId, result, context });
 	}
 
 	async shutdown(): Promise<void> { }
@@ -966,7 +966,7 @@ export class ScriptedMockAgent implements IAgent {
 
 	private didCompleteToolCalls = new Set<string>();
 
-	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult): void {
 		// The mock's event model is chat-channel oriented (sendMessage fires
 		// every turn signal on the chat URI). Emit the completion on the chat
 		// channel the tool was started on so the parked turn callback — which
@@ -1073,7 +1073,7 @@ export class ScriptedMockAgent implements IAgent {
 		return [];
 	}
 
-	async truncateSession(_session: URI, _turnId?: string): Promise<void> {
+	async truncateChat(_chat: URI, _turnId?: string, _context?: URI | IAgentChatContext): Promise<void> {
 		// Mock agent accepts truncation without side effects
 	}
 

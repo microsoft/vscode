@@ -7,7 +7,7 @@ import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import type { Mutable } from '../../../../base/common/types.js';
 import { toToolCallMeta, type IToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import type { AgentSignal, IAgentSubagentStartedSignal } from '../../common/agentService.js';
+import type { AgentSignal, IAgentSubagentStartedSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';

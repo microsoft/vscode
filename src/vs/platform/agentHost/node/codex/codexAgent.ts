@@ -26,7 +26,8 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
@@ -607,7 +608,7 @@ interface ICodexSession {
 	readonly hostTurnIdByAppTurnId: Map<string, string>;
 	/**
 	 * Workbench-facing turn id -> codex app-server turn id, retained across
-	 * turn completion so {@link CodexAgent.truncateSession} can translate a
+	 * turn completion so {@link CodexAgent.truncateChat} can translate a
 	 * live host turn id to a `thread/rollback` target.
 	 */
 	readonly codexTurnIdByHostTurnId: Map<string, string>;
@@ -2109,7 +2110,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const hostTurnId = this._hostTurnId(session, appTurnId);
 		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params), this._clearTurnStopWatch(session));
 		// Remember which codex (app-server) turn each workbench turn maps to so
-		// truncateSession can translate a host turn id to a thread rollback even
+		// truncateChat can translate a host turn id to a thread rollback even
 		// after the live correlation below is cleared.
 		session.codexTurnIdByHostTurnId.set(hostTurnId, appTurnId);
 		// Codex reports app-server turn ids, while the workbench owns host turn ids.
@@ -3799,7 +3800,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 		// Seed the host→codex turn-id map for the copied turns so a later
 		// edit/truncate of an inherited turn can resolve its app-server turn id.
-		// Without this, `truncateSession` can't map the host id and skips the
+		// Without this, `truncateChat` can't map the host id and skips the
 		// rollback. `thread/fork` may regenerate turn ids, so read the forked
 		// thread's authoritative kept turns and pair them, in order, with the new
 		// host turn ids from `fork.turnIdMapping`. Best-effort: a failed read just
@@ -4619,8 +4620,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * whose turn ids match the workbench's restored turn ids (see
 	 * {@link replayThreadToTurns}). Unknown ids no-op to avoid data loss.
 	 */
-	async truncateSession(sessionUri: URI, turnId?: string, chat?: URI, context?: URI | IAgentChatContext): Promise<void> {
-		const targetUri = chat ? this._resolveConversationSession(chat, context) ?? sessionUri : sessionUri;
+	async truncateChat(chat: URI, turnId?: string, context?: URI | IAgentChatContext): Promise<void> {
+		const targetUri = this._resolveConversationSession(chat, context);
+		if (!targetUri) {
+			return;
+		}
 		const read = await this._readSession(targetUri);
 		if (!read) {
 			return;
@@ -4640,7 +4644,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const codexTurnId = session?.codexTurnIdByHostTurnId.get(turnId) ?? turnId;
 			const index = turns.findIndex(t => t.id === codexTurnId);
 			if (index === -1) {
-				this._logService.warn(`[Codex] truncateSession: turnId ${turnId} not found in thread ${read.thread.id}; skipping`);
+				this._logService.warn(`[Codex] truncateChat: turnId ${turnId} not found in thread ${read.thread.id}; skipping`);
 				return;
 			}
 			numTurns = turns.length - (index + 1);
@@ -5028,9 +5032,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	onClientToolCallComplete(session: URI, _chat: URI, toolCallId: string, result: ToolCallResult): void {
-		const sessionId = AgentSession.id(session);
-		const sess = this._sessions.get(sessionId);
+	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
+		const runtime = this._resolveConversationSession(chat, context);
+		const sess = runtime ? this._sessions.get(AgentSession.id(runtime)) : undefined;
 		// `AgentSideEffects` forwards every `ChatToolCallComplete` envelope
 		// (including codex-owned tools like shell); a miss is the expected path.
 		sess?.pendingClientToolCalls.respondOrBuffer(toolCallId, result);

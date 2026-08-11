@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { AgentProvider } from '../common/agentService.js';
+import { AgentProvider } from '../common/agent.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 
 /** A session recorded in the orchestrator-owned {@link AgentSessionRegistry}. */

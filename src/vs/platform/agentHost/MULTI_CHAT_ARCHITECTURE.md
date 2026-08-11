@@ -4,7 +4,8 @@
   See: node/agentService.ts, node/agentHostStateManager.ts,
        node/claude/claudeAgent.ts, node/copilot/copilotAgent.ts,
        node/codex/codexAgent.ts, node/agentSideEffects.ts,
-       common/agentService.ts (IAgent, IAgentChats, IAgentCapabilities).
+       common/agent.ts (IAgent, IAgentChats, IAgentCapabilities),
+       common/agentService.ts (IAgentService, IAgentConnection).
 -->
 
 # Multi-Chat Architecture
@@ -98,7 +99,7 @@ graph TB
     Agents -->|"getDescriptor().capabilities"| caps
 ```
 
-### Agent layer (`common/agentService.ts:IAgent`)
+### Agent layer (`common/agent.ts:IAgent`)
 
 Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
@@ -109,6 +110,8 @@ Responsible for:
 - Advertising static capability flags (`getDescriptor().capabilities`).
 
 Agents do **not** maintain the chat catalog, persist membership, know whether a chat is the session or a peer, or inject `AgentHostStateManager`. Host facts they genuinely need (subagent origin, session customizations, prompt-cache metadata, session-title changes, active-client chat membership) arrive through typed seams — see §8.
+
+**File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
 
 ### Orchestrator layer
 
@@ -227,7 +230,7 @@ interface AgentCapabilities {
 }
 ```
 
-The agent declares these in `getDescriptor().capabilities` (`common/agentService.ts:IAgentDescriptor`). They flow to the UI as `ISessionCapabilities` (`sessions/services/sessions/common/session.ts`) and are bound to context keys (`sessions/services/sessions/common/sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`).
+The agent declares these in `getDescriptor().capabilities` (`common/agent.ts:IAgentDescriptor`). They flow to the UI as `ISessionCapabilities` (`sessions/services/sessions/common/session.ts`) and are bound to context keys (`sessions/services/sessions/common/sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`).
 
 UI code gates "Add Chat" and "Fork" actions on those context keys. No code inside `AgentService` or `AgentHostStateManager` switches on provider id to gate features. `AgentService.createChat` throws synchronously when `!provider.chats` (the structural guard that replaces a capability check in the orchestrator).
 
@@ -572,7 +575,7 @@ For a client tool completion the context describes the chat the tool call was
 
 Providers read the facts they need through `resolveAgentChatOrigin`,
 `resolveSubagentChatParent`, and `resolveAgentHostCustomizations`
-(`common/agentService.ts`). A subagent is identified by its `Tool` spawn edge,
+(`common/agent.ts`). A subagent is identified by its `Tool` spawn edge,
 not by a provider-side role enum or URI shape.
 
 Fork remains a provider operation because only the provider can clone its

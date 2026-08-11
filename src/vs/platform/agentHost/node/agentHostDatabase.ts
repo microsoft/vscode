@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import type { Database, RunResult } from '@vscode/sqlite3';
 import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { AgentProvider } from '../common/agentService.js';
+import { AgentProvider } from '../common/agent.js';
 
 export interface IAgentHostDatabaseSession {
 	readonly session: string;

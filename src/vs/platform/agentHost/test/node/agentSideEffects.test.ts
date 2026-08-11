@@ -19,7 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agent.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -1266,8 +1266,8 @@ suite('AgentSideEffects', () => {
 			se.handleAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'local-1' });
 
 			// The SDK is told to keep up to the concrete turn before the local one.
-			const truncateCall = agent.truncateSessionCalls.at(-1);
-			assert.strictEqual(truncateCall?.session.toString(), sessionUri.toString());
+			const truncateCall = agent.truncateChatCalls.at(-1);
+			assert.strictEqual(truncateCall?.chat.toString(), defaultChatUri);
 			assert.strictEqual(truncateCall?.turnId, 'real-1');
 		});
 
@@ -1284,7 +1284,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'real-1' }, { clientId: 'test', clientSeq: ++clientSeq });
 			se.handleAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'real-1' });
 
-			assert.strictEqual(agent.truncateSessionCalls.at(-1)?.turnId, 'real-1');
+			assert.strictEqual(agent.truncateChatCalls.at(-1)?.turnId, 'real-1');
 			// The local turn is dropped from memory synchronously and from the DB async.
 			assert.strictEqual(localTurns.isLocal(defaultChatUri, 'local-1'), false);
 			await new Promise(r => setTimeout(r, 10));
@@ -3615,8 +3615,7 @@ suite('AgentSideEffects', () => {
 
 		test('forwards session + default chat URI for a default-chat completion', () => {
 			// Regression: agents key their sessions by session id, but the
-			// chat URI's path is a base64 blob. The session URI must be passed
-			// so the lookup resolves instead of silently dropping the call.
+			// The exact default chat URI must be forwarded unchanged.
 			setupSession();
 
 			sideEffects.handleAction(defaultChatUri, {
@@ -3627,12 +3626,12 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual(
-				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
-				[{ session: sessionUri.toString(), chat: defaultChatUri, toolCallId: 'tc-default' }],
+				agent.clientToolCallCompleteCalls.map(c => ({ chat: c.chat.toString(), toolCallId: c.toolCallId })),
+				[{ chat: defaultChatUri, toolCallId: 'tc-default' }],
 			);
 		});
 
-		test('forwards owning session + chat URI for an additional-chat completion', () => {
+		test('forwards the exact additional chat URI for a completion', () => {
 			setupSession();
 			const peerChatUri = buildChatUri(sessionUri.toString(), 'peer-1');
 
@@ -3644,8 +3643,8 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual(
-				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
-				[{ session: sessionUri.toString(), chat: peerChatUri, toolCallId: 'tc-peer' }],
+				agent.clientToolCallCompleteCalls.map(c => ({ chat: c.chat.toString(), toolCallId: c.toolCallId })),
+				[{ chat: peerChatUri, toolCallId: 'tc-peer' }],
 			);
 		});
 
@@ -3674,8 +3673,7 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(
 				agent.clientToolCallCompleteCalls.map(c => ({
-					session: c.session.toString(),
-					chat: c.chat?.toString(),
+					chat: c.chat.toString(),
 					toolCallId: c.toolCallId,
 					// `context` describes the *addressed* chat, so a provider can
 					// recover the spawning chat + tool call from it. Stamping the
@@ -3685,7 +3683,6 @@ suite('AgentSideEffects', () => {
 					parentToolCallId: resolveSubagentChatParent(c.context)?.toolCallId,
 				})),
 				[{
-					session: sessionUri.toString(),
 					chat: peerChatUri,
 					toolCallId: 'tc-inner',
 					contextResource: subagentChatUri,
@@ -6060,20 +6057,18 @@ suite('AgentSideEffects', () => {
 			// Peer chat: the chat URI is forwarded so the agent targets that
 			// chat's own backing rather than the session's default chat.
 			sideEffects.handleAction(peerChatUri, { type: ActionType.ChatTruncated, turnId: 'turn-peer' });
-			const peerCall = agent.truncateSessionCalls.at(-1);
+			const peerCall = agent.truncateChatCalls.at(-1);
 
 			// Default chat: forwarded as the session's default chat URI.
 			sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'turn-default' });
-			const defaultCall = agent.truncateSessionCalls.at(-1);
+			const defaultCall = agent.truncateChatCalls.at(-1);
 
 			assert.deepStrictEqual({
-				peerSession: peerCall?.session.toString(),
 				peerTurnId: peerCall?.turnId,
-				peerChat: peerCall?.chat?.toString(),
+				peerChat: peerCall?.chat.toString(),
 				defaultTurnId: defaultCall?.turnId,
-				defaultChat: defaultCall?.chat?.toString(),
+				defaultChat: defaultCall?.chat.toString(),
 			}, {
-				peerSession: sessionUri.toString(),
 				peerTurnId: 'turn-peer',
 				peerChat: peerChatUri,
 				defaultTurnId: 'turn-default',

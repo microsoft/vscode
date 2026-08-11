@@ -27,7 +27,7 @@ import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSch
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -973,8 +973,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * The owning session comes from `context` like every other addressed chat
 	 * operation, so the session-shaped first parameter is unused.
 	 */
-	async truncateSession(_session: URI, turnId: string | undefined, chat: URI, context?: URI | IAgentChatContext): Promise<void> {
-		const operationContext = this._requireChatContext(chat, context, 'truncateSession');
+	async truncateChat(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void> {
+		const operationContext = this._requireChatContext(chat, context, 'truncateChat');
 		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const current = this._resolveChatContext(chat, operationContext);
@@ -984,7 +984,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				throw new Error(`Cannot truncate chat ${chat.toString()}: backing SDK session not found`);
 			}
 			if (existing && !existing.isPipelineReady) {
-				this._logService.info(`[Claude:${sdkSessionId}] truncateSession on a provisional session — nothing to truncate`);
+				this._logService.info(`[Claude:${sdkSessionId}] truncateChat on a provisional chat — nothing to truncate`);
 				return;
 			}
 
@@ -1004,12 +1004,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// pipeline (the next send applies it).
 			const live = existing ?? await this._ensureResolvedChatSession(current);
 			await live.truncateToTurn(turnId, anchor, current.resource);
-			this._logService.info(`[Claude:${sdkSessionId}] truncateSession kept [0..${turnId}] (anchor=${anchor})`);
+			this._logService.info(`[Claude:${sdkSessionId}] truncateChat kept [0..${turnId}] (anchor=${anchor})`);
 		});
 	}
 
 	/**
-	 * Remove-all ("start over") branch of {@link truncateSession}: there is no
+	 * Remove-all ("start over") branch of {@link truncateChat}: there is no
 	 * anchor to resume at, so tear down the live Query, delete the on-disk
 	 * transcript via the SDK, then recreate a fresh provisional bound to the
 	 * SAME chat and SDK id, so the next `sendMessage` materializes non-resume
@@ -1034,7 +1034,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		await this._sdkService.deleteSession(sdkSessionId);
 		const fresh = await this._createProvisionalChatSession(context.configurationResource, context.chat, context.resource, workingDirectories);
 		await fresh.pruneAllTurns(context.resource);
-		this._logService.info(`[Claude:${sdkSessionId}] truncateSession removed all turns (deleteSession + fresh same-id)`);
+		this._logService.info(`[Claude:${sdkSessionId}] truncateChat removed all turns (deleteSession + fresh same-id)`);
 	}
 
 	// ---- Chat surface ------------------------------------------------------
@@ -2365,7 +2365,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * from the routing target), the spawn edge on the addressed chat's
 	 * host-supplied origin names the conversation that owns the pending call.
 	 */
-	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
+	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
 		const addressed = this._findChatByUri(chat);
 		if (addressed) {
 			addressed.completeClientToolCall(toolCallId, result);

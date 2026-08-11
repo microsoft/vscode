@@ -36,7 +36,7 @@ import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -5307,7 +5307,7 @@ suite('CopilotAgent', () => {
 			return { calls };
 		}
 
-		test('routes a top-level session URI to its session entry', async () => {
+		test('routes the exact default chat to its runtime', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-top');
@@ -5315,7 +5315,7 @@ suite('CopilotAgent', () => {
 				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'did it' };
-				agent.onClientToolCallComplete(sessionUri, defaultChat, 'tc-top', result);
+				agent.onClientToolCallComplete(defaultChat, 'tc-top', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-top', result }]);
 			} finally {
@@ -5329,7 +5329,7 @@ suite('CopilotAgent', () => {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-missing');
 				const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
 				// No stub installed — the call should be silently ignored.
-				agent.onClientToolCallComplete(sessionUri, defaultChat, 'tc-x', { success: true, pastTenseMessage: 'noop' });
+				agent.onClientToolCallComplete(defaultChat, 'tc-x', { success: true, pastTenseMessage: 'noop' });
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -5351,7 +5351,7 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, chatUri, stub);
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'peer done' };
-				agent.onClientToolCallComplete(sessionUri, chatUri, 'tc-peer', result);
+				agent.onClientToolCallComplete(chatUri, 'tc-peer', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-peer', result }]);
 			} finally {
@@ -5366,7 +5366,7 @@ suite('CopilotAgent', () => {
 				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'default done' };
-				agent.onClientToolCallComplete(sessionUri, defaultChatUri, 'tc-default', result);
+				agent.onClientToolCallComplete(defaultChatUri, 'tc-default', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-default', result }]);
 			} finally {
@@ -5391,7 +5391,7 @@ suite('CopilotAgent', () => {
 				});
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'subagent done' };
-				agent.onClientToolCallComplete(sessionUri, subagentChat, 'tc-subagent', result, {
+				agent.onClientToolCallComplete(subagentChat, 'tc-subagent', result, {
 					configurationResource: sessionUri,
 					resource: subagentChat,
 					origin: { kind: ChatOriginKind.Tool, chat: spawningChat.toString(), toolCallId: 'tool-1' },
@@ -5414,7 +5414,7 @@ suite('CopilotAgent', () => {
 				const subagentChat = URI.parse(buildSubagentChatUri(buildChatUri(sessionUri, 'gone'), 'tool-9'));
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'fallback done' };
-				agent.onClientToolCallComplete(sessionUri, subagentChat, 'tc-fallback', result, {
+				agent.onClientToolCallComplete(subagentChat, 'tc-fallback', result, {
 					configurationResource: sessionUri,
 					resource: subagentChat,
 					origin: { kind: ChatOriginKind.Tool, chat: buildChatUri(sessionUri, 'gone'), toolCallId: 'tool-9' },
