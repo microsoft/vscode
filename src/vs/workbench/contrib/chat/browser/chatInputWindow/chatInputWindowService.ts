@@ -419,6 +419,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				autoScroll: true,
 				renderInputOnTop: true,
 				renderStyle: 'compact',
+				inputEditorMaxHeight: 250,
 				renderGettingStartedTip: false,
 				// Show only the input box — drop every response list item.
 				filter: () => false,
