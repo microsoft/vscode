@@ -60,7 +60,6 @@ import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableE
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, resolveDefaultNewChatSessionType } from '../../common/constants.js';
-import { markPreferredCopilotHarness } from '../../common/chatSessionTypePreference.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
@@ -1785,19 +1784,14 @@ export interface IClearEditingSessionConfirmationOptions {
  */
 export async function clearChatSessionPreservingType(accessor: ServicesAccessor, widget: IChatWidget, sessionType: string | undefined): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
-	const storageService = accessor.get(IStorageService);
 	const currentResource = widget.viewModel?.model.sessionResource;
 	const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
-	const { sessionType: newSessionType, isPreferCopilotHarnessSwap } = resolveDefaultNewChatSessionType(accessor, { explicitOverride: sessionType, currentSessionType });
+	const { sessionType: newSessionType } = resolveDefaultNewChatSessionType(accessor, { explicitOverride: sessionType, currentSessionType });
 	if (isIChatViewViewContext(widget.viewContext)) {
 		const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 		if (newSessionType !== localChatSessionType) {
 			// Load a session of the resolved type in the sidebar.
 			await view.loadSession(URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` }));
-			// Consume the one-time migration only now that the swap has been applied.
-			if (isPreferCopilotHarnessSwap) {
-				markPreferredCopilotHarness(storageService);
-			}
 		} else {
 			// The resolved type is local (an explicit request or session
 			// preservation). A plain `widget.clear()` re-acquires the computed
@@ -1810,9 +1804,6 @@ export async function clearChatSessionPreservingType(accessor: ServicesAccessor,
 		// clearChatEditor opens a session of that type instead of recomputing
 		// the default (which would drop an explicit or preserved local request).
 		await widget.clear(newSessionType);
-		if (isPreferCopilotHarnessSwap) {
-			markPreferredCopilotHarness(storageService);
-		}
 	}
 }
 

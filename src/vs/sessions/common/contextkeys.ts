@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
 
 //#region < --- Active Session --- >
 
@@ -29,8 +30,8 @@ export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMa
 export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('sessionSupportsMultipleChats', false, localize('sessionSupportsMultipleChats', "Whether the session view's session supports multiple chats"));
 export const SessionSupportsForkContext = new RawContextKey<boolean>('sessionSupportsFork', false, localize('sessionSupportsFork', "Whether the session view's session supports forking a chat from a turn into a new peer chat"));
 export const SessionSupportsSideChatContext = new RawContextKey<boolean>('sessionSupportsSideChat', false, localize('sessionSupportsSideChat', "Whether the session view's session supports creating a side chat from a turn (via /btw)"));
-export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Conversations menu visibility"));
-export const SessionActiveChatHasSubagentsContext = new RawContextKey<boolean>('sessionActiveChatHasSubagents', false, localize('sessionActiveChatHasSubagents', "Whether the session view's currently-active chat has spawned subagent (tool-origin) chats, which are listed as a separate group in the Conversations menu"));
+export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Chats dropdown visibility"));
+export const SessionActiveChatHasSubagentsContext = new RawContextKey<boolean>('sessionActiveChatHasSubagents', false, localize('sessionActiveChatHasSubagents', "Whether the active chat has subagents, which are shown in the Chats dropdown"));
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip. Used to hide the header New Chat button, which the tab strip then offers instead"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
 export const SessionActiveChatIsClosableContext = new RawContextKey<boolean>('sessionActiveChatIsClosable', false, localize('sessionActiveChatIsClosable', "Whether the session's active chat can be closed (hidden) from the tab strip, i.e. it is not the main chat. Includes read-only subagent chats. Used to scope the close-chat keybinding so it closes the tab instead of the session"));
@@ -51,6 +52,15 @@ export const ActiveSessionsContext = new RawContextKey<string>('activeSessions',
 export const SessionsFocusContext = new RawContextKey<boolean>('sessionsFocus', false, localize('sessionsFocus', "Whether the sessions part has keyboard focus"));
 export const SessionsVisibleContext = new RawContextKey<boolean>('sessionsVisible', false, localize('sessionsVisible', "Whether the sessions part is visible"));
 export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multipleSessionsVisible', false, localize('multipleSessionsVisible', "Whether more than one session is visible in the sessions part's grid"));
+export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessionsHasClosedItem', false, localize('sessionsHasClosedItem', "Whether a chat or session was closed recently and can be reopened with the Reopen Closed Chat or Session command"));
+
+/**
+ * Focus is inside the Agents window's editor surface: an editor part, or the
+ * auxiliary bar, which the single-pane layout docks into the side pane as the
+ * detail panel (Files/Changes). Shortcuts shared with VS Code's editor
+ * commands defer to those commands while this holds.
+ */
+export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusContext, AuxiliaryBarFocusContext)!;
 
 //#endregion
 

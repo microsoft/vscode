@@ -559,11 +559,13 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededSet, request });
 		// Record the blocker on the turn so a hang reported while the request is
 		// outstanding is tagged as an expected wait on the user rather than as
-		// an unexplained stall. A `ChatInput` elicitation carries no `turnId`,
-		// so fall back to the chat's active turn.
+		// an unexplained stall, and so the report can name the tool it gates. A
+		// `ChatInput` elicitation carries neither `turnId` nor a tool call, so
+		// fall back to the chat's active turn.
 		const blockedTurnId = hasKey(request, { turnId: true }) ? request.turnId : this._stateManager.getActiveTurnId(chatUri);
 		if (blockedTurnId) {
-			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind);
+			const blockedToolCallId = hasKey(request, { toolCall: true }) ? request.toolCall.toolCallId : undefined;
+			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind, blockedToolCallId);
 		}
 		if (request.kind !== SessionInputRequestKind.ChatInput) {
 			const agent = this._options.getAgent(sessionUri);
@@ -869,7 +871,9 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatToolCallStart) {
-			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId);
+			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId, action.toolName, action.contributor);
+		} else if (action.type === ActionType.ChatToolCallReady) {
+			this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, action.toolCallId, action.contributor);
 		}
 
 		// A denied confirmation is a terminal transition to `cancelled`: the
@@ -1337,6 +1341,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId);
 		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
+		this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, readyAction.toolCallId, readyAction.contributor);
 		if (readyAction.confirmed) {
 			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
 		}

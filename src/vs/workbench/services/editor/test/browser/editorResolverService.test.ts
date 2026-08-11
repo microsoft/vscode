@@ -786,6 +786,95 @@ suite('EditorResolverService', () => {
 		assert.strictEqual(service.getEditors().some(editor => editor.id === 'TEST_EDITOR'), false);
 	});
 
+	test('getEditors excludes exclusive registrations before deduplicating editor IDs', async () => {
+		const [, service] = await createEditorResolverService();
+		const factory: EditorInputFactoryObject = {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, TEST_EDITOR_INPUT_ID) })
+		};
+		disposables.add(service.registerEditor('exclusive:/**', {
+			id: 'test.multiPriority',
+			label: 'Multi-Priority Editor',
+			priority: RegisteredEditorPriority.exclusive
+		}, {}, factory));
+		disposables.add(service.registerEditor('file:/**/*.html', {
+			id: 'test.multiPriority',
+			label: 'Multi-Priority Editor',
+			priority: RegisteredEditorPriority.option
+		}, {}, factory));
+
+		assert.deepStrictEqual({
+			all: service.getEditors().filter(editor => editor.id === 'test.multiPriority'),
+			associationCandidates: service.getEditors({ excludeExclusiveEditors: true }).filter(editor => editor.id === 'test.multiPriority')
+		}, {
+			all: [{
+				id: 'test.multiPriority',
+				label: 'Multi-Priority Editor',
+				detail: undefined,
+				priority: {
+					editor: RegisteredEditorPriority.exclusive,
+					diff: RegisteredEditorPriority.exclusive,
+					merge: RegisteredEditorPriority.exclusive
+				}
+			}],
+			associationCandidates: [{
+				id: 'test.multiPriority',
+				label: 'Multi-Priority Editor',
+				detail: undefined,
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.option,
+					merge: RegisteredEditorPriority.option
+				}
+			}]
+		});
+	});
+
+	test('editor associations only apply where the registered editor supports the resource', async () => {
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				[editorsAssociationsSettingId]: {
+					'*.html': 'test.fileOnly'
+				}
+			})
+		}, disposables);
+		const [part, service] = await createEditorResolverService(instantiationService);
+		disposables.add(service.registerEditor('*', {
+			id: 'test.default',
+			label: 'Default Editor',
+			priority: RegisteredEditorPriority.builtin
+		}, {}, {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, 'test.defaultInput') })
+		}));
+		disposables.add(service.registerEditor('file:/**/*.html', {
+			id: 'test.fileOnly',
+			label: 'File-Only Editor',
+			priority: RegisteredEditorPriority.option
+		}, {
+			canSupportResource: resource => resource.scheme === Schemas.file
+		}, {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, 'test.fileOnlyInput') })
+		}));
+
+		const fileResult = await service.resolveEditor({ resource: URI.file('/workspace/index.html') }, part.activeGroup);
+		const remoteResource = URI.parse('vscode-remote://host/workspace/index.html');
+		const remoteCandidates = service.getEditors(remoteResource).map(editor => editor.id);
+		const remoteResult = await service.resolveEditor({ resource: remoteResource }, part.activeGroup);
+		assert.ok(fileResult !== ResolvedStatus.ABORT && fileResult !== ResolvedStatus.NONE);
+		assert.ok(remoteResult !== ResolvedStatus.ABORT && remoteResult !== ResolvedStatus.NONE);
+
+		assert.deepStrictEqual({
+			file: fileResult.editor.typeId,
+			remote: remoteResult.editor.typeId,
+			remoteCandidates
+		}, {
+			file: 'test.fileOnlyInput',
+			remote: 'test.defaultInput',
+			remoteCandidates: ['test.default']
+		});
+		fileResult.editor.dispose();
+		remoteResult.editor.dispose();
+	});
+
 	test('getEditors excludes inactive universal optional editors when requested', async () => {
 		const [, service] = await createEditorResolverService();
 		const resource = URI.file('/workspace/index.html');
