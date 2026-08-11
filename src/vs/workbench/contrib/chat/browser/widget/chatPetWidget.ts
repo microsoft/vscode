@@ -526,7 +526,7 @@ export function getChatPetThrowVelocity(samples: readonly ChatPetPointerSample[]
 	const velocityX = (latest.x - first.x) / elapsed * 1_000;
 	const velocityY = (latest.y - first.y) / elapsed * 1_000;
 	const horizontalVelocity = Math.abs(velocityX);
-	if (horizontalVelocity < THROW_MIN_HORIZONTAL_VELOCITY || horizontalVelocity < Math.abs(velocityY) * 0.75) {
+	if (horizontalVelocity < THROW_MIN_HORIZONTAL_VELOCITY || horizontalVelocity < Math.abs(velocityY)) {
 		return undefined;
 	}
 
