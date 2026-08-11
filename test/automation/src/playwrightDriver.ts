@@ -229,11 +229,12 @@ export class PlaywrightDriver {
 				rootSession.on('Target.detachedFromTarget', detachedListener);
 				timeout = setTimeout(() => reject(new Error(`Timed out running CDP command '${method}' on target '${targetId}'.`)), 15_000);
 			});
-			await rootSession.send('Target.sendMessageToTarget', {
+			const send = rootSession.send('Target.sendMessageToTarget', {
 				sessionId,
 				message: JSON.stringify({ id: messageId, method, params })
 			});
-			return await response;
+			const [, result] = await Promise.all([send, response]);
+			return result;
 		} finally {
 			if (listener) {
 				rootSession.off('Target.receivedMessageFromTarget', listener);

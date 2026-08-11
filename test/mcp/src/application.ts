@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as vscodetest from '@vscode/test-electron';
 import * as sqlite3 from '@vscode/sqlite3';
+import type { Page } from '@playwright/test';
 import { createApp, retry, parseVersion } from './utils';
 import { opts } from './options';
 
@@ -238,6 +239,9 @@ export async function getApplication({ recordVideo, workspacePath, userSettings,
 	if (opts.web && extraArgs?.length) {
 		throw new Error('Per-run extraArgs are not supported by the web automation launcher.');
 	}
+	if (extraArgs?.some(arg => arg === '--user-data-dir' || arg.startsWith('--user-data-dir='))) {
+		throw new Error('Per-run extraArgs cannot override the isolated user data directory.');
+	}
 	const testCodePath = getDevElectronPath();
 	const electronPath = testCodePath;
 	if (!fs.existsSync(electronPath || '')) {
@@ -368,7 +372,18 @@ export class ApplicationService {
 		if (!this._application) {
 			this._application = await getApplication({ recordVideo, workspacePath, userSettings, extraArgs });
 			const application = this._application;
-			application.code.driver.currentPage.on('close', () => void this._closeApplication(application).catch(error => logger.log(`Failed to close application: ${error}`)));
+			const observedPages = new Set<Page>();
+			const observePage = (page: Page) => {
+				if (observedPages.has(page)) {
+					return;
+				}
+				observedPages.add(page);
+				page.once('close', () => void this._handlePageClose(application).catch(error => logger.log(`Failed to handle page close: ${error}`)));
+			};
+			for (const page of application.code.driver.getAllWindows()) {
+				observePage(page);
+			}
+			application.code.driver.browserContext.on('page', observePage);
 			await this._runAllListeners();
 		}
 		return this._application;
@@ -382,7 +397,15 @@ export class ApplicationService {
 			return undefined;
 		}
 		try {
-			return this._application.code.driver.currentPage.isClosed() ? undefined : this._application;
+			const driver = this._application.code.driver;
+			const openWindowIndex = driver.getAllWindows().findIndex(page => !page.isClosed());
+			if (openWindowIndex < 0) {
+				return undefined;
+			}
+			if (driver.currentPage.isClosed()) {
+				driver.switchToWindow(openWindowIndex);
+			}
+			return this._application;
 		} catch {
 			return undefined;
 		}
@@ -394,6 +417,25 @@ export class ApplicationService {
 		} else if (this._closing) {
 			await this._closing;
 		}
+	}
+
+	private async _handlePageClose(application: Application): Promise<void> {
+		if (this._application !== application) {
+			return;
+		}
+		try {
+			const driver = application.code.driver;
+			const openWindowIndex = driver.getAllWindows().findIndex(page => !page.isClosed());
+			if (openWindowIndex >= 0) {
+				if (driver.currentPage.isClosed()) {
+					driver.switchToWindow(openWindowIndex);
+				}
+				return;
+			}
+		} catch {
+			// Fall through to closing the application.
+		}
+		await this._closeApplication(application);
 	}
 
 	private async _closeApplication(application: Application): Promise<void> {

@@ -48,6 +48,7 @@ interface LogFileSnapshot {
 
 interface EvidenceRun {
 	id: string;
+	state: 'initializing' | 'active' | 'capturing' | 'finishing';
 	scenarioId: string;
 	title: string;
 	source?: string;
@@ -91,6 +92,9 @@ export class EvidenceService {
 		if (this.appService.application) {
 			throw new Error('Stop the existing VS Code instance before starting evidence capture so video recording can be enabled at launch.');
 		}
+		if (source && !isHttpUrl(source)) {
+			throw new Error(`Evidence source must use HTTP or HTTPS: '${source}'.`);
+		}
 
 		const startedAt = new Date().toISOString();
 		const id = `${sanitizePathSegment(scenarioId)}-${startedAt.replace(/[:.]/g, '-')}`;
@@ -104,16 +108,9 @@ export class EvidenceService {
 		let releaseProfileCleanup!: () => void;
 		const profileCleanupReady = new Promise<void>(resolve => releaseProfileCleanup = resolve);
 		this.appService.deferProfileCleanup(profileCleanupReady);
-		let app: Awaited<ReturnType<ApplicationService['getOrCreateApplication']>>;
-		try {
-			app = await this.appService.getOrCreateApplication({ recordVideo: true, workspacePath, userSettings, extraArgs });
-		} catch (error) {
-			releaseProfileCleanup();
-			await this.appService.waitForProfileCleanup();
-			throw error;
-		}
-		this.currentRun = {
+		const run: EvidenceRun = {
 			id,
+			state: 'initializing',
 			scenarioId,
 			title,
 			source,
@@ -130,12 +127,24 @@ export class EvidenceService {
 				architecture: process.arch,
 				nodeVersion: process.version,
 				vscodeVersion: getProductVersion(),
-				quality: qualityNames[app.quality] ?? String(app.quality),
+				quality: 'unknown',
 				commit: process.env.GITHUB_SHA ?? process.env.BUILD_SOURCEVERSION
 			},
 			steps: []
 		};
-		const run = this.currentRun;
+		this.currentRun = run;
+		let app: Awaited<ReturnType<ApplicationService['getOrCreateApplication']>>;
+		try {
+			app = await this.appService.getOrCreateApplication({ recordVideo: true, workspacePath, userSettings, extraArgs });
+		} catch (error) {
+			if (this.currentRun === run) {
+				this.currentRun = undefined;
+			}
+			releaseProfileCleanup();
+			await this.appService.waitForProfileCleanup();
+			throw error;
+		}
+		run.environment.quality = qualityNames[app.quality] ?? String(app.quality);
 		try {
 			run.pageListener = page => {
 				const video = page.video();
@@ -153,6 +162,7 @@ export class EvidenceService {
 			await wait(500);
 			await this.capture('00-scenario-started.png');
 			this.writeManifest();
+			run.state = 'active';
 
 			return runPath;
 		} catch (error) {
@@ -179,11 +189,9 @@ export class EvidenceService {
 
 	async step(id: string, title: string, status: StepStatus, details?: string): Promise<{ screenshot: Buffer; screenshotPath: string }> {
 		const run = this.requireRun();
-		const app = this.appService.application;
-		if (!app) {
-			throw new Error('VS Code is not running. Finish the evidence run as aborted or failed.');
+		if (run.state !== 'active') {
+			throw new Error(`Evidence run '${run.id}' is busy (${run.state}).`);
 		}
-		run.pageListener?.(app.code.driver.currentPage);
 		let step = run.steps.find(candidate => candidate.id === id);
 
 		let isNewStep = false;
@@ -210,18 +218,39 @@ export class EvidenceService {
 			throw new Error(`Step '${id}' must be started before it can be marked '${status}'.`);
 		}
 
+		run.state = 'capturing';
 		let screenshotName: string | undefined;
 		try {
-			await this.showOverlay(id, title, status);
-			await wait(status === 'started' ? 500 : 250);
-			const sequence = String(run.steps.indexOf(step) + 1).padStart(2, '0');
-			screenshotName = `${sequence}-${sanitizePathSegment(id)}-${status}.png`;
-			const screenshot = await this.capture(screenshotName);
+			let app = await this.appService.getApplicationIfRunning();
+			if (!app) {
+				throw new Error('VS Code is not running. Finish the evidence run as aborted or failed.');
+			}
+			run.pageListener?.(app.code.driver.currentPage);
+			let screenshot: Buffer | undefined;
+			for (let attempt = 0; attempt < 2; attempt++) {
+				try {
+					await this.showOverlay(id, title, status);
+					await wait(status === 'started' ? 500 : 250);
+					const sequence = String(run.steps.indexOf(step) + 1).padStart(2, '0');
+					screenshotName = `${sequence}-${sanitizePathSegment(id)}-${status}.png`;
+					screenshot = await this.capture(screenshotName);
+					break;
+				} catch (error) {
+					app = await this.appService.getApplicationIfRunning();
+					if (!app || attempt === 1) {
+						throw error;
+					}
+					run.pageListener?.(app.code.driver.currentPage);
+				}
+			}
+			if (!screenshot || !screenshotName) {
+				throw new Error(`Failed to capture evidence for step '${id}'.`);
+			}
 			step.captures.push({
 				status,
 				timestamp: new Date().toISOString(),
 				screenshot: screenshotName,
-				windowUrl: this.appService.application!.code.driver.currentPage.url(),
+				windowUrl: app.code.driver.currentPage.url(),
 				details
 			});
 			this.writeManifest();
@@ -239,11 +268,18 @@ export class EvidenceService {
 				}
 			}
 			throw error;
+		} finally {
+			if (this.currentRun === run && run.state === 'capturing') {
+				run.state = 'active';
+			}
 		}
 	}
 
 	async finish(outcome: RunOutcome, notes?: string): Promise<string> {
 		const run = this.requireRun();
+		if (run.state !== 'active') {
+			throw new Error(`Evidence run '${run.id}' is busy (${run.state}).`);
+		}
 		const activeStep = run.steps.find(candidate => candidate.captures.at(-1)?.status === 'started');
 		if (activeStep && outcome !== 'aborted') {
 			throw new Error(`Step '${activeStep.id}' is still active. Complete it before finishing the run.`);
@@ -253,6 +289,7 @@ export class EvidenceService {
 			outcome = 'failed';
 			notes = [notes, `Run marked failed because step '${failedStep.id}' failed.`].filter(Boolean).join('\n');
 		}
+		run.state = 'finishing';
 
 		try {
 			let app = await this.appService.getApplicationIfRunning();
@@ -264,16 +301,22 @@ export class EvidenceService {
 				}
 			};
 			if (app) {
-				try {
-					await this.showOverlay('Result', run.title, outcome);
-					await wait(500);
-					await this.capture(`99-result-${outcome}.png`);
-				} catch (error) {
-					if (await this.appService.getApplicationIfRunning()) {
-						throw error;
+				for (let attempt = 0; attempt < 2; attempt++) {
+					try {
+						await this.showOverlay('Result', run.title, outcome);
+						await wait(500);
+						await this.capture(`99-result-${outcome}.png`);
+						break;
+					} catch (error) {
+						app = await this.appService.getApplicationIfRunning();
+						if (!app) {
+							recordApplicationClosure();
+							break;
+						}
+						if (attempt === 1) {
+							throw error;
+						}
 					}
-					app = undefined;
-					recordApplicationClosure();
 				}
 			} else {
 				recordApplicationClosure();
@@ -464,7 +507,7 @@ export function applyEvidenceStartTool(server: McpServer, evidenceService: Evide
 		{
 			scenarioId: z.string().describe('Stable scenario identifier'),
 			title: z.string().describe('Human-readable scenario title'),
-			source: z.string().url().optional().describe('Source test-plan issue URL'),
+			source: z.string().url().refine(isHttpUrl, 'Source must use HTTP or HTTPS').optional().describe('Source test-plan issue URL'),
 			scenarioPath: z.string().optional().describe('Path to the Markdown scenario definition'),
 			workspacePath: z.string().optional().describe('Workspace or folder to open'),
 			userSettings: z.record(z.string(), jsonValueSchema).optional().describe('User settings to seed before VS Code starts'),
@@ -543,4 +586,13 @@ function escapeHtml(value: string): string {
 
 function wait(milliseconds: number): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+function isHttpUrl(value: string): boolean {
+	try {
+		const protocol = new URL(value).protocol;
+		return protocol === 'http:' || protocol === 'https:';
+	} catch {
+		return false;
+	}
 }
