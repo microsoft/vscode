@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner } from '../widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingHostOptions } from '../widget/input/chatInputOnboarding.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -634,6 +634,31 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 	}
 
 	/**
+	 * Stops the waveform and releases the microphone while the card is put away
+	 * for a notification, so an invisible introduction never holds the microphone
+	 * open or keeps painting.
+	 */
+	setVisible(visible: boolean): void {
+		if (visible) {
+			this.waveform.start();
+			if (this.preview) {
+				void this.startPreview();
+			}
+		} else {
+			this.waveform.stop();
+			this.preview?.releaseMicrophone();
+		}
+	}
+
+	hasFocus(): boolean {
+		return this.card.hasFocus();
+	}
+
+	focus(): void {
+		this.card.focus();
+	}
+
+	/**
 	 * What dictation is, and that none of it is fixed. The card is shown once, so
 	 * the two things a user might want to change afterwards - whether dictation
 	 * runs at all, and how it writes what they say - have to be reachable from
@@ -861,12 +886,8 @@ export interface IDictationOnboardingService {
 	/**
 	 * Register a container that can host the card (a chat input). The most
 	 * recently focused host wins when the card is shown.
-	 *
-	 * @param container the element the card is appended to.
-	 * @param focusRoot the element whose focus marks this host as the active one
-	 * (typically the chat input part the container lives in).
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 
 	/**
 	 * Show the card alongside the user's first dictation. Dictation starts
@@ -911,8 +932,8 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, undefined, tipContainer, onDidChangeVisible);
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
+		return this.onboarding.registerHost(options);
 	}
 
 	showIfNeeded(): boolean {

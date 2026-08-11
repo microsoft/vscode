@@ -140,13 +140,16 @@ export interface IAgentHostTurnCompletedEvent {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
+	isSubagentSession: boolean;
 	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | TelemetryTrustedValue<string> | undefined;
 	modelSelectionKind: AgentHostModelSelectionKind;
+	isBYOK: boolean | undefined;
 	permissionLevel: string | undefined;
+	interactionMode: SessionMode | undefined;
 	errorType: string | undefined;
 	failureStage: AgentHostTurnFailureStage | undefined;
 	isMultiRoot: boolean;
@@ -157,13 +160,16 @@ export type IAgentHostTurnCompletedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier selected at turn start, or a generic value for BYOK and unknown models.' };
 	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
+	isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the selected model is a bring-your-own-key model, when model context is available.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
+	interactionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host interaction mode configured at turn start.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type when the turn fails.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
@@ -176,6 +182,7 @@ export interface IAgentHostTurnFailedEvent {
 	provider: string;
 	agentSessionId: string;
 	chatSessionId: string;
+	isSubagentSession: boolean;
 	turnId: string;
 	failureStage: AgentHostTurnFailureStage;
 	errorType: string;
@@ -191,6 +198,7 @@ export type IAgentHostTurnFailedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the failed agent host turn.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat identifier within the agent host session.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the failed turn belongs to a subagent session.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the failed turn within the agent host session.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
@@ -223,6 +231,7 @@ export interface IAgentHostTurnCompletedReport {
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
+	interactionMode: SessionMode | undefined;
 	failure: IAgentHostTurnFailure | undefined;
 	isMultiRoot: boolean;
 	folderCount: number;
@@ -1010,18 +1019,22 @@ export class AgentHostTelemetryReporter {
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		const chatSessionId = getTelemetryChatSessionId(report.session);
+		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
 		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId,
+			isSubagentSession: isSubagent,
 			turnId: report.turnId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
 			model,
 			modelSelectionKind: report.modelSelectionKind,
+			isBYOK: report.modelTelemetryKind === undefined ? undefined : report.modelTelemetryKind === 'byok',
 			permissionLevel: report.permissionLevel,
+			interactionMode: report.interactionMode,
 			errorType: report.failure?.error.errorType,
 			failureStage: report.failure?.stage,
 			isMultiRoot: report.isMultiRoot,
@@ -1033,6 +1046,7 @@ export class AgentHostTelemetryReporter {
 				provider: report.provider,
 				agentSessionId: AgentSession.id(session),
 				chatSessionId,
+				isSubagentSession: isSubagent,
 				turnId: report.turnId,
 				failureStage: report.failure.stage,
 				errorType: report.failure.error.errorType,
