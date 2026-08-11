@@ -161,21 +161,23 @@ A user can restart Agent Host after a Copilot request fails and expects the reop
     --grep "request error survives a host restart"
   ```
 
-### Resource-scoped changeset discard does not refresh sibling state on Windows
+### Changeset discard state does not refresh on Windows
 
-A user can discard one changed file while preserving another changed file in the same session. On Windows, the discard restores the requested file on disk but the changeset state does not refresh to remove it, leaving the UI stale.
+A user can discard changed files from a session. On Windows, the discard restores the requested files on disk but affected changesets and session summaries do not refresh, leaving the UI stale.
 
-- Test: `discarding one file preserves sibling changes`.
+- Tests:
+  - `discarding one file preserves sibling changes`
+  - `discarding the last tracked change clears changeset and list summaries`
 - Scope: Agent Host conformance on Windows.
-- Expected: after discarding `first.txt`, the changeset contains only the still-modified `second.txt`.
-- Observed: the discard operation completes, but the changeset still contains `first.txt` after the synchronization retry expires.
-- Gate: the Windows variant is disabled through the `conformanceTest` platform condition in `changesetSuite.ts`.
+- Expected: discarding one file removes it from the changeset while preserving siblings; discarding the final change clears branch and uncommitted changesets plus the session-list summary.
+- Observed: the discard operation completes, but the discarded entries and aggregate summary remain unchanged after the synchronization retry expires.
+- Gate: both Windows variants are disabled through `conformanceTest` platform conditions in `changesetSuite.ts`.
 - Reproduce on Windows:
 
   ```powershell
   .\scripts\test-integration.bat --run `
     src\vs\platform\agentHost\test\node\e2e\conformance\agentHostConformance.integrationTest.ts `
-    --grep "discarding one file preserves sibling changes"
+    --grep "discarding one file preserves sibling changes|discarding the last tracked change"
   ```
 
 ### Copilot workspaceless scratch directories survive session disposal on Windows
