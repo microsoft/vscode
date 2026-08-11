@@ -59,6 +59,18 @@ suite('Create Session from Pull Request', () => {
 		});
 	});
 
+	test('uses semantic open and draft pull request icon classes', () => {
+		const items = createPullRequestQuickPickItems([
+			pullRequest(17),
+			pullRequest(18, { isDraft: true }),
+		], { numbers: new Set(), headRefs: new Set() }).filter((item): item is IPullRequestQuickPickItem => item.type !== 'separator');
+
+		assert.deepStrictEqual(items.map(item => item.iconClass), [
+			'codicon codicon-git-pull-request sessions-pull-request-open',
+			'codicon codicon-git-pull-request-draft sessions-pull-request-draft',
+		]);
+	});
+
 	test('matches pull requests by number, title, and author', () => {
 		const item = pullRequest(42, { title: 'Improve pull request picker' });
 		assert.deepStrictEqual({

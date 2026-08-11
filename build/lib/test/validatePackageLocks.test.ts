@@ -97,6 +97,97 @@ suite('validatePackageLocks', () => {
 		});
 	});
 
+	test('does not pin a direct dependency from a changed nested package', () => {
+		const base = {
+			packages: {
+				'': {},
+				'node_modules/minimatch': { version: '3.1.5' },
+				'node_modules/tool/node_modules/minimatch': { version: '9.0.0' },
+			}
+		};
+		const submitted = {
+			packages: {
+				'': {},
+				'node_modules/minimatch': { version: '3.1.5' },
+				'node_modules/tool/node_modules/minimatch': { version: '10.2.6' },
+			}
+		};
+		const packageJson = { devDependencies: { minimatch: '^3.1.5' } };
+
+		assert.deepStrictEqual(pinChangedPackages(packageJson, findChangedPackageKeys(base, submitted), submitted), {
+			devDependencies: { minimatch: '^3.1.5' }
+		});
+	});
+
+	test('keeps the aliased package name when pinning an aliased dependency', () => {
+		const base = {
+			packages: {
+				'': {},
+				'node_modules/typescript': { name: '@typescript/typescript6', version: '6.0.1' },
+				'node_modules/@typescript/native': { name: 'typescript', version: '7.0.1' },
+			}
+		};
+		const submitted = {
+			packages: {
+				'': {},
+				'node_modules/typescript': { name: '@typescript/typescript6', version: '6.0.2' },
+				'node_modules/@typescript/native': { name: 'typescript', version: '7.0.2' },
+			}
+		};
+		const packageJson = {
+			devDependencies: {
+				'typescript': 'npm:@typescript/typescript6@^6.0.2',
+				'@typescript/native': 'npm:typescript@^7.0.2',
+			}
+		};
+
+		// Replacing the alias with a bare version resolves an entirely different package.
+		assert.deepStrictEqual(pinChangedPackages(packageJson, findChangedPackageKeys(base, submitted), submitted), {
+			devDependencies: {
+				'typescript': 'npm:@typescript/typescript6@6.0.2',
+				'@typescript/native': 'npm:typescript@7.0.2',
+			}
+		});
+	});
+
+	test('leaves dependencies that do not resolve against the registry alone', () => {
+		const base = {
+			packages: {
+				'': {},
+				'node_modules/local': { version: '1.0.0' },
+				'node_modules/forked': { version: '2.0.0' },
+				'node_modules/tarball': { version: '3.0.0' },
+				'node_modules/@scope/pinnable': { version: '4.0.0' },
+			}
+		};
+		const submitted = {
+			packages: {
+				'': {},
+				'node_modules/local': { version: '1.1.0' },
+				'node_modules/forked': { version: '2.1.0' },
+				'node_modules/tarball': { version: '3.1.0' },
+				'node_modules/@scope/pinnable': { version: '4.1.0' },
+			}
+		};
+		const packageJson = {
+			dependencies: {
+				'local': 'file:./packages/local',
+				'forked': 'github:example/forked#main',
+				'tarball': 'https://example.com/tarball-3.1.0.tgz',
+				'@scope/pinnable': '^4.0.0',
+			}
+		};
+
+		assert.deepStrictEqual(pinChangedPackages(packageJson, findChangedPackageKeys(base, submitted), submitted), {
+			dependencies: {
+				'local': 'file:./packages/local',
+				'forked': 'github:example/forked#main',
+				'tarball': 'https://example.com/tarball-3.1.0.tgz',
+				'@scope/pinnable': '4.1.0',
+			}
+		});
+	});
+
 	test('restores declared dependency ranges after regeneration', () => {
 		const regenerated = {
 			packages: {
