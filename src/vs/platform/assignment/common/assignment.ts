@@ -174,7 +174,7 @@ function trimVersionSuffix(version: string): string {
 
 /**
  * Formats an ISO release date into the `yyyymmddHH` form the experimentation backend
- * expects (10 digits: yyyymmddHH). Returns an empty string when unavailable.
+ * expects (10 digits, fits within int32). Returns an empty string when unavailable.
  */
 function formatReleaseDate(iso: string): string {
 	if (!iso) {
