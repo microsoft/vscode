@@ -1658,15 +1658,11 @@ export interface IActiveClient {
 	customizations: readonly ClientPluginCustomization[];
 }
 
-/**
- * Outcome of {@link IAgent.ensureChatAdopted}. `adopted` is true iff this
- * call newly seeded metadata for the session; `eligible` is true iff the session
- * is a legacy on-disk session that was a genuine adoption candidate (whether or
- * not it was adopted this call), so callers can distinguish a migration that did
- * not happen from an ordinary native restore.
- */
+/** Outcome of attempting to adopt a legacy provider-native chat. */
 export interface IAgentChatAdoptionResult {
+	/** Whether this call newly seeded Agent Host metadata. */
 	readonly adopted: boolean;
+	/** Whether the chat was a genuine legacy adoption candidate. */
 	readonly eligible: boolean;
 }
 
@@ -1676,143 +1672,59 @@ export interface IAgentChatAdoptionResult {
  * the agent id.
  */
 export interface IAgent {
-	/** Unique identifier for this provider (e.g. `'copilot'`). */
+	// ---- Identity and catalog -----------------------------------------------
+
+	/** Unique provider identifier. */
 	readonly id: AgentProvider;
 
-	/** Fires when the provider streams progress for a chat. */
+	/** Provider descriptor and capabilities. */
+	getDescriptor(): IAgentDescriptor;
+
+	/** Available provider models. */
+	readonly models: IObservable<readonly IAgentModelInfo[]>;
+
+	/** Refresh the provider model catalog while preserving the last good value on failure. */
+	refreshModels?(): Promise<void>;
+
+	// ---- Chat lifecycle and progress ----------------------------------------
+
+	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
 
-	/**
-	 * Fires once when a previously
-	 * provisional chat has been materialized — i.e. its SDK backing and on-disk
-	 * metadata are in place. The {@link IAgentService} uses this event
-	 * to fire the deferred `sessionAdded` notification with the now-final
-	 * summary.
-	 */
+	/** Fires when a provisional chat acquires its SDK backing and durable metadata. */
 	readonly onDidMaterializeChat: Event<IAgentMaterializeChatEvent>;
 
-	/**
-	 * Fires (debounced) when the provider's on-disk chat set may have changed
-	 * out of band (e.g. a legacy Copilot CLI chat was created by the extension
-	 * host while the window is open). The {@link IAgentService} responds by
-	 * announcing any adoptable-legacy sessions not yet known to clients. Optional:
-	 * providers that cannot detect out-of-band changes omit it.
-	 */
-	readonly onDidChangeChatList?: Event<void>;
-
-	/**
-	 * Provides the agent host's server-tool host so the provider can advertise
-	 * and execute the agent host's server tools (feedback "comments" today, more
-	 * in the future) against a session's state. Optional: providers that do not
-	 * support server-side tools simply omit it. Called once during registration
-	 * with the {@link IAgentService}.
-	 */
-	setServerToolHost?(host: IAgentServerToolHost): void;
-
-	// ---- Chat surface ------------------------------------------------------
-	//
-	// `chats` is the chat-addressed operation surface. Its chats are addressed
-	// by concrete chat channel URIs. The orchestrator ({@link IAgentService})
-	// owns the feature-level `(session, chat)` to chat-channel mapping.
-
-	/**
-	 * Chat-addressed surface for the chats within a session (send/abort/
-	 * change model/agent, create/fork/dispose chats, read history).
-	 */
-	readonly chats: IAgentChats;
-
-	// ---- Session lifecycle / configuration ---------------------------------
-
-	/**
-	 * Adopt-on-open for a legacy on-disk chat (e.g. one created by the
-	 * extension-host Copilot CLI): if `chat` has an on-disk SDK event log but
-	 * no agent-host metadata yet, seed that metadata in place — reusing the event
-	 * log verbatim — so the normal restore flow can resume it. Reports whether the
-	 * session was newly adopted (so the caller can run a one-time checkpoint
-	 * bridge) and whether it was an eligible legacy session at all (so the caller
-	 * can tell a genuine migration candidate apart from an ordinary native
-	 * restore). Optional: providers without a legacy on-disk format omit it.
-	 */
-	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
-
-	/** Resolve provider-owned chat configuration; host-owned worktree fields are omitted. */
-	resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult>;
-
-	/** Select provider-owned configuration that a newly created chat should inherit. */
-	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
-
-	/** Return dynamic completions for a provider-owned chat configuration property. */
-	chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
-
-	/**
-	 * Re-attach an agent's in-memory backing for an exact chat on restore,
-	 * decoding the opaque `providerData` produced earlier by
-	 * {@link IAgentChats.createChat} (or the latest
-	 * {@link onDidChangeChatData}). After this resolves the agent MUST
-	 * be able to serve
-	 * {@link IAgentChats.sendMessage} for `chat`.
-	 * Best-effort: implementations SHOULD NOT throw on a corrupt/unknown blob —
-	 * log and no-op so the orchestrator restores the chat with history but no
-	 * live backing. Legacy recovery is a separate host-orchestrated step through
-	 * {@link recoverLegacyChat}; this method never infers a chat's role.
-	 */
-	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
-
-	/**
-	 * Recover the historical backing for a chat whose provider data predates
-	 * host-owned persistence. The host invokes this only on the migration path;
-	 * normal materialization always receives canonical provider data.
-	 */
-	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
-
-	/**
-	 * Migration-only enumeration of chat backings persisted in the
-	 * agent's OWN legacy format (predating the orchestrator-owned catalog). The
-	 * orchestrator calls this once, when its own catalog is absent, to drain the
-	 * legacy chats into {@link PEER_CHATS_METADATA_KEY}; subsequent restores read
-	 * the orchestrator catalog and never consult this again. Each entry's
-	 * `providerData` uses the same encoding {@link IAgentChats.createChat}
-	 * produces and {@link materializeChat} decodes. Agents with no legacy
-	 * format (e.g. Codex) omit this method.
-	 */
-	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
-
-	/**
-	 * Fires when a chat's opaque `providerData` changes after creation
-	 * (e.g. per-chat model switch, fork remap). The orchestrator re-persists the
-	 * blob. Agents whose blob is immutable never fire this.
-	 */
+	/** Fires when an opaque chat backing changes and must be persisted again. */
 	readonly onDidChangeChatData: Event<IAgentChatDataChange>;
 
-	// ---- Spawned chat (membership) channel -------------------------
-	//
-	// First-class membership channel for chats the agent spawns itself
-	// (e.g. sub-agent / "team" member chats delegated by a tool call),
-	// as opposed to user-driven chats created via
-	// {@link IAgentChats.createChat}. The orchestrator
-	// ({@link IAgentService}) routes these straight into the chat catalog
-	// (addChat/removeChat) so harness-spawned and user-driven chats share ONE
-	// membership path. Agents that never spawn chats omit both events.
-
-	/**
-	 * Fires when the agent spawns a new chat (e.g. a
-	 * sub-agent delegated by a tool call). The orchestrator records it in the
-	 * chat catalog, preserving the {@link IAgentSpawnChatEvent.parent}
-	 * spawn edge as the chat's {@link ChatOriginKind.Tool} origin.
-	 */
+	/** Fires when the provider creates a chat, such as a delegated subagent. */
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent>;
 
-	/**
-	 * Called when a chat's pending (steering) message changes.
-	 * The agent harness decides how to react — e.g. inject steering
-	 * mid-turn via `mode: 'immediate'`. Steering is always addressed by a
-	 * concrete chat channel URI — the session's default chat or an additional
-	 * peer chat — so it never leaks into a sibling chat of the same session.
-	 *
-	 * Queued messages are consumed on the server side and are not
-	 * forwarded to the agent; `queuedMessages` will always be empty.
-	 */
+	/** Exact-chat operations: create, send, abort, mutate, restore history, release, and dispose. */
+	readonly chats: IAgentChats;
+
+	/** Re-attach an exact chat from opaque provider data without inferring its role. */
+	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
+
+	/** Recover a historical backing that predates host-owned provider-data persistence. */
+	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
+
+	/** Update the exact chat's pending steering message; queued messages are host-owned. */
 	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
+
+	/** Truncate an exact chat at a turn, or remove all turns when no turn is supplied. */
+	truncateSession?(session: URI, turnId: string | undefined, chat: URI, context?: URI | IAgentChatContext): Promise<void>;
+
+	// ---- Active clients and interaction ------------------------------------
+
+	/** Get or create one client's contribution handle for an exact chat. */
+	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient;
+
+	/** Remove one client's contributions from an exact chat. */
+	removeActiveClient(chat: URI, context: URI | IAgentChatContext, clientId: string): void;
+
+	/** Complete a client tool call on its host-resolved provider chat. */
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void;
 
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
@@ -1820,193 +1732,90 @@ export interface IAgent {
 	/** Respond to a pending user input request from the SDK's ask_user tool. */
 	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
 
-	/** Return the descriptor for this agent. */
-	getDescriptor(): IAgentDescriptor;
+	// ---- Configuration and customizations ----------------------------------
 
-	/** Available models from this provider. */
-	readonly models: IObservable<readonly IAgentModelInfo[]>;
+	/** Resolve provider-owned chat configuration; host-owned worktree fields are omitted. */
+	resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult>;
 
-	/** Refresh the provider-owned model catalog, preserving the last good value on failure. */
-	refreshModels?(): Promise<void>;
+	/** Select provider-owned configuration inherited by a newly created chat. */
+	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
 
-	/**
-	 * Enumerate provider-native chats only for one-time legacy discovery.
-	 */
-	listLegacyChats(): Promise<readonly IAgentChatMetadata[]>;
+	/** Return dynamic completions for a provider-owned chat configuration property. */
+	chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
-	/** Retrieve metadata for a registered exact chat. */
-	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined>;
-
-	/** Declare protected resources this agent requires auth for (RFC 9728). */
-	getProtectedResources(): ProtectedResourceMetadata[];
-
-	/**
-	 * Endpoints this provider uses and recommends probing in network
-	 * diagnostics. Optional.
-	 */
-	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;
-
-	/** Authenticated account name to display in network diagnostics, when known. */
-	getNetworkDiagnosticsAccount?(): Promise<string | undefined>;
-
-	/** Resolve the provider's own effective enterprise managed-settings snapshot. */
-	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
-
-	/**
-	 * Fires when the agent's host-owned customizations change
-	 * (loading state, resolution results, etc.), so infrastructure
-	 * can republish {@link AgentInfo} and session customization state.
-	 */
+	/** Fires when provider customization state changes. */
 	readonly onDidCustomizationsChange?: Event<void>;
 
-	/**
-	 * Fires when this agent needs the client to (re-)authenticate a
-	 * protected resource — for example after a runtime transport-mode flip
-	 * makes a previously-unneeded credential required. The host stamps the
-	 * root channel and forwards it verbatim as an `auth/required`
-	 * notification; clients respond via {@link authenticate}.
-	 */
-	readonly onDidRequireAuth?: Event<Omit<AuthRequiredParams, 'channel'>>;
-
-	/**
-	 * Returns the host-owned customizations this agent currently exposes.
-	 *
-	 * Used to publish baseline customization metadata on {@link AgentInfo}.
-	 * Always container customizations ({@link PluginCustomization} or
-	 * {@link DirectoryCustomization}).
-	 */
+	/** Return provider-wide customization containers advertised in agent metadata. */
 	getCustomizations?(): readonly Customization[];
 
-	/**
-	 * Returns the effective customization list for a chat, including
-	 * source, enablement, and loading/error status.
-	 *
-	 * `hostCustomizations` is the last customization snapshot the host
-	 * published for the owning session (the same list clients observe on
-	 * `SessionState.customizations`, including user enablement toggles),
-	 * supplied explicitly so the provider never reads it back out of shared
-	 * host state. It is a snapshot to reconcile against — the provider is
-	 * expected to carry its own authoritative view forward and reapply the
-	 * host's enablement decisions on top of it.
-	 *
-	 * `undefined` means the host has no published snapshot for this session
-	 * yet (during creation, or for an unknown/evicted session). That is
-	 * deliberately distinct from an empty list: the provider MUST NOT read it
-	 * as "the host has no customizations" and clear its reconciled state.
-	 */
+	/** Return the effective customization projection for an exact chat. */
 	getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]>;
 
-	/**
-	 * Authenticate for a specific resource. Returns true if accepted.
-	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
-	 */
+	// ---- Legacy migration and metadata -------------------------------------
+
+	/** Fires when provider-native chats change out of band during legacy migration. */
+	readonly onDidChangeChatList?: Event<void>;
+
+	/** Adopt a legacy provider-native chat into Agent Host metadata. */
+	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
+
+	/** Enumerate provider-native chats for one-time registry migration. */
+	listLegacyChats(): Promise<readonly IAgentChatMetadata[]>;
+
+	/** Enumerate legacy peer backings for one configuration scope. */
+	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
+
+	/** Retrieve metadata for an exact registered chat. */
+	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined>;
+
+	// ---- Authentication and diagnostics ------------------------------------
+
+	/** Declare protected resources required by this provider. */
+	getProtectedResources(): ProtectedResourceMetadata[];
+
+	/** Authenticate for one protected resource. */
 	authenticate(resource: string, token: string): Promise<boolean>;
 
-	/**
-	 * Optional hook for provider-owned session resources that are not advertised
-	 * as root agent protected resources, such as MCP server OAuth challenges.
-	 */
+	/** Handle authentication for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
-	/**
-	 * Truncate a chat's history. If `turnId` is provided, keeps turns up to
-	 * and including that turn. If omitted, all turns are removed.
-	 *
-	 * `chat` identifies which chat to truncate: the session's default chat
-	 * (addressed by the session's default chat URI) or a peer (non-default)
-	 * chat, which has its own backing.
-	 *
-	 * Optional — not all providers support truncation.
-	 */
-	truncateSession?(session: URI, turnId: string | undefined, chat: URI, context?: URI | IAgentChatContext): Promise<void>;
+	/** Fires when the client must re-authenticate a protected resource. */
+	readonly onDidRequireAuth?: Event<Omit<AuthRequiredParams, 'channel'>>;
 
-	/**
-	 * Notifies the provider that a session's archived state has changed.
-	 * Providers may use this to clean up or restore per-session resources
-	 * (for example, removing a session-owned worktree on archive and
-	 * recreating it on unarchive). Optional.
-	 */
-	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
+	/** Provider endpoints recommended for network diagnostics. */
+	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;
 
-	/**
-	 * Get (or lazily create) the exact-chat handle for an active client,
-	 * identified by `clientId`. Mutating the returned {@link IActiveClient}'s
-	 * `tools` / `customizations` updates only that client's contribution; the
-	 * agent merges the contributions of all active clients when exposing them
-	 * to that chat's model.
-	 *
-	 * @param chat The exact chat this client contributes to.
-	 * @param context The chat's host-supplied persistence/configuration context.
-	 * @param client The client's `clientId` and optional human-readable name.
-	 * @param hostCustomizations The configuration scope's last host-published
-	 * customization snapshot, supplied so the provider can apply it to the
-	 * addressed chat without reading shared host state. `undefined` means the
-	 * host has not published a snapshot yet — distinct from an empty list.
-	 */
-	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient;
+	/** Authenticated account name displayed in network diagnostics. */
+	getNetworkDiagnosticsAccount?(): Promise<string | undefined>;
 
-	/**
-	 * Remove an active client's contributions from one exact chat.
-	 */
-	removeActiveClient(chat: URI, context: URI | IAgentChatContext, clientId: string): void;
+	/** Effective enterprise managed-settings diagnostics. */
+	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
-	/**
-	 * Called when a client completes a client-provided tool call.
-	 * Resolves the tool handler's deferred promise so the SDK can continue.
-	 *
-	 * @param session The session the tool call belongs to.
-	 * @param chat The host-resolved routing target for the completion: the chat
-	 * whose provider runtime owns the tool call. For a tool call addressed to a
-	 * subagent chat this is the ancestor chat that spawned it, so an agent that
-	 * tracks peer chats resolves the right conversation directly from it;
-	 * agents without peer chats ignore it and resolve by `session`.
-	 * @param toolCallId The id of the tool call being completed.
-	 * @param result The result of the tool call.
-	 * @param context The host-owned context for the chat the tool call was
-	 * *addressed* to, which differs from `chat` exactly when that chat is a
-	 * subagent. It carries the addressed chat's explicit
-	 * {@link IAgentChatContext.kind} and {@link IAgentChatContext.origin}, so a
-	 * provider recovers the spawning chat and tool call with
-	 * {@link resolveSubagentChatParent} instead of reading shared host state.
-	 */
-	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void;
+	// ---- MCP and server tools -----------------------------------------------
 
-	/** Request a session MCP server start/restart by customization id. */
+	/** Attach the Agent Host server-tool implementation. */
+	setServerToolHost?(host: IAgentServerToolHost): void;
+
+	/** Start or restart an MCP server by customization id. */
 	startMcpServer?(session: URI, id: string): Promise<void>;
 
-	/** Request a session MCP server stop by customization id. */
+	/** Stop an MCP server by customization id. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;
 
-	/** Gracefully shut down all sessions. */
-	shutdown(): Promise<void>;
-
-	/**
-	 * Routes a request received on an `mcp://` side channel to the agent's
-	 * MCP server implementation. The channel carries raw MCP JSON-RPC
-	 * methods (e.g. `tools/list`, `tools/call`, `resources/read`) tagged
-	 * with the routing envelope; the protocol server decodes the envelope
-	 * and forwards `(session, serverName, method, params)` here.
-	 *
-	 * The agent MUST reject unknown methods with an error whose message
-	 * begins with `Method not found` so the protocol server can map it to
-	 * a JSON-RPC `-32601`.
-	 *
-	 * Optional — agents that don't surface any MCP servers (or don't
-	 * advertise `mcpApp` capabilities) can omit this.
-	 */
+	/** Route a request received on an `mcp://` side channel. */
 	handleMcpRequest?(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
-	/**
-	 * Fires when an MCP server owned by this agent emits a notification
-	 * that should be forwarded to AHP clients over the `mcp://` side
-	 * channel. Today this is exclusively
-	 * `notifications/tools/list_changed` and
-	 * `notifications/resources/list_changed`. The protocol server
-	 * fans the notification out to every connected client.
-	 *
-	 * Optional — agents that don't expose MCP servers can omit this.
-	 */
+	/** MCP notification to forward to connected AHP clients. */
 	readonly onMcpNotification?: Event<IMcpNotification>;
+
+	// ---- Provider lifecycle -------------------------------------------------
+
+	/** Handle a protocol session's archived-state change when provider resources require it. */
+	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
+
+	/** Gracefully stop provider runtimes. */
+	shutdown(): Promise<void>;
 
 	/** Dispose this provider and all its resources. */
 	dispose(): void;
