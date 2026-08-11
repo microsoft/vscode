@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
-import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -25,6 +25,8 @@ suite('toolInstructions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const LARGE_OUTPUT_LINE = COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
+	const SESSION_COORDINATION_LINE = COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION;
+	const BASE_LINES = `${LARGE_OUTPUT_LINE}\n${SESSION_COORDINATION_LINE}`;
 
 	suite('universalToolInstructions', () => {
 		test('joins applicable lines in order and drops gated-out ones', () => {
@@ -35,13 +37,15 @@ suite('toolInstructions', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('x'), [lineFor('a')]), undefined);
 		});
 
-		test('always renders the registered large-output line from the default registry', () => {
+		test('always renders the registered host-wide lines from the default registry', () => {
 			assert.deepStrictEqual([
 				COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION,
+				COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION,
 				universalToolInstructions(hasTools()),
 			], [
 				'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.',
-				LARGE_OUTPUT_LINE,
+				'Before beginning code changes or creating a session, use `list_sessions` to check active sessions across the same project or repository—not only the same working directory—for overlapping activity, branches, pull requests, or changes; when overlap is plausible, use `get_session_context` and `send_message` to coordinate, and reuse or wait for existing work instead of duplicating it or editing the same area concurrently.',
+				BASE_LINES,
 			]);
 		});
 
@@ -53,9 +57,9 @@ suite('toolInstructions', () => {
 					universalToolInstructions(hasTools('readPage')),
 				],
 				[
-					`${LARGE_OUTPUT_LINE}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.`,
-					LARGE_OUTPUT_LINE,
-					LARGE_OUTPUT_LINE,
+					`${BASE_LINES}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.`,
+					BASE_LINES,
+					BASE_LINES,
 				]
 			);
 		});
@@ -107,19 +111,19 @@ suite('toolInstructions', () => {
 				universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)),
 				universalToolInstructions(hasTools('other'), toolSearchInstructionLines(true)),
 			], [
-				`${LARGE_OUTPUT_LINE}\n${TOOL_SEARCH_LINE}`,
-				LARGE_OUTPUT_LINE,
+				`${BASE_LINES}\n${TOOL_SEARCH_LINE}`,
+				BASE_LINES,
 			]);
 		});
 
 		test('inactive tool search never contributes the tool-search line', () => {
-			assert.strictEqual(universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(false)), LARGE_OUTPUT_LINE);
+			assert.strictEqual(universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(false)), BASE_LINES);
 		});
 
 		test('composes the tool-search line after the registered large-output and browser lines', () => {
 			assert.strictEqual(
 				universalToolInstructions(hasTools('openBrowserPage', 'readPage', CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)),
-				`${LARGE_OUTPUT_LINE}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.\n${TOOL_SEARCH_LINE}`
+				`${BASE_LINES}\nUse the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.\n${TOOL_SEARCH_LINE}`
 			);
 		});
 
@@ -128,8 +132,8 @@ suite('toolInstructions', () => {
 				resolveToolInstructionsOverride(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), { action: 'append', content: 'A' }, toolSearchInstructionLines(true)),
 				resolveToolInstructionsOverride(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), { action: 'append', content: 'A' }, toolSearchInstructionLines(false)),
 			], [
-				{ action: 'append', content: `\nA\n${LARGE_OUTPUT_LINE}\n${TOOL_SEARCH_LINE}` },
-				{ action: 'append', content: `\nA\n${LARGE_OUTPUT_LINE}` },
+				{ action: 'append', content: `\nA\n${BASE_LINES}\n${TOOL_SEARCH_LINE}` },
+				{ action: 'append', content: `\nA\n${BASE_LINES}` },
 			]);
 		});
 	});

@@ -45,6 +45,10 @@ const agenticBrowserToolNames = browserChatToolReferenceNames.filter(name => nam
 export const COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION = 'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.';
 const largeOutputToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
 
+/** Coordinates work across sessions that may use different worktrees for the same repository. */
+export const COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION = 'Before beginning code changes or creating a session, use `list_sessions` to check active sessions across the same project or repository—not only the same working directory—for overlapping activity, branches, pull requests, or changes; when overlap is plausible, use `get_session_context` and `send_message` to coordinate, and reuse or wait for existing work instead of duplicating it or editing the same area concurrently.';
+const sessionCoordinationToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION;
+
 /**
  * Front-end guidance for the integrated browser tools, ported from the Copilot
  * extension's `defaultAgentInstructions`/per-model prompts. Emitted only when the
@@ -65,7 +69,7 @@ const browserToolInstructions: ToolInstructionLine = hasTool => {
 /**
  * The registered tool-instruction lines, in render order.
  */
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, browserToolInstructions];
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, sessionCoordinationToolInstructions, browserToolInstructions];
 
 /** Tool-search guidance mirrored from the Copilot extension prompt. */
 const toolSearchToolInstructions: ToolInstructionLine = hasTool =>
