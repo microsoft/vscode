@@ -430,6 +430,10 @@ export class HoverService extends Disposable implements IHoverService {
 			store.add(addDisposableListener(targetWindow, EventType.RESIZE, () => contextView.layout()));
 		}
 
+		if (options.onDidHide) {
+			const onDidHide = options.onDidHide;
+			store.add(toDisposable(() => onDidHide()));
+		}
 		options.onDidShow?.();
 	}
 

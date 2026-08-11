@@ -48,7 +48,7 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: constObservable<IChat>(undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -322,6 +322,33 @@ suite('SessionsLifecycleTracker', () => {
 			isolationKind: 'folder',
 			hasGitRepository: true,
 			isVirtualWorkspace: false,
+		});
+	});
+
+	test('summary reports the multi-root workspace topology captured at first observation', () => {
+		const workspaceUri = URI.parse('file:///repo');
+		const gitFolder = URI.parse('file:///repo/app');
+		const nonGitFolder = URI.parse('file:///repo/notes');
+		const workspace = createWorkspace(workspaceUri, [
+			createFolder(gitFolder, { withGitRepository: true }),
+			createFolder(nonGitFolder),
+		]);
+		const session = createSession('s1', { workspace });
+
+		tracker.recordNewChatRequestSent(session);
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		assert.ok(summary);
+		assert.deepStrictEqual({
+			isMultiRoot: summary!.isMultiRoot,
+			folderCount: summary!.folderCount,
+			gitFolderCount: summary!.gitFolderCount,
+			nonGitFolderCount: summary!.nonGitFolderCount,
+		}, {
+			isMultiRoot: true,
+			folderCount: 2,
+			gitFolderCount: 1,
+			nonGitFolderCount: 1,
 		});
 	});
 

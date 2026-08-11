@@ -1,10 +1,6 @@
 steps:
-  - script: |
-      set -e
-      git clone https://github.com/microsoft/vscode-capi.git --depth 1 $(Agent.BuildDirectory)/vscode-capi
-      cd $(Agent.BuildDirectory)/vscode-capi
-      npm ci && BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
-      rm -rf $(Agent.BuildDirectory)/vscode-capi
+  - script: BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
+    workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
     displayName: Mixin vscode-capi
 
   - script: npm run build

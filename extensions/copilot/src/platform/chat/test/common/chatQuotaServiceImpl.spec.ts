@@ -21,7 +21,7 @@ function createMockAuthService(): IAuthenticationService {
 	return {
 		_serviceBrand: undefined,
 		copilotToken: undefined,
-		onDidAuthenticationChange: new Emitter().event,
+		onDidCopilotTokenChange: new Emitter().event,
 	} as unknown as IAuthenticationService;
 }
 
@@ -30,7 +30,7 @@ function createMockAuthServiceWithEmitter(opts?: { isFreeUser?: boolean }) {
 	const authService = {
 		_serviceBrand: undefined,
 		copilotToken: undefined as { isFreeUser: boolean; quotaInfo: ReturnType<typeof makeQuotaInfo> } | undefined,
-		onDidAuthenticationChange: emitter.event,
+		onDidCopilotTokenChange: emitter.event,
 	} as unknown as IAuthenticationService;
 	return {
 		authService, emitter, setToken: (quotaInfo: ReturnType<typeof makeQuotaInfo>) => {

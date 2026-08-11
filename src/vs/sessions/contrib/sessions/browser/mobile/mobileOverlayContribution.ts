@@ -13,7 +13,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITextFileService } from '../../../../../workbench/services/textfile/common/textfiles.js';
-import { ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 import { IFileDiffViewData, IMobileDiffViewData, MobileDiffView, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, openMobileDiffView } from '../../../../../sessions/browser/parts/mobile/contributions/mobileDiffView.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID, toRow, rowToDiffData } from '../../../../../sessions/browser/parts/mobile/contributions/mobileChangesView.js';
 import { MobileMultiDiffView, IMobileMultiDiffViewData } from '../../../../../sessions/browser/parts/mobile/contributions/mobileMultiDiffView.js';
@@ -82,9 +82,9 @@ class MobileOpenChangesViewAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const languageService = accessor.get(ILanguageService);
 		const notificationService = accessor.get(INotificationService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 
-		const session = sessionsManagementService.activeSession.get();
+		const session = sessionsService.activeSession.get();
 		const changes = session?.changes.get() ?? [];
 
 		// Build per-file diff data, filtering out synthetic aggregate entries

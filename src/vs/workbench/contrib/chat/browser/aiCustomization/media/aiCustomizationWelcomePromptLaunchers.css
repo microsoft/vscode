@@ -197,6 +197,16 @@
 	outline-offset: -1px;
 }
 
+.ai-customization-management-editor .welcome-prompts-migration-card {
+	grid-column: span 2;
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-sideBar-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
+}
+
+.ai-customization-management-editor .welcome-prompts-migration-card:hover {
+	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 45%, var(--vscode-list-hoverBackground));
+}
+
 .ai-customization-management-editor .welcome-prompts-card-header {
 	display: flex;
 	align-items: center;

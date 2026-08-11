@@ -56,9 +56,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other: #FFA657",
+			"2026-dark": "variable.other: #C9D1D9",
 			"dark_modern": "variable: #9CDCFE",
-			"2026-light": "variable.other: #953800",
+			"2026-light": "variable.other: #1F2328",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080"
 		}
@@ -288,23 +288,7 @@
 		}
 	},
 	{
-		"c": "test",
-		"t": "text.html.derivative meta.embedded.block.html source.css meta.selector.css",
-		"r": {
-			"dark_plus": "meta.embedded: #D4D4D4",
-			"light_plus": "meta.embedded: #000000",
-			"dark_vs": "meta.embedded: #D4D4D4",
-			"light_vs": "meta.embedded: #000000",
-			"hc_black": "meta.embedded: #FFFFFF",
-			"2026-dark": "meta.embedded: #D4D4D4",
-			"dark_modern": "meta.embedded: #D4D4D4",
-			"2026-light": "meta.embedded: #000000",
-			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
-		}
-	},
-	{
-		"c": " ",
+		"c": "test ",
 		"t": "text.html.derivative meta.embedded.block.html source.css",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",

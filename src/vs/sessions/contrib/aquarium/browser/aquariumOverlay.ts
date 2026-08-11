@@ -5,8 +5,10 @@
 
 import { addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableListener, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -19,12 +21,15 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
+import { FishFeedingStreak, type FishHungerState } from './fishFeedingStreak.js';
 
 export const SESSIONS_DEVELOPER_JOY_ENABLED_SETTING = 'sessions.developerJoy.enabled';
 
 const FISH_COUNT = 50;
 const FISH_MIN_SIZE = 22;
 const FISH_MAX_SIZE = 48;
+/** Each eaten pellet multiplies the fish's size by this. Unbounded on purpose. */
+const FISH_GROWTH_FACTOR = 1.08;
 
 const SCATTER_RADIUS = 145;
 const SCATTER_RADIUS_SQ = SCATTER_RADIUS * SCATTER_RADIUS;
@@ -51,6 +56,14 @@ const DART_RATE_PER_SECOND = 0.04;
 const DART_IMPULSE = 150;
 
 const ENABLED_STORAGE_KEY = 'sessions.developerJoy.enabled';
+const ACTION_VISIBLE_STORAGE_KEY = 'sessions.aquarium.action.visible';
+
+const FISH_HUNGER_ICONS: Record<FishHungerState, ThemeIcon> = {
+	happy: Codicon.fish1Happy,
+	neutral: Codicon.fish1Neutral,
+	sad: Codicon.fish1Sad,
+	verySad: Codicon.fish1VerySad,
+};
 
 interface IFoodPellet {
 	readonly element: HTMLDivElement;
@@ -69,6 +82,8 @@ export const IAquariumService = createDecorator<IAquariumService>('aquariumServi
 
 export interface IAquariumService {
 	readonly _serviceBrand: undefined;
+	/** Whether the aquarium action is visible on its mounted hosts. */
+	readonly actionVisible: IObservable<boolean>;
 
 	/**
 	 * Mount a toggle button into `parent`. Returns a handle that exposes a
@@ -78,6 +93,17 @@ export interface IAquariumService {
 	 * the last mount.
 	 */
 	mountToggle(parent: HTMLElement): IMountedToggleHandle;
+
+	/** Toggles and persists the aquarium action visibility. */
+	toggleActionVisibility(): boolean;
+
+	/**
+	 * Development/demo hook: force the persisted feeding streak into a specific
+	 * state and refresh the toggle tooltip(s) live. When `alive` is false the
+	 * streak is parked as a died/revivable streak and the revival prompt is
+	 * offered (when an aquarium is active). A `count` of 0 clears the streak.
+	 */
+	simulateStreak(count: number, alive: boolean): void;
 }
 
 export interface IMountedToggleHandle extends IDisposable {
@@ -106,6 +132,10 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private readonly activeRef = this._register(new MutableDisposable<IActiveAquarium>());
 	private readonly pendingExit = this._register(new MutableDisposable<IDisposable>());
 	private readonly activeContextKey: IContextKey<boolean>;
+	private readonly streak: FishFeedingStreak;
+	private readonly hungerRefreshScheduler: RunOnceScheduler;
+	private readonly _actionVisible = observableValue(this, true);
+	readonly actionVisible: IObservable<boolean> = this._actionVisible;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -120,7 +150,15 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		this.mainContainer = layoutService.mainContainer;
 		this.activeContextKey = SessionsAquariumActiveContext.bindTo(contextKeyService);
+		this.streak = new FishFeedingStreak(storageService);
+		this._actionVisible.set(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, true), undefined);
+		this.hungerRefreshScheduler = this._register(new RunOnceScheduler(() => {
+			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
+		}, 0));
 
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, ACTION_VISIBLE_STORAGE_KEY, this._store)(() => {
+			this.setActionVisible(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, true));
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING)) {
 				this.applyFeatureEnabledState();
@@ -155,6 +193,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.mounts.add(mount);
 		this.applyFeatureEnabledStateForButton(button);
 		this.reconcileActivation();
+		this.scheduleHungerRefresh();
 
 		return {
 			setHostVisible: (visible: boolean) => {
@@ -168,9 +207,34 @@ export class AquariumService extends Disposable implements IAquariumService {
 				store.dispose();
 				button.remove();
 				this.mounts.delete(mount);
+				if (this.mounts.size === 0) {
+					this.hungerRefreshScheduler.cancel();
+				}
 				this.reconcileActivation();
 			},
 		};
+	}
+
+	toggleActionVisibility(): boolean {
+		const visible = !this._actionVisible.get();
+		this.setActionVisible(visible);
+		this.storageService.store(ACTION_VISIBLE_STORAGE_KEY, visible, StorageScope.APPLICATION, StorageTarget.USER);
+		this.accessibilityService.status(visible
+			? localize('aquarium.action.shown', "Aquarium action shown")
+			: localize('aquarium.action.hidden', "Aquarium action hidden"));
+		return visible;
+	}
+
+	simulateStreak(count: number, alive: boolean): void {
+		this.streak.simulate(count, alive);
+		this.updateAllToggleButtonsVisual(!!this.activeRef.value);
+	}
+
+	private setActionVisible(visible: boolean): void {
+		this._actionVisible.set(visible, undefined);
+		for (const mount of this.mounts) {
+			this.applyFeatureEnabledStateForButton(mount.button);
+		}
 	}
 
 	/**
@@ -227,30 +291,77 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	private applyFeatureEnabledStateForButton(button: HTMLButtonElement): void {
-		button.style.display = this.isFeatureEnabled() ? '' : 'none';
+		button.style.display = this.isFeatureEnabled() && this._actionVisible.get() ? '' : 'none';
 	}
 
 	private updateToggleButtonVisual(button: HTMLButtonElement, active: boolean): void {
 		button.classList.toggle('active', active);
+		this.streak.collectExpired();
+		const streak = this.streak.count;
+		const revivable = streak > 0 ? 0 : this.streak.revivableCount;
+		const hungerIcon = FISH_HUNGER_ICONS[this.streak.hungerState];
+		const icon = active ? Codicon.close : hungerIcon;
+
 		// Build the icon as a real DOM child instead of innerHTML to satisfy Trusted Types.
 		button.replaceChildren();
 		const iconSpan = button.ownerDocument.createElement('span');
-		if (active) {
-			const iconClasses = ThemeIcon.asClassName(Codicon.close).split(/\s+/).filter(Boolean);
-			for (const cls of iconClasses) {
-				iconSpan.classList.add(cls);
-			}
-		} else {
-			iconSpan.classList.add('agents-aquarium-toggle-logo');
+		// The icon is purely decorative; the button already has an aria-label.
+		iconSpan.setAttribute('aria-hidden', 'true');
+		addIconClasses(iconSpan, icon);
+		if (!active) {
+			button.appendChild(iconSpan);
 		}
-		button.appendChild(iconSpan);
+
+		// Surface the feeding streak as a visible badge beside the icon (not a
+		// notification): a live streak shows the count, while a died streak
+		// shows a quiet hint that feeding a fish will revive it.
+		const showStreak = streak > 0 || revivable > 0;
+		button.classList.toggle('has-streak', showStreak);
+		if (showStreak) {
+			const streakSpan = button.ownerDocument.createElement('span');
+			streakSpan.className = 'agents-aquarium-toggle-streak';
+			streakSpan.setAttribute('aria-hidden', 'true');
+			if (active) {
+				const hungerIconSpan = button.ownerDocument.createElement('span');
+				addIconClasses(hungerIconSpan, hungerIcon);
+				streakSpan.appendChild(hungerIconSpan);
+			}
+			if (streak > 0) {
+				streakSpan.append(String(streak));
+			} else {
+				streakSpan.classList.add('revivable');
+				streakSpan.append(localize('aquarium.reviveBadge', "{0} · Feed again to revive", revivable));
+			}
+			button.appendChild(streakSpan);
+		}
+		if (active) {
+			button.appendChild(iconSpan);
+		}
+
 		const label = this.getToggleLabel(active);
 		button.setAttribute('aria-pressed', String(active));
 		button.setAttribute('aria-label', label);
 	}
 
 	private getToggleLabel(active: boolean): string {
-		return active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
+		const base = active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
+		const streak = this.streak.count;
+		if (streak > 0) {
+			const hungerDescription = getFishHungerDescription(this.streak.hungerState);
+			return streak === 1
+				// allow-any-unicode-next-line
+				? localize('aquarium.streakLabel.one', "{0} — {1} — {2} day feeding streak", base, hungerDescription, streak)
+				// allow-any-unicode-next-line
+				: localize('aquarium.streakLabel.other', "{0} — {1} — {2} days feeding streak", base, hungerDescription, streak);
+		}
+		const revivable = this.streak.revivableCount;
+		if (revivable > 0) {
+			// A died streak that comes back to life by feeding a fish again.
+			return revivable === 1
+				? localize('aquarium.reviveLabel.one', "{0} — feed a fish to revive your {1} day streak", base, revivable)
+				: localize('aquarium.reviveLabel.other', "{0} — feed a fish to revive your {1} day streak", base, revivable);
+		}
+		return base;
 	}
 
 	private toggle(): void {
@@ -277,6 +388,18 @@ export class AquariumService extends Disposable implements IAquariumService {
 		for (const mount of this.mounts) {
 			this.updateToggleButtonVisual(mount.button, active);
 		}
+		this.scheduleHungerRefresh();
+	}
+
+	private scheduleHungerRefresh(): void {
+		this.hungerRefreshScheduler.cancel();
+		if (this.mounts.size === 0) {
+			return;
+		}
+		const delay = this.streak.millisecondsUntilHungerStateChange;
+		if (delay !== undefined) {
+			this.hungerRefreshScheduler.schedule(delay);
+		}
 	}
 
 	/** @param persist false when restoring previously-stored state. */
@@ -289,7 +412,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.pendingExit.clear();
 		let active: IActiveAquarium | undefined;
 		try {
-			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService);
+			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService, () => this.handleFishFed());
 		} catch (e) {
 			console.error('[aquarium] failed to activate', e);
 			return;
@@ -304,6 +427,21 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.updateAllToggleButtonsVisual(true);
 		if (persist) {
 			this.setStoredEnabled(true);
+		}
+		// Park a streak that aged out while the aquarium was closed so it shows
+		// up as a revivable badge on the toggle.
+		this.streak.collectExpired();
+		this.updateAllToggleButtonsVisual(true);
+	}
+
+	/** Called whenever a fish eats a pellet. */
+	private handleFishFed(): void {
+		const before = this.streak.count;
+		const result = this.streak.recordFeed();
+		// Refresh the toggle so the streak badge stays in sync (count change or
+		// a died streak revived back to life by this feed).
+		if (result.count !== before || result.revived) {
+			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 		}
 	}
 
@@ -359,7 +497,7 @@ interface IActiveAquarium extends IDisposable {
  * Returns `undefined` if the chat bar isn't available so callers can bail
  * without leaving the toggle button stuck in an "active but invisible" state.
  */
-function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService): IActiveAquarium | undefined {
+function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService, onFishFed?: () => void): IActiveAquarium | undefined {
 	const targetWindow = getWindow(mainContainer);
 
 	// Host inside the chat bar so chat input UI naturally paints on top —
@@ -671,6 +809,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 				const nearestDist = Math.max(Math.sqrt(nearestDistSq), 1);
 				if (nearestDist < EAT_RADIUS) {
 					removeFood(nearestPellet);
+					f.grow(FISH_GROWTH_FACTOR);
+					onFishFed?.();
 				} else {
 					accelX += (nearestPellet.positionX - centerX) / nearestDist * 200;
 					accelY += (nearestPellet.positionY - centerY) / nearestDist * 200;
@@ -785,6 +925,26 @@ function clamp(value: number, min: number, max: number): number {
 		return min;
 	}
 	return Math.min(Math.max(value, min), max);
+}
+
+function addIconClasses(element: HTMLElement, icon: ThemeIcon): void {
+	const iconClasses = ThemeIcon.asClassName(icon).split(/\s+/).filter(Boolean);
+	for (const cls of iconClasses) {
+		element.classList.add(cls);
+	}
+}
+
+function getFishHungerDescription(state: FishHungerState): string {
+	switch (state) {
+		case 'happy':
+			return localize('aquarium.hunger.happy', "fish is happy");
+		case 'neutral':
+			return localize('aquarium.hunger.neutral', "fish is getting hungry");
+		case 'sad':
+			return localize('aquarium.hunger.sad', "fish is hungry");
+		case 'verySad':
+			return localize('aquarium.hunger.verySad', "fish is starving");
+	}
 }
 
 /**

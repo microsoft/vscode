@@ -79,6 +79,7 @@ import { ExtensionRecommendationsService } from './extensionRecommendationsServi
 import { ClearLanguageAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction, InstallAction, InstallAnotherVersionAction, InstallSpecificVersionOfExtensionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction } from './extensionsActions.js';
 import { ExtensionActivationProgress } from './extensionsActivationProgress.js';
 import { ExtensionsCompletionItemsProvider } from './extensionsCompletionItemsProvider.js';
+import { ExtensionEnablementContextKeysContribution } from './extensionEnablementContext.js';
 import { ExtensionDependencyChecker } from './extensionsDependencyChecker.js';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from './extensionsIcons.js';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from './extensionsQuickAccess.js';
@@ -138,10 +139,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.autoUpdate': {
 				type: 'string',
 				enum: ['on', 'off'],
-				enumItemLabels: [
-					localize('on', "On"),
-					localize('off', "Off"),
-				],
 				enumDescriptions: [
 					localize('extensions.autoUpdate.on', 'Download and install updates automatically only for enabled extensions.'),
 					localize('extensions.autoUpdate.off', 'Extensions are not automatically updated.'),
@@ -2104,6 +2101,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, Lif
 workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementContextKeysContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(TrustedPublishersInitializer, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionMarketplaceStatusUpdater, LifecyclePhase.Eventually);

@@ -109,7 +109,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	});
 
-	private readonly _expectedServiceWorkerVersion = 5; // Keep this in sync with the version in service-worker.js
+	private readonly _expectedServiceWorkerVersion = 6; // Keep this in sync with the version in service-worker.js
 
 	private _element: HTMLIFrameElement | undefined;
 	protected get element(): HTMLIFrameElement | undefined { return this._element; }
@@ -816,42 +816,56 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						? `bytes ${range.start}-${rangeEnd}/${result.size}`
 						: undefined;
 					if (WebviewElement._supportsTransferableStreams.value) {
+						const streamCts = this.platform === 'electron' ? new CancellationTokenSource(token) : undefined;
+						let controller: ReadableStreamDefaultController<Uint8Array<ArrayBuffer>> | undefined;
+						let closed = false;
+						const close = () => {
+							if (!closed) {
+								closed = true;
+								streamCts?.dispose();
+								if (controller) {
+									this._activeStreamControllers.delete(controller);
+									try { controller.close(); } catch { /* already closed */ }
+								}
+							}
+						};
 						const stream = new ReadableStream<Uint8Array<ArrayBuffer>>({
-							start: (controller) => {
+							start: (newController) => {
 								// Track this controller so that the single
 								// cancellation handler in dispose() can close
 								// all active streams without per-stream listeners.
+								controller = newController;
 								this._activeStreamControllers.add(controller);
-								let closed = false;
-								const close = () => {
-									if (!closed) {
-										closed = true;
-										this._activeStreamControllers.delete(controller);
-										try { controller.close(); } catch { /* already closed */ }
-									}
-								};
 
 								listenStream(result.stream, {
 									onData: (chunk) => {
 										if (!closed) {
 											try {
-												controller.enqueue(new Uint8Array<ArrayBuffer>(chunk.buffer.buffer as ArrayBuffer, chunk.buffer.byteOffset, chunk.buffer.byteLength));
+												controller?.enqueue(new Uint8Array<ArrayBuffer>(chunk.buffer.buffer as ArrayBuffer, chunk.buffer.byteOffset, chunk.buffer.byteLength));
 											} catch {
-												closed = true;
-												this._activeStreamControllers.delete(controller);
+												close();
 											}
 										}
 									},
 									onError: (err) => {
 										if (!closed) {
 											closed = true;
-											this._activeStreamControllers.delete(controller);
-											try { controller.error(err); } catch { /* already closed */ }
+											streamCts?.dispose();
+											const currentController = controller;
+											if (currentController) {
+												this._activeStreamControllers.delete(currentController);
+												try { currentController.error(err); } catch { /* already closed */ }
+											}
 										}
 									},
 									onEnd: () => close()
-								}, token);
-							}
+								}, streamCts?.token ?? token);
+							},
+							cancel: streamCts ? () => {
+								streamCts.dispose(true);
+								result.stream.destroy();
+								close();
+							} : undefined,
 						});
 						this._send('did-load-resource', {
 							id,
@@ -876,7 +890,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						});
 						listenStream(result.stream, {
 							onData: (chunk) => {
-								const data = new Uint8Array(chunk.buffer.buffer, chunk.buffer.byteOffset, chunk.buffer.byteLength);
+								// Copy into a freshly-owned ArrayBuffer before transferring. `chunk`
+								// may be a view into a larger, shared ArrayBuffer (e.g. from the IPC
+								// deserialize pipeline); transferring its underlying ArrayBuffer would
+								// detach every sibling view. WebKit detaches synchronously, which
+								// previously broke webview resource loading in Safari.
+								const data = chunk.buffer.slice();
 								this._send('did-load-resource-chunk', { id, data }, [data.buffer]);
 							},
 							onError: () => {

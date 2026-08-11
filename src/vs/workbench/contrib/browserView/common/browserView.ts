@@ -10,6 +10,7 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
+import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
@@ -19,7 +20,12 @@ import {
 	ISerializedBrowserFaviconsSnapshot,
 	ISerializedBrowserHistoryEntriesSnapshot,
 } from '../../../../platform/browserView/common/browserHistory.js';
+import {
+	BrowserPermissionStore,
+	IPermissionCategoryState,
+} from '../../../../platform/browserView/common/browserPermissions.js';
 import type { BrowserEditorInput } from './browserEditorInput.js';
+import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
@@ -38,12 +44,17 @@ import {
 	IBrowserViewVisibilityEvent,
 	IBrowserViewCertificateError,
 	IElementData,
+	IBrowserElementCommentsUpdate,
+	IBrowserElementSelectionOptions,
 	IBrowserViewOwner,
+	IBrowserViewOpenOptions,
 	IBrowserViewRect,
 	browserZoomDefaultIndex,
 	browserZoomFactors,
 	IBrowserViewState,
-	IBrowserDeviceProfile
+	IBrowserDeviceProfile,
+	IBrowserViewPermissionRequestEvent,
+	IBrowserElementSelectionState,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -58,6 +69,25 @@ export const enum BrowserViewSharingState {
 	NotShared = 'notShared',
 	/** Browser tools are disabled — sharing is not possible. */
 	Unavailable = 'unavailable',
+}
+
+/** Whether a browser URL belongs to the same destination host as the target URL. */
+export function browserViewUrlMatches(candidateUrl: string | undefined, targetUrl: string, includeBlank = false): boolean {
+	const target = URL.parse(targetUrl);
+	if (!target || (target.protocol !== 'file:' && !target.host)) {
+		return false;
+	}
+	if (includeBlank && (!candidateUrl || candidateUrl === 'about:blank')) {
+		return true;
+	}
+
+	const candidate = URL.parse(candidateUrl ?? '');
+	return candidate?.host === target.host ||
+		(target.protocol === 'file:' && candidate?.protocol === 'file:') ||
+		!!(candidate?.host && target.host && (
+			candidate.host.endsWith('.' + target.host) ||
+			target.host.endsWith('.' + candidate.host)
+		));
 }
 
 /** Extracts the host from a URL string for zoom tracking purposes. */
@@ -153,6 +183,48 @@ export interface IBrowserEditorViewState {
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
 /**
+ * A filter that contextually restricts the browser views returned by
+ * {@link IBrowserViewWorkbenchService.getContextualBrowserViews}.
+ */
+export interface IBrowserViewContextualFilter {
+	/**
+	 * Returns `true` if the given browser view should be part of the
+	 * contextual set.
+	 */
+	include(input: BrowserEditorInput, context: IBrowserViewFilterContext): boolean;
+
+	/**
+	 * Optional event that fires when the result of {@link include} may have
+	 * changed for one or more views (e.g. the active session changed).
+	 */
+	readonly onDidChange?: Event<void>;
+}
+
+export interface IBrowserViewFilterContext {
+	/**
+	 * The session *resource* URI string (`session.resource.toString()`) of the
+	 * relevant session, if any. This is the same value stored in
+	 * {@link IBrowserViewOwner.sessionId} — not the composite
+	 * `ISession.sessionId` (`providerId:resource`).
+	 */
+	activeSessionId?: string;
+}
+
+/**
+ * A handler that decides whether an editor should be opened for a newly
+ * created browser view. Registered via
+ * {@link IBrowserViewWorkbenchService.registerOpenHandler}.
+ */
+export interface IBrowserViewOpenHandler {
+	/**
+	 * Called before an editor is opened for a newly created browser view.
+	 * Return `false` to prevent the editor from being opened. A view is opened
+	 * only when every registered handler allows it.
+	 */
+	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, openOptions: IBrowserViewOpenOptions): boolean;
+}
+
+/**
  * Workbench-level service for browser views that provides model-based access to browser views.
  * This service manages browser view models that proxy to the main process browser view service.
  */
@@ -161,6 +233,14 @@ export interface IBrowserViewWorkbenchService {
 
 	/** Returns true if the remote proxy is enabled; i.e. we are in a remote workspace and the setting is enabled. */
 	willUseRemoteProxy(): boolean;
+
+	/**
+	 * Set the tunnel-proxy credentials resolved by the window's local node
+	 * extension host (which hosts the HTTPS tunnel proxy), or `undefined` to
+	 * clear them. Folded into the window configuration sent to the main
+	 * process so this window's remote browser views (re)apply the proxy.
+	 */
+	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void;
 
 	/**
 	 * Fires when the set of known browser views changes, or a model is created for an existing input.
@@ -184,10 +264,45 @@ export interface IBrowserViewWorkbenchService {
 	getKnownBrowserViews(): Map<string, BrowserEditorInput>;
 
 	/**
+	 * Register a contextual filter that restricts which browser views are
+	 * returned by {@link getContextualBrowserViews}. A view is part of the
+	 * contextual set only when every registered filter includes it.
+	 */
+	registerContextualFilter(filter: IBrowserViewContextualFilter): IDisposable;
+
+	/**
+	 * Get the browser views that pass all registered contextual filters. When
+	 * no filters are registered this is equivalent to {@link getKnownBrowserViews}.
+	 *
+	 * @param context The filter context to use (or inferred if not provided)
+	 */
+	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput>;
+
+	/**
+	 * Resolve the preferred editor group for opening an integrated browser
+	 * editor. Honors the `workbench.browser.newTabPlacement` setting, routing new
+	 * tabs into a dedicated (locked) side group or auxiliary window when
+	 * configured. When the workbench forces editors into a modal part
+	 * (`workbench.editor.useModal: 'all'`), browser opens that target the active
+	 * group (or leave it unspecified) are
+	 * redirected to the main editor area so the browser docks instead of opening
+	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
+	 * specific group) are left untouched.
+	 */
+	getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined>;
+
+	/**
+	 * Register a handler that decides whether an editor should be opened for a
+	 * newly created browser view. The editor is opened only when every
+	 * registered handler allows it.
+	 */
+	registerOpenHandler(handler: IBrowserViewOpenHandler): IDisposable;
+
+	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
 	 */
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState): BrowserEditorInput;
+	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, associatedResource?: URI): BrowserEditorInput;
 
 	/**
 	 * Clear all storage data for the global browser session
@@ -252,12 +367,13 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly certificateError: IBrowserViewCertificateError | undefined;
 	readonly storageScope: BrowserViewStorageScope;
 	readonly history: BrowserHistoryStore;
+	readonly permissions: BrowserPermissionStore;
 	readonly sharingState: BrowserViewSharingState;
 	readonly isRemoteSession: boolean;
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
-	readonly isElementSelectionActive: boolean;
+	readonly elementSelectionState: IBrowserElementSelectionState;
 	readonly isAreaSelectionActive: boolean;
 	readonly device: IBrowserDeviceProfile | undefined;
 
@@ -276,11 +392,13 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
 	readonly onDidSelectElement: Event<IElementData>;
-	readonly onDidChangeElementSelectionActive: Event<boolean>;
+	readonly onDidRemoveElementComment: Event<string>;
+	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState>;
 	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
 	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
 	readonly onDidChangeRemoteStatus: Event<boolean>;
+	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -299,11 +417,14 @@ export interface IBrowserViewModel extends IDisposable {
 	trustCertificate(host: string, fingerprint: string): Promise<void>;
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 	deleteHistory(entryIds?: readonly number[]): Promise<void>;
+	setPermissions(origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
+	selectDevice(requestId: string, deviceId: string | null): Promise<void>;
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
 	getConsoleLogs(): Promise<string>;
-	toggleElementSelection(enabled?: boolean): Promise<void>;
+	toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void>;
+	setElementComments(update: IBrowserElementCommentsUpdate): Promise<void>;
 	toggleAreaSelection(enabled?: boolean): Promise<void>;
 	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
@@ -327,11 +448,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
-	private _isElementSelectionActive: boolean = false;
+	private _elementSelectionState: IBrowserElementSelectionState = { active: false, options: {} };
 	private _isAreaSelectionActive: boolean = false;
 	private _device: IBrowserDeviceProfile | undefined;
 
 	readonly history = this._register(new BrowserHistoryStore());
+	readonly permissions = this._register(new BrowserPermissionStore());
 
 	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;
@@ -380,7 +502,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._storageScope = initialState.storageScope;
 		this._isRemoteSession = initialState.isRemoteSession;
 		this._browserZoomIndex = initialState.browserZoomIndex;
-		this._isElementSelectionActive = initialState.isElementSelectionActive;
+		this._elementSelectionState = initialState.elementSelectionState;
 		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
 		this._device = initialState.device;
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
@@ -399,6 +521,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				StorageScope.APPLICATION, faviconsKey, this._store,
 			)(() => this._reloadHistoryFavicons(faviconsKey)));
 		}
+
+		// Permissions are synced via browser-view state + a dynamic event rather
+		// than storage, so they work for ephemeral sessions (which never persist).
+		this.permissions.hydrate(initialState.permissions);
+		this._register(this.browserViewService.onDynamicDidChangePermissions(this.id)(
+			snapshot => this.permissions.hydrate(snapshot)));
 
 		// Sync initial zoom and sharing state (async, but emits events)
 		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
@@ -477,11 +605,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			}
 		}));
 
-		this._register(this.onDidChangeElementSelectionActive(active => {
-			if (active) {
+		this._register(this.onDidChangeElementSelectionState(state => {
+			if (state.active && !this._elementSelectionState.active) {
 				this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
 			}
-			this._isElementSelectionActive = active;
+			this._elementSelectionState = state;
 		}));
 
 		this._register(this.onDidChangeAreaSelectionActive(active => {
@@ -524,7 +652,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
 	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
 	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
-	get isElementSelectionActive(): boolean { return this._isElementSelectionActive; }
+	get elementSelectionState(): IBrowserElementSelectionState { return this._elementSelectionState; }
 	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
 	get device(): IBrowserDeviceProfile | undefined { return this._device; }
 
@@ -570,6 +698,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeRemoteStatus(): Event<boolean> {
 		return this.browserViewService.onDynamicDidChangeRemoteStatus(this.id);
+	}
+
+	get onDidRequestPermission(): Event<IBrowserViewPermissionRequestEvent> {
+		return this.browserViewService.onDynamicDidRequestPermission(this.id);
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
@@ -666,6 +798,16 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.deleteBrowserHistory(this.id, entryIds);
 	}
 
+	async setPermissions(origin: string, grants: readonly IPermissionCategoryState[]): Promise<void> {
+		// Mirror locally so the workbench reflects the decision immediately
+		this.permissions.setMany(origin, grants);
+		return this.browserViewService.setPermissions(this.id, origin, grants);
+	}
+
+	async selectDevice(requestId: string, deviceId: string | null): Promise<void> {
+		return this.browserViewService.selectDevice(this.id, requestId, deviceId);
+	}
+
 	/**
 	 * @param forceApply When true, the IPC call is made even if the local cached zoom index
 	 * already matches the requested value. Pass true after cross-document navigation because
@@ -713,8 +855,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.getConsoleLogs(this.id);
 	}
 
-	async toggleElementSelection(enabled?: boolean): Promise<void> {
-		return this.browserViewService.toggleElementSelection(this.id, enabled);
+	async toggleElementSelection(enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void> {
+		return this.browserViewService.toggleElementSelection(this.id, enabled, options);
+	}
+
+	async setElementComments(update: IBrowserElementCommentsUpdate): Promise<void> {
+		return this.browserViewService.setElementComments(this.id, update);
 	}
 
 	async toggleAreaSelection(enabled?: boolean): Promise<void> {
@@ -725,8 +871,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.onDynamicDidSelectElement(this.id);
 	}
 
-	get onDidChangeElementSelectionActive(): Event<boolean> {
-		return this.browserViewService.onDynamicDidChangeElementSelectionActive(this.id);
+	get onDidRemoveElementComment(): Event<string> {
+		return this.browserViewService.onDynamicDidRemoveElementComment(this.id);
+	}
+
+	get onDidChangeElementSelectionState(): Event<IBrowserElementSelectionState> {
+		return this.browserViewService.onDynamicDidChangeElementSelectionState(this.id);
 	}
 
 	get onDidPickArea(): Event<IBrowserViewRect | undefined> {

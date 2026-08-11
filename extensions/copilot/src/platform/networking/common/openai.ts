@@ -92,6 +92,14 @@ export function isApiUsage(obj: unknown): obj is APIUsage {
 		typeof (obj as APIUsage).total_tokens === 'number';
 }
 
+/**
+ * Converts a nano-AIU value from copilot_usage to a credit number.
+ * Returns `undefined` when the value is missing or negative.
+ */
+export function nanoAiuToCredits(nanoAiu: number | undefined): number | undefined {
+	return typeof nanoAiu === 'number' && nanoAiu >= 0 ? nanoAiu / 1_000_000_000 : undefined;
+}
+
 
 export interface APIJsonData {
 	text: string;

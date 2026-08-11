@@ -5,7 +5,12 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ROOT_META_HOST_BUILD_KEY, formatHostBuildInfo, readHostBuildInfo, withHostBuildInfo, type IHostBuildInfo } from '../../../common/state/sessionState.js';
+import { ROOT_META_HOST_BUILD_KEY, formatHostBuildInfo, readHostBuildInfo, withHostBuildInfo, type IHostBuildInfo, type RootMeta, type RootState } from '../../../common/state/sessionState.js';
+
+/** Wraps a `_meta` bag in a minimal {@link RootState} so the reader sees the right source type. */
+function rootState(meta: RootMeta | undefined): RootState {
+	return { agents: [], _meta: meta };
+}
 
 suite('Host build info _meta helpers', () => {
 
@@ -15,21 +20,21 @@ suite('Host build info _meta helpers', () => {
 
 	test('round-trips through withHostBuildInfo / readHostBuildInfo', () => {
 		const meta = withHostBuildInfo(undefined, full);
-		assert.deepStrictEqual(readHostBuildInfo(meta), full);
+		assert.deepStrictEqual(readHostBuildInfo(rootState(meta)), full);
 	});
 
 	test('readHostBuildInfo rejects malformed payloads', () => {
 		assert.strictEqual(readHostBuildInfo(undefined), undefined);
-		assert.strictEqual(readHostBuildInfo({}), undefined);
-		assert.strictEqual(readHostBuildInfo({ [ROOT_META_HOST_BUILD_KEY]: 'nope' }), undefined);
-		assert.strictEqual(readHostBuildInfo({ [ROOT_META_HOST_BUILD_KEY]: [] }), undefined);
+		assert.strictEqual(readHostBuildInfo(rootState({})), undefined);
+		assert.strictEqual(readHostBuildInfo(rootState({ [ROOT_META_HOST_BUILD_KEY]: 'nope' })), undefined);
+		assert.strictEqual(readHostBuildInfo(rootState({ [ROOT_META_HOST_BUILD_KEY]: [] })), undefined);
 		// Missing required `version`.
-		assert.strictEqual(readHostBuildInfo({ [ROOT_META_HOST_BUILD_KEY]: { commit: 'x' } }), undefined);
+		assert.strictEqual(readHostBuildInfo(rootState({ [ROOT_META_HOST_BUILD_KEY]: { commit: 'x' } })), undefined);
 	});
 
 	test('readHostBuildInfo drops fields with wrong types but keeps version', () => {
 		const meta = { [ROOT_META_HOST_BUILD_KEY]: { version: '1.0.0', commit: 42, date: '2024', quality: true } };
-		assert.deepStrictEqual(readHostBuildInfo(meta), { version: '1.0.0', date: '2024' });
+		assert.deepStrictEqual(readHostBuildInfo(rootState(meta)), { version: '1.0.0', date: '2024' });
 	});
 
 	test('withHostBuildInfo preserves other keys and removes on undefined', () => {

@@ -37,8 +37,8 @@ function createModel(overrides: Partial<ILanguageModelChatMetadata> = {}): ILang
 	} as ILanguageModel;
 }
 
-function createVendor(vendor: string, displayName: string): ILanguageModelProviderDescriptor {
-	return { vendor, displayName, isDefault: false } as ILanguageModelProviderDescriptor;
+function createVendor(vendor: string, displayName: string, deprecation?: { link?: string }): ILanguageModelProviderDescriptor {
+	return { vendor, displayName, isDefault: false, deprecation } as ILanguageModelProviderDescriptor;
 }
 
 suite('ChatModelsWidget', () => {
@@ -47,11 +47,12 @@ suite('ChatModelsWidget', () => {
 
 	suite('getModelHoverContent', () => {
 
-		test('includes cost fields when all three are present', () => {
+		test('includes cost fields when all four are present', () => {
 			const model = createModel({
 				inputCost: 4,
 				outputCost: 14,
-				cacheCost: 1
+				cacheCost: 1,
+				cacheWriteCost: 2
 			});
 
 			const markdown = getModelHoverContent(model);
@@ -61,15 +62,17 @@ suite('ChatModelsWidget', () => {
 			assert.ok(value.includes('4 credits per 1M tokens'));
 			assert.ok(value.includes('Output Cost'));
 			assert.ok(value.includes('14 credits per 1M tokens'));
-			assert.ok(value.includes('Cache Cost'));
+			assert.ok(value.includes('Cache Read Cost'));
 			assert.ok(value.includes('1 credit per 1M tokens'));
+			assert.ok(value.includes('Cache Write Cost'));
+			assert.ok(value.includes('2 credits per 1M tokens'));
 		});
 
 		test('includes only present cost fields', () => {
 			const model = createModel({
 				inputCost: 3,
 				outputCost: 12
-				// cacheCost intentionally omitted
+				// cacheCost and cacheWriteCost intentionally omitted
 			});
 
 			const markdown = getModelHoverContent(model);
@@ -79,7 +82,8 @@ suite('ChatModelsWidget', () => {
 			assert.ok(value.includes('3 credits per 1M tokens'));
 			assert.ok(value.includes('Output Cost'));
 			assert.ok(value.includes('12 credits per 1M tokens'));
-			assert.ok(!value.includes('Cache Cost'));
+			assert.ok(!value.includes('Cache Read Cost'));
+			assert.ok(!value.includes('Cache Write Cost'));
 		});
 
 		test('omits cost section when no cost fields are set', () => {
@@ -90,7 +94,8 @@ suite('ChatModelsWidget', () => {
 
 			assert.ok(!value.includes('Input Cost'));
 			assert.ok(!value.includes('Output Cost'));
-			assert.ok(!value.includes('Cache Cost'));
+			assert.ok(!value.includes('Cache Read Cost'));
+			assert.ok(!value.includes('Cache Write Cost'));
 			assert.ok(!value.includes('credits per 1M tokens'));
 			assert.ok(!value.includes('credit per 1M tokens'));
 		});
@@ -189,6 +194,44 @@ suite('ChatModelsWidget', () => {
 			});
 		});
 
+		test('prepends GitHub Copilot sign-in when signed out', async () => {
+			const ran: string[] = [];
+			const actions = buildAddModelsDropdownActions(
+				[createVendor('anthropic', 'Anthropic')],
+				true,
+				vendor => { ran.push(vendor.vendor); },
+				() => { ran.push('copilot'); },
+			);
+
+			for (const action of actions) {
+				if (!(action instanceof Separator)) {
+					await action.run();
+				}
+			}
+
+			assert.deepStrictEqual({
+				actions: actions.map(action => action instanceof Separator ? 'separator' : `${action.id}:${action.label}`),
+				ran,
+			}, {
+				actions: ['signIn-github-copilot:GitHub Copilot', 'separator', 'enable-anthropic:Anthropic'],
+				ran: ['copilot', 'anthropic'],
+			});
+		});
+
+		test('offers GitHub Copilot sign-in when BYOK model addition is unavailable', () => {
+			const actions = buildAddModelsDropdownActions(
+				[createVendor('anthropic', 'Anthropic')],
+				false,
+				() => assert.fail('vendor action should not run'),
+				() => { },
+			);
+
+			assert.deepStrictEqual(
+				actions.map(action => action instanceof Separator ? 'separator' : `${action.id}:${action.label}`),
+				['signIn-github-copilot:GitHub Copilot'],
+			);
+		});
+
 		test('with no configurable vendors: no actions are returned', async () => {
 			const actions = buildAddModelsDropdownActions(
 				[],
@@ -228,6 +271,22 @@ suite('ChatModelsWidget', () => {
 				ran: ['acme', 'customendpoint'],
 			});
 		});
+
+		test('sinks deprecated providers to the end of the sorted list', () => {
+			const vendors = [
+				createVendor('zebra', 'Zebra'),
+				createVendor('ollama', 'Ollama (Deprecated)', { link: 'vscode:extension/Ollama.ollama' }),
+				createVendor('acme', 'Acme'),
+				createVendor('customoai', 'OpenAI Compatible (Deprecated)'),
+				createVendor('customendpoint', 'Custom Endpoint'),
+			];
+
+			const actions = buildAddModelsDropdownActions(vendors, true, () => { });
+
+			assert.deepStrictEqual(
+				actions.map(a => a instanceof Separator ? 'separator' : a.id),
+				['enable-acme', 'enable-zebra', 'enable-ollama', 'enable-customoai', 'separator', 'enable-customendpoint'],
+			);
+		});
 	});
 });
-

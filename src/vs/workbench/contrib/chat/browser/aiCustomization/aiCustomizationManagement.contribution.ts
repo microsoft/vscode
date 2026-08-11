@@ -424,7 +424,7 @@ registerAction2(class extends Action2 {
 
 const INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID = 'aiCustomizationManagement.installChatCustomizationExtension';
 const CHAT_CUSTOMIZATION_EXTENSION_ID = 'ms-vscode.vscode-chat-customizations-evaluations';
-const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', false);
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', true);
 const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.isEqualTo(true);
 registerAction2(class extends Action2 {
 	constructor() {
@@ -729,7 +729,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refreshExtensionContext));
 		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refreshExtensionContext));
 		this._register(this.extensionManagementService.onDidChangeProfile(refreshExtensionContext));
-		void this.updateChatCustomizationExtensionContext();
+		this.updateChatCustomizationExtensionContext();
 		this.registerActions();
 	}
 
@@ -740,7 +740,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			const isInstalled = installedExtensions.some(ext => ExtensionIdentifier.toKey(ext.identifier.id) === extensionKey);
 			this.chatCustomizationExtensionNotInstalledContext.set(!isInstalled);
 		} catch {
-			this.chatCustomizationExtensionNotInstalledContext.set(false);
+			this.chatCustomizationExtensionNotInstalledContext.set(true);
 		}
 	}
 
@@ -758,14 +758,22 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | { readonly section?: AICustomizationManagementSection; readonly sessionType: string }): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
+				const section = typeof target === 'string' ? target : target?.section;
 
 				// Detect the active chat session type and switch the harness
 				// so the customization editor opens in the matching context.
-				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+				const explicitSessionType = typeof target === 'string' ? undefined : target?.sessionType;
+				const widget = explicitSessionType ? undefined : chatWidgetService.lastFocusedWidget;
+				const pendingSessionType = widget?.input.pendingDelegationTarget;
+				const sessionResource = explicitSessionType
+					? harnessService.getSessionResourceForHarness(explicitSessionType)
+					: pendingSessionType
+						? harnessService.getSessionResourceForHarness(pendingSessionType)
+						: widget?.viewModel?.sessionResource;
 				if (sessionResource) {
 					harnessService.setActiveSession(sessionResource);
 				}

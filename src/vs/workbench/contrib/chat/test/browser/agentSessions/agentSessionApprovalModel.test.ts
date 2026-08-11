@@ -9,7 +9,7 @@ import { ISettableObservable, observableValue } from '../../../../../../base/com
 import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../browser/agentSessions/agentSessionApprovalModel.js';
+import { agentSessionApprovalId, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../browser/agentSessions/agentSessionApprovalModel.js';
 import { MockChatModel } from '../../common/model/mockChatModel.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatToolInvocation, IChatTerminalToolInvocationData, ToolConfirmKind, ConfirmedReason } from '../../../common/chatService/chatService.js';
@@ -20,6 +20,7 @@ function makeToolInvocationPart(options: {
 	state: IChatToolInvocation.State;
 	toolSpecificData?: IChatToolInvocation['toolSpecificData'];
 	invocationMessage?: string | MarkdownString;
+	toolCallId?: string;
 }): IChatToolInvocation {
 	return {
 		kind: 'toolInvocation',
@@ -29,7 +30,7 @@ function makeToolInvocationPart(options: {
 		pastTenseMessage: undefined,
 		source: undefined!,
 		toolId: 'test-tool',
-		toolCallId: 'call-1',
+		toolCallId: options.toolCallId ?? 'call-1',
 		state: observableValue('toolState', options.state),
 		toolSpecificData: options.toolSpecificData,
 		toolSpecificDataKind: observableValue('test', options.toolSpecificData?.kind),
@@ -418,6 +419,22 @@ suite('AgentSessionApprovalModel', () => {
 		// Remove model from chatModels
 		chatModelsObs.set([], undefined);
 		assert.strictEqual(getApproval(approvalModel, chatModel), undefined);
+	});
+
+	test('keeps approval identity stable when a chat model reloads', () => {
+		const approvalModel = createModel();
+		const uri = URI.parse('test://session/reloaded');
+		const firstModel = addChatModel(uri);
+		mockModelWithResponse(firstModel, [makeToolInvocationPart({ state: makeWaitingState(), toolCallId: 'stable-call' })]);
+		firstModel.requestNeedsInput.set({ title: 'Test' }, undefined);
+		const firstId = agentSessionApprovalId(getApproval(approvalModel, firstModel)!);
+
+		chatModelsObs.set([], undefined);
+		const restoredModel = addChatModel(uri);
+		mockModelWithResponse(restoredModel, [makeToolInvocationPart({ state: makeWaitingState(), toolCallId: 'stable-call' })]);
+		restoredModel.requestNeedsInput.set({ title: 'Test' }, undefined);
+
+		assert.deepStrictEqual([firstId, agentSessionApprovalId(getApproval(approvalModel, restoredModel)!)], ['stable-call', 'stable-call']);
 	});
 
 	test('picks the first WaitingForConfirmation part when multiple parts exist', () => {

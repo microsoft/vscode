@@ -37,6 +37,14 @@ export interface SessionListProps {
 	readonly onNewSession: () => void;
 }
 
+export function getSessionListNavigationIndex(index: number, direction: 'up' | 'down', count: number): number | undefined {
+	if (count === 0) {
+		return undefined;
+	}
+	const delta = direction === 'up' ? -1 : 1;
+	return (index + delta + count) % count;
+}
+
 function hoverIcon(className: string, ariaLabel: string): HTMLElement {
 	const el = dom.$(`span.codicon.${className}`);
 	el.role = 'button';
@@ -84,6 +92,19 @@ function createSessionRow(session: SessionRowData, props: SessionListProps): HTM
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
 			row.click();
+		} else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+			e.preventDefault();
+			const container = row.parentElement?.parentElement;
+			const rows = Array.from(container?.children ?? [])
+				.map(child => child.firstElementChild)
+				.filter((child): child is HTMLElement => dom.isHTMLElement(child) && child.role === 'option');
+			const nextIndex = getSessionListNavigationIndex(rows.indexOf(row), e.key === 'ArrowUp' ? 'up' : 'down', rows.length);
+			if (nextIndex !== undefined) {
+				rows[nextIndex].focus();
+				if (rows[nextIndex].getAttribute('aria-selected') !== 'true') {
+					rows[nextIndex].click();
+				}
+			}
 		}
 	});
 
@@ -144,10 +165,6 @@ function createSessionRow(session: SessionRowData, props: SessionListProps): HTM
 	const actions = dom.$('span');
 	actions.setAttribute('data-role', 'actions');
 	actions.style.cssText = 'display:none;gap:4px;align-items:center;';
-
-	const openBtn = hoverIcon('codicon-link-external', localize('agentsVoice.openSessionAction', "Open session"));
-	openBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); props.onOpenSession(session.resource); });
-	actions.append(openBtn);
 
 	if (!session.isIdle) {
 		const stopBtn = hoverIcon('codicon-debug-stop', localize('agentsVoice.stopSessionAction', "Stop session"));

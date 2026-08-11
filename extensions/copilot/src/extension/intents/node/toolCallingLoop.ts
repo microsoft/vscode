@@ -21,7 +21,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
-import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
+import { nanoAiuToCredits, OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, resolveWorkspaceOTelMetadata, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
@@ -35,16 +35,17 @@ import { DeferredPromise, timeout } from '../../../util/vs/base/common/async';
 import { CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { CancellationError, isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter } from '../../../util/vs/base/common/event';
+import { stringHash } from '../../../util/vs/base/common/hash';
 import { Disposable, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { Mutable } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
+import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelTextPart, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
 import { InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
 import { Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus, TurnTokenUsageMetadata } from '../../prompt/common/conversation';
-import { IBuildPromptContext, InternalToolReference, IToolCall, IToolCallRound } from '../../prompt/common/intents';
+import { getSubAgentInvocationId, IBuildPromptContext, InternalToolReference, IToolCall, IToolCallRound } from '../../prompt/common/intents';
 import { cancelText, IToolCallIterationIncrease } from '../../prompt/common/specialRequestTypes';
 import { ThinkingDataItem, ToolCallRound } from '../../prompt/common/toolCallRound';
 import { IBuildPromptResult, IResponseProcessor } from '../../prompt/node/intents';
@@ -52,7 +53,7 @@ import { PseudoStopStartResponseProcessor } from '../../prompt/node/pseudoStartS
 import { ResponseProcessorContext } from '../../prompt/node/responseProcessorContext';
 import { SummarizedConversationHistoryMetadata } from '../../prompts/node/agent/summarizedConversationHistory';
 import { ToolFailureEncountered, ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
-import { ToolName } from '../../tools/common/toolNames';
+import { getToolName, ToolName } from '../../tools/common/toolNames';
 import { IToolsService, ToolCallCancelledError } from '../../tools/common/toolsService';
 import { ReadFileParams } from '../../tools/node/readFileTool';
 import { isHookAbortError, processHookResults } from './hookResultProcessor';
@@ -86,6 +87,10 @@ export interface IToolCallingLoopOptions {
 	 * The current chat request
 	 */
 	request: ChatRequest;
+	/**
+	 * Enables deterministic Voice Mode progress for the top-level Agent loop.
+	 */
+	enableVoiceProgress?: boolean;
 	/**
 	 * A getter that returns true if VS Code has requested the extension to
 	 * gracefully yield. When set, it's likely that the editor will immediately
@@ -145,6 +150,171 @@ interface SubagentStopHookResult {
 	readonly reasons?: readonly string[];
 }
 
+type VoiceProgressPhase = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+interface VoiceProgressToolInput {
+	readonly stage: VoiceProgressPhase;
+	readonly summary: string;
+}
+
+type VoiceProgressToolInputResult = { readonly input: VoiceProgressToolInput } | { readonly error: string };
+
+const voiceProgressPhases = new Set<VoiceProgressPhase>(['investigating', 'planning', 'editing', 'validating', 'recovering']);
+const voiceProgressSummaryMaxLength = 240;
+const unsafeVoiceProgressSummaryPattern = /[`*_#\[\]<>]|(?:https?:\/\/|file:\/\/)|(?:^|\s)(?:\.{0,2}[\\/]|[A-Za-z]:\\)|\b[\w.-]+\/[\w./-]+\b|\b[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+\b|\b(?:gh[pousr]_|AKIA)[A-Za-z0-9_-]+|\b[0-9a-f]{8}-[0-9a-f-]{27,}\b|\b[0-9a-f]{32,}\b/i;
+
+const editingToolNames = new Set<string>([
+	ToolName.ApplyPatch,
+	ToolName.CreateDirectory,
+	ToolName.CreateFile,
+	ToolName.CreateNewJupyterNotebook,
+	ToolName.EditFile,
+	ToolName.EditNotebook,
+	ToolName.MultiReplaceString,
+	ToolName.ReplaceString,
+]);
+
+const validationToolNames = new Set<string>([
+	ToolName.CoreCreateAndRunTask,
+	ToolName.CoreRunTask,
+	ToolName.CoreRunTest,
+	ToolName.GetErrors,
+	ToolName.RunNotebookCell,
+]);
+
+const investigatingToolNames = new Set<string>([
+	ToolName.Codebase,
+	ToolName.VSCodeAPI,
+	ToolName.FindFiles,
+	ToolName.FindTextInFiles,
+	ToolName.ReadFile,
+	ToolName.ViewImage,
+	ToolName.ListDirectory,
+	ToolName.GetScmChanges,
+	ToolName.ReadProjectStructure,
+	ToolName.SearchWorkspaceSymbols,
+	ToolName.GetNotebookSummary,
+	ToolName.ReadCellOutput,
+	ToolName.FetchWebPage,
+	ToolName.FindTestFiles,
+	ToolName.GithubSemanticRepoSearch,
+	ToolName.GithubTextSearch,
+	ToolName.SearchSubagent,
+	ToolName.ExploreSubagent,
+	ToolName.CoreRunSubagent,
+	ToolName.ToolSearch,
+	ToolName.CoreReadPage,
+	ToolName.CoreScreenshotPage,
+]);
+
+const planningToolNames = new Set<string>([
+	ToolName.CoreManageTodoList,
+	ToolName.CoreReviewPlan,
+	ToolName.CoreAskQuestions,
+]);
+
+function isEditingTool(name: string): boolean {
+	return editingToolNames.has(getToolName(name));
+}
+
+function isInvestigatingTool(name: string): boolean {
+	const toolName = getToolName(name);
+	return investigatingToolNames.has(toolName) || /(?:^|_)(?:explore|find|grep|inspect|list|read|search)(?:_|$)/i.test(toolName);
+}
+
+function isPlanningTool(name: string): boolean {
+	const toolName = getToolName(name);
+	return planningToolNames.has(toolName) || /(?:askQuestions|artifact|plan|todo)/i.test(toolName);
+}
+
+function isValidationToolCall(call: IToolCall): boolean {
+	const name = getToolName(call.name);
+	if (validationToolNames.has(name)) {
+		return true;
+	}
+	return name === ToolName.CoreRunInTerminal && /\b(?:build|check|compile|lint|test|typecheck)\b/i.test(call.arguments);
+}
+
+function isVoiceProgressPhase(value: string): value is VoiceProgressPhase {
+	return voiceProgressPhases.has(value as VoiceProgressPhase);
+}
+
+function parseVoiceProgressToolInput(argumentsJson: string): VoiceProgressToolInputResult {
+	let value: unknown;
+	try {
+		value = JSON.parse(argumentsJson);
+	} catch {
+		return { error: 'the input must be valid JSON' };
+	}
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return { error: 'the input must be an object' };
+	}
+	const input = value as Record<string, unknown>;
+	if (Object.keys(input).some(key => key !== 'stage' && key !== 'summary')) {
+		return { error: 'only stage and summary are allowed' };
+	}
+	if (typeof input.stage !== 'string' || !isVoiceProgressPhase(input.stage)) {
+		return { error: 'stage must be investigating, planning, editing, validating, or recovering' };
+	}
+	if (typeof input.summary !== 'string') {
+		return { error: 'summary must be a string' };
+	}
+	const summary = input.summary.replace(/\s+/g, ' ').trim();
+	if (!summary) {
+		return { error: 'summary must not be empty' };
+	}
+	if (summary.length > voiceProgressSummaryMaxLength) {
+		return { error: `summary must be at most ${voiceProgressSummaryMaxLength} characters` };
+	}
+	if (unsafeVoiceProgressSummaryPattern.test(summary)) {
+		return { error: 'summary must use plain speech without markdown, paths, commands, identifiers, URLs, or secrets' };
+	}
+	return { input: { stage: input.stage, summary } };
+}
+
+function getVoiceProgressMessage(phase: VoiceProgressPhase, requestId: string): string {
+	let variants: readonly string[];
+	switch (phase) {
+		case 'investigating':
+			variants = [
+				l10n.t("I'm tracing the relevant code now."),
+				l10n.t("I'm looking through the code to find the right path."),
+				l10n.t("I'm investigating how this fits together."),
+			];
+			break;
+		case 'planning':
+			variants = [
+				l10n.t("I've got the context. I'm working out the approach."),
+				l10n.t("I'm mapping out the cleanest change now."),
+				l10n.t("I've found the path. I'm planning the update."),
+			];
+			break;
+		case 'editing':
+			variants = [
+				l10n.t("Found the spot. I'm making the change now."),
+				l10n.t("There it is. I'm updating the code."),
+				l10n.t("I've got the change point. Making the edit now."),
+			];
+			break;
+		case 'validating':
+			variants = [
+				l10n.t("Nice, that's in. I'm checking it now."),
+				l10n.t("The update's ready. I'm putting it through its checks."),
+				l10n.t("Good progress. I'm verifying everything now."),
+			];
+			break;
+		case 'recovering':
+			variants = [
+				l10n.t("That hit a snag. I'm switching approaches."),
+				l10n.t("Small detour. I'm trying a better route."),
+				l10n.t("Not quite. I've got another angle to try."),
+			];
+			break;
+	}
+	const index = (stringHash(`${requestId}:${phase}`, 0) >>> 0) % variants.length;
+	return variants[index];
+}
+
 /**
  * Formats a hook context message from blocking reasons.
  * @param reasons The reasons hooks blocked the agent from stopping
@@ -168,6 +338,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private static NextToolCallId = Date.now();
 
 	private static readonly TASK_COMPLETE_TOOL_NAME = 'task_complete';
+	private static readonly VOICE_PROGRESS_TOOL_NAME = 'report_voice_progress';
 
 	private toolCallResults: Record<string, LanguageModelToolResult2> = Object.create(null);
 	private toolCallRounds: IToolCallRound[] = [];
@@ -179,6 +350,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private toolsAvailableEmitted = false;
 	private lastHeaderRequestId: string | undefined;
 	private lastModelCallId: string | undefined;
+	private readonly reportedVoiceProgress = new Set<VoiceProgressPhase>();
+
+	/**
+	 * Running total of Copilot credits across every model call in the current
+	 * turn. Each fetch reports the credits for that single call, but the context
+	 * usage widget and `IChatModel.sessionCost` treat the per-request value as the
+	 * whole turn, so we accumulate here and emit the running total — mirroring the
+	 * cumulative credits the agent host reports. Reset on the first iteration of a
+	 * turn ({@link runOne} with `iterationNumber === 0`).
+	 */
+	private _accumulatedCopilotCredits: number | undefined;
 
 	/**
 	 * The full {@link ToolCallingLoopFetchOptions} from the most recent fetch.
@@ -298,8 +480,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	): Promise<ChatResponse>;
 
 	/**
-	 * The context window widget in chat input should represent only the parent request.
-	 * Subagent usage must stay isolated to avoid inflating the parent widget.
+	 * The context window widget in chat input should represent only the parent
+	 * request, so a subagent's token counts must stay isolated to avoid inflating
+	 * the parent widget. Subagents still report their running credit (AIC) total
+	 * separately (without token counts) so the subagent tool can show its own cost.
 	 */
 	private shouldReportUsageToContextWidget(): boolean {
 		return !this.options.request.subAgentInvocationId;
@@ -640,6 +824,134 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			this.autopilotProgressDeferred.complete(undefined);
 			this.autopilotProgressDeferred = undefined;
 		}
+	}
+
+	private isVoiceProgressEnabled(): boolean {
+		return Boolean(this.options.enableVoiceProgress && this.options.request.isVoiceModeInput && !this.options.request.subAgentInvocationId);
+	}
+
+	protected reportVoiceProgress(outputStream: ChatResponseStream | undefined, phase: VoiceProgressPhase, summary?: string): boolean {
+		if (!this.options.enableVoiceProgress || !this.options.request.isVoiceModeInput || this.options.request.subAgentInvocationId || this.reportedVoiceProgress.has(phase)) {
+			return false;
+		}
+		this.reportedVoiceProgress.add(phase);
+		outputStream?.voiceProgress(phase, summary ?? getVoiceProgressMessage(phase, this.options.request.id));
+		this._logService.info(`[VoiceProgress] emitted request=${this.options.request.id} phase=${phase} source=${summary ? 'model' : 'fallback'} stream=${Boolean(outputStream)}`);
+		return true;
+	}
+
+	protected getVoiceProgressFallbackPhase(round: IToolCallRound): VoiceProgressPhase | undefined {
+		const hasEditingTool = round.toolCalls.some(call => isEditingTool(call.name));
+		const validationFailed = round.toolCalls.some(call => getToolName(call.name) === ToolName.CoreTestFailure);
+		if (validationFailed || (hasEditingTool && this.reportedVoiceProgress.has('validating'))) {
+			return 'recovering';
+		}
+		if (!this.reportedVoiceProgress.has('editing') && hasEditingTool) {
+			return 'editing';
+		}
+		if (round.toolCalls.some(isValidationToolCall)) {
+			return 'validating';
+		}
+		if (round.toolCalls.some(call => isPlanningTool(call.name))) {
+			return 'planning';
+		}
+		if (round.toolCalls.some(call => isInvestigatingTool(call.name))) {
+			return 'investigating';
+		}
+		return undefined;
+	}
+
+	protected reportVoiceProgressForRound(outputStream: ChatResponseStream | undefined, round: IToolCallRound): void {
+		const phase = this.getVoiceProgressFallbackPhase(round);
+		if (!phase) {
+			return;
+		}
+		const emitted = this.reportVoiceProgress(outputStream, phase);
+		this._logService.info(`[VoiceProgress] fallback request=${this.options.request.id} phase=${phase} emitted=${emitted} tools=${round.toolCalls.map(call => getToolName(call.name)).join(',')}`);
+	}
+
+	protected ensureVoiceProgressTool(availableTools: LanguageModelToolInformation[]): LanguageModelToolInformation[] {
+		if (!this.isVoiceProgressEnabled() || availableTools.some(tool => tool.name === ToolCallingLoop.VOICE_PROGRESS_TOOL_NAME)) {
+			return availableTools;
+		}
+		this._logService.info(`[VoiceProgress] injected tool request=${this.options.request.id} availableTools=${availableTools.length + 1}`);
+		return [...availableTools, {
+			name: ToolCallingLoop.VOICE_PROGRESS_TOOL_NAME,
+			description: 'Report one concise factual spoken progress update to the user at a meaningful stage change. Call this in parallel with actual work when possible. Do not use it for acknowledgements, questions, confirmations, or the final response.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					stage: {
+						type: 'string',
+						enum: ['investigating', 'planning', 'editing', 'validating', 'recovering'],
+						description: 'The current work stage.',
+					},
+					summary: {
+						type: 'string',
+						minLength: 1,
+						maxLength: voiceProgressSummaryMaxLength,
+						description: 'A concise user-facing factual update in plain speech, without markdown, paths, commands, identifiers, secrets, reasoning, or raw source and tool output.',
+					},
+				},
+				required: ['stage', 'summary'],
+				additionalProperties: false,
+			},
+			tags: [],
+			source: undefined,
+		}];
+	}
+
+	protected processVoiceProgressToolCalls(outputStream: ChatResponseStream | undefined, toolCalls: readonly IToolCall[]): void {
+		if (!this.isVoiceProgressEnabled()) {
+			return;
+		}
+		for (const toolCall of toolCalls) {
+			if (toolCall.name !== ToolCallingLoop.VOICE_PROGRESS_TOOL_NAME) {
+				continue;
+			}
+			const parsed = parseVoiceProgressToolInput(toolCall.arguments);
+			let resultMessage: string;
+			if ('error' in parsed) {
+				resultMessage = `Voice progress was not reported because ${parsed.error}.`;
+			} else if (this.reportVoiceProgress(outputStream, parsed.input.stage, parsed.input.summary)) {
+				resultMessage = 'Voice progress reported.';
+			} else {
+				resultMessage = `Voice progress for ${parsed.input.stage} was already reported.`;
+			}
+			this.toolCallResults[toolCall.id] = new LanguageModelToolResult2([new LanguageModelTextPart(resultMessage)]);
+			this._logService.info(`[VoiceProgress] processed model tool request=${this.options.request.id} call=${toolCall.id} valid=${!('error' in parsed)}`);
+		}
+	}
+
+	protected hasProductiveToolCalls(round: IToolCallRound): boolean {
+		return round.toolCalls.some(toolCall =>
+			toolCall.name !== ToolCallingLoop.TASK_COMPLETE_TOOL_NAME
+			&& toolCall.name !== ToolCallingLoop.VOICE_PROGRESS_TOOL_NAME
+		);
+	}
+
+	protected getPersistableToolCallingState(): { toolCallRounds: IToolCallRound[]; toolCallResults: Record<string, LanguageModelToolResult2> } {
+		const toolCallRounds: IToolCallRound[] = [];
+		const toolCallResults: Record<string, LanguageModelToolResult2> = {};
+		for (const round of this.toolCallRounds) {
+			const persistableRound = this.withoutVoiceProgressToolCalls(round);
+			if (!persistableRound.toolCalls.length && !persistableRound.response && !persistableRound.thinking && !persistableRound.statefulMarker && !persistableRound.compaction && !persistableRound.hookContext) {
+				continue;
+			}
+			toolCallRounds.push(persistableRound);
+			for (const toolCall of persistableRound.toolCalls) {
+				const result = this.toolCallResults[toolCall.id];
+				if (result) {
+					toolCallResults[toolCall.id] = result;
+				}
+			}
+		}
+		return { toolCallRounds, toolCallResults };
+	}
+
+	private withoutVoiceProgressToolCalls(round: IToolCallRound): IToolCallRound {
+		const toolCalls = round.toolCalls.filter(toolCall => toolCall.name !== ToolCallingLoop.VOICE_PROGRESS_TOOL_NAME);
+		return toolCalls.length === round.toolCalls.length ? round : { ...round, toolCalls };
 	}
 
 	/**
@@ -1121,6 +1433,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		this.agentSpan = agentSpan;
 		this.chatSessionIdForTools = chatSessionId;
 		this.toolsAvailableEmitted = false;
+		this.reportedVoiceProgress.clear();
+		this._logService.info(`[VoiceProgress] loop request=${this.options.request.id} configured=${Boolean(this.options.enableVoiceProgress)} voice=${Boolean(this.options.request.isVoiceModeInput)} subagent=${Boolean(this.options.request.subAgentInvocationId)} stream=${Boolean(outputStream)}`);
 
 		while (true) {
 			if (lastResult && i++ >= this.options.toolCallLimit) {
@@ -1150,6 +1464,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				agentSpan?.addEvent('turn_start', { turnId, ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
 				this.resolveAutopilotProgress();
 				const result = await this.runOne(outputStream, i, token);
+				this.reportVoiceProgressForRound(outputStream, result.round);
 				if (lastRequestMessagesStartingIndexForRun === undefined) {
 					lastRequestMessagesStartingIndexForRun = result.lastRequestMessages.length - 1;
 				}
@@ -1164,7 +1479,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 				// If the model produced productive (non-task_complete) tool calls after being nudged,
 				// reset the stop hook flag and iteration count so it can be nudged again.
-				if (this.autopilotStopHookActive && result.round.toolCalls.length && !result.round.toolCalls.some(tc => tc.name === ToolCallingLoop.TASK_COMPLETE_TOOL_NAME)) {
+				if (this.autopilotStopHookActive && this.hasProductiveToolCalls(result.round)) {
 					this.autopilotStopHookActive = false;
 					this.autopilotIterationCount = 0;
 				}
@@ -1179,6 +1494,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					if (result.response.type !== ChatFetchResponseType.Success && this.shouldAutoRetry(result.response)) {
 						this.autopilotRetryCount++;
 						this._logService.info(`[ToolCallingLoop] Auto-retrying on error (attempt ${this.autopilotRetryCount}/${ToolCallingLoop.MAX_AUTOPILOT_RETRIES}): ${result.response.type}`);
+						this.reportVoiceProgress(outputStream, 'recovering');
 						if (this.options.request.permissionLevel === 'autopilot') {
 							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: recovering from a request error\u2026'), l10n.t('Autopilot recovered from a request error'));
 						} else {
@@ -1276,7 +1592,12 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				}
 			}
 		}
-		return { ...lastResult, toolCallRounds: this.toolCallRounds, toolCallResults: this.toolCallResults };
+		const persistableState = this.getPersistableToolCallingState();
+		return {
+			...lastResult,
+			round: this.withoutVoiceProgressToolCalls(lastResult.round),
+			...persistableState,
+		};
 	}
 
 	private async emitReadFileTrajectories() {
@@ -1396,6 +1717,11 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 	/** Runs a single iteration of the tool calling loop. */
 	public async runOne(outputStream: ChatResponseStream | undefined, iterationNumber: number, token: CancellationToken): Promise<IToolCallSingleResult> {
+		// The first iteration of a turn starts a fresh credit total. Resetting here
+		// (rather than only in run()) keeps runOne() correct when called standalone.
+		if (iterationNumber === 0) {
+			this._accumulatedCopilotCredits = undefined;
+		}
 		let availableTools = await this.getAvailableTools(outputStream, token);
 
 		// Emit tools_available on the agent span once, before the first CHAT span
@@ -1451,9 +1777,12 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		}
 
 		// Ensure task_complete is available in autopilot mode so the model can signal completion
-		availableTools = this.ensureAutopilotTools(availableTools);
+		availableTools = this.ensureVoiceProgressTool(this.ensureAutopilotTools(availableTools));
 
 		const isToolInputFailure = effectiveBuildPromptResult.metadata.get(ToolFailureEncountered);
+		if (isToolInputFailure) {
+			this.reportVoiceProgress(outputStream, 'recovering');
+		}
 		const conversationSummary = effectiveBuildPromptResult.metadata.get(SummarizedConversationHistoryMetadata);
 		if (conversationSummary) {
 			this.turn.setMetadata(conversationSummary);
@@ -1507,7 +1836,11 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				if (that.options.responseProcessor) {
 					chatResult = await that.options.responseProcessor.processResponse(this.context, inputStream, responseStream, token);
 				} else {
-					const responseProcessor = that._instantiationService.createInstance(PseudoStopStartResponseProcessor, [], undefined, { subagentInvocationId: that.options.request.subAgentInvocationId });
+					const subagentInvocationId = getSubAgentInvocationId(context);
+					const responseProcessor = that._instantiationService.createInstance(PseudoStopStartResponseProcessor, [], undefined, {
+						subagentInvocationId,
+						hiddenToolNames: that.isVoiceProgressEnabled() ? new Set([ToolCallingLoop.VOICE_PROGRESS_TOOL_NAME]) : undefined,
+					});
 					await responseProcessor.processResponse(this.context, inputStream, responseStream, token);
 				}
 				return chatResult;
@@ -1608,6 +1941,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		const fetchResult = await this.fetch(fetchOptions, token).finally(() => {
 			this.stopHookUserInitiated = false;
 		});
+		this.processVoiceProgressToolCalls(outputStream, toolCalls);
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
 
 		// Store the server-echoed headerRequestId from the fetch response for subagent telemetry linking.
@@ -1636,13 +1970,34 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 		// Report token usage to the stream for rendering the context window widget
 		const stream = streamParticipants[streamParticipants.length - 1];
-		if (fetchResult.type === ChatFetchResponseType.Success && fetchResult.usage && stream && this.shouldReportUsageToContextWidget()) {
-			stream.usage({
-				completionTokens: fetchResult.usage.completion_tokens,
-				promptTokens: fetchResult.usage.prompt_tokens,
-				outputBuffer: endpoint.maxOutputTokens,
-				promptTokenDetails,
-			});
+		if (fetchResult.type === ChatFetchResponseType.Success && fetchResult.usage && stream) {
+			// Credits are billed per model call and a single turn can make many calls.
+			// Accumulate so the per-request usage reflects the whole turn (and the
+			// session cost sums correctly) instead of only the final call's credits.
+			const callCredits = nanoAiuToCredits(fetchResult.usage.copilot_usage?.total_nano_aiu);
+			if (callCredits !== undefined) {
+				this._accumulatedCopilotCredits = (this._accumulatedCopilotCredits ?? 0) + callCredits;
+			}
+			if (this.shouldReportUsageToContextWidget()) {
+				stream.usage({
+					completionTokens: fetchResult.usage.completion_tokens,
+					promptTokens: fetchResult.usage.prompt_tokens,
+					outputBuffer: endpoint.maxOutputTokens,
+					copilotCredits: this._accumulatedCopilotCredits,
+					promptTokenDetails,
+				});
+			} else if (this._accumulatedCopilotCredits !== undefined) {
+				// Subagent request: report only the running credit (AIC) total, with
+				// no token counts, so the subagent tool can surface its own cost on
+				// hover. The core RunSubagentTool intercepts this usage part and does
+				// not forward it to the parent request, so the parent context-window
+				// widget and token counts stay isolated to the parent turn.
+				stream.usage({
+					completionTokens: 0,
+					promptTokens: 0,
+					copilotCredits: this._accumulatedCopilotCredits,
+				});
+			}
 		}
 
 		// Validate authentication session upgrade and handle accordingly
@@ -1672,12 +2027,14 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			thinkingItem?.updateWithFetchResult(fetchResult);
 
 			// Log the assistant message to the transcript
-			const transcriptToolRequests: ToolRequest[] = toolCalls.map(tc => ({
+			const transcriptToolRequests: ToolRequest[] = toolCalls
+				.filter(toolCall => toolCall.name !== ToolCallingLoop.VOICE_PROGRESS_TOOL_NAME)
+				.map(tc => ({
 				toolCallId: tc.id,
 				name: tc.name,
 				arguments: tc.arguments,
 				type: 'function' as const,
-			}));
+				}));
 			this._sessionTranscriptService.logAssistantMessage(
 				this.options.conversation.sessionId,
 				fetchResult.value,
@@ -1692,6 +2049,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					toolCalls,
 					toolInputRetry,
 					statefulMarker,
+					statefulMarkerSummarizedAtRoundId: statefulMarker && endpoint.isExtensionContributed ? summarizedAtRoundId : undefined,
 					thinking: thinkingItem,
 					phase,
 					modelId: endpoint.model,

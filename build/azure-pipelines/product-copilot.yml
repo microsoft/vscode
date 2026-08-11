@@ -5,6 +5,9 @@ parameters:
   - name: VSCODE_RELEASE
     type: boolean
     default: false
+  - name: VSCODE_UPLOAD_SOURCEMAPS
+    type: boolean
+    default: true
 
 jobs:
   - job: Copilot
@@ -17,6 +20,7 @@ jobs:
         value: true
     steps:
       - checkout: self
+        path: s
         lfs: true
         fetchDepth: 1
         fetchTags: false
@@ -89,90 +93,96 @@ jobs:
           displayName: Publish Copilot VSIX
           sbomEnabled: false
 
+      - script: echo "##vso[task.setvariable variable=published;isOutput=true]true"
+        name: copilotVsix
+        displayName: Mark Copilot VSIX as published
+
       - template: copilot/test-steps.yml
         parameters:
           runIntegrationTests: false
 
-      - task: AzureCLI@2
-        displayName: Upload source maps to CDN
-        inputs:
-          azureSubscription: vscode-cdn
-          scriptType: bash
-          addSpnToEnvironment: true
-          scriptLocation: inlineScript
-          inlineScript: |
-            set -e
+      # Source map upload is only needed for builds that ship the extension.
+      - ${{ if eq(parameters.VSCODE_UPLOAD_SOURCEMAPS, true) }}:
+        - task: AzureCLI@2
+          displayName: Upload source maps to CDN
+          inputs:
+            azureSubscription: vscode-cdn
+            scriptType: bash
+            addSpnToEnvironment: true
+            scriptLocation: inlineScript
+            inlineScript: |
+              set -e
 
-            WORKING_DIR="$(Build.SourcesDirectory)/extensions/copilot"
-            SOURCE_MAP_DIR="$WORKING_DIR/dist-sourcemaps"
-            STORAGE_ACCOUNT="vscodeweb"
+              WORKING_DIR="$(Build.SourcesDirectory)/extensions/copilot"
+              SOURCE_MAP_DIR="$WORKING_DIR/dist-sourcemaps"
+              STORAGE_ACCOUNT="vscodeweb"
 
-            if [ ! -d "$SOURCE_MAP_DIR" ]; then
-              echo "Source maps directory not found: $SOURCE_MAP_DIR"
-              echo "Skipping upload."
-              exit 0
-            fi
+              if [ ! -d "$SOURCE_MAP_DIR" ]; then
+                echo "Source maps directory not found: $SOURCE_MAP_DIR"
+                echo "Skipping upload."
+                exit 0
+              fi
 
-            PUBLISHER=$(node -p "require('$WORKING_DIR/package.json').publisher")
-            NAME=$(node -p "require('$WORKING_DIR/package.json').name")
-            VERSION=$(node -p "require('$WORKING_DIR/package.json').version")
-            EXTENSION_ID=$(echo "${PUBLISHER}.${NAME}" | tr '[:upper:]' '[:lower:]')
+              PUBLISHER=$(node -p "require('$WORKING_DIR/package.json').publisher")
+              NAME=$(node -p "require('$WORKING_DIR/package.json').name")
+              VERSION=$(node -p "require('$WORKING_DIR/package.json').version")
+              EXTENSION_ID=$(echo "${PUBLISHER}.${NAME}" | tr '[:upper:]' '[:lower:]')
 
-            echo "Extension: $EXTENSION_ID"
-            echo "Version: $VERSION"
+              echo "Extension: $EXTENSION_ID"
+              echo "Version: $VERSION"
 
-            MAP_FILES=$(find "$SOURCE_MAP_DIR" -name "*.map" -type f)
-            FILE_COUNT=$(echo "$MAP_FILES" | grep -c . || true)
+              MAP_FILES=$(find "$SOURCE_MAP_DIR" -name "*.map" -type f)
+              FILE_COUNT=$(echo "$MAP_FILES" | grep -c . || true)
 
-            if [ "$FILE_COUNT" -eq 0 ]; then
-              echo "No source map files found in $SOURCE_MAP_DIR"
-              exit 0
-            fi
+              if [ "$FILE_COUNT" -eq 0 ]; then
+                echo "No source map files found in $SOURCE_MAP_DIR"
+                exit 0
+              fi
 
-            echo "Found $FILE_COUNT source map files"
+              echo "Found $FILE_COUNT source map files"
 
-            BLOB_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net"
-            PREFIX="sourcemaps/${EXTENSION_ID}/${VERSION}"
+              BLOB_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net"
+              PREFIX="sourcemaps/${EXTENSION_ID}/${VERSION}"
 
-            echo "Uploading to: $BLOB_URL/\$web/$PREFIX/"
+              echo "Uploading to: $BLOB_URL/\$web/$PREFIX/"
 
-            UPLOADED=0
-            for FILE in $MAP_FILES; do
-              FILENAME=$(basename "$FILE")
-              BLOB_NAME="$PREFIX/$FILENAME"
+              UPLOADED=0
+              for FILE in $MAP_FILES; do
+                FILENAME=$(basename "$FILE")
+                BLOB_NAME="$PREFIX/$FILENAME"
 
+                az storage blob upload \
+                  --account-name "$STORAGE_ACCOUNT" \
+                  --container-name '$web' \
+                  --name "$BLOB_NAME" \
+                  --file "$FILE" \
+                  --content-type "application/json" \
+                  --content-cache-control "max-age=31536000, public" \
+                  --auth-mode login \
+                  --overwrite \
+                  --only-show-errors
+
+                UPLOADED=$((UPLOADED + 1))
+              done
+
+              echo "Successfully uploaded $UPLOADED source maps"
+
+              # Upload commit-to-version mapping so the deminify service
+              # can resolve the patched extension version from a VS Code commit hash.
+              COMMIT_HASH="$(Build.SourceVersion)"
+              MAPPING_BLOB="sourcemaps/${EXTENSION_ID}/commits/${COMMIT_HASH}.json"
+              echo "{\"version\":\"${VERSION}\",\"extensionId\":\"${EXTENSION_ID}\"}" > /tmp/commit-version.json
+
+              echo "Uploading commit mapping: $COMMIT_HASH -> $VERSION"
               az storage blob upload \
                 --account-name "$STORAGE_ACCOUNT" \
                 --container-name '$web' \
-                --name "$BLOB_NAME" \
-                --file "$FILE" \
+                --name "$MAPPING_BLOB" \
+                --file "/tmp/commit-version.json" \
                 --content-type "application/json" \
-                --content-cache-control "max-age=31536000, public" \
+                --content-cache-control "no-cache, no-store, must-revalidate" \
                 --auth-mode login \
                 --overwrite \
                 --only-show-errors
 
-              UPLOADED=$((UPLOADED + 1))
-            done
-
-            echo "Successfully uploaded $UPLOADED source maps"
-
-            # Upload commit-to-version mapping so the deminify service
-            # can resolve the patched extension version from a VS Code commit hash.
-            COMMIT_HASH="$(Build.SourceVersion)"
-            MAPPING_BLOB="sourcemaps/${EXTENSION_ID}/commits/${COMMIT_HASH}.json"
-            echo "{\"version\":\"${VERSION}\",\"extensionId\":\"${EXTENSION_ID}\"}" > /tmp/commit-version.json
-
-            echo "Uploading commit mapping: $COMMIT_HASH -> $VERSION"
-            az storage blob upload \
-              --account-name "$STORAGE_ACCOUNT" \
-              --container-name '$web' \
-              --name "$MAPPING_BLOB" \
-              --file "/tmp/commit-version.json" \
-              --content-type "application/json" \
-              --content-cache-control "no-cache, no-store, must-revalidate" \
-              --auth-mode login \
-              --overwrite \
-              --only-show-errors
-
-            echo "Commit mapping uploaded: $MAPPING_BLOB"
+              echo "Commit mapping uploaded: $MAPPING_BLOB"
