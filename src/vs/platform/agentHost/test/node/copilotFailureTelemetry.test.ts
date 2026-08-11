@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { SessionEventPayload } from '@github/copilot-sdk';
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -107,16 +108,18 @@ suite('CopilotFailureTelemetry', () => {
 		const session = AgentSession.uri('copilotcli', 'agent-session-id');
 		const chat = URI.parse(buildChatUri(session, 'peer-chat-id'));
 		const correlation = createCopilotFailureCorrelation(session, chat, 'turn-id', 'sdk-session-id');
-
-		reportCopilotModelCallFailure(telemetryService, {
+		const event: SessionEventPayload<'model.call_failure'> = {
+			type: 'model.call_failure',
 			id: 'event-1',
 			parentId: 'parent-1',
 			agentId: 'agent-1',
+			timestamp: '2026-01-01T00:00:00.000Z',
+			ephemeral: true,
 			data: {
-				source: 'top-level',
+				source: 'top_level',
 				failureKind: 'api',
 				transport: 'http',
-				apiEndpoint: 'https://contoso.example/private/deployment',
+				apiEndpoint: '/responses',
 				statusCode: 500,
 				durationMs: 42,
 				model: 'gpt-5.6-sol',
@@ -130,7 +133,9 @@ suite('CopilotFailureTelemetry', () => {
 				serviceRequestId: 'service-request-id',
 				requestFingerprint: undefined,
 			},
-		} as Parameters<typeof reportCopilotModelCallFailure>[1], correlation);
+		};
+
+		reportCopilotModelCallFailure(telemetryService, event, correlation);
 
 		assert.deepStrictEqual(telemetryService.events, [{
 			eventName: 'agentHost.copilotModelCallFailure',
@@ -143,9 +148,9 @@ suite('CopilotFailureTelemetry', () => {
 				sdkParentEventId: 'parent-1',
 				sdkAgentId: 'agent-1',
 				failureKind: 'api',
-				source: 'top-level',
+				source: 'top_level',
 				transport: 'http',
-				apiEndpoint: 'other',
+				apiEndpoint: 'responses',
 				statusCode: 500,
 				durationMs: 42,
 				model: 'gpt-5.6-sol',

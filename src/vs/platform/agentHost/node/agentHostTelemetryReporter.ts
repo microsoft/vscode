@@ -12,6 +12,7 @@ import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
 import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
+import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
@@ -252,27 +253,48 @@ export interface IAgentHostTurnCompletedReport {
  */
 export type AgentHostTurnHangReason = 'noProgress' | 'stalledAfterProgress' | 'waitingOnUser' | 'runningTool';
 
-type AgentHostTurnActivityNamespace = 'annotations' | 'auth' | 'changeset' | 'chat' | 'resourceWatch' | 'root' | 'session' | 'terminal';
-export type AgentHostTurnActivityTelemetryKind = 'none' | 'other' | `${AgentHostTurnActivityNamespace}.${string}`;
+const turnActivityKindsByActionType = {
+	[ActionType.ChatTurnStarted]: 'chat.turnStarted',
+	[ActionType.ChatDelta]: 'chat.delta',
+	[ActionType.ChatResponsePart]: 'chat.responsePart',
+	[ActionType.ChatToolCallStart]: 'chat.toolCallStart',
+	[ActionType.ChatToolCallDelta]: 'chat.toolCallDelta',
+	[ActionType.ChatToolCallReady]: 'chat.toolCallReady',
+	[ActionType.ChatToolCallConfirmed]: 'chat.toolCallConfirmed',
+	[ActionType.ChatToolCallComplete]: 'chat.toolCallComplete',
+	[ActionType.ChatToolCallResultConfirmed]: 'chat.toolCallResultConfirmed',
+	[ActionType.ChatToolCallContentChanged]: 'chat.toolCallContentChanged',
+	[ActionType.ChatToolCallAuthRequired]: 'chat.toolCallAuthRequired',
+	[ActionType.ChatToolCallAuthResolved]: 'chat.toolCallAuthResolved',
+	[ActionType.ChatTurnComplete]: 'chat.turnComplete',
+	[ActionType.ChatTurnCancelled]: 'chat.turnCancelled',
+	[ActionType.ChatError]: 'chat.error',
+	[ActionType.ChatActivityChanged]: 'chat.activityChanged',
+	[ActionType.ChatWorkingDirectorySet]: 'chat.workingDirectorySet',
+	[ActionType.ChatWorkingDirectoryRemoved]: 'chat.workingDirectoryRemoved',
+	[ActionType.ChatUsage]: 'chat.usage',
+	[ActionType.ChatReasoning]: 'chat.reasoning',
+	[ActionType.ChatPendingMessageSet]: 'chat.pendingMessageSet',
+	[ActionType.ChatPendingMessageRemoved]: 'chat.pendingMessageRemoved',
+	[ActionType.ChatQueuedMessagesReordered]: 'chat.queuedMessagesReordered',
+	[ActionType.ChatDraftChanged]: 'chat.draftChanged',
+	[ActionType.ChatInputRequested]: 'chat.inputRequested',
+	[ActionType.ChatInputAnswerChanged]: 'chat.inputAnswerChanged',
+	[ActionType.ChatInputCompleted]: 'chat.inputCompleted',
+	[ActionType.ChatTruncated]: 'chat.truncated',
+	[ActionType.ChatTurnsLoaded]: 'chat.turnsLoaded',
+	[ActionType.SessionInputNeededSet]: 'session.inputNeededSet',
+	[ActionType.SessionInputNeededRemoved]: 'session.inputNeededRemoved',
+} as const;
 
-const agentHostTurnActivityNamespaces: readonly AgentHostTurnActivityNamespace[] = ['annotations', 'auth', 'changeset', 'chat', 'resourceWatch', 'root', 'session', 'terminal'];
-const safeAgentHostTurnActivityActionPattern = /^[A-Za-z][A-Za-z0-9]*$/;
-
-function isAgentHostTurnActivityNamespace(value: string): value is AgentHostTurnActivityNamespace {
-	return agentHostTurnActivityNamespaces.includes(value as AgentHostTurnActivityNamespace);
-}
+export type AgentHostTurnActivityTelemetryKind = 'none' | 'other' | typeof turnActivityKindsByActionType[keyof typeof turnActivityKindsByActionType];
 
 function normalizeTurnActivityKind(activityKind: string): AgentHostTurnActivityTelemetryKind {
 	if (activityKind === 'none') {
 		return 'none';
 	}
 
-	const [namespace, action, ...rest] = activityKind.split('/');
-	if (rest.length > 0 || !namespace || !action || !isAgentHostTurnActivityNamespace(namespace) || !safeAgentHostTurnActivityActionPattern.test(action)) {
-		return 'other';
-	}
-
-	return `${namespace}.${action}`;
+	return turnActivityKindsByActionType[activityKind as keyof typeof turnActivityKindsByActionType] ?? 'other';
 }
 
 export interface IAgentHostTurnHungEvent {
