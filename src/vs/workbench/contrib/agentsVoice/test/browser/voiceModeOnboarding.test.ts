@@ -372,7 +372,7 @@ suite('Voice Mode onboarding', () => {
 		assert.deepStrictEqual(
 			{ labels: links.map(link => link.textContent), executed },
 			{
-				labels: ['settings', "how it's written"],
+				labels: ['settings', 'how it\'s written'],
 				executed: ['agentsVoice.openSettings', 'workbench.action.chat.configureVoiceInstructions'],
 			});
 	});
