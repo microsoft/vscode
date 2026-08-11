@@ -150,20 +150,52 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
  * Builds enablement actions for a plugin customization published by an agent host.
  * Legacy VS Code-owned plugin menus continue to use {@link getInstalledPluginContextMenuActions}.
  */
-export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, customization: PluginCustomization, hasWorkspace: boolean): ICustomizationItemAction[] {
+export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, customization: PluginCustomization, hasWorkspace: boolean): ICustomizationItemAction[] {
 	const enablement = getCustomizationScopeEnablement(customization);
 	const actions = [
-		createAgentHostPluginEnablementAction(agentHostCustomizations, sessionResource, customization, CustomizationEnablementKind.Global, !enablement.global, 'global'),
+		createAgentHostPluginEnablementAction(agentHostCustomizations, agentPluginService, sessionResource, customization, CustomizationEnablementKind.Global, !enablement.global, 'global'),
 	];
 	if (hasWorkspace) {
-		actions.push(createAgentHostPluginEnablementAction(agentHostCustomizations, sessionResource, customization, CustomizationEnablementKind.Workspace, !enablement.workspace, 'workspace'));
+		actions.push(createAgentHostPluginEnablementAction(agentHostCustomizations, agentPluginService, sessionResource, customization, CustomizationEnablementKind.Workspace, !enablement.workspace, 'workspace'));
 	}
-	actions.push(createAgentHostPluginEnablementAction(agentHostCustomizations, sessionResource, customization, CustomizationEnablementKind.Session, !enablement.session, 'session'));
-	// TODO step 9 (container cascade): offer "Enable Plugin" when a child is disabled by its container.
+	actions.push(createAgentHostPluginEnablementAction(agentHostCustomizations, agentPluginService, sessionResource, customization, CustomizationEnablementKind.Session, !enablement.session, 'session'));
 	return actions;
 }
 
-function createAgentHostPluginEnablementAction(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, customization: PluginCustomization, kind: CustomizationEnablementKind, enabled: boolean, scope: 'global' | 'workspace' | 'session'): ICustomizationItemAction {
+type AgentHostPluginEnablementTarget = {
+	readonly id: string;
+	readonly uri: string;
+	readonly clientId?: string;
+	readonly enablement?: readonly NonNullable<PluginCustomization['enablement']>[number][];
+};
+
+/**
+ * Routes a plugin enablement change to the client that owns its global decision
+ * or to the agent host for all other scopes.
+ */
+export function setAgentHostPluginEnablement(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): void {
+	if (kind === CustomizationEnablementKind.Global && plugin.clientId !== undefined) {
+		if (agentPluginService === undefined) {
+			throw new Error('A client-published plugin requires its client enablement service');
+		}
+		agentPluginService.enablementModel.setEnabled(plugin.uri.toString(), enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
+		return;
+	}
+	agentHostCustomizations.setCustomizationEnablement(sessionResource, plugin.id, plugin.enablement, kind, enabled);
+}
+
+/** Creates the container action used by a child blocked by a disabled plugin. */
+export function createAgentHostEnablePluginAction(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind): ICustomizationItemAction {
+	return {
+		id: 'agentPlugin.agentHost.enableContainer',
+		label: localize('agentHostPluginEnableContainer', "Enable Plugin"),
+		run: () => {
+			setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, plugin, kind, true);
+		},
+	};
+}
+
+function createAgentHostPluginEnablementAction(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, customization: PluginCustomization, kind: CustomizationEnablementKind, enabled: boolean, scope: 'global' | 'workspace' | 'session'): ICustomizationItemAction {
 	const label = enabled
 		? scope === 'global' ? localize('agentHostPluginEnable', "Enable") : scope === 'workspace' ? localize('agentHostPluginEnableWorkspace', "Enable (Workspace)") : localize('agentHostPluginEnableSession', "Enable (Session)")
 		: scope === 'global' ? localize('agentHostPluginDisable', "Disable") : scope === 'workspace' ? localize('agentHostPluginDisableWorkspace', "Disable (Workspace)") : localize('agentHostPluginDisableSession', "Disable (Session)");
@@ -171,7 +203,7 @@ function createAgentHostPluginEnablementAction(agentHostCustomizations: IAgentHo
 		id: `agentPlugin.agentHost.${enabled ? 'enable' : 'disable'}.${scope}`,
 		label,
 		run: () => {
-			agentHostCustomizations.setCustomizationEnablement(sessionResource, customization.id, customization.enablement, kind, enabled);
+			setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, customization, kind, enabled);
 		},
 	};
 }

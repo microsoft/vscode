@@ -56,7 +56,9 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { setAgentHostPluginEnablement } from '../../chat/browser/agentPluginActions.js';
 import { IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
+import { IAgentPluginService } from '../../chat/common/plugins/agentPluginService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
@@ -481,6 +483,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const logService = accessor.get(ILogService);
 		const aiCustomizationWorkspaceService = accessor.get(IAICustomizationWorkspaceService);
+		const agentPluginService = accessor.get(IAgentPluginService);
 		const mcpService = accessor.get(IMcpService);
 
 		const server = agentHostCustomizations.getMcpServers(agentHostSession).find(s => s.id === customizationId);
@@ -488,7 +491,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			return;
 		}
 
-		type ItemType = { action: 'showOutput' | 'authenticate' | AgentHostMcpServerLifecycleAction | AgentHostMcpServerEnablementAction } & IQuickPickItem;
+		type ItemType = { action: 'showOutput' | 'authenticate' | 'enablePlugin' | AgentHostMcpServerLifecycleAction | AgentHostMcpServerEnablementAction } & IQuickPickItem;
 
 		const items: (ItemType | IQuickPickSeparator)[] = [
 			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
@@ -507,18 +510,26 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			});
 		}
 
+		const pluginDisabled = server.disabledReason?.source === 'plugin';
 		const localServer = findLocalMcpServer(mcpService, server);
 		const durableProfileDisabled = localServer !== undefined && !mcpService.enablementModel.readProfileEnabled(localServer.definition.id);
 		const isEmptyWorkbench = aiCustomizationWorkspaceService.getActiveProjectRoot() === undefined;
-		items.push(
-			{ type: 'separator', label: localize('mcp.actions.enablement', 'Enablement') },
-			...(localServer
-				? [
-					...getLocalMcpServerEnablementItems(durableProfileDisabled, isEmptyWorkbench, false),
-					...getAgentHostMcpServerEnablementItems(server, agentHostCustomizations.getWorkingDirectories(agentHostSession).length > 0, ['workspace', 'session']),
-				]
-				: getAgentHostMcpServerEnablementItems(server, agentHostCustomizations.getWorkingDirectories(agentHostSession).length > 0)),
-		);
+		items.push({ type: 'separator', label: localize('mcp.actions.enablement', 'Enablement') });
+		if (pluginDisabled) {
+			items.push({
+				label: localize('mcp.agentHost.enablePlugin', "Enable Plugin"),
+				action: 'enablePlugin',
+			});
+		} else {
+			items.push(
+				...(localServer
+					? [
+						...getLocalMcpServerEnablementItems(durableProfileDisabled, isEmptyWorkbench, false),
+						...getAgentHostMcpServerEnablementItems(server, agentHostCustomizations.getWorkingDirectories(agentHostSession).length > 0, ['workspace', 'session']),
+					]
+					: getAgentHostMcpServerEnablementItems(server, agentHostCustomizations.getWorkingDirectories(agentHostSession).length > 0)),
+			);
+		}
 
 		if (server.enabled && server.state.kind === McpServerStatus.AuthRequired) {
 			items.push({
@@ -554,6 +565,17 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 
 		if (picked.action === 'start' || picked.action === 'stop') {
 			await runAgentHostMcpServerLifecycleAction(server, picked.action, { notificationService, logService });
+			return;
+		}
+
+		if (picked.action === 'enablePlugin') {
+			const reason = server.disabledReason;
+			if (reason?.source === 'plugin') {
+				const decision = reason.plugin.enablement?.[0];
+				if (decision) {
+					setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, agentHostSession, reason.plugin, decision.kind, true);
+				}
+			}
 			return;
 		}
 

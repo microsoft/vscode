@@ -278,7 +278,7 @@ suite('McpCustomizationController', () => {
 			.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer ? isCustomizationEnabled(action.customization) : undefined), [false, false]);
 	});
 
-	test('plugin enablement masks and restores its child MCP server without changing the child decision', () => {
+	test('workspace plugin enablement masks and restores its child MCP server without changing the child decision', () => {
 		const child: McpServerCustomization = {
 			type: CustomizationType.McpServer,
 			id: 'mcp-child:demo:fs',
@@ -296,7 +296,7 @@ suite('McpCustomizationController', () => {
 		};
 		const disabledPlugin: PluginCustomization = {
 			...plugin,
-			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }],
 		};
 
 		const effective = [plugin, disabledPlugin, plugin].map(customization =>

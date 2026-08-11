@@ -18,7 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agentService.js';
-import { isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
@@ -3411,18 +3411,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionUri = cached.backendUri;
 		return (sessionState.customizations ?? [])
-			.flatMap(c => c.type === CustomizationType.McpServer
-				? [c]
-				: c.children
-					? c.children.filter(c => c.type === CustomizationType.McpServer)
+			.flatMap(customization => customization.type === CustomizationType.McpServer
+				? [{ server: customization, plugin: undefined }]
+				: customization.children
+					? customization.children.filter(child => child.type === CustomizationType.McpServer).map(server => ({
+						server,
+						plugin: customization.type === CustomizationType.Plugin ? customization : undefined,
+					}))
 					: [])
-			.map((c): IAgentHostMcpServer => ({
-				id: `${sessionUri.authority}/${c.id}`,
-				name: c.name,
-				enabled: isCustomizationEnabled(c),
-				enablement: c.enablement,
-				status: c.state.kind,
-				state: c.state,
+			.map(({ server, plugin }): IAgentHostMcpServer => ({
+				id: `${sessionUri.authority}/${server.id}`,
+				name: server.name,
+				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
+				enablement: server.enablement,
+				disabledReason: getCustomizationDisabledReason(server, plugin),
+				status: server.state.kind,
+				state: server.state,
 				setEnabled: (enabled: boolean) => {
 					const connection = this.connection;
 					if (!connection) {
@@ -3430,8 +3434,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					}
 					connection.dispatch(sessionUri.toString(), {
 						type: ActionType.SessionCustomizationToggled,
-						id: c.id,
-						enablement: withCustomizationEnablement(c.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled }),
+						id: server.id,
+						enablement: withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled }),
 					});
 				},
 				start: async () => {
@@ -3441,7 +3445,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					}
 					connection.dispatch(sessionUri.toString(), {
 						type: ActionType.SessionMcpServerStartRequested,
-						id: c.id,
+						id: server.id,
 					});
 				},
 				stop: async () => {
@@ -3451,7 +3455,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					}
 					connection.dispatch(sessionUri.toString(), {
 						type: ActionType.SessionMcpServerStopRequested,
-						id: c.id,
+						id: server.id,
 					});
 				},
 			}));

@@ -124,7 +124,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			pluginUri: uri,
 			userInvocable: undefined,
 			actions: [
-				...(clientId === undefined ? getAgentHostPluginEnablementActions(this._customAgentsService, sessionResource, customization, this._customAgentsService.getWorkingDirectories(sessionResource).length > 0) : []),
+				...(clientId === undefined ? getAgentHostPluginEnablementActions(this._customAgentsService, undefined, sessionResource, customization, this._customAgentsService.getWorkingDirectories(sessionResource).length > 0) : []),
 				...(this._getItemActions?.(customization, clientId) ?? []),
 			],
 		};

@@ -148,9 +148,7 @@ export async function resolveLocalCustomAgents(
 		const plugin = agent.source === AICustomizationSources.plugin
 			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
 			: undefined;
-		if (agent.source === AICustomizationSources.plugin
-			&& (!plugin || !agentPluginService.enablementModel.readProfileEnabled(plugin.uri.toString()))) {
-			// TODO step 9 (container cascade): Let the host apply the plugin's enablement to its agents.
+		if (agent.source === AICustomizationSources.plugin && !plugin) {
 			continue;
 		}
 		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());

@@ -192,6 +192,9 @@ export function isPluginCustomizationItem(item: { readonly type: string }): bool
 }
 
 export function getCustomizationDisabledLabel(reason: CustomizationDisabledReason | undefined): string {
+	if (reason?.source === 'plugin') {
+		return localize('customizationDisabledPlugin', "Disabled (Plugin)");
+	}
 	switch (reason?.scope) {
 		case CustomizationEnablementKind.Workspace:
 			return localize('customizationDisabledWorkspace', "Disabled (Workspace)");

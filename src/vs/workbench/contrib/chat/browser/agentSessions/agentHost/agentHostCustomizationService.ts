@@ -15,7 +15,7 @@ import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, ROOT_STATE_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -183,18 +183,18 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return [];
 		}
 		return this._flattenMcpServers(target.customizations)
-			.map((c): IAgentHostMcpServer => ({
-				id: this._scopedMcpServerId(sessionResource, c.id),
-				name: c.name,
-				enabled: isCustomizationEnabled(c),
-				enablement: c.enablement,
-				disabledReason: getCustomizationDisabledReason(c),
-				status: c.state.kind,
-				state: c.state,
-				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), c.id),
-				setEnabled: (enabled: boolean) => target.setCustomizationEnablement(c.id, withCustomizationEnablement(c.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
-				start: () => target.startMcpServer(c.id),
-				stop: () => target.stopMcpServer(c.id),
+			.map(({ server, plugin }): IAgentHostMcpServer => ({
+				id: this._scopedMcpServerId(sessionResource, server.id),
+				name: server.name,
+				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
+				enablement: server.enablement,
+				disabledReason: getCustomizationDisabledReason(server, plugin),
+				status: server.state.kind,
+				state: server.state,
+				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), server.id),
+				setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
+				start: () => target.startMcpServer(server.id),
+				stop: () => target.stopMcpServer(server.id),
 			}));
 	}
 
@@ -203,13 +203,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return Promise.resolve();
 		}
-		const server = this._flattenMcpServers(target.customizations).find(c => this._scopedMcpServerId(sessionResource, c.id) === serverId);
-		if (!server) {
+		const entry = this._flattenMcpServers(target.customizations).find(({ server }) => this._scopedMcpServerId(sessionResource, server.id) === serverId);
+		if (!entry) {
 			return Promise.resolve();
 		}
+		const { server, plugin } = entry;
 		// Ensure the session is tracked and its channels exist, then reveal.
 		this._trackMcpDiagnostics(sessionResource, target);
-		const channelId = this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server), state: server.state });
+		const channelId = this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
 		return this._mcpLogRegistry.show(channelId, beforeShow);
 	}
 
@@ -220,8 +221,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 */
 	private _trackMcpDiagnostics(sessionResource: URI, target: IAgentHostCustomizationTarget): void {
 		this._mcpDiagnosticSessions.add(sessionResource);
-		for (const server of this._flattenMcpServers(target.customizations)) {
-			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server), state: server.state });
+		for (const { server, plugin } of this._flattenMcpServers(target.customizations)) {
+			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
 		}
 	}
 
@@ -232,8 +233,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			if (!target) {
 				continue;
 			}
-			for (const server of this._flattenMcpServers(target.customizations)) {
-				this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server), state: server.state });
+			for (const { server, plugin } of this._flattenMcpServers(target.customizations)) {
+				this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state });
 			}
 		}
 	}
@@ -321,14 +322,17 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		this._onDidChangeCustomizations.fire();
 	}
 
-	private _flattenMcpServers(customizations: readonly Customization[]): McpServerCustomization[] {
-		return customizations.flatMap(c => c.type === CustomizationType.McpServer
-			? [c]
-			: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []);
+	private _flattenMcpServers(customizations: readonly Customization[]): readonly { readonly server: McpServerCustomization; readonly plugin?: PluginCustomization }[] {
+		return customizations.flatMap(customization => customization.type === CustomizationType.McpServer
+			? [{ server: customization }]
+			: customization.children?.filter(child => child.type === CustomizationType.McpServer).map(server => ({
+				server,
+				plugin: customization.type === CustomizationType.Plugin ? customization : undefined,
+			})) ?? []);
 	}
 
 	private _findMcpServer(customizations: readonly Customization[], serverId: string): McpServerCustomization | undefined {
-		for (const server of this._flattenMcpServers(customizations)) {
+		for (const { server } of this._flattenMcpServers(customizations)) {
 			if (server.id === serverId || this._isScopedMcpServerIdForRawId(serverId, server.id)) {
 				return server;
 			}

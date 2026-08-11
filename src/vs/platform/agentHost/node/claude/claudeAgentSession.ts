@@ -5,6 +5,7 @@
 
 import type { McpSdkServerConfigWithInstance, OnElicitation, Options, PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -117,6 +118,8 @@ export class ClaudeAgentSession extends Disposable {
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
 	private readonly _chatChannelUri: URI;
+	private readonly _mcpEnablementSequencer = new Sequencer();
+	private _lastReconciledMcpEnablement: ReadonlyMap<string, boolean> | undefined;
 
 	/**
 	 * URI under which this chat's per-chat resources (its session database,
@@ -559,6 +562,12 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel !== this.sessionUri.toString() || envelope.action.type !== ActionType.SessionCustomizationsChanged) {
+				return;
+			}
+			this._reconcileMcpServerEnablement(true).catch(error => this._logService.error(error, `[Claude:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
+		}));
 		// The materialize succeeded with the staged anchor applied to `Options`
 		// — clear it now so it isn't re-applied. A throw before this point (e.g.
 		// `startup` / pipeline-create) leaves it staged for the next retry.
@@ -1170,17 +1179,41 @@ export class ClaudeAgentSession extends Disposable {
 		return enabled.customizations;
 	}
 
-	private async _reconcileMcpServerEnablement(): Promise<void> {
-		const pipeline = this._requirePipeline();
-		const state = this._sessionCustomizations;
-		const desired = new Map(getEffectiveMcpServerCustomizations(state).map(({ server, enabled }) => [server.name, enabled]));
+	private _reconcileMcpServerEnablement(fromCustomizationChange = false): Promise<void> {
+		const desired = this._getDesiredMcpServerEnablement();
 		if (desired.size === 0) {
+			this._lastReconciledMcpEnablement = desired;
+			return Promise.resolve();
+		}
+		if (fromCustomizationChange && this._isMcpEnablementUnchanged(desired)) {
+			return Promise.resolve();
+		}
+		return this._mcpEnablementSequencer.queue(() => this._doReconcileMcpServerEnablement());
+	}
+
+	private async _doReconcileMcpServerEnablement(): Promise<void> {
+		const pipeline = this._requirePipeline();
+		const desired = this._getDesiredMcpServerEnablement();
+		if (desired.size === 0) {
+			this._lastReconciledMcpEnablement = desired;
 			return;
 		}
 
 		if (!await pipeline.reconcileMcpServerEnablement(desired)) {
 			throw new Error(`Claude SDK cannot reconcile MCP server enablement`);
 		}
+		this._lastReconciledMcpEnablement = desired;
+	}
+
+	private _getDesiredMcpServerEnablement(): Map<string, boolean> {
+		return new Map(getEffectiveMcpServerCustomizations(this._sessionCustomizations).map(({ server, enabled }) => [server.name, enabled]));
+	}
+
+	private _isMcpEnablementUnchanged(desired: ReadonlyMap<string, boolean>): boolean {
+		if (!this._lastReconciledMcpEnablement || desired.size !== this._lastReconciledMcpEnablement.size) {
+			return false;
+		}
+		return [...desired].every(([name, enabled]) => this._lastReconciledMcpEnablement!.get(name) === enabled);
 	}
 
 	private _desiredClientPluginPaths(): readonly URI[] {

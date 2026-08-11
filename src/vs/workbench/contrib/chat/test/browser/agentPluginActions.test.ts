@@ -12,7 +12,7 @@ import { CustomizationEnablementKind, CustomizationType, type PluginCustomizatio
 import { createUninstallPluginAction, getAgentHostPluginEnablementActions } from '../../browser/agentPluginActions.js';
 import { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
-import { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
 suite('AgentPluginActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,6 +31,14 @@ suite('AgentPluginActions', () => {
 			instructions: observableValue('instructions', []),
 			mcpServerDefinitions: observableValue('mcpServerDefinitions', []),
 		};
+	}
+
+	function createAgentPluginService(calls: unknown[][]): IAgentPluginService {
+		return {
+			enablementModel: {
+				setEnabled: (...args: unknown[]) => calls.push(args),
+			},
+		} as unknown as IAgentPluginService;
 	}
 
 	test('creates uninstall action for a removable local plugin', async () => {
@@ -61,10 +69,58 @@ suite('AgentPluginActions', () => {
 		const service = {
 			setCustomizationEnablement: (...args: unknown[]) => calls.push(args),
 		} as unknown as IAgentHostCustomizationService;
-		const actions = getAgentHostPluginEnablementActions(service, URI.parse('vscode-agent-session:///session-1'), customization, true);
+		const actions = getAgentHostPluginEnablementActions(service, createAgentPluginService([]), URI.parse('vscode-agent-session:///session-1'), customization, true);
 
 		assert.deepStrictEqual(actions.map(action => action.label), ['Disable', 'Enable (Workspace)', 'Enable (Session)']);
 		actions[1].run();
 		assert.deepStrictEqual(calls, [[URI.parse('vscode-agent-session:///session-1'), 'host-plugin', customization.enablement, CustomizationEnablementKind.Workspace, true]]);
+	});
+
+	test('writes client-published global plugin enablement locally', () => {
+		const customization = {
+			type: CustomizationType.Plugin,
+			id: 'client-plugin',
+			name: 'Client Plugin',
+			uri: URI.file('/plugins/client-plugin').toString(),
+			clientId: 'client-1',
+			load: { kind: 'loaded' },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		} as PluginCustomization;
+		const hostCalls: unknown[][] = [];
+		const clientCalls: unknown[][] = [];
+		const actions = getAgentHostPluginEnablementActions({
+			setCustomizationEnablement: (...args: unknown[]) => hostCalls.push(args),
+		} as unknown as IAgentHostCustomizationService, createAgentPluginService(clientCalls), URI.parse('vscode-agent-session:///session-1'), customization, true);
+
+		actions[0].run();
+
+		assert.deepStrictEqual({ clientCalls, hostCalls }, {
+			clientCalls: [[customization.uri.toString(), ContributionEnablementState.EnabledProfile]],
+			hostCalls: [],
+		});
+	});
+
+	test('writes host-discovered global plugin enablement to the host', () => {
+		const customization = {
+			type: CustomizationType.Plugin,
+			id: 'host-plugin',
+			name: 'Host Plugin',
+			uri: URI.file('/plugins/host-plugin').toString(),
+			load: { kind: 'loaded' },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		} as PluginCustomization;
+		const hostCalls: unknown[][] = [];
+		const clientCalls: unknown[][] = [];
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const actions = getAgentHostPluginEnablementActions({
+			setCustomizationEnablement: (...args: unknown[]) => hostCalls.push(args),
+		} as unknown as IAgentHostCustomizationService, createAgentPluginService(clientCalls), sessionResource, customization, true);
+
+		actions[0].run();
+
+		assert.deepStrictEqual({ clientCalls, hostCalls }, {
+			clientCalls: [],
+			hostCalls: [[sessionResource, 'host-plugin', customization.enablement, CustomizationEnablementKind.Global, true]],
+		});
 	});
 });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { CustomizationType, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../agentHostCustomizationEnablementService.js';
 
 export interface IResolvedCustomizationEnablement {
@@ -60,7 +60,7 @@ function applyClientGlobal(
 	target: ICustomizationEnablementTarget,
 	enablement: readonly CustomizationEnablement[] | undefined,
 ): CustomizationEnablementResolution {
-	if (enablement === undefined) {
+	if (enablement?.some(entry => entry.kind === CustomizationEnablementKind.Global) !== true) {
 		return service.resolve(session.toString(), target);
 	}
 	return service.applyClientGlobalEnablement(session.toString(), target, enablement);
@@ -137,13 +137,10 @@ export function recordClientPluginEnablement(
 	plugin: PluginCustomization,
 	clientPlugin: ClientPluginCustomization,
 ): void {
-	service.applyClientGlobalEnablement(session.toString(), targetForPlugin(plugin), clientPlugin.enablement ?? []);
+	applyClientGlobal(service, session, targetForPlugin(plugin), clientPlugin.enablement);
 	for (const child of plugin.children ?? []) {
 		if (child.type === CustomizationType.McpServer) {
-			const enablement = clientPlugin.childEnablement?.[child.name];
-			if (enablement !== undefined) {
-				service.applyClientGlobalEnablement(session.toString(), targetForMcpServer(child, plugin), enablement);
-			}
+			applyClientGlobal(service, session, targetForMcpServer(child, plugin), clientPlugin.childEnablement?.[child.name]);
 		}
 	}
 }

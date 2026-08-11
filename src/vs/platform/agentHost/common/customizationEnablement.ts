@@ -12,12 +12,21 @@ import { CustomizationEnablementKind, type CustomizationEnablement } from './sta
  */
 export const DEFAULT_CUSTOMIZATION_ENABLED = true;
 
-export type CustomizationDisabledReason = {
-	readonly source: 'scope';
-	readonly scope: CustomizationEnablementKind;
-};
-
-// TODO step 9 (container cascade): extend CustomizationDisabledReason with a plugin source.
+export type CustomizationDisabledReason =
+	| {
+		readonly source: 'scope';
+		readonly scope: CustomizationEnablementKind;
+	}
+	| {
+		readonly source: 'plugin';
+		readonly plugin: {
+			readonly id: string;
+			readonly name: string;
+			readonly uri: string;
+			readonly clientId?: string;
+			readonly enablement?: readonly CustomizationEnablement[];
+		};
+	};
 
 /** Returns the decisive explicit enablement decision, if one exists. */
 export function getCustomizationEnablementDecision(customization: { readonly enablement?: readonly CustomizationEnablement[] }): CustomizationEnablement | undefined {
@@ -52,8 +61,24 @@ export function getCustomizationScopeEnablement(customization: { readonly enable
 	};
 }
 
-/** Returns the published reason when the decisive enablement decision disables a customization. */
-export function getCustomizationDisabledReason(customization: { readonly enablement?: readonly CustomizationEnablement[] }): CustomizationDisabledReason | undefined {
+/**
+ * Returns the published reason when a customization or its containing plugin is
+ * disabled. The plugin takes precedence because its child cannot take effect
+ * until the plugin is enabled again.
+ */
+export function getCustomizationDisabledReason(customization: { readonly enablement?: readonly CustomizationEnablement[] }, plugin?: { readonly id: string; readonly name: string; readonly uri: string; readonly clientId?: string; readonly enablement?: readonly CustomizationEnablement[] }): CustomizationDisabledReason | undefined {
+	if (plugin && !isCustomizationEnabled(plugin)) {
+		return {
+			source: 'plugin',
+			plugin: {
+				id: plugin.id,
+				name: plugin.name,
+				uri: plugin.uri,
+				...(plugin.clientId === undefined ? undefined : { clientId: plugin.clientId }),
+				enablement: plugin.enablement,
+			},
+		};
+	}
 	const decision = getCustomizationEnablementDecision(customization);
 	return decision?.enabled === false ? { source: 'scope', scope: decision.kind } : undefined;
 }

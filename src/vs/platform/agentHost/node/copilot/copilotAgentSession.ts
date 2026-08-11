@@ -778,6 +778,7 @@ export class CopilotAgentSession extends Disposable {
 	private _lastAppliedPermissionMode: PermissionAllowAllMode | undefined;
 	private _autoApprovalExperimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
+	private readonly _mcpEnablementSequencer = new Sequencer();
 	private readonly _steeringMessagesInFlight = new Set<string>();
 	/**
 	 * Steering messages that have been accepted by the SDK but not yet
@@ -1768,6 +1769,12 @@ export class CopilotAgentSession extends Disposable {
 			throw new CancellationError();
 		}
 		this._wrapper = this._register(wrapper);
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel !== this.sessionUri.toString() || envelope.action.type !== ActionType.SessionCustomizationsChanged) {
+				return;
+			}
+			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
+		}));
 		this._subscribeToEvents();
 		this._subscribeForLogging();
 		this._subscribeForMemoInvalidation();
@@ -2544,7 +2551,11 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _reconcileMcpServerEnablement(): Promise<void> {
+	private _reconcileMcpServerEnablement(): Promise<void> {
+		return this._mcpEnablementSequencer.queue(() => this._doReconcileMcpServerEnablement());
+	}
+
+	private async _doReconcileMcpServerEnablement(): Promise<void> {
 		const desiredCustomizations = this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
 		const desiredServers = getEffectiveMcpServerCustomizations(desiredCustomizations);
 		if (desiredServers.length === 0) {

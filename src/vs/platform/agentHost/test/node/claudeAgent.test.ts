@@ -52,7 +52,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
-import type { ChildCustomization, McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import type { ChildCustomization, CustomizationEnablement, McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -261,6 +261,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	supportedCommandsResult: SlashCommand[] = [];
 	supportedAgentsResult: AgentInfo[] | undefined = undefined;
 	mcpServerStatusResult: McpServerStatus[] | undefined = undefined;
+	mcpToggleGate: Promise<void> | undefined;
 
 	/** Phase 19 — programmable native model enumeration. */
 	supportedModelsResult: ModelInfo[] = [];
@@ -545,6 +546,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	readonly recordedFlagSettings: Settings[] = [];
 	readonly mcpToggleCalls: Array<{ serverName: string; enabled: boolean }> = [];
 	readonly mcpReconnectCalls: string[] = [];
+	mcpServerStatusCallCount = 0;
 
 	private _yieldIndex = 0;
 
@@ -623,6 +625,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 		return Promise.resolve(this._sdk.supportedAgentsResult) as never;
 	}
 	mcpServerStatus(): never {
+		this.mcpServerStatusCallCount++;
 		if (this._sdk.mcpServerStatusResult === undefined) { throw new Error('FakeQuery: mcpServerStatus not modeled'); }
 		return Promise.resolve(this._sdk.mcpServerStatusResult) as never;
 	}
@@ -653,12 +656,14 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 	toggleMcpServer(serverName: string, enabled: boolean): never {
 		this.mcpToggleCalls.push({ serverName, enabled });
-		if (this._sdk.mcpServerStatusResult) {
-			this._sdk.mcpServerStatusResult = this._sdk.mcpServerStatusResult.map(server =>
-				server.name === serverName ? { ...server, status: enabled ? 'connected' : 'disabled' } : server
-			);
-		}
-		return Promise.resolve() as never;
+		return (async () => {
+			await this._sdk.mcpToggleGate;
+			if (this._sdk.mcpServerStatusResult) {
+				this._sdk.mcpServerStatusResult = this._sdk.mcpServerStatusResult.map(server =>
+					server.name === serverName ? { ...server, status: enabled ? 'connected' : 'disabled' } : server
+				);
+			}
+		})() as never;
 	}
 	setMcpServers(): never { throw new Error('FakeQuery: setMcpServers not modeled'); }
 	streamInput(): never { throw new Error('FakeQuery: streamInput not modeled'); }
@@ -7020,6 +7025,88 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			],
 			reconnectedServers: ['slack'],
 		});
+	});
+
+	test('reconciles newly-disabled MCP servers when customizations are republished', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const workspace = URI.file('/work');
+		await fileService.createFolder(workspace);
+		await fileService.writeFile(
+			URI.joinPath(workspace, '.mcp.json'),
+			VSBuffer.fromString(JSON.stringify({ slack: { type: 'http', url: 'https://mcp.slack.com/mcp' } })),
+		);
+		const created = await agent.createSession({ workingDirectories: [workspace] });
+		const initial = await agent.getSessionCustomizations(created.session);
+		const slack = initial.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack');
+		assert.ok(slack);
+		publishReducerCustomizations(stateManager, created.session, initial);
+		const sessionId = AgentSession.id(created.session);
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [{ name: 'slack', status: 'connected' }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'start', undefined, undefined, 'turn-1');
+
+		const query = sdk.warmQueries.map(warm => warm.produced).find((query): query is FakeQuery => query !== undefined)!;
+		const mcpServerStatusCallCount = query.mcpServerStatusCallCount;
+		publishReducerCustomizations(stateManager, created.session, initial);
+		await timeout(0);
+		assert.strictEqual(query.mcpServerStatusCallCount, mcpServerStatusCallCount);
+
+		const disabledEnablement: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Session, enabled: false }];
+		publishReducerCustomizations(stateManager, created.session, initial.map(customization =>
+			customization.id === slack.id
+				? { ...customization, enablement: disabledEnablement }
+				: customization
+		));
+		await timeout(0);
+
+		const queries = sdk.warmQueries.map(warm => warm.produced).filter((query): query is FakeQuery => query !== undefined);
+		assert.deepStrictEqual(queries.flatMap(query => query.mcpToggleCalls), [{ serverName: 'slack', enabled: false }]);
+	});
+
+	test('serializes customization and send-triggered MCP reconciliation', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const workspace = URI.file('/work');
+		await fileService.createFolder(workspace);
+		await fileService.writeFile(
+			URI.joinPath(workspace, '.mcp.json'),
+			VSBuffer.fromString(JSON.stringify({ slack: { type: 'http', url: 'https://mcp.slack.com/mcp' } })),
+		);
+		const created = await agent.createSession({ workingDirectories: [workspace] });
+		const initial = await agent.getSessionCustomizations(created.session);
+		const slack = initial.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack');
+		assert.ok(slack);
+		publishReducerCustomizations(stateManager, created.session, initial);
+		const sessionId = AgentSession.id(created.session);
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [{ name: 'slack', status: 'connected' }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'start', undefined, undefined, 'turn-1');
+
+		const gate = new DeferredPromise<void>();
+		sdk.mcpToggleGate = gate.p;
+		const disabledEnablement: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Session, enabled: false }];
+		const disabled = initial.map(customization =>
+			customization.id === slack.id
+				? { ...customization, enablement: disabledEnablement }
+				: customization
+		);
+		publishReducerCustomizations(stateManager, created.session, disabled);
+		await timeout(0);
+		let queries = sdk.warmQueries.map(warm => warm.produced).filter((query): query is FakeQuery => query !== undefined);
+		assert.deepStrictEqual(queries.flatMap(query => query.mcpToggleCalls), [{ serverName: 'slack', enabled: false }]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		const send = agent.chats.sendMessage(defaultChatUri(created.session), 'continue', undefined, undefined, 'turn-2');
+		await timeout(0);
+		queries = sdk.warmQueries.map(warm => warm.produced).filter((query): query is FakeQuery => query !== undefined);
+		assert.deepStrictEqual(queries.flatMap(query => query.mcpToggleCalls), [{ serverName: 'slack', enabled: false }]);
+
+		gate.complete();
+		await send;
 	});
 
 	test('createSession re-seeds the eager activeClient on reconnect to an existing session', async () => {

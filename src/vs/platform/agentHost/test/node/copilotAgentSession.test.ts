@@ -608,6 +608,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	setRootValue: (key: string, value: unknown) => void;
 	fireRootConfigChange: () => void;
 	fireSessionConfigChange: (config: Record<string, unknown>, session?: string) => void;
+	dispatchSessionAction: (action: StateAction) => void;
 }> {
 	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
 	const signals: AgentSignal[] = [];
@@ -839,6 +840,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		setRootValue: (key, value) => { rootValues[key] = value; },
 		fireRootConfigChange: () => rootConfigEmitter.fire(),
 		fireSessionConfigChange: (config, session = sessionUri.toString()) => sessionConfigEmitter.fire({ session, config }),
+		dispatchSessionAction: action => stateManager.dispatchServerAction(sessionUri.toString(), action),
 	};
 }
 
@@ -8518,6 +8520,44 @@ suite('CopilotAgentSession', () => {
 			});
 
 			await session.send('keep MCP server disabled');
+
+			assert.deepStrictEqual(mockSession.mcpDisableCalls, [{ serverName }]);
+		});
+
+		test('reconciles a workspace-disabled plugin child when customizations are republished', async () => {
+			const serverName = 'azure';
+			const serverId = 'plugin-1/mcp/azure';
+			let pluginEnabled = true;
+			const customizations = (): readonly Customization[] => [{
+				type: CustomizationType.Plugin,
+				id: 'plugin-1',
+				uri: 'file:///plugin',
+				name: 'Azure Plugin',
+				...(!pluginEnabled ? {
+					enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }],
+				} : {}),
+				children: [{
+					type: CustomizationType.McpServer,
+					id: serverId,
+					uri: 'file:///plugin/package.json',
+					name: serverName,
+					state: { kind: McpServerStatus.Starting },
+				}],
+			}];
+			const { mockSession, dispatchSessionAction } = await createAgentSession(disposables, {
+				sessionCustomizations: customizations,
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+				},
+				resolveMcpChildId: name => name === serverName ? serverId : undefined,
+			});
+
+			pluginEnabled = false;
+			dispatchSessionAction({
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [...customizations()],
+			});
+			await timeout(0);
 
 			assert.deepStrictEqual(mockSession.mcpDisableCalls, [{ serverName }]);
 		});

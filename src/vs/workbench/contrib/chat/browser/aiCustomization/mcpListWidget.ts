@@ -49,6 +49,7 @@ import { CustomizationEnablementKind, McpServerStatus } from '../../../../../pla
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
 
 const $ = DOM.$;
 
@@ -617,7 +618,15 @@ const agentHostMcpServerEnablementActionInfo = {
 }>;
 
 /** Creates enablement actions for an agent-host server. */
-export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer, scopes: readonly AgentHostMcpServerEnablementScope[] = ['global', 'workspace', 'session']): IAction[] {
+export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService, sessionResource: URI, server: AgentHostMcpServer, scopes: readonly AgentHostMcpServerEnablementScope[] = ['global', 'workspace', 'session']): IAction[] {
+	if (server.disabledReason?.source === 'plugin') {
+		const decision = server.disabledReason.plugin.enablement?.[0];
+		if (!decision) {
+			return [];
+		}
+		const action = createAgentHostEnablePluginAction(agentHostCustomizations, agentPluginService, sessionResource, server.disabledReason.plugin, decision.kind);
+		return [new Action(action.id, action.label, undefined, true, action.run)];
+	}
 	const enablement = getCustomizationScopeEnablement(server);
 	const actions: IAction[] = [];
 	if (scopes.includes('global')) {
@@ -671,18 +680,18 @@ export function getLocalMcpServerEnablementActions(mcpService: IMcpService, serv
 }
 
 /** Creates enablement actions for a built-in row, using the active agent-host session for scoped actions. */
-export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, serverId: string, isEmptyWorkbench: boolean, agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, activeSessionServer: AgentHostMcpServer | undefined): IAction[] {
+export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, serverId: string, isEmptyWorkbench: boolean, agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService, sessionResource: URI, activeSessionServer: AgentHostMcpServer | undefined): IAction[] {
 	if (activeSessionServer === undefined) {
 		return getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench);
 	}
 	return [
 		...getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench, { includeWorkspace: false }),
-		...getAgentHostMcpServerEnablementActions(agentHostCustomizations, sessionResource, activeSessionServer, ['workspace', 'session']),
+		...getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer, ['workspace', 'session']),
 	];
 }
 
 /** Composes lifecycle, scoped enablement, and options actions for an agent-host-only row. */
-export function getActiveSessionServerOptionsActions(commandService: ICommandService, agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI, server: AgentHostMcpServer): IAction[] {
+export function getActiveSessionServerOptionsActions(commandService: ICommandService, agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService, sessionResource: URI, server: AgentHostMcpServer): IAction[] {
 	const actions: IAction[] = [];
 
 	const lifecycleAction = getActiveSessionServerLifecycleAction(server);
@@ -690,7 +699,7 @@ export function getActiveSessionServerOptionsActions(commandService: ICommandSer
 		actions.push(lifecycleAction);
 	}
 
-	const durableActions = getAgentHostMcpServerEnablementActions(agentHostCustomizations, sessionResource, server);
+	const durableActions = getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, server);
 	if (durableActions.length > 0) {
 		if (actions.length > 0) {
 			actions.push(new Separator());
@@ -1546,7 +1555,7 @@ export class McpListWidget extends Disposable {
 
 		if (e.element.type === 'session-server-item') {
 			const disposables = new DisposableStore();
-			const activeSessionActions = getActiveSessionServerOptionsActions(this.commandService, this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get(), e.element.server);
+			const activeSessionActions = getActiveSessionServerOptionsActions(this.commandService, this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), e.element.server);
 			activeSessionActions.forEach(action => isDisposable(action) && disposables.add(action));
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
@@ -1576,6 +1585,7 @@ export class McpListWidget extends Disposable {
 					e.element.localServer.definition.id,
 					isEmptyWorkbench,
 					this.agentHostCustomizationService,
+					this.agentPluginService,
 					this.customizationHarnessService.activeSessionResource.get(),
 					e.element.activeSessionServer,
 				);
@@ -1656,7 +1666,7 @@ export class McpListWidget extends Disposable {
 		const activeSessionServer = serverEntry.activeSessionServer;
 		const activeSessionLifecycleAction = activeSessionServer !== undefined ? getActiveSessionServerLifecycleAction(activeSessionServer) : undefined;
 		const agentHostEnablementActions = activeSessionServer !== undefined
-			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, ['workspace', 'session'])
+			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, ['workspace', 'session'])
 			: [];
 		for (const menuActions of groups) {
 			for (const menuAction of menuActions) {

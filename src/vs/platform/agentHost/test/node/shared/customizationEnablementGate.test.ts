@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isCustomizationEnabled, sortCustomizationEnablement } from '../../../common/customizationEnablement.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget, type WorkingDirectoryState } from '../../../node/agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
 
@@ -73,7 +73,7 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 	}
 }
 
-function plugin(children?: McpServerCustomization[]): PluginCustomization {
+function plugin(children?: ChildCustomization[]): PluginCustomization {
 	return {
 		type: CustomizationType.Plugin,
 		id: 'plugin-id',
@@ -93,12 +93,30 @@ function server(): McpServerCustomization {
 	};
 }
 
+function agent(): AgentCustomization {
+	return {
+		type: CustomizationType.Agent,
+		id: 'agent-id',
+		uri: 'file:///plugins/example/agents/example.agent.md',
+		name: 'agent',
+	};
+}
+
 function sdkChildNames(customizations: readonly Customization[]): string[] {
 	return customizations.flatMap(customization => {
 		if (customization.type !== CustomizationType.Plugin || !isCustomizationEnabled(customization)) {
 			return [];
 		}
 		return customization.children?.flatMap(child => child.type === CustomizationType.McpServer && isCustomizationEnabled(child) ? [child.name] : []) ?? [];
+	});
+}
+
+function sdkAgentNames(customizations: readonly Customization[]): string[] {
+	return customizations.flatMap(customization => {
+		if (customization.type !== CustomizationType.Plugin || !isCustomizationEnabled(customization)) {
+			return [];
+		}
+		return customization.children?.flatMap(child => child.type === CustomizationType.Agent ? [child.name] : []) ?? [];
 	});
 }
 
@@ -184,6 +202,25 @@ suite('CustomizationEnablementGate', () => {
 		}]);
 	});
 
+	test('retains a plugin child global decision when its client republish has no opinion', () => {
+		const service = new TestEnablementService();
+		service.setEnablementFor('server-id', [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+		const parsedPlugin = plugin([server()]);
+		const clientChildEnablement = new Map<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>([[parsedPlugin.uri, {
+			server: [],
+		}]]);
+
+		const resolved = resolveCustomizationEnablement(
+			service,
+			URI.parse('ahp://copilot/session-1'),
+			[parsedPlugin],
+			clientChildEnablement,
+			new Map([[parsedPlugin.uri, { ...parsedPlugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }]]),
+		);
+
+		assert.deepStrictEqual(firstChildEnablement(resolved.customizations), [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+	});
+
 	test('masks a child when its plugin is disabled without erasing the child decision', () => {
 		const service = new TestEnablementService();
 		service.setEnablementFor('plugin-id', [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
@@ -202,6 +239,24 @@ suite('CustomizationEnablementGate', () => {
 			disabledSdkChildren: [],
 			reenabledSdkChildren: ['server'],
 			childEnablementAfterReenable: [{ kind: CustomizationEnablementKind.Session, enabled: true }],
+		});
+	});
+
+	test('keeps disabled plugin agents out of the SDK handoff', () => {
+		const service = new TestEnablementService();
+		service.setEnablementFor('plugin-id', [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+		const parsedPlugin = plugin([agent()]);
+
+		const disabled = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-1'), [parsedPlugin]);
+		service.setEnablementFor('plugin-id', []);
+		const reenabled = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-1'), [parsedPlugin]);
+
+		assert.deepStrictEqual({
+			disabledSdkAgents: sdkAgentNames(disabled.customizations),
+			reenabledSdkAgents: sdkAgentNames(reenabled.customizations),
+		}, {
+			disabledSdkAgents: [],
+			reenabledSdkAgents: ['agent'],
 		});
 	});
 });

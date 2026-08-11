@@ -15,6 +15,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostCopilotMultiRootEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { getEffectiveClientAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
@@ -249,7 +250,10 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	}
 
 	getCustomAgents(sessionType: string): IObservable<readonly AgentCustomization[]> {
-		return derived(reader => this._customAgentsByType.read(reader).get(sessionType)?.read(reader) ?? EMPTY_CUSTOM_AGENTS);
+		return derived(reader => getEffectiveClientAgents(
+			this._customizationsByType.read(reader).get(sessionType)?.read(reader),
+			this._customAgentsByType.read(reader).get(sessionType)?.read(reader) ?? EMPTY_CUSTOM_AGENTS,
+		));
 	}
 
 	getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {

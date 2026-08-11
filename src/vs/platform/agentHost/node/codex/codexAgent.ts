@@ -3242,6 +3242,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// them for this thread only): the workbench's root `mcpServers` config
 		// merged with this session's enabled client-plugin servers. Passing them
 		// per-thread means a new session always reflects the current root config.
+		// Mid-session MCP enablement changes apply only when Codex starts or resumes a thread.
 		const mcpServers = this._buildSessionMcpServers(session);
 		const customizationLaunch = await this._buildCustomizationLaunch(session);
 		const threadConfig: Record<string, JsonValue> = {

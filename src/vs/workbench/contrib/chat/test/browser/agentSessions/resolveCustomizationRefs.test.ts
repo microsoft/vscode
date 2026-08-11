@@ -390,13 +390,13 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(false)]);
 	});
 
-	test('publishes disabled plugins with prompt-file contributions', async () => {
-		const pluginUri = URI.file('/plugins/prompt-disabled');
-		const promptFile = URI.file('/plugins/prompt-disabled/skills/foo/SKILL.md');
+	test('publishes disabled plugins with agent contributions', async () => {
+		const pluginUri = URI.file('/plugins/agent-disabled');
+		const promptFile = URI.file('/plugins/agent-disabled/agents/foo.agent.md');
 		const refs = await resolveCustomizationRefs(
 			makeFileService(),
 			makePromptsService(new Map([
-				[`${PromptsType.skill}/${PromptsStorage.plugin}`, [makePromptPath(promptFile, PromptsType.skill, PromptsStorage.plugin)]],
+				[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(promptFile, PromptsType.agent, PromptsStorage.plugin)]],
 			])),
 			new FakeSyncProvider(),
 			makeAgentPluginService([makePlugin(pluginUri, { enabled: false })], new Map([[pluginUri.toString(), false]])),
@@ -809,7 +809,7 @@ suite('resolveLocalCustomAgents', () => {
 		assert.deepStrictEqual(agents.map(agent => agent.name), ['agent-0']);
 	});
 
-	test('continues to omit plugin agents disabled in the profile', async () => {
+	test('publishes plugin agents disabled in the profile for container-gated selection', async () => {
 		const pluginUri = URI.file('/plugins/profile-disabled');
 		const agentUri = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
 		const plugin = makePlugin(pluginUri, { agents: 1, enablement: ContributionEnablementState.EnabledWorkspace });
@@ -824,7 +824,7 @@ suite('resolveLocalCustomAgents', () => {
 			SessionType.CopilotCLI,
 		);
 
-		assert.deepStrictEqual(agents, []);
+		assert.deepStrictEqual(agents.map(agent => agent.uri), [agentUri.toString()]);
 	});
 
 	test('includes loose workspace agents in the pre-session picker', async () => {

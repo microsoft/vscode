@@ -169,4 +169,62 @@ suite('AbstractAgentHostCustomizationService', () => {
 			disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session },
 		});
 	});
+
+	test('keeps plugin MCP servers visible and gives the disabled plugin precedence over child decisions', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const pluginEnablement: CustomizationEnablement[] = [
+			{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false },
+			{ kind: CustomizationEnablementKind.Global, enabled: true },
+		];
+		const childEnablement: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Session, enabled: false }];
+		const server = { ...mcpServer('server-1', 'Server One'), enablement: childEnablement };
+		const plugin = {
+			type: CustomizationType.Plugin,
+			id: 'plugin-1',
+			uri: 'file:///plugin-1',
+			name: 'Plugin One',
+			enablement: pluginEnablement,
+			children: [server],
+		} as unknown as Customization;
+		const target = new FakeTarget([plugin], 'file:///workspace');
+		sut.setTarget(session, target);
+
+		const [disabledServer] = sut.getMcpServers(session);
+		assert.deepStrictEqual({
+			enabled: disabledServer.enabled,
+			disabledReason: disabledServer.disabledReason,
+		}, {
+			enabled: false,
+			disabledReason: {
+				source: 'plugin',
+				plugin: {
+					id: 'plugin-1',
+					name: 'Plugin One',
+					uri: 'file:///plugin-1',
+					enablement: pluginEnablement,
+				},
+			},
+		});
+
+		sut.setCustomizationEnablement(session, 'plugin-1', pluginEnablement, CustomizationEnablementKind.Workspace, true);
+		assert.deepStrictEqual(target.enablementChanges, [{
+			rawId: 'plugin-1',
+			enablement: [
+				{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: true },
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+			],
+		}]);
+
+		const enabledPlugin = { ...plugin, enablement: target.enablementChanges[0].enablement } as unknown as Customization;
+		sut.setTarget(session, new FakeTarget([enabledPlugin], 'file:///workspace'));
+		const [restoredServer] = sut.getMcpServers(session);
+		assert.deepStrictEqual({
+			enabled: restoredServer.enabled,
+			disabledReason: restoredServer.disabledReason,
+		}, {
+			enabled: false,
+			disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session },
+		});
+	});
 });

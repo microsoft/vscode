@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { URI } from '../../../base/common/uri.js';
+import { isEqualOrParent } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
 import { isCustomizationEnabled } from './customizationEnablement.js';
-import { CustomizationType, type AgentCustomization, type Customization } from './state/protocol/state.js';
+import { CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization } from './state/protocol/state.js';
 
 /**
  * Computes the effective set of selectable custom agents for a session.
@@ -47,6 +48,25 @@ export function getEffectiveAgents(
 	const result = [...seen.values()];
 	result.sort((a, b) => a.name.localeCompare(b.name) || a.uri.toString().localeCompare(b.uri.toString()));
 	return result;
+}
+
+/**
+ * Filters draft agents by their published plugin container enablement.
+ * Unmatched agents remain selectable because they may be loose agents or precede
+ * their plugin ref during a client update.
+ */
+export function getEffectiveClientAgents(
+	clientCustomizations: readonly ClientPluginCustomization[] | undefined,
+	clientAgents: readonly AgentCustomization[],
+): readonly AgentCustomization[] {
+	if (!clientCustomizations || clientCustomizations.length === 0) {
+		return clientAgents;
+	}
+	return clientAgents.filter(agent => {
+		const agentUri = URI.parse(agent.uri);
+		const plugin = clientCustomizations.find(candidate => isEqualOrParent(agentUri, URI.parse(candidate.uri)));
+		return !plugin || isCustomizationEnabled(plugin);
+	});
 }
 
 /**
