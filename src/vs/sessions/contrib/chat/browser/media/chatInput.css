@@ -17,7 +17,7 @@
 	margin-bottom: 0;
 }
 
-.new-chat-input-container > .chat-getting-started-tip-container.showing-chat-tip ~ .new-chat-input-area-wrapper .new-chat-input-area {
+.new-chat-input-container:not(.showing-prompt-options) > .chat-getting-started-tip-container.showing-chat-tip ~ .new-chat-input-area-wrapper .new-chat-input-area {
 	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 }
 

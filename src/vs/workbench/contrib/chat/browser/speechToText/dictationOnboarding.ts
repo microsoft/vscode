@@ -633,6 +633,23 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 		this.card.announce();
 	}
 
+	/**
+	 * Stops the waveform and releases the microphone while the card is put away
+	 * for a notification, so an invisible introduction never holds the microphone
+	 * open or keeps painting.
+	 */
+	setVisible(visible: boolean): void {
+		if (visible) {
+			this.waveform.start();
+			if (this.preview) {
+				void this.startPreview();
+			}
+		} else {
+			this.waveform.stop();
+			this.preview?.releaseMicrophone();
+		}
+	}
+
 	hasFocus(): boolean {
 		return this.card.hasFocus();
 	}

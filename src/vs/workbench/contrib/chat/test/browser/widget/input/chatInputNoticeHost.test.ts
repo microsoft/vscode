@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../browser/widget/input/chatInputNoticeHost.js';
 
@@ -13,36 +12,186 @@ suite('ChatInputNoticeHost', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('suppresses lower-precedence notices until every higher claim is released', () => {
+	/** Records every leadership announcement as `name:leading`. */
+	function recorder(host: ChatInputNoticeHost) {
+		const events: string[] = [];
+		const claim = (name: string, lane: ChatInputNoticeLane) => host.occupy(lane, {
+			onDidChangeLeading: leading => events.push(`${name}:${leading}`),
+		});
+		return { events, claim };
+	}
+
+	test('leads the lowest lane, and the newest claim within it', () => {
 		const host = disposables.add(new ChatInputNoticeHost(() => { }));
-		const tipSuppressed: boolean[] = [];
-		const record = () => tipSuppressed.push(host.isSuppressed(ChatInputNoticeLane.Tip, undefined));
+		const store = disposables.add(new DisposableStore());
+		const { events, claim } = recorder(host);
 
-		record();
-		const notification = host.occupy(ChatInputNoticeLane.Notification);
-		record();
-		// Counted claims: two producers may share the onboarding lane.
-		const voice = host.occupy(ChatInputNoticeLane.Onboarding);
-		const dictation = host.occupy(ChatInputNoticeLane.Onboarding);
+		// Recency within a lane and precedence between lanes are one mechanism, so
+		// a peer introduction and a notification both put the first card away.
+		store.add(claim('voice', ChatInputNoticeLane.Onboarding));
+		const dictation = claim('dictation', ChatInputNoticeLane.Onboarding);
+		const notification = claim('notification', ChatInputNoticeLane.Notification);
 		notification.dispose();
-		voice.dispose();
-		record();
 		dictation.dispose();
-		record();
 
-		assert.deepStrictEqual(tipSuppressed, [false, true, true, false]);
+		assert.deepStrictEqual(events, [
+			'voice:true',
+			'voice:false', 'dictation:true',
+			'dictation:false', 'notification:true',
+			'notification:false', 'dictation:true',
+			'dictation:false', 'voice:true',
+		]);
 	});
 
-	test('does not suppress a notice by an equal or lower-precedence claim', () => {
+	test('does not put a notice away for an equal or lower-precedence claim', () => {
 		const host = disposables.add(new ChatInputNoticeHost(() => { }));
-		disposables.add(new DisposableStore()).add(host.occupy(ChatInputNoticeLane.Tip));
+		const store = disposables.add(new DisposableStore());
+		const { events, claim } = recorder(host);
+
+		store.add(claim('notification', ChatInputNoticeLane.Notification));
+		store.add(claim('tip', ChatInputNoticeLane.Tip));
+
+		assert.deepStrictEqual(events, ['notification:true']);
+	});
+
+	test('keeps a lane claimed while the notice in it is swapped', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const { events, claim } = recorder(host);
+		store.add(claim('tip', ChatInputNoticeLane.Tip));
+
+		// Voice hands the onboarding lane over to dictation. The tip must not get
+		// a window to lead in between the two claims.
+		const target = { hasFocus: () => false, focus: () => { } };
+		host.setOccupied(ChatInputNoticeLane.Onboarding, true, target);
+		host.setOccupied(ChatInputNoticeLane.Onboarding, true, target);
+		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
+
+		assert.deepStrictEqual(events, ['tip:true', 'tip:false', 'tip:true']);
+	});
+
+	test('keeps a re-claim made while a lane is being released releasable', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const events: string[] = [];
+		let reclaimed = false;
+
+		store.add(host.occupy(ChatInputNoticeLane.Tip, {
+			onDidChangeLeading: leading => {
+				events.push(`tip:${leading}`);
+				// Re-claims the lane the moment it frees. That lease must still be
+				// tracked, or the lane could never be released again - and the final
+				// `tip:true` below would never arrive.
+				if (leading && !reclaimed) {
+					reclaimed = true;
+					host.setOccupied(ChatInputNoticeLane.Onboarding, true);
+				}
+			},
+		}));
+		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
+
+		assert.deepStrictEqual(events, ['tip:true', 'tip:false', 'tip:true']);
+	});
+
+	test('does not announce a leader that a re-entrant claim already replaced', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const events: string[] = [];
+		let notification: IDisposable | undefined;
+
+		// Standing down is a real side effect (it moves focus), so a callback can
+		// change who owns the space while the host is still announcing.
+		store.add(host.occupy(ChatInputNoticeLane.Onboarding, {
+			onDidChangeLeading: leading => {
+				events.push(`voice:${leading}`);
+				if (!leading && !notification) {
+					notification = store.add(host.occupy(ChatInputNoticeLane.Notification, {
+						onDidChangeLeading: it => events.push(`notification:${it}`),
+					}));
+				}
+			},
+		}));
+		store.add(host.occupy(ChatInputNoticeLane.Onboarding, {
+			onDidChangeLeading: leading => events.push(`dictation:${leading}`),
+		}));
+
+		// Dictation must never be told it leads: by the time voice had stood down,
+		// a notification owned the space.
+		assert.deepStrictEqual(events, ['voice:true', 'voice:false', 'notification:true']);
+	});
+
+	test('releases a lane only once when its claim is disposed repeatedly', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const { events, claim } = recorder(host);
+
+		store.add(claim('first', ChatInputNoticeLane.Notification));
+		const duplicate = claim('duplicate', ChatInputNoticeLane.Notification);
+		duplicate.dispose();
+		duplicate.dispose();
+
+		assert.deepStrictEqual(events, ['first:true', 'first:false', 'duplicate:true', 'duplicate:false', 'first:true']);
+	});
+
+	test('does not strand a lane when a re-entrant release beats the new lease', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const events: string[] = [];
+		let released = false;
+
+		// The onboarding card reacts to being put away by taking the notification
+		// down. That release happens before the notification's lease is stored, so
+		// storing it afterwards would leave lane 0 held by a notification the widget
+		// already considers hidden - and the card below it never comes back.
+		store.add(host.occupy(ChatInputNoticeLane.Onboarding, {
+			onDidChangeLeading: leading => {
+				events.push(`onboarding:${leading}`);
+				if (!leading && !released) {
+					released = true;
+					host.setOccupied(ChatInputNoticeLane.Notification, false);
+				}
+			},
+		}));
+		host.setOccupied(ChatInputNoticeLane.Notification, true, { hasFocus: () => false, focus: () => { } });
 
 		assert.deepStrictEqual(
-			{
-				tip: host.isSuppressed(ChatInputNoticeLane.Tip, undefined),
-				notification: host.isSuppressed(ChatInputNoticeLane.Notification, undefined),
-			},
-			{ tip: false, notification: false });
+			{ released, events },
+			{ released: true, events: ['onboarding:true', 'onboarding:false', 'onboarding:true'] });
+	});
+
+	test('hands focus back to the input when the notice holding it stands down', () => {
+		let inputFocusCount = 0;
+		const host = disposables.add(new ChatInputNoticeHost(() => inputFocusCount++));
+		const store = disposables.add(new DisposableStore());
+
+		// Standing down is not the producer's decision, so the host - not every
+		// producer that can be displaced - keeps focus out of <body>.
+		store.add(host.occupy(ChatInputNoticeLane.Tip, {
+			focusTarget: { hasFocus: () => true, focus: () => { } },
+		}));
+		const notification = host.occupy(ChatInputNoticeLane.Notification);
+		const afterStandDown = inputFocusCount;
+		// Coming back is not a stand-down: the notice is announced, not focused.
+		notification.dispose();
+
+		assert.deepStrictEqual(
+			{ afterStandDown, afterReturning: inputFocusCount },
+			{ afterStandDown: 1, afterReturning: 1 });
+	});
+
+	test('does not move focus when the notice standing down never had it', () => {
+		let inputFocusCount = 0;
+		const host = disposables.add(new ChatInputNoticeHost(() => inputFocusCount++));
+		const store = disposables.add(new DisposableStore());
+
+		// The common case: content is displaced while the user is typing in the
+		// input. Focus must be left exactly where it is.
+		store.add(host.occupy(ChatInputNoticeLane.Tip, {
+			focusTarget: { hasFocus: () => false, focus: () => { } },
+		}));
+		store.add(host.occupy(ChatInputNoticeLane.Notification));
+
+		assert.strictEqual(inputFocusCount, 0);
 	});
 
 	test('toggles focus between the leading notice and the input', () => {
@@ -82,107 +231,37 @@ suite('ChatInputNoticeHost', () => {
 		assert.deepStrictEqual(focused, ['notification', 'tip']);
 	});
 
-	test('keeps a lane claimed while the notice in it is swapped', () => {
+	test('reports no focusable notice while the leading claim has nothing to focus yet', () => {
 		const host = disposables.add(new ChatInputNoticeHost(() => { }));
 		const store = disposables.add(new DisposableStore());
-		const tipSuppressed: boolean[] = [];
-		store.add(autorun(reader => tipSuppressed.push(host.isSuppressed(ChatInputNoticeLane.Tip, reader))));
+		let built = false;
 
-		// Voice hands the onboarding lane over to dictation. The tip must not get
-		// a window to flash into between the two claims.
-		host.setOccupied(ChatInputNoticeLane.Onboarding, true, { hasFocus: () => false, focus: () => { } });
-		host.setOccupied(ChatInputNoticeLane.Onboarding, true, { hasFocus: () => false, focus: () => { } });
-		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
-
-		assert.deepStrictEqual(tipSuppressed, [false, true, false]);
-	});
-
-	test('keeps a re-claim made while a lane is being released releasable', () => {
-		const host = disposables.add(new ChatInputNoticeHost(() => { }));
-		const store = disposables.add(new DisposableStore());
-
-		host.setOccupied(ChatInputNoticeLane.Onboarding, true);
-		// A reaction that claims the lane the moment it frees. Its lease must still
-		// be tracked, or the lane could never be released again.
-		let reclaimed = false;
-		store.add(autorun(reader => {
-			if (!host.isSuppressed(ChatInputNoticeLane.Tip, reader) && !reclaimed) {
-				reclaimed = true;
-				host.setOccupied(ChatInputNoticeLane.Onboarding, true);
-			}
+		// A claim is held from the moment content is wanted, but the card behind it
+		// is only built once it leads. Focus must not be reported as handled - and
+		// the "no notice" announcement suppressed - during that window.
+		store.add(host.occupy(ChatInputNoticeLane.Onboarding, {
+			focusTarget: { hasFocus: () => false, focus: () => { }, canFocus: () => built },
 		}));
+		const whileUnbuilt = host.toggleFocus();
+		built = true;
+		const onceBuilt = host.toggleFocus();
 
-		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
-		const claimedAfterReentrantRelease = host.isSuppressed(ChatInputNoticeLane.Tip, undefined);
-		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
-
-		assert.deepStrictEqual(
-			{ reclaimed, claimedAfterReentrantRelease, released: !host.isSuppressed(ChatInputNoticeLane.Tip, undefined) },
-			{ reclaimed: true, claimedAfterReentrantRelease: true, released: true });
+		assert.deepStrictEqual({ whileUnbuilt, onceBuilt }, { whileUnbuilt: false, onceBuilt: true });
 	});
 
-	test('leads the newest claim in a lane and returns to the previous one after it', () => {
-		const host = disposables.add(new ChatInputNoticeHost(() => { }));
-		const store = disposables.add(new DisposableStore());
-		const leading: string[] = [];
-		const claim = (name: string) => host.occupy(ChatInputNoticeLane.Onboarding, {
-			onDidChangeLeading: isLeading => leading.push(`${name}:${isLeading}`),
-		});
+	test('disposal stands the leader down and refuses further claims', () => {
+		const host = new ChatInputNoticeHost(() => { });
+		const { events, claim } = recorder(host);
+		const notification = claim('notification', ChatInputNoticeLane.Notification);
 
-		// Recency within a lane and precedence between lanes are one mechanism, so
-		// a peer introduction and a notification both put the first card away.
-		const voice = store.add(claim('voice'));
-		const dictation = claim('dictation');
-		const notification = host.occupy(ChatInputNoticeLane.Notification);
+		// Releasing a lane during teardown must not promote a pending claim: the
+		// content behind it would be rebuilt - and marked as seen - on a dying input.
+		const pending = claim('pending', ChatInputNoticeLane.Onboarding);
+		host.dispose();
 		notification.dispose();
-		dictation.dispose();
-		void voice;
+		claim('afterDispose', ChatInputNoticeLane.Tip).dispose();
+		pending.dispose();
 
-		assert.deepStrictEqual(leading, [
-			'voice:true',
-			'voice:false', 'dictation:true',
-			'dictation:false',
-			'dictation:true',
-			'dictation:false', 'voice:true',
-		]);
-	});
-
-	test('does not announce a leader that a re-entrant claim already replaced', () => {
-		const host = disposables.add(new ChatInputNoticeHost(() => { }));
-		const store = disposables.add(new DisposableStore());
-		const events: string[] = [];
-		let notification: IDisposable | undefined;
-
-		// Standing down is a real side effect (it moves focus), so a callback can
-		// change who owns the space while the host is still announcing.
-		store.add(host.occupy(ChatInputNoticeLane.Onboarding, {
-			onDidChangeLeading: leading => {
-				events.push(`voice:${leading}`);
-				if (!leading && !notification) {
-					notification = store.add(host.occupy(ChatInputNoticeLane.Notification, {
-						onDidChangeLeading: it => events.push(`notification:${it}`),
-					}));
-				}
-			},
-		}));
-		store.add(host.occupy(ChatInputNoticeLane.Onboarding, {
-			onDidChangeLeading: leading => events.push(`dictation:${leading}`),
-		}));
-
-		// Dictation must never be told it leads: by the time voice had stood down,
-		// a notification owned the space.
-		assert.deepStrictEqual(events, ['voice:true', 'voice:false', 'notification:true']);
-	});
-
-	test('releases a lane only once when its claim is disposed repeatedly', () => {
-		const host = disposables.add(new ChatInputNoticeHost(() => { }));
-		const store = disposables.add(new DisposableStore());
-
-		store.add(host.occupy(ChatInputNoticeLane.Notification));
-		const duplicate = host.occupy(ChatInputNoticeLane.Notification);
-		duplicate.dispose();
-		duplicate.dispose();
-
-		assert.strictEqual(host.isSuppressed(ChatInputNoticeLane.Tip, undefined), true);
+		assert.deepStrictEqual(events, ['notification:true', 'notification:false']);
 	});
 });

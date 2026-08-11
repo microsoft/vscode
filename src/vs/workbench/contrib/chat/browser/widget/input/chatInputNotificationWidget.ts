@@ -74,6 +74,11 @@ export interface IChatInputNotificationDelegate {
 	 * itself, so a host can route notice-focus commands into it while it shows.
 	 */
 	readonly onDidChangeVisibility?: (visible: boolean, focusTarget: IChatInputNoticeFocusTarget) => void;
+	/**
+	 * Hands focus back to the input. Called when a notification that had keyboard
+	 * focus goes away, so focus is not stranded on `<body>`.
+	 */
+	readonly focusInput?: () => void;
 }
 
 /**
@@ -113,6 +118,10 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	}
 
 	private _render(): void {
+		// Tearing the content down would strand keyboard focus on <body>, which also
+		// drops the context keys the chat keybindings depend on. Hand it back to the
+		// input instead, the same way an onboarding card does when it stands down.
+		const hadFocus = this.hasFocus();
 		this._contentDisposables.clear();
 		dom.clearNode(this.domNode);
 
@@ -124,12 +133,19 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		if (!notification) {
 			this.domNode.parentElement?.classList.remove('has-notification');
 			this._lastShownTelemetryData = undefined;
+			if (hadFocus) {
+				this._delegate?.focusInput?.();
+			}
 			return;
 		}
 
 		this.domNode.parentElement?.classList.add('has-notification');
 		this._renderNotification(notification);
 		this._logShownTelemetry(notification);
+		if (hadFocus) {
+			// The region is rebuilt on every render; keep focus inside it.
+			this.focus();
+		}
 	}
 
 	private _setVisible(visible: boolean): void {
@@ -148,6 +164,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			this.domNode.removeAttribute('tabindex');
 			this.domNode.removeAttribute('role');
 			this.domNode.removeAttribute('aria-roledescription');
+			this.domNode.removeAttribute('aria-label');
 		}
 		this._delegate?.onDidChangeVisibility?.(visible, this);
 	}
@@ -187,6 +204,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			titleElement.textContent = notification.message;
 		}
 		const ariaTitle = isMarkdownString(notification.message) ? notification.message.value : notification.message;
+		// Names the focusable region: `aria-roledescription` alone would have focus
+		// land on something announced only as "notification".
+		this.domNode.setAttribute('aria-label', ariaTitle);
 
 		if (notification.mute) {
 			const mute = notification.mute;

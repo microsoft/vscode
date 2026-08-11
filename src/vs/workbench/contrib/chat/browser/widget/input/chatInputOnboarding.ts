@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, isAncestorOfActiveElement, setVisibility, trackFocus } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
@@ -12,28 +12,15 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-
-/** A card keyboard focus can be moved into and back out of. */
-export interface IChatInputOnboardingFocusTarget {
-	hasFocus(): boolean;
-	focus(): void;
-}
+import { IChatInputNoticeClaimOptions, IChatInputNoticeFocusTarget, IChatInputSurface, pickActiveChatInput, trackChatInputRecency } from './chatInputNoticeHost.js';
 
 /**
  * The space above one chat input, as offered to an introduction. Claiming it is
- * the only way a card gets on screen: the slot decides who leads, so precedence
- * against notifications and recency against a peer introduction are one thing.
+ * the only way a card gets on screen: the notice host decides who leads, so
+ * precedence against notifications and recency against a peer introduction are
+ * one thing.
  */
-export interface IChatInputNoticeSlot {
-	/**
-	 * Hold the space until the returned disposable is disposed. `onDidChangeLeading`
-	 * reports whether this claim is the one currently on screen.
-	 */
-	claim(options: {
-		readonly focusTarget?: IChatInputOnboardingFocusTarget;
-		readonly onDidChangeLeading: (leading: boolean) => void;
-	}): IDisposable;
-}
+export type ChatInputNoticeClaim = (options: IChatInputNoticeClaimOptions) => IDisposable;
 
 export interface IChatInputOnboardingHostOptions {
 	/** The element the card is appended to. */
@@ -43,13 +30,13 @@ export interface IChatInputOnboardingHostOptions {
 	/** Hands focus back to this host's input when the card closes. */
 	readonly focus?: () => void;
 	/**
-	 * The space this host offers. Without one the card shows unconditionally,
+	 * Holds the space this host offers. Without one the card shows unconditionally,
 	 * which is what the tests and any host with nothing else above the input want.
 	 */
-	readonly noticeSlot?: IChatInputNoticeSlot;
+	readonly claimNotice?: ChatInputNoticeClaim;
 }
 
-interface IChatInputOnboardingHost extends IChatInputOnboardingHostOptions {
+interface IChatInputOnboardingHost extends IChatInputOnboardingHostOptions, IChatInputSurface {
 	lastFocused: number;
 }
 
@@ -65,8 +52,15 @@ export interface IChatInputOnboardingContext {
 	readonly dismiss: (restoreFocus?: boolean) => void;
 }
 
-export interface IChatInputOnboardingBanner extends IDisposable, IChatInputOnboardingFocusTarget {
+export interface IChatInputOnboardingBanner extends IDisposable, IChatInputNoticeFocusTarget {
 	announce(): void;
+	/**
+	 * Called when the card is put away for higher-precedence content, and again
+	 * when it comes back. The card is kept alive across this, so anything it runs
+	 * while on screen - microphone capture, audio, animation - must stop here
+	 * rather than keep going somewhere the user cannot see.
+	 */
+	setVisible?(visible: boolean): void;
 }
 
 export interface IChatInputOnboardingCardOptions {
@@ -89,13 +83,19 @@ export class ChatInputOnboarding extends Disposable {
 	private readonly hosts = new Set<IChatInputOnboardingHost>();
 	/** The built card, kept alive while standing down so its state survives. */
 	private readonly currentOnboarding = this._register(new MutableDisposable<IDisposable>());
-	/** The held space. Outlives the card: it is what brings a card back. */
-	private readonly claim = this._register(new MutableDisposable<IDisposable>());
+	/**
+	 * The held space. Outlives the card: it is what brings a card back. Held in a
+	 * plain field rather than a `MutableDisposable` so a claim can be detached and
+	 * released only once its replacement is in hand.
+	 */
+	private claim: IDisposable | undefined;
 	private activeHost: IChatInputOnboardingHost | undefined;
 	private activeBanner: IChatInputOnboardingBanner | undefined;
 	/** Builds the card once this claim leads. */
 	private wanted: ChatInputOnboardingFactory | undefined;
 	private leading = false;
+	/** Identifies the current request, so claims left on other inputs are ignored. */
+	private generation = 0;
 
 	/** Whether a card is built and on screen. */
 	get isVisible(): boolean {
@@ -107,6 +107,12 @@ export class ChatInputOnboarding extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		this._register(toDisposable(() => {
+			const claim = this.claim;
+			this.claim = undefined;
+			claim?.dispose();
+		}));
 	}
 
 	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
@@ -114,8 +120,7 @@ export class ChatInputOnboarding extends Disposable {
 		this.hosts.add(host);
 
 		const store = new DisposableStore();
-		const focusTracker = store.add(trackFocus(options.focusRoot));
-		store.add(focusTracker.onDidFocus(() => host.lastFocused = Date.now()));
+		store.add(trackChatInputRecency(host));
 		store.add(toDisposable(() => {
 			this.hosts.delete(host);
 			if (this.activeHost === host) {
@@ -151,40 +156,53 @@ export class ChatInputOnboarding extends Disposable {
 			return false;
 		}
 
-		this.hide(false);
+		// Detach the previous claim instead of releasing it: letting the lane fall
+		// free between two cards lets lower-precedence content flash into the gap
+		// and report itself shown. It is released once the new claim is in hand.
+		const previousClaim = this.claim;
+		this.claim = undefined;
+		this.hideCard(false);
+
+		const generation = ++this.generation;
 		this.activeHost = host;
 		this.wanted = createOnboarding;
 
-		const slot = host.noticeSlot;
-		if (!slot) {
+		if (!host.claimNotice) {
+			previousClaim?.dispose();
 			this.setLeading(true);
 			return true;
 		}
 
 		// A newer claim leads its lane, so this both takes the space from a peer
 		// introduction and yields to a notification, through one mechanism.
-		//
-		// The host reports leading synchronously from `claim()`, before the lease
-		// is in hand. That first answer is held until the lease is stored, so a
-		// card that fails to build can release the claim it is standing on rather
-		// than leaving the lane occupied with nothing on screen.
-		let holdsLease = false;
-		let leadsImmediately = false;
-		const lease = slot.claim({
-			focusTarget: { hasFocus: () => this.activeBanner?.hasFocus() ?? false, focus: () => this.activeBanner?.focus() },
+		const claim = host.claimNotice({
+			focusTarget: {
+				hasFocus: () => this.activeBanner?.hasFocus() ?? false,
+				focus: () => this.activeBanner?.focus(),
+				// The claim is held from here on, but the card is only built once it
+				// leads - so until then there is nothing for focus to land on.
+				canFocus: () => !!this.activeBanner,
+			},
+			// Scoped to this request: the card can move to another input, and the
+			// claim left behind on the old one still reports standing down when it
+			// is released. Acting on that would put the new card away.
 			onDidChangeLeading: leading => {
-				if (holdsLease) {
+				if (this.generation === generation) {
 					this.setLeading(leading);
-				} else {
-					leadsImmediately = leading;
 				}
 			},
 		});
-		this.claim.value = lease;
-		holdsLease = true;
-		if (leadsImmediately) {
-			this.setLeading(true);
+
+		// Leadership is announced synchronously from the call above, so the card may
+		// already have been built - or have dismissed itself - by now. Keep the claim
+		// only if this request is still the one meant to be on screen, so a card that
+		// failed to build releases the space rather than holding it with nothing in it.
+		if (this.wanted === createOnboarding) {
+			this.claim = claim;
+		} else {
+			claim.dispose();
 		}
+		previousClaim?.dispose();
 		return true;
 	}
 
@@ -208,13 +226,11 @@ export class ChatInputOnboarding extends Disposable {
 			return;
 		}
 
-		// Hiding the card would strand keyboard focus on <body>, so hand it back
-		// to the input first, the same way dismissing the card does.
-		const hadFocus = this.activeBanner?.hasFocus() ?? false;
+		// The card stays built, so tell it to stand its live parts down too.
+		this.activeBanner?.setVisible?.(false);
+		// Focus is handed back to the input by whatever took the space, so the card
+		// only has to take itself off screen.
 		setVisibility(false, host.container);
-		if (hadFocus) {
-			host.focus?.();
-		}
 	}
 
 	private build(): void {
@@ -228,6 +244,7 @@ export class ChatInputOnboarding extends Disposable {
 		// rebuilding, so in-flight state survives and it is not announced twice.
 		if (this.currentOnboarding.value) {
 			setVisibility(true, host.container);
+			this.activeBanner?.setVisible?.(true);
 			return;
 		}
 
@@ -269,15 +286,20 @@ export class ChatInputOnboarding extends Disposable {
 	}
 
 	private getActiveHost(): IChatInputOnboardingHost | undefined {
-		const visibleHosts = [...this.hosts].filter(host => host.container.isConnected && host.focusRoot.getClientRects().length > 0);
-		if (visibleHosts.length === 0) {
-			return undefined;
-		}
-
-		return visibleHosts.reduce((mostRecent, host) => host.lastFocused > mostRecent.lastFocused ? host : mostRecent);
+		// A card is docked to a live container, which is not always the element
+		// whose focus decides recency.
+		return pickActiveChatInput(this.hosts, host => host.container.isConnected);
 	}
 
 	private hide(restoreFocus: boolean): void {
+		const claim = this.claim;
+		this.claim = undefined;
+		this.hideCard(restoreFocus);
+		claim?.dispose();
+	}
+
+	/** Take the card down without giving up the space it stands on. */
+	private hideCard(restoreFocus: boolean): void {
 		const host = this.activeHost;
 		const wasVisible = this.isVisible;
 		this.activeHost = undefined;
@@ -285,7 +307,6 @@ export class ChatInputOnboarding extends Disposable {
 		this.wanted = undefined;
 		this.leading = false;
 		this.currentOnboarding.clear();
-		this.claim.clear();
 		if (host) {
 			setVisibility(true, host.container);
 		}

@@ -17,10 +17,13 @@ suite('ChatInputTipPresenter', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, tip: IChatTip | undefined): { presenter: ChatInputTipPresenter; container: HTMLElement } {
+	const TIP: IChatTip = { id: 'tip.test', content: { value: 'A tip' } } as IChatTip;
+
+	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, options?: { isEligible?: () => boolean }) {
+		let welcomeTipCalls = 0;
 		const instantiationService = workbenchInstantiationService(undefined, store) as TestInstantiationService;
 		instantiationService.stub(IChatTipService, {
-			getWelcomeTip: () => tip,
+			getWelcomeTip: () => { welcomeTipCalls++; return TIP; },
 			onDidDismissTip: () => toDisposable(() => { }),
 			onDidNavigateTip: () => toDisposable(() => { }),
 			onDidHideTip: () => toDisposable(() => { }),
@@ -34,31 +37,62 @@ suite('ChatInputTipPresenter', () => {
 
 		const presenter = instantiationService.createInstance(
 			ChatInputTipPresenter,
-			{ container, isEligible: () => true, focusInput: () => { } },
+			{ container, isEligible: options?.isEligible ?? (() => true), focusInput: () => { } },
 			noticeHost,
 		);
-		return { presenter, container };
+		return { presenter, container, showing: () => container.childElementCount > 0, welcomeTipCalls: () => welcomeTipCalls };
 	}
 
-	test('disposing while a tip is leading does not rebuild the tip', () => {
+	test('shows a tip, yields the space to a notification, and takes it back', () => {
 		const store = disposables.add(new DisposableStore());
 		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
-		const tip: IChatTip = { id: 'tip.test', content: { value: 'A tip' } } as IChatTip;
-		const { presenter, container } = createPresenter(store, noticeHost, tip);
+		const { presenter, showing } = createPresenter(store, noticeHost);
+		store.add(presenter);
 
-		const shownBeforeDispose = container.childElementCount > 0;
-		// Disposal releases the tip's claim, which re-runs the presenter's own
-		// autorun. That run must not build a replacement into disposed holders.
+		const shownInitially = showing();
+		// A notification owns the space outright; the tip must come off screen and
+		// then return on its own once the notification goes away.
+		noticeHost.setOccupied(ChatInputNoticeLane.Notification, true, { hasFocus: () => false, focus: () => { } });
+		const shownUnderNotification = showing();
+		noticeHost.setOccupied(ChatInputNoticeLane.Notification, false);
+
+		assert.deepStrictEqual(
+			{ shownInitially, shownUnderNotification, shownAfter: showing() },
+			{ shownInitially: true, shownUnderNotification: false, shownAfter: true });
+	});
+
+	test('evaluates the tip once per render', () => {
+		const store = disposables.add(new DisposableStore());
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		// `getWelcomeTip` persists rotation state and reports the tip as shown, so
+		// rendering must never ask for it twice for a single appearance.
+		const { presenter, welcomeTipCalls } = createPresenter(store, noticeHost);
+		store.add(presenter);
+
+		assert.strictEqual(welcomeTipCalls(), 1);
+	});
+
+	test('renders nothing and holds no space while the surface is ineligible', () => {
+		const store = disposables.add(new DisposableStore());
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		const { presenter, showing, welcomeTipCalls } = createPresenter(store, noticeHost, { isEligible: () => false });
+		store.add(presenter);
+
+		assert.deepStrictEqual(
+			{ showing: showing(), welcomeTipCalls: welcomeTipCalls(), focusable: noticeHost.hasFocusableNotice() },
+			{ showing: false, welcomeTipCalls: 0, focusable: false });
+	});
+
+	test('disposing takes the tip down and releases the space', () => {
+		const store = disposables.add(new DisposableStore());
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		const { presenter, container, showing } = createPresenter(store, noticeHost);
+
+		const shownBeforeDispose = showing();
 		presenter.dispose();
 
 		assert.deepStrictEqual(
-			{
-				shownBeforeDispose,
-				nodesAfterDispose: container.childElementCount,
-				// Reading from just below the tip lane is the only way to observe
-				// whether the tip's own claim was released.
-				tipLaneStillClaimed: noticeHost.isSuppressed(ChatInputNoticeLane.Tip + 1, undefined),
-			},
-			{ shownBeforeDispose: true, nodesAfterDispose: 0, tipLaneStillClaimed: false });
+			{ shownBeforeDispose, nodesAfterDispose: container.childElementCount, focusable: noticeHost.hasFocusableNotice() },
+			{ shownBeforeDispose: true, nodesAfterDispose: 0, focusable: false });
 	});
 });

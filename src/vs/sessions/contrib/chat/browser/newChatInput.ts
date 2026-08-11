@@ -77,7 +77,8 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
-import { ChatInputNoticeHost, ChatInputNoticeLane, registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
@@ -496,6 +497,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._register(this.chatInputNoticeHubService.registerHost(this.noticeHost, chatInputContainer));
 
+		// Scopes the notice focus command to this composer. Tracked on the whole
+		// container rather than the editor, so the command can also toggle focus
+		// back out of a notice once it is in one.
+		const composerFocusKey = ChatContextKeys.inChatComposer.bindTo(this._register(this.contextKeyService.createScoped(chatInputContainer)));
+		const composerFocusTracker = this._register(dom.trackFocus(chatInputContainer));
+		this._register(composerFocusTracker.onDidFocus(() => composerFocusKey.set(true)));
+		this._register(composerFocusTracker.onDidBlur(() => composerFocusKey.set(false)));
+
 		// Notification widget above the input area
 		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
 		// Declared up front: the visibility callback can fire while the widget is
@@ -507,6 +516,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				openModelPicker: () => this._newChatModelPickerService.openModelPicker(),
 				switchToModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
+				focusInput: () => this.focus(),
 			},
 		));
 		notificationContainer.appendChild(notificationWidget.domNode);

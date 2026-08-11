@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IReader } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatTipService } from '../../chatTipService.js';
@@ -40,8 +39,7 @@ export class ChatInputTipPresenter extends Disposable {
 	private readonly _part = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _lease = this._register(new MutableDisposable<IDisposable>());
 	private _partRef: ChatTipContentPart | undefined;
-	private _isDisposed = false;
-
+	private _leading = false;
 	/** The rendered tip, when one is showing. */
 	get current(): ChatTipContentPart | undefined {
 		return this._partRef;
@@ -56,30 +54,61 @@ export class ChatInputTipPresenter extends Disposable {
 	) {
 		super();
 
-		// Re-evaluates whenever occupancy changes, so the tip yields to a higher
-		// lane and returns once that content goes away.
-		this._register(autorun(reader => this.update(reader)));
+		// Takes the tip out of the container even if the notice host is already
+		// gone, so disposal never depends on a stand-down that will not arrive.
+		this._register(toDisposable(() => this._clearContent()));
+
+		this.update();
 	}
 
-	/** Re-evaluate whether a tip should be showing, and which one. */
-	update(reader?: IReader): void {
-		// Disposing releases the tip's claim, which synchronously re-runs the
-		// autorun below. Without this guard that run would build a replacement
-		// tip into already-disposed holders, silently leaking it.
-		if (this._isDisposed) {
-			return;
-		}
-
+	/**
+	 * Re-evaluate whether this surface wants a tip at all. Claiming the tip lane is
+	 * all this does: whether the tip is actually on screen is the notice host's
+	 * answer, delivered through `onDidChangeLeading`, so the tip yields to a higher
+	 * lane and comes back once that content goes away without polling for it.
+	 */
+	update(): void {
 		this._options.onBeforeUpdate?.();
 
-		if (this._noticeHost.isSuppressed(ChatInputNoticeLane.Tip, reader) || !this._options.isEligible()) {
+		if (!this._options.isEligible()) {
 			this.clear();
 			return;
 		}
 
+		if (!this._lease.value) {
+			this._lease.value = this._noticeHost.occupy(ChatInputNoticeLane.Tip, {
+				focusTarget: {
+					hasFocus: () => this._partRef?.hasFocus() ?? false,
+					focus: () => this._partRef?.focus(),
+					// The lane is claimed while this surface wants a tip, but there is
+					// only something to focus once one is actually rendered.
+					canFocus: () => !!this._partRef,
+				},
+				onDidChangeLeading: leading => this._setLeading(leading),
+			});
+		} else if (this._leading) {
+			// Already on screen: re-evaluate which tip should be showing.
+			this._render();
+		}
+	}
+
+	private _setLeading(leading: boolean): void {
+		this._leading = leading;
+		if (leading) {
+			this._render();
+		} else {
+			this._clearContent();
+		}
+	}
+
+	/**
+	 * Build the tip that should be showing. Never touches the claim, so rendering
+	 * cannot feed back into the arbitration that asked for it.
+	 */
+	private _render(): void {
 		const tip = this._chatTipService.getWelcomeTip(this._contextKeyService);
 		if (!tip) {
-			this.clear();
+			this._clearContent();
 			return;
 		}
 
@@ -92,42 +121,34 @@ export class ChatInputTipPresenter extends Disposable {
 		const store = new DisposableStore();
 		const renderer = this._instantiationService.createInstance(ChatContentMarkdownRenderer);
 		const tipPart = store.add(this._instantiationService.createInstance(ChatTipContentPart, tip, renderer));
-		this._partRef = tipPart;
 
 		store.add(tipPart.onDidHide(() => {
 			this.clear();
 			this._options.focusInput();
 		}));
 
-		// Set the guard before touching the DOM so re-entrant calls triggered by
+		// Set both before touching the DOM so re-entrant calls triggered by
 		// context-key changes during construction do not append a second tip.
 		this._part.value = store;
-		this._lease.value = this._noticeHost.occupy(ChatInputNoticeLane.Tip, {
-			focusTarget: {
-				hasFocus: () => tipPart.hasFocus(),
-				focus: () => tipPart.focus(),
-			},
-		});
+		this._partRef = tipPart;
 		dom.clearNode(this._options.container);
 		this._options.container.appendChild(tipPart.domNode);
 		this._options.container.classList.add(SHOWING_TIP_CLASS);
 		dom.setVisibility(true, this._options.container);
 	}
 
+	/** Take the tip off screen and give up the lane. */
 	clear(): void {
-		this._partRef = undefined;
+		this._leading = false;
 		this._lease.clear();
+		this._clearContent();
+	}
+
+	private _clearContent(): void {
+		this._partRef = undefined;
 		this._part.clear();
 		dom.clearNode(this._options.container);
 		this._options.container.classList.remove(SHOWING_TIP_CLASS);
 		dom.setVisibility(false, this._options.container);
-	}
-
-	override dispose(): void {
-		// Set before clearing: releasing the claim re-runs the autorun below, and
-		// that run must not build a replacement tip into disposed holders.
-		this._isDisposed = true;
-		this.clear();
-		super.dispose();
 	}
 }

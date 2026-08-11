@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { trackFocus } from '../../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatInputNoticeHost } from './chatInputNoticeHost.js';
+import { ChatInputNoticeHost, IChatInputSurface, pickActiveChatInput, trackChatInputRecency } from './chatInputNoticeHost.js';
 
 export const IChatInputNoticeHubService = createDecorator<IChatInputNoticeHubService>('chatInputNoticeHubService');
 
@@ -25,10 +24,8 @@ export interface IChatInputNoticeHubService {
 	toggleNoticeFocus(): boolean;
 }
 
-interface ITrackedHost {
+interface ITrackedHost extends IChatInputSurface {
 	readonly host: ChatInputNoticeHost;
-	readonly focusRoot: HTMLElement;
-	lastFocused: number;
 }
 
 /**
@@ -48,28 +45,16 @@ class ChatInputNoticeHubService extends Disposable implements IChatInputNoticeHu
 		this._hosts.add(tracked);
 
 		const store = new DisposableStore();
-		const focusTracker = store.add(trackFocus(focusRoot));
-		store.add(focusTracker.onDidFocus(() => tracked.lastFocused = Date.now()));
+		store.add(trackChatInputRecency(tracked));
 		store.add(toDisposable(() => this._hosts.delete(tracked)));
 		return store;
 	}
 
 	toggleNoticeFocus(): boolean {
-		return this._activeHost()?.toggleFocus() ?? false;
-	}
-
-	private _activeHost(): ChatInputNoticeHost | undefined {
-		let best: ITrackedHost | undefined;
-		for (const tracked of this._hosts) {
-			const focusRoot = tracked.focusRoot;
-			if (!focusRoot.isConnected || focusRoot.getClientRects().length === 0) {
-				continue;
-			}
-			if (!best || tracked.lastFocused > best.lastFocused) {
-				best = tracked;
-			}
-		}
-		return best?.host;
+		// Inputs with nothing to focus are skipped rather than selected and then
+		// declined, so a notice showing elsewhere is still reachable.
+		const active = pickActiveChatInput(this._hosts, tracked => tracked.host.hasFocusableNotice());
+		return active?.host.toggleFocus() ?? false;
 	}
 }
 

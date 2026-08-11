@@ -383,6 +383,7 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	private width = 0;
 	private height = 0;
 	private running = false;
+	private suspended = false;
 	private level = 0;
 	/** Timestamp of the previous frame, for the elapsed-time each draw eases over. */
 	private lastTimestamp: number | undefined;
@@ -434,12 +435,24 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	}
 
 	private updateMotion(): void {
-		if (this.accessibilityService.isMotionReduced()) {
+		if (this.suspended || this.accessibilityService.isMotionReduced()) {
 			this.stop();
 			this.draw(dom.getWindow(this.container).performance.now());
 		} else {
 			this.start();
 		}
+	}
+
+	/**
+	 * Pause while the card is put away for higher-precedence content, so an
+	 * invisible introduction is not still painting every frame.
+	 */
+	setSuspended(suspended: boolean): void {
+		if (this.suspended === suspended) {
+			return;
+		}
+		this.suspended = suspended;
+		this.updateMotion();
 	}
 
 	private start(): void {
@@ -667,6 +680,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 
 	private readonly card: ChatInputOnboardingCard;
 	private readonly player: VoiceSamplePlayer;
+	private animator: VoiceModeOnboardingAnimator | undefined;
 	private readonly options: IVoiceModeOnboardingBannerOptions;
 	private readonly microphonePicker = this._register(new MutableDisposable<DisposableStore>());
 	private microphoneOptions: IMicrophoneOption[] = [];
@@ -752,7 +766,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		const wave = dom.append(this.domNode, dom.$('.voice-mode-onboarding-wave'));
 		const canvas = dom.append(wave, dom.$('canvas.voice-mode-onboarding-canvas')) as HTMLCanvasElement;
 		canvas.setAttribute('aria-hidden', 'true');
-		this._register(instantiationService.createInstance(VoiceModeOnboardingAnimator, canvas, wave, {
+		this.animator = this._register(instantiationService.createInstance(VoiceModeOnboardingAnimator, canvas, wave, {
 			getLevel: () => this.player.getLevel(),
 			getSignature: () => this.currentSignature(),
 		}));
@@ -1057,6 +1071,18 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 
 	announce(): void {
 		this.card.announce();
+	}
+
+	/**
+	 * Stops the sample and the waveform while the card is put away for a
+	 * notification, so an invisible introduction is not still playing audio or
+	 * painting every frame.
+	 */
+	setVisible(visible: boolean): void {
+		this.animator?.setSuspended(!visible);
+		if (!visible) {
+			this.player.stop();
+		}
 	}
 
 	hasFocus(): boolean {

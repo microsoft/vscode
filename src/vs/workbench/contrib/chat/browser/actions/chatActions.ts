@@ -39,7 +39,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -1078,15 +1078,15 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				f1: true,
 				// The Agents composer is not a chat widget, so it never sets
-				// `inChatSession`; gate on the window instead so the shortcut works there.
-				precondition: ContextKeyExpr.or(ChatContextKeys.inChatSession, IsSessionsWindowContext),
+				// `inChatSession`; it reports its own focus instead.
+				precondition: ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.inChatComposer),
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 					when: ContextKeyExpr.or(
 						ChatContextKeys.inChatSession,
 						ChatContextKeys.inChatTip,
-						IsSessionsWindowContext
+						ChatContextKeys.inChatComposer
 					),
 				}]
 			});
