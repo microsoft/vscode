@@ -12,6 +12,7 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
@@ -420,18 +421,26 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork inherits provider history through the selected source turn', async function () {
+	test('session fork inherits provider history through the selected source turn', async function () {
 		this.timeout(240_000);
-		const { sessionUri } = await createWorkspaceSession('session-fork-history');
+		const { sessionUri, workspace } = await createWorkspaceSession('session-fork-history');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-alpha', 'Remember FORK_ALPHA. Reply exactly "ready".', 1);
 		await assertSessionListed(sessionUri);
 		const forkUri = await createFork(sessionUri, 'turn-fork-alpha');
 
-		const result = await driveTurnToCompletion(context.client, forkUri, 'turn-fork-followup', 'Reply with only the code word you were asked to remember.', 10);
+		await context.restartServer();
+		await initialize('session-fork-history-restored-client', workspace);
+		await context.client.call<SubscribeResult>('subscribe', { channel: forkUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(forkUri) });
+		const restored = await fetchSessionWithChat(context.client, forkUri);
+		assert.deepStrictEqual(restored.turns.map(turn => turn.message.text), ['Remember FORK_ALPHA. Reply exactly "ready".']);
+
+		const reforkUri = await createFork(forkUri, restored.turns[0].id);
+		const result = await driveTurnToCompletion(context.client, reforkUri, 'turn-fork-followup', 'Reply with only the code word you were asked to remember.', 10);
 		assert.ok(result.responseText.includes('FORK_ALPHA'));
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork excludes provider history after the selected source turn', async function () {
+	test('session fork excludes provider history after the selected source turn', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('session-fork-bounded');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-first', 'Remember FORK_FIRST. Reply exactly "ready".', 1);
@@ -565,8 +574,12 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	test('custom terminal tool preserves a nonzero shell exit code', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createWorkspaceSession('custom-terminal-exit-code');
+		const deterministicShellConfig = context.isWindows ? {} : { [AgentHostConfigKey.DefaultShell]: '/bin/bash' };
 		try {
-			await setRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true }, 100);
+			await setRootConfig({
+				[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
+				...deterministicShellConfig,
+			}, 100);
 			const turnId = 'turn-custom-terminal-exit-code';
 			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Run exactly `node -e "process.exit(9)"` with bash, then reply exactly "failed as expected".', 1);
 			const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
@@ -595,7 +608,10 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 				exitCode: 9,
 			});
 		} finally {
-			await setRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: false }, 101);
+			await setRootConfig({
+				[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
+				...(context.isWindows ? {} : { [AgentHostConfigKey.DefaultShell]: '' }),
+			}, 101);
 		}
 	});
 
@@ -653,7 +669,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('commit changeset operation generates a message and commits mixed changes', async function () {
+	test('commit changeset operation generates a message and commits mixed changes', async function () {
 		this.timeout(240_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-commit-'));
 		tempDirs.push(workspace);

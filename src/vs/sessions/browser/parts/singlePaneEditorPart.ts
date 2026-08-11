@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../base/browser/window.js';
-import { DisposableMap } from '../../../base/common/lifecycle.js';
+import { DisposableMap, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -86,8 +86,38 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	) {
 		super(editorPartsView, _instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 
-		// The docked tab bar always shows multiple tabs, ignoring `workbench.editor.showTabs` (single/none).
-		this._register(this.enforcePartOptions({ showTabs: 'multiple' }));
+		const tabsOverride = this._register(new MutableDisposable());
+		let enforcedShowTabs: 'multiple' | 'single' | undefined;
+		const updateTabsOverride = () => {
+			const nextShowTabs = this._getShowTabsOverride(
+				configurationService.getValue('workbench.editor.showTabs'),
+				layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+				layoutService.isVisible(Parts.AUXILIARYBAR_PART, mainWindow)
+			);
+			if (nextShowTabs === enforcedShowTabs) {
+				return;
+			}
+			enforcedShowTabs = nextShowTabs;
+			tabsOverride.value = nextShowTabs ? this.enforcePartOptions({ showTabs: nextShowTabs }) : undefined;
+		};
+		this._register(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration('workbench.editor.showTabs')) {
+				updateTabsOverride();
+			}
+		}));
+		this._register(layoutService.onDidChangePartVisibility(event => {
+			if (event.partId === Parts.EDITOR_PART || event.partId === Parts.AUXILIARYBAR_PART) {
+				updateTabsOverride();
+			}
+		}));
+		updateTabsOverride();
+	}
+
+	private _getShowTabsOverride(configuredShowTabs: 'multiple' | 'single' | 'none', editorVisible: boolean, auxiliaryBarVisible: boolean): 'multiple' | 'single' | undefined {
+		if (auxiliaryBarVisible && !editorVisible) {
+			return 'multiple';
+		}
+		return configuredShowTabs === 'none' ? 'single' : undefined;
 	}
 
 	/**

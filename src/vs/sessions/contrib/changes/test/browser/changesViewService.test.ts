@@ -75,21 +75,21 @@ suite('ChangesViewService', () => {
 
 		const states = [service.activeSessionSectionCollapseStateObs.get()];
 		service.setSectionCollapsed(sessionA.resource, 'otherFiles', true);
-		service.setSectionCollapsed(sessionA.resource, 'checks', true);
+		service.setSectionCollapsed(sessionA.resource, 'checks', false);
 		states.push(service.activeSessionSectionCollapseStateObs.get());
 		activeSession.set(sessionB, undefined);
 		states.push(service.activeSessionSectionCollapseStateObs.get());
-		service.setSectionCollapsed(sessionB.resource, 'checks', true);
+		service.setSectionCollapsed(sessionB.resource, 'checks', false);
 		states.push(service.activeSessionSectionCollapseStateObs.get());
 		activeSession.set(sessionA, undefined);
 		states.push(service.activeSessionSectionCollapseStateObs.get());
 
 		assert.deepStrictEqual(states, [
-			{ otherFiles: false, checks: false },
-			{ otherFiles: true, checks: true },
-			{ otherFiles: false, checks: false },
 			{ otherFiles: false, checks: true },
-			{ otherFiles: true, checks: true },
+			{ otherFiles: true, checks: false },
+			{ otherFiles: false, checks: true },
+			{ otherFiles: false, checks: false },
+			{ otherFiles: true, checks: false },
 		]);
 	});
 
@@ -106,8 +106,8 @@ suite('ChangesViewService', () => {
 		const afterDeletion = service.activeSessionSectionCollapseStateObs.get();
 
 		assert.deepStrictEqual({ afterReplacement, afterDeletion }, {
-			afterReplacement: { otherFiles: true, checks: false },
-			afterDeletion: { otherFiles: false, checks: false },
+			afterReplacement: { otherFiles: true, checks: true },
+			afterDeletion: { otherFiles: false, checks: true },
 		});
 	});
 
@@ -116,7 +116,7 @@ suite('ChangesViewService', () => {
 		const secondDraft = createSession('second-draft');
 		const { activeSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, service } = createHarness(firstDraft);
 
-		service.setSectionCollapsed(firstDraft.resource, 'checks', true);
+		service.setSectionCollapsed(firstDraft.resource, 'otherFiles', true);
 		activeSession.set(secondDraft, undefined);
 		onDidReplaceNewDraftSession.fire({ from: firstDraft, to: secondDraft });
 		const afterReplacement = service.activeSessionSectionCollapseStateObs.get();
@@ -125,8 +125,8 @@ suite('ChangesViewService', () => {
 		const afterDiscard = service.activeSessionSectionCollapseStateObs.get();
 
 		assert.deepStrictEqual({ afterReplacement, afterDiscard }, {
-			afterReplacement: { otherFiles: false, checks: false },
-			afterDiscard: { otherFiles: false, checks: false },
+			afterReplacement: { otherFiles: false, checks: true },
+			afterDiscard: { otherFiles: false, checks: true },
 		});
 	});
 });

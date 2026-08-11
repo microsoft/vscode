@@ -17,7 +17,7 @@ import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefau
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { getRememberedSessionType, hasPreferredCopilotHarness, markPreferredCopilotHarness } from '../../common/chatSessionTypePreference.js';
+import { getRememberedSessionType } from '../../common/chatSessionTypePreference.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 
 suite('ChatConfiguration defaults', () => {
@@ -191,7 +191,7 @@ suite('ChatConfiguration defaults', () => {
 
 		assert.deepStrictEqual(
 			resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.CopilotCLI }),
-			{ sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false }
+			{ sessionType: localChatSessionType }
 		);
 	});
 
@@ -229,7 +229,7 @@ suite('ChatConfiguration defaults', () => {
 		}, {
 			computed: SessionType.AgentHostCopilot,
 			remembered: SessionType.AgentHostClaude,
-			rememberedAware: { sessionType: SessionType.AgentHostClaude, isPreferCopilotHarnessSwap: false },
+			rememberedAware: { sessionType: SessionType.AgentHostClaude },
 		});
 	});
 
@@ -269,60 +269,62 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('preferCopilotHarness resolves the swap without consuming the marker until applied', () => {
-		// DefaultToCopilotHarness stays unset so this proves the one-time swap
-		// fires solely because EditorPreferCopilotHarness is enabled, independent
-		// of the new default gate.
+	test('preferCopilotHarness replaces local on every new chat', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
-		// Resolving does not consume the marker on its own: repeated resolves keep
-		// returning the swap until the caller applies it and marks it.
-		const firstResolve = resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType });
-		const markerBeforeApply = hasPreferredCopilotHarness(storageService);
-		const secondResolveBeforeApply = resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType });
-
-		// The caller applies the swap and marks it; further resolves no longer swap.
-		markPreferredCopilotHarness(storageService);
-		const afterApply = resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType });
-
 		assert.deepStrictEqual({
-			firstResolve,
-			markerBeforeApply,
-			secondResolveBeforeApply,
-			afterApply,
-			markerAfterApply: hasPreferredCopilotHarness(storageService),
+			firstResolve: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
+			secondResolve: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
 		}, {
-			firstResolve: { sessionType: SessionType.AgentHostCopilot, isPreferCopilotHarnessSwap: true },
-			markerBeforeApply: false,
-			secondResolveBeforeApply: { sessionType: SessionType.AgentHostCopilot, isPreferCopilotHarnessSwap: true },
-			// Once marked, the one-time swap no longer fires; with no remembered
-			// selection the current local session type is returned.
-			afterApply: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
-			markerAfterApply: true,
+			firstResolve: { sessionType: SessionType.AgentHostCopilot },
+			secondResolve: { sessionType: SessionType.AgentHostCopilot },
 		});
 	});
 
-	test('one-time Copilot swap is skipped and unmarked when the agent host is disabled', () => {
+	test('Copilot preference is skipped when the agent host is disabled', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
-		// With the agent host disabled (e.g. on web) the swap must not fire, so it
-		// neither returns an unresolvable Copilot type nor marks the transition.
+		// With the agent host disabled (e.g. on web), the Copilot harness is unavailable.
 		const resolved = resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: localChatSessionType });
 
 		assert.deepStrictEqual({
 			resolved,
-			preferenceApplied: hasPreferredCopilotHarness(storageService),
 		}, {
-			resolved: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
-			preferenceApplied: false,
+			resolved: { sessionType: localChatSessionType },
+		});
+	});
+
+	test('preferCopilotHarness preserves Claude and Codex selections', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorPreferCopilotHarness]: true,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex);
+		const storageService = disposables.add(new TestStorageService());
+
+		const currentClaude = resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostClaude });
+		const currentCodex = resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostCodex });
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude, true);
+		const rememberedClaude = resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType });
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostCodex, true);
+
+		assert.deepStrictEqual({
+			currentClaude,
+			currentCodex,
+			rememberedClaude,
+			rememberedCodex: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
+		}, {
+			currentClaude: { sessionType: SessionType.AgentHostClaude },
+			currentCodex: { sessionType: SessionType.AgentHostCodex },
+			rememberedClaude: { sessionType: SessionType.AgentHostClaude },
+			rememberedCodex: { sessionType: SessionType.AgentHostCodex },
 		});
 	});
 
@@ -367,7 +369,7 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('one-time Copilot swap overrides a remembered local opt-out and stays redundant when agent host is enabled', () => {
+	test('Copilot preference overrides a remembered local selection every time', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
@@ -378,17 +380,12 @@ suite('ChatConfiguration defaults', () => {
 		// Remember local (only reachable because the computed default is Copilot).
 		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, localChatSessionType, true);
 
-		// The `remembered !== local` guard lets the one-time swap replace the
-		// remembered local, even though the computed default is already Copilot.
-		// The resolver reports the swap but does not mark it (the caller does).
-		const swapped = resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType });
-
 		assert.deepStrictEqual({
-			swapped,
-			preferenceApplied: hasPreferredCopilotHarness(storageService),
+			firstResolve: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
+			secondResolve: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
 		}, {
-			swapped: { sessionType: SessionType.AgentHostCopilot, isPreferCopilotHarnessSwap: true },
-			preferenceApplied: false,
+			firstResolve: { sessionType: SessionType.AgentHostCopilot },
+			secondResolve: { sessionType: SessionType.AgentHostCopilot },
 		});
 	});
 
@@ -403,10 +400,8 @@ suite('ChatConfiguration defaults', () => {
 		// session type wins over the Copilot computed default (session preservation).
 		assert.deepStrictEqual({
 			resolved: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
-			preferenceApplied: hasPreferredCopilotHarness(storageService),
 		}, {
-			resolved: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
-			preferenceApplied: false,
+			resolved: { sessionType: localChatSessionType },
 		});
 	});
 
@@ -423,7 +418,7 @@ suite('ChatConfiguration defaults', () => {
 		assert.deepStrictEqual({
 			resolved: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { explicitOverride: localChatSessionType, currentSessionType: SessionType.AgentHostCopilot }),
 		}, {
-			resolved: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
+			resolved: { sessionType: localChatSessionType },
 		});
 	});
 
@@ -475,10 +470,10 @@ suite('ChatConfiguration defaults', () => {
 			remembered: SessionType.AgentHostClaude,
 			rememberedAware: localChatSessionType,
 			currentAware: localChatSessionType,
-			resolvedRemembered: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
-			resolvedCurrent: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
-			resolvedPreferMigration: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
-			explicitOverride: { sessionType: SessionType.AgentHostClaude, isPreferCopilotHarnessSwap: false },
+			resolvedRemembered: { sessionType: localChatSessionType },
+			resolvedCurrent: { sessionType: localChatSessionType },
+			resolvedPreferMigration: { sessionType: localChatSessionType },
+			explicitOverride: { sessionType: SessionType.AgentHostClaude },
 			localVisible: true,
 			localRememberedUsable: true,
 		});
@@ -495,7 +490,7 @@ suite('ChatConfiguration defaults', () => {
 			extensionContributed: isNewChatSessionTypeUsable('my-extension-agent', configurationService, chatSessionsService, localWorkspace),
 		}, {
 			agentHost: true,
-			agentHostCurrent: { sessionType: SessionType.AgentHostClaude, isPreferCopilotHarnessSwap: false },
+			agentHostCurrent: { sessionType: SessionType.AgentHostClaude },
 			extensionContributed: false,
 		});
 	});

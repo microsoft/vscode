@@ -63,7 +63,7 @@ suite('NewSessionViewV3Tour', () => {
 				behaviorFlag: 'onb.newSessionViewV3.show',
 				assignmentContextIdFlag: 'onb.newSessionViewV3.id',
 			},
-			developerModeVariations: ['prompt', 'githubPrompt'],
+			developerModeVariations: ['prompt', 'githubPrompt', 'options'],
 			criteriaMatchV2: true,
 			presentationKind: 'sequence',
 			steps: [

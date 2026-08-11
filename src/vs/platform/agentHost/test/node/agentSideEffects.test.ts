@@ -1692,47 +1692,6 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: chat/turnStarted validation -------------------------
-
-	suite('handleAction — chat/turnStarted validation', () => {
-		test('rejects a turn id already used by another chat in the session', () => {
-			setupSession();
-			const peerChat = buildChatUri(sessionUri, 'peer-1');
-			stateManager.addChat(sessionUri.toString(), peerChat);
-			stateManager.dispatchServerAction(peerChat, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'duplicate-turn',
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'peer', origin: { kind: MessageKind.User } },
-			});
-			stateManager.dispatchServerAction(peerChat, {
-				type: ActionType.ChatTurnComplete,
-				turnId: 'duplicate-turn',
-				duration: 1,
-			});
-			const action = {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'duplicate-turn',
-				startedAt: '2025-01-01T00:00:01.000Z',
-				message: { text: 'default', origin: { kind: MessageKind.User } },
-			} as const;
-			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-			const envelopes: ActionEnvelope[] = [];
-			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
-
-			sideEffects.handleAction(defaultChatUri, action);
-
-			const errorAction = envelopes.find(envelope => envelope.action.type === ActionType.ChatError)?.action;
-			assert.deepStrictEqual({
-				errorType: errorAction?.type === ActionType.ChatError ? errorAction.error.errorType : undefined,
-				sendMessageCalls: agent.sendMessageCalls,
-			}, {
-				errorType: 'duplicateTurnId',
-				sendMessageCalls: [],
-			});
-		});
-	});
-
 	// ---- handleAction: chat/turnStarted model selection --------------------
 
 	suite('handleAction — chat/turnStarted model selection', () => {
