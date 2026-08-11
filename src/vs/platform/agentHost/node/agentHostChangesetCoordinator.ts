@@ -347,12 +347,19 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * already uses the inherited set). `updateOperations` only dispatches for
 	 * subscribed changesets, so refreshing subagents without subscriptions is a
 	 * no-op.
+	 *
+	 * The changed set also determines which repository roots are watched for
+	 * external edits, so re-attach the file monitor for the session (and its
+	 * inheriting subagents) — otherwise a folder added or removed mid-session
+	 * would not start/stop being watched until an unrelated lifecycle event.
 	 */
 	private onDidChangeSessionWorkingDirectories(sessionStr: string): void {
 		this._changesetOperationService.updateOperations(sessionStr);
+		this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(sessionStr);
 		for (const candidate of this._stateManager.getSessionUris()) {
 			if (parseSubagentSessionUri(candidate)?.parentSession.toString() === sessionStr) {
 				this._changesetOperationService.updateOperations(candidate);
+				this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(candidate);
 			}
 		}
 	}
