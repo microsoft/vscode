@@ -264,6 +264,8 @@ export interface IChatInputPartOptions {
 	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
 	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	inputPickerOpenOnMouseUp?: boolean;
+	renderInputNotifications?: boolean;
+	fitQuestionCarouselToContent?: boolean;
 	onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 }
 
@@ -2761,6 +2763,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Ensures the notification widget is instantiated and appended to the notification container.
 	 */
 	private ensureNotificationWidget(): void {
+		if (this.options.renderInputNotifications === false) {
+			return;
+		}
 		if (!this._notificationWidget.value) {
 			// Fall back to `getCurrentSessionType()` so the session-type
 			// picker delegate is consulted before any real session exists
@@ -4078,7 +4083,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._questionCarouselSessionResources.set(carouselKey, context.element.sessionResource);
 		}
 
-		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, options);
+		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
+			...options,
+			fitContent: this.options.fitQuestionCarouselToContent,
+		});
 		this._chatQuestionCarouselWidgets.set(carouselKey, part);
 		this._hasQuestionCarouselContextKey?.set(true);
 

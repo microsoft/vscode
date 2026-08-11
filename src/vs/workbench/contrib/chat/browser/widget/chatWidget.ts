@@ -2222,6 +2222,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			inputPickerContainer: this.viewOptions.inputPickerContainer,
 			inputPickerAnchor: this.viewOptions.inputPickerAnchor,
 			inputPickerOpenOnMouseUp: this.viewOptions.inputPickerOpenOnMouseUp,
+			renderInputNotifications: this.viewOptions.renderInputNotifications,
+			fitQuestionCarouselToContent: this.viewOptions.fitQuestionCarouselToContent,
 			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
 		};
 

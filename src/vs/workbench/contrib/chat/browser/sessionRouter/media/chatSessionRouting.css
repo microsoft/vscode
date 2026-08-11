@@ -26,6 +26,13 @@
 	text-overflow: ellipsis;
 }
 
+.chat-routing-badge-response,
+.chat-routing-badge-response > * {
+	display: inline;
+	margin: 0;
+	white-space: inherit;
+}
+
 .chat-routing-badge .chat-routing-badge-countdown {
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;

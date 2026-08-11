@@ -418,4 +418,9 @@
 	border: 0;
 	border-radius: 0;
 	background: transparent;
+	min-height: 120px;
+}
+
+.chat-input-window .chat-input-window-pending-panel.question .chat-question-carousel-content {
+	flex: 1;
 }

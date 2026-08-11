@@ -44,7 +44,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
-import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
@@ -104,6 +104,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _widget: ChatWidget | undefined;
 	private _pendingPromptIndex = 0;
 	private _activePendingSessionResource: URI | undefined;
+	private readonly _dismissedPendingRequests = observableValue<ReadonlySet<string>>(this, new Set());
 	private _fitWindowToContent: () => void = () => { };
 	/** The single input row; routing results are inserted immediately after it. */
 	private _row: HTMLElement | undefined;
@@ -390,6 +391,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _renderChatWidget(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement, row: HTMLElement, openingBounds: IRectangle): void {
+		this._dismissedPendingRequests.set(new Set(), undefined);
 		// The glow CSS keys off `.monaco-workbench .interactive-session
 		// .chat-input-container` - the aux container already tracks the
 		// `monaco-workbench` class, so we only need the `.interactive-session`
@@ -435,6 +437,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				inputPickerContainer: () => this._actionWidgetWindow.value?.container,
 				inputPickerAnchor: anchor => this._getModelPickerAnchor(anchor),
 				inputPickerOpenOnMouseUp: true,
+				renderInputNotifications: false,
 				editorOverflowWidgetsDomNode,
 			},
 			{
@@ -494,6 +497,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					this.voiceSessionController.markRoutedRequestPending(resource, requestId);
 				}
 				this.commandService.executeCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, resource?.toString(), kind).catch(() => { });
+			},
+			onDidDismissRoute: (resource, requestId) => {
+				const dismissed = new Set(this._dismissedPendingRequests.get());
+				dismissed.add(this._pendingRequestKey(resource, requestId));
+				this._dismissedPendingRequests.set(dismissed, undefined);
+				this.voiceSessionController.clearRoutedRequest(resource);
 			},
 			placeBadge: (badge) => {
 				const row = this._row;
@@ -739,10 +748,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				renderInputOnTop: true,
 				renderStyle: 'compact',
 				renderGettingStartedTip: false,
-				filter: item => isResponseVM(item) && !!item.model.isPendingConfirmation.get(),
+				filter: item => isResponseVM(item) && (
+					!!item.model.isPendingConfirmation.get()
+					|| item.model.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed)
+				),
 				enableImplicitContext: false,
 				defaultMode: ChatMode.Ask,
 				menus: { telemetrySource: 'chatInputWindowPending' },
+				renderInputNotifications: false,
+				fitQuestionCarouselToContent: true,
 			},
 			{
 				inputEditorBackground: inputBackground,
@@ -824,7 +838,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					? Math.max(widget.contentHeight, questionContentHeight)
 					: renderedContentHeight || widget.contentHeight;
 				const minimumHeight = isQuestion ? 1 : CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT;
-				const measuredHeight = Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(minimumHeight, Math.ceil(contentHeight)));
+				const measuredHeight = isQuestion
+					? Math.max(minimumHeight, Math.ceil(contentHeight))
+					: Math.min(CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT, Math.max(minimumHeight, Math.ceil(contentHeight)));
 				// Approval content (diff summaries, risk badges, button rows) can
 				// render after the first frame. Grow to accommodate it, but never
 				// shrink this prompt and re-enter a resize oscillation.
@@ -930,10 +946,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._loadPendingSessionModels();
 		this._windowDisposables.add(autorun(reader => {
 			this.voiceSessionController.omniInputActive.read(reader);
+			const dismissedPendingRequests = this._dismissedPendingRequests.read(reader);
 			const currentResource = pendingModels[this._pendingPromptIndex]?.sessionResource.toString();
 			const activeTarget = this.voiceSessionController.targetSession.read(reader)?.toString();
 			pendingModels = [...this.chatService.chatModels.read(reader)]
 				.filter(model => !!model.requestNeedsInput.read(reader) && !this._hasOnlyResolvedPendingTools(model, reader))
+				.filter(model => !dismissedPendingRequests.has(this._pendingRequestKey(model.sessionResource, model.lastRequest?.id)))
 				.sort((a, b) =>
 					Number(b.sessionResource.toString() === activeTarget) - Number(a.sessionResource.toString() === activeTarget)
 					|| Number(this._hasPendingQuestion(b)) - Number(this._hasPendingQuestion(a))
@@ -1003,6 +1021,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 		}));
 		return button;
+	}
+
+	private _pendingRequestKey(resource: URI, requestId: string | undefined): string {
+		return `${resource.toString()}\0${requestId ?? ''}`;
 	}
 
 	private _hasPendingQuestion(model: IChatModel): boolean {

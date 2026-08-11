@@ -5,12 +5,12 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -32,7 +32,7 @@ import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSession
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
-import { getResponsePreview, parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
+import { parseExplicitNewSessionRequest, resolveMentionedWorkspaceFolder, resolveNewSessionWorkspaceFolder, resolveSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
 
 import './media/chatSessionRouting.css';
 
@@ -141,6 +141,8 @@ export interface IChatSessionRoutingHost {
 	onDidRejectRoute?(resource: URI): void;
 	/** Notify the host when a single-target route resolves, or clear it for fan-out. */
 	onDidResolveRoute?(resource: URI | undefined, kind?: 'existing_session' | 'new_session', isVoiceModeInput?: boolean, requestId?: string): void;
+	/** Notify the host when the user dismisses a routed request's delivery and pending-input UI. */
+	onDidDismissRoute?(resource: URI, requestId?: string): void;
 }
 
 /**
@@ -243,7 +245,15 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 		this.host.onWillRoute?.();
 
-		const candidates = await this._collectCandidateSessions(token);
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		const mentionedFolder = resolveMentionedWorkspaceFolder(utterance, folders);
+		const collectedCandidates = await this._collectCandidateSessions(token);
+		const candidates = mentionedFolder
+			? collectedCandidates.filter(candidate => resolveSessionWorkspaceFolder(candidate, folders) === mentionedFolder)
+			: collectedCandidates;
+		this.logService.info(
+			`[chatSessionRouting] owner=${this.debugOwner} voice=${isVoiceModeInput === true} workspaceFolders=[${folders.map(folder => folder.name).join(', ')}] mentionedFolder=${mentionedFolder?.name ?? '<none>'} candidates=${collectedCandidates.length} filteredCandidates=${candidates.length}`
+		);
 		if (token.isCancellationRequested) {
 			return true;
 		}
@@ -271,6 +281,9 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const newSessionTarget = this._resolveNewSessionTarget(utterance, attachedContext, results, enriched);
 		const target = this._resolveTarget(results, enriched, newSessionTarget);
+		this.logService.info(
+			`[chatSessionRouting] owner=${this.debugOwner} target=${target.kind} targetId=${target.kind === 'session' ? target.sessionId : target.folder?.toString() ?? '<none>'} topConfidence=${results[0]?.confidence ?? '<none>'}`
+		);
 		const candidateIds = new Set(enriched.map(candidate => candidate.sessionId));
 		const hasSessionChoice = results.some(result => candidateIds.has(result.sessionId) && isHighConfidenceSessionRoute(result));
 		if (target.kind === 'new' && !hasSessionChoice) {
@@ -405,8 +418,13 @@ export class ChatSessionRoutingController extends Disposable {
 		candidates: readonly IRoutableSession[],
 	): NewSessionTarget {
 		const folders = this.workspaceContextService.getWorkspace().folders;
-		const folder = this._folderFromAttachments(attachedContext)
-			?? resolveNewSessionWorkspaceFolder(utterance, folders, results, candidates, this.newSessionFolderService.getDefaultFolder());
+		const mentionedFolder = resolveMentionedWorkspaceFolder(utterance, folders)?.uri;
+		const attachmentFolder = this._folderFromAttachments(attachedContext);
+		const inferredFolder = resolveNewSessionWorkspaceFolder(utterance, folders, results, candidates, this.newSessionFolderService.getDefaultFolder());
+		const folder = mentionedFolder ?? attachmentFolder ?? inferredFolder;
+		this.logService.info(
+			`[chatSessionRouting] owner=${this.debugOwner} newSessionFolder=${folder?.toString() ?? '<none>'} source=${mentionedFolder ? 'mention' : attachmentFolder ? 'attachment' : 'inferred'}`
+		);
 		return {
 			kind: 'new',
 			label: folder
@@ -609,17 +627,20 @@ export class ChatSessionRoutingController extends Disposable {
 						{ placeHolder: localize('chatSessionRouting.selectTargetFolder', "Select the folder for the new session") },
 					).then(folderPick => {
 						choosingFolder = false;
-						if (!folderPick || cts.token.isCancellationRequested) {
+						if (cts.token.isCancellationRequested) {
 							return;
 						}
-						const updatedTarget: NewSessionTarget = {
-							kind: 'new',
-							label: localize('chatSessionRouting.newSessionInFolder', "New session in {0}", folderPick.folder.name),
-							folder: folderPick.folder.uri,
-						};
-						options[index] = updatedTarget;
-						label.textContent = updatedTarget.label;
-						ariaAlert(localize('chatSessionRouting.targetFolderChanged', "New session will use folder {0}.", folderPick.folder.name));
+						if (folderPick) {
+							const updatedTarget: NewSessionTarget = {
+								kind: 'new',
+								label: localize('chatSessionRouting.newSessionInFolder', "New session in {0}", folderPick.folder.name),
+								folder: folderPick.folder.uri,
+							};
+							options[index] = updatedTarget;
+							label.textContent = updatedTarget.label;
+							ariaAlert(localize('chatSessionRouting.targetFolderChanged', "New session will use folder {0}.", folderPick.folder.name));
+						}
+						startCountdown();
 					});
 				}));
 			}
@@ -724,7 +745,6 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const countdownTimer = store.add(new MutableDisposable());
 		const startCountdown = () => {
-			remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
 			renderCountdown();
 			const handle = targetWindow.setInterval(() => {
 				remainingSeconds--;
@@ -811,7 +831,10 @@ export class ChatSessionRoutingController extends Disposable {
 		const store = new DisposableStore();
 		store.add(toDisposable(() => badge.remove()));
 		this._addActionLink(store, badge, localize('chatSessionRouting.open', "Open"), () => void this.chatWidgetService.openSession(resource));
-		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
+		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => {
+			this.host.onDidDismissRoute?.(resource, result.requestId);
+			this._pendingSend.clear();
+		});
 		this._pendingSend.value = store;
 		const announcement = result.status === 'queued'
 			? localize('chatSessionRouting.queuedFor', "Queued for {0}", label)
@@ -851,6 +874,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement, waitForActivity: boolean): void {
 		const model = this.chatService.getSession(resource);
+		const renderedPreview = store.add(new MutableDisposable<IDisposable>());
 		let lastAnnouncement = labelElement.textContent;
 		let observedActivity = !waitForActivity;
 		const update = (requestInProgress = model?.requestInProgress.get() ?? false, needsInput = !!model?.requestNeedsInput.get()) => {
@@ -878,11 +902,23 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			const response = model?.lastRequest?.response;
 			const preview = isCompleted && response?.isComplete
-				? getResponsePreview(renderAsPlaintext(new MarkdownString(response.response.getMarkdown()), { useLinkFormatter: true }))
+				? response.response.getMarkdown().trim()
 				: undefined;
-			labelElement.textContent = preview
-				? localize('chatSessionRouting.completedInWithResponse', "{0}: {1}", sessionLabel, preview)
-				: statusLabel;
+			if (preview) {
+				const markdown = new MarkdownString(localize(
+					'chatSessionRouting.completedInWithResponse',
+					"{0}: {1}",
+					escapeMarkdownSyntaxTokens(sessionLabel),
+					preview
+				));
+				const rendered = renderMarkdown(markdown);
+				rendered.element.classList.add('chat-routing-badge-response');
+				labelElement.replaceChildren(rendered.element);
+				renderedPreview.value = rendered;
+			} else {
+				renderedPreview.clear();
+				labelElement.textContent = statusLabel;
+			}
 			mark.replaceChildren(renderIcon(icon));
 			if (statusLabel !== lastAnnouncement) {
 				lastAnnouncement = statusLabel;

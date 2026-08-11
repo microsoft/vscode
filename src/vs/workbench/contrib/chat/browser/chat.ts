@@ -327,6 +327,10 @@ export interface IChatWidgetViewOptions {
 	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
 	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	inputPickerOpenOnMouseUp?: boolean;
+	/** Whether chat input notifications should render. Defaults to true. */
+	renderInputNotifications?: boolean;
+	/** Whether question carousels should expand to fit all answer content instead of scrolling. */
+	fitQuestionCarouselToContent?: boolean;
 
 	/**
 	 * Whether we are running in the sessions window.

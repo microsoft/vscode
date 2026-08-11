@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,11 +19,13 @@ suite('ChatSessionRoutingController', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('shows the selected folder and folder picker for multi-root new sessions', async () => {
+		const clock = sinon.useFakeTimers();
 		const vscode = folder('vscode', '/work/vscode', 0);
 		const docs = folder('docs', '/work/docs', 1);
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		let submitted = false;
+		let resolveFolderPick: (() => void) | undefined;
 		const host = {
 			widget: {
 				inputEditor: {
@@ -53,10 +56,14 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
-			{ warn: () => { } } as never,
+			{ info: () => { }, warn: () => { } } as never,
 			workspaceContextService,
 			{ getDefaultFolder: () => undefined, setFolder: () => { } } as never,
-			{ pick: async <T>(items: readonly T[]) => items[0] } as never,
+			{
+				pick: <T>(items: readonly T[]) => new Promise<T | undefined>(resolve => {
+					resolveFolderPick = () => resolve(items[0]);
+				})
+			} as never,
 		);
 
 		await controller.handleSubmit('create a new session to update docs', undefined!);
@@ -75,12 +82,29 @@ suite('ChatSessionRoutingController', () => {
 			countdown: 'sending in 10s',
 		});
 
-		changeFolder?.click();
-		await Promise.resolve();
-		assert.strictEqual(label?.textContent, 'New session in vscode');
-
-		controller.dispose();
-		container.remove();
+		try {
+			clock.tick(3_000);
+			assert.strictEqual(countdown?.textContent, 'sending in 7s');
+			changeFolder?.click();
+			assert.strictEqual(countdown?.textContent, 'waiting for you');
+			clock.tick(5_000);
+			assert.strictEqual(countdown?.textContent, 'waiting for you');
+			resolveFolderPick?.();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				label: label?.textContent,
+				countdown: countdown?.textContent,
+			}, {
+				label: 'New session in vscode',
+				countdown: 'sending in 7s',
+			});
+			clock.tick(1_000);
+			assert.strictEqual(countdown?.textContent, 'sending in 6s');
+		} finally {
+			controller.dispose();
+			container.remove();
+			clock.restore();
+		}
 	});
 
 	test('returns the stable request id for an immediately sent route', async () => {
@@ -104,7 +128,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
-			{ warn: () => { } } as never,
+			{ info: () => { }, warn: () => { } } as never,
 			undefined!,
 			{ setFolder: () => { } } as never,
 			undefined!,
@@ -123,6 +147,49 @@ suite('ChatSessionRoutingController', () => {
 			requestId: 'stable-request-id',
 		});
 		controller.dispose();
+	});
+
+	test('dismisses routed pending input with the delivery badge', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const resource = URI.parse('agent-host-copilotcli:/dismissed-route');
+		let dismissed: { resource: string; requestId: string | undefined } | undefined;
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: badge => container.appendChild(badge),
+				onDidDismissRoute: (dismissedResource, requestId) => {
+					dismissed = { resource: dismissedResource.toString(), requestId };
+				},
+			} as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			{ model: { getSession: () => undefined, onDidChangeSessions: Event.None } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI; requestId: string },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'Session', { status: 'sent', resource, requestId: 'request-1' });
+		container.querySelectorAll<HTMLElement>('.chat-routing-badge-action')[1]?.click();
+
+		assert.deepStrictEqual({
+			dismissed,
+			badgeConnected: !!container.querySelector('.chat-routing-badge'),
+		}, {
+			dismissed: { resource: resource.toString(), requestId: 'request-1' },
+			badgeConnected: false,
+		});
+
+		controller.dispose();
+		container.remove();
 	});
 
 	test('keeps an existing session reference until a queued route completes', async () => {
@@ -210,7 +277,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
-			{ warn: () => { } } as never,
+			{ info: () => { }, warn: () => { } } as never,
 			undefined!,
 			{ setFolder: () => { } } as never,
 			undefined!,
@@ -256,7 +323,7 @@ suite('ChatSessionRoutingController', () => {
 			{ getChatSessionContribution: () => ({ isReadOnly: false }) } as never,
 			undefined!,
 			undefined!,
-			{ warn: () => { } } as never,
+			{ info: () => { }, warn: () => { } } as never,
 			undefined!,
 			undefined!,
 			undefined!,
