@@ -80,13 +80,15 @@ suite('AgentHostTelemetryReporter', () => {
 		const reporter = new AgentHostTelemetryReporter(service);
 		const chat = buildSubagentChatUri(session, 'tool-call-1');
 
-		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), chat, undefined, 'direct', undefined);
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), chat, 'turn-1', undefined, 'direct', undefined);
 
 		assert.deepStrictEqual(service.githubStandardEvents, [{
 			eventName: 'agentHost.userMessageSent',
 			properties: {
+				provider: 'copilot',
 				initiatorClientType: 'agents_window',
 				conversationId: AgentSession.id(session),
+				turnId: 'turn-1',
 			},
 		}]);
 	});
