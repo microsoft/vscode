@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import type { Page } from '@playwright/test';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
 import { installAllHandlers, preseedChatExtensionEnablement } from '../../utils';
@@ -75,7 +75,7 @@ export function setup(logger: Logger): void {
 			fs.writeFileSync(htmlPath, '<!DOCTYPE html><html><head><title>HTML Browser Editor Smoke</title></head><body><main id="browser-editor-smoke">Loaded in the browser editor</main></body></html>');
 
 			try {
-				const browserPage = await app.code.driver.waitForNewPage(htmlUrl, async () => {
+				const browserPage = await app.code.driver.waitForNewPage(path.basename(htmlPath), async () => {
 					await app.workbench.quickaccess.openFileQuickAccessAndWait(htmlPath, path.basename(htmlPath));
 					await app.workbench.quickinput.selectQuickInputElement(0);
 				});
@@ -85,11 +85,11 @@ export function setup(logger: Logger): void {
 				const urlDisplay = app.code.driver.currentPage.locator('.browser-root .browser-url-display');
 				await urlDisplay.waitFor();
 				assert.deepStrictEqual({
-					url: await urlDisplay.textContent(),
+					path: normalizeFileUrl(await urlDisplay.textContent()),
 					contentEditable: await urlDisplay.getAttribute('contenteditable'),
 					ariaReadonly: await urlDisplay.getAttribute('aria-readonly')
 				}, {
-					url: htmlUrl,
+					path: normalizeFileUrl(htmlUrl),
 					contentEditable: 'false',
 					ariaReadonly: 'true'
 				});
@@ -263,6 +263,15 @@ export function setup(logger: Logger): void {
 			await waitForWorkbenchUrl(app.code.driver.currentPage, lifecycleUrl);
 		});
 	});
+}
+
+function normalizeFileUrl(url: string | null): string | null {
+	if (!url) {
+		return null;
+	}
+
+	const filePath = path.normalize(fileURLToPath(url));
+	return process.platform === 'win32' ? filePath.toLowerCase() : filePath;
 }
 
 /**
