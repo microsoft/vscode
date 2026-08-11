@@ -274,6 +274,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabModelOperationKind.TAB_UPDATE
 			});
 		} else {
+			if (this._editorGroupsService.activeModalEditorPart?.groups.some(group => group.id === groupId)) {
+				return;
+			}
 			this._logService.error('Invalid model for label change, rebuilding');
 			this._createTabsModel();
 		}
@@ -538,9 +541,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	private _updateTabsModel(changeEvent: IEditorsChangeEvent): void {
 		const event = changeEvent.event;
 		const groupId = changeEvent.groupId;
-		if (this._editorGroupsService.activeModalEditorPart?.groups.some(group => group.id === groupId)) {
-			return;
-		}
 		switch (event.kind) {
 			case GroupModelChangeKind.GROUP_ACTIVE:
 				if (groupId === this._editorGroupsService.activeGroup.id) {

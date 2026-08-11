@@ -21,7 +21,7 @@ suite('MainThreadEditorTabs', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('ignores modal editor group changes', async () => {
+	test('ignores only missing modal editor label changes', async () => {
 		const modalGroup = new class extends mock<IEditorGroup>() {
 			override readonly id = 2;
 		}();
@@ -34,6 +34,9 @@ suite('MainThreadEditorTabs', () => {
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly whenReady = Promise.resolve();
+			override getGroup(): IEditorGroup | undefined {
+				return undefined;
+			}
 			override get groups(): readonly IEditorGroup[] {
 				groupsReadCount++;
 				return [];
@@ -62,7 +65,22 @@ suite('MainThreadEditorTabs', () => {
 				editorIndex: 0,
 			},
 		});
+		const rebuildsAfterLabelChange = groupsReadCount;
+		editorChanges.fire({
+			groupId: modalGroup.id,
+			event: {
+				kind: GroupModelChangeKind.EDITOR_OPEN,
+				editor: input,
+				editorIndex: 0,
+			},
+		});
 
-		assert.strictEqual(groupsReadCount, 0);
+		assert.deepStrictEqual({
+			rebuildsAfterLabelChange,
+			rebuildsAfterOpen: groupsReadCount,
+		}, {
+			rebuildsAfterLabelChange: 0,
+			rebuildsAfterOpen: 1,
+		});
 	});
 });
