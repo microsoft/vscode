@@ -72,6 +72,7 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 	}
 };
 
+/** @skipMangle */
 export class ConfirmTerminalCommandTool extends RunInTerminalTool {
 	protected override get _enableCommandLineSandboxRewriting() {
 		return false;
