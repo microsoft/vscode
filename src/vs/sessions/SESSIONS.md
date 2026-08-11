@@ -275,6 +275,10 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
 
 Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Changes multi-diff editor, the **Viewed** checkbox and a middle-click anywhere on the file-entry header invoke the same review action: marking a file viewed collapses its diff, while marking it not viewed expands it. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
 
+Changesets can also advertise scoped operations. The Changes view uses `IChangesViewService.activeSessionChangesetOperationsObs` as the canonical visible operation list; this applies client-owned policy before toolbar and context-key consumers read it. In particular, an Agent Host `merge` operation is hidden when the session repository reports a protected base branch, leaving pull-request operations to lead the toolbar.
+
+Providers may expose `ISession.completedStateIcon` for a completed source-control workflow. The sessions list and picker prefer this observable over the legacy pull-request icon lookup. Agent Host derives it from durable source-control provenance: a successful direct merge shows `git-merge` with the merged-PR purple, while a pull request discovered afterward restores its live PR-state icon. Quick Pick items carry `iconColor` separately from their codicon class so the picker preserves the same theme color, and its item autorun keeps an open picker synchronized with outcome changes.
+
 ---
 
 ## Data Flow

@@ -28,11 +28,11 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import { META_GITHUB_STATE } from '../../common/agentHostGitStateService.js';
+import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -1878,6 +1878,26 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(readSessionMultiRootMetadata(sessions[0]._meta), multiRoot);
 		});
 
+		test('listSessions restores persisted source-control provenance', async () => {
+			const db = new TestSessionDatabase();
+			const sourceControlState = {
+				merge: { commit: 'merge-commit' },
+				latestOutcome: SessionSourceControlOutcome.Merge,
+			};
+			await db.setMetadata(META_SOURCE_CONTROL_STATE, JSON.stringify(sourceControlState));
+			const sessionId = 'test-session-source-control';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+
+			assert.deepStrictEqual(readSessionSourceControlState(sessions[0]._meta), sourceControlState);
+		});
+
 		test('listSessions strips provider multi-root metadata when no session database exists', async () => {
 			const sessionId = 'test-session-provider-multi-root';
 			const sessionUri = AgentSession.uri('copilot', sessionId);
@@ -2483,6 +2503,7 @@ suite('AgentService (node dispatcher)', () => {
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
+				mergeBranch: async () => '',
 				restore: async () => { },
 				hasUpstream: async () => false,
 				pull: async () => { },
@@ -2589,6 +2610,7 @@ suite('AgentService (node dispatcher)', () => {
 				branchExists: async () => false,
 				hasUncommittedChanges: async () => false,
 				commitAll: async () => { },
+				mergeBranch: async () => '',
 				hasUpstream: async () => false,
 				pull: async () => { },
 				push: async () => { },
@@ -3143,6 +3165,24 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(sessionResource);
 
 			assert.deepStrictEqual(readSessionMultiRootMetadata(localService.stateManager.getSessionState(sessionResource.toString())?._meta), multiRoot);
+		});
+
+		test('restores persisted source-control provenance', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			const sourceControlState = {
+				merge: { commit: 'merge-commit' },
+				latestOutcome: SessionSourceControlOutcome.Merge,
+			};
+			await db.setMetadata(META_SOURCE_CONTROL_STATE, JSON.stringify(sourceControlState));
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(readSessionSourceControlState(localService.stateManager.getSessionState(sessionResource.toString())?._meta), sourceControlState);
 		});
 
 		test('restores a session with message history', async () => {

@@ -20,6 +20,7 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	async refreshSessionGitState(): Promise<void> { }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
+	async recordSessionMerge(): Promise<void> { }
 	async attachSessionGitHubPullRequest(): Promise<void> { }
 	async attachSessionGitHubReferences(): Promise<void> { }
 };
@@ -56,9 +57,10 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const actual = [
 			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, hasGitHubRemote: false }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
 			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 0 }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
+			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 2, hasBaseBranchChanges: false }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
 		];
 
-		assert.deepStrictEqual(actual, [undefined, undefined]);
+		assert.deepStrictEqual(actual, [undefined, undefined, undefined]);
 	});
 
 	test('advertises PR operations again for a branch whose pull request is unknown', () => {
