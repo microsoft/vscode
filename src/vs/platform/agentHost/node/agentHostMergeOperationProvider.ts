@@ -10,6 +10,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { ChangesetKind } from '../common/changesetUri.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation, type SessionState } from '../common/state/sessionState.js';
@@ -34,6 +35,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		const handler = this._instantiationService.createInstance(
 			AgentHostMergeOperationHandler,
 			(sessionKey: string) => this._stateManager.getSessionState(sessionKey),
+			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchName(sessionKey),
 			(sessionKey: string) => this._onGitStateChanged(sessionKey),
 			(sessionKey: string, commit: string) => this._gitStateService.recordSessionMerge(sessionKey, commit),
 		);
@@ -51,10 +53,12 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		}
 
 		const branchName = gitState?.branchName;
-		const configuredBaseBranch = state.config?.values[SessionConfigKey.Branch];
+		const configuredBaseBranch = state.config?.values[SessionConfigKey.Isolation] === 'worktree'
+			? state.config.values[SessionConfigKey.Branch]
+			: undefined;
 		const baseBranchName = typeof configuredBaseBranch === 'string' && configuredBaseBranch.trim()
-			? configuredBaseBranch.trim()
-			: gitState?.baseBranchName;
+			? resolveDiffBaseBranchName(configuredBaseBranch.trim(), undefined)
+			: resolveDiffBaseBranchName(undefined, gitState?.baseBranchName);
 		if (!branchName || !baseBranchName || branchName === baseBranchName || hasSessionPullRequestForBranch(gitHubState, branchName)) {
 			return undefined;
 		}

@@ -279,6 +279,8 @@ Changesets can also advertise scoped operations. The Changes view uses `IChanges
 
 Providers may expose `ISession.completedStateIcon` for a completed source-control workflow. The sessions list and picker prefer this observable over the legacy pull-request icon lookup. Agent Host derives it from durable source-control provenance: a successful direct merge shows `git-merge` with the merged-PR purple, while a pull request discovered afterward restores its live PR-state icon. Quick Pick items carry `iconColor` separately from their codicon class so the picker preserves the same theme color, and its item autorun keeps an open picker synchronized with outcome changes.
 
+Every `ISession` wrapper must delegate optional provider-owned observables such as `completedStateIcon`. `VisibleSession` and `ResourceOverrideSession` explicitly forward the complete session surface so active and transient resource consumers do not silently lose metadata.
+
 ---
 
 ## Data Flow

@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import {
 	ByokLmImageMimeType,
+	getByokLmAgentModelId,
 	IAgentHostByokLmHandler,
 	IByokLmChatRequest,
 	IByokLmChatResult,
@@ -29,6 +30,7 @@ import {
 	ILanguageModelChatRequestOptions,
 	ILanguageModelsService,
 } from '../../../common/languageModels.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
@@ -62,6 +64,9 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		// agent host can refresh its BYOK model list — extension-provided BYOK models
 		// often register shortly after the bridge connects.
 		this._register(Event.debounce(this._languageModelsService.onDidChangeLanguageModels, () => undefined, 500)(() => {
+			this._onDidChangeModels.fire();
+		}));
+		this._register(this._languageModelsService.onDidChangeModelVisibility(() => {
 			this._onDidChangeModels.fire();
 		}));
 		this._register(Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS))(() => {
@@ -159,7 +164,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 				const reasoningEffortSchema = metadata.configurationSchema?.properties?.reasoningEffort;
 				const supportedReasoningEfforts = reasoningEffortSchema?.enum?.filter((value): value is string => typeof value === 'string');
 				const defaultReasoningEffort = typeof reasoningEffortSchema?.default === 'string' ? reasoningEffortSchema.default : undefined;
-				models.push({
+				const model: IByokLmModelInfo = {
 					vendor: metadata.vendor,
 					id: metadata.id,
 					name: metadata.name,
@@ -168,7 +173,11 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					supportsVision: !!metadata.capabilities?.vision,
 					...(supportedReasoningEfforts?.length ? { supportedReasoningEfforts } : {}),
 					...(defaultReasoningEffort !== undefined ? { defaultReasoningEffort } : {}),
-				});
+				};
+				const agentHostModelIdentifier = `${SessionType.AgentHostCopilot}:${getByokLmAgentModelId(model)}`;
+				if (!this._languageModelsService.isModelHidden(identifier) && !this._languageModelsService.isModelHidden(agentHostModelIdentifier)) {
+					models.push(model);
+				}
 			}
 		}
 		return models;

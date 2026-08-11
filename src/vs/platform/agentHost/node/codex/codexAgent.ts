@@ -923,7 +923,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _signInToChatGPT(request: string): Promise<void> {
+		const progressInterest = this._agentSdkDownloader.acquireDownloadProgressInterest(CodexSdkPackage);
 		try {
+			if (!(await this._isSdkResolvableWithoutDownload())) {
+				this._publishAccountInfo({ status: 'downloading' });
+			}
 			const connection = await this._ensureConnection();
 			const account = await this._refreshAccount(connection.client);
 			if (account.status === 'signedIn' && account.authType === 'chatgpt') {
@@ -936,6 +940,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			this._setOpenAIAccountState({ usageSource: 'openai', status: 'error', error: message });
+		} finally {
+			progressInterest.dispose();
 		}
 	}
 
@@ -1522,8 +1528,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _isSdkResolvableWithoutDownload(): Promise<boolean> {
-		if (await this._agentSdkDownloader.isSdkResolvableWithoutDownload?.(CodexSdkPackage)) {
-			return true;
+		if (this._agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+			return this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage);
 		}
 		return (await resolveCodexDevSdkRoot()) !== undefined;
 	}
