@@ -30,7 +30,7 @@ export const DEFAULT_CONFIGURATION: InlineEditsUnificationConfiguration = {
 	cacheDelay: 200,
 };
 
-const COMPLETIONS_NES_UNIFICATION_DEFAULTS: InlineEditsUnificationConfiguration = {
+const COMPLETIONS_NES_CONFIGURATION: InlineEditsUnificationConfiguration = {
 	nLinesBelow: 7,
 	nLinesAbove: 0,
 	unification: true,
@@ -46,7 +46,7 @@ export function resolveInlineEditsUnificationConfiguration(
 	experimentationService: IExperimentationService,
 ): InlineEditsUnificationConfiguration {
 	const defaults = modelConfiguration.unification === InlineEditsUnification.CompletionsNes
-		? COMPLETIONS_NES_UNIFICATION_DEFAULTS
+		? COMPLETIONS_NES_CONFIGURATION
 		: DEFAULT_CONFIGURATION;
 
 	return {
