@@ -36,18 +36,7 @@ const MORE_MARKER_HEIGHT = 8;
 /** Clearance kept between the handle and the transcript's top/bottom edges (`--prompt-timeline-gutter-inset`). */
 const GUTTER_INSET = 12;
 
-/**
- * How many resting dots to draw for `promptCount` prompts in a rail `railHeight` px tall.
- *
- * The dots are a fixed-size column, so a long session in a short transcript (a narrow window, a tall
- * chat input, a split view) would run the column past the transcript's top and bottom edges. The
- * count is therefore capped by the room actually available as well as by {@link MAX_REST_DOTS};
- * whenever that cap bites, the dots are sampled across the session and the caller appends the
- * trailing "and more" marker, whose height is reserved here.
- *
- * `railHeight` of 0 means "not measured yet" (the rail is hidden or not laid out), in which case only
- * the fixed cap applies; the rail re-renders once its resize observer reports a real height.
- */
+/** How many resting dots fit for `promptCount` prompts in a rail `railHeight` px tall (0 when unmeasured). */
 export function restDotCount(promptCount: number, railHeight: number): number {
 	const capped = Math.min(promptCount, MAX_REST_DOTS);
 	if (promptCount <= MIN_REST_DOTS || railHeight <= 0) {
@@ -55,12 +44,11 @@ export function restDotCount(promptCount: number, railHeight: number): number {
 	}
 	const available = railHeight - 2 * (GUTTER_INSET + HANDLE_PADDING_Y);
 	const step = DOT_SIZE + DOT_GAP;
-	// n dots occupy n * DOT_SIZE + (n - 1) * DOT_GAP, i.e. n * step - DOT_GAP.
-	if (Math.floor((available + DOT_GAP) / step) >= promptCount) {
-		return capped; // Every prompt fits; sampling (and its marker) is not needed.
+	// Skip the marker's reservation only if the fixed cap left every prompt its own dot.
+	if (capped === promptCount && Math.floor((available + DOT_GAP) / step) >= promptCount) {
+		return capped;
 	}
-	const withMarker = Math.floor((available - MORE_MARKER_HEIGHT) / step);
-	return Math.max(MIN_REST_DOTS, Math.min(capped, withMarker));
+	return Math.max(MIN_REST_DOTS, Math.min(capped, Math.floor((available - MORE_MARKER_HEIGHT) / step)));
 }
 
 /**

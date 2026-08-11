@@ -203,6 +203,23 @@ suite('restDotCount', () => {
 		});
 	});
 
+	test('reserves room for the marker when the fixed cap forces sampling', () => {
+		// 51 prompts in a 444px rail: all 51 dots would fit on their own, but MAX_REST_DOTS caps them at
+		// 50, which makes the trailing marker appear — and 50 dots plus it need 424px of the 420px CSS
+		// allows. The count must drop to leave the marker room.
+		const dots = restDotCount(51, 444);
+		assert.deepStrictEqual({
+			dots,
+			fits: fits(dots, 444),
+			// A rail with room for all 50 plus the marker still draws all 50.
+			roomy: restDotCount(51, 448),
+		}, {
+			dots: 49,
+			fits: true,
+			roomy: 50,
+		});
+	});
+
 	test('falls back to the fixed cap when the rail has not been measured yet', () => {
 		assert.deepStrictEqual([restDotCount(30, 0), restDotCount(400, 0)], [30, 50]);
 	});
