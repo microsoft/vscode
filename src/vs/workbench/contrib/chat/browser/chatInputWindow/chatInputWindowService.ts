@@ -44,7 +44,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
-import { autorun, IReader } from '../../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
@@ -451,6 +451,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const inputContainer = widget.input.inputContainerElement;
 		if (inputContainer) {
 			try {
+				const inputValue = observableFromEvent(this, widget.inputEditor.onDidChangeModelContent, () => widget.getInput());
 				this._windowDisposables.add(setupVoiceInputDecorations({
 					voiceSessionController: this.voiceSessionController,
 					ttsPlaybackService: this.ttsPlaybackService,
@@ -463,6 +464,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					inputContainer,
 					glowContainer: surface,
 					isActive: this.voiceSessionController.omniInputActive,
+					inputValue,
 					isOwner: this.voiceSessionController.omniInputActive,
 				}));
 			} catch (error) {
