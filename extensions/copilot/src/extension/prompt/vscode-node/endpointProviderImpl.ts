@@ -15,6 +15,7 @@ import { IModelMetadataFetcher, ModelMetadataFetcher } from '../../../platform/e
 import { ExtensionContributedChatEndpoint } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint, IEmbeddingsEndpoint } from '../../../platform/networking/common/networking';
+import { TokenizerType } from '../../../util/common/tokenizer';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -66,8 +67,33 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 		this._logService.trace(`Resolving chat model`);
 
 		if (typeof requestOrFamilyOrModel === 'string') {
-			const modelMetadata = await this._modelFetcher.getChatModelFromFamily(requestOrFamilyOrModel);
-			return this.getOrCreateChatEndpointInstance(modelMetadata!);
+			try {
+				const modelMetadata = await this._modelFetcher.getChatModelFromFamily(requestOrFamilyOrModel);
+				return this.getOrCreateChatEndpointInstance(modelMetadata!);
+			} catch (e) {
+				// RoboAgent: family lookups ('copilot-base' etc.) require a Copilot
+				// token. With only a RoboAgent (Supabase) session, callers such as
+				// prompt-tsx rendering still ask for 'copilot-base' purely for
+				// tokenizer/limit metadata — return a synthetic endpoint so they
+				// keep working; it never serves an actual CAPI request.
+				this._logService.warn(`getChatEndpoint('${requestOrFamilyOrModel}') failed without Copilot auth — using synthetic fallback`);
+				return this.getOrCreateChatEndpointInstance({
+					id: 'roboagent-fallback',
+					name: 'RoboAgent Fallback',
+					vendor: 'copilot',
+					version: '1.0.0',
+					model_picker_enabled: false,
+					is_chat_default: false,
+					is_chat_fallback: true,
+					capabilities: {
+						type: 'chat',
+						family: 'roboagent-fallback',
+						supports: { streaming: true, tool_calls: true, vision: false },
+						tokenizer: TokenizerType.O200K,
+						limits: { max_context_window_tokens: 128000, max_prompt_tokens: 120000, max_output_tokens: 8192 },
+					},
+				});
+			}
 		}
 
 		const model = 'model' in requestOrFamilyOrModel ? requestOrFamilyOrModel.model : requestOrFamilyOrModel;

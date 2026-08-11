@@ -1748,6 +1748,10 @@
 				"displayName": "Copilot"
 			},
 			{
+				"vendor": "roboagent",
+				"displayName": "RoboAgent"
+			},
+			{
 				"vendor": "copilotcli",
 				"displayName": "Copilot CLI",
 				"when": "false"
@@ -2129,7 +2133,7 @@
 				"icon": "$(chat-sparkle)",
 				"title": "%copilot.title%",
 				"content": "%github.copilot.viewsWelcome.gitHubLoginFailed%",
-				"when": "github.copilot.interactiveSession.gitHubLoginFailed"
+				"when": "false"
 			},
 			{
 				"icon": "$(chat-sparkle)",

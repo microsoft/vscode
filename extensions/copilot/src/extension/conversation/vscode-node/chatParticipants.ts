@@ -276,6 +276,13 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 	}
 
 	private async switchToBaseModel(request: vscode.ChatRequest, stream: vscode.ChatResponseStream): Promise<ChatRequest> {
+		// RoboAgent: non-Copilot vendors (roboagent, BYOK) can never be quota-
+		// switched, and resolving 'copilot-base' below requires a Copilot token
+		// — so bail before either await, or every request without GitHub auth
+		// would throw here.
+		if (request.model.vendor !== 'copilot') {
+			return request;
+		}
 		const endpoint = await this.endpointProvider.getChatEndpoint(request);
 		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
 		// If it has a 0x multipler, it's free so don't switch them. If it's BYOK, it's free so don't switch them.

@@ -37,6 +37,7 @@ export class RoboAgentAuthMainService extends Disposable implements IRoboAgentAu
 
 	private _session: IRoboAgentAuthSession = { isSignedIn: false };
 	private _accessToken: string | undefined;
+	private _accessTokenExpiresAt: number | undefined;
 	private _refreshTimer: NodeJS.Timeout | undefined;
 	private _activeSignIn: IActiveSignIn | undefined;
 	private _refreshPromise: Promise<void> | undefined;
@@ -70,6 +71,28 @@ export class RoboAgentAuthMainService extends Disposable implements IRoboAgentAu
 
 	public async getSession(): Promise<IRoboAgentAuthSession> {
 		return this._session;
+	}
+
+	public async getAccessToken(): Promise<string | undefined> {
+		if (!this._session.isSignedIn) {
+			return undefined;
+		}
+
+		// The refresh timer normally keeps the token fresh; this handles the
+		// gaps (optimistic restore before the first refresh lands, a laptop
+		// waking from sleep past the timer, a failed background refresh).
+		const missingOrNearExpiry = !this._accessToken ||
+			(this._accessTokenExpiresAt !== undefined && Date.now() >= this._accessTokenExpiresAt - TOKEN_REFRESH_MARGIN_MS);
+
+		if (missingOrNearExpiry) {
+			try {
+				await this.refreshAccessToken();
+			} catch (e) {
+				this.logService.warn('RoboAgentAuthMainService#getAccessToken: Refresh failed', e);
+			}
+		}
+
+		return this._accessToken;
 	}
 
 	public async signIn(): Promise<IRoboAgentAuthSession> {
@@ -210,6 +233,7 @@ export class RoboAgentAuthMainService extends Disposable implements IRoboAgentAu
 
 	private async clearSession(): Promise<void> {
 		this._accessToken = undefined;
+		this._accessTokenExpiresAt = undefined;
 		this._session = { isSignedIn: false };
 		if (this._refreshTimer) {
 			clearTimeout(this._refreshTimer);
@@ -222,7 +246,8 @@ export class RoboAgentAuthMainService extends Disposable implements IRoboAgentAu
 
 	private async handleTokenResponse(response: ITokenResponse): Promise<void> {
 		this._accessToken = response.access_token;
-		
+		this._accessTokenExpiresAt = Date.now() + response.expires_in * 1000;
+
 		const displayName = response.user.user_metadata?.full_name || response.user.email;
 		
 		this._session = {

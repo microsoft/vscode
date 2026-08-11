@@ -37,4 +37,11 @@ export interface IRoboAgentAuthMainService {
 	 * Get the current derived session state. Does not include access/refresh tokens.
 	 */
 	getSession(): Promise<IRoboAgentAuthSession>;
+
+	/**
+	 * Get the current Supabase access token for calling RoboAgent backend APIs
+	 * (e.g. the LLM gateway). Refreshes automatically when missing or near
+	 * expiry. Returns undefined when signed out or refresh fails.
+	 */
+	getAccessToken(): Promise<string | undefined>;
 }

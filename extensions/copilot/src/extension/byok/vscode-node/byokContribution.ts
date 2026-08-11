@@ -21,6 +21,7 @@ import { GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
 import { OllamaLMProvider } from './ollamaProvider';
 import { OAIBYOKLMProvider } from './openAIProvider';
 import { OpenRouterLMProvider } from './openRouterProvider';
+import { RoboAgentLMProvider } from './roboAgentProvider';
 import { XAIBYOKLMProvider } from './xAIProvider';
 
 export class BYOKContrib extends Disposable implements IExtensionContribution {
@@ -40,6 +41,15 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	) {
 		super();
 		this._byokStorageService = new BYOKStorageService(extensionContext);
+
+		// RoboAgent gateway models are tied to the RoboAgent (Supabase)
+		// session, not to GitHub Copilot — registered here, permanently,
+		// OUTSIDE the copilotToken-gated BYOK registration below.
+		this._register(lm.registerLanguageModelChatProvider(
+			RoboAgentLMProvider.providerId,
+			this._instantiationService.createInstance(RoboAgentLMProvider, this._byokStorageService)
+		));
+
 		this._authChange(authService, this._instantiationService);
 
 		this._register(authService.onDidAuthenticationChange(() => {

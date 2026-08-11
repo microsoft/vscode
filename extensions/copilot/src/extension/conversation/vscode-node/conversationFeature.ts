@@ -90,24 +90,23 @@ export class ConversationFeature implements IExtensionContribution {
 
 		const activationBlockerDeferred = new DeferredPromise<void>();
 		this.activationBlocker = activationBlockerDeferred.p;
-		if (authenticationService.copilotToken) {
-			this.logService.info(`ConversationFeature: Copilot token already available`);
-			this.activated = true;
-			activationBlockerDeferred.complete();
-		} else {
-			markChatExtGlobal(ChatExtGlobalPerfMark.WillWaitForCopilotToken);
-			this.logService.info(`ConversationFeature: Waiting for copilot token to activate conversation feature`);
-		}
+		// RoboAgent: chat must work with only a RoboAgent (Supabase) session —
+		// the RoboAgent gateway model provider needs no GitHub/Copilot token, so
+		// activate unconditionally instead of waiting for a Copilot token.
+		this.logService.info(`ConversationFeature: activating unconditionally (RoboAgent)`);
+		this.activated = true;
+		this.enabled = true;
+		activationBlockerDeferred.complete();
 
 		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
 			const hasSession = !!authenticationService.copilotToken;
 			this.logService.info(`ConversationFeature: onDidAuthenticationChange has token: ${hasSession}`);
 			if (hasSession) {
 				markChatExtGlobal(ChatExtGlobalPerfMark.DidWaitForCopilotToken);
-				this.activated = true;
-			} else {
-				this.activated = false;
 			}
+			// RoboAgent: never deactivate on GitHub sign-out — RoboAgent models
+			// keep working without it.
+			this.activated = true;
 
 			activationBlockerDeferred.complete();
 		}));
@@ -342,9 +341,11 @@ export class ConversationFeature implements IExtensionContribution {
 
 	private registerCopilotTokenListener() {
 		this._disposables.add(this.authenticationService.onDidAuthenticationChange(() => {
-			const chatEnabled = this.authenticationService.copilotToken !== undefined;
 			this.logService.info(`copilot token sku: ${this.authenticationService.copilotToken?.sku ?? ''}`);
-			this.enabled = chatEnabled ?? false;
+			// RoboAgent: chat stays enabled regardless of GitHub/Copilot auth —
+			// the RoboAgent gateway provider authenticates with the RoboAgent
+			// session instead.
+			this.enabled = true;
 		}));
 	}
 
