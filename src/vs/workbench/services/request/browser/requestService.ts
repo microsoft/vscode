@@ -6,11 +6,12 @@
 import { IRequestOptions, IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { MANAGED_SETTINGS_REQUEST_CALL_SITE } from '../../../../platform/defaultAccount/common/managedSettingsRequestIpc.js';
 import { RequestChannelClient } from '../../../../platform/request/common/requestIpc.js';
 import { IRemoteAgentService, IRemoteAgentConnection } from '../../remote/common/remoteAgentService.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService, readHeader } from '../../../../platform/request/common/request.js';
 import { request } from '../../../../base/parts/request/common/requestImpl.js';
 import { ILoggerService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
@@ -34,19 +35,25 @@ export class BrowserRequestService extends AbstractRequestService implements IRe
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		const connection = this.remoteAgentService.getConnection();
+		if (options.callSite === MANAGED_SETTINGS_REQUEST_CALL_SITE && readHeader(options.headers, 'User-Agent')) {
+			if (!connection) {
+				throw new Error('Cannot send an explicit User-Agent without a remote request service');
+			}
+			return this._makeRemoteRequest(connection, options, token);
+		}
+
 		try {
 			if (!options.proxyAuthorization) {
 				options.proxyAuthorization = this.configurationService.inspect<string>('http.proxyAuthorization').userLocalValue;
 			}
 			const context = await this.logAndRequest(options, () => request(options, token, () => navigator.onLine));
 
-			const connection = this.remoteAgentService.getConnection();
 			if (connection && context.res.statusCode === 405) {
 				return this._makeRemoteRequest(connection, options, token);
 			}
 			return context;
 		} catch (error) {
-			const connection = this.remoteAgentService.getConnection();
 			if (connection) {
 				return this._makeRemoteRequest(connection, options, token);
 			}
