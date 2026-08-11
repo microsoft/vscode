@@ -67,7 +67,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		});
 
 		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotCli/tool_call_executed',
+			eventName: 'copilotSdk/tool_call_executed',
 			data: {
 				cli_version: '1.0.69',
 				os_platform: 'win32',
@@ -109,7 +109,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		forwarder.forward(notification);
 
 		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotCli/restricted_event',
+			eventName: 'copilotSdk/restricted_event',
 			data: {
 				created_at: undefined,
 				model_call_id: undefined,
