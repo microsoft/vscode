@@ -105,18 +105,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	}
 
 	/**
-	 * Whether a runtime skill command duplicates a skill the generic
-	 * skill-completion provider already surfaces (it lists skills from the
-	 * session customizations). Besides an exact name match, this recognizes the
-	 * synthetic synced-customization bundle: the runtime namespaces a bundled
-	 * skill as `<bundleName>:<skill>` (e.g. `VS Code Synced Data:update-pr`),
-	 * while the generic provider lists it bare (`update-pr`). Stripping the
-	 * bundle prefix lets us drop that redundant, prefixed duplicate — but only
-	 * when the bare form actually resolves back to the same skill on send. If the
-	 * bare name is reserved (a config action, `compact`/`rubber-duck`, or a
-	 * non-skill runtime command/alias), bare invocation would hit that other
-	 * command instead, so the prefixed runtime item is kept to keep the bundled
-	 * skill reachable.
+	 * Whether a runtime skill command duplicates one the generic skill-completion
+	 * provider already surfaces, including the synced bundle's namespaced
+	 * `<bundleName>:<skill>` form (kept when its bare name is reserved).
 	 */
 	private _isKnownSkillDuplicate(name: string, knownSkills: ReadonlySet<string>, syncedContainerNames: ReadonlySet<string>, runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[]): boolean {
 		const lower = name.toLowerCase();
@@ -175,9 +166,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				continue;
 			}
 			if (command.kind === 'skill' && this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands)) {
-				// This is a known skill (already surfaced by the generic skill
-				// completion provider), so we don't want to show it in the runtime
-				// command completion list.
+				// Already surfaced by the generic skill-completion provider.
 				continue;
 			}
 			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {

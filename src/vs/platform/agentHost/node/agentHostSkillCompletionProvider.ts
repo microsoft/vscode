@@ -49,14 +49,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-		// Deduplicate by skill identity (slash-command name + description) rather
-		// than by URI. The same skill is often discovered twice — once as an
-		// on-disk file (e.g. `.github/skills/foo/SKILL.md`) and once as its copy
-		// inside the synced-customization bundle — under different URIs. Keying on
-		// the (bundle-qualified for plugins, bare otherwise) slash-command name plus
-		// the description collapses those true duplicates while still keeping two
-		// genuinely different skills that merely share a short name (their
-		// descriptions differ).
+		// A skill's synced-bundle copy has a different URI than its on-disk file, so dedupe by name + description, not URI.
 		const skillsSeen = new Set<string>();
 		return candidates
 			.filter(skill => {
