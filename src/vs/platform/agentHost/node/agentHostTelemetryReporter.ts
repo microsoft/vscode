@@ -252,6 +252,29 @@ export interface IAgentHostTurnCompletedReport {
  */
 export type AgentHostTurnHangReason = 'noProgress' | 'stalledAfterProgress' | 'waitingOnUser' | 'runningTool';
 
+type AgentHostTurnActivityNamespace = 'annotations' | 'auth' | 'changeset' | 'chat' | 'resourceWatch' | 'root' | 'session' | 'terminal';
+export type AgentHostTurnActivityTelemetryKind = 'none' | 'other' | `${AgentHostTurnActivityNamespace}.${string}`;
+
+const agentHostTurnActivityNamespaces: readonly AgentHostTurnActivityNamespace[] = ['annotations', 'auth', 'changeset', 'chat', 'resourceWatch', 'root', 'session', 'terminal'];
+const safeAgentHostTurnActivityActionPattern = /^[A-Za-z][A-Za-z0-9]*$/;
+
+function isAgentHostTurnActivityNamespace(value: string): value is AgentHostTurnActivityNamespace {
+	return agentHostTurnActivityNamespaces.includes(value as AgentHostTurnActivityNamespace);
+}
+
+function normalizeTurnActivityKind(activityKind: string): AgentHostTurnActivityTelemetryKind {
+	if (activityKind === 'none') {
+		return 'none';
+	}
+
+	const [namespace, action, ...rest] = activityKind.split('/');
+	if (rest.length > 0 || !namespace || !action || !isAgentHostTurnActivityNamespace(namespace) || !safeAgentHostTurnActivityActionPattern.test(action)) {
+		return 'other';
+	}
+
+	return `${namespace}.${action}`;
+}
+
 export interface IAgentHostTurnHungEvent {
 	provider: string;
 	agentSessionId: string;
@@ -261,7 +284,7 @@ export interface IAgentHostTurnHungEvent {
 	hangReason: AgentHostTurnHangReason;
 	isExpected: boolean;
 	hadAnyProgress: boolean;
-	lastActivityKind: string;
+	lastActivityKind: AgentHostTurnActivityTelemetryKind;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -282,7 +305,7 @@ export type IAgentHostTurnHungClassification = {
 	hangReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded state the turn was quiet in: noProgress, stalledAfterProgress, waitingOnUser, or runningTool.' };
 	isExpected: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the quiet period is explained by a legitimate wait (blocked on the user or running a tool) rather than an unexplained hang.' };
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
-	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The protocol action type of the last observed turn activity, or none when the turn never produced any.' };
+	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'A bounded category for the last observed turn activity, preserving the AHP action namespace and action name without slash-like syntax. Values are none, other, or categories such as chat.delta and chat.toolCallReady.' };
 	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
 	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the tool the turn appears to be stuck on. When hangReason is waitingOnUser this is the tool gated by the blocking request, which is exact; when it is runningTool this is the longest-running in-flight tool call, which is a best guess when several are running. Undefined when no tool explains the hang.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stuck tool is provided by the agent host, an MCP server, or a client.' };
@@ -1062,7 +1085,7 @@ export class AgentHostTelemetryReporter {
 			hangReason: report.hangReason,
 			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
 			hadAnyProgress: report.hadAnyProgress,
-			lastActivityKind: report.lastActivityKind,
+			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
 			blockedOn: report.blockedOn,
 			toolId: report.toolId,
 			toolSourceKind: report.toolSourceKind,
