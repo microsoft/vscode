@@ -48,7 +48,9 @@ import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
@@ -60,11 +62,12 @@ import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatM
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
+import { ChatWidgetPasteTarget } from '../attachments/chatWidgetPasteTarget.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
-import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
@@ -73,7 +76,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -157,6 +160,12 @@ export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatReq
 
 export function shouldShowChatWelcome(itemCount: number, hasTranscriptOverlay: boolean): boolean {
 	return itemCount === 0 && !hasTranscriptOverlay;
+}
+
+export async function saveAllBeforeChatSend(configurationService: IConfigurationService, editorService: IEditorService): Promise<void> {
+	if (configurationService.getValue<boolean>(ChatConfiguration.SaveBeforeSend) !== false) {
+		await editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+	}
 }
 
 /**
@@ -321,6 +330,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
+
+	private readonly mainPasteTargetRegistration = this._register(new MutableDisposable());
+	private readonly inlinePasteTargetRegistration = this._register(new MutableDisposable());
+	private _pasteTarget: ChatWidgetPasteTarget | undefined;
+
+	/**
+	 * Shared across the main and inline input parts: it resolves the active part
+	 * through {@link input}, so one instance serves whichever is in use.
+	 */
+	private get pasteTarget(): ChatWidgetPasteTarget {
+		return this._pasteTarget ??= new ChatWidgetPasteTarget(this);
+	}
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
@@ -465,12 +486,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		private styles: IChatWidgetStyles,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -971,6 +994,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (part instanceof ChatRequestToolPart || part instanceof ChatRequestToolSetPart || part instanceof ChatRequestDynamicVariablePart) {
 					const entry = part.toVariableEntry();
 					if (part instanceof ChatRequestDynamicVariablePart && part.isAttachmentReference) {
+						const attachment = this.attachmentModel.attachments.find(attachment => attachment.id === part.id);
+						if (attachment && isPastedTextArtifact(attachment)) {
+							newPromptAttachments.set(attachment.id, { ...attachment, range: part.range });
+							oldPromptAttachments.delete(attachment.id);
+						}
 						continue;
 					}
 					newPromptAttachments.set(entry.id, entry);
@@ -2206,6 +2234,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.styles,
 				true
 			);
+			this.inlinePasteTargetRegistration.value = this.chatPasteTargetService.registerTarget(this.inlineInputPart.inputUri, this.pasteTarget);
 		} else {
 			this.inputPartDisposable.value = this.instantiationService.createInstance(ChatInputPart,
 				this.location,
@@ -2213,6 +2242,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.styles,
 				false
 			);
+			this.mainPasteTargetRegistration.value = this.chatPasteTargetService.registerTarget(this.inputPart.inputUri, this.pasteTarget);
 			this._register(autorun(reader => {
 				this.inputPart.height.read(reader);
 				if (!this.listWidget) {
@@ -2862,9 +2892,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		let savedBeforeSend = false;
 		// Check if a custom submit handler wants to handle this submission
 		if (this.viewOptions.submitHandler) {
 			const inputValue = !query ? this.getInput() : query.query;
+			await saveAllBeforeChatSend(this.configurationService, this.editorService);
+			savedBeforeSend = true;
 			const attachedContext = this.input.getAttachedContext().asArray();
 			const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
 			if (handled) {
@@ -2887,6 +2920,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.setInput('');
 				return;
 			}
+		}
+
+		if (!savedBeforeSend) {
+			await saveAllBeforeChatSend(this.configurationService, this.editorService);
 		}
 
 		if (!options.preserveInput) {

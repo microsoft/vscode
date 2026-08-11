@@ -144,7 +144,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IPathService, new class extends mock<IPathService>() { }());
 	reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() { override async getCurrentExperiments() { return []; } override async getTreatment() { return undefined; } override onDidRefetchAssignments = Event.None; }());
 	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
-	reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { override onDidChangePartVisibility = Event.None; override onDidChangeWindowMaximized = Event.None; override isVisible() { return true; } }());
+	// `getContainer` stands in for the workbench container that widgets use to host
+	// overflow nodes (suggest widget, post-paste selector); the fixture document body
+	// is the closest equivalent.
+	reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { override onDidChangePartVisibility = Event.None; override onDidChangeWindowMaximized = Event.None; override isVisible() { return true; } override getContainer(targetWindow: Window): HTMLElement { return targetWindow.document.body; } }());
 	reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override onDidChangeLocation = Event.None; }());
 	reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 	reg.defineInstance(ISCMService, new class extends mock<ISCMService>() {
