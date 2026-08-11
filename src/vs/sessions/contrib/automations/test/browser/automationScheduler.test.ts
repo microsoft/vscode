@@ -18,7 +18,7 @@ import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } fr
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { createAutomationService } from './automationTestUtils.js';
+import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
 const TARGET: AutomationTarget = { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
@@ -40,6 +40,20 @@ class FakeLeaderElection implements IAutomationLeaderElection {
 
 	evaluateForTesting(): void { /* no-op */ }
 	dispose(): void { /* no-op */ }
+}
+
+class RecordingRecoveryAutomationService extends AutomationService {
+	readonly recoveryLifecycle: string[] = [];
+
+	override async startStaleRunRecovery(reason: string): Promise<void> {
+		this.recoveryLifecycle.push(`start:${reason}`);
+		await super.startStaleRunRecovery(reason);
+	}
+
+	override stopStaleRunRecovery(): void {
+		this.recoveryLifecycle.push('stop');
+		super.stopStaleRunRecovery();
+	}
 }
 
 interface RecordedRun {
@@ -321,6 +335,31 @@ suite('AutomationSchedulerCore', () => {
 		await core.waitForPendingRuns();
 		assert.strictEqual(runner.runs.length, 2);
 		assert.strictEqual(runner.runs[1].trigger, 'catch_up');
+	});
+
+	test('leadership transitions activate and deactivate stale-run recovery', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const log = new NullLogService();
+		const service = teardown.add(new RecordingRecoveryAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const leader = new FakeLeaderElection(false);
+		const core = teardown.add(new AutomationSchedulerCore(service, new RecordingRunner(service), storage, log, {
+			leaderElection: leader,
+			disableAutoTick: true,
+			now: () => T0,
+		}));
+
+		leader.set(true);
+		await core.waitForPendingRuns();
+		leader.set(false);
+		leader.set(true);
+		await core.waitForPendingRuns();
+
+		assert.deepStrictEqual(service.recoveryLifecycle, [
+			'stop',
+			`start:${CRASH_RECOVERY_REASON}`,
+			'stop',
+			`start:${CRASH_RECOVERY_REASON}`,
+		]);
 	});
 
 	test('toggling the feature setting off then on does not crash-recover in-progress runs', async () => {

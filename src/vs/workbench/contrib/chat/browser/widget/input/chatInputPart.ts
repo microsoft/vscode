@@ -199,6 +199,7 @@ export interface IChatInputPartOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	inputEditorMaxHeight?: number;
 	widgetViewKindTag: string;
 	/**
 	 * Optional delegate for the session target picker.
@@ -879,7 +880,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, this._attachmentModel, styles));
 
-		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
+		this.inputEditorMaxHeight = this.options.inputEditorMaxHeight ?? (this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT);
 		const padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
 		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
 		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
@@ -2410,11 +2411,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * whether the picker action is shown in the toolbar via its `when` clause.
 	 */
 	private getVisibleOptionGroupsModeAndUpdateContextKeys(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] {
-		const customAgentTarget = sessionResource && this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource));
+		const sessionType = this.getEffectiveSessionType(sessionResource);
+		const customAgentTarget = sessionType ? this.chatSessionsService.getCustomAgentTargetForSessionType(sessionType) : Target.Undefined;
 		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
 
 		// Check if this session type requires custom models
-		const requiresCustomModels = sessionResource && this.chatSessionsService.requiresCustomModelsForSessionType(getChatSessionType(sessionResource));
+		const requiresCustomModels = sessionType && this.chatSessionsService.requiresCustomModelsForSessionType(sessionType);
 		this.chatSessionHasTargetedModels.set(!!requiresCustomModels);
 
 		const visibleOptionGroups = this.getVisibleOptionGroups(sessionResource);
@@ -3401,6 +3403,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
+						protected override getHoverContents() {
+							return isOmniInput ? undefined : super.getHoverContents();
+						}
+
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.add('chat-submit-button');

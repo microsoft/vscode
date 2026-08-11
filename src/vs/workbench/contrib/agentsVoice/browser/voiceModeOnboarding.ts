@@ -23,6 +23,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
 import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -40,7 +41,7 @@ const VOICE_LANGUAGE_SETTING = 'agents.voice.language';
 /** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
-type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'previewVoice' | 'selectMicrophone' | 'openSettings' | 'close' | 'escape';
+type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'previewVoice' | 'selectMicrophone' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
 
 type VoiceModeOnboardingActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Voice Mode onboarding card.' };
@@ -996,7 +997,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 
 	/**
 	 * One short paragraph: what Voice Mode does, and where to change its
-	 * settings.
+	 * settings or instructions.
 	 *
 	 * `[[...]]` marks each clause that becomes a link, so translators can place
 	 * it naturally in the sentence instead of receiving a fixed phrase
@@ -1007,17 +1008,17 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		const text = localize({
 			key: 'voiceMode.onboarding.description',
 			comment: [
-				'Preserve the double square brackets: they mark the text that becomes a link.',
-				'The link opens Voice Mode settings.',
+				'Preserve the double square brackets: they mark the text that becomes a link. Keep both links, in this order - the first opens Voice Mode settings, the second opens the voice.md customization file.',
 			],
-		}, "Choose how your agent speaks to you. Adjust [[settings]] anytime.");
+		}, "Choose how your agent speaks to you. Adjust [[settings]] or [[how it's written]] anytime.");
 
 		dom.append(description, renderFormattedText(text, {
 			actionHandler: {
-				callback: () => {
-					this.logAction('openSettings');
-					this.commandService.executeCommand(VOICE_SETTINGS_COMMAND)
-						.catch(error => this.logService.error(`[voice] Failed to run ${VOICE_SETTINGS_COMMAND}: ${error}`));
+				callback: index => {
+					const commandId = index === '0' ? VOICE_SETTINGS_COMMAND : CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID;
+					this.logAction(index === '0' ? 'openSettings' : 'openInstructions');
+					this.commandService.executeCommand(commandId)
+						.catch(error => this.logService.error(`[voice] Failed to run ${commandId}: ${error}`));
 				},
 				disposables: this._store,
 			},
