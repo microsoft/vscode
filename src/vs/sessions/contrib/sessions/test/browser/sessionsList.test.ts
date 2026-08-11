@@ -115,7 +115,6 @@ suite('Sessions - SessionsList', () => {
 					trigger: 'schedule',
 					sessionResource: runResource,
 					startedAt: '2026-08-10T00:00:00.000Z',
-					leaderWindowId: 1,
 				}], undefined);
 				statuses.push(renderer.automationStatus.get());
 			}

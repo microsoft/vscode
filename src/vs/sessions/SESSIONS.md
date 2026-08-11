@@ -116,11 +116,8 @@ src/vs/sessions/contrib/providers/
 └── remoteAgentHost/      # Remote agent host provider (one instance per connection)
 ```
 
-Providers can expose `automations` to own durable Automation entities and run history. `ProviderAutomationService` aggregates these stores behind `IAutomationService`, routes mutations to the owning store, and keeps the legacy global ledger mounted while equivalent entries migrate idempotently by Automation and run ID. Divergent same-ID snapshots remain in both stores for explicit conflict handling rather than silently discarding legacy data.
-When an update changes the resolved owning provider, the aggregate service transfers the updated Automation and run history before conditionally removing the matching source snapshot.
-Startup recovery attempts every available store independently, so one unavailable provider does not block stale-run recovery in the remaining stores.
-The scheduler activates stale-run recovery only while its window is leader. Provider stores added during that leadership period are recovered after migration, and leadership loss disables recovery for later registrations.
-Legacy migration also isolates failures by Automation and removes a source copy only when it still matches the imported Automation and run snapshot. Concurrent source changes are retried a bounded number of times, while a concurrent deletion rolls back the unchanged destination copy.
+Automations are owned by Agent Host authorities, not by session providers. The global `AutomationService` discovers capable authorities through `IAgentHostConnectionsService`, projects each authority's AHP catalog, and routes mutations using authority-qualified Automation and run resources. Session providers continue to own session discovery and creation only.
+The retired global ledger and the short-lived local-provider ledger are import-only migration sources. Migration creates a deterministic disabled host definition, verifies the resulting definition, disables and removes the unchanged source with compare-and-swap, then restores the original host enabled state. Source-key-qualified journal and backup entries keep same-ID definitions from the two ledgers distinct, while unavailable target agents remain visible and read-only until their host advertises support.
 
 Providers can import from all layers below them (core, services, non-provider contribs). **Non-provider contribs must NOT import from providers.** Shared symbols should be extracted to `services/` or `common/`.
 

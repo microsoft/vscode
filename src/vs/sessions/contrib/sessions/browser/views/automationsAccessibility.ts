@@ -28,7 +28,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains automation cards followed by run history."),
 			localize('automationsCustomView.help.cards', "Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and Delete. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. Run now starts a session immediately. Delete asks for confirmation."),
-			localize('automationsCustomView.help.history', "Run history is grouped by date. Each run reports its Pending, Running, Needs input, Completed, Failed, or Cancelled status. Runs with an available session can be opened with Enter or Space. When the automation authority supports deleting run history, Tab to a run's delete button to permanently delete its session and history item, or to remove a terminal run that has no session from history, after confirmation."),
+			localize('automationsCustomView.help.history', "Run history is grouped by date. Each run reports its Pending, Running, Needs input, Completed, Failed, or Cancelled status. Runs whose authority permits cancellation have a Stop button. Runs with an available session can be opened with Enter or Space. When the automation authority supports deleting run history, Tab to a run's delete button to permanently delete its session and history item, or to remove a terminal run that has no session from history, after confirmation."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
 			localize('automationsCustomView.help.accessibleView', "Use Open Accessible View to read the current automations and run history as text."),
 		].join('\n');
@@ -80,13 +80,15 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	} else {
 		for (const automation of automations) {
 			lines.push('');
-			lines.push(automation.host?.migrationPending
-				? localize('automationsAccessibleView.automationMigrationPending', "{0}, waiting for agent, read-only", automation.name)
-				: automation.host?.connected === false
-					? localize('automationsAccessibleView.automationDisconnected', "{0}, host disconnected, read-only", automation.name)
-					: automation.enabled
-						? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-						: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+			lines.push(automation.host?.migrationConflict
+				? localize('automationsAccessibleView.automationMigrationConflict', "{0}, migration conflict, read-only", automation.name)
+				: automation.host?.migrationPending
+					? localize('automationsAccessibleView.automationMigrationPending', "{0}, waiting for agent, read-only", automation.name)
+					: automation.host?.connected === false
+						? localize('automationsAccessibleView.automationDisconnected', "{0}, host disconnected, read-only", automation.name)
+						: automation.enabled
+							? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+							: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
 			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation)));
 			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
 		}

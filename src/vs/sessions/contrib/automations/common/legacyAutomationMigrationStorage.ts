@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 
 export const AUTOMATION_STORAGE_KEY = 'chat.automations.ledger';
+export const LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY = `chat.automations.provider.${encodeURIComponent(LOCAL_AGENT_HOST_PROVIDER_ID)}.ledger`;
+export const LEGACY_AUTOMATION_STORAGE_KEYS = [AUTOMATION_STORAGE_KEY, LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY] as const;
 
 export interface ILegacyAutomationMigrationCompareAndSwapResult {
 	readonly swapped: boolean;
