@@ -31,7 +31,7 @@ import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataS
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -139,6 +139,22 @@ suite('AgentService (node dispatcher)', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('surfaces explicitly requested SDK download progress without a session', () => {
+		const notifications: { type: string; progressToken?: string; progress?: number; total?: number; message?: string }[] = [];
+		disposables.add(service.onDidNotification(notification => notifications.push(notification)));
+
+		service.emitDownloadProgress('codex', 'Codex', 50, 100, false, true);
+
+		assert.deepStrictEqual(notifications, [{
+			type: NotificationType.Progress,
+			channel: ROOT_STATE_URI,
+			progressToken: 'codex',
+			progress: 50,
+			total: 100,
+			message: 'Downloading Codex agent',
+		}]);
+	});
 
 	// ---- Provider registration ------------------------------------------
 
