@@ -139,11 +139,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
-		const output = await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']);
-		if (!output) {
+		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
+	}
+
+	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
+		if (!porcelainOutput) {
 			return [];
 		}
-		return output.split(/\r?\n/g)
+		return porcelainOutput.split(/\r?\n/g)
 			.filter(line => line.startsWith('worktree '))
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
@@ -240,7 +243,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * So we: retry with a capped exponential backoff to let the racing process
 	 * finish; switch to `prune` once the working tree is already gone; only retry
 	 * transient lock / "directory not empty" failures (a dirty-tree "use --force"
-	 * still fails fast); and verify the worktree is truly de-registered before
+	 * still fails fast); treat a non-retryable failure as success when git no
+	 * longer tracks the worktree (idempotent re-removal of an already-removed or
+	 * archived worktree); and verify the worktree is truly de-registered before
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
 	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
@@ -270,6 +275,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 			} catch (error) {
 				lastError = error;
 				if (!isRetryableWorktreeRemovalError(error)) {
+					// Idempotent: if git no longer tracks the worktree the removal goal is already met (e.g. an archived session removed it earlier).
+					if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+						this._logService.trace(`[agentHostGitService] worktree '${worktree.fsPath}' already de-registered; treating removal as complete`);
+						return;
+					}
 					throw error;
 				}
 			}
@@ -292,9 +302,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	/** Whether `worktree` is still registered with git (its admin entry survives). */
+	/**
+	 * Whether `worktree` is still registered with git (its admin entry survives).
+	 * Fails closed (returns `true`) if the registry cannot be read, so an unrelated
+	 * `git worktree list` failure is never mistaken for a completed removal.
+	 */
 	private async _isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
-		const registered = await this.getWorktreeRoots(repositoryRoot);
+		let registered: URI[];
+		try {
+			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+		} catch {
+			return true;
+		}
 		if (registered.length === 0) {
 			return false;
 		}
