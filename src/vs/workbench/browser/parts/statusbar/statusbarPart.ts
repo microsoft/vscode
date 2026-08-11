@@ -225,9 +225,15 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this._onDidChange.fire(undefined);
-				this.updateStyles();
+				this.updateStylesIfCreated();
 			}
 		}));
+	}
+
+	private updateStylesIfCreated(): void {
+		if (this.element) {
+			this.updateStyles();
+		}
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {
