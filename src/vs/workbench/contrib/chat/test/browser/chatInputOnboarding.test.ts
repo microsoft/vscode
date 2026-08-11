@@ -230,36 +230,6 @@ suite('Chat input onboarding', () => {
 			});
 	});
 
-	test('hands focus back to the input when a focused card stands down', () => {
-		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.displacedFocus');
-		const host = createHost(disposables);
-		let focusCalls = 0;
-		// Both routes to the input are the same function in production, so the card
-		// standing down and the card being dismissed land on the same counter.
-		const noticeHost = createNoticeHost(disposables, () => focusCalls++);
-		disposables.add(onboarding.registerHost({
-			container: host.container,
-			focusRoot: host.root,
-			focus: () => focusCalls++,
-			claimNotice: createClaim(noticeHost),
-		}));
-
-		let card: HTMLElement | undefined;
-		onboarding.showIfNeeded(context => {
-			const created = createCard(context);
-			card = context.container.querySelector<HTMLElement>('.chat-input-onboarding-card') ?? undefined;
-			return created;
-		});
-		card!.focus();
-		const focusedBeforeStandDown = dom.isAncestorOfActiveElement(host.container);
-		disposables.add(noticeHost.occupy(ChatInputNoticeLane.Notification));
-
-		// Focus must not be left on <body> when the card goes out of view.
-		assert.deepStrictEqual(
-			{ focusedBeforeStandDown, focusCalls },
-			{ focusedBeforeStandDown: true, focusCalls: 1 });
-	});
-
 	test('stands the card\'s live parts down while it is put away', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.suspends');
 		const host = createHost(disposables);

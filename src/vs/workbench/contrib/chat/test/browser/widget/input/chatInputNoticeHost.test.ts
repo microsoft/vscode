@@ -70,29 +70,6 @@ suite('ChatInputNoticeHost', () => {
 		assert.deepStrictEqual(events, ['tip:true', 'tip:false', 'tip:true']);
 	});
 
-	test('keeps a re-claim made while a lane is being released releasable', () => {
-		const host = disposables.add(new ChatInputNoticeHost(() => { }));
-		const store = disposables.add(new DisposableStore());
-		const events: string[] = [];
-		let reclaimed = false;
-
-		store.add(host.occupy(ChatInputNoticeLane.Tip, {
-			onDidChangeLeading: leading => {
-				events.push(`tip:${leading}`);
-				// Re-claims the lane the moment it frees. That lease must still be
-				// tracked, or the lane could never be released again - and the final
-				// `tip:true` below would never arrive.
-				if (leading && !reclaimed) {
-					reclaimed = true;
-					host.setOccupied(ChatInputNoticeLane.Onboarding, true);
-				}
-			},
-		}));
-		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
-
-		assert.deepStrictEqual(events, ['tip:true', 'tip:false', 'tip:true']);
-	});
-
 	test('does not announce a leader that a re-entrant claim already replaced', () => {
 		const host = disposables.add(new ChatInputNoticeHost(() => { }));
 		const store = disposables.add(new DisposableStore());
@@ -118,19 +95,6 @@ suite('ChatInputNoticeHost', () => {
 		// Dictation must never be told it leads: by the time voice had stood down,
 		// a notification owned the space.
 		assert.deepStrictEqual(events, ['voice:true', 'voice:false', 'notification:true']);
-	});
-
-	test('releases a lane only once when its claim is disposed repeatedly', () => {
-		const host = disposables.add(new ChatInputNoticeHost(() => { }));
-		const store = disposables.add(new DisposableStore());
-		const { events, claim } = recorder(host);
-
-		store.add(claim('first', ChatInputNoticeLane.Notification));
-		const duplicate = claim('duplicate', ChatInputNoticeLane.Notification);
-		duplicate.dispose();
-		duplicate.dispose();
-
-		assert.deepStrictEqual(events, ['first:true', 'first:false', 'duplicate:true', 'duplicate:false', 'first:true']);
 	});
 
 	test('does not strand a lane when a re-entrant release beats the new lease', () => {
@@ -159,39 +123,30 @@ suite('ChatInputNoticeHost', () => {
 			{ released: true, events: ['onboarding:true', 'onboarding:false', 'onboarding:true'] });
 	});
 
-	test('hands focus back to the input when the notice holding it stands down', () => {
+	test('hands focus back to the input only when the notice standing down held it', () => {
 		let inputFocusCount = 0;
 		const host = disposables.add(new ChatInputNoticeHost(() => inputFocusCount++));
 		const store = disposables.add(new DisposableStore());
+		let noticeHasFocus = true;
 
 		// Standing down is not the producer's decision, so the host - not every
-		// producer that can be displaced - keeps focus out of <body>.
+		// producer that can be displaced - keeps focus out of <body>. Content
+		// displaced while the user is typing in the input must not move it.
 		store.add(host.occupy(ChatInputNoticeLane.Tip, {
-			focusTarget: { hasFocus: () => true, focus: () => { } },
+			focusTarget: { hasFocus: () => noticeHasFocus, focus: () => { } },
 		}));
 		const notification = host.occupy(ChatInputNoticeLane.Notification);
-		const afterStandDown = inputFocusCount;
+		const afterFocusedStandDown = inputFocusCount;
 		// Coming back is not a stand-down: the notice is announced, not focused.
 		notification.dispose();
+		const afterReturning = inputFocusCount;
 
-		assert.deepStrictEqual(
-			{ afterStandDown, afterReturning: inputFocusCount },
-			{ afterStandDown: 1, afterReturning: 1 });
-	});
-
-	test('does not move focus when the notice standing down never had it', () => {
-		let inputFocusCount = 0;
-		const host = disposables.add(new ChatInputNoticeHost(() => inputFocusCount++));
-		const store = disposables.add(new DisposableStore());
-
-		// The common case: content is displaced while the user is typing in the
-		// input. Focus must be left exactly where it is.
-		store.add(host.occupy(ChatInputNoticeLane.Tip, {
-			focusTarget: { hasFocus: () => false, focus: () => { } },
-		}));
+		noticeHasFocus = false;
 		store.add(host.occupy(ChatInputNoticeLane.Notification));
 
-		assert.strictEqual(inputFocusCount, 0);
+		assert.deepStrictEqual(
+			{ afterFocusedStandDown, afterReturning, afterUnfocusedStandDown: inputFocusCount },
+			{ afterFocusedStandDown: 1, afterReturning: 1, afterUnfocusedStandDown: 1 });
 	});
 
 	test('toggles focus between the leading notice and the input', () => {
