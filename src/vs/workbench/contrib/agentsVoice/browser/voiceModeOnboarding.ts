@@ -23,6 +23,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
 import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -40,7 +41,7 @@ const VOICE_LANGUAGE_SETTING = 'agents.voice.language';
 /** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
-type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'previewVoice' | 'selectMicrophone' | 'openSettings' | 'close' | 'escape';
+type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'previewVoice' | 'selectMicrophone' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
 
 type VoiceModeOnboardingActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Voice Mode onboarding card.' };
