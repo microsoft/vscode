@@ -23,8 +23,9 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		productKey: string;
 		description: string;
 		url?: string;
+		status?: number;
 		body?: unknown;
-		presets: { id: string; label: string; description: string; body: unknown }[];
+		presets: { id: string; label: string; description: string; status?: number; body: unknown }[];
 	}
 
 	interface ServerState {
@@ -96,6 +97,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 
 	/** Validate the editor content as JSON. Returns parsed value or undefined. */
 	function parseEditor(): unknown | undefined {
+		const responseStatus = activeEndpoint()?.status ?? 200;
 		const raw = editor.value.trim();
 		if (raw === '') {
 			setStatus('Empty body — will be served as {}.', '');
@@ -108,14 +110,14 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			setStatus(`Invalid JSON: ${e instanceof Error ? e.message : String(e)}`, 'error');
 			return undefined;
 		}
-		const warning = validateAgainstSchema(parsed);
+		const warning = validateAgainstSchema(parsed, responseStatus);
 		if (warning) {
 			setStatus(`Valid JSON. ${warning}`, 'warn');
 		} else {
 			setStatus('Valid JSON.', 'ok');
 		}
 		// Update the validation table live if schema is loaded and we're on managed settings.
-		if (activeId === 'managedSettings' && schema && typeof parsed === 'object' && parsed && !Array.isArray(parsed)) {
+		if (activeId === 'managedSettings' && responseStatus >= 200 && responseStatus < 300 && schema && typeof parsed === 'object' && parsed && !Array.isArray(parsed)) {
 			renderValidationResults(parsed as Record<string, unknown>);
 		} else {
 			$('validation-results').hidden = true;
@@ -129,8 +131,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	 * way `projectManagedSettings` drops undeclared keys. Returns a warning string
 	 * or '' when nothing to report.
 	 */
-	function validateAgainstSchema(parsed: unknown): string {
-		if (activeId !== 'managedSettings' || !schema || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+	function validateAgainstSchema(parsed: unknown, responseStatus: number): string {
+		if (activeId !== 'managedSettings' || responseStatus < 200 || responseStatus >= 300 || !schema || typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 			return '';
 		}
 		const properties = schema.properties;
@@ -256,6 +258,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		const endpoint = activeEndpoint();
 		const preset = endpoint?.presets?.[Number(presetSelect.value)];
 		if (preset) {
+			endpoint.status = preset.status ?? 200;
 			editor.value = JSON.stringify(preset.body, null, '\t');
 			drafts[activeId] = editor.value;
 			saveDrafts();
@@ -288,7 +291,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			const state = await api<ServerState>('/api/state', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ endpoint: activeId, body: parsed })
+				body: JSON.stringify({ endpoint: activeId, status: activeEndpoint()?.status ?? 200, body: parsed })
 			});
 			endpoints = state.endpoints;
 			renderWired(state);
