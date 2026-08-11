@@ -936,25 +936,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
 		// has no upstream tracking ref; Git still reports the branch's push remote,
 		// which can be a remote name or the literal fork URL.
-		const pushRemote = !upstreamRemote && status.branchName
-			? (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${status.branchName}`]))?.trim() || undefined
-			: undefined;
+		const [pushRemote, baseBranchDivergence] = await Promise.all([
+			!upstreamRemote && status.branchName
+				? this._getPushRemote(repositoryRoot, status.branchName)
+				: undefined,
+			baseBranchName && status.branchName && status.branchName !== baseBranchName
+				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, status.outgoingChanges === undefined)
+				: undefined,
+		]);
 		const githubHeadRepo = upstreamRemote
 			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
 			: parseGitHubHeadRepoFromRemoteSelection(remotesOutput, pushRemote);
-
-		let baseBranchChanges: number | undefined;
-		if (baseBranchName && status.branchName && status.branchName !== baseBranchName) {
-			const hasLocalBaseBranch = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/heads/${baseBranchName}`]) !== undefined;
-			const baseBranchRef = hasLocalBaseBranch
-				? baseBranchName
-				: await this._resolveRemoteTrackingBranch(repositoryRoot, baseBranchName) ?? baseBranchName;
-			const ahead = await this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranchRef}..HEAD`]);
-			const parsed = ahead === undefined ? NaN : Number(ahead.trim());
-			if (Number.isFinite(parsed)) {
-				baseBranchChanges = parsed;
-			}
-		}
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -965,7 +957,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// actually cares about for "is there work to PR?".
 		let outgoingChanges = status.outgoingChanges;
 		if (outgoingChanges === undefined) {
-			outgoingChanges = baseBranchChanges;
+			outgoingChanges = baseBranchDivergence?.count;
 		}
 
 		const result: ISessionGitState = {
@@ -976,7 +968,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
-			baseBranchChanges,
+			hasBaseBranchChanges: baseBranchDivergence?.hasChanges,
 			githubOwner: githubRepo?.owner,
 			githubHeadOwner: githubHeadRepo?.owner,
 			githubRepo: githubRepo?.repo,
@@ -984,6 +976,31 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// Strip undefined fields so the resulting object is the same regardless
 		// of which probes succeeded — easier to compare in tests.
 		return stripUndefined(result);
+	}
+
+	private async _getPushRemote(repositoryRoot: URI, branchName: string): Promise<string | undefined> {
+		return (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${branchName}`]))?.trim() || undefined;
+	}
+
+	private async _computeBaseBranchDivergence(repositoryRoot: URI, baseBranchName: string, countCommits: boolean): Promise<{ readonly hasChanges: boolean; readonly count?: number } | undefined> {
+		const localRef = `refs/heads/${baseBranchName}`;
+		const remoteRef = `refs/remotes/origin/${baseBranchName}`;
+		const refs = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)', localRef, remoteRef]);
+		if (refs === undefined) {
+			return undefined;
+		}
+		const refNames = new Set(refs.split(/\r?\n/g).filter(Boolean));
+		const baseBranchRef = refNames.has(localRef) ? localRef : refNames.has(remoteRef) ? remoteRef : baseBranchName;
+		// Upstream divergence can remain after a local merge, so operation availability tracks the local base separately.
+		const output = await this._runGit(repositoryRoot, ['rev-list', countCommits ? '--count' : '--max-count=1', `${baseBranchRef}..HEAD`]);
+		if (output === undefined) {
+			return undefined;
+		}
+		if (!countCommits) {
+			return { hasChanges: output.trim().length > 0 };
+		}
+		const count = Number(output.trim());
+		return Number.isFinite(count) ? { hasChanges: count > 0, count } : undefined;
 	}
 
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void }): Promise<string | undefined> {

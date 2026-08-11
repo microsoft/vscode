@@ -97,7 +97,7 @@ suite('AgentHostMergeOperationContribution', () => {
 			folderContribution.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState: gitStateWithChanges }),
 			worktreeContribution.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Session, gitState: gitStateWithChanges }),
 			worktreeContribution.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState: { ...gitStateWithChanges, uncommittedChanges: 0, outgoingChanges: 0 } }),
-			worktreeContribution.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState: { ...gitStateWithChanges, uncommittedChanges: 0, outgoingChanges: 2, baseBranchChanges: 0 } }),
+			worktreeContribution.getOperations({ sessionKey, changesetUri: branchChangesetUri, changesetKind: ChangesetKind.Branch, gitState: { ...gitStateWithChanges, uncommittedChanges: 0, outgoingChanges: 2, hasBaseBranchChanges: false } }),
 			worktreeContribution.getOperations({
 				sessionKey,
 				changesetUri: branchChangesetUri,

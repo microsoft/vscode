@@ -1296,8 +1296,8 @@ export interface ISessionGitState {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
-	/** Number of commits the current branch is ahead of its local base branch. */
-	readonly baseBranchChanges?: number;
+	/** Whether the current branch has commits not contained in its local base branch. */
+	readonly hasBaseBranchChanges?: boolean;
 	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
 	/** GitHub owner parsed from the current branch's upstream or push remote. */
@@ -1506,7 +1506,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
-		baseBranchChanges?: number;
+		hasBaseBranchChanges?: boolean;
 		githubOwner?: string;
 		githubHeadOwner?: string;
 		githubRepo?: string;
@@ -1518,7 +1518,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
-	if (typeof raw['baseBranchChanges'] === 'number') { result.baseBranchChanges = raw['baseBranchChanges']; }
+	if (typeof raw['hasBaseBranchChanges'] === 'boolean') { result.hasBaseBranchChanges = raw['hasBaseBranchChanges']; }
 	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
 	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }

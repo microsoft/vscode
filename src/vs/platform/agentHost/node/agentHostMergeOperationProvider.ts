@@ -59,9 +59,9 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 			return undefined;
 		}
 
-		const outgoingChanges = gitState?.baseBranchChanges ?? gitState?.outgoingChanges ?? 0;
+		const hasBranchChanges = gitState?.hasBaseBranchChanges ?? (gitState?.outgoingChanges ?? 0) > 0;
 		const uncommittedChanges = gitState?.uncommittedChanges ?? 0;
-		if (outgoingChanges === 0 && uncommittedChanges === 0) {
+		if (!hasBranchChanges && uncommittedChanges === 0) {
 			return undefined;
 		}
 

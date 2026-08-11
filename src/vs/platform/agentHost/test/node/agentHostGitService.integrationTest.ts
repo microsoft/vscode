@@ -204,12 +204,12 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			assert.strictEqual(result.baseBranchName, 'main');
 			assert.strictEqual(result.upstreamBranchName, undefined);
 			assert.strictEqual(result.outgoingChanges, 2);
-			assert.strictEqual(result.baseBranchChanges, 2);
+			assert.strictEqual(result.hasBaseBranchChanges, true);
 			assert.strictEqual(result.uncommittedChanges, 0);
 
 			run('branch', '-D', 'main');
 			const remoteOnlyResult = await svc!.getSessionGitState(URI.file(tmpRoot!));
-			assert.strictEqual(remoteOnlyResult?.baseBranchChanges, 2);
+			assert.strictEqual(remoteOnlyResult?.hasBaseBranchChanges, true);
 		} finally {
 			rmDirWithRetry(remoteDir);
 		}
