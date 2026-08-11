@@ -995,12 +995,12 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 	}
 
 	/**
-	 * One short paragraph: what Voice Mode does, and where to change its settings
-	 * or instructions.
+	 * One short paragraph: what Voice Mode does, and where to change its
+	 * settings or instructions.
 	 *
-	 * `[[...]]` marks each clause that becomes a link, so translators can place it
-	 * naturally in the sentence instead of receiving a fixed phrase concatenated
-	 * onto the end.
+	 * `[[...]]` marks each clause that becomes a link, so translators can place
+	 * it naturally in the sentence instead of receiving a fixed phrase
+	 * concatenated onto the end.
 	 */
 	private renderDescription(container: HTMLElement): void {
 		const description = dom.append(container, dom.$('.voice-mode-onboarding-description'));
@@ -1017,7 +1017,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 					const commandId = index === '0' ? VOICE_SETTINGS_COMMAND : CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID;
 					this.logAction(index === '0' ? 'openSettings' : 'openInstructions');
 					this.commandService.executeCommand(commandId)
-						.catch(error => this.logService.error(`[voice] Failed to run ${VOICE_SETTINGS_COMMAND}: ${error}`));
+						.catch(error => this.logService.error(`[voice] Failed to run ${commandId}: ${error}`));
 				},
 				disposables: this._store,
 			},
