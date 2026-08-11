@@ -32,9 +32,9 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 - **Onboarding variations share structural steps and vary only their run step**: keep one scenario for workspace selection, then resolve the experiment/developer variation when the run step executes. Personalized GitHub prompts use existing authentication silently, stay within a bounded cancellable lookup, verify that the selected draft workspace is still current, and fall back to the default prompt without surfacing an error.
 
-- **Prompt-option headings and cards are one visual surface**: group them with one enclosing border on the session surface; filling the entire group with the chat-input background makes it compete with the input, so reserve that fill for the cards. In each card, keep the icon and title on the first row, let supporting text span from the card's leading edge beneath the icon, and balance top/bottom padding so short copy does not leave a hollow corner.
+- **Prompt-option headings and cards are one visual surface**: group them with one enclosing border on the session surface; filling the entire group with the chat-input background makes it compete with the input, so reserve that fill for the cards. Keep the icon with the card's primary content, give secondary copy its own row, and balance top/bottom padding so short copy does not leave a hollow corner.
 
-- **GitHub prompt-option numbers belong with the action title**: render labels such as "Tackle issue #123" or "Fix CI #456" on the first row and reserve the second row for the issue/PR title. This preserves the scarce full-width line for descriptive repository content.
+- **GitHub prompt-option action labels must not masquerade as repository titles**: leading with an equal-weight "Tackle issue #123" row makes the generic action look like the issue name. Lead with the issue/PR title beside its state icon, then render the action and number as quiet secondary metadata.
 
 - **Prompt-option selection has two generated input forms**: the selected option stays switchable while the input is empty, exactly matches its full prompt, or exactly matches that prompt after its editable placeholder was activated and removed; every other edit disables the cards. Animate only the first insertion, replace later selections immediately, focus the input on activation, and use the card foreground for selected borders rather than conflating selection with the blue focus color.
 
@@ -46,7 +46,7 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 - **Three prompt options must fill every row**: render three equal growing cards on one row when space allows. At the two-column breakpoint keep `flex-grow` enabled so the third card occupies the full wrapped row instead of leaving an empty column.
 
-- **GitHub prompt-option numbers are secondary title metadata**: model the issue/PR number separately from the action title, render it beside the title using the same muted color as the second line, and combine both only for ARIA and full-content hovers. Do not parse or color substrings inside one title string.
+- **GitHub prompt-option numbers are structured action metadata**: model the issue/PR number separately from the action title, then compose both in the secondary metadata row and in the full ARIA/hover text. Do not parse or color substrings inside one title string.
 
 - **Agent-host onboarding readiness comes from advertised session types, not provider registration**: an agent-host provider exists before its root state connects, while its `sessionTypes` stay empty. Gate tours that need a usable host on a context key derived from any `local-agent-host`/`agenthost-*` provider exposing a session type, and update it from `ISessionsManagementService.onDidChangeSessionTypes`.
 

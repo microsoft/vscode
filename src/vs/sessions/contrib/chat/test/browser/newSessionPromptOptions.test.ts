@@ -159,7 +159,7 @@ suite('NewSessionPromptOptionsWidget', () => {
 		});
 	});
 
-	test('renders title details separately while preserving full accessible text', () => {
+	test('renders repository content and action separately while preserving full accessible text', () => {
 		const container = document.createElement('div');
 		const hoverService = new TestHoverService();
 		const widget = disposables.add(new NewSessionPromptOptionsWidget(container, {
@@ -177,11 +177,15 @@ suite('NewSessionPromptOptionsWidget', () => {
 		const button = widget.element.querySelector<HTMLElement>('.new-session-prompt-option');
 
 		assert.deepStrictEqual({
+			hasTitleDetailClass: button?.classList.contains('has-title-detail'),
+			description: button?.querySelector('.new-session-prompt-option-description')?.textContent,
 			title: button?.querySelector('.new-session-prompt-option-title-label')?.textContent,
 			detail: button?.querySelector('.new-session-prompt-option-title-detail')?.textContent,
 			ariaLabel: button?.getAttribute('aria-label'),
 			hover: hoverService.contents,
 		}, {
+			hasTitleDetailClass: true,
+			description: 'A complete issue title',
 			title: 'Tackle issue',
 			detail: '#123',
 			ariaLabel: 'Tackle issue #123: A complete issue title',
