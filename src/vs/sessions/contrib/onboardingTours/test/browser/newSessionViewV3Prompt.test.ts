@@ -22,7 +22,7 @@ import { NullWorkbenchAssignmentService } from '../../../../../workbench/service
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposerService, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
 import { GitHubAuthenticationError } from '../../../github/browser/githubApiClient.js';
 import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -248,6 +248,56 @@ suite('NewSessionViewV3Prompt', () => {
 		});
 	});
 
+	test('reports privacy-safe prompt option selections and closure', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{
+				issues: [issue('Private issue title', '2026-08-07T14:00:00Z', 14)],
+				pullRequests: [
+					pullRequest('Private CI title', '2026-08-07T13:00:00Z', 'FAILURE', undefined, undefined, 21),
+					pullRequest('Private review title', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z', 22),
+				],
+			},
+			{ promptOptionInteractions: [0, 1, 2, 'close'] },
+		);
+
+		assert.deepStrictEqual(result.telemetry.filter(event => event.name === 'onboarding.promptOptionInteraction'), [
+			{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					interaction: 'selected',
+					option: 'githubIssue',
+				},
+			},
+			{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					interaction: 'selected',
+					option: 'githubPRCI',
+				},
+			},
+			{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					interaction: 'selected',
+					option: 'githubPRComments',
+				},
+			},
+			{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					interaction: 'closed',
+					option: 'none',
+				},
+			},
+		]);
+	});
+
 	test('fills missing prompt options from the fixed standard order after a partial timeout', async () => {
 		const result = await runPrompt(
 			{ 'onb.newSessionViewV3.variation': 'options' },
@@ -410,6 +460,39 @@ suite('NewSessionViewV3Prompt', () => {
 		]);
 	});
 
+	test('resolves the repository from a configured GitHub Enterprise remote', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'githubPrompt' },
+			{},
+			{ pullRequests: [], issues: [issue('Enterprise issue', '2026-08-07T13:00:00Z', 7)] },
+			{
+				includeGitHubInfo: false,
+				gitRemoteUrl: 'git@ghe.example.com:enterprise/project.git',
+				enterpriseHost: 'ghe.example.com',
+			},
+		);
+
+		assert.deepStrictEqual(result.gitHubRequests, [
+			{ kind: 'issues', owner: 'enterprise', repo: 'project' },
+			{ kind: 'pullRequests', owner: 'enterprise', repo: 'project' },
+			{ kind: 'issueLinkage', owner: 'enterprise', repo: 'project', issueNumbers: [7] },
+		]);
+	});
+
+	test('does not query hostless metadata or github.com remotes through GitHub Enterprise', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'githubPrompt' },
+			{},
+			{ pullRequests: [], issues: [issue('Public issue', '2026-08-07T13:00:00Z')] },
+			{
+				gitRemoteUrl: 'git@github.com:public/project.git',
+				enterpriseHost: 'ghe.example.com',
+			},
+		);
+
+		assert.deepStrictEqual(result.gitHubRequests, []);
+	});
+
 	test('waits for Agent Host git metadata instead of requiring the Git extension', async () => {
 		const workspace = observableValue('workspace', createWorkspace(URI.file('C:\\repo'), 'r', false));
 		const activeSession = new class extends mock<IActiveSession>() {
@@ -532,7 +615,15 @@ async function runPrompt(
 	treatments: Partial<Record<string, string>>,
 	configuration: Record<string, object> = {},
 	gitHubResult: IGitHubRecentUserWork | Error = { pullRequests: [], issues: [] },
-	options: { readonly workspaceUri?: URI; readonly includeGitHubInfo?: boolean; readonly gitRemoteUrl?: string; readonly pullRequestLookupNeverResolves?: boolean; readonly issueLinkageLookupNeverResolves?: boolean } = {},
+	options: {
+		readonly workspaceUri?: URI;
+		readonly includeGitHubInfo?: boolean;
+		readonly gitRemoteUrl?: string;
+		readonly enterpriseHost?: string;
+		readonly pullRequestLookupNeverResolves?: boolean;
+		readonly issueLinkageLookupNeverResolves?: boolean;
+		readonly promptOptionInteractions?: readonly (number | 'close')[];
+	} = {},
 ): Promise<{
 	readonly animation: { readonly prompt: string; readonly durationMs: number; readonly placeholder: string } | undefined;
 	readonly promptOptionStates: readonly NewSessionPromptOptionsState[];
@@ -541,6 +632,7 @@ async function runPrompt(
 }> {
 	let animation: { prompt: string; durationMs: number; placeholder: string } | undefined;
 	const promptOptionStates: NewSessionPromptOptionsState[] = [];
+	let promptOptionsController: INewSessionPromptOptionsController | undefined;
 	const workspaceUri = options.workspaceUri ?? URI.file('C:\\repo');
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
@@ -559,10 +651,22 @@ async function runPrompt(
 				}
 				return true;
 			},
+			setPromptOptionsController: (controller: INewSessionPromptOptionsController) => promptOptionsController = controller,
+			refreshPromptOptions: async (token: CancellationToken) => {
+				const controller = promptOptionsController;
+				if (!controller) {
+					return false;
+				}
+				promptOptionStates.push({ kind: 'loading' });
+				const state = await controller.resolve(token);
+				promptOptionStates.push(state);
+				return true;
+			},
 		});
 	}();
 	const gitHubService = new class extends mock<IGitHubService>() {
 		readonly requests: TestGitHubRequest[] = [];
+		override readonly enterpriseHost = options.enterpriseHost;
 		override async getRecentAssignedIssues(owner: string, repo: string) {
 			this.requests.push({ kind: 'issues', owner, repo });
 			if (gitHubResult instanceof Error) {
@@ -627,6 +731,24 @@ async function runPrompt(
 	);
 
 	await runner.run(CancellationToken.None);
+	if (options.promptOptionInteractions?.length) {
+		const controller = promptOptionsController;
+		const resolvedState = [...promptOptionStates].reverse().find(state => state.kind === 'resolved');
+		if (!controller || !resolvedState) {
+			throw new Error('Prompt option interactions require resolved prompt options.');
+		}
+		for (const interaction of options.promptOptionInteractions) {
+			if (interaction === 'close') {
+				controller.onDidClose();
+				continue;
+			}
+			const option = resolvedState.options[interaction];
+			if (!option) {
+				throw new Error(`Prompt option ${interaction} was not resolved.`);
+			}
+			controller.onDidSelectOption(option);
+		}
+	}
 	return { animation, promptOptionStates, telemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
 }
 
