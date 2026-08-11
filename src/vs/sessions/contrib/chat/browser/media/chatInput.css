@@ -663,7 +663,12 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+/* --- Chat input notification in the new-session homepage --- */
 
+/* Hide the container when no notification is active */
+.new-chat-input-container > .chat-input-notification-container:not(.has-notification) {
+	display: none;
+}
 
 .new-chat-input-container > .chat-input-notification-container.has-notification {
 	/* Overlap the following input-stack surface to avoid a gap between their rounded edges. */
