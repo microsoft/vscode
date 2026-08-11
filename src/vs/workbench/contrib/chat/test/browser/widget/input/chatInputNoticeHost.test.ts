@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../browser/widget/input/chatInputNoticeHost.js';
@@ -145,6 +145,33 @@ suite('ChatInputNoticeHost', () => {
 			'dictation:true',
 			'dictation:false', 'voice:true',
 		]);
+	});
+
+	test('does not announce a leader that a re-entrant claim already replaced', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const events: string[] = [];
+		let notification: IDisposable | undefined;
+
+		// Standing down is a real side effect (it moves focus), so a callback can
+		// change who owns the space while the host is still announcing.
+		store.add(host.occupy(ChatInputNoticeLane.Onboarding, {
+			onDidChangeLeading: leading => {
+				events.push(`voice:${leading}`);
+				if (!leading && !notification) {
+					notification = store.add(host.occupy(ChatInputNoticeLane.Notification, {
+						onDidChangeLeading: it => events.push(`notification:${it}`),
+					}));
+				}
+			},
+		}));
+		store.add(host.occupy(ChatInputNoticeLane.Onboarding, {
+			onDidChangeLeading: leading => events.push(`dictation:${leading}`),
+		}));
+
+		// Dictation must never be told it leads: by the time voice had stood down,
+		// a notification owned the space.
+		assert.deepStrictEqual(events, ['voice:true', 'voice:false', 'notification:true']);
 	});
 
 	test('releases a lane only once when its claim is disposed repeatedly', () => {

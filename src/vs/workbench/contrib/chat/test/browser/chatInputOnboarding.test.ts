@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -332,6 +333,39 @@ suite('Chat input onboarding', () => {
 		}
 
 		assert.strictEqual(cardsCreated, 2);
+	});
+
+	test('a card that fails to build releases the space it was standing on', () => {
+		// `build()` runs from the host reporting that we lead, which happens before
+		// the claim disposable is in hand. A throw there must not strand the claim:
+		// the lane would stay occupied forever with nothing on screen, silently
+		// suppressing everything below it.
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.buildThrows');
+		const host = createHost(disposables);
+		const noticeHost = createNoticeHost(disposables);
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			noticeSlot: createSlot(noticeHost),
+		}));
+
+		const originalHandler = errorHandler.getUnexpectedErrorHandler();
+		const reported: string[] = [];
+		setUnexpectedErrorHandler(error => reported.push((error as Error).message));
+		try {
+			onboarding.showIfNeeded(() => { throw new Error('card exploded'); });
+		} finally {
+			setUnexpectedErrorHandler(originalHandler);
+		}
+
+		assert.deepStrictEqual(
+			{
+				reported,
+				isVisible: onboarding.isVisible,
+				laneClaimed: noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined),
+				hostClass: host.container.classList.contains('has-chat-input-onboarding'),
+			},
+			{ reported: ['card exploded'], isVisible: false, laneClaimed: false, hostClass: false });
 	});
 
 	test('announces once on show', () => {

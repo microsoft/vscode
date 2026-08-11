@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { IChatInputNoticeSlot } from './chatInputOnboarding.js';
@@ -23,6 +24,9 @@ export const enum ChatInputNoticeLane {
 }
 
 const LANE_COUNT = 3;
+
+/** Claims that keep answering each other are a bug, not something to spin on. */
+const MAX_NOTIFY_ITERATIONS = 100;
 
 /** A notice keyboard focus can be moved into and back out of. */
 export interface IChatInputNoticeFocusTarget {
@@ -57,7 +61,9 @@ export class ChatInputNoticeHost extends Disposable {
 	private readonly _claims: IClaim[][] = Array.from({ length: LANE_COUNT }, () => []);
 	private readonly _leases = this._register(new DisposableMap<ChatInputNoticeLane>());
 	private readonly _occupiedLane = observableValue<ChatInputNoticeLane | undefined>(this, undefined);
+	/** The claim currently announced as being on screen. */
 	private _leadingClaim: IClaim | undefined;
+	private _notifying = false;
 
 	constructor(private readonly _focusInput: () => void) {
 		super();
@@ -146,23 +152,45 @@ export class ChatInputNoticeHost extends Disposable {
 	}
 
 	/**
-	 * Recomputed from current state rather than from a captured value, so that
-	 * re-entrant claims settle on one consistent answer instead of replaying a
-	 * stale one.
+	 * Brings the announced leader in line with the claims actually held.
+	 *
+	 * Standing down is a real side effect - it moves focus and hides DOM - so a
+	 * callback can change who owns the space while this is still running. State
+	 * is therefore re-read after every single notification rather than captured
+	 * up front, so a leader that has since been replaced is never announced.
 	 */
 	private _notifyLeading(): void {
-		const lane = this._claims.findIndex(claims => claims.length > 0);
-		const leading = lane === -1 ? undefined : this._claims[lane].at(-1);
-		if (leading === this._leadingClaim) {
+		if (this._notifying) {
+			// The running pass re-reads state after each callback, so it picks this
+			// change up itself instead of announcing it out of order.
 			return;
 		}
 
-		const previous = this._leadingClaim;
-		// Assign before notifying: the callbacks may claim or release, re-entering
-		// here, and must see the new leader rather than announce it twice.
-		this._leadingClaim = leading;
-		previous?.onDidChangeLeading?.(false);
-		leading?.onDidChangeLeading?.(true);
+		this._notifying = true;
+		try {
+			for (let iteration = 0; ; iteration++) {
+				const lane = this._claims.findIndex(claims => claims.length > 0);
+				const leading = lane === -1 ? undefined : this._claims[lane].at(-1);
+				if (leading === this._leadingClaim) {
+					return;
+				}
+				if (iteration >= MAX_NOTIFY_ITERATIONS) {
+					onUnexpectedError(new BugIndicatingError('Chat input notice claims did not settle'));
+					return;
+				}
+
+				if (this._leadingClaim) {
+					const previous = this._leadingClaim;
+					this._leadingClaim = undefined;
+					previous.onDidChangeLeading?.(false);
+				} else {
+					this._leadingClaim = leading;
+					leading?.onDidChangeLeading?.(true);
+				}
+			}
+		} finally {
+			this._notifying = false;
+		}
 	}
 }
 

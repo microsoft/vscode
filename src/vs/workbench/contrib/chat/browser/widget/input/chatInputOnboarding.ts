@@ -163,10 +163,28 @@ export class ChatInputOnboarding extends Disposable {
 
 		// A newer claim leads its lane, so this both takes the space from a peer
 		// introduction and yields to a notification, through one mechanism.
-		this.claim.value = slot.claim({
+		//
+		// The host reports leading synchronously from `claim()`, before the lease
+		// is in hand. That first answer is held until the lease is stored, so a
+		// card that fails to build can release the claim it is standing on rather
+		// than leaving the lane occupied with nothing on screen.
+		let holdsLease = false;
+		let leadsImmediately = false;
+		const lease = slot.claim({
 			focusTarget: { hasFocus: () => this.activeBanner?.hasFocus() ?? false, focus: () => this.activeBanner?.focus() },
-			onDidChangeLeading: leading => this.setLeading(leading),
+			onDidChangeLeading: leading => {
+				if (holdsLease) {
+					this.setLeading(leading);
+				} else {
+					leadsImmediately = leading;
+				}
+			},
 		});
+		this.claim.value = lease;
+		holdsLease = true;
+		if (leadsImmediately) {
+			this.setLeading(true);
+		}
 		return true;
 	}
 
