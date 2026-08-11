@@ -143,7 +143,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.previousQuestionCarouselQuestion', 'When a chat question is focused, move to the previous question{0}.', '<keybinding:workbench.action.chat.previousQuestion>'));
 		content.push(localize('chat.nextQuestionCarouselQuestion', 'When a chat question is focused, move to the next question{0}.', '<keybinding:workbench.action.chat.nextQuestion>'));
 		content.push(localize('chat.planReviewEditor', 'When a plan is ready for review, open it from the chat response to edit the plan and add line comments. Use the editor toolbar to navigate, clear, or submit feedback. Choose an implementation action from the plan review in Chat.'));
-		content.push(localize('chat.focusTip', 'When a tip appears, toggle focus between the tip and the chat input{0}.', '<keybinding:workbench.action.chat.focusTip>'));
+		content.push(localize('chat.focusNotice', 'When a tip, notification or introduction appears above the input, toggle focus between it and the chat input{0}.', '<keybinding:workbench.action.chat.focusTip>'));
 		if (isSessionsWindow) {
 			content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
 		}
@@ -191,6 +191,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('inlineChat.diff', "Once in the diff editor, enter review mode with{0}. Use up and down arrows to navigate lines with the proposed changes.", AccessibleDiffViewerNext.id));
 		content.push(localize('inlineChat.toolbar', "Use tab to reach conditional parts like commands, status, message responses and more."));
 	}
+	content.push(localize('chat.attachments.pastedText', "Long pasted text is stored as an attached text item and replaced in the input with a numbered inline reference."));
 	content.push(localize('chat.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
 	return content.join('\n');
 }
