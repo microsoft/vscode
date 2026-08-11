@@ -211,6 +211,15 @@ suite('AgentHostCheckpointService', () => {
 		]);
 	});
 
+	test('turn-start database open failure is best-effort', async () => {
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => 'tree-before-turn', { failOpenDatabaseAt: 1 });
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-5', [workingDirectory]);
+
+		assert.deepStrictEqual(commitCalls, []);
+	});
+
 	test('start commit failure skips the repository end checkpoint', async () => {
 		const trees = ['tree-before-turn', 'tree-after-turn'];
 		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => trees.shift(), {
@@ -309,6 +318,18 @@ suite('AgentHostCheckpointService', () => {
 		await service.captureTurnStartCheckpoint(session, peerChat, 'turn-1', [workingDirectory]);
 		await service.captureTurnCheckpoint(session, peerChat, 'turn-1', [workingDirectory]);
 		await service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+
+		assert.deepStrictEqual(commitCalls, []);
+	});
+
+	test('failed peer start capture still invalidates an existing turn', async () => {
+		const trees = ['tree-a-start', undefined, 'tree-a-end'];
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => trees.shift());
+		const peerChat = URI.parse('ahp-chat://peer/session');
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-a', [workingDirectory]);
+		await service.captureTurnStartCheckpoint(session, peerChat, 'turn-b', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-a', [workingDirectory]);
 
 		assert.deepStrictEqual(commitCalls, []);
 	});

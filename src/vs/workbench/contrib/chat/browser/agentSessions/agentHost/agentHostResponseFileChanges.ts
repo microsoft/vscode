@@ -137,6 +137,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const responseFileEditsObs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
 
 		return derived(reader => {
+			if (!turnChangesetUriObs.read(reader)) {
+				return [];
+			}
 			const changesetState = changesetStateObs.read(reader).read(reader);
 			if (changesetState && !(changesetState instanceof Error) && changesetState.status === ChangesetStatus.Ready) {
 				return changesetState.files

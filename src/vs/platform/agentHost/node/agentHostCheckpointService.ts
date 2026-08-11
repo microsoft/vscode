@@ -116,14 +116,23 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			return;
 		}
 
-		const ref = this._sessionDataService.openDatabase(sessionUri);
+		const hasConcurrentTurn = sessionCheckpoints.size > 0;
+		if (hasConcurrentTurn) {
+			for (const checkpoint of sessionCheckpoints.values()) {
+				checkpoint.gitEligible = false;
+			}
+		}
+		const checkpoint: ITurnStartCheckpoint = { chatKey, trees: new Map(), gitEligible: !hasConcurrentTurn };
+		sessionCheckpoints.set(turnKey, checkpoint);
+		let ref: ReturnType<ISessionDataService['openDatabase']> | undefined;
 		try {
+			ref = this._sessionDataService.openDatabase(sessionUri);
 			await ref.object.createTurn(turnId);
 			if (await ref.object.getTurnCheckpointRef(turnId)) {
+				sessionCheckpoints.delete(turnKey);
 				return;
 			}
 
-			const trees = new Map<string, string>();
 			for (const workingDirectoryUri of workingDirectories) {
 				try {
 					const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
@@ -134,29 +143,20 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRootUri);
 					if (tree) {
 						await this._ensureBaselineCheckpoint(sessionUri, repositoryRootUri, tree);
-						trees.set(repositoryRootUri.toString(), tree);
+						checkpoint.trees.set(repositoryRootUri.toString(), tree);
 					}
 				} catch (err) {
 					this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn start for ${sessionUri.toString()}/${turnId} in working directory ${workingDirectoryUri.toString()}`, err);
 				}
 			}
 
-			if (trees.size > 0) {
-				const hasConcurrentTurn = sessionCheckpoints.size > 0;
-				if (hasConcurrentTurn) {
-					for (const checkpoint of sessionCheckpoints.values()) {
-						checkpoint.gitEligible = false;
-					}
-				}
-				sessionCheckpoints.set(turnKey, { chatKey, trees, gitEligible: !hasConcurrentTurn });
-			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostCheckpoint] Failed to capture turn start for ${sessionUri.toString()}/${turnId}`, err);
 		} finally {
 			if (sessionCheckpoints.size === 0) {
 				this._turnStartCheckpoints.delete(sessionKey);
 			}
-			ref.dispose();
+			ref?.dispose();
 		}
 	}
 

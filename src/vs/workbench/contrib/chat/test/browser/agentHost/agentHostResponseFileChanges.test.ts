@@ -313,9 +313,26 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('returns empty when the agent does not advertise a turn changeset', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession, () => defaultChatUri));
 
 		conn.setState(backendSession.toString(), { changesets: [{ label: 'All', uriTemplate: `${backendSession}/changeset/session`, changeKind: 'session' }] } as unknown as SessionState);
+		conn.setState(defaultChatUri.toString(), {
+			turns: [{
+				id: 't1',
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							after: { uri: URI.file('/repo/unsupported.ts').toString(), content: { uri: 'git-blob://unsupported' } },
+							diff: { added: 1, removed: 0 },
+						}],
+					},
+				}],
+			}],
+		} as unknown as ChatState);
 
 		const { latest } = observe(provider, ds);
 		assert.deepStrictEqual(latest(), []);

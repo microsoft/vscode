@@ -922,6 +922,42 @@ suite('AgentSideEffects', () => {
 			await discarded.p;
 		});
 
+		test('cancellation before send skips turn-start capture', async () => {
+			setupProvisionalSession();
+			let captureCount = 0;
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async () => { captureCount++; },
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [URI.file('/wd')],
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, undefined, undefined, checkpoints);
+			const cancelled = {
+				type: ActionType.ChatTurnCancelled,
+				turnId: 'turn-1',
+				duration: 0,
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, cancelled, { clientId: 'test', clientSeq: 1 });
+			const started = {
+				type: ActionType.ChatTurnStarted,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+
+			localSideEffects.handleAction(defaultChatUri, started);
+			await timeout(0);
+
+			assert.deepStrictEqual({ captureCount, sendMessageCalls: agent.sendMessageCalls }, {
+				captureCount: 0,
+				sendMessageCalls: [],
+			});
+		});
+
 		test('AgentSideEffects owns exactly one ChatError when an already-ready session send rejects', async () => {
 			setupSession(); // dispatches SessionReady -> lifecycle Ready
 			agent.sendMessageError = new Error('transient send failure');
@@ -5992,6 +6028,30 @@ suite('AgentSideEffects', () => {
 			await captured.p;
 
 			assert.strictEqual(discardCount, 0);
+		});
+
+		test('terminal provider error captures the end checkpoint without completion', async () => {
+			setupSession();
+			startTurn('turn-1');
+			const captured = new DeferredPromise<void>();
+			const checkpoints: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnCheckpoint: async () => { captured.complete(); },
+			};
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpoints);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 100, error: { errorType: 'terminal', message: 'failed' } },
+			});
+
+			await captured.p;
 		});
 
 		test('chat truncation discards pending turn starts for that chat', async () => {

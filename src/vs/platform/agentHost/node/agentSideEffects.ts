@@ -922,6 +922,7 @@ export class AgentSideEffects extends Disposable {
 		if (action.type === ActionType.ChatError) {
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
+			this._captureTurnCheckpointAndRefresh(sessionKey, turnId);
 			this._markSessionUnread(sessionUri);
 		}
 	}
@@ -962,20 +963,7 @@ export class AgentSideEffects extends Disposable {
 		// completion since those have always been fire-and-forget; the
 		// ordering guarantee we care about is checkpoint-then-changeset.
 		if (turnId !== undefined) {
-			// Resolved here rather than inside the checkpoint service so the
-			// repositories a checkpoint acts on are always explicit at the
-			// call site. Note the changeset service below deliberately keeps
-			// its own resolution: `onTurnComplete` only schedules deferred
-			// recomputes that are shared with subscription, truncation and
-			// mid-turn-debounce entry points, so it has no single point at
-			// which a caller-supplied set would apply.
-			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
-			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => {
-				this._changesets.onTurnComplete(sessionUri, turnId);
-			}, err => {
-				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
-				this._changesets.onTurnComplete(sessionUri, turnId);
-			});
+			this._captureTurnCheckpointAndRefresh(sessionKey, turnId);
 		} else {
 			this._changesets.onTurnComplete(sessionUri, turnId);
 		}
@@ -995,6 +983,17 @@ export class AgentSideEffects extends Disposable {
 		// complete after the parent turn). Each client keeps its active session
 		// read; `_markSessionUnread` is idempotent.
 		this._markSessionUnread(sessionUri);
+	}
+
+	private _captureTurnCheckpointAndRefresh(sessionKey: ProtocolURI, turnId: string): void {
+		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
+		const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
+		this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => {
+			this._changesets.onTurnComplete(sessionUri, turnId);
+		}, err => {
+			this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
+			this._changesets.onTurnComplete(sessionUri, turnId);
+		});
 	}
 
 	private _markSessionUnread(session: ProtocolURI): void {
@@ -1959,6 +1958,9 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				return;
+			}
 			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(turnChannel), turnId, resolvedWorkingDirectories);
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(turnChannel), turnId);
