@@ -167,6 +167,9 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 			dom.append(title, dom.$('.new-session-prompt-option-title-label')).textContent = option.title;
 			if (option.titleDetail) {
 				dom.append(title, dom.$('.new-session-prompt-option-title-detail')).textContent = option.titleDetail;
+				const actionIcon = dom.append(title, renderIcon(Codicon.arrowRight));
+				actionIcon.classList.add('new-session-prompt-option-action-icon');
+				actionIcon.ariaHidden = 'true';
 			}
 			dom.append(button.element, dom.$('.new-session-prompt-option-description')).textContent = option.description;
 			store.add(button.onDidClick(() => {

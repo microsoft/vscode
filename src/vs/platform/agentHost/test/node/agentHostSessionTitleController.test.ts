@@ -351,24 +351,28 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	});
 
-	test('seedTitleFromFirstMessage caps the fully formatted GitHub context', async () => {
+	test('seedTitleFromFirstMessage caps the combined prompt and GitHub context', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		const octoKitService = new TestAgentHostOctoKitService();
 		octoKitService.responses.set('microsoft/vscode#123', { title: `start${'x'.repeat(30_000)}end`, body: '' });
 		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+		const prompt = 'Fix https://github.com/microsoft/vscode/issues/123';
 
-		controller.seedTitleFromFirstMessage(session.toString(), 'Fix https://github.com/microsoft/vscode/issues/123');
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
 		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
 
 		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		const promptContent = userMessage.slice(userMessage.indexOf(prompt));
 		const context = userMessage.slice(userMessage.indexOf('GitHub issue and pull request context:'));
 		assert.deepStrictEqual({
-			contextLength: context.length,
+			promptContentLength: promptContent.length,
+			keepsRequest: promptContent.startsWith(prompt),
 			hasStart: context.includes('start'),
 			hasTruncationMarker: context.includes('\n...\n'),
 			hasEnd: context.includes('end'),
 		}, {
-			contextLength: 20_000,
+			promptContentLength: 20_000,
+			keepsRequest: true,
 			hasStart: true,
 			hasTruncationMarker: true,
 			hasEnd: true,
@@ -736,6 +740,91 @@ suite('AgentHostSessionTitleController', () => {
 			middleTruncated: true,
 			includesUserRequest: true,
 			keepsHeadAndTail: true,
+		});
+	});
+
+	test('refineTitleFromFirstTurn appends GitHub context from the request and offers the current title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		octoKitService.responses.set('microsoft/vscode#123', { title: 'Agent Host logs an error when a local commit is not on GitHub', body: 'Issue body' });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Missing commit lookup error';
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart('Fixed the pull request lookup.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Missing commit lookup error', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			fetched: octoKitService.calls.map(call => call.number),
+			includesIssueTitle: userMessage.includes('The title of the issue is: Agent Host logs an error when a local commit is not on GitHub'),
+			includesResponse: userMessage.includes('Fixed the pull request lookup.'),
+			includesCurrentTitle: userMessage.includes('Its current title is: First title'),
+		}, {
+			fetched: [123, 123],
+			includesIssueTitle: true,
+			includesResponse: true,
+			includesCurrentTitle: true,
+		});
+	});
+
+	test('refineTitleFromFirstTurn ignores GitHub links the agent only mentioned in its response', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		octoKitService.responses.set('microsoft/vscode#123', { title: 'Requested issue', body: 'Issue body' });
+		octoKitService.responses.set('microsoft/vscode#456', { title: 'Mentioned issue', body: 'Other body' });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Refined title';
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart('This also affects https://github.com/microsoft/vscode/issues/456')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Refined title', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			fetched: octoKitService.calls.map(call => call.number),
+			includesMentionedIssueContext: userMessage.includes('The title of the issue is: Mentioned issue'),
+		}, {
+			fetched: [123, 123],
+			includesMentionedIssueContext: false,
+		});
+	});
+
+	test('refineTitleFromFirstTurn keeps the issue title within budget despite an oversized response', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const octoKitService = new TestAgentHostOctoKitService();
+		octoKitService.responses.set('microsoft/vscode#123', { title: 'Local commit lookup fails', body: 'C'.repeat(30_000) });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', octoKitService);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Refined title';
+		const hugeResponse = 'A'.repeat(15_000) + ' MIDDLE_MARKER ' + 'B'.repeat(15_000);
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart(hugeResponse)])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Refined title', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		const promptContent = userMessage.slice(userMessage.indexOf('User request:'), userMessage.indexOf('\n\nIts current title is:'));
+		assert.deepStrictEqual({
+			promptContentLength: promptContent.length,
+			includesUserRequest: promptContent.includes(request),
+			includesIssueTitle: promptContent.includes('The title of the issue is: Local commit lookup fails'),
+			keepsResponseHeadAndTail: promptContent.includes('AAAA') && promptContent.includes('BBBB'),
+			middleTruncated: !promptContent.includes('MIDDLE_MARKER'),
+		}, {
+			promptContentLength: 20_000,
+			includesUserRequest: true,
+			includesIssueTitle: true,
+			keepsResponseHeadAndTail: true,
+			middleTruncated: true,
 		});
 	});
 
