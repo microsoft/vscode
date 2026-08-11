@@ -210,6 +210,54 @@ suite('PlaywrightService network filtering', () => {
 		});
 	});
 
+	test('does not replay a page into a session created while untracking', async () => {
+		let releaseDisable: (() => void) | undefined;
+		let disableStarted: (() => void) | undefined;
+		const disableBarrier = new Promise<void>(resolve => releaseDisable = resolve);
+		const disableStartedBarrier = new Promise<void>(resolve => disableStarted = resolve);
+		const service = new PlaywrightService(
+			1,
+			{ async createGroup() { throw new Error('Unexpected group creation'); } },
+			{
+				async setAgentNetworkFiltering(_viewId, _sourceId, enabled) {
+					if (!enabled) {
+						disableStarted?.();
+						await disableBarrier;
+					}
+				},
+				async setAgentNetworkAction() { },
+				async getNetworkPolicyError() { return undefined; },
+			},
+			new NullLogService(),
+			{ _serviceBrand: undefined, onDidChange: Event.None, isUriAllowed: () => true, formatError: () => '' },
+			NullTelemetryService,
+		);
+		await service.startTrackingPage('view');
+
+		const stopping = service.stopTrackingPage('view');
+		await disableStartedBarrier;
+		let addViewCallCount = 0;
+		const session = {
+			sessionId: 'new-session',
+			group: {
+				async addView() { addViewCallCount++; },
+				async removeView() { },
+			},
+			dispose() { },
+		};
+		const sessions = Reflect.get(service, '_sessions') as { set(key: string, value: typeof session): void };
+		sessions.set(session.sessionId, session);
+		const replayTrackedPage = Reflect.get(service, 'replayTrackedPage') as (targetSession: typeof session, viewId: string) => Promise<void>;
+		const replay = Reflect.apply(replayTrackedPage, service, [session, 'view']) as Promise<void>;
+
+		releaseDisable?.();
+		await Promise.all([stopping, replay]);
+		const tracked = await service.isPageTracked('view');
+		service.dispose();
+
+		assert.deepStrictEqual({ tracked, addViewCallCount }, { tracked: false, addViewCallCount: 0 });
+	});
+
 	test('blocks API request contexts through direct, reflected, and event paths', () => {
 		type RequestContext = { get(url: string): Promise<string> };
 		type Request = { frame(): { page(): PageApi } };

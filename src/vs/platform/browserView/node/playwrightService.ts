@@ -236,13 +236,9 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		// targets become accessible everywhere, not just the originating session.
 		session.registerDisposable(group.onDidAddView(e => {
 			if (!this._trackedPages.has(e.viewId)) {
-				this._trackedPages.add(e.viewId);
-				this._fireTrackedPages();
-			}
-			for (const [id, other] of this._sessions) {
-				if (id !== sessionId) {
-					void other.group.addView(e.viewId).catch(() => { });
-				}
+				void this.startTrackingPage(e.viewId).catch(error => {
+					this.logService.error(`[PlaywrightService] Failed to track page ${e.viewId} added to session ${sessionId}`, error);
+				});
 			}
 		}));
 		session.registerDisposable(group.onDidRemoveView(e => {
@@ -271,13 +267,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		// Pages may have been removed since they were tracked — catch and
 		// evict stale entries so they don't accumulate.
 		for (const viewId of [...this._trackedPages]) {
-			try {
-				await session.group.addView(viewId);
-			} catch {
-				this.logService.debug(`[PlaywrightService] Stale tracked page ${viewId} removed during replay`);
-				this._trackedPages.delete(viewId);
-				this._fireTrackedPages();
-			}
+			await this.replayTrackedPage(session, viewId);
 		}
 
 		this._touchSession(sessionId);
@@ -354,6 +344,26 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			}
 		} finally {
 			this._pagesBeingUntracked.delete(viewId);
+		}
+	}
+
+	private replayTrackedPage(session: PlaywrightSession, viewId: string): Promise<void> {
+		return this.enqueuePageTrackingOperation(viewId, () => this._replayTrackedPage(session, viewId));
+	}
+
+	private async _replayTrackedPage(session: PlaywrightSession, viewId: string): Promise<void> {
+		if (!this._trackedPages.has(viewId)) {
+			return;
+		}
+		try {
+			await session.group.addView(viewId);
+		} catch {
+			this.logService.debug(`[PlaywrightService] Stale tracked page ${viewId} removed during replay`);
+			await this._stopTrackingPage(viewId);
+			return;
+		}
+		if (!this._trackedPages.has(viewId)) {
+			await session.group.removeView(viewId);
 		}
 	}
 
