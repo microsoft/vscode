@@ -91,7 +91,7 @@ export interface IWorkspacePickerGroupAction {
 	readonly description?: string;
 	readonly icon: ThemeIcon;
 	readonly commandId: string;
-	readonly hideBrowseActions?: boolean;
+	readonly hideWorkspaceItems?: boolean;
 }
 
 interface IBrowsedWorkspaceSelection {
@@ -821,13 +821,18 @@ export class WorkspacePicker extends Disposable {
 		// Collect recent workspaces from picker storage across all providers
 		const allProviders = this.sessionsProvidersService.getProviders();
 		const providerIds = new Set(allProviders.map(p => p.id));
+		const availableTabs = this._getAvailableTabs();
+		const activeGroup = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
+		const workspaceGroupAction = this.options.getWorkspaceGroupAction?.(activeGroup);
 		const tabFilter = this._isTabFiltered()
 			? (w: IResolvedFolderWorkspace) => w.workspace.group === this._activeTab
 			: undefined;
 		// Own recents first, then VS Code recents (merged and deduplicated by the service)
-		const recentWorkspaces = this._getRecentWorkspaces()
-			.filter(w => providerIds.has(w.providerId))
-			.filter(w => !tabFilter || tabFilter(w));
+		const recentWorkspaces = workspaceGroupAction?.hideWorkspaceItems
+			? []
+			: this._getRecentWorkspaces()
+				.filter(w => providerIds.has(w.providerId))
+				.filter(w => !tabFilter || tabFilter(w));
 
 		// Build flat list in recency order (no source grouping)
 		for (const { workspace, providerId } of recentWorkspaces) {
@@ -847,11 +852,8 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 
-		const availableTabs = this._getAvailableTabs();
-		const activeGroup = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
-		const workspaceGroupAction = this.options.getWorkspaceGroupAction?.(activeGroup);
 		// Browse actions from all providers (filtered to the active tab)
-		const allBrowseActions = workspaceGroupAction?.hideBrowseActions ? [] : this._getAllBrowseActions();
+		const allBrowseActions = workspaceGroupAction?.hideWorkspaceItems ? [] : this._getAllBrowseActions();
 		// Remote providers with connection status — shown as dynamic rows
 		// in the Manage submenu on the Remote tab.
 		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);

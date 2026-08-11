@@ -1634,11 +1634,12 @@ function createTestablePicker(
 	remoteAgentHostsEnabled = true,
 	options: IWorkspacePickerOptions = {},
 	commandService: Partial<ICommandService> = { executeCommand: async () => { } },
+	storageService: IStorageService = disposables.add(new TestStorageService()),
 ): TestablePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
-	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
+	instantiationService.stub(IStorageService, storageService);
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(ISessionsProvidersService, providersService);
 	instantiationService.stub(IRemoteAgentHostService, {});
@@ -1737,8 +1738,17 @@ suite('WorkspacePicker - Tab discovery', () => {
 
 	test('shows a sign-in action in the GitHub group', async () => {
 		const executedCommands: string[] = [];
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: URI.file('/recent-repository'), providerId: 'p1', checked: true }]);
+		const baseProvider = createMockProvider('p1', { browseActions: [makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB)] });
 		providersService.setProviders([
-			createMockProvider('p1', { browseActions: [makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB)] }),
+			{
+				...baseProvider,
+				resolveWorkspace: uri => {
+					const workspace = baseProvider.resolveWorkspace(uri);
+					return workspace ? { ...workspace, group: SESSION_WORKSPACE_GROUP_GITHUB } : undefined;
+				},
+			},
 		]);
 		const picker = createTestablePicker(disposables, providersService, false, {
 			restoreFromSessions: false,
@@ -1746,13 +1756,13 @@ suite('WorkspacePicker - Tab discovery', () => {
 				label: 'Sign in to GitHub',
 				icon: Codicon.signIn,
 				commandId: AGENTIC_SIGN_IN_COMMAND_ID,
-				hideBrowseActions: true,
+				hideWorkspaceItems: true,
 			} : undefined,
 		}, {
 			executeCommand: async commandId => {
 				executedCommands.push(commandId);
 			},
-		});
+		}, storage);
 		picker.selectWorkspaceGroup(SESSION_WORKSPACE_GROUP_GITHUB);
 		await picker.select('Sign in to GitHub');
 		assert.deepStrictEqual({

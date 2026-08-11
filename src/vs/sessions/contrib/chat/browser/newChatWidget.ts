@@ -170,7 +170,7 @@ export class NewChatWidget extends Disposable {
 						label: localize('workspacePicker.signInGitHub', "Sign in to GitHub"),
 						icon: Codicon.signIn,
 						commandId: AGENTIC_SIGN_IN_COMMAND_ID,
-						hideBrowseActions: true,
+						hideWorkspaceItems: true,
 					};
 				}
 				return undefined;
