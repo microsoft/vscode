@@ -120,6 +120,33 @@ suite('copilotPluginConverters', () => {
 			assert.strictEqual(Object.hasOwn(result['minimal'], 'cwd'), false);
 		});
 
+		test('uses a URI default cwd without overriding explicit cwd', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'defaulted',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'defaulted' },
+				customization: stubMcpCustomization('defaulted'),
+			}, {
+				name: 'explicit',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'explicit', cwd: '/explicit' },
+				customization: stubMcpCustomization('explicit'),
+			}, {
+				name: 'relative',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'relative', cwd: './relative' },
+				customization: stubMcpCustomization('relative'),
+			}];
+
+			const result = toSdkMcpServers(defs);
+			assert.strictEqual((result['defaulted'] as { cwd?: string }).cwd, URI.file('/workspace').fsPath);
+			assert.strictEqual((result['explicit'] as { cwd?: string }).cwd, '/explicit');
+			assert.strictEqual((result['relative'] as { cwd?: string }).cwd, URI.file('/workspace/relative').fsPath);
+		});
+
 		test('filters null values from env', () => {
 			const defs: IMcpServerDefinition[] = [{
 				name: 'with-null-env',
@@ -580,6 +607,20 @@ suite('copilotPluginConverters', () => {
 			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill] });
 			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b', customization: stubSkillCustomization('b') } satisfies IParsedSkill] });
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
+		});
+
+		test('returns false for different MCP default cwd URIs', () => {
+			const definition = (defaultCwd: URI): IMcpServerDefinition => ({
+				name: 'server',
+				uri: URI.file('/mcp'),
+				defaultCwd,
+				configuration: { type: McpServerType.LOCAL, command: 'node' },
+				customization: stubMcpCustomization('server'),
+			});
+			assert.strictEqual(parsedPluginsEqual(
+				[makePlugin({ mcpServers: [definition(URI.file('/a'))] })],
+				[makePlugin({ mcpServers: [definition(URI.file('/b'))] })],
+			), false);
 		});
 
 		test('returns false for different plugin formats', () => {

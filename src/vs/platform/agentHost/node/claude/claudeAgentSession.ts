@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, OnElicitation, Options, PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { McpServerConfig, OnElicitation, Options, PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -27,7 +27,7 @@ import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
-import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
+import { buildClientMcpServers, buildOptions, toClaudeMcpServers } from './claudeSdkOptions.js';
 import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
@@ -45,6 +45,9 @@ import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
+import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
+import { parsePlugin, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
@@ -188,6 +191,7 @@ export class ClaudeAgentSession extends Disposable {
 		return primary ? [primary, ...this._desiredAdditionalDirectories] : undefined;
 	}
 	private readonly _customizationWatcher = this._register(new MutableDisposable<DisposableStore>());
+	private _mcpDiscovery: SessionMcpDiscovery | undefined;
 
 	/** Exposed for the materializer's MCP-server build closure. */
 	get pendingClientToolCalls(): PendingRequestRegistry<CallToolResult> { return this._pendingClientToolCalls; }
@@ -445,6 +449,13 @@ export class ClaudeAgentSession extends Disposable {
 			this._logService,
 		));
 		store.add(watcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
+		this._mcpDiscovery = directories?.length ? store.add(new SessionMcpDiscovery(directories, this._fileService)) : undefined;
+		if (this._mcpDiscovery) {
+			store.add(this._mcpDiscovery.onDidChange(() => {
+				this.clientCustomizationsDiff.markDirty();
+				this._onDidCustomizationsChange.fire();
+			}));
+		}
 		this._customizationWatcher.value = store;
 	}
 
@@ -541,6 +552,8 @@ export class ClaudeAgentSession extends Disposable {
 		this._materializedTransport = ctx.transport;
 
 		const permissionMode = readClaudePermissionMode(this._configurationService, this._storageUri) ?? this._permissionModeFallback;
+		const plugins = this._desiredClientPluginConfigs();
+		this.clientCustomizationsDiff.consume(plugins.map(plugin => plugin.uri));
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
@@ -560,7 +573,7 @@ export class ClaudeAgentSession extends Disposable {
 				resumeSessionAt: this._pendingResumeSessionAt,
 				mcpServers,
 				allowedTools,
-				plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
+				plugins,
 				agent: agentName,
 				telemetry,
 				traceContext,
@@ -670,6 +683,9 @@ export class ClaudeAgentSession extends Disposable {
 					// an impossible null.
 					throw new Error(`Cannot rebuild Claude session ${this.sessionId}: no transport resolved`);
 				}
+				this._watchCustomizations(this.workingDirectories);
+				const rebuildPlugins = this._desiredClientPluginConfigs();
+				this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
 				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 				const rebuildOptions = await buildOptions(
@@ -686,7 +702,7 @@ export class ClaudeAgentSession extends Disposable {
 						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
 						allowedTools: rebuildAllowedTools,
-						plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
+						plugins: rebuildPlugins,
 						agent: rebuildAgentName,
 						telemetry,
 						traceContext,
@@ -706,7 +722,6 @@ export class ClaudeAgentSession extends Disposable {
 				// retries the truncation instead of dropping the restore.
 				this._pendingResumeSessionAt = undefined;
 				this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
-				this._watchCustomizations(this.workingDirectories);
 				// Commit the (possibly switched) transport now that the new
 				// subprocess is live, so credit enrichment tracks the running
 				// transport. A throw above leaves everything untouched so the next
@@ -762,14 +777,16 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	private async _buildStartupToolWiring(
 		serverToolHost: IAgentServerToolHost | undefined,
-	): Promise<{ mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined; allowedTools: readonly string[] | undefined }> {
+	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; allowedTools: readonly string[] | undefined }> {
+		const externalServers = await this._buildExternalMcpServers();
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
 		const serverToolServer = serverToolHost
 			? await buildServerToolMcpServer(serverToolHost, this._storageUri.toString(), this._sdkService)
 			: undefined;
-		const mcpServers = (!clientServers && !serverToolServer)
+		const mcpServers = (Object.keys(externalServers).length === 0 && !clientServers && !serverToolServer)
 			? undefined
 			: {
+				...externalServers,
 				...(clientServers ?? {}),
 				...(serverToolServer ? { [CLAUDE_SERVER_TOOL_MCP_SERVER_NAME]: serverToolServer } : {}),
 			};
@@ -784,6 +801,41 @@ export class ClaudeAgentSession extends Disposable {
 			? serverToolHost.toolNames.filter(name => !serverToolHost.canRequireConfirmation(name))
 			: undefined;
 		return { mcpServers, allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined };
+	}
+
+	private async _buildExternalMcpServers(): Promise<Record<string, McpServerConfig>> {
+		const primaryCwd = this.workingDirectory;
+		if (!primaryCwd) {
+			return {};
+		}
+		const definitions = new Map<string, IMcpServerDefinition>();
+		for (const definition of await this._mcpDiscovery?.refresh() ?? []) {
+			if (definition.defaultCwd && isEqual(definition.defaultCwd, primaryCwd)) {
+				continue;
+			}
+			definitions.set(definition.name, definition);
+		}
+		for (const synced of this._desiredClientPlugins()) {
+			if (!synced.pluginDir || !hasClientPluginMcpDefaultCwds(synced.customization)) {
+				continue;
+			}
+			try {
+				const parsed = await parsePlugin(synced.pluginDir, this._fileService, primaryCwd, this._environmentService.userHome, synced.pluginDir);
+				for (const definition of parsed.mcpServers) {
+					definitions.set(definition.name, {
+						...definition,
+						defaultCwd: readClientPluginMcpDefaultCwd(synced.customization, definition.name, primaryCwd) ?? definition.defaultCwd,
+					});
+				}
+			} catch (error) {
+				this._logService.warn(`[Claude:${this.sessionId}] Failed to parse MCP servers from '${synced.customization.uri}': ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+		const converted = toClaudeMcpServers([...definitions.values()], primaryCwd);
+		for (const name of converted.skipped) {
+			this._logService.warn(`[Claude:${this.sessionId}] Skipping MCP server '${name}' because its stdio working directory cannot be represented by the Claude SDK`);
+		}
+		return converted.servers;
 	}
 
 	/** True once {@link materialize} has installed the SDK pipeline. */
@@ -1302,15 +1354,22 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	private _desiredClientPluginPaths(): readonly URI[] {
+		return this._desiredClientPlugins().flatMap(synced => synced.pluginDir ? [synced.pluginDir] : []);
+	}
+
+	private _desiredClientPluginConfigs(): readonly { readonly uri: URI; readonly skipMcpDiscovery: boolean }[] {
+		return this._desiredClientPlugins().flatMap(synced => synced.pluginDir ? [{
+			uri: synced.pluginDir,
+			skipMcpDiscovery: hasClientPluginMcpDefaultCwds(synced.customization),
+		}] : []);
+	}
+
+	private _desiredClientPlugins(): readonly ISyncedCustomization[] {
 		const state = this._sessionCustomizations;
 		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
-		const paths: URI[] = [];
-		for (const synced of this.clientCustomizationsDiff.model.state.get().synced) {
-			if (synced.pluginDir && (desiredById.get(synced.customization.id) ?? synced.customization.enabled) !== false) {
-				paths.push(synced.pluginDir);
-			}
-		}
-		return paths;
+		return this.clientCustomizationsDiff.model.state.get().synced.filter(synced =>
+			(desiredById.get(synced.customization.id) ?? synced.customization.enabled) !== false
+		);
 	}
 
 	async startMcpServer(id: string): Promise<void> {

@@ -12,9 +12,6 @@ import { autorun, derived, IObservable, ISettableObservable, observableValue } f
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentHostCopilotMultiRootEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
@@ -24,7 +21,7 @@ import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents, shouldSyncWorkspaceDotMcp } from './agentHostLocalCustomizations.js';
+import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
@@ -101,8 +98,6 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
@@ -119,20 +114,12 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
 		const customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
 		const customAgents = observableValue<readonly AgentCustomization[]>('agentCustomAgents', []);
-		// Gate for seeding folder-root `.mcp.json` servers from every workspace
-		// folder (not just the session's primary). Evaluated fresh on each sync
-		// so folder/setting changes are reflected. See `shouldSyncWorkspaceDotMcp`.
-		const shouldIncludeWorkspaceDotMcp = () => shouldSyncWorkspaceDotMcp(
-			sessionType,
-			this._workspaceContextService.getWorkspace().folders.length,
-			this._configurationService.getValue(AgentHostCopilotMultiRootEnabledSettingId) === true,
-		);
 		let updateSeq = 0;
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;
 			try {
 				const [refs, agents] = await Promise.all([
-					resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, shouldIncludeWorkspaceDotMcp(), options),
+					resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType, options),
 					resolveLocalCustomAgents(this._fileService, this._promptsService, syncProvider, this._agentPluginService, sessionType, options),
 				]);
 				if (seq !== updateSeq) {
@@ -186,16 +173,6 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				server.readDefinitions().read(reader);
 			}
 			scheduleUpdate();
-		}));
-		// Re-resolve when the multi-root gate inputs change so folder-root
-		// `.mcp.json` seeding stays correct without waiting for another trigger:
-		// workspace-folder add/remove (folder count / new folder's servers) and
-		// the multi-root setting toggle.
-		store.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => scheduleUpdate()));
-		store.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostCopilotMultiRootEnabledSettingId)) {
-				scheduleUpdate();
-			}
 		}));
 		store.add(this._setCustomizations(sessionType, customizations));
 		store.add(this._setCustomAgents(sessionType, customAgents));

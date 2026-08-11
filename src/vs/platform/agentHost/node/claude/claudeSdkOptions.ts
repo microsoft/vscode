@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, OnElicitation, Options } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, McpServerConfig, OnElicitation, Options } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { tmpdir } from 'os';
-import { delimiter, dirname } from '../../../../base/common/path.js';
+import { delimiter, dirname, isAbsolute, join, normalize } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
@@ -20,6 +20,9 @@ import { toClaudeSdkModelId } from './claudeModelSelection.js';
 import type { IAgentHostNativeOTelConfig, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 /**
  * Inputs to {@link buildOptions} that vary per startup. Pure-data: no
@@ -54,7 +57,7 @@ export interface IBuildOptionsInput {
 	 * precedes the post-restore turn.
 	 */
 	readonly resumeSessionAt?: string;
-	readonly mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined;
+	readonly mcpServers: Record<string, McpServerConfig> | undefined;
 	/**
 	 * SDK-prefixed tool names to auto-approve without prompting (projected
 	 * onto `Options.allowedTools`). Used for the agent host's feedback server
@@ -70,7 +73,7 @@ export interface IBuildOptionsInput {
 	 * (no plugins). Built per-session from
 	 * {@link SessionClientCustomizationsDiff.consume}.
 	 */
-	readonly plugins?: readonly URI[];
+	readonly plugins?: readonly { readonly uri: URI; readonly skipMcpDiscovery: boolean }[];
 	/**
 	 * Resolved SDK agent name (matches a key in `Options.agents`, or an
 	 * agent loaded from `~/.claude/agents/**`). Projected onto
@@ -158,7 +161,7 @@ export async function buildOptions(
 		...(input.mcpServers ? { mcpServers: input.mcpServers } : {}),
 		...(input.allowedTools && input.allowedTools.length > 0 ? { allowedTools: [...input.allowedTools] } : {}),
 		...(input.plugins && input.plugins.length > 0
-			? { plugins: input.plugins.map(p => ({ type: 'local' as const, path: p.fsPath })) }
+			? { plugins: input.plugins.map(plugin => ({ type: 'local' as const, path: plugin.uri.fsPath, skipMcpDiscovery: plugin.skipMcpDiscovery })) }
 			: {}),
 		...(input.agent ? { agent: input.agent } : {}),
 		settingSources: ['user', 'project', 'local'],
@@ -189,6 +192,46 @@ export async function buildClientMcpServers(
 	}
 	const server = await buildClientToolMcpServer(tools, id => registry.register(id), sdkService);
 	return { client: server };
+}
+
+export function toClaudeMcpServers(
+	definitions: readonly IMcpServerDefinition[],
+	primaryCwd: URI,
+): { readonly servers: Record<string, McpServerConfig>; readonly skipped: readonly string[] } {
+	const servers: Record<string, McpServerConfig> = {};
+	const skipped: string[] = [];
+	for (const definition of definitions) {
+		const config = definition.configuration;
+		if (config.type === McpServerType.REMOTE) {
+			servers[definition.name] = {
+				type: config.transport === 'sse' ? 'sse' : 'http',
+				url: config.url,
+				...(config.headers ? { headers: { ...config.headers } } : {}),
+			};
+			continue;
+		}
+
+		const defaultCwd = definition.defaultCwd?.fsPath ?? primaryCwd.fsPath;
+		const effectiveCwd = config.cwd === undefined
+			? defaultCwd
+			: isAbsolute(config.cwd) ? normalize(config.cwd) : normalize(join(defaultCwd, config.cwd));
+		const hasRepresentableCwd = isEqual(URI.file(effectiveCwd), URI.file(primaryCwd.fsPath));
+		if (!hasRepresentableCwd) {
+			skipped.push(definition.name);
+			continue;
+		}
+		servers[definition.name] = {
+			type: 'stdio',
+			command: config.command,
+			...(config.args ? { args: [...config.args] } : {}),
+			...(config.env ? {
+				env: Object.fromEntries(Object.entries(config.env)
+					.filter((entry): entry is [string, string | number] => entry[1] !== null)
+					.map(([key, value]) => [key, String(value)]))
+			} : {}),
+		};
+	}
+	return { servers, skipped };
 }
 
 /**

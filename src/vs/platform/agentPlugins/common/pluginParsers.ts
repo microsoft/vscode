@@ -82,6 +82,7 @@ export interface IParsedHookGroup {
 export interface IMcpServerDefinition {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
+	readonly defaultCwd?: URI;
 	readonly uri: URI;
 	/** Protocol-level projection of this MCP server as a child customization. */
 	readonly customization: McpServerCustomization;
@@ -496,7 +497,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, url, headers, dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' ? { transport: 'sse' as const } : {}), url, headers, dev };
 	}
 
 	return undefined;
@@ -584,7 +585,7 @@ export function interpolateMcpPluginRoot(
 		interpolated = remote;
 	}
 
-	return { name: def.name, configuration: interpolated, uri: def.uri, customization: def.customization };
+	return { ...def, configuration: interpolated };
 }
 
 /**
@@ -1208,7 +1209,7 @@ async function readMcpServers(
 			continue;
 		}
 		const json = await readJsonFile(mcpPath, fileService);
-		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginUri.fsPath, formatConfig)) {
+		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginUri, formatConfig)) {
 			if (!merged.has(def.name)) {
 				merged.set(def.name, def);
 			}
@@ -1229,7 +1230,7 @@ export async function readPluginMcpServers(
 export function parseMcpServerDefinitionMap(
 	definitionURI: URI,
 	raw: unknown,
-	pluginFsPath: string,
+	pluginRoot: string | URI,
 	formatConfig: IPluginFormatConfig,
 ): IMcpServerDefinition[] {
 	const mcpServers = resolveMcpServersMap(raw);
@@ -1237,6 +1238,8 @@ export function parseMcpServerDefinitionMap(
 		return [];
 	}
 
+	const pluginRootUri = typeof pluginRoot === 'string' ? URI.file(pluginRoot) : pluginRoot;
+	const pluginFsPath = pluginRootUri.fsPath;
 	const definitions: IMcpServerDefinition[] = [];
 	for (const [name, configValue] of Object.entries(mcpServers)) {
 		const configuration = normalizeMcpServerConfiguration(configValue);
@@ -1247,13 +1250,11 @@ export function parseMcpServerDefinitionMap(
 		let def: IMcpServerDefinition = {
 			name,
 			configuration,
+			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRootUri }),
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
 		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
-		if (formatConfig.format !== PluginFormat.AgentPlugin && def.configuration.type === McpServerType.LOCAL && def.configuration.cwd === undefined) {
-			def = { ...def, configuration: { ...def.configuration, cwd: pluginFsPath } };
-		}
 		if (formatConfig.format !== PluginFormat.AgentPlugin) {
 			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
@@ -1305,7 +1306,7 @@ export async function parsePlugin(
 		embeddedMcp = parseMcpServerDefinitionMap(
 			joinPath(pluginUri, formatConfig.manifestPath),
 			{ mcpServers: mcpSection },
-			pluginUri.fsPath,
+			pluginUri,
 			formatConfig,
 		);
 	}

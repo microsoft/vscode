@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { dirname, posix, win32 } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { arch } from '../../../../base/common/process.js';
@@ -52,6 +52,17 @@ type SandboxLaunchDetails = {
 	tempDir: URI | undefined;
 };
 
+export function mcpDefaultCwdToFsPath(resource: URI, os: OperatingSystem): string {
+	let value = resource.scheme === Schemas.file && resource.authority ? `//${resource.authority}${resource.path}` : resource.path;
+	if (os === OperatingSystem.Windows) {
+		if (/^\/[a-zA-Z]:/.test(value)) {
+			value = value.slice(1);
+		}
+		value = value.replace(/\//g, '\\');
+	}
+	return value;
+}
+
 export class McpSandboxService extends Disposable implements IMcpSandboxService {
 	readonly _serviceBrand: undefined;
 
@@ -88,7 +99,8 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		}
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
-			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, launch.sandbox, launch.cwd);
+			const launchCwd = launch.cwd ?? await this._targetFsPath(serverDef.defaultCwd, remoteAuthority);
+			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, launch.sandbox, launchCwd);
 			const quotedCommand = this._quoteShellArgument(launch.command);
 			const quotedArgs = launch.args.map(arg => this._quoteShellArgument(arg));
 			const sandboxArgs = this._getSandboxCommandArgs(quotedCommand, quotedArgs, launchDetails.sandboxConfigPath);
@@ -118,6 +130,13 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 			this._logService.debug(`McpSandboxService: launch details for server ${serverDef.label} - command: ${launch.command}, args: ${launch.args.join(' ')}`);
 		}
 		return launch;
+	}
+
+	private async _targetFsPath(resource: URI | undefined, remoteAuthority: string | undefined): Promise<string | undefined> {
+		if (!resource) {
+			return undefined;
+		}
+		return mcpDefaultCwdToFsPath(resource, await this._getOperatingSystem(remoteAuthority));
 	}
 
 	public getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestionResult | undefined {

@@ -448,16 +448,27 @@ suite('SyncedCustomizationBundler', () => {
 
 	test('writes MCP servers into .mcp.json', async () => {
 		const bundler = createBundler();
+		const defaultCwd = URI.parse('vscode-remote://ssh-remote+linux/home/test/workspace');
 
 		const result = await bundler.bundle([], [
-			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] } },
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] }, defaultCwd },
+			{ name: 'session-server', configuration: { type: McpServerType.LOCAL, command: 'session-server' } },
 		]);
 		assert.ok(result, 'a bundle with only MCP servers should still produce a result');
 
 		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
 		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
 		assert.deepStrictEqual(parsed, {
-			mcpServers: { 'my-server': { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] } },
+			mcpServers: {
+				'my-server': { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] },
+				'session-server': { type: McpServerType.LOCAL, command: 'session-server' },
+			},
+		});
+		assert.deepStrictEqual(result.ref._meta, {
+			mcpDefaultCwds: {
+				'my-server': defaultCwd.toString(),
+				'session-server': null,
+			},
 		});
 	});
 
@@ -475,6 +486,14 @@ suite('SyncedCustomizationBundler', () => {
 		const bundler = createBundler();
 		const result1 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v1' } }]);
 		const result2 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
+		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('MCP server bundle nonce changes when its default cwd changes', async () => {
+		const bundler = createBundler();
+		const server = { name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'srv' } } as const;
+		const result1 = await bundler.bundle([], [{ ...server, defaultCwd: URI.file('/workspace/one') }]);
+		const result2 = await bundler.bundle([], [{ ...server, defaultCwd: URI.file('/workspace/two') }]);
 		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
 	});
 

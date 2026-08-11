@@ -12,6 +12,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
+import { toClientPluginMcpDefaultCwdsMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
@@ -85,6 +86,7 @@ export interface ISyncedCustomizationOrigin {
 export interface ISyncableMcpServer {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
+	readonly defaultCwd?: URI;
 }
 
 interface IBundleResult {
@@ -205,17 +207,24 @@ export class SyncedCustomizationBundler extends Disposable {
 		// adapter reads this file relative to the plugin root. Servers are
 		// sorted by name so the serialized content (and nonce) is stable.
 		let mcpContent: string | undefined;
+		let mcpDefaultCwds: ClientPluginMcpDefaultCwds | undefined;
 		if (mcpServers.length > 0) {
 			const servers: Record<string, IMcpServerConfiguration> = {};
+			const defaultCwds: Record<string, URI | null> = {};
 			for (const server of [...mcpServers].sort((a, b) => a.name.localeCompare(b.name))) {
 				servers[server.name] = server.configuration;
+				defaultCwds[server.name] = server.defaultCwd ?? null;
 			}
+			mcpDefaultCwds = defaultCwds;
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
 
 		const hashParts = entries.map(e => e.hashPart);
 		if (mcpContent !== undefined) {
 			hashParts.push(`.mcp.json:${mcpContent}`);
+		}
+		if (mcpDefaultCwds !== undefined) {
+			hashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
 		}
 
 		// Stable nonce: sort so file ordering doesn't matter.
@@ -262,6 +271,7 @@ export class SyncedCustomizationBundler extends Disposable {
 				name: DISPLAY_NAME,
 				enabled: true,
 				nonce,
+				_meta: mcpDefaultCwds ? toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds) : undefined,
 			},
 		};
 		this._lastRef = result;

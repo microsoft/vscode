@@ -11,7 +11,7 @@ import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, d
 import { type CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
@@ -83,6 +83,8 @@ import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreemen
 import { getAppNodeModulesPath } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { classifyCopilotClientFailure, createCopilotFailureCorrelation, reportCopilotClientFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, type CopilotClientFailureKind, type CopilotClientFailureOperation, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
+import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
+import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 
 interface ICopilotRuntimeManagedSettingsInput {
 	authInfo?: { type: 'token'; host: string; token: string };
@@ -187,7 +189,10 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
 }
 
-export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
+export type ICopilotPluginInfo = IParsedPlugin & {
+	readonly pluginDir?: URI;
+	readonly disabledMcpServerNames?: readonly string[];
+};
 
 /**
  * A session that has been requested by a client but has not yet been
@@ -4767,6 +4772,7 @@ class SessionPluginController extends Disposable {
 	private readonly _clients = new Map<string, IClientCustomizationState>();
 
 	private readonly _sessionDiscovered: MutableDisposable<SessionDiscoveredEntry> = this._register(new MutableDisposable());
+	private readonly _sessionMcpDiscovery = this._register(new MutableDisposable<{ readonly discovery: SessionMcpDiscovery; dispose(): void }>());
 
 	/**
 	 * The additional (non-primary) workspace roots for a multi-root session.
@@ -4782,7 +4788,8 @@ class SessionPluginController extends Disposable {
 		private _directory: URI | undefined,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 	}
@@ -4822,6 +4829,7 @@ class SessionPluginController extends Disposable {
 		}
 		this._additionalDirectories = directories;
 		this._sessionDiscovered.clear();
+		this._sessionMcpDiscovery.clear();
 	}
 
 	/**
@@ -4836,6 +4844,7 @@ class SessionPluginController extends Disposable {
 		const previous = this._directory;
 		this._directory = directory;
 		this._sessionDiscovered.clear();
+		this._sessionMcpDiscovery.clear();
 		if (previous && !this._previousDirectories.some(candidate => isEqual(candidate, previous))) {
 			this._previousDirectories.push(previous);
 		}
@@ -4850,6 +4859,9 @@ class SessionPluginController extends Disposable {
 		const discovered = entry?.currentCustomizations() ?? [];
 		for (const customization of discovered) {
 			result.push(this._projectForPublish(customization));
+		}
+		for (const definition of this._mcpDiscoveryEntry()?.definitions ?? []) {
+			result.push(this._projectForPublish(definition.customization));
 		}
 		return result;
 	}
@@ -4889,6 +4901,7 @@ class SessionPluginController extends Disposable {
 			this._parent.hostSync().catch(err => this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err)),
 			...[...this._clients.values()].map(client => client.sync.catch(err => this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err))),
 			entry?.whenSettled(),
+			this._mcpDiscoveryEntry()?.refresh(),
 		]);
 		return this.getCustomizations();
 	}
@@ -4896,6 +4909,7 @@ class SessionPluginController extends Disposable {
 	/** Returns the parsed plugins currently enabled for this session, awaiting any pending sync. */
 	public async getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> {
 		const entry = this._discoveredEntry();
+		const mcpDiscovery = this._mcpDiscoveryEntry();
 		const [host] = await Promise.all([
 			this._parent.hostSync().catch(err => {
 				this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err);
@@ -4906,17 +4920,44 @@ class SessionPluginController extends Disposable {
 				return client.customizations;
 			})),
 			entry?.whenSettled(),
+			mcpDiscovery?.refresh(),
 		]);
 
 		const discovered = entry?.currentCustomizations() ?? [];
 		const sessionPlugin = discovered.some(customization => this._isEnabled(customization)) ? mapToParsedPlugin(discovered) : undefined;
 		const sessionPlugins: IParsedPlugin[] = sessionPlugin ? [sessionPlugin] : [];
 
+		const primaryCwd = this._directory;
+		const withClientDefaults = (item: IResolvedCustomization): ICopilotPluginInfo => {
+			const plugin = item.plugin!;
+			return {
+				...plugin,
+				pluginDir: item.pluginDir,
+				mcpServers: plugin.mcpServers.map(definition => ({
+					...definition,
+					defaultCwd: item.input
+						? readClientPluginMcpDefaultCwd(item.input, definition.name, primaryCwd) ?? definition.defaultCwd
+						: definition.defaultCwd,
+				})),
+			};
+		};
+		const allWorkspaceDefinitions = mcpDiscovery?.definitions ?? [];
+		const workspaceDefinitions = allWorkspaceDefinitions.filter(definition => this._isEnabled(definition.customization));
+		const workspaceMcp = allWorkspaceDefinitions.length ? [{
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: workspaceDefinitions,
+			disabledMcpServerNames: allWorkspaceDefinitions.filter(definition => !this._isEnabled(definition.customization)).map(definition => definition.name),
+			skills: [],
+			agents: [],
+			instructions: [],
+		} satisfies ICopilotPluginInfo] : [];
 		return [
+			...workspaceMcp,
 			...host.filter(item => !!item.plugin && this._isEnabled(item.customization))
 				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
 			...this._flattenClientCustomizations().filter(item => !!item.plugin && this._isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
+				.map(withClientDefaults),
 			...sessionPlugins,
 		];
 	}
@@ -5084,6 +5125,22 @@ class SessionPluginController extends Disposable {
 			);
 		}
 		return this._sessionDiscovered.value;
+	}
+
+	private _mcpDiscoveryEntry(): SessionMcpDiscovery | undefined {
+		if (!this._directory) {
+			return undefined;
+		}
+		if (!this._sessionMcpDiscovery.value) {
+			const store = new DisposableStore();
+			const discovery = store.add(new SessionMcpDiscovery([this._directory, ...this._additionalDirectories], this._fileService));
+			store.add(discovery.onDidChange(() => this._onDidPublish.fire({
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [...this.getCustomizations()],
+			})));
+			this._sessionMcpDiscovery.value = { discovery, dispose: () => store.dispose() };
+		}
+		return this._sessionMcpDiscovery.value.discovery;
 	}
 
 	private _isEnabled(customization: Customization): boolean {

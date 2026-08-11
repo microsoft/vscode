@@ -13,6 +13,7 @@ import { parseRuleFile, type IMcpServerDefinition, type IParsedPlugin } from '..
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import type { AgentSelection } from '../../common/state/protocol/state.js';
 import { type ChildCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 
 /**
@@ -164,12 +165,13 @@ function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[] {
  * definition of a given name wins), matching the dedupe used elsewhere.
  * Returns an empty object when the plugins declare no MCP servers.
  */
-export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[]): Record<string, ICodexMcpServerConfigJson> {
+export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[], primaryCwd?: URI): Record<string, ICodexMcpServerConfigJson> {
 	const out: Record<string, ICodexMcpServerConfigJson> = {};
 	for (const plugin of plugins) {
 		for (const def of plugin.parsed?.mcpServers ?? emptyMcpDefs) {
 			if (!Object.prototype.hasOwnProperty.call(out, def.name)) {
-				out[def.name] = toCodexMcpServerJson(def.configuration);
+				const defaultCwd = readClientPluginMcpDefaultCwd(plugin.synced.customization, def.name, primaryCwd) ?? def.defaultCwd;
+				out[def.name] = toCodexMcpServerJson(def.configuration, defaultCwd);
 			}
 		}
 	}
@@ -177,6 +179,16 @@ export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[
 }
 
 const emptyMcpDefs: readonly IMcpServerDefinition[] = [];
+
+export function codexMcpServersFromDefinitions(definitions: readonly IMcpServerDefinition[]): Record<string, ICodexMcpServerConfigJson> {
+	const out: Record<string, ICodexMcpServerConfigJson> = {};
+	for (const definition of definitions) {
+		if (!Object.hasOwn(out, definition.name)) {
+			out[definition.name] = toCodexMcpServerJson(definition.configuration, definition.defaultCwd);
+		}
+	}
+	return out;
+}
 
 /**
  * Derives the codex skill roots (absolute fsPaths) for a set of client

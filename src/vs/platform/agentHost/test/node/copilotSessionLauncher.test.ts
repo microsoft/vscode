@@ -14,8 +14,9 @@ import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type ModelSelection } from '../../common/state/protocol/state.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -342,12 +343,26 @@ suite('CopilotSessionLauncher shared session config', () => {
 		};
 		const launcher = createTestLauncher();
 		const pluginDir = URI.file('/tmp/synced-customizations');
+		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
 		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
 		const plugin: ICopilotPluginInfo = {
 			format: PluginFormat.Copilot,
 			hooks: [],
-			mcpServers: [],
+			mcpServers: [{
+				name: 'native-plugin-server',
+				uri: URI.joinPath(pluginDir, '.mcp.json'),
+				defaultCwd: pluginDir,
+				configuration: { type: McpServerType.LOCAL, command: 'native-plugin-server' },
+				customization: {
+					type: CustomizationType.McpServer,
+					id: 'native-plugin-server',
+					uri: URI.joinPath(pluginDir, '.mcp.json').toString(),
+					name: 'native-plugin-server',
+					enabled: true,
+					state: { kind: McpServerStatus.Stopped },
+				},
+			}],
 			agents: [],
 			skills: [{
 				uri: skillUri,
@@ -360,13 +375,36 @@ suite('CopilotSessionLauncher shared session config', () => {
 				customization: { type: CustomizationType.Rule, id: instructionUri.toString(), uri: instructionUri.toString(), name: 'user', alwaysApply: true },
 			}],
 			pluginDir,
+			disabledMcpServerNames: ['disabled-workspace-server'],
+		};
+		const syntheticPlugin: ICopilotPluginInfo = {
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [{
+				name: 'synced-server',
+				uri: URI.joinPath(syntheticPluginDir, '.mcp.json'),
+				defaultCwd: testWorkingDirectory,
+				configuration: { type: McpServerType.LOCAL, command: 'synced-server' },
+				customization: {
+					type: CustomizationType.McpServer,
+					id: 'synced-server',
+					uri: URI.joinPath(syntheticPluginDir, '.mcp.json').toString(),
+					name: 'synced-server',
+					enabled: true,
+					state: { kind: McpServerStatus.Stopped },
+				},
+			}],
+			agents: [],
+			skills: [],
+			instructions: [],
+			pluginDir: syntheticPluginDir,
 		};
 		const basePlan = {
 			client,
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [plugin], mcpServers: {} },
+			snapshot: { tools: [], plugins: [plugin, syntheticPlugin], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubToken: undefined,
@@ -391,30 +429,54 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createClientName: createConfigs[0].clientName,
 				createGitHubMcpToolConfig: createConfigs[0].githubMcpToolConfig,
 				createPluginDirectories: createConfigs[0].pluginDirectories,
+				createMcpServers: createConfigs[0].mcpServers,
 				createSkillDirectories: createConfigs[0].skillDirectories,
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
+				createDisabledMcpServers: createConfigs[0].disabledMcpServers,
 				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
 				createLargeOutput: createConfigs[0].largeOutput,
 				resumeClientName: resumeConfigs[0].clientName,
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
+				resumeMcpServers: resumeConfigs[0].mcpServers,
 				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
+				resumeDisabledMcpServers: resumeConfigs[0].disabledMcpServers,
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 			}, {
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
-				createPluginDirectories: [pluginDir.fsPath],
+				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
+				createMcpServers: {
+					'synced-server': {
+						type: 'local',
+						command: 'synced-server',
+						args: [],
+						tools: ['*'],
+						cwd: testWorkingDirectory.fsPath,
+					},
+				},
 				createSkillDirectories: [],
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				createDisabledMcpServers: ['disabled-workspace-server'],
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				resumeClientName: 'vscode-agent-host',
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
-				resumePluginDirectories: [pluginDir.fsPath],
+				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
+				resumeMcpServers: {
+					'synced-server': {
+						type: 'local',
+						command: 'synced-server',
+						args: [],
+						tools: ['*'],
+						cwd: testWorkingDirectory.fsPath,
+					},
+				},
 				resumeSkillDirectories: [],
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				resumeDisabledMcpServers: ['disabled-workspace-server'],
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 			});
