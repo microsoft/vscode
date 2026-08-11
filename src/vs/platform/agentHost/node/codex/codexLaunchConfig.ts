@@ -61,6 +61,9 @@ export function buildCodexLaunchConfig(
 		`model_providers.vscode-proxy.env_key="OPENAI_API_KEY"`,
 		`model_providers.vscode-proxy.requires_openai_auth=false`,
 		`model_providers.vscode-proxy.supports_websockets=false`,
+		// Leave `features.image_generation` to Codex. The app server exposes it
+		// only for OpenAI-authenticated providers, while this Copilot proxy is
+		// explicitly configured not to require OpenAI authentication.
 		// Codex filters its shell tool's env through `shell_environment_policy`,
 		// so pin the marker there too — a user policy (e.g. `inherit = "core"`)
 		// would otherwise drop it.

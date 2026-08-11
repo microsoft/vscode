@@ -15,7 +15,8 @@ suite('CodexLaunchConfig', () => {
 		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'nonce', AI_AGENT: 'github_copilot_vscode_agent' });
 		assert.ok(config.args.includes('model_providers.vscode-proxy.name="VS Code Proxy"'));
 		assert.ok(!config.args.some(argument => argument.startsWith('model_provider=')));
-		assert.ok(config.args.includes('features.image_generation=false'));
+		assert.ok(config.args.includes('model_providers.vscode-proxy.requires_openai_auth=false'));
+		assert.ok(!config.args.some(argument => argument.startsWith('features.image_generation=')));
 		assert.ok(config.args.includes('shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"'));
 		assert.ok(config.args.includes('--log-level=debug'));
 		assert.ok(config.args.indexOf('analytics.enabled=true') < config.args.lastIndexOf('analytics.enabled=false'));

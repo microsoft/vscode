@@ -3854,6 +3854,33 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-self: center;
 }
 
+.chat-generated-image-result {
+	margin: 8px 0 4px;
+
+	.chat-collapsible-io-resource-items,
+	.chat-attached-context {
+		min-width: 0;
+		width: 100%;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
+		width: min(100%, 512px);
+		height: auto;
+		background: transparent;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
+		height: auto;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
+		display: block;
+		height: auto;
+		max-height: min(60vh, 640px);
+		object-fit: contain;
+	}
+}
+
 .interactive-session .chat-scroll-down {
 	display: none;
 	position: absolute;

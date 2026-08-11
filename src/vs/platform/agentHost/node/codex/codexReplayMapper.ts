@@ -42,6 +42,7 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  *  - `agentMessage`     → `MarkdownResponsePart` with the full text
  *  - `commandExecution` → completed terminal `ToolCallResponsePart`
  *  - `webSearch`        → completed web-search `ToolCallResponsePart`
+ *  - `imageGeneration`  → completed image-generation `ToolCallResponsePart`
  *  - `fileChange`       → completed file-edit `ToolCallResponsePart`
  *  - `contextCompaction` → completed compaction `ToolCallResponsePart`
  *  - everything else    → currently dropped (reasoning/plan/mcp/collab)
@@ -130,6 +131,8 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 			}
 		} else if (item.type === 'webSearch') {
 			parts.push(webSearchToolCallPart(item));
+		} else if (item.type === 'imageGeneration') {
+			parts.push(imageGenerationToolCallPart(item));
 		} else if (item.type === 'fileChange') {
 			parts.push(fileChangeToolCallPart(item));
 		} else if (item.type === 'contextCompaction') {
@@ -223,6 +226,26 @@ function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>)
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: true,
 			pastTenseMessage: `Searched ${query}`,
+		},
+	};
+}
+
+function imageGenerationToolCallPart(item: Extract<ThreadItem, { type: 'imageGeneration' }>): ToolCallResponsePart {
+	const success = item.status === 'completed' && item.result.length > 0;
+	return {
+		kind: ResponsePartKind.ToolCall,
+		toolCall: {
+			status: ToolCallStatus.Completed,
+			toolCallId: generateUuid(),
+			toolName: 'image_gen.imagegen',
+			displayName: 'Generate image',
+			invocationMessage: 'Generating image',
+			toolInput: JSON.stringify({ prompt: item.revisedPrompt ?? 'Generate image' }),
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			success,
+			pastTenseMessage: success ? 'Generated image' : 'Failed to generate image',
+			content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: item.result, contentType: 'image/png' }] : undefined,
+			error: success ? undefined : { message: `Image generation ${item.status}` },
 		},
 	};
 }

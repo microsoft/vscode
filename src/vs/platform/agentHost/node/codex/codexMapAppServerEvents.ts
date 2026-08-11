@@ -615,6 +615,32 @@ function mapItemStartedBody(
 			},
 		];
 	}
+	if (params.item.type === 'imageGeneration') {
+		const toolCallId = generateUuid();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'image_gen.imagegen',
+			output: '',
+		});
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'image_gen.imagegen',
+				displayName: 'Generate image',
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: 'Generating image',
+				toolInput: JSON.stringify({ prompt: params.item.revisedPrompt ?? 'Generate image' }),
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+		];
+	}
 	if (params.item.type === 'fileChange') {
 		const toolCallId = generateUuid();
 		const output = fileChangeOutput(params.item.changes);
@@ -1018,6 +1044,24 @@ export function mapItemCompleted(
 			result: {
 				success: true,
 				pastTenseMessage: `Searched ${query}`,
+			},
+		}];
+	}
+	if (params.item.type === 'imageGeneration') {
+		const success = params.item.status === 'completed' && params.item.result.length > 0;
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success,
+				pastTenseMessage: success ? 'Generated image' : 'Failed to generate image',
+				content: success ? [{
+					type: ToolResultContentType.EmbeddedResource,
+					data: params.item.result,
+					contentType: 'image/png',
+				}] : undefined,
+				...(success ? {} : { error: { message: `Image generation ${params.item.status}` } }),
 			},
 		}];
 	}

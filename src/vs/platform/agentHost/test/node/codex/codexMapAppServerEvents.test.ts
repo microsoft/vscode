@@ -573,6 +573,50 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('imageGeneration item maps to an image tool call lifecycle', () => {
+		const state = createCodexSessionMapState();
+		const startActions = mapItemStarted(state, {
+			item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '' },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('image_1')!.toolCallId;
+		const completeActions = mapItemCompleted(state, {
+			item: { type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: 'A watercolor fox', result: 'aW1hZ2U=' },
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual({
+			start: startActions,
+			complete: completeActions,
+			remainingToolCalls: state.itemToToolCall.size,
+		}, {
+			start: [{
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn_a',
+				toolCallId,
+				toolName: 'image_gen.imagegen',
+				displayName: 'Generate image',
+			}, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn_a',
+				toolCallId,
+				invocationMessage: 'Generating image',
+				toolInput: '{"prompt":"Generate image"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}],
+			complete: [{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+				},
+			}],
+			remainingToolCalls: 0,
+		});
+	});
+
 	test('fileChange item maps to file edit tool call lifecycle', () => {
 		const state = createCodexSessionMapState();
 		const changes = [{ path: 'src/a.ts', kind: { type: 'update', move_path: null }, diff: '@@ -1 +1 @@\n-old\n+new' }] as const;
