@@ -207,6 +207,8 @@ export interface IChatInputPartOptions {
 	 * When provided, allows the input part to maintain independent state for the selected session type.
 	 */
 	sessionTypePickerDelegate?: ISessionTypePickerDelegate;
+	/** Override the temporary model's session type for routing-only surfaces. */
+	modelPickerSessionType?: string;
 	/**
 	 * Optional delegate for the workspace picker.
 	 * When provided, shows a workspace picker allowing users to select a target workspace
@@ -1859,6 +1861,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * delegate when there is no session yet (the welcome view has no view model).
 	 */
 	private getCurrentSessionType(): string | undefined {
+		if (this.options.modelPickerSessionType) {
+			return this.options.modelPickerSessionType;
+		}
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 		if (sessionResource) {
 			return getChatSessionType(sessionResource);

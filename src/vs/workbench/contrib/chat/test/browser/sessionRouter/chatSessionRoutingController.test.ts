@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -27,13 +28,16 @@ suite('ChatSessionRoutingController', () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		let submitted = false;
-		type FolderPickerItem = { readonly id: string; readonly folder: IWorkspaceFolder };
+		type FolderPickerItem =
+			| { readonly id: string; readonly kind: 'workspace'; readonly folder: IWorkspaceFolder }
+			| { readonly id: 'choose-folder'; readonly kind: 'choose' };
 		let pickerItems: readonly IActionListItem<FolderPickerItem>[] | undefined;
 		let pickerDelegate: IActionListDelegate<FolderPickerItem> | undefined;
 		let pickerAnchor: HTMLElement | undefined;
 		let pickerContainer: HTMLElement | undefined;
 		let pickerOptions: IActionListOptions | undefined;
 		const pickerVisibility: boolean[] = [];
+		let folderDialogDefault: URI | undefined;
 		const actionWidgetService = {
 			show: <T,>(
 				_user: string,
@@ -73,6 +77,11 @@ suite('ChatSessionRoutingController', () => {
 			onDidChangeActionWidgetVisibility: (visible: boolean) => pickerVisibility.push(visible),
 			getActionWidgetContainer: () => container,
 			getActionWidgetAnchor: (anchor: HTMLElement) => anchor,
+			getActionWidgetAnchorPosition: () => AnchorPosition.BELOW,
+			pickFolder: async (defaultUri: URI | undefined) => {
+				folderDialogDefault = defaultUri;
+				return URI.file('/outside/external-project');
+			},
 			placeBadge: (badge: HTMLElement) => container.appendChild(badge),
 		} as unknown as IChatSessionRoutingHost;
 		const workspaceContextService = {
@@ -123,7 +132,8 @@ suite('ChatSessionRoutingController', () => {
 			assert.strictEqual(pickerOptions?.showFilter, true);
 			assert.strictEqual(pickerOptions?.filterPlaceholder, 'Search folders');
 			assert.strictEqual(pickerOptions?.focusFilterOnOpen, true);
-			assert.deepStrictEqual(pickerItems?.map(item => item.label), ['vscode', 'docs']);
+			assert.strictEqual(pickerOptions?.anchorPosition, AnchorPosition.BELOW);
+			assert.deepStrictEqual(pickerItems?.map(item => item.label), ['vscode', 'docs', 'Choose Folder…']);
 			clock.tick(5_000);
 			assert.strictEqual(countdown?.textContent, 'waiting for you');
 			pickerDelegate?.onSelect(pickerItems![0].item!);
@@ -139,6 +149,26 @@ suite('ChatSessionRoutingController', () => {
 				expanded: 'false',
 				countdown: 'sending in 7s',
 				pickerVisibility: [true, false],
+			});
+			changeFolder?.click();
+			await Promise.resolve();
+			const chooseFolder = pickerItems?.find(item => item.item?.kind === 'choose')?.item;
+			assert.ok(chooseFolder);
+			pickerDelegate?.onSelect(chooseFolder);
+			await Promise.resolve();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				label: label?.textContent,
+				changeFolder: changeFolder?.textContent,
+				folderDialogDefault: folderDialogDefault?.toString(),
+				countdown: countdown?.textContent,
+				pickerVisibility,
+			}, {
+				label: 'New session in external-project',
+				changeFolder: 'external-project',
+				folderDialogDefault: vscode.uri.toString(),
+				countdown: 'sending in 7s',
+				pickerVisibility: [true, false, true, false],
 			});
 			clock.tick(1_000);
 			assert.strictEqual(countdown?.textContent, 'sending in 6s');

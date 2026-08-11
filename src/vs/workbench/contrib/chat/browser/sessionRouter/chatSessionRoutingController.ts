@@ -13,9 +13,10 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
@@ -61,10 +62,9 @@ type NewSessionTarget = {
 	readonly folder?: URI;
 };
 
-type FolderPickerItem = {
-	readonly id: string;
-	readonly folder: IWorkspaceFolder;
-};
+type FolderPickerItem =
+	| { readonly id: string; readonly kind: 'workspace'; readonly folder: IWorkspaceFolder }
+	| { readonly id: 'choose-folder'; readonly kind: 'choose' };
 
 interface IDispatchResult {
 	readonly status: 'sent' | 'queued' | 'rejected';
@@ -148,6 +148,10 @@ export interface IChatSessionRoutingHost {
 	getActionWidgetContainer?(): HTMLElement | undefined;
 	/** Translate an element anchor into the host's action-widget coordinate space. */
 	getActionWidgetAnchor?(anchor: HTMLElement): HTMLElement | IAnchor;
+	/** Override the action-widget direction when the host renders it on a separate surface. */
+	getActionWidgetAnchorPosition?(): AnchorPosition;
+	/** Open the host's native folder picker for a standalone working directory. */
+	pickFolder?(defaultUri: URI | undefined): Promise<URI | undefined>;
 	/** Notify the host that a new request will be independently routed. */
 	onWillRoute?(): void;
 	/** Notify the host immediately before sending so stale destination state can be invalidated. */
@@ -603,6 +607,7 @@ export class ChatSessionRoutingController extends Disposable {
 		let choosingFolder = false;
 		let folderPickerShown = false;
 		let folderPickerSurfaceOpen = false;
+		let browsingForFolder = false;
 		let folderPickerRequest = 0;
 		let disposed = false;
 		let changeFolderAction: HTMLButtonElement | undefined;
@@ -677,9 +682,10 @@ export class ChatSessionRoutingController extends Disposable {
 					const request = ++folderPickerRequest;
 					const folders = this.workspaceContextService.getWorkspace().folders;
 					const selectedFolder = options[index].kind === 'new' ? options[index].folder : undefined;
+					const pickFolder = this.host.pickFolder;
 					const items: IActionListItem<FolderPickerItem>[] = folders.map(folder => ({
 						kind: ActionListItemKind.Action,
-						item: { id: folder.uri.toString(), folder },
+						item: { id: folder.uri.toString(), kind: 'workspace', folder },
 						group: {
 							title: '',
 							icon: isEqual(folder.uri, selectedFolder) ? Codicon.check : Codicon.folder,
@@ -687,6 +693,29 @@ export class ChatSessionRoutingController extends Disposable {
 						label: folder.name,
 						description: folder.uri.fsPath,
 					}));
+					if (pickFolder) {
+						items.push({
+							kind: ActionListItemKind.Action,
+							item: { id: 'choose-folder', kind: 'choose' },
+							group: { title: '', icon: Codicon.folderOpened },
+							label: localize('chatSessionRouting.chooseExternalFolder', "Choose Folder…"),
+						});
+					}
+					const selectFolder = (folder: URI, name: string) => {
+						if (options[index].kind !== 'new') {
+							return;
+						}
+						const updatedTarget: NewSessionTarget = {
+							kind: 'new',
+							label: localize('chatSessionRouting.newSessionInFolder', "New session in {0}", name),
+							folder,
+						};
+						options[index] = updatedTarget;
+						label.textContent = updatedTarget.label;
+						selectedFolderName = name;
+						renderChangeFolderAction(false);
+						ariaAlert(localize('chatSessionRouting.targetFolderChanged', "New session will use folder {0}.", name));
+					};
 					const closeFolderPicker = () => {
 						if (request !== folderPickerRequest) {
 							return;
@@ -698,7 +727,7 @@ export class ChatSessionRoutingController extends Disposable {
 							folderPickerSurfaceOpen = false;
 							void this.host.onDidChangeActionWidgetVisibility?.(false);
 						}
-						if (!disposed && !cts.token.isCancellationRequested && !didDispatch) {
+						if (!browsingForFolder && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
 							startCountdown();
 						}
 					};
@@ -714,19 +743,28 @@ export class ChatSessionRoutingController extends Disposable {
 							items,
 							{
 								onSelect: folderPick => {
-									if (options[index].kind === 'new') {
-										const folder = folderPick.folder;
-										const updatedTarget: NewSessionTarget = {
-											kind: 'new',
-											label: localize('chatSessionRouting.newSessionInFolder', "New session in {0}", folder.name),
-											folder: folder.uri,
-										};
-										options[index] = updatedTarget;
-										label.textContent = updatedTarget.label;
-										selectedFolderName = folder.name;
-										ariaAlert(localize('chatSessionRouting.targetFolderChanged', "New session will use folder {0}.", folder.name));
+									if (folderPick.kind === 'workspace') {
+										selectFolder(folderPick.folder.uri, folderPick.folder.name);
+										this.actionWidgetService.hide();
+										return;
 									}
+									if (!pickFolder) {
+										return;
+									}
+									browsingForFolder = true;
 									this.actionWidgetService.hide();
+									void pickFolder(selectedFolder).then(folder => {
+										if (folder && request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+											selectFolder(folder, basename(folder));
+										}
+									}, error => {
+										this.logService.error('[chatSessionRouting] Failed to choose folder', error);
+									}).finally(() => {
+										browsingForFolder = false;
+										if (request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+											startCountdown();
+										}
+									});
 								},
 								onHide: closeFolderPicker,
 							},
@@ -735,15 +773,18 @@ export class ChatSessionRoutingController extends Disposable {
 							undefined,
 							{
 								getAriaLabel: item => item.item
-									? localize('chatSessionRouting.folderPickerItem', "{0}, {1}", item.item.folder.name, item.item.folder.uri.fsPath)
+									? item.item.kind === 'workspace'
+										? localize('chatSessionRouting.folderPickerItem', "{0}, {1}", item.item.folder.name, item.item.folder.uri.fsPath)
+										: localize('chatSessionRouting.chooseExternalFolder', "Choose Folder…")
 									: '',
 								getWidgetAriaLabel: () => localize('chatSessionRouting.selectTargetFolder', "Select the folder for the new session"),
 								getWidgetRole: () => 'menu',
-								getRole: () => 'menuitemradio',
-								isChecked: item => item.item ? isEqual(item.item.folder.uri, selectedFolder) : false,
+								getRole: item => item.item?.kind === 'choose' ? 'menuitem' : 'menuitemradio',
+								isChecked: item => item.item?.kind === 'workspace' ? isEqual(item.item.folder.uri, selectedFolder) : undefined,
 							},
 							withChatInputPickerMotion({
 								className: 'chat-folder-picker-dropdown',
+								anchorPosition: this.host.getActionWidgetAnchorPosition?.() ?? AnchorPosition.ABOVE,
 								minWidth: 280,
 								maxWidth: 420,
 								showFilter: true,
