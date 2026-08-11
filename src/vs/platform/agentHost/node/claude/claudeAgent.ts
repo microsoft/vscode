@@ -180,6 +180,18 @@ interface IClaudeChatBacking {
 }
 
 /**
+ * A chat's exact configuration/persistence-resource pair, recorded so a later
+ * fork or side-chat naming this chat as its source can resolve both without
+ * deriving either from URI shape or from the destination's own context.
+ */
+interface IChatScopeBinding {
+	/** The shared, session-wide configuration scope (`IAgentChatContext.configurationResource`). */
+	readonly configurationResource: URI;
+	/** This exact chat's own persistence resource (`IAgentChatContext.resource`) — the key its overlay is written under. */
+	readonly resource: URI;
+}
+
+/**
  * One host-addressed chat operation, resolved against the provider's exact
  * chat backing.
  *
@@ -371,14 +383,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _chatBackings = new Map<string, IClaudeChatBacking>();
 
 	/**
-	 * Maps each host-supplied concrete chat URI to the configuration/persistence
-	 * scope Agent Host named for it (`IAgentChatContext.configurationResource`),
-	 * recorded whenever that chat is created or (re-)materialized. This is the
-	 * only state a fork/side-chat source's own scope is ever resolved from —
-	 * never the destination chat's scope, never a sibling catalog grouped by
-	 * session.
+	 * Maps each host-supplied concrete chat URI to the exact
+	 * {@link IChatScopeBinding} — both its configuration scope
+	 * (`IAgentChatContext.configurationResource`, shared session-wide) and its
+	 * own persistence resource (`IAgentChatContext.resource`, the exact key its
+	 * overlay is written under) — recorded whenever that chat is created or
+	 * (re-)materialized. This is the only state a fork/side-chat source's own
+	 * scope is ever resolved from — never the destination chat's scope, never
+	 * a sibling catalog grouped by session.
 	 */
-	private readonly _chatConfigScopes = new Map<string, URI>();
+	private readonly _chatConfigScopes = new Map<string, IChatScopeBinding>();
 
 	/**
 	 * Fires when a concrete chat backing's opaque `providerData` changes after creation
@@ -493,13 +507,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		};
 	}
 
-	/** Records `chat`'s configuration/persistence scope, populated on create and materialize. */
-	private _recordChatScope(chat: URI, configurationResource: URI): void {
-		this._chatConfigScopes.set(chat.toString(), configurationResource);
+	/** Records `chat`'s exact scope binding, populated on create and materialize. */
+	private _recordChatScope(chat: URI, configurationResource: URI, resource: URI): void {
+		this._chatConfigScopes.set(chat.toString(), { configurationResource, resource });
 	}
 
-	/** Resolves the configuration scope recorded for an exact source chat. */
-	private _sourceChatScope(source: URI): URI | undefined {
+	/** Resolves the scope binding recorded for an exact source chat. */
+	private _sourceChatScope(source: URI): IChatScopeBinding | undefined {
 		return this._chatConfigScopes.get(source.toString());
 	}
 
@@ -1143,7 +1157,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		const canUseTool = this._makeCanUseTool(sessionId, resource);
 		const onElicitation = this._makeOnElicitation(sessionId);
-		this._recordChatScope(context.chat, context.configurationResource);
+		this._recordChatScope(context.chat, context.configurationResource, context.resource);
 		try {
 			await session.materialize({
 				transport,
@@ -1257,7 +1271,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const chatKey = chat.toString();
 		// Record this chat's own scope now — the only place a later fork
 		// naming this chat as its source resolves that source's scope from.
-		this._recordChatScope(chat, context.configurationResource);
+		this._recordChatScope(chat, context.configurationResource, context.resource);
 		return this._sessionSequencer.queue(chatKey, async () => {
 			const existing = this._chatBackings.get(chatKey);
 			const created = existing
@@ -1371,26 +1385,31 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		model: ModelSelection | undefined,
 		options?: IAgentCreateChatOptions,
 	): Promise<IAgentCreateChatResult> {
-		// The source's settings live under its own configuration/persistence
-		// scope: the scope this provider recorded when the fork source chat was
-		// itself created or materialized ({@link _sourceChatScope}), or — for a
-		// side chat, which always branches within its own session — this
-		// chat's own scope. A fork whose source scope was never recorded (the
-		// source has no chat backing yet) degrades to this chat's own scope
-		// rather than failing the creation outright.
-		const sourceScope = options?.fork
-			? this._sourceChatScope(options.fork.source) ?? context.configurationResource
-			: context.configurationResource;
+		// The source's settings live under its own exact persistence resource —
+		// the same key its own overlay was written under (see the write below
+		// and `_persistSessionOverlay`) — never the shared configuration scope.
+		// That resource is the one this provider recorded when the source chat
+		// was itself created or materialized ({@link _sourceChatScope}); a
+		// source whose scope was never recorded (no chat backing yet, e.g. a
+		// stale reference) degrades to the source URI itself, which is exactly
+		// its own persistence resource for any non-default chat.
+		const sourceChat = options?.fork?.source ?? options?.sideChat?.source;
+		const sourceBinding = sourceChat ? this._sourceChatScope(sourceChat) : undefined;
+		const sourceResource = sourceBinding?.resource ?? sourceChat ?? context.resource;
 		let sourceOverlay: IClaudeSessionOverlay = {};
 		try {
-			sourceOverlay = await this._metadataStore.read(sourceScope);
+			sourceOverlay = await this._metadataStore.read(sourceResource);
 		} catch (err) {
-			this._logService.warn(`[Claude] createChat: source overlay read failed for ${sourceScope.toString()}; continuing with defaults`, err);
+			this._logService.warn(`[Claude] createChat: source overlay read failed for ${sourceResource.toString()}; continuing with defaults`, err);
 		}
-		const sourceChat = options?.fork?.source ?? options?.sideChat?.source;
 		const sourceSdkId = sourceChat ? this._sourceChatSdkId(sourceChat) : undefined;
 		const liveSource = sourceSdkId ? this._findAnySession(sourceSdkId) : undefined;
-		const inheritedModel = model ?? liveSource?.provisionalModel ?? sourceOverlay.model;
+		// A source that was created (recording a backing model) but never
+		// materialized has no overlay entry yet, so the backing's own model —
+		// the last resort, below the overlay once one exists — is the only
+		// place its intended model survives a cold restart.
+		const backingModel = sourceChat ? this._chatBackings.get(sourceChat.toString())?.model : undefined;
+		const inheritedModel = model ?? liveSource?.provisionalModel ?? sourceOverlay.model ?? backingModel;
 		const agent = options?.agent ?? liveSource?.provisionalAgent ?? sourceOverlay.agent;
 		const permissionMode = narrowClaudePermissionMode(options?.config?.[ClaudeSessionConfigKey.PermissionMode]) ?? liveSource?.permissionModeFallback ?? sourceOverlay.permissionMode;
 
@@ -1635,7 +1654,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const transport = this._ensureAuthenticated(chatSession.provisionalModel);
 		const canUseTool = this._makeCanUseTool(chatSession.sessionId, resource);
 		const onElicitation = this._makeOnElicitation(chatSession.sessionId);
-		this._recordChatScope(chat, configurationResource);
+		this._recordChatScope(chat, configurationResource, resource);
 		try {
 			await chatSession.materialize({
 				transport,
@@ -1736,7 +1755,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			additionalDirectories,
 		);
 		this._registerLiveChat(chat, chatSession);
-		this._recordChatScope(chat, configurationResource);
+		this._recordChatScope(chat, configurationResource, resource);
 		// The chat now has a live runtime, so re-apply the contributions of
 		// every client addressed to this exact chat. This replaces nothing —
 		// it only pushes each handle's already-assigned tools/customizations
@@ -1782,11 +1801,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/**
 	 * Re-attach a concrete chat backing from opaque provider data, recording
-	 * its configuration/persistence scope so a later fork naming this chat as
-	 * its source can resolve that scope without deriving it from URI shape.
+	 * its exact scope binding (configuration scope AND own persistence
+	 * resource) so a later fork naming this chat as its source can resolve
+	 * both without deriving them from URI shape. This is the sole restore
+	 * path for a chat that was never (re-)created in this process — a cold
+	 * peer chat — so it is the only place that scope binding exists for it.
 	 */
 	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
-		this._recordChatScope(chat, resolveAgentChatContext(context, chat).configurationResource);
+		const resolved = resolveAgentChatContext(context, chat);
+		this._recordChatScope(chat, resolved.configurationResource, resolved.resource);
 		if (providerData === undefined) {
 			return;
 		}
@@ -1820,11 +1843,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * orchestrator can persist it additively going forward.
 	 */
 	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
-		const { configurationResource } = resolveAgentChatContext(context, chat);
+		const { configurationResource, resource } = resolveAgentChatContext(context, chat);
 		const chatKey = chat.toString();
 		const backing = this._chatBackings.get(chatKey) ?? { sdkSessionId: AgentSession.id(configurationResource) };
 		this._chatBackings.set(chatKey, backing);
-		this._recordChatScope(chat, configurationResource);
+		this._recordChatScope(chat, configurationResource, resource);
 		return { providerData: encodeProviderData(_toPersistedChat(backing)) };
 	}
 
