@@ -199,6 +199,7 @@ export interface IChatInputPartOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	inputEditorMaxHeight?: number;
 	widgetViewKindTag: string;
 	/**
 	 * Optional delegate for the session target picker.
@@ -879,7 +880,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, this._attachmentModel, styles));
 
-		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
+		this.inputEditorMaxHeight = this.options.inputEditorMaxHeight ?? (this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT);
 		const padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
 		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
 		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
