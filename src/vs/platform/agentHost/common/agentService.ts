@@ -1683,7 +1683,7 @@ export interface IAgent {
 	/** Available provider models. */
 	readonly models: IObservable<readonly IAgentModelInfo[]>;
 
-	/** Refresh the provider model catalog while preserving the last good value on failure. */
+	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 
 	// ---- Chat lifecycle and progress ----------------------------------------
@@ -1706,10 +1706,10 @@ export interface IAgent {
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
 
-	/** Update the exact chat's pending steering message; queued messages are host-owned. */
+	/** Optional steering hook for providers that can accept messages during an active turn. */
 	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 
-	/** Truncate an exact chat at a turn, or remove all turns when no turn is supplied. */
+	/** Optional history mutation for providers with a native truncation operation. */
 	truncateSession?(session: URI, turnId: string | undefined, chat: URI, context?: URI | IAgentChatContext): Promise<void>;
 
 	// ---- Active clients and interaction ------------------------------------
@@ -1740,10 +1740,10 @@ export interface IAgent {
 	/** Return dynamic completions for a provider-owned chat configuration property. */
 	chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
-	/** Fires when provider customization state changes. */
+	/** Optional push signal; providers with pull-only customization discovery omit it. */
 	readonly onDidCustomizationsChange?: Event<void>;
 
-	/** Return provider-wide customization containers advertised in agent metadata. */
+	/** Optional provider-wide catalog; providers with only per-chat discovery omit it. */
 	getCustomizations?(): readonly Customization[];
 
 	/** Return the effective customization projection for an exact chat. */
@@ -1751,19 +1751,19 @@ export interface IAgent {
 
 	// ---- Legacy migration and metadata -------------------------------------
 
-	/** Fires when provider-native chats change out of band during legacy migration. */
+	/** Optional migration signal for providers that can observe out-of-band native chat creation. */
 	readonly onDidChangeChatList?: Event<void>;
 
-	/** Adopt a legacy provider-native chat into Agent Host metadata. */
+	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
 
-	/** Recover a historical backing that predates host-owned provider-data persistence. */
+	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
 	/** Enumerate provider-native chats for one-time registry migration. */
 	listLegacyChats(): Promise<readonly IAgentChatMetadata[]>;
 
-	/** Enumerate legacy peer backings for one configuration scope. */
+	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
 
 	/** Retrieve metadata for an exact registered chat. */
@@ -1777,41 +1777,41 @@ export interface IAgent {
 	/** Authenticate for one protected resource. */
 	authenticate(resource: string, token: string): Promise<boolean>;
 
-	/** Handle authentication for provider-owned resources such as MCP servers. */
+	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
-	/** Fires when the client must re-authenticate a protected resource. */
+	/** Optional push signal for providers that can require re-authentication after startup. */
 	readonly onDidRequireAuth?: Event<Omit<AuthRequiredParams, 'channel'>>;
 
-	/** Provider endpoints recommended for network diagnostics. */
+	/** Optional endpoint list when the provider owns probeable network traffic. */
 	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;
 
-	/** Authenticated account name displayed in network diagnostics. */
+	/** Optional account label when the provider can resolve one. */
 	getNetworkDiagnosticsAccount?(): Promise<string | undefined>;
 
-	/** Effective enterprise managed-settings diagnostics. */
+	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
 	// ---- MCP and server tools -----------------------------------------------
 
-	/** Attach the Agent Host server-tool implementation. */
+	/** Optional host wiring for providers that advertise Agent Host server tools. */
 	setServerToolHost?(host: IAgentServerToolHost): void;
 
-	/** Start or restart an MCP server by customization id. */
+	/** Optional lifecycle operation for providers exposing controllable MCP servers. */
 	startMcpServer?(session: URI, id: string): Promise<void>;
 
-	/** Stop an MCP server by customization id. */
+	/** Optional lifecycle operation paired with {@link startMcpServer}. */
 	stopMcpServer?(session: URI, id: string): Promise<void>;
 
-	/** Route a request received on an `mcp://` side channel. */
+	/** Optional `mcp://` router for providers that advertise MCP side-channel resources. */
 	handleMcpRequest?(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
-	/** MCP notification to forward to connected AHP clients. */
+	/** Optional notification stream paired with {@link handleMcpRequest}. */
 	readonly onMcpNotification?: Event<IMcpNotification>;
 
 	// ---- Provider lifecycle -------------------------------------------------
 
-	/** Handle a protocol session's archived-state change when provider resources require it. */
+	/** Optional lifecycle hook for providers whose resources react to archived state. */
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/** Gracefully stop provider runtimes. */
