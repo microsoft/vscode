@@ -16,12 +16,12 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingSessionCreatedTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveSessionCreatedToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, findAutoModeResolution, formatCompletedResponseDisclosureLabel, formatResponseAutoModeResolution, formatResponseFooterHover, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingSessionCreatedTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveSessionCreatedToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatAutoModeResolutionPart, IChatMarkdownContent, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
@@ -435,6 +435,93 @@ suite('ChatListRenderer', () => {
 			], [
 				undefined,
 				undefined,
+			]);
+		});
+
+		test('explains the Auto routing decision for the footer stat hover', () => {
+			const results = ([
+				['needs_reasoning', 0.984],
+				['no_reasoning', 0.5],
+				['fallback', 0.12],
+			] as const).map(([predictedLabel, confidence]) => {
+				const resolution = formatResponseAutoModeResolution({
+					kind: 'autoModeResolution',
+					resolvedModel: 'gpt-5.6-luna',
+					resolvedModelName: 'GPT-5.6 Luna',
+					predictedLabel,
+					confidence,
+				});
+				return { predictedLabel, markdown: resolution?.markdown.value, ariaLabel: resolution?.ariaLabel };
+			});
+
+			const description = 'Auto routes based on your task and real-time system health and model performance.';
+			assert.deepStrictEqual(results, [
+				{
+					predictedLabel: 'needs_reasoning',
+					markdown: `**Routed to GPT-5.6 Luna**\n\n${description}\n\nReasoning - Confidence 98%\n\n`,
+					ariaLabel: `Routed to GPT-5.6 Luna. ${description} Reasoning - Confidence 98%.`,
+				},
+				{
+					predictedLabel: 'no_reasoning',
+					markdown: `**Routed to GPT-5.6 Luna**\n\n${description}\n\nNon-reasoning - Confidence 50%\n\n`,
+					ariaLabel: `Routed to GPT-5.6 Luna. ${description} Non-reasoning - Confidence 50%.`,
+				},
+				{
+					predictedLabel: 'fallback',
+					markdown: `**Routed to GPT-5.6 Luna**\n\n${description}\n\nUnable to resolve\n\n`,
+					ariaLabel: `Routed to GPT-5.6 Luna. ${description} Unable to resolve.`,
+				},
+			]);
+		});
+
+		test('reports no Auto routing explanation for turns Auto did not route', () => {
+			assert.strictEqual(formatResponseAutoModeResolution(undefined), undefined);
+		});
+
+		test('finds the Auto routing result that served the turn', () => {
+			const resolution = (resolvedModelName: string): IChatAutoModeResolutionPart => ({
+				kind: 'autoModeResolution',
+				resolvedModel: resolvedModelName,
+				resolvedModelName,
+				predictedLabel: 'no_reasoning',
+				confidence: 1,
+			});
+			const markdown: IChatMarkdownContent = { kind: 'markdownContent', content: new MarkdownString('hi') };
+
+			assert.deepStrictEqual([
+				findAutoModeResolution([markdown, resolution('first'), markdown, resolution('last')])?.resolvedModelName,
+				findAutoModeResolution([markdown])?.resolvedModelName,
+				findAutoModeResolution([])?.resolvedModelName,
+			], [
+				'last',
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('combines the Auto routing and token sections into one footer hover', () => {
+			const routing = formatResponseAutoModeResolution({
+				kind: 'autoModeResolution',
+				resolvedModel: 'gpt-5.6-luna',
+				resolvedModelName: 'GPT-5.6 Luna',
+				predictedLabel: 'no_reasoning',
+				confidence: 0.98,
+			});
+			const tokens = formatResponseTokenStats([{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 }]);
+
+			assert.deepStrictEqual([
+				formatResponseFooterHover([routing, tokens])?.markdown.value,
+				formatResponseFooterHover([undefined, tokens])?.markdown.value,
+				formatResponseFooterHover([routing, undefined])?.markdown.value,
+				formatResponseFooterHover([undefined, undefined]),
+				// Sections already ending in a period must not gain a second one.
+				formatResponseFooterHover([routing, tokens])?.ariaLabel,
+			], [
+				`${routing!.markdown.value}${tokens!.markdown.value}`,
+				tokens!.markdown.value,
+				routing!.markdown.value,
+				undefined,
+				`${routing!.ariaLabel} ${tokens!.ariaLabel}.`,
 			]);
 		});
 
