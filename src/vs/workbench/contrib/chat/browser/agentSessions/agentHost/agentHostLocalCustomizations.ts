@@ -240,6 +240,8 @@ function launchToMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConf
  *
  * The synced `.mcp.json` is launched by the agent host verbatim, so any
  * variable the agent host can't itself expand must be resolved here up front.
+ * Cwd-less workspace stdio servers are assigned the same workspace-folder cwd
+ * that VS Code's native MCP host supplies implicitly.
  * Variables requiring interaction (`${input:…}`, `${command:…}`) or context we
  * don't have (e.g. `${workspaceFolder}` outside a folder) cause the server to
  * be skipped.
@@ -249,7 +251,10 @@ async function resolveConfigurationForSync(
 	folder: IWorkspaceFolderData | undefined,
 	configuration: IMcpServerConfiguration,
 ): Promise<IMcpServerConfiguration | undefined> {
-	const expr = ConfigurationResolverExpression.parse(configuration);
+	const configurationWithDefaultCwd: IMcpServerConfiguration = configuration.type === McpServerType.LOCAL && configuration.cwd === undefined && folder
+		? { ...configuration, cwd: '${workspaceFolder}' }
+		: configuration;
+	const expr = ConfigurationResolverExpression.parse(configurationWithDefaultCwd);
 
 	// Interactive variables (`${input:…}`, `${command:…}`) can only be resolved
 	// by prompting the user, so a server referencing them is skipped. This is

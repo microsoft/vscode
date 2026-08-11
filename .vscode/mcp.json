@@ -12,6 +12,7 @@
 		"component-explorer": {
 			"type": "stdio",
 			"command": "npm",
+			"cwd": "${workspaceFolder}",
 			"args": [
 				"exec",
 				"--no",

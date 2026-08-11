@@ -16,6 +16,7 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { resolveCustomizationRefs, resolveLocalCustomAgents, shouldSyncWorkspaceDotMcp } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -122,10 +123,23 @@ function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map
 	} as unknown as IFileService;
 }
 
-function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; launch?: McpServerLaunch | undefined; configTarget?: ConfigurationTarget; collectionSource?: ExtensionIdentifier }): IMcpServer {
-	const { id, collectionId, label = id, enabled = true, launch, configTarget = ConfigurationTarget.USER, collectionSource } = options;
+function makeMcpServer(options: {
+	id: string;
+	collectionId: string;
+	label?: string;
+	enabled?: boolean;
+	launch?: McpServerLaunch | undefined;
+	configTarget?: ConfigurationTarget;
+	collectionSource?: ExtensionIdentifier;
+	workspaceFolder?: IWorkspaceFolderData;
+}): IMcpServer {
+	const { id, collectionId, label = id, enabled = true, launch, configTarget = ConfigurationTarget.USER, collectionSource, workspaceFolder } = options;
 	const collection = { id: collectionId, label: collectionId, order: 0, configTarget, source: collectionSource } as unknown as McpCollectionDefinition;
-	const definitions = observableValue('definitions', { server: launch ? { launch } : undefined, collection });
+	const server = launch ? {
+		launch,
+		variableReplacement: workspaceFolder ? { folder: workspaceFolder, target: configTarget } : undefined,
+	} : undefined;
+	const definitions = observableValue('definitions', { server, collection });
 	return {
 		definition: { id, label },
 		collection: { id: collectionId, label: collectionId, order: 0 },
@@ -149,6 +163,12 @@ const stdioLaunch: McpServerLaunch = {
 	envFile: undefined,
 	cwd: undefined,
 	sandbox: undefined,
+};
+
+const workspaceFolder: IWorkspaceFolderData = {
+	uri: URI.file('/workspace'),
+	name: 'workspace',
+	index: 0,
 };
 
 function makeCopilotChatGitHubMcpServer(): IMcpServer {
@@ -724,13 +744,38 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(bundler.received.length, 0);
 	});
 
-	test('syncs `.vscode/mcp.json` servers that resolve without user interaction', async () => {
+	test('defaults cwd-less `.vscode/mcp.json` stdio servers to the workspace folder', async () => {
 		const bundler = new FakeBundler();
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.my-server', collectionId: 'mcp.config.ws0', label: 'my-server', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.my-server', collectionId: 'mcp.config.ws0', label: 'my-server', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, workspaceFolder }),
 		]);
 
 		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService({ '${workspaceFolder}': '/workspace' }),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+
+		assert.strictEqual(bundler.received.length, 1);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: '/workspace' } },
+		]);
+		assert.strictEqual(refs.length, 1);
+		assert.strictEqual(refs[0].name, 'Open Plugin');
+	});
+
+	test('preserves an explicit `.vscode/mcp.json` stdio server cwd', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'mcp.config.ws0.my-server', collectionId: 'mcp.config.ws0', label: 'my-server', launch: { ...stdioLaunch, cwd: '/explicit' }, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, workspaceFolder }),
+		]);
+
+		await resolveCustomizationRefs(
 			makeFileService(),
 			makePromptsService(new Map()),
 			new FakeSyncProvider(),
@@ -741,18 +786,37 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 		);
 
-		assert.strictEqual(bundler.received.length, 1);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: '/explicit' } },
+		]);
+	});
+
+	test('preserves a missing `.vscode/mcp.json` cwd when no workspace folder is available', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeMcpServer({ id: 'mcp.config.ws0.my-server', collectionId: 'mcp.config.ws0', label: 'my-server', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+		]);
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
 			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
 		]);
-		assert.strictEqual(refs.length, 1);
-		assert.strictEqual(refs[0].name, 'Open Plugin');
 	});
 
 	test('excludes `.vscode/mcp.json` servers with variables that require interaction (e.g. ${input:…})', async () => {
 		const bundler = new FakeBundler();
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.needs-input', collectionId: 'mcp.config.ws0', label: 'needs-input', launch: stdioLaunchWithInput, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.needs-input', collectionId: 'mcp.config.ws0', label: 'needs-input', launch: stdioLaunchWithInput, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, workspaceFolder }),
 		]);
 
 		await resolveCustomizationRefs(
@@ -772,7 +836,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 	test('syncs `.vscode/mcp.json` servers after resolving non-interactive variables (e.g. ${workspaceFolder})', async () => {
 		const bundler = new FakeBundler();
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, workspaceFolder }),
 		]);
 
 		const refs = await resolveCustomizationRefs(
@@ -788,7 +852,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
-			{ name: 'folder-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--root', '/ws'], env: undefined, envFile: undefined, cwd: undefined } },
+			{ name: 'folder-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--root', '/ws'], env: undefined, envFile: undefined, cwd: '/ws' } },
 		]);
 		assert.strictEqual(refs.length, 1);
 	});
@@ -796,7 +860,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 	test('excludes `.vscode/mcp.json` servers when variable resolution throws', async () => {
 		const bundler = new FakeBundler();
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, workspaceFolder }),
 		]);
 		const throwingResolver = {
 			async resolveAsync() { throw new Error('no workspace folder'); },
