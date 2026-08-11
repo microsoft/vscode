@@ -12,7 +12,7 @@ import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { hash } from '../../../base/common/hash.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { isDefined } from '../../../base/common/types.js';
+import { isDefined, isNumber } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IPosition } from '../../../editor/common/core/position.js';
@@ -191,7 +191,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 					profileId++;
 				}
 
-				return new TestRunProfileImpl(this.proxy, profiles, activeProfiles, this.defaultProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
+				return new TestRunProfileImpl(extension, this.proxy, profiles, activeProfiles, this.defaultProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
 			},
 			createTestItem(id, label, uri) {
 				return new TestItemImpl(controllerId, id, label, uri);
@@ -1219,12 +1219,14 @@ const updateProfile = (impl: TestRunProfileImpl, proxy: MainThreadTestingShape, 
 };
 
 export class TestRunProfileImpl extends TestRunProfileBase implements vscode.TestRunProfile {
+	readonly #extension: IExtensionDescription;
 	readonly #proxy: MainThreadTestingShape;
 	readonly #activeProfiles: Set<number>;
 	readonly #onDidChangeDefaultProfiles: Event<DefaultProfileChangeEvent>;
 	#initialPublish?: ITestRunProfile;
 	#profiles?: Map<number, vscode.TestRunProfile>;
 	private _configureHandler?: (() => void);
+	private _priority = 0;
 
 	public get label() {
 		return this._label;
@@ -1234,6 +1236,20 @@ export class TestRunProfileImpl extends TestRunProfileBase implements vscode.Tes
 		if (label !== this._label) {
 			this._label = label;
 			updateProfile(this, this.#proxy, this.#initialPublish, { label });
+		}
+	}
+
+	public get priority() {
+		checkProposedApiEnabled(this.#extension, 'testRunProfilePriority');
+		return this._priority;
+	}
+
+	public set priority(priority: number) {
+		checkProposedApiEnabled(this.#extension, 'testRunProfilePriority');
+		priority = isNumber(priority) ? Math.max(-Number.MAX_VALUE, Math.min(Number.MAX_VALUE, priority)) : 0;
+		if (priority !== this._priority) {
+			this._priority = priority;
+			updateProfile(this, this.#proxy, this.#initialPublish, { priority });
 		}
 	}
 
@@ -1298,6 +1314,7 @@ export class TestRunProfileImpl extends TestRunProfileBase implements vscode.Tes
 	}
 
 	constructor(
+		extension: IExtensionDescription,
 		proxy: MainThreadTestingShape,
 		profiles: Map<number, vscode.TestRunProfile>,
 		activeProfiles: Set<number>,
@@ -1313,6 +1330,7 @@ export class TestRunProfileImpl extends TestRunProfileBase implements vscode.Tes
 	) {
 		super(controllerId, profileId, kind);
 
+		this.#extension = extension;
 		this.#proxy = proxy;
 		this.#profiles = profiles;
 		this.#activeProfiles = activeProfiles;
@@ -1331,6 +1349,7 @@ export class TestRunProfileImpl extends TestRunProfileBase implements vscode.Tes
 			label: _label,
 			group: groupBitset,
 			isDefault: _isDefault,
+			priority: this._priority,
 			hasConfigurationHandler: false,
 			supportsContinuousRun: _supportsContinuousRun,
 		};
