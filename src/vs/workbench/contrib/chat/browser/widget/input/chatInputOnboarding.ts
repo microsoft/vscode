@@ -3,23 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, isAncestorOfActiveElement, trackFocus } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, isAncestorOfActiveElement, setVisibility, trackFocus } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-
-/** Voice Mode and Dictation introductions never share the input at once. */
-export const CHAT_INPUT_INTRODUCTION_GROUP = 'chatInputIntroduction';
 
 /** A card keyboard focus can be moved into and back out of. */
 export interface IChatInputOnboardingFocusTarget {
 	hasFocus(): boolean;
 	focus(): void;
+}
+
+/**
+ * The space above one chat input, as offered to an introduction. Claiming it is
+ * the only way a card gets on screen: the slot decides who leads, so precedence
+ * against notifications and recency against a peer introduction are one thing.
+ */
+export interface IChatInputNoticeSlot {
+	/**
+	 * Hold the space until the returned disposable is disposed. `onDidChangeLeading`
+	 * reports whether this claim is the one currently on screen.
+	 */
+	claim(options: {
+		readonly focusTarget?: IChatInputOnboardingFocusTarget;
+		readonly onDidChangeLeading: (leading: boolean) => void;
+	}): IDisposable;
 }
 
 export interface IChatInputOnboardingHostOptions {
@@ -30,16 +43,10 @@ export interface IChatInputOnboardingHostOptions {
 	/** Hands focus back to this host's input when the card closes. */
 	readonly focus?: () => void;
 	/**
-	 * Reports whether a card is currently showing in this host, and how to reach
-	 * it with the keyboard while it is.
+	 * The space this host offers. Without one the card shows unconditionally,
+	 * which is what the tests and any host with nothing else above the input want.
 	 */
-	readonly onDidChangeVisible?: (visible: boolean, focusTarget?: IChatInputOnboardingFocusTarget) => void;
-	/**
-	 * Whether higher-precedence content currently owns the space above the
-	 * input. Read through the passed reader so the card can stand down when
-	 * something takes the space, and come back when it is given up again.
-	 */
-	readonly isBlocked?: (reader?: IReader) => boolean;
+	readonly noticeSlot?: IChatInputNoticeSlot;
 }
 
 interface IChatInputOnboardingHost extends IChatInputOnboardingHostOptions {
@@ -51,12 +58,6 @@ type ChatInputOnboardingFactory = (context: IChatInputOnboardingContext) => ICha
 export interface IChatInputOnboardingOptions {
 	readonly storageKey: string;
 	readonly hostClass: string;
-	/**
-	 * Cards sharing a group never show at the same time. The most recent one
-	 * wins; a card displaced before it could be read gets its first-run showing
-	 * back so it can appear again later.
-	 */
-	readonly exclusionGroup?: string;
 }
 
 export interface IChatInputOnboardingContext {
@@ -86,22 +87,19 @@ export interface IChatInputOnboardingActionOptions {
 export class ChatInputOnboarding extends Disposable {
 
 	private readonly hosts = new Set<IChatInputOnboardingHost>();
+	/** The built card, kept alive while standing down so its state survives. */
 	private readonly currentOnboarding = this._register(new MutableDisposable<IDisposable>());
+	/** The held space. Outlives the card: it is what brings a card back. */
+	private readonly claim = this._register(new MutableDisposable<IDisposable>());
 	private activeHost: IChatInputOnboardingHost | undefined;
-	/** Whether the visible card is what consumed this feature's first-run showing. */
-	private _consumedFirstRun = false;
-	/** A displaced card reclaims its showing once; more would never terminate. */
-	private _restoredFirstRun = false;
-	/** How to rebuild the showing card, so a displaced one can be put back. */
-	private _activeFactory: ChatInputOnboardingFactory | undefined;
-	/** A card waiting for the space above the input to be given up again. */
-	private _pending: ChatInputOnboardingFactory | undefined;
+	private activeBanner: IChatInputOnboardingBanner | undefined;
+	/** Builds the card once this claim leads. */
+	private wanted: ChatInputOnboardingFactory | undefined;
+	private leading = false;
 
-	/** Cards that may not be visible at the same time, by group. */
-	private static readonly exclusionGroups = new Map<string, Set<ChatInputOnboarding>>();
-
+	/** Whether a card is built and on screen. */
 	get isVisible(): boolean {
-		return !!this.currentOnboarding.value;
+		return !!this.currentOnboarding.value && this.leading;
 	}
 
 	constructor(
@@ -109,22 +107,6 @@ export class ChatInputOnboarding extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
-
-		const group = this.options.exclusionGroup;
-		if (group) {
-			let members = ChatInputOnboarding.exclusionGroups.get(group);
-			if (!members) {
-				members = new Set();
-				ChatInputOnboarding.exclusionGroups.set(group, members);
-			}
-			members.add(this);
-			this._register(toDisposable(() => {
-				members.delete(this);
-				if (members.size === 0) {
-					ChatInputOnboarding.exclusionGroups.delete(group);
-				}
-			}));
-		}
 	}
 
 	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
@@ -134,14 +116,6 @@ export class ChatInputOnboarding extends Disposable {
 		const store = new DisposableStore();
 		const focusTracker = store.add(trackFocus(options.focusRoot));
 		store.add(focusTracker.onDidFocus(() => host.lastFocused = Date.now()));
-
-		// Precedence is maintained for as long as the card is up, not just when it
-		// is first shown: the card stands down when something takes the space and
-		// comes back when that content goes away.
-		if (options.isBlocked) {
-			store.add(autorun(reader => this.onDidChangeBlocked(host, options.isBlocked!(reader))));
-		}
-
 		store.add(toDisposable(() => {
 			this.hosts.delete(host);
 			if (this.activeHost === host) {
@@ -151,61 +125,27 @@ export class ChatInputOnboarding extends Disposable {
 		return store;
 	}
 
-	private onDidChangeBlocked(host: IChatInputOnboardingHost, blocked: boolean): void {
-		if (blocked) {
-			if (this.activeHost === host && this.isVisible) {
-				this.displace();
-			}
-		} else {
-			this.showPending();
-		}
-	}
-
 	/**
-	 * Stand down for higher-precedence content without spending the showing: the
-	 * card is remembered so it can be put back, and its first-run key is given
-	 * back in case the window closes before that happens.
+	 * Show the card the first time the feature is used. Nothing is built until
+	 * the space is actually available, so a card never spends its one showing -
+	 * or reports itself shown - somewhere the user would not have seen it.
 	 */
-	private displace(): void {
-		const factory = this._activeFactory;
-		this.preempt();
-		this._pending = factory;
-	}
-
-	/** Put back a card that deferred or was displaced, once the space is free. */
-	private showPending(): void {
-		const factory = this._pending;
-		if (!factory) {
-			return;
-		}
-
-		const host = this.getActiveHost();
-		if (!host || host.isBlocked?.()) {
-			return;
-		}
-
-		this._pending = undefined;
-		this.show(factory);
-	}
-
 	showIfNeeded(createOnboarding: ChatInputOnboardingFactory): boolean {
-		if (this.currentOnboarding.value) {
+		if (this.wanted) {
 			return true;
 		}
 		if (this.storageService.getBoolean(this.options.storageKey, StorageScope.APPLICATION, false)) {
 			return false;
 		}
-		// Defer rather than consume the one first-run showing: something with
-		// higher precedence owns the space. The card is held so it appears as soon
-		// as that content goes away.
-		if (this.getActiveHost()?.isBlocked?.()) {
-			this._pending = createOnboarding;
-			return false;
-		}
-		return this.show(createOnboarding);
+		return this.request(createOnboarding);
 	}
 
+	/** Show the card again regardless of whether it has already been seen. */
 	show(createOnboarding: ChatInputOnboardingFactory): boolean {
+		return this.request(createOnboarding);
+	}
+
+	private request(createOnboarding: ChatInputOnboardingFactory): boolean {
 		const host = this.getActiveHost();
 		if (!host) {
 			return false;
@@ -213,6 +153,65 @@ export class ChatInputOnboarding extends Disposable {
 
 		this.hide(false);
 		this.activeHost = host;
+		this.wanted = createOnboarding;
+
+		const slot = host.noticeSlot;
+		if (!slot) {
+			this.setLeading(true);
+			return true;
+		}
+
+		// A newer claim leads its lane, so this both takes the space from a peer
+		// introduction and yields to a notification, through one mechanism.
+		this.claim.value = slot.claim({
+			focusTarget: { hasFocus: () => this.activeBanner?.hasFocus() ?? false, focus: () => this.activeBanner?.focus() },
+			onDidChangeLeading: leading => this.setLeading(leading),
+		});
+		return true;
+	}
+
+	private setLeading(leading: boolean): void {
+		if (this.leading === leading || !this.wanted) {
+			return;
+		}
+
+		this.leading = leading;
+		if (leading) {
+			this.build();
+		} else {
+			this.standDown();
+		}
+	}
+
+	/** Put the card away for whatever now owns the space, without losing it. */
+	private standDown(): void {
+		const host = this.activeHost;
+		if (!host || !this.currentOnboarding.value) {
+			return;
+		}
+
+		// Hiding the card would strand keyboard focus on <body>, so hand it back
+		// to the input first, the same way dismissing the card does.
+		const hadFocus = this.activeBanner?.hasFocus() ?? false;
+		setVisibility(false, host.container);
+		if (hadFocus) {
+			host.focus?.();
+		}
+	}
+
+	private build(): void {
+		const host = this.activeHost;
+		const createOnboarding = this.wanted;
+		if (!host || !createOnboarding) {
+			return;
+		}
+
+		// Already built and merely standing down: show it again rather than
+		// rebuilding, so in-flight state survives and it is not announced twice.
+		if (this.currentOnboarding.value) {
+			setVisibility(true, host.container);
+			return;
+		}
 
 		const onboardingStore = new DisposableStore();
 		host.container.classList.add(this.options.hostClass);
@@ -226,43 +225,21 @@ export class ChatInputOnboarding extends Disposable {
 			});
 			onboardingStore.add(banner);
 		} catch (error) {
-			this.activeHost = undefined;
+			// Reported rather than rethrown: this runs from the notice host telling
+			// us we lead, and unwinding through that would strand the claim we hold.
 			onboardingStore.dispose();
-			throw error;
-		}
-
-		this.currentOnboarding.value = onboardingStore;
-		this._activeFactory = createOnboarding;
-		this._consumedFirstRun = !this.storageService.getBoolean(this.options.storageKey, StorageScope.APPLICATION, false);
-		host.onDidChangeVisible?.(true, banner);
-		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
-
-		this.preemptOthers();
-		banner.announce();
-		return true;
-	}
-
-	/** Close cards in the same group: only the most recent one is shown. */
-	private preemptOthers(): void {
-		const group = this.options.exclusionGroup;
-		if (!group) {
+			this.hide(false);
+			onUnexpectedError(error);
 			return;
 		}
 
-		for (const other of ChatInputOnboarding.exclusionGroups.get(group) ?? []) {
-			if (other !== this && other.isVisible) {
-				other.preempt();
-			}
-		}
-	}
-
-	/** Give this card back its first-run showing: it was displaced, not read. */
-	private preempt(): void {
-		if (this._consumedFirstRun && !this._restoredFirstRun) {
-			this._restoredFirstRun = true;
-			this.storageService.remove(this.options.storageKey, StorageScope.APPLICATION);
-		}
-		this.hide(false);
+		this.currentOnboarding.value = onboardingStore;
+		this.activeBanner = banner;
+		setVisibility(true, host.container);
+		// Recorded when the card is actually put in front of the user, so being
+		// deferred or put away never counts as having been seen.
+		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
+		banner.announce();
 	}
 
 	private getActiveHost(): IChatInputOnboardingHost | undefined {
@@ -278,16 +255,15 @@ export class ChatInputOnboarding extends Disposable {
 		const host = this.activeHost;
 		const wasVisible = this.isVisible;
 		this.activeHost = undefined;
+		this.activeBanner = undefined;
+		this.wanted = undefined;
+		this.leading = false;
 		this.currentOnboarding.clear();
-		this._consumedFirstRun = false;
-		this._activeFactory = undefined;
-		// A card that is going away is not waiting to come back. `displace` puts
-		// itself back into the queue after calling this.
-		this._pending = undefined;
-		if (wasVisible) {
-			host?.onDidChangeVisible?.(false);
+		this.claim.clear();
+		if (host) {
+			setVisibility(true, host.container);
 		}
-		if (restoreFocus) {
+		if (wasVisible && restoreFocus) {
 			host?.focus?.();
 		}
 	}

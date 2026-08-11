@@ -23,7 +23,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, CHAT_INPUT_INTRODUCTION_GROUP, IChatInputOnboardingBanner, IChatInputOnboardingContext, IChatInputOnboardingHostOptions } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext, IChatInputOnboardingHostOptions } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, asCssVariableWithDefault, selectBackground, selectListBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -1201,7 +1201,6 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: AgentsVoiceStorageKeys.IntroBannerShown,
 			hostClass: 'has-voice-mode-onboarding',
-			exclusionGroup: CHAT_INPUT_INTRODUCTION_GROUP,
 		}));
 	}
 

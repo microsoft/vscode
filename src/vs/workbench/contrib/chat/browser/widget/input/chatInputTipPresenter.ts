@@ -103,8 +103,10 @@ export class ChatInputTipPresenter extends Disposable {
 		// context-key changes during construction do not append a second tip.
 		this._part.value = store;
 		this._lease.value = this._noticeHost.occupy(ChatInputNoticeLane.Tip, {
-			hasFocus: () => tipPart.hasFocus(),
-			focus: () => tipPart.focus(),
+			focusTarget: {
+				hasFocus: () => tipPart.hasFocus(),
+				focus: () => tipPart.focus(),
+			},
 		});
 		dom.clearNode(this._options.container);
 		this._options.container.appendChild(tipPart.domNode);

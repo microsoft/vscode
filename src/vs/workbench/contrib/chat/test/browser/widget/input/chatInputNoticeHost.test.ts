@@ -53,8 +53,10 @@ suite('ChatInputNoticeHost', () => {
 
 		const withNothingShowing = host.toggleFocus();
 		store.add(host.occupy(ChatInputNoticeLane.Tip, {
-			hasFocus: () => noticeFocused,
-			focus: () => { noticeFocused = true; },
+			focusTarget: {
+				hasFocus: () => noticeFocused,
+				focus: () => { noticeFocused = true; },
+			},
 		}));
 		const movedIntoNotice = host.toggleFocus();
 		const wentBackToInput = host.toggleFocus();
@@ -68,7 +70,7 @@ suite('ChatInputNoticeHost', () => {
 		const focused: string[] = [];
 		const host = disposables.add(new ChatInputNoticeHost(() => { }));
 		const store = disposables.add(new DisposableStore());
-		const target = (name: string) => ({ hasFocus: () => false, focus: () => focused.push(name) });
+		const target = (name: string) => ({ focusTarget: { hasFocus: () => false, focus: () => { focused.push(name); } } });
 
 		const notification = host.occupy(ChatInputNoticeLane.Notification, target('notification'));
 		// A tip claiming afterwards must not steal focus from the notification.
@@ -117,6 +119,32 @@ suite('ChatInputNoticeHost', () => {
 		assert.deepStrictEqual(
 			{ reclaimed, claimedAfterReentrantRelease, released: !host.isSuppressed(ChatInputNoticeLane.Tip, undefined) },
 			{ reclaimed: true, claimedAfterReentrantRelease: true, released: true });
+	});
+
+	test('leads the newest claim in a lane and returns to the previous one after it', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const leading: string[] = [];
+		const claim = (name: string) => host.occupy(ChatInputNoticeLane.Onboarding, {
+			onDidChangeLeading: isLeading => leading.push(`${name}:${isLeading}`),
+		});
+
+		// Recency within a lane and precedence between lanes are one mechanism, so
+		// a peer introduction and a notification both put the first card away.
+		const voice = store.add(claim('voice'));
+		const dictation = claim('dictation');
+		const notification = host.occupy(ChatInputNoticeLane.Notification);
+		notification.dispose();
+		dictation.dispose();
+		void voice;
+
+		assert.deepStrictEqual(leading, [
+			'voice:true',
+			'voice:false', 'dictation:true',
+			'dictation:false',
+			'dictation:true',
+			'dictation:false', 'voice:true',
+		]);
 	});
 
 	test('releases a lane only once when its claim is disposed repeatedly', () => {

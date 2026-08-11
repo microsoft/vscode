@@ -8,24 +8,35 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../browser/widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputNoticeSlot, IChatInputOnboardingContext } from '../../browser/widget/input/chatInputOnboarding.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../browser/widget/input/chatInputNoticeHost.js';
 
 suite('Chat input onboarding', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHost(store: Pick<DisposableStore, 'add'>): { root: HTMLElement; container: HTMLElement } {
+	function createHost(store: Pick<DisposableStore, 'add'>): { root: HTMLElement; container: HTMLElement; addContainer(): HTMLElement } {
 		const root = dom.$('div');
 		root.tabIndex = 0;
 		const container = dom.append(root, dom.$('.chat-input-onboarding-container'));
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
-		return { root, container };
+		return { root, container, addContainer: () => dom.append(root, dom.$('.chat-input-onboarding-container')) };
+	}
+
+	/**
+	 * The space above the input, wired exactly as `registerChatInputOnboardingHosts`
+	 * wires it, so these tests exercise the real arbitration rather than a stand-in.
+	 */
+	function createSlot(noticeHost: ChatInputNoticeHost): IChatInputNoticeSlot {
+		return { claim: options => noticeHost.occupy(ChatInputNoticeLane.Onboarding, options) };
+	}
+
+	function createNoticeHost(store: Pick<DisposableStore, 'add'>): ChatInputNoticeHost {
+		return store.add(new ChatInputNoticeHost(() => { }));
 	}
 
 	function createOnboarding(store: Pick<DisposableStore, 'add'>, storageKey: string): ChatInputOnboarding {
@@ -50,6 +61,11 @@ suite('Chat input onboarding', () => {
 		};
 	}
 
+	/** A card is on screen only if it is built and its container is not hidden. */
+	function visibleCards(container: HTMLElement): number {
+		return container.style.display === 'none' ? 0 : container.querySelectorAll('.chat-input-onboarding-card').length;
+	}
+
 	let announceCalls = 0;
 	setup(() => {
 		announceCalls = 0;
@@ -58,13 +74,13 @@ suite('Chat input onboarding', () => {
 	test('owns one card and restores focus when it is dismissed', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.ownsCard');
 		const host = createHost(disposables);
+		const noticeHost = createNoticeHost(disposables);
 		let focusCalls = 0;
-		const visibleChanges: boolean[] = [];
 		disposables.add(onboarding.registerHost({
 			container: host.container,
 			focusRoot: host.root,
 			focus: () => focusCalls++,
-			onDidChangeVisible: visible => visibleChanges.push(visible),
+			noticeSlot: createSlot(noticeHost),
 		}));
 
 		let context: IChatInputOnboardingContext | undefined;
@@ -86,10 +102,10 @@ suite('Chat input onboarding', () => {
 				cardsCreated,
 				visible: host.container.classList.contains('has-chat-input-onboarding'),
 				isVisible: onboarding.isVisible,
-				visibleChanges: [...visibleChanges],
-				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
+				laneClaimed: noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined),
+				cards: visibleCards(host.container),
 			},
-			{ shown: true, stillTakenOver: true, cardsCreated: 1, visible: true, isVisible: true, visibleChanges: [true], cards: 1 });
+			{ shown: true, stillTakenOver: true, cardsCreated: 1, visible: true, isVisible: true, laneClaimed: true, cards: 1 });
 
 		context!.dismiss();
 
@@ -98,11 +114,12 @@ suite('Chat input onboarding', () => {
 				focusCalls,
 				visible: host.container.classList.contains('has-chat-input-onboarding'),
 				isVisible: onboarding.isVisible,
-				visibleChanges,
-				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
+				// Dismissal releases the space, so a tip may take it.
+				laneClaimed: noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined),
+				cards: visibleCards(host.container),
 				shownAgain: onboarding.showIfNeeded(createCard),
 			},
-			{ focusCalls: 1, visible: false, isVisible: false, visibleChanges: [true, false], cards: 0, shownAgain: false });
+			{ focusCalls: 1, visible: false, isVisible: false, laneClaimed: false, cards: 0, shownAgain: false });
 	});
 
 	test('does not consume first-run state until a card can be shown', () => {
@@ -116,119 +133,128 @@ suite('Chat input onboarding', () => {
 		assert.strictEqual(onboarding.showIfNeeded(createCard), true);
 	});
 
-	test('defers a first-run card while higher-precedence content owns the space', () => {
-		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.deferWhenBlocked');
-		const host = createHost(disposables);
-		let blocked = true;
-		disposables.add(onboarding.registerHost({
+	test('builds nothing while the space is taken, then shows the card once', () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const storageService = instantiationService.get(IStorageService);
+		const onboarding = store.add(instantiationService.createInstance(ChatInputOnboarding, {
+			storageKey: 'test.chatInputOnboarding.deferWhenTaken',
+			hostClass: 'has-chat-input-onboarding',
+		}));
+		const host = createHost(store);
+		const noticeHost = createNoticeHost(store);
+		store.add(onboarding.registerHost({
 			container: host.container,
 			focusRoot: host.root,
-			isBlocked: () => blocked,
+			noticeSlot: createSlot(noticeHost),
 		}));
 
-		const whileBlocked = onboarding.showIfNeeded(createCard);
-		blocked = false;
-		const afterUnblocked = onboarding.showIfNeeded(createCard);
-
-		// The one first-run showing must survive being blocked.
-		assert.deepStrictEqual(
-			{ whileBlocked, afterUnblocked, cards: host.container.querySelectorAll('.chat-input-onboarding-card').length },
-			{ whileBlocked: false, afterUnblocked: true, cards: 1 });
-	});
-
-	test('stands down while the space is taken and comes back when it is given up', () => {
-		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.standsDown');
-		const host = createHost(disposables);
-		const blocked = observableValue<boolean>('blocked', false);
-		disposables.add(onboarding.registerHost({
-			container: host.container,
-			focusRoot: host.root,
-			isBlocked: reader => blocked.read(reader),
-		}));
-
+		const notification = noticeHost.occupy(ChatInputNoticeLane.Notification);
 		let cardsCreated = 0;
-		const factory = (context: IChatInputOnboardingContext) => {
+		onboarding.showIfNeeded(context => {
 			cardsCreated++;
 			return createCard(context);
+		});
+
+		// Nothing is built, announced or recorded while the card could not be seen:
+		// the one first-run showing is not spent on a space the user never saw.
+		const whileTaken = {
+			cardsCreated,
+			announceCalls,
+			seen: storageService.getBoolean('test.chatInputOnboarding.deferWhenTaken', StorageScope.APPLICATION, false),
+			isVisible: onboarding.isVisible,
 		};
-
-		onboarding.showIfNeeded(factory);
-		const whileFree = onboarding.isVisible;
-		blocked.set(true, undefined);
-		const whileTaken = onboarding.isVisible;
-		blocked.set(false, undefined);
-
-		assert.deepStrictEqual(
-			{ whileFree, whileTaken, afterGivenUp: onboarding.isVisible, cardsCreated },
-			{ whileFree: true, whileTaken: false, afterGivenUp: true, cardsCreated: 2 });
-	});
-
-	test('shows a deferred first-run card as soon as the space frees', () => {
-		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.deferredReturns');
-		const host = createHost(disposables);
-		const blocked = observableValue<boolean>('blocked', true);
-		disposables.add(onboarding.registerHost({
-			container: host.container,
-			focusRoot: host.root,
-			isBlocked: reader => blocked.read(reader),
-		}));
-
-		const whileBlocked = onboarding.showIfNeeded(createCard);
-		blocked.set(false, undefined);
-
-		// No second `showIfNeeded` call: the deferred card is put back on its own.
-		assert.deepStrictEqual(
-			{ whileBlocked, afterUnblocked: onboarding.isVisible },
-			{ whileBlocked: false, afterUnblocked: true });
-	});
-
-	test('yields to a notification through a real notice host and returns after it', () => {
-		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.viaNoticeHost');
-		const host = createHost(disposables);
-		const noticeHost = disposables.add(new ChatInputNoticeHost(() => { }));
-		disposables.add(onboarding.registerHost({
-			container: host.container,
-			focusRoot: host.root,
-			// Wired exactly as `registerChatInputOnboardingHosts` does, so this
-			// exercises the real feedback loop: reacting to occupancy writes back
-			// to the very observable the reaction reads.
-			onDidChangeVisible: (visible, focusTarget) => noticeHost.setOccupied(ChatInputNoticeLane.Onboarding, visible, focusTarget),
-			isBlocked: reader => noticeHost.isSuppressed(ChatInputNoticeLane.Onboarding, reader),
-		}));
-
-		onboarding.showIfNeeded(createCard);
-		const beforeNotification = onboarding.isVisible;
-		const notification = noticeHost.occupy(ChatInputNoticeLane.Notification);
-		const duringNotification = onboarding.isVisible;
-		// The tip must stay suppressed while the card is only displaced, not gone.
-		const tipDuringNotification = noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined);
 		notification.dispose();
 
 		assert.deepStrictEqual(
 			{
-				beforeNotification,
-				duringNotification,
-				tipDuringNotification,
-				afterNotification: onboarding.isVisible,
-				tipAfterNotification: noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined),
+				whileTaken,
+				afterFreed: {
+					cardsCreated,
+					announceCalls,
+					seen: storageService.getBoolean('test.chatInputOnboarding.deferWhenTaken', StorageScope.APPLICATION, false),
+					isVisible: onboarding.isVisible,
+				},
 			},
 			{
-				beforeNotification: true,
-				duringNotification: false,
-				tipDuringNotification: true,
-				afterNotification: true,
-				tipAfterNotification: true,
+				whileTaken: { cardsCreated: 0, announceCalls: 0, seen: false, isVisible: false },
+				afterFreed: { cardsCreated: 1, announceCalls: 1, seen: true, isVisible: true },
 			});
+	});
+
+	test('stands down while the space is taken and comes back without rebuilding', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.standsDown');
+		const host = createHost(disposables);
+		const noticeHost = createNoticeHost(disposables);
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			noticeSlot: createSlot(noticeHost),
+		}));
+
+		let cardsCreated = 0;
+		onboarding.showIfNeeded(context => {
+			cardsCreated++;
+			return createCard(context);
+		});
+
+		const whileFree = onboarding.isVisible;
+		const notification = noticeHost.occupy(ChatInputNoticeLane.Notification);
+		const whileTaken = { isVisible: onboarding.isVisible, cards: visibleCards(host.container) };
+		// The card is only put away, so the tip must not move into the space.
+		const tipWhileTaken = noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined);
+		notification.dispose();
+
+		// One card, built and announced once: standing down hides it rather than
+		// tearing it down, so in-flight state survives and it is not re-announced.
+		assert.deepStrictEqual(
+			{ whileFree, whileTaken, tipWhileTaken, afterFreed: onboarding.isVisible, cardsCreated, announceCalls },
+			{
+				whileFree: true,
+				whileTaken: { isVisible: false, cards: 0 },
+				tipWhileTaken: true,
+				afterFreed: true,
+				cardsCreated: 1,
+				announceCalls: 1,
+			});
+	});
+
+	test('hands focus back to the input when a focused card stands down', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.displacedFocus');
+		const host = createHost(disposables);
+		const noticeHost = createNoticeHost(disposables);
+		let focusCalls = 0;
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			focus: () => focusCalls++,
+			noticeSlot: createSlot(noticeHost),
+		}));
+
+		let card: HTMLElement | undefined;
+		onboarding.showIfNeeded(context => {
+			const created = createCard(context);
+			card = context.container.querySelector<HTMLElement>('.chat-input-onboarding-card') ?? undefined;
+			return created;
+		});
+		card!.focus();
+		const focusedBeforeStandDown = dom.isAncestorOfActiveElement(host.container);
+		disposables.add(noticeHost.occupy(ChatInputNoticeLane.Notification));
+
+		// Focus must not be left on <body> when the card goes out of view.
+		assert.deepStrictEqual(
+			{ focusedBeforeStandDown, focusCalls },
+			{ focusedBeforeStandDown: true, focusCalls: 1 });
 	});
 
 	test('a dismissed card does not come back when the space frees', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.dismissedStaysGone');
 		const host = createHost(disposables);
-		const blocked = observableValue<boolean>('blocked', false);
+		const noticeHost = createNoticeHost(disposables);
 		disposables.add(onboarding.registerHost({
 			container: host.container,
 			focusRoot: host.root,
-			isBlocked: reader => blocked.read(reader),
+			noticeSlot: createSlot(noticeHost),
 		}));
 
 		let dismiss: (() => void) | undefined;
@@ -237,72 +263,65 @@ suite('Chat input onboarding', () => {
 			return createCard(context);
 		});
 		dismiss!();
-		blocked.set(true, undefined);
-		blocked.set(false, undefined);
-
-		assert.strictEqual(onboarding.isVisible, false);
-	});
-
-	test('shows an explicitly requested card even while blocked', () => {
-		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.manualWhenBlocked');
-		const host = createHost(disposables);
-		disposables.add(onboarding.registerHost({
-			container: host.container,
-			focusRoot: host.root,
-			isBlocked: () => true,
-		}));
-
-		// `show()` is an explicit request, so it ignores the blocker `showIfNeeded` respects.
-		assert.strictEqual(onboarding.show(createCard), true);
-	});
-
-	test('only the most recent card in an exclusion group stays visible', () => {
-		const store = disposables.add(new DisposableStore());
-		const instantiationService = workbenchInstantiationService(undefined, store);
-		const storageService = instantiationService.get(IStorageService);
-		const first = store.add(instantiationService.createInstance(ChatInputOnboarding, {
-			storageKey: 'test.chatInputOnboarding.groupA',
-			hostClass: 'has-chat-input-onboarding',
-			exclusionGroup: 'test.group',
-		}));
-		const second = store.add(instantiationService.createInstance(ChatInputOnboarding, {
-			storageKey: 'test.chatInputOnboarding.groupB',
-			hostClass: 'has-chat-input-onboarding',
-			exclusionGroup: 'test.group',
-		}));
-		const host = createHost(store);
-		store.add(first.registerHost({ container: host.container, focusRoot: host.root }));
-		store.add(second.registerHost({ container: host.container, focusRoot: host.root }));
-
-		first.showIfNeeded(createCard);
-		second.showIfNeeded(createCard);
+		const notification = noticeHost.occupy(ChatInputNoticeLane.Notification);
+		notification.dispose();
 
 		assert.deepStrictEqual(
-			{
-				firstVisible: first.isVisible,
-				secondVisible: second.isVisible,
-				// The displaced card was never read, so it keeps its first-run showing.
-				firstCanShowAgain: !storageService.getBoolean('test.chatInputOnboarding.groupA', StorageScope.APPLICATION, false),
-			},
-			{ firstVisible: false, secondVisible: true, firstCanShowAgain: true });
+			{ isVisible: onboarding.isVisible, laneClaimed: noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined) },
+			{ isVisible: false, laneClaimed: false });
 	});
 
-	test('restores a displaced first-run showing at most once', () => {
+	test('only the newest introduction is on screen, and the other returns after it', () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const make = (storageKey: string) => store.add(instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey,
 			hostClass: 'has-chat-input-onboarding',
-			exclusionGroup: 'test.pingGroup',
+		}));
+		const first = make('test.chatInputOnboarding.introA');
+		const second = make('test.chatInputOnboarding.introB');
+		const host = createHost(store);
+		const noticeHost = createNoticeHost(store);
+		// Each introduction owns its own container, as voice and dictation do.
+		const firstContainer = host.addContainer();
+		const secondContainer = host.addContainer();
+		const slot = createSlot(noticeHost);
+		store.add(first.registerHost({ container: firstContainer, focusRoot: host.root, noticeSlot: slot }));
+		store.add(second.registerHost({ container: secondContainer, focusRoot: host.root, noticeSlot: slot }));
+
+		let dismissSecond: (() => void) | undefined;
+		first.showIfNeeded(createCard);
+		second.showIfNeeded(context => {
+			dismissSecond = () => context.dismiss(false);
+			return createCard(context);
+		});
+		// Two introductions share the onboarding lane, so the newer one takes the
+		// space through the same mechanism a notification would.
+		const whileBothWant = { first: first.isVisible, second: second.isVisible };
+		dismissSecond!();
+
+		assert.deepStrictEqual(
+			{ whileBothWant, afterSecondDismissed: { first: first.isVisible, second: second.isVisible } },
+			{ whileBothWant: { first: false, second: true }, afterSecondDismissed: { first: true, second: false } });
+	});
+
+	test('alternating introductions settle instead of reopening forever', () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const make = (storageKey: string) => store.add(instantiationService.createInstance(ChatInputOnboarding, {
+			storageKey,
+			hostClass: 'has-chat-input-onboarding',
 		}));
 		const first = make('test.chatInputOnboarding.pingA');
 		const second = make('test.chatInputOnboarding.pingB');
 		const host = createHost(store);
-		store.add(first.registerHost({ container: host.container, focusRoot: host.root }));
-		store.add(second.registerHost({ container: host.container, focusRoot: host.root }));
+		const noticeHost = createNoticeHost(store);
+		const slot = createSlot(noticeHost);
+		store.add(first.registerHost({ container: host.addContainer(), focusRoot: host.root, noticeSlot: slot }));
+		store.add(second.registerHost({ container: host.addContainer(), focusRoot: host.root, noticeSlot: slot }));
 
-		// Alternating first-run cards preempt each other. Each may reclaim its
-		// showing once; without that bound they would reopen forever.
+		// Each introduction is built at most once: standing down for the other no
+		// longer hands back a first-run showing, so there is nothing to ping-pong.
 		let cardsCreated = 0;
 		for (let i = 0; i < 10; i++) {
 			const onboarding = i % 2 === 0 ? first : second;
@@ -312,7 +331,7 @@ suite('Chat input onboarding', () => {
 			});
 		}
 
-		assert.strictEqual(cardsCreated, 4);
+		assert.strictEqual(cardsCreated, 2);
 	});
 
 	test('announces once on show', () => {

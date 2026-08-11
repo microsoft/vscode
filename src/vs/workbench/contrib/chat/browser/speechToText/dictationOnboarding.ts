@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, CHAT_INPUT_INTRODUCTION_GROUP, IChatInputOnboardingBanner, IChatInputOnboardingHostOptions } from '../widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingHostOptions } from '../widget/input/chatInputOnboarding.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -912,7 +912,6 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: DICTATION_INTRO_SHOWN_KEY,
 			hostClass: 'has-dictation-onboarding',
-			exclusionGroup: CHAT_INPUT_INTRODUCTION_GROUP,
 		}));
 	}
 
