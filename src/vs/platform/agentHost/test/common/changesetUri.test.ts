@@ -14,6 +14,7 @@ import {
 	buildTurnChangesetUri,
 	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
+	getDefaultChangeset,
 	isChangesetUri,
 	isSessionChangesetUri,
 	isUncommittedChangesetUri,
@@ -47,6 +48,15 @@ suite('changesetUri', () => {
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', ''));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 'a/b', 't2'));
 		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', 'a/b'));
+	});
+
+	test('default changeset prefers Branch Changes', () => {
+		const changesets = [
+			{ label: 'Session Changes', uriTemplate: `${sessionUri}/changeset/session`, changeKind: ChangesetKind.Session },
+			{ label: 'Branch Changes', uriTemplate: `${sessionUri}/changeset/branch`, changeKind: ChangesetKind.Branch },
+		];
+		assert.strictEqual(getDefaultChangeset(changesets), changesets[1]);
+		assert.strictEqual(getDefaultChangeset(changesets.slice(0, 1)), changesets[0]);
 	});
 
 	test('parseChangesetUri identifies the well-known kinds', () => {

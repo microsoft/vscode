@@ -16,7 +16,7 @@ import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { activeSessionViewBackground, activeSessionViewForeground } from '../../common/theme.js';
 import { AbstractCustomView, ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
-import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
+import { SessionHeaderMetaActionViewItem } from '../../../workbench/browser/parts/sessionHeaderMetaActionViewItem.js';
 
 /**
  * A leaf of the custom view grid. Owns the shared chrome — a header with the

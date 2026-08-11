@@ -96,6 +96,22 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes session title metadata pills in persistent chat views', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('Left and Right Arrow to select a pill'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Changes or Pull Request pills'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('Changes or Pull Request pills'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			quickChat: false,
+		});
+	});
+
 	test('only describes spoken agent progress in agent mode', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

@@ -29,7 +29,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
-import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
+import { SessionHeaderMetaActionViewItem } from '../../../workbench/browser/parts/sessionHeaderMetaActionViewItem.js';
 
 /**
  * An action runner for the session header toolbars that promotes the header's

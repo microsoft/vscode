@@ -167,41 +167,9 @@
 	white-space: nowrap;
 }
 
-/* Session header meta toolbar: contributed actions render as compact secondary buttons. */
-.chat-composite-bar-meta-toolbar,
-.chat-composite-bar-meta-toolbar .monaco-action-bar,
-.chat-composite-bar-meta-toolbar .actions-container {
-	display: inline-flex;
-	align-items: center;
-	height: 100%;
-	min-width: 0;
-	max-width: 100%;
-}
-
-/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
-.chat-composite-bar-meta-toolbar .actions-container {
-	gap: 6px;
-}
-
-.chat-composite-bar-meta-item {
-	display: inline-flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
 .chat-composite-bar-meta-item.chat-composite-bar-meta-workspace-item {
 	flex: 1 1 auto;
 	min-width: 0;
-}
-
-/* Inline, auto-width layout only — the secondary-button sizing/colors come from the standard
-	`.monaco-text-button.small.secondary` styles. */
-.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
-	display: inline-flex;
-	width: auto;
-	gap: 4px;
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
 }
 
 .chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-workspace-button {
@@ -215,32 +183,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-/* Tighten the focus ring on these compact pills. The base `.monaco-text-button`
-	uses `outline-offset: 2px`, which on a small pill reads as a bloated ring
-	detached from the border — hug the border instead. */
-.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button:focus {
-	outline-offset: 0 !important;
-}
-
-.monaco-workbench .chat-composite-bar-meta-item-icon.codicon[class*='codicon-'] {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-codiconFontSize-compact, 12px);
-	height: var(--vscode-codiconFontSize-compact, 12px);
-	margin: 0;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-meta-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.chat-composite-bar-meta-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Tabs row */

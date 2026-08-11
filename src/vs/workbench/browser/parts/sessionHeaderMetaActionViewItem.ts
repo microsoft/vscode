@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/sessionHeaderMetaActionViewItem.css';
 import { $, reset } from '../../../base/browser/dom.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { IAction } from '../../../base/common/actions.js';
+import { structuralEquals } from '../../../base/common/equals.js';
+import { autorun, derivedOpts, IObservable, IReader } from '../../../base/common/observable.js';
+import { localize } from '../../../nls.js';
 import { defaultButtonStyles } from '../../../platform/theme/browser/defaultStyles.js';
 
 /**
- * Renders an action contributed into the session header meta row ({@link Menus.SessionHeaderMeta})
- * as a secondary {@link Button} with an inline `icon title` label so every contributed action reads
- * consistently. Used as the default rendering for meta actions that don't register their own
- * action view item.
- *
- * Subclasses can override {@link getLabelText} (e.g. the pull request `#<number>`) or append dynamic
- * content via {@link getAdditionalLabelContent} (e.g. the changes diff stats), calling
- * {@link updateLabel} when it changes.
+ * Renders a session header meta action as a compact secondary button pill.
  */
 export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 
@@ -33,7 +30,8 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 
 		const button = this.button = this._register(new Button(container, { secondary: true, small: true, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-composite-bar-meta-item-button');
-		this._register(button.onDidClick(() => {
+		this._register(button.onDidClick(event => {
+			event?.stopPropagation();
 			if (this._action.enabled) {
 				this.onDidClickButton();
 			}
@@ -44,11 +42,6 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 		this.updateTooltip();
 	}
 
-	/**
-	 * Invoked when the pill is activated. Runs the action by default; subclasses can
-	 * override to present their own affordance (e.g. a picker when the pill stands
-	 * for several items).
-	 */
 	protected onDidClickButton(): void {
 		this.actionRunner.run(this._action, this._context);
 	}
@@ -100,19 +93,11 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	/**
-	 * The button's accessible name. Defaults to {@link getTooltip}. Subclasses that render
-	 * meaningful state in the visible label (e.g. the workspace name, or diff counts) should
-	 * override this so screen readers announce the same information that is shown visually.
-	 */
 	protected getAriaLabel(): string | undefined {
 		return this.getTooltip();
 	}
 
 	protected override getTooltip(): string | undefined {
-		// `MenuItemAction.tooltip` defaults to '' when not provided, which would
-		// leave the pill without a managed hover and an empty aria-label. Fall
-		// back to the action label so the pill is always labelled.
 		return this._action.tooltip || this._action.label || undefined;
 	}
 
@@ -133,9 +118,6 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 		return content;
 	}
 
-	/**
-	 * The leading icon element. Defaults to the action's icon (without color).
-	 */
 	protected getIconElement(): HTMLElement | undefined {
 		const iconClasses = this._action.class?.split(' ').filter(cssClass => !!cssClass);
 		if (!iconClasses?.length) {
@@ -144,17 +126,71 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 		return $(`span.chat-composite-bar-meta-item-icon${iconClasses.map(cssClass => `.${cssClass}`).join('')}`);
 	}
 
-	/**
-	 * The button's title text. Defaults to the action label.
-	 */
 	protected getLabelText(): string {
 		return this._action.label;
 	}
 
-	/**
-	 * Additional label content rendered after the title. Defaults to none.
-	 */
 	protected getAdditionalLabelContent(): Array<HTMLElement | string> {
 		return [];
+	}
+}
+
+/** Aggregate file-change stats displayed by a session metadata pill. */
+export interface ISessionDiffStats {
+	readonly branch: string | undefined;
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
+/** Renders live session file-change counts using the shared metadata pill. */
+export class SessionChangesMetaActionViewItem extends SessionHeaderMetaActionViewItem {
+
+	private readonly diffStats: IObservable<ISessionDiffStats>;
+
+	constructor(
+		context: unknown,
+		action: IAction,
+		options: IActionViewItemOptions,
+		computeDiffStats: (reader: IReader) => ISessionDiffStats,
+	) {
+		super(context, action, options);
+		this.diffStats = derivedOpts({ owner: this, equalsFn: structuralEquals }, computeDiffStats);
+		this._register(autorun(reader => {
+			this.diffStats.read(reader);
+			this.updateLabel();
+			this.updateTooltip();
+			this.updateAriaLabel();
+		}));
+	}
+
+	protected override getLabelText(): string {
+		const { files } = this.diffStats.get();
+		return files === 1
+			? localize('sessionChanges.file', "{0} file", files)
+			: localize('sessionChanges.files', "{0} files", files);
+	}
+
+	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
+		const { insertions, deletions } = this.diffStats.get();
+		return [
+			$('span.chat-composite-bar-meta-added', undefined, `+${insertions}`),
+			$('span.chat-composite-bar-meta-removed', undefined, `-${deletions}`),
+		];
+	}
+
+	protected override getTooltip(): string {
+		const { branch } = this.diffStats.get();
+		return branch
+			? localize('sessionChanges.viewAll.tooltip.branch', "View All Changes ({0})", branch)
+			: localize('sessionChanges.viewAll.tooltip', "View All Changes");
+	}
+
+	protected override getAriaLabel(): string {
+		const { files, insertions, deletions } = this.diffStats.get();
+		const filesLabel = files === 1
+			? localize('sessionChanges.file', "{0} file", files)
+			: localize('sessionChanges.files', "{0} files", files);
+		return localize('sessionChanges.viewAll.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
 	}
 }

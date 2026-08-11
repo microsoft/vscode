@@ -13,6 +13,7 @@ import { registerSingleton, InstantiationType } from '../../../../../platform/in
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions.js';
 import { IAgentSessionsService, AgentSessionsService } from './agentSessionsService.js';
+import { AgentSessionChangesMultiDiffSourceResolver } from './agentSessionChangesMultiDiffSourceResolver.js';
 import { LocalAgentsSessionsController } from './localAgentSessionsController.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -183,6 +184,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
 //#region Workbench Contributions
 
 registerWorkbenchContribution2(LocalAgentsSessionsController.ID, LocalAgentsSessionsController, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentSessionChangesMultiDiffSourceResolver.ID, AgentSessionChangesMultiDiffSourceResolver, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(AgentHostPermissionUiContribution.ID, AgentHostPermissionUiContribution, WorkbenchPhase.BlockRestore);
 
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);

@@ -23,6 +23,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IResourceMultiDiffEditorInput } from '../../../../common/editor.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
@@ -121,6 +122,26 @@ export function getAgentChangesSummary(changes: IAgentSession['changes']) {
 	}
 
 	return { files: changes.length, insertions, deletions };
+}
+
+export const AGENT_SESSION_CHANGES_SCHEME = 'agent-session-changes';
+
+/** Creates a multi-diff input backed by the agent session's complete change list. */
+export function createAgentSessionChangesEditorInput(session: Pick<IAgentSession, 'changes' | 'label' | 'providerType' | 'resource'>): IResourceMultiDiffEditorInput | undefined {
+	if (!hasValidDiff(session.changes) || (!Array.isArray(session.changes) && !isAgentHostTarget(session.providerType))) {
+		return undefined;
+	}
+
+	const multiDiffSource = URI.from({
+		scheme: AGENT_SESSION_CHANGES_SCHEME,
+		path: '/',
+		query: encodeURIComponent(session.resource.toString()),
+	});
+
+	return {
+		multiDiffSource,
+		label: localize('agentSession.changes.title', "{0} - All Changes", session.label),
+	};
 }
 
 export interface IAgentSession extends IAgentSessionData {

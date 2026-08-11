@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { autorun, constObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IAgentConnection } from '../../common/agentService.js';
 import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState, type ComponentToState } from '../../common/state/sessionState.js';
+import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, createActiveAgentHostSubscriptionObs, type IAgentSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -80,6 +83,65 @@ const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toStri
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
 const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
+
+suite('createActiveAgentHostSubscriptionObs', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves snapshots and follows active lifetime', () => {
+		const changed = disposables.add(new Emitter<{ value: number }>());
+		let value: { value: number } | undefined = { value: 42 };
+		let acquired = 0;
+		let released = 0;
+		const subscription: IAgentSubscription<{ value: number }> = {
+			get value() { return value; },
+			verifiedValue: undefined,
+			onDidChange: changed.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		const connection = {
+			getSubscription: <T extends StateComponents>(_kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> => {
+				acquired++;
+				return {
+					object: subscription as unknown as IAgentSubscription<ComponentToState[T]>,
+					dispose: () => released++,
+				};
+			},
+		} as IAgentConnection;
+		const enabled = observableValue('enabled', true);
+		const observed = createActiveAgentHostSubscriptionObs<{ value: number }>(
+			{},
+			() => connection,
+			enabled,
+			StateComponents.Changeset,
+			constObservable(URI.parse('ahp-session:/test/changeset/branch')),
+			'test',
+		);
+		const observedValues: Array<number | undefined | null> = [];
+		const observer = disposables.add(autorun(reader => {
+			const state = observed.read(reader).read(reader);
+			observedValues.push(state === null ? null : state instanceof Error ? undefined : state?.value);
+		}));
+
+		value = { value: 1 };
+		changed.fire(value);
+		value = { value: 2 };
+		changed.fire(value);
+		enabled.set(false, undefined);
+		enabled.set(true, undefined);
+		observer.dispose();
+
+		assert.deepStrictEqual({
+			observedValues,
+			acquired,
+			released,
+		}, {
+			observedValues: [42, 1, 2, null, 2],
+			acquired: 2,
+			released: 2,
+		});
+	});
+});
 
 suite('ChangesetStateSubscription', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

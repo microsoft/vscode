@@ -7,8 +7,9 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import type { IAgentConnection } from '../agentService.js';
 import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
 import { changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
@@ -1197,5 +1198,38 @@ export function observableFromSubscription<T>(owner: object | undefined, sub: IA
 	return observableFromEvent(owner, sub.onDidChange, () => {
 		const v = sub.value;
 		return v instanceof Error ? undefined : v;
+	});
+}
+
+/**
+ * Acquires an Agent Host subscription while its resource is active and exposes its changing state.
+ */
+export function createActiveAgentHostSubscriptionObs<T>(
+	owner: object,
+	getConnection: () => IAgentConnection | undefined,
+	isActiveObs: IObservable<boolean>,
+	component: StateComponents,
+	resourceObs: IObservable<URI | undefined>,
+	subscriptionOwner: string,
+): IObservable<IObservable<T | Error | undefined | null>> {
+	return derived(owner, reader => {
+		const connection = getConnection();
+		if (!connection) {
+			return constObservable(null);
+		}
+
+		const resource = resourceObs.read(reader);
+		if (!resource) {
+			return constObservable(null);
+		}
+
+		if (!isActiveObs.read(reader)) {
+			return constObservable(null);
+		}
+
+		const subscriptionRef = connection.getSubscription(component, resource, subscriptionOwner);
+		reader.store.add(subscriptionRef);
+		return observableFromEvent(subscriptionRef.object.onDidChange,
+			() => subscriptionRef.object.value as T | Error | undefined);
 	});
 }

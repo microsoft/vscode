@@ -6,7 +6,6 @@
 import './media/agentsessionprojection.css';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -14,7 +13,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, MODAL_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
+import { createAgentSessionChangesEditorInput, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { IChatWidgetService } from '../../chat.js';
 import { AgentSessionProviders } from '../agentSessions.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -202,26 +201,12 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 		// Open changes from the session as a multi-diff editor (like edit session view)
 		if (session.changes && Array.isArray(session.changes) && session.changes.length > 0) {
-			// Filter to changes that have both original and modified URIs for diff view
-			const diffResources = session.changes
-				.filter(change => change.originalUri)
-				.map(change => ({
-					originalUri: change.originalUri!,
-					modifiedUri: change.modifiedUri
-				}));
+			const editorInput = createAgentSessionChangesEditorInput(session);
+			this.logService.trace(`[AgentSessionProjection] Found ${session.changes.length} files with diffs to display`);
 
-			this.logService.trace(`[AgentSessionProjection] Found ${diffResources.length} files with diffs to display`);
-
-			if (diffResources.length > 0) {
+			if (editorInput) {
 				// Open multi-diff editor showing all changes in a modal editor
-				await this.editorService.openEditor({
-					multiDiffSource: session.resource.with({ scheme: session.resource.scheme + '-agent-session-projection' }),
-					resources: diffResources.map(dr => ({
-						original: { resource: dr.originalUri },
-						modified: { resource: dr.modifiedUri }
-					})),
-					label: localize('agentSessionProjection.changes.title', '{0} - All Changes', session.label),
-				}, MODAL_GROUP);
+				await this.editorService.openEditor(editorInput, MODAL_GROUP);
 
 				this.logService.trace(`[AgentSessionProjection] Multi-diff editor opened successfully in modal view`);
 
