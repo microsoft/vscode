@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCommandIntentMessages, buildRouterMessages, detectExactCommandTitleIntent, heuristicScore, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteRequest, parseCommandIntentResponse, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
+import { buildCommandIntentMessages, buildRouterMessages, detectExactCommandTitleIntent, filterOmniCommandIntentCandidates, heuristicScore, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteRequest, parseCommandIntentResponse, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 
 suite('SessionRouter helpers', () => {
 
@@ -32,6 +32,7 @@ suite('SessionRouter helpers', () => {
 			hasCommandTitles: commands.every(command => messages[1].content.includes(command.label)),
 			hasCommandIds: commands.some(command => messages[1].content.includes(command.commandId)),
 			classifiesUiDirectivesAsCommands: messages[0].content.includes('"toggle terminal" is command'),
+			classifiesThemeChangesAsCommands: messages[0].content.includes('color theme, file icon theme, or product icon theme'),
 			fallsBackToChat: messages[0].content.includes('When uncertain, choose chat'),
 		}, {
 			roles: ['system', 'user'],
@@ -39,6 +40,7 @@ suite('SessionRouter helpers', () => {
 			hasCommandTitles: true,
 			hasCommandIds: false,
 			classifiesUiDirectivesAsCommands: true,
+			classifiesThemeChangesAsCommands: true,
 			fallsBackToChat: true,
 		});
 	});
@@ -94,18 +96,48 @@ suite('SessionRouter helpers', () => {
 		);
 	});
 
+	test('filterOmniCommandIntentCandidates allows only curated built-in UI commands', () => {
+		const filtered = filterOmniCommandIntentCandidates([
+				{ commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' },
+				{ commandId: 'workbench.action.selectTheme', label: 'Preferences: Color Theme' },
+				{ commandId: 'editor.action.formatDocument', label: 'Format Document' },
+				{ commandId: 'workbench.action.tasks.runTask', label: 'Tasks: Run Task' },
+				{ commandId: 'extension.exampleCommand', label: 'Example: Custom Command' },
+			]);
+		assert.deepStrictEqual({
+			filtered,
+			themeCandidates: selectCommandIntentCandidates('change VS Code theme', filtered),
+		}, {
+			filtered: [
+				{ commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' },
+				{ commandId: 'workbench.action.selectTheme', label: 'Preferences: Color Theme' },
+			],
+			themeCandidates: [
+				{ commandId: 'workbench.action.selectTheme', label: 'Preferences: Color Theme' },
+			],
+		});
+	});
+
 	test('detectExactCommandTitleIntent resolves only an unambiguous title match', () => {
 		const terminalCommand = { commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' };
+		const themeCommand = { commandId: 'workbench.action.selectTheme', label: 'Preferences: Color Theme' };
+		const panelCommand = { commandId: 'workbench.action.togglePanel', label: 'View: Toggle Panel Visibility' };
 		assert.deepStrictEqual([
 			detectExactCommandTitleIntent('toggle terminal', [terminalCommand]),
 			detectExactCommandTitleIntent('please toggle terminal', [terminalCommand]),
 			detectExactCommandTitleIntent('fix terminal toggling', [terminalCommand]),
 			detectExactCommandTitleIntent('toggle terminal', [terminalCommand, { commandId: 'duplicate', label: 'Terminal: Toggle Terminal' }]),
+			detectExactCommandTitleIntent('change VS Code theme', [themeCommand]),
+			detectExactCommandTitleIntent('change VS Code theme in this extension', [themeCommand]),
+			detectExactCommandTitleIntent('toggle panel', [panelCommand]),
 		], [
 			{ kind: 'command', commandId: terminalCommand.commandId, confidence: 1, reason: 'Exact command title match' },
 			{ kind: 'command', commandId: terminalCommand.commandId, confidence: 1, reason: 'Exact command title match' },
 			undefined,
 			undefined,
+			{ kind: 'command', commandId: themeCommand.commandId, confidence: 1, reason: 'Exact built-in command phrase match' },
+			undefined,
+			{ kind: 'command', commandId: panelCommand.commandId, confidence: 1, reason: 'Exact built-in command phrase match' },
 		]);
 	});
 

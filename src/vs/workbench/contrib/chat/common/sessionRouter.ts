@@ -39,6 +39,48 @@ export interface ICommandIntentRequest {
 	readonly commands: readonly ICommandIntentCandidate[];
 }
 
+const omniCommandIntentAllowlist = new Set([
+	'workbench.action.focusAuxiliaryBar',
+	'workbench.action.focusPanel',
+	'workbench.action.focusSideBar',
+	'workbench.action.openGlobalKeybindings',
+	'workbench.action.openSettings',
+	'workbench.action.quickOpen',
+	'workbench.action.selectIconTheme',
+	'workbench.action.selectProductIconTheme',
+	'workbench.action.selectTheme',
+	'workbench.action.showCommands',
+	'workbench.action.terminal.toggleTerminal',
+	'workbench.action.toggleAuxiliaryBar',
+	'workbench.action.toggleFullScreen',
+	'workbench.action.togglePanel',
+	'workbench.action.toggleSidebarVisibility',
+	'workbench.action.toggleZenMode',
+]);
+
+const omniCommandIntentPhrases = new Map<string, readonly string[]>([
+	['workbench.action.focusAuxiliaryBar', ['focus auxiliary bar', 'focus secondary side bar', 'focus secondary sidebar']],
+	['workbench.action.focusPanel', ['focus panel']],
+	['workbench.action.focusSideBar', ['focus primary side bar', 'focus primary sidebar', 'focus side bar', 'focus sidebar']],
+	['workbench.action.openGlobalKeybindings', ['open keyboard shortcuts', 'show keyboard shortcuts']],
+	['workbench.action.openSettings', ['open settings', 'show settings']],
+	['workbench.action.quickOpen', ['open quick open', 'quick open']],
+	['workbench.action.selectTheme', ['change theme', 'change color theme', 'choose theme', 'choose color theme', 'select theme', 'select color theme', 'switch theme', 'switch color theme']],
+	['workbench.action.selectIconTheme', ['change file icon theme', 'choose file icon theme', 'select file icon theme', 'switch file icon theme']],
+	['workbench.action.selectProductIconTheme', ['change product icon theme', 'choose product icon theme', 'select product icon theme', 'switch product icon theme']],
+	['workbench.action.showCommands', ['open command palette', 'show command palette']],
+	['workbench.action.terminal.toggleTerminal', ['toggle terminal']],
+	['workbench.action.toggleAuxiliaryBar', ['toggle auxiliary bar', 'toggle secondary side bar', 'toggle secondary sidebar']],
+	['workbench.action.toggleFullScreen', ['toggle full screen', 'toggle fullscreen']],
+	['workbench.action.togglePanel', ['toggle panel']],
+	['workbench.action.toggleSidebarVisibility', ['toggle primary side bar', 'toggle primary sidebar', 'toggle side bar', 'toggle sidebar']],
+	['workbench.action.toggleZenMode', ['toggle zen mode']],
+]);
+
+export function filterOmniCommandIntentCandidates(commands: readonly ICommandIntentCandidate[]): ICommandIntentCandidate[] {
+	return commands.filter(command => omniCommandIntentAllowlist.has(command.commandId));
+}
+
 export interface ICommandIntentCommandResult {
 	readonly kind: 'command';
 	readonly commandId: string;
@@ -87,20 +129,35 @@ export function detectExactCommandTitleIntent(utterance: string, commands: reado
 	if (!utteranceTerms.length) {
 		return undefined;
 	}
-	const matches = commands.filter(command => {
+	const exactTitleMatches = commands.filter(command => {
 		const titleSeparator = command.label.indexOf(':');
 		const title = titleSeparator >= 0 ? command.label.slice(titleSeparator + 1) : command.label;
 		const titleTerms = tokenizeCommandIntent(title);
 		return titleTerms.length === utteranceTerms.length && titleTerms.every((term, index) => term === utteranceTerms[index]);
 	});
-	if (matches.length !== 1) {
+	if (exactTitleMatches.length === 1) {
+		return {
+			kind: 'command',
+			commandId: exactTitleMatches[0].commandId,
+			confidence: 1,
+			reason: 'Exact command title match',
+		};
+	}
+	if (exactTitleMatches.length > 1) {
+		return undefined;
+	}
+	const phraseMatches = commands.filter(command => omniCommandIntentPhrases.get(command.commandId)?.some(phrase => {
+		const phraseTerms = tokenizeCommandIntent(phrase);
+		return phraseTerms.length === utteranceTerms.length && phraseTerms.every((term, index) => term === utteranceTerms[index]);
+	}));
+	if (new Set(phraseMatches.map(command => command.commandId)).size !== 1) {
 		return undefined;
 	}
 	return {
 		kind: 'command',
-		commandId: matches[0].commandId,
+		commandId: phraseMatches[0].commandId,
 		confidence: 1,
-		reason: 'Exact command title match',
+		reason: 'Exact built-in command phrase match',
 	};
 }
 
@@ -189,6 +246,7 @@ export function buildCommandIntentMessages(request: ICommandIntentRequest): ISes
 		'Choose command only for a clear application or editor action that exactly matches one listed command and needs no arguments.',
 		'An imperative directive that controls the VS Code user interface is command intent when a matching command is listed. This includes opening, closing, showing, hiding, toggling, focusing, or navigating VS Code views, panels, editors, and settings UI.',
 		'For a direct match such as "toggle terminal" with a listed Toggle Terminal command, choose command with high confidence.',
+		'Changing the VS Code color theme, file icon theme, or product icon theme through a listed theme picker is command intent.',
 		'Distinguish UI directives from coding tasks: "toggle terminal" is command, while "fix terminal toggling" is chat.',
 		'Questions, explanations, coding tasks, repository work, file edits, debugging, and requests that need command arguments are chat.',
 		'When uncertain, choose chat.',
@@ -205,6 +263,7 @@ export function buildCommandIntentMessages(request: ICommandIntentRequest): ISes
 function tokenizeCommandIntent(text: string): string[] {
 	const normalized = text
 		.replace(/([\p{Ll}\p{Nd}])([\p{Lu}])/gu, '$1 $2')
+		.replace(/\bvs\s+code\b/giu, 'vscode')
 		.toLocaleLowerCase();
 	const terms = commandIntentSegmenter
 		? [...commandIntentSegmenter.segment(normalized)]

@@ -19,8 +19,8 @@ suite('ChatSessionRoutingController', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	test('uses an exact command title without model intent detection', async () => {
-		const command = { commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' };
+	test('uses an exact built-in command phrase without model intent detection', async () => {
+		const command = { commandId: 'workbench.action.togglePanel', label: 'View: Toggle Panel Visibility' };
 		let detectIntentCallCount = 0;
 		let pendingCommand: typeof command | undefined;
 		const host = {
@@ -28,7 +28,7 @@ suite('ChatSessionRoutingController', () => {
 				input: { setSubmitPending: () => { } },
 				inputEditor: {
 					onDidChangeModelContent: Event.None,
-					getValue: () => 'toggle terminal',
+					getValue: () => 'toggle panel',
 				},
 				attachmentModel: {
 					onDidChange: Event.None,
@@ -65,7 +65,7 @@ suite('ChatSessionRoutingController', () => {
 			pendingCommand = candidate;
 		});
 
-		await controller.handleSubmit('toggle terminal', ChatModeKind.Agent);
+		await controller.handleSubmit('toggle panel', ChatModeKind.Agent);
 
 		assert.deepStrictEqual({ detectIntentCallCount, pendingCommand }, { detectIntentCallCount: 0, pendingCommand: command });
 		controller.dispose();
@@ -192,7 +192,7 @@ suite('ChatSessionRoutingController', () => {
 			Reflect.set(controller, '_collectCommandCandidates', () => [command]);
 
 			await controller.handleSubmit('turn on zen mode', ChatModeKind.Agent);
-			await clock.tickAsync(10000);
+			await clock.tickAsync(5000);
 
 			assert.deepStrictEqual({
 				executeCommandCallCount: executeCommand.callCount,

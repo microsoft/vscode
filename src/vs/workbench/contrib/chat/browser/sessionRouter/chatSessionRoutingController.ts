@@ -29,7 +29,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { detectExactCommandTitleIntent, heuristicScore, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
+import { detectExactCommandTitleIntent, filterOmniCommandIntentCandidates, heuristicScore, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -48,7 +48,11 @@ const ROUTE_MAX_CHOICES = 6;
  * routed target. Long enough to read the target and intervene, short enough to
  * keep a hands-free/voice flow moving.
  */
-const ROUTE_AUTOSEND_DELAY_MS = 10000;
+const ROUTE_AUTOSEND_DELAY_MS = 5000;
+const MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS = 10000;
+
+/** How long command review remains available before the command runs. */
+const COMMAND_AUTORUN_DELAY_MS = 5000;
 
 /** Resolved destination for a submitted request: an existing session or a new one. */
 type PendingTarget =
@@ -373,7 +377,7 @@ export class ChatSessionRoutingController extends Disposable {
 				label: category ? `${category}: ${action.label}` : action.label,
 			});
 		}
-		return [...commands.values()];
+		return filterOmniCommandIntentCandidates([...commands.values()]);
 	}
 
 	private async _detectIntent(commands: readonly ICommandIntentCandidate[], utterance: string, token: CancellationToken): Promise<ICommandIntentResult> {
@@ -607,7 +611,7 @@ export class ChatSessionRoutingController extends Disposable {
 		mark.appendChild(renderIcon(Codicon.play));
 		const label = dom.append(badge, dom.$('span.chat-routing-badge-label'));
 		const countdown = dom.append(badge, dom.$('span.chat-routing-badge-countdown'));
-		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
+		let remainingSeconds = Math.ceil(COMMAND_AUTORUN_DELAY_MS / 1000);
 		const renderCountdown = () => {
 			label.textContent = localize('chatSessionRouting.runCommand', "Running command {0}", command.label);
 			countdown.textContent = localize('chatSessionRouting.commandCountdown', "in {0}s", remainingSeconds);
@@ -745,6 +749,9 @@ export class ChatSessionRoutingController extends Disposable {
 		cts: CancellationTokenSource,
 	): void {
 		const targetWindow = dom.getWindow(badge);
+		const routeAutosendDelay = this.workspaceContextService.getWorkspace().folders.length > 1
+			? MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS
+			: ROUTE_AUTOSEND_DELAY_MS;
 		badge.classList.add('chat-routing-badge-ranked');
 
 		const labelById = new Map(candidates.map(candidate => [candidate.sessionId, candidate.label]));
@@ -872,10 +879,10 @@ export class ChatSessionRoutingController extends Disposable {
 		renderSelection();
 		const initialTarget = options[preselected];
 		ariaAlert(initialTarget.kind === 'session'
-			? localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000))
+			? localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(routeAutosendDelay / 1000))
 			: localize('chatSessionRouting.confirmNewSession', "No confident match. Choose a destination before sending."));
 
-		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
+		let remainingSeconds = Math.ceil(routeAutosendDelay / 1000);
 		const renderCountdown = () => {
 			countdownEl.textContent = localize('chatSessionRouting.sendingIn', "sending in {0}s", remainingSeconds);
 		};
@@ -931,7 +938,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const countdownTimer = store.add(new MutableDisposable());
 		const startCountdown = () => {
-			remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
+			remainingSeconds = Math.ceil(routeAutosendDelay / 1000);
 			renderCountdown();
 			const handle = targetWindow.setInterval(() => {
 				remainingSeconds--;
