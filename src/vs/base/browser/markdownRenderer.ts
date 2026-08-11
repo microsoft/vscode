@@ -743,8 +743,8 @@ function createPlainTextRenderer(): marked.Renderer {
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
 		return escape(text);
 	};
-	renderer.blockquote = ({ text }: marked.Tokens.Blockquote): string => {
-		return text + '\n';
+	renderer.blockquote = function ({ tokens }: marked.Tokens.Blockquote): string {
+		return this.parser.parse(tokens).trim() + '\n';
 	};
 	renderer.html = (_: marked.Tokens.HTML): string => {
 		return '';
@@ -758,8 +758,11 @@ function createPlainTextRenderer(): marked.Renderer {
 	renderer.list = function ({ items }: marked.Tokens.List): string {
 		return items.map(x => this.listitem(x)).join('\n') + '\n';
 	};
-	renderer.listitem = ({ text }: marked.Tokens.ListItem): string => {
-		return text + '\n';
+	renderer.listitem = function ({ tokens }: marked.Tokens.ListItem): string {
+		// Parse the nested tokens instead of taking the raw text, which would keep
+		// the markdown syntax of anything formatted inside the item (e.g. `**`).
+		// Parsing appends block separators, which the list itself already adds.
+		return this.parser.parse(tokens).trim() + '\n';
 	};
 	renderer.paragraph = function ({ tokens }: marked.Tokens.Paragraph): string {
 		return this.parser.parseInline(tokens) + '\n';
@@ -791,8 +794,10 @@ function createPlainTextRenderer(): marked.Renderer {
 	renderer.image = (_: marked.Tokens.Image): string => {
 		return '';
 	};
-	renderer.text = ({ text }: marked.Tokens.Text): string => {
-		return text;
+	renderer.text = function ({ text, tokens }: marked.Tokens.Text): string {
+		// A text token carries nested tokens when it holds formatted content, for
+		// example inside a list item; its raw text would still contain markdown.
+		return tokens?.length ? this.parser.parseInline(tokens) : text;
 	};
 	renderer.link = ({ text }: marked.Tokens.Link): string => {
 		return text;

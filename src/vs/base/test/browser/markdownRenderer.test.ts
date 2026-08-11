@@ -460,6 +460,24 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
 			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
 		});
+
+		test('strips markdown syntax of formatted content inside list items and quotes', () => {
+			// Items are separated by a blank line, which is how lists were already
+			// rendered; what matters here is that no markdown syntax survives.
+			assert.deepStrictEqual({
+				bulletList: renderAsPlaintext({ value: '- **bold** item\n- plain item\n- `code` and _italic_' }),
+				numberedList: renderAsPlaintext({ value: '1. **first**\n2. [link](https://example.com)' }),
+				nestedList: renderAsPlaintext({ value: '- outer **bold**\n    - inner **bold**' }),
+				looseList: renderAsPlaintext({ value: '- **bold** item\n\n- second item' }),
+				blockquote: renderAsPlaintext({ value: '> quoted **bold** text' })
+			}, {
+				bulletList: 'bold item\n\nplain item\n\ncode and italic',
+				numberedList: 'first\n\nlink',
+				nestedList: 'outer bold\ninner bold',
+				looseList: 'bold item\n\nsecond item',
+				blockquote: 'quoted bold text'
+			});
+		});
 	});
 
 	suite('supportHtml', () => {
