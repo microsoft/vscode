@@ -11,6 +11,9 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ThemingExtensions, IColorRegistry } from '../../../../../platform/theme/common/colorRegistry.js';
+import { EDITOR_BORDER, SURFACE_BORDER } from '../../../../common/theme.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -78,6 +81,7 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 suite('StyleOverridesContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const colorRegistry = Registry.as<IColorRegistry>(ThemingExtensions.ColorContribution);
 
 	test('applies startup values without relayout and relayouts once when toggled', async () => {
 		const configurationService = new TestConfigurationService({ [LayoutSettings.MODERN_UI]: true });
@@ -237,6 +241,27 @@ suite('StyleOverridesContribution', () => {
 			headerBorderWidth: '0px',
 			headerOverflow: 'visible',
 			footerBorderWidth: '0px',
+		});
+	});
+
+	test('uses the editor surface border color', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override floating-panels';
+		root.style.setProperty('--vscode-editor-border', '#123456');
+		root.style.setProperty('--vscode-surface-border', '#654321');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(grid, 'part editor');
+		const contribution = colorRegistry.getColors().find(color => color.id === EDITOR_BORDER);
+
+		assert.deepStrictEqual({
+			registeredDefault: contribution?.defaults,
+			borderColor: getWindow(editor).getComputedStyle(editor).borderColor,
+		}, {
+			registeredDefault: SURFACE_BORDER,
+			borderColor: 'rgb(18, 52, 86)',
 		});
 	});
 });

@@ -170,6 +170,7 @@
 		"--vscode-dropdown-foreground",
 		"--vscode-dropdown-listBackground",
 		"--vscode-editor-background",
+		"--vscode-editor-border",
 		"--vscode-editor-compositionBorder",
 		"--vscode-editor-findMatchBackground",
 		"--vscode-editor-findMatchBorder",
