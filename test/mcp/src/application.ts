@@ -15,6 +15,8 @@ import { opts } from './options';
 
 export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
 
+type ApplicationLaunchOptions = { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] };
+
 const rootPath = path.join(__dirname, '..', '..', '..');
 const logsRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'logs');
 const crashesRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'crashes');
@@ -331,8 +333,31 @@ async function preseedUserData(userDataDir: string | undefined, userSettings: Re
 	}
 }
 
+function launchOptionsEqual(first: ApplicationLaunchOptions, second: ApplicationLaunchOptions): boolean {
+	return !!first.recordVideo === !!second.recordVideo
+		&& first.workspacePath === second.workspacePath
+		&& jsonValueEqual(first.userSettings, second.userSettings)
+		&& jsonValueEqual(first.extraArgs, second.extraArgs);
+}
+
+function jsonValueEqual(first: JSONValue | Record<string, JSONValue> | undefined, second: JSONValue | Record<string, JSONValue> | undefined): boolean {
+	if (first === second) {
+		return true;
+	}
+	if (first === undefined || second === undefined || first === null || second === null || typeof first !== 'object' || typeof second !== 'object') {
+		return false;
+	}
+	if (Array.isArray(first) || Array.isArray(second)) {
+		return Array.isArray(first) && Array.isArray(second) && first.length === second.length && first.every((value, index) => jsonValueEqual(value, second[index]));
+	}
+	const firstKeys = Object.keys(first);
+	const secondKeys = Object.keys(second);
+	return firstKeys.length === secondKeys.length && firstKeys.every(key => Object.prototype.hasOwnProperty.call(second, key) && jsonValueEqual(first[key], second[key]));
+}
+
 export class ApplicationService {
 	private _application: Application | undefined;
+	private _creating: { options: ApplicationLaunchOptions; promise: Promise<Application> } | undefined;
 	private _closing: Promise<void> | undefined;
 	private _profileCleanup: Promise<void> | undefined;
 	private readonly _profileCleanupDelays = new Set<Promise<void>>();
@@ -362,15 +387,29 @@ export class ApplicationService {
 		await this._profileCleanup;
 	}
 
-	async getOrCreateApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}): Promise<Application> {
-		if (this._closing) {
-			await this._closing;
+	async getOrCreateApplication(options: ApplicationLaunchOptions = {}): Promise<Application> {
+		if (this._creating) {
+			if (!launchOptionsEqual(this._creating.options, options)) {
+				throw new Error('An application launch is already in progress with different launch options.');
+			}
+			return this._creating.promise;
 		}
-		if (this._profileCleanup) {
-			await this._profileCleanup;
+		if (this._application) {
+			return this._application;
 		}
-		if (!this._application) {
-			this._application = await getApplication({ recordVideo, workspacePath, userSettings, extraArgs });
+
+		const creating = (async () => {
+			if (this._closing) {
+				await this._closing;
+			}
+			if (this._profileCleanup) {
+				await this._profileCleanup;
+			}
+			if (this._application) {
+				return this._application;
+			}
+
+			this._application = await getApplication(options);
 			const application = this._application;
 			const observedPages = new Set<Page>();
 			const observePage = (page: Page) => {
@@ -385,8 +424,16 @@ export class ApplicationService {
 			}
 			application.code.driver.browserContext.on('page', observePage);
 			await this._runAllListeners();
+			return application;
+		})();
+		this._creating = { options, promise: creating };
+		try {
+			return await creating;
+		} finally {
+			if (this._creating?.promise === creating) {
+				this._creating = undefined;
+			}
 		}
-		return this._application;
 	}
 
 	async getApplicationIfRunning(): Promise<Application | undefined> {
@@ -412,6 +459,13 @@ export class ApplicationService {
 	}
 
 	async stopApplication(): Promise<void> {
+		if (this._creating) {
+			try {
+				await this._creating.promise;
+			} catch {
+				return;
+			}
+		}
 		if (this._application) {
 			await this._closeApplication(this._application);
 		} else if (this._closing) {
