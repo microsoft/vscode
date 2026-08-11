@@ -51,7 +51,7 @@ const largeOutputToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOS
  * Agent Host session; `hasTool` only reflects client tools, so this is
  * intentionally unconditional.
  */
-export const COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION = 'Before beginning code changes or creating a session, use `list_sessions` to check active sessions across the same project or repository—not only the same working directory—for potentially overlapping work. If another session may overlap based on its activity, branch, pull request, or changes, inspect it with `get_session_context` and use `send_message` to coordinate work between sessions. Prefer dividing or sequencing work to avoid duplicate effort, conflicting edits, and unnecessary merge conflicts.';
+export const COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION = 'Before beginning code changes or creating a session, use `get_current_session` to identify the current session, then use `list_sessions` to check other active sessions across the same project or repository—not only the same working directory—for potentially overlapping work; exclude the current session URI from overlap candidates. If another session may overlap based on its activity, branch, pull request, or changes, inspect it with `get_session_context` and use `send_message` to coordinate work between sessions. Prefer dividing or sequencing work to avoid duplicate effort, conflicting edits, and unnecessary merge conflicts.';
 const sessionCoordinationToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION;
 
 /**
