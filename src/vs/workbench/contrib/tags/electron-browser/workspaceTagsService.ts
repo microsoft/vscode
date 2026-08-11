@@ -33,8 +33,7 @@ const MetaModulesToLookFor = [
 	'@azure/openai',
 	'@azure/provisioning',
 	'@azure/search',
-	'@azure/storage',
-	'@openai/'
+	'@azure/storage'
 ];
 
 const ModulesToLookFor = [
@@ -631,7 +630,6 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@azure/provisioning" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/search" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@openai/" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@google-cloud/aiplatform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
