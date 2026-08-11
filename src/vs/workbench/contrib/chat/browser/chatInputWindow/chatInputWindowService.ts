@@ -894,16 +894,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-fallback', !hasPendingQuestion && !!pendingApproval);
 			const hasMultiple = pendingModels.length > 1;
-			const title = model.title || localize('chatInputWindow.pending.untitledSource', "Chat");
+			header.classList.toggle('hidden', !hasMultiple);
 			label.textContent = hasMultiple
-				? localize(
-					'chatInputWindow.pending.sourceAndCount',
-					"{0} — {1} of {2} waiting on you",
-					title,
-					this._pendingPromptIndex + 1,
-					pendingModels.length,
-				)
-				: localize('chatInputWindow.pending.source', "{0} waiting on you", title);
+				? localize('chatInputWindow.pending.count', "Request {0} of {1}", this._pendingPromptIndex + 1, pendingModels.length)
+				: '';
 			navigation.classList.toggle('hidden', !hasMultiple);
 			for (const button of [previous, next]) {
 				button.classList.toggle('disabled', !hasMultiple);
