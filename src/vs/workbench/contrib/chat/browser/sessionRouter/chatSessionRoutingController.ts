@@ -613,9 +613,10 @@ export class ChatSessionRoutingController extends Disposable {
 		let didRun = false;
 		const timer = store.add(new MutableDisposable());
 		const reviewControls = store.add(new DisposableStore());
+		const reviewActions: HTMLElement[] = [];
 		const clearReviewControls = () => {
 			reviewControls.clear();
-			for (const action of badge.querySelectorAll('.chat-routing-badge-action')) {
+			for (const action of reviewActions) {
 				action.remove();
 			}
 		};
@@ -669,9 +670,11 @@ export class ChatSessionRoutingController extends Disposable {
 			void sendToChat();
 		};
 
-		this._addActionLink(reviewControls, badge, localize('chatSessionRouting.runNow', "Run Now"), () => void run());
-		this._addActionLink(reviewControls, badge, localize('chatSessionRouting.sendToChat', "Send to Chat"), routeToChat);
-		this._addActionLink(reviewControls, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel);
+		reviewActions.push(
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.runNow', "Run Now"), () => void run()),
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.sendToChat', "Send to Chat"), routeToChat),
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel),
+		);
 		renderCountdown();
 		ariaAlert(localize('chatSessionRouting.runningCommandIn', "Running command {0} in {1} seconds. Activate Cancel or press Escape to cancel.", command.label, remainingSeconds));
 		const targetWindow = dom.getWindow(badge);
@@ -1170,7 +1173,7 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/** Append an accessible link-style action to the badge. */
-	private _addActionLink(store: DisposableStore, badge: HTMLElement, text: string, run: () => void): void {
+	private _addActionLink(store: DisposableStore, badge: HTMLElement, text: string, run: () => void): HTMLElement {
 		const el = dom.append(badge, dom.$('a.chat-routing-badge-action', { role: 'button', tabindex: '0' }));
 		el.textContent = text;
 		store.add(dom.addDisposableListener(el, dom.EventType.CLICK, run));
@@ -1180,6 +1183,7 @@ export class ChatSessionRoutingController extends Disposable {
 				run();
 			}
 		}));
+		return el;
 	}
 
 	/** Dispatch a resolved pending target. */
