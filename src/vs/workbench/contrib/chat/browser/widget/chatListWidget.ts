@@ -32,6 +32,7 @@ import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../comm
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
@@ -356,6 +357,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _location: ChatAgentLocation | undefined;
 	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
+	private readonly _useTreeHierarchy: boolean;
 
 	//#endregion
 
@@ -420,6 +422,7 @@ export class ChatListWidget extends Disposable {
 		this._location = options.location;
 		this._getSelectedModelRequestOptions = options.getSelectedModelRequestOptions;
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
+		this._useTreeHierarchy = !options.filter;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
 
@@ -514,7 +517,6 @@ export class ChatListWidget extends Disposable {
 
 		// Create tree
 		const styles = options.styles ?? {};
-		const stickyScrollEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ExperimentalStickyScrollEnabled) === true;
 		this._tree = this._register(scopedInstantiationService.createInstance(
 			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
 			'ChatList',
@@ -527,7 +529,7 @@ export class ChatListWidget extends Disposable {
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
-				enableStickyScroll: stickyScrollEnabled,
+				enableStickyScroll: this.isTreeStickyScrollEnabled(),
 				stickyScrollMaxItemCount: 1,
 				stickyScrollMaxNodeHeight: 150,
 				stickyScrollShowOnlyWhenNodeFullyHidden: true,
@@ -653,8 +655,8 @@ export class ChatListWidget extends Disposable {
 		this._register(dom.addDisposableListener(this._container, 'copy', e => this.handleCopy(e)));
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled)) {
-				this._tree.updateOptions({ enableStickyScroll: this.configurationService.getValue<boolean>(ChatConfiguration.ExperimentalStickyScrollEnabled) === true });
+			if (e.affectsConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled) || e.affectsConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING)) {
+				this._tree.updateOptions({ enableStickyScroll: this.isTreeStickyScrollEnabled() });
 			}
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
 				this._settingChangeCounter++;
@@ -815,28 +817,9 @@ export class ChatListWidget extends Disposable {
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
 
-		// Structure as a tree: responses are children of their preceding request
-		const treeItems: ITreeElement<ChatTreeItem>[] = [];
-		for (let i = 0; i < items.length; i++) {
-			const item = items[i];
-			if (isRequestVM(item)) {
-				const children: ITreeElement<ChatTreeItem>[] = [];
-				// Collect following responses as children
-				while (i + 1 < items.length && isResponseVM(items[i + 1])) {
-					i++;
-					children.push({ element: items[i], collapsed: false, collapsible: false });
-				}
-				treeItems.push({
-					element: item,
-					collapsed: false,
-					collapsible: false,
-					children,
-				});
-			} else {
-				// Pending dividers and other non-request items remain at root
-				treeItems.push({ element: item, collapsed: false, collapsible: false });
-			}
-		}
+		const treeItems = this._useTreeHierarchy
+			? this.createRequestTreeItems(items)
+			: items.map(item => ({ element: item, collapsed: false, collapsible: false }));
 
 		const editing = this._viewModel.editing;
 
@@ -942,6 +925,35 @@ export class ChatListWidget extends Disposable {
 		};
 		collect(root.children);
 		return items;
+	}
+
+	private createRequestTreeItems(items: ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
+		const treeItems: ITreeElement<ChatTreeItem>[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (isRequestVM(item)) {
+				const children: ITreeElement<ChatTreeItem>[] = [];
+				while (i + 1 < items.length && isResponseVM(items[i + 1])) {
+					i++;
+					children.push({ element: items[i], collapsed: false, collapsible: false });
+				}
+				treeItems.push({
+					element: item,
+					collapsed: false,
+					collapsible: false,
+					children,
+				});
+			} else {
+				treeItems.push({ element: item, collapsed: false, collapsible: false });
+			}
+		}
+		return treeItems;
+	}
+
+	private isTreeStickyScrollEnabled(): boolean {
+		return this._useTreeHierarchy
+			&& this.configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_SCROLL_SETTING) === true
+			&& this.configurationService.getValue<boolean>(ChatConfiguration.ExperimentalStickyScrollEnabled) === true;
 	}
 
 
@@ -1065,9 +1077,9 @@ export class ChatListWidget extends Disposable {
 	 * Scroll the list to reveal the last item.
 	 */
 	scrollToEnd(): void {
-		// Reveal the tree's actual last node rather than the held `_lastItem`. `reveal` reliably
+		// Reveal the tree's actual last visible item rather than the held `_lastItem`. `reveal` reliably
 		// scrolls all the way down even while item heights are still settling (see #234089)
-		const lastElement = this._tree.getNode(null).children.at(-1)?.element;
+		const lastElement = this.getItems().at(-1);
 		if (lastElement) {
 			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
 			this._tree.reveal(lastElement, offset);
