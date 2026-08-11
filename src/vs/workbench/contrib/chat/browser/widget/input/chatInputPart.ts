@@ -262,7 +262,7 @@ export interface IChatInputPartOptions {
 	inputPartHorizontalPadding?: number;
 	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
-	inputPickerPosition?: AnchorPosition;
+	inputPickerPosition?: AnchorPosition | (() => AnchorPosition);
 	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
 	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	inputPickerOpenOnMouseUp?: boolean;
@@ -1226,6 +1226,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _createModelPickerDelegate(): IModelPickerDelegate {
 		const inputPickerContainer = this.options.inputPickerContainer;
+		const inputPickerPosition = this.options.inputPickerPosition;
 		return {
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
@@ -1237,7 +1238,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
 			onDidChangeVisibility: this.options.onDidChangeModelPickerVisibility,
-			anchorPosition: this.options.inputPickerPosition,
+			get anchorPosition() {
+				return typeof inputPickerPosition === 'function' ? inputPickerPosition() : inputPickerPosition;
+			},
 			get actionWidgetContainer() {
 				return typeof inputPickerContainer === 'function' ? inputPickerContainer() : inputPickerContainer;
 			},
@@ -3286,7 +3289,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
 			compact: derived(reader => this._stableInputPartWidth.read(reader) < CHAT_INPUT_PICKER_COLLAPSE_WIDTH),
-			listOptions: this.options.inputPickerPosition === undefined ? undefined : { anchorPosition: this.options.inputPickerPosition },
+			listOptions: this.options.inputPickerPosition === undefined ? undefined : {
+				anchorPosition: typeof this.options.inputPickerPosition === 'function'
+					? this.options.inputPickerPosition()
+					: this.options.inputPickerPosition,
+			},
 		};
 		const primarySessionPickerOptions: IChatInputPickerOptions = {
 			...pickerOptions,

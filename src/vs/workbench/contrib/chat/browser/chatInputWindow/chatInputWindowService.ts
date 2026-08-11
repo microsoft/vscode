@@ -124,6 +124,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _actionWidgetOpenOperation: Promise<void> | undefined;
 	private _actionWidgetOwner: IAuxiliaryWindow | undefined;
 	private _actionWidgetWindowAnchorY = 0;
+	private _actionWidgetAnchorPosition = AnchorPosition.BELOW;
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 
@@ -435,8 +436,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
 				submitHandler: (query, mode, attachedContext, isVoiceModeInput) => this._routingController?.handleSubmit(query, mode, attachedContext, isVoiceModeInput) ?? Promise.resolve(false),
-				onDidChangeModelPickerVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, visible),
-				inputPickerPosition: AnchorPosition.BELOW,
+				onDidChangeModelPickerVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, visible, AnchorPosition.ABOVE),
+				inputPickerPosition: () => this._actionWidgetAnchorPosition,
 				inputPickerContainer: () => this._actionWidgetWindow.value?.container,
 				inputPickerAnchor: anchor => this._getActionWidgetAnchor(anchor),
 				inputPickerOpenOnMouseUp: true,
@@ -507,9 +508,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this._dismissedPendingRequests.set(dismissed, undefined);
 				this.voiceSessionController.clearRoutedRequest(resource);
 			},
-			onDidChangeActionWidgetVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, visible),
+			onDidChangeActionWidgetVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, visible, AnchorPosition.BELOW),
 			getActionWidgetContainer: () => this._actionWidgetWindow.value?.container,
 			getActionWidgetAnchor: anchor => this._getActionWidgetAnchor(anchor),
+			getActionWidgetAnchorPosition: () => this._actionWidgetAnchorPosition,
 			pickFolder: async defaultUri => (await this.fileDialogService.showOpenDialog({
 				title: localize('chatInputWindow.selectSessionFolder', "Select Folder for New Session"),
 				openLabel: localize('chatInputWindow.selectFolder', "Select Folder"),
@@ -1105,7 +1107,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return undefined;
 	}
 
-	private _setActionWidgetVisible(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
+	private _setActionWidgetVisible(auxiliaryWindow: IAuxiliaryWindow, visible: boolean, preferredPosition: AnchorPosition): Promise<void> {
 		if (!visible) {
 			if (this._actionWidgetOwner !== auxiliaryWindow) {
 				return Promise.resolve();
@@ -1135,7 +1137,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		}
 
 		const generation = ++this._actionWidgetLayoutGeneration;
-		const operation = this._openActionWidgetWindow(auxiliaryWindow, generation);
+		const operation = this._openActionWidgetWindow(auxiliaryWindow, generation, preferredPosition);
 		this._actionWidgetOpenOperation = operation;
 		return operation.finally(() => {
 			if (this._actionWidgetOpenOperation === operation) {
@@ -1144,7 +1146,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		});
 	}
 
-	private async _openActionWidgetWindow(auxiliaryWindow: IAuxiliaryWindow, generation: number): Promise<void> {
+	private async _openActionWidgetWindow(auxiliaryWindow: IAuxiliaryWindow, generation: number, preferredPosition: AnchorPosition): Promise<void> {
 		const sourceWindow = auxiliaryWindow.window;
 		const screen = sourceWindow.screen;
 		const display = (await this.hostService.getCursorScreenPoint())?.display ?? {
@@ -1157,7 +1159,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const sourceBottom = sourceWindow.screenY + sourceWindow.outerHeight;
 		const displayBottom = display.y + display.height;
 		const displayRight = display.x + display.width;
-		const placeBelow = sourceBottom + height <= displayBottom;
+		const fitsAbove = sourceWindow.screenY - height >= display.y;
+		const fitsBelow = sourceBottom + height <= displayBottom;
+		const placeBelow = preferredPosition === AnchorPosition.BELOW
+			? fitsBelow || !fitsAbove
+			: !fitsAbove && fitsBelow;
 		const preferredY = placeBelow
 			? sourceBottom
 			: sourceWindow.screenY - height;
@@ -1186,6 +1192,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		actionWidgetWindow.container.style.backgroundColor = 'transparent';
 		actionWidgetWindow.container.style.overflow = 'hidden';
 		this._actionWidgetWindowAnchorY = placeBelow ? 0 : height;
+		this._actionWidgetAnchorPosition = placeBelow ? AnchorPosition.BELOW : AnchorPosition.ABOVE;
 		this._actionWidgetWindow.value = actionWidgetWindow;
 	}
 

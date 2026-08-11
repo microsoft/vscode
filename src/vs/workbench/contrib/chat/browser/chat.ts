@@ -328,7 +328,7 @@ export interface IChatWidgetViewOptions {
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
-	inputPickerPosition?: AnchorPosition;
+	inputPickerPosition?: AnchorPosition | (() => AnchorPosition);
 	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
 	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	inputPickerOpenOnMouseUp?: boolean;
