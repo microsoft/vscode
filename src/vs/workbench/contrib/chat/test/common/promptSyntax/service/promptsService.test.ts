@@ -3720,6 +3720,34 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('getPromptSlashCommands - prompt discovery', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('CancellationError from parseNew is skipped without logging', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			const promptUri = URI.parse('file://extensions/my-extension/cancelled.prompt.md');
+			const logErrorSpy = sinon.spy(logService, 'error');
+			sinon.stub(service, 'listPromptFiles').callsFake(async (type: PromptsType) => {
+				return type === PromptsType.prompt
+					? [{ uri: promptUri, storage: PromptsStorage.local, type: PromptsType.prompt } as IPromptPath]
+					: [];
+			});
+			sinon.stub(service, 'parseNew').rejects(new CancellationError());
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+			const discoveryInfo = await service.getDiscoveryInfo(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual(slashCommands, []);
+			assert.strictEqual(logErrorSpy.called, false);
+			assert.strictEqual(discoveryInfo.files.length, 1);
+			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
+			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
+		});
+	});
+
 	suite('getPromptSlashCommands - skills', () => {
 		teardown(() => {
 			sinon.restore();
@@ -3771,28 +3799,6 @@ suite('PromptsService', () => {
 			assert.ok(anotherSkillCommand, 'Should find another skill as slash command');
 			assert.strictEqual(anotherSkillCommand.description, 'Another skill from workspace');
 			assert.strictEqual(anotherSkillCommand.storage, PromptsStorage.local);
-		});
-
-		test('CancellationError from parseNew is skipped without logging', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
-
-			const promptUri = URI.parse('file://extensions/my-extension/cancelled.prompt.md');
-			const logErrorSpy = sinon.spy(logService, 'error');
-			sinon.stub(service, 'listPromptFiles').callsFake(async (type: PromptsType) => {
-				return type === PromptsType.prompt
-					? [{ uri: promptUri, storage: PromptsStorage.local, type: PromptsType.prompt } as IPromptPath]
-					: [];
-			});
-			sinon.stub(service, 'parseNew').rejects(new CancellationError());
-
-			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
-			const discoveryInfo = await service.getDiscoveryInfo(PromptsType.prompt, CancellationToken.None);
-
-			assert.deepStrictEqual(slashCommands, []);
-			assert.strictEqual(logErrorSpy.called, false);
-			assert.strictEqual(discoveryInfo.files.length, 1);
-			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
-			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
 		});
 
 		test('should deduplicate skills with the same name from symlinked locations', async () => {
