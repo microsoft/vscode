@@ -110,9 +110,9 @@ export interface IDiscoveredConfigNudgeContext {
 	 */
 	readonly usableWithoutGitHub: boolean;
 	/**
-	 * Whether the user has permanently silenced this nudge via its "Don't Show
-	 * Again" affordance. Once muted, the nudge never shows again regardless of
-	 * the other inputs.
+	 * Whether the user has already dismissed this nudge, which silences it for
+	 * good. Once muted, the nudge never shows again regardless of the other
+	 * inputs.
 	 */
 	readonly muted: boolean;
 }
