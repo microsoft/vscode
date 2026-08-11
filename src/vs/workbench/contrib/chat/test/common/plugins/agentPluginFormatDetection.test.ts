@@ -441,6 +441,7 @@ suite('AgentPlugin format detection', () => {
 		await waitForState(plugins[0].mcpServerDefinitions, defs => defs.length > 0);
 		const mcpDefs = plugins[0].mcpServerDefinitions.get();
 		assert.deepStrictEqual(mcpDefs.map(d => d.name), ['my-server']);
+		assert.strictEqual(mcpDefs[0].defaultCwd?.toString(), uri.toString());
 	}));
 
 	test('Open Plugin reads MCP definitions from standalone .mcp.json', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

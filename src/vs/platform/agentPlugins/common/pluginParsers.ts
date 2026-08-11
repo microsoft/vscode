@@ -1230,7 +1230,7 @@ export async function readPluginMcpServers(
 export function parseMcpServerDefinitionMap(
 	definitionURI: URI,
 	raw: unknown,
-	pluginRoot: string | URI,
+	pluginRoot: URI,
 	formatConfig: IPluginFormatConfig,
 ): IMcpServerDefinition[] {
 	const mcpServers = resolveMcpServersMap(raw);
@@ -1238,8 +1238,7 @@ export function parseMcpServerDefinitionMap(
 		return [];
 	}
 
-	const pluginRootUri = typeof pluginRoot === 'string' ? URI.file(pluginRoot) : pluginRoot;
-	const pluginFsPath = pluginRootUri.fsPath;
+	const pluginFsPath = pluginRoot.fsPath;
 	const definitions: IMcpServerDefinition[] = [];
 	for (const [name, configValue] of Object.entries(mcpServers)) {
 		const configuration = normalizeMcpServerConfiguration(configValue);
@@ -1250,7 +1249,7 @@ export function parseMcpServerDefinitionMap(
 		let def: IMcpServerDefinition = {
 			name,
 			configuration,
-			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRootUri }),
+			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRoot }),
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};

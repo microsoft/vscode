@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
+import { FileChangesEvent, FileChangeType, type IFileSystemWatcher, type IWatchOptionsWithoutCorrelation } from '../../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
@@ -18,13 +19,33 @@ import { SessionMcpDiscovery } from '../../../node/shared/sessionMcpDiscovery.js
 
 suite('SessionMcpDiscovery', () => {
 
+	class TestFileService extends FileService {
+		private readonly watchers = new Map<string, Emitter<FileChangesEvent>>();
+
+		override createWatcher(resource: URI, _options: IWatchOptionsWithoutCorrelation & { recursive: false }): IFileSystemWatcher {
+			const emitter = new Emitter<FileChangesEvent>();
+			this.watchers.set(resource.toString(), emitter);
+			return {
+				onDidChange: emitter.event,
+				dispose: () => {
+					this.watchers.delete(resource.toString());
+					emitter.dispose();
+				},
+			};
+		}
+
+		fire(root: URI, resource: URI, type: FileChangeType): void {
+			this.watchers.get(root.toString())?.fire(new FileChangesEvent([{ resource, type }], false));
+		}
+	}
+
 	const store = new DisposableStore();
-	let fileService: FileService;
+	let fileService: TestFileService;
 	const primary = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
 	const additional = URI.from({ scheme: Schemas.inMemory, path: '/additional' });
 
 	setup(() => {
-		fileService = store.add(new FileService(new NullLogService()));
+		fileService = store.add(new TestFileService(new NullLogService()));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 	});
 
@@ -83,6 +104,7 @@ suite('SessionMcpDiscovery', () => {
 
 		const changed = Event.toPromise(discovery.onDidChange);
 		await write(primary, { mcpServers: { server: { command: 'server' } } });
+		fileService.fire(primary, URI.joinPath(primary, '.mcp.json'), FileChangeType.ADDED);
 		const definitions = await changed;
 
 		assert.deepStrictEqual(definitions.map(definition => definition.name), ['server']);
@@ -96,6 +118,7 @@ suite('SessionMcpDiscovery', () => {
 
 		const changed = Event.toPromise(discovery.onDidChange);
 		await fileService.del(URI.joinPath(primary, '.mcp.json'));
+		fileService.fire(primary, URI.joinPath(primary, '.mcp.json'), FileChangeType.DELETED);
 
 		assert.deepStrictEqual(await changed, []);
 		assert.deepStrictEqual(discovery.definitions, []);

@@ -31,14 +31,15 @@ export class SessionMcpDiscovery extends Disposable {
 	) {
 		super();
 		this._definitionUris = _workingDirectories.map(root => URI.joinPath(root, '.mcp.json'));
-		for (const root of _workingDirectories) {
-			this._register(_fileService.watch(root, { recursive: false, excludes: [] }));
+		for (let index = 0; index < _workingDirectories.length; index++) {
+			const definitionUri = this._definitionUris[index];
+			const watcher = this._register(_fileService.createWatcher(_workingDirectories[index], { recursive: false, excludes: [] }));
+			this._register(watcher.onDidChange(event => {
+				if (event.affects(definitionUri)) {
+					void this.refresh();
+				}
+			}));
 		}
-		this._register(_fileService.onDidFilesChange(event => {
-			if (this._definitionUris.some(uri => event.affects(uri))) {
-				void this.refresh();
-			}
-		}));
 	}
 
 	refresh(): Promise<readonly IMcpServerDefinition[]> {

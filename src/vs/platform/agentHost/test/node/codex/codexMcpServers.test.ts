@@ -49,7 +49,7 @@ suite('codexMcpServers', () => {
 	});
 
 	test('codexMcpListToInventory + inventoryToSdkServers build a Ready snapshot', () => {
-		const inventory = codexMcpListToInventory([status('s1', [tool('t1')]), status('s2', [])]);
+		const inventory = codexMcpListToInventory([undefined, status('s1', [tool('t1')]), status('s2', [])]);
 		assert.deepStrictEqual({
 			s1: codexMcpStatusToEntry(status('s1', [tool('t1')])),
 			sdk: inventoryToSdkServers(inventory),

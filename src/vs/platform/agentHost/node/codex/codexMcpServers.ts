@@ -167,9 +167,12 @@ export function codexMcpStatusToEntry(status: CodexMcpServerStatus): ICodexMcpSe
  * Builds a name-keyed inventory snapshot from a codex `mcpServerStatus/list`
  * response page (or the concatenation of all paginated pages).
  */
-export function codexMcpListToInventory(data: readonly CodexMcpServerStatus[]): Map<string, ICodexMcpServerEntry> {
+export function codexMcpListToInventory(data: readonly (CodexMcpServerStatus | null | undefined)[]): Map<string, ICodexMcpServerEntry> {
 	const inventory = new Map<string, ICodexMcpServerEntry>();
 	for (const status of data) {
+		if (!status || typeof status.name !== 'string') {
+			continue;
+		}
 		inventory.set(status.name, codexMcpStatusToEntry(status));
 	}
 	return inventory;

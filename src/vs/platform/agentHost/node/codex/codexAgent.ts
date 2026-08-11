@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
@@ -820,7 +820,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private readonly _subagentsByThreadId = new Map<string, ICodexSubagent>();
 	private readonly _mcpInventory = new CodexMcpInventory();
-	private readonly _sessionMcpDiscoveries = new Map<string, { readonly rootsSignature: string; readonly discovery: SessionMcpDiscovery }>();
+	private readonly _sessionMcpDiscoveries = new Map<string, { readonly rootsSignature: string; readonly discovery: SessionMcpDiscovery; dispose(): void }>();
 	private readonly _pendingMcpStartupStatuses = new Map<string, Array<{ readonly client: ICodexAppServerClient; readonly name: string; readonly status: McpServerStartupState; readonly error: string | null }>>();
 	/**
 	 * OAuth bearer tokens acquired for auth-gated http MCP servers, keyed by
@@ -1733,15 +1733,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		const rootsSignature = JSON.stringify(roots.map(root => root.toString()));
 		let entry = this._sessionMcpDiscoveries.get(session.sessionId);
 		if (entry?.rootsSignature !== rootsSignature) {
-			entry?.discovery.dispose();
-			const discovery = new SessionMcpDiscovery(roots, this._fileService);
-			discovery.onDidChange(() => {
+			entry?.dispose();
+			const store = new DisposableStore();
+			const discovery = store.add(new SessionMcpDiscovery(roots, this._fileService));
+			store.add(discovery.onDidChange(() => {
 				session.mcpDiscoveryDirty = true;
 				if (session.firstTurnSent) {
 					session.needsResume = true;
 				}
-			});
-			entry = { rootsSignature, discovery };
+			}));
+			entry = { rootsSignature, discovery, dispose: () => store.dispose() };
 			this._sessionMcpDiscoveries.set(session.sessionId, entry);
 		}
 		await entry.discovery.refresh();
@@ -3364,7 +3365,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessionIdByThreadId.set(session.threadId, session.sessionId);
 		this._flushPendingMcpStartupStatuses(session.threadId);
 		this._applyMcpInventoryToSession(session);
-		void this._refreshMcpInventory(conn.client, session.threadId);
 		// Advertise the agent host's server tools on this session so clients see
 		// them as server-provided. Execution happens in-process via
 		// `_handleDynamicToolCallRpc`; the tools were registered with codex in
@@ -3914,7 +3914,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
 		session.mcpController?.dispose();
-		this._sessionMcpDiscoveries.get(sessionId)?.discovery.dispose();
+		this._sessionMcpDiscoveries.get(sessionId)?.dispose();
 		this._sessionMcpDiscoveries.delete(sessionId);
 		// If the session contributed client-plugin skills, drop them from the
 		// process-global skill-root union now that it is gone.
@@ -4818,7 +4818,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._sessions.clear();
 		for (const entry of this._sessionMcpDiscoveries.values()) {
-			entry.discovery.dispose();
+			entry.dispose();
 		}
 		this._sessionMcpDiscoveries.clear();
 		this._pendingMcpStartupStatuses.clear();
@@ -4916,7 +4916,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._subagentsByThreadId.clear();
 		this._sessions.clear();
 		for (const entry of this._sessionMcpDiscoveries.values()) {
-			entry.discovery.dispose();
+			entry.dispose();
 		}
 		this._sessionMcpDiscoveries.clear();
 		this._pendingMcpStartupStatuses.clear();

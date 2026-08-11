@@ -1048,6 +1048,9 @@ suite('CodexAgent prewarm eviction', () => {
 				},
 			});
 			const metadata = await metadataPromise;
+			const initialStatus = await readNextRequest(peerB.outbound);
+			assert.strictEqual(initialStatus.method, 'mcpServerStatus/list');
+			peerB.push({ id: initialStatus.id, result: { data: [], nextCursor: null } });
 
 			const resumedSend = agentB.chats.sendMessage(URI.parse(buildDefaultChatUri(created.session)), 'again', undefined, undefined, 'turn-2');
 			const resume = await readNextRequest(peerB.outbound);
@@ -1059,6 +1062,9 @@ suite('CodexAgent prewarm eviction', () => {
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
 				},
 			});
+			const resumedStatus = await readNextRequest(peerB.outbound);
+			assert.strictEqual(resumedStatus.method, 'mcpServerStatus/list');
+			peerB.push({ id: resumedStatus.id, result: { data: [], nextCursor: null } });
 			const resumedTurn = await readNextRequest(peerB.outbound);
 			peerB.push({ id: resumedTurn.id, result: {} });
 			await resumedSend;
