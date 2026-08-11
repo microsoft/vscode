@@ -22,7 +22,7 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
 import { GitHubAuthenticationError } from '../../github/browser/githubApiClient.js';
 import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
@@ -32,10 +32,10 @@ import { resolveGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
 
 const DEFAULT_GITHUB_LOOKUP_TIMEOUTS = {
-	totalMs: 6_000,
-	summaryMs: 2_500,
-	linkageMs: 1_500,
-	reviewMs: 2_500,
+	totalMs: 10_000,
+	summaryMs: 5_000,
+	linkageMs: 2_500,
+	reviewMs: 4_000,
 };
 const LOG_PREFIX = '[NewSessionViewV3Prompt]';
 const PROMPT_TEMPLATE_TREATMENT = 'onb.newSessionViewV3.promptTemplate';
@@ -216,8 +216,13 @@ export class NewSessionViewV3PromptRunner {
 			latestPlan = await this._resolveGitHubPromptOptionsWithFallback(refreshToken);
 			return { kind: 'resolved', options: latestPlan.options };
 		};
-		if (composer.setPromptOptionsResolver && composer.refreshPromptOptions) {
-			composer.setPromptOptionsResolver(resolveOptions);
+		if (composer.setPromptOptionsController && composer.refreshPromptOptions) {
+			const controller: INewSessionPromptOptionsController = {
+				resolve: resolveOptions,
+				onDidSelectOption: option => this._reportPromptOptionInteraction('selected', option),
+				onDidClose: () => this._reportPromptOptionInteraction('closed'),
+			};
+			composer.setPromptOptionsController(controller);
 			this._logService.info(`${LOG_PREFIX} Showing prompt option loading skeletons.`);
 			const shown = await composer.refreshPromptOptions(token);
 			const fallbackReason = configuredFallbackReason ?? latestPlan?.fallbackReason ?? (token.isCancellationRequested ? 'requestFailed' : 'noCandidate');
@@ -675,17 +680,19 @@ export class NewSessionViewV3PromptRunner {
 			}
 			const workspace = activeSession.workspace.get();
 			const folder = workspace?.folders[0];
+			const enterpriseHost = this._gitHubService.enterpriseHost;
+			const supportedHosts = enterpriseHost ? [enterpriseHost] : undefined;
 			this._logWorkspaceSnapshot(activeSession);
 			if (!workspace || !folder) {
 				this._logService.trace(`${LOG_PREFIX} The active draft has no primary workspace folder.`);
 				return undefined;
 			}
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
-			if (gitHubInfo) {
+			if (!enterpriseHost && gitHubInfo) {
 				this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${gitHubInfo.owner}/${gitHubInfo.repo}' from session metadata.`);
 				return this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), { owner: gitHubInfo.owner, repo: gitHubInfo.repo });
 			}
-			const repositoryFromUri = getGitHubRepositoryFromUri(folder.root)
+			const repositoryFromUri = enterpriseHost ? undefined : getGitHubRepositoryFromUri(folder.root)
 				?? getGitHubRepositoryFromUri(folder.workingDirectory)
 				?? (folder.gitRepository ? getGitHubRepositoryFromUri(folder.gitRepository.uri) : undefined);
 			if (repositoryFromUri) {
@@ -694,17 +701,17 @@ export class NewSessionViewV3PromptRunner {
 			}
 
 			try {
-				const repositoryFromConfig = await resolveGitHubRepositoryFromGitConfig(this._fileService, folder.workingDirectory);
+				const repositoryFromConfig = await resolveGitHubRepositoryFromGitConfig(this._fileService, folder.workingDirectory, supportedHosts);
 				if (repositoryFromConfig) {
 					this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${repositoryFromConfig.owner}/${repositoryFromConfig.repo}' directly from .git/config.`);
 					return this._createRepositoryContext(activeSession, workspace.uri.toString(), folder.workingDirectory.toString(), repositoryFromConfig);
 				}
-				this._logService.trace(`${LOG_PREFIX} No supported github.com remote was found directly in .git/config.`);
+				this._logService.trace(`${LOG_PREFIX} No supported GitHub remote was found directly in .git/config.`);
 			} catch (error) {
 				this._logService.warn(`${LOG_PREFIX} Reading Git repository metadata directly from the selected workspace failed.`, error);
 			}
 
-			if (isAgentHostProviderId(activeSession.providerId)) {
+			if (!enterpriseHost && isAgentHostProviderId(activeSession.providerId)) {
 				this._logService.info(`${LOG_PREFIX} Waiting for Agent Host git metadata for the active draft.`);
 				const result = await this._waitForAgentHostRepository(activeSession, token);
 				if (result.kind === 'sessionChanged') {
@@ -712,7 +719,7 @@ export class NewSessionViewV3PromptRunner {
 					continue;
 				}
 				if (result.kind === 'noGitHubRemote') {
-					this._logService.info(`${LOG_PREFIX} Agent Host git metadata reports that the selected workspace has no github.com remote.`);
+					this._logService.info(`${LOG_PREFIX} Agent Host git metadata reports that the selected workspace has no GitHub remote.`);
 					return undefined;
 				}
 				if (result.kind === 'resolved') {
@@ -727,9 +734,9 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} The selected workspace folder could not be opened through the Git extension.`);
 				return undefined;
 			}
-			const repositoryFromRemote = getGitHubRemoteInfo(repository.state.get());
+			const repositoryFromRemote = getGitHubRemoteInfo(repository.state.get(), supportedHosts);
 			if (!repositoryFromRemote) {
-				this._logService.trace(`${LOG_PREFIX} The selected Git repository has no supported github.com remote.`);
+				this._logService.trace(`${LOG_PREFIX} The selected Git repository has no supported GitHub remote.`);
 				return undefined;
 			}
 			this._logService.info(`${LOG_PREFIX} Resolved GitHub repository '${repositoryFromRemote.owner}/${repositoryFromRemote.repo}' from Git extension remotes.`);
@@ -944,6 +951,26 @@ export class NewSessionViewV3PromptRunner {
 			shown,
 		});
 	}
+
+	private _reportPromptOptionInteraction(interaction: 'selected' | 'closed', option?: INewSessionPromptOption): void {
+		type OnboardingPromptOptionInteractionEvent = {
+			scenarioId: string;
+			interaction: string;
+			option: string;
+		};
+		type OnboardingPromptOptionInteractionClassification = {
+			owner: 'benibenj';
+			comment: 'Reports privacy-safe interactions with V3 onboarding prompt options without collecting prompt or repository content.';
+			scenarioId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the onboarding scenario that showed the prompt options.' };
+			interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an option was selected or the prompt-option widget was closed.' };
+			option: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The categorical prompt option selected, or none when the widget was closed.' };
+		};
+		this._telemetryService.publicLog2<OnboardingPromptOptionInteractionEvent, OnboardingPromptOptionInteractionClassification>('onboarding.promptOptionInteraction', {
+			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			interaction,
+			option: option ? getPromptOptionTelemetryKind(option) : 'none',
+		});
+	}
 }
 
 export function selectNewSessionViewV3GitHubCandidate(recentWork: IGitHubRecentUserWork): INewSessionViewV3GitHubCandidate | undefined {
@@ -996,6 +1023,30 @@ function compareUpdatedAtDescending(a: { readonly updatedAt: string }, b: { read
 
 function toCandidate(pullRequest: IGitHubRecentPullRequest, strategy: 'githubCiFailure' | 'githubReviewComments'): INewSessionViewV3GitHubCandidate {
 	return { number: pullRequest.number, title: pullRequest.title, url: pullRequest.url, strategy };
+}
+
+function getPromptOptionTelemetryKind(option: INewSessionPromptOption): 'implementFeature' | 'fixBug' | 'fixCI' | 'githubIssue' | 'githubPRCI' | 'githubPRComments' | 'unknown' {
+	switch (option.id.split(':', 1)[0]) {
+		case 'standard':
+			switch (option.id) {
+				case 'standard:implementFeature':
+					return 'implementFeature';
+				case 'standard:fixBug':
+					return 'fixBug';
+				case 'standard:fixCi':
+					return 'fixCI';
+				default:
+					return 'unknown';
+			}
+		case 'githubIssue':
+			return 'githubIssue';
+		case 'githubCiFailure':
+			return 'githubPRCI';
+		case 'githubReviewComments':
+			return 'githubPRComments';
+		default:
+			return 'unknown';
+	}
 }
 
 function capitalize(value: string): string {

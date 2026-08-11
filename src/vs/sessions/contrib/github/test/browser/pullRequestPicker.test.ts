@@ -206,12 +206,14 @@ suite('Create Session from Pull Request', () => {
 
 	test('collects existing pull requests from matching metadata and repository-scoped branches', () => {
 		const repositoryRoot = URI.file('/repos/microsoft/vscode');
+		const cloudRoot = URI.parse('github-remote-file://github/microsoft/vscode/feature-seven');
 		const repositorySessionAwaitingMetadata = sessionWithRepository(repositoryRoot, 'microsoft', 'vscode', false, 'origin/feature-three');
 		const pullRefSessionAwaitingMetadata = sessionWithRepository(repositoryRoot, 'microsoft', 'vscode', false, 'origin/pull/5/head');
 		const sessions = [
 			sessionWithPullRequest('microsoft', 'vscode', 1),
 			sessionWithPullRequest('microsoft', 'vscode', 2, 'origin/feature-two'),
 			sessionWithPullRequest('Microsoft', 'VSCode', 4),
+			sessionWithPullRequest('microsoft', 'vscode', 7, undefined, cloudRoot),
 			repositorySessionAwaitingMetadata,
 			pullRefSessionAwaitingMetadata,
 			sessionWithPullRequest('other', 'vscode', 3),
@@ -219,6 +221,7 @@ suite('Create Session from Pull Request', () => {
 		const existing = getExistingPullRequests(sessions, 'microsoft', 'vscode', [repositorySessionAwaitingMetadata, pullRefSessionAwaitingMetadata]);
 		const availableItems = createPullRequestQuickPickItems([
 			pullRequest(5, { headRef: 'feature-three' }),
+			pullRequest(7),
 			pullRequest(6),
 		], existing);
 		assert.deepStrictEqual({
@@ -228,7 +231,7 @@ suite('Create Session from Pull Request', () => {
 		}, {
 			numbers: [1, 2, 4, 5],
 			headRefs: ['feature-two', 'feature-three', 'pull/5/head'],
-			availableNumbers: [6],
+			availableNumbers: [7, 6],
 		});
 	});
 
@@ -314,19 +317,19 @@ function pullRequest(number: number, overrides: Partial<IGitHubPullRequestSummar
 	};
 }
 
-function sessionWithPullRequest(owner: string, repo: string, number: number, upstreamBranchName?: string): ISession {
+function sessionWithPullRequest(owner: string, repo: string, number: number, upstreamBranchName?: string, root = URI.file('/repo')): ISession {
 	const workspace: ISessionWorkspace = {
-		uri: URI.file('/repo'),
+		uri: root,
 		label: repo,
 		icon: Codicon.folder,
 		folders: [{
-			root: URI.file('/repo'),
-			workingDirectory: URI.file('/repo'),
+			root,
+			workingDirectory: root,
 			name: repo,
 			description: undefined,
 			gitRepository: {
-				uri: URI.file('/repo'),
-				workTreeUri: URI.file('/repo'),
+				uri: root,
+				workTreeUri: root,
 				baseBranchName: 'main',
 				upstreamBranchName,
 				gitHubInfo: constObservable({
@@ -340,7 +343,7 @@ function sessionWithPullRequest(owner: string, repo: string, number: number, ups
 			},
 		}],
 		requiresWorkspaceTrust: false,
-		isVirtualWorkspace: false,
+		isVirtualWorkspace: root.scheme !== Schemas.file,
 	};
 	return sessionWithWorkspace(workspace);
 }

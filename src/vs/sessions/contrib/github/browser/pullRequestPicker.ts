@@ -82,6 +82,9 @@ export function getExistingPullRequests(sessions: readonly ISession[], owner: st
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
 		for (const folder of workspace?.folders ?? []) {
+			if (folder.root.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+				continue;
+			}
 			const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
 			const matchesRepository = gitHubInfo
 				? gitHubInfo.owner.toLowerCase() === normalizedOwner && gitHubInfo.repo.toLowerCase() === normalizedRepo

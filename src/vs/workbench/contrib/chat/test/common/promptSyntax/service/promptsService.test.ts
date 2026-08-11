@@ -2365,6 +2365,44 @@ suite('PromptsService', () => {
 			assert.strictEqual(actualAfterDispose.length, 0);
 		});
 
+		test('Canceled prompt file provider is skipped without logging', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new CancellationError(); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
+		test('Prompt file provider error is logged and skipped', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new Error('provider failed'); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
 		test('Contributed agent file that does not exist should not crash', async () => {
 			const nonExistentUri = URI.parse('file://extensions/my-extension/nonexistent.agent.md');
 			const existingUri = URI.parse('file://extensions/my-extension/existing.agent.md');
