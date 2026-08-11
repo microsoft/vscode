@@ -75,7 +75,11 @@ export class ChatInputNoticeHost extends Disposable {
 	/** Claim or release `lane` on behalf of a producer that reports visibility. */
 	setOccupied(lane: ChatInputNoticeLane, occupied: boolean, focusTarget?: IChatInputNoticeFocusTarget): void {
 		if (!occupied) {
-			this._leases.deleteAndDispose(lane);
+			// Detach the lease before disposing it. Releasing a claim notifies
+			// observers synchronously, and a reaction that re-claims this lane would
+			// otherwise have its fresh lease dropped from the map undisposed,
+			// stranding the claim and holding the lane forever.
+			this._leases.deleteAndLeak(lane)?.dispose();
 			return;
 		}
 

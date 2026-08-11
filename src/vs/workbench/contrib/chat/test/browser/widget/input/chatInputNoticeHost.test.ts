@@ -95,6 +95,30 @@ suite('ChatInputNoticeHost', () => {
 		assert.deepStrictEqual(tipSuppressed, [false, true, false]);
 	});
 
+	test('keeps a re-claim made while a lane is being released releasable', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+
+		host.setOccupied(ChatInputNoticeLane.Onboarding, true);
+		// A reaction that claims the lane the moment it frees. Its lease must still
+		// be tracked, or the lane could never be released again.
+		let reclaimed = false;
+		store.add(autorun(reader => {
+			if (!host.isSuppressed(ChatInputNoticeLane.Tip, reader) && !reclaimed) {
+				reclaimed = true;
+				host.setOccupied(ChatInputNoticeLane.Onboarding, true);
+			}
+		}));
+
+		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
+		const claimedAfterReentrantRelease = host.isSuppressed(ChatInputNoticeLane.Tip, undefined);
+		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
+
+		assert.deepStrictEqual(
+			{ reclaimed, claimedAfterReentrantRelease, released: !host.isSuppressed(ChatInputNoticeLane.Tip, undefined) },
+			{ reclaimed: true, claimedAfterReentrantRelease: true, released: true });
+	});
+
 	test('releases a lane only once when its claim is disposed repeatedly', () => {
 		const host = disposables.add(new ChatInputNoticeHost(() => { }));
 		const store = disposables.add(new DisposableStore());
