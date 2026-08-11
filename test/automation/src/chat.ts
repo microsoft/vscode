@@ -368,7 +368,9 @@ export class Chat {
 		// There can be a hidden duplicate of the config button (e.g. an overflow
 		// copy); target the visible one.
 		const configButton = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
-		const anyRow = page.locator(`${ACTION_WIDGET_ROW}:visible`).first();
+		const configWidget = page.locator(`${ACTION_WIDGET}:visible`, {
+			has: page.locator('.monaco-list-row.group-header')
+		}).first();
 		const deadline = Date.now() + timeoutMs;
 		let lastError: unknown;
 
@@ -389,10 +391,7 @@ export class Chat {
 			try {
 				await configButton.waitFor({ state: 'visible', timeout: 15_000 });
 				await configButton.click({ force: true });
-				await this.code.waitForElement(ACTION_WIDGET);
-				// Wait for the option rows to actually render, not just the popup
-				// container, so callers don't race a half-open / tearing-down popup.
-				await anyRow.waitFor({ state: 'visible', timeout: 5_000 });
+				await configWidget.locator('.monaco-list-row.action').first().waitFor({ state: 'visible', timeout: 5_000 });
 				return;
 			} catch (error) {
 				lastError = error;

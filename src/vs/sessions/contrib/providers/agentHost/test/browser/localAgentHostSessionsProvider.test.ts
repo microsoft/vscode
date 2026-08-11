@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
@@ -17,7 +18,7 @@ import { AgentHostCodexAgentEnabledSettingId, AgentSession, IAgentHostService, t
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -741,6 +742,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 			affectsConfiguration: (key: string) => key === settingId,
 		});
 	}
+
+	test('recomputes protection for a selected non-default base branch when configuration changes', async () => {
+		const configService = new TestConfigurationService();
+		await configService.setUserConfiguration('git.branchProtection', []);
+		agentHost.addSession(createSession('branch-protection', {
+			summary: 'Branch Protection',
+			project: { uri: URI.file('/repo'), displayName: 'repo' },
+			workingDirectory: URI.file('/repo.worktrees/session'),
+		}));
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Branch Protection');
+		assert.ok(session);
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('branch-protection', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Branch Protection',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, { branchName: 'agents/session', baseBranchName: 'release' }),
+		});
+		const repository = session.workspace.get()?.folders[0]?.gitRepository;
+		const before = repository?.baseBranchProtected;
+
+		await configService.setUserConfiguration('git.branchProtection', ['release']);
+		fireConfigChange(configService, 'git.branchProtection');
+
+		assert.deepStrictEqual({
+			before,
+			after: session.workspace.get()?.folders[0]?.gitRepository?.baseBranchProtected,
+		}, {
+			before: false,
+			after: true,
+		});
+	});
 
 	test('always advertises agent-host Claude', () => {
 		agentHost.setAgents([
@@ -5101,6 +5140,66 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		sub.dispose();
 	}));
+
+	test('uses the latest merge or pull-request outcome as the completed-state icon', async () => {
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+		agentHost.addSession(createSession('completed-state-icon', { summary: 'Completed Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Completed Session');
+		assert.ok(session);
+		provider.getSessionConfig(session.sessionId);
+
+		const mergeState = withSessionSourceControlState(undefined, {
+			merge: { commit: 'merge-commit' },
+			latestOutcome: SessionSourceControlOutcome.Merge,
+		});
+		agentHost.setSessionState('completed-state-icon', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Completed Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: mergeState,
+		});
+		const mergeIcon = session.completedStateIcon?.get();
+
+		const pullRequestState = withSessionSourceControlState(withSessionGitHubState(mergeState, {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequestUrls: ['https://github.com/owner/repo/pull/42'],
+			pullRequestBranchName: 'feature',
+		}), {
+			merge: { commit: 'merge-commit' },
+			latestOutcome: SessionSourceControlOutcome.PullRequest,
+		});
+		agentHost.setSessionState('completed-state-icon', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Completed Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: pullRequestState,
+		});
+		const pullRequestIcon = session.completedStateIcon?.get();
+
+		assert.deepStrictEqual({
+			merge: { id: mergeIcon?.id, color: mergeIcon?.color?.id },
+			pullRequest: { id: pullRequestIcon?.id, color: pullRequestIcon?.color?.id },
+		}, {
+			merge: { id: Codicon.gitMerge.id, color: 'charts.purple' },
+			pullRequest: {
+				id: computePullRequestIcon(GitHubPullRequestState.Open).id,
+				color: computePullRequestIcon(GitHubPullRequestState.Open).color?.id,
+			},
+		});
+	});
 
 	test('filters folder-session baseline pull requests from GitHub info', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {

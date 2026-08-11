@@ -122,7 +122,7 @@ function quotaSnapshots(): Record<string, unknown> {
 	return { chat: { ...snapshot, quota_id: 'chat' }, completions: { ...snapshot, quota_id: 'completions' }, premium_interactions: { ...snapshot, quota_id: 'premium_interactions' } };
 }
 
-/** A fake Copilot token pointing back at the proxy (used only by title/utility calls on replay). */
+/** A fake Copilot token pointing back at the proxy. */
 function tokenStubBody(): string {
 	return JSON.stringify({
 		token: 'replay-copilot-token',
@@ -132,13 +132,24 @@ function tokenStubBody(): string {
 	});
 }
 
+function utilityChatCompletionStubBody(): string {
+	return JSON.stringify({
+		choices: [{ message: { role: 'assistant', content: 'Generated utility response' }, finish_reason: 'stop', index: 0 }],
+	});
+}
+
 const JSON_HEADERS: Readonly<Record<string, string>> = { 'content-type': 'application/json' };
 
 /**
  * Returns a stub response for an ancillary bootstrap endpoint, or undefined if
  * the path is a model endpoint that should be recorded/replayed normally.
  */
-export function getAncillaryStub(method: string, path: string): IStubResponse | undefined {
+export function getAncillaryStub(method: string, path: string, body?: string): IStubResponse | undefined {
+	if (path === '/chat/completions' && method === 'POST' && isNonStreamingChatCompletion(body)) {
+		return isCommitMessageCompletion(body)
+			? { status: 200, headers: JSON_HEADERS, body: utilityChatCompletionStubBody() }
+			: { status: 403, headers: JSON_HEADERS, body: 'Forbidden' };
+	}
 	if (path === '/models' && method === 'GET') {
 		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ data: STUB_MODELS.map(expandModel), object: 'list' }) };
 	}
@@ -179,4 +190,31 @@ export function getAncillaryStub(method: string, path: string): IStubResponse | 
 		return { status: 200, headers: JSON_HEADERS, body: '{}' };
 	}
 	return undefined;
+}
+
+function isNonStreamingChatCompletion(body: string | undefined): boolean {
+	if (!body) {
+		return false;
+	}
+	try {
+		return JSON.parse(body).stream === false;
+	} catch {
+		return false;
+	}
+}
+
+function isCommitMessageCompletion(body: string | undefined): boolean {
+	if (!body) {
+		return false;
+	}
+	try {
+		const messages = JSON.parse(body).messages;
+		return Array.isArray(messages) && messages.some(message =>
+			message?.role === 'system'
+			&& typeof message.content === 'string'
+			&& message.content.includes('You generate concise Git commit messages.')
+		);
+	} catch {
+		return false;
+	}
 }
