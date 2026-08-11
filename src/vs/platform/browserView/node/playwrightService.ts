@@ -1044,12 +1044,25 @@ type PageApiProxyContext = {
 	readonly targets: WeakMap<object, object>;
 	readonly values: WeakMap<object, object>;
 	readonly callbacks: WeakMap<Function, Function>;
+	readonly functions: WeakMap<Function, Function>;
 	readonly bridge: PageApiSandboxBridge;
 	active: boolean;
 };
 
 function wrapPageApiValue(value: unknown, methodCalls: Map<string, number>, prefix: string, context: PageApiProxyContext): unknown {
 	assertPageApiProxyActive(context);
+	if (typeof value === 'function') {
+		let wrappedFunction = context.functions.get(value);
+		if (!wrappedFunction) {
+			wrappedFunction = context.bridge.createFunction((...args: unknown[]) => {
+				assertPageApiProxyActive(context);
+				const preparedArgs = args.map(arg => preparePageApiArgument(arg, methodCalls, prefix, context, false));
+				return wrapPageApiValue(Reflect.apply(value, undefined, preparedArgs), methodCalls, prefix, context);
+			});
+			context.functions.set(value, wrappedFunction);
+		}
+		return wrappedFunction;
+	}
 	if (value === null || typeof value !== 'object') {
 		return value;
 	}
@@ -1155,6 +1168,7 @@ export function createPageApiProxy<T extends object>(target: T, methodCalls: Map
 		targets: new WeakMap(),
 		values: new WeakMap(),
 		callbacks: new WeakMap(),
+		functions: new WeakMap(),
 		bridge,
 		active: true,
 	};

@@ -412,12 +412,15 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 		const runOutput = await invokeTool('run_playwright_code', {
 			pageId,
-			code: `let escaped = false;
+			code: `page.on('request', () => {});
+				const returnedListener = page.listeners('request')[0];
+				let escaped = false;
 				for (const getFunction of [
 					() => this?.constructor,
 					() => args.constructor,
 					() => page.constructor,
 					() => page.goto.constructor,
+					() => returnedListener.constructor,
 				]) {
 					try {
 						const candidate = getFunction().constructor('return process')();

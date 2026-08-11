@@ -220,6 +220,7 @@ suite('PlaywrightService network filtering', () => {
 			context(): { readonly request: RequestContext; browser(): object };
 			mainFrame(): { page(): PageApi };
 			on(event: 'request', listener: (request: Request) => void): void;
+			listeners(event: 'request'): Function[];
 			route(url: string, listener: (route: Route) => void): void;
 			routeWebSocket(url: string, listener: (route: WebSocketRoute) => void): void;
 		};
@@ -238,6 +239,7 @@ suite('PlaywrightService network filtering', () => {
 			context: () => Object.assign(new TestContext(requestContext), { browser: () => ({}) }),
 			mainFrame: () => ({ page: () => page }),
 			on: (_event, listener) => requestListener = listener,
+			listeners: () => requestListener ? [requestListener] : [],
 			route: (_url, listener) => routeListener = listener,
 			routeWebSocket: (_url, listener) => webSocketRouteListener = listener,
 		};
@@ -257,6 +259,8 @@ suite('PlaywrightService network filtering', () => {
 
 		let eventRequest: Request | undefined;
 		proxy.on('request', request => eventRequest = request);
+		const returnedListener = proxy.listeners('request')[0];
+		assert.notStrictEqual(returnedListener, requestListener);
 		let routeCallbackCalled = false;
 		proxy.route('**/*', () => routeCallbackCalled = true);
 		let webSocketRouteCallbackCalled = false;
@@ -269,6 +273,7 @@ suite('PlaywrightService network filtering', () => {
 		membrane.revoke();
 		assert.throws(() => proxy.mainFrame(), /no longer available/);
 		assert.throws(() => mainFrame(), /no longer available/);
+		assert.throws(() => returnedListener({ frame: () => ({ page: () => page }) }), /no longer available/);
 		requestListener?.({ frame: () => ({ page: () => page }) });
 		let routeFallbackCalled = false;
 		routeListener?.({ fallback: () => routeFallbackCalled = true });
