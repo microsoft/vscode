@@ -98,12 +98,12 @@ suite('SessionRouter helpers', () => {
 
 	test('filterOmniCommandIntentCandidates allows only curated built-in UI commands', () => {
 		const filtered = filterOmniCommandIntentCandidates([
-				{ commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' },
-				{ commandId: 'workbench.action.selectTheme', label: 'Preferences: Color Theme' },
-				{ commandId: 'editor.action.formatDocument', label: 'Format Document' },
-				{ commandId: 'workbench.action.tasks.runTask', label: 'Tasks: Run Task' },
-				{ commandId: 'extension.exampleCommand', label: 'Example: Custom Command' },
-			]);
+			{ commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' },
+			{ commandId: 'workbench.action.selectTheme', label: 'Preferences: Color Theme' },
+			{ commandId: 'editor.action.formatDocument', label: 'Format Document' },
+			{ commandId: 'workbench.action.tasks.runTask', label: 'Tasks: Run Task' },
+			{ commandId: 'extension.exampleCommand', label: 'Example: Custom Command' },
+		]);
 		assert.deepStrictEqual({
 			filtered,
 			themeCandidates: selectCommandIntentCandidates('change VS Code theme', filtered),
