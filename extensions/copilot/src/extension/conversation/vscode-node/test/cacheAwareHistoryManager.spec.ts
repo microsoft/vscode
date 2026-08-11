@@ -5,7 +5,7 @@
 
 import { describe, expect, test } from 'vitest';
 import * as vscode from 'vscode';
-import { LanguageModelChatMessageRole } from '../../../../vscodeTypes';
+import { LanguageModelChatMessageRole, LanguageModelToolCallPart, LanguageModelToolResultPart } from '../../../../vscodeTypes';
 import {
 	approximateTokenCount,
 	CacheAwareChatMessage,
@@ -25,6 +25,18 @@ function user(text: string): vscode.LanguageModelChatMessage {
 
 function assistant(text: string): vscode.LanguageModelChatMessage {
 	return vscode.LanguageModelChatMessage.Assistant(text);
+}
+
+function assistantWithToolCall(callId: string, name: string): vscode.LanguageModelChatMessage {
+	const message = new vscode.LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, '');
+	(message as any).content = [new LanguageModelToolCallPart(callId, name, { arg: 'value' })];
+	return message;
+}
+
+function userWithToolResult(callId: string, text: string): vscode.LanguageModelChatMessage {
+	const message = new vscode.LanguageModelChatMessage(LanguageModelChatMessageRole.User, '');
+	(message as any).content = [new LanguageModelToolResultPart(callId, [new vscode.LanguageModelTextPart(text)])];
+	return message;
 }
 
 function texts(messages: readonly CacheAwareChatMessage[]): string[] {
@@ -132,5 +144,105 @@ describe('cacheAwareHistoryManager', () => {
 		expect(sent[0]).toBe('sys');
 		expect(sent.slice(-3)).toEqual(['user message 48', 'assistant reply 49', 'user message 49']);
 		expect(result.truncated).toBe(true);
+	});
+
+	test('prefill falls back to full history when the latest user message carries a tool result', () => {
+		const history = [system('sys'), user('first'), assistantWithToolCall('call-1', 'toolA'), userWithToolResult('call-1', 'result')];
+		const result = prepareMessagesForRequest(history, undefined, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		// The full history is preserved so the tool-call/tool-result exchange stays intact.
+		expect(result.messagesToSend).toHaveLength(4);
+		expect(result.messagesToSend[0].role).toBe(LanguageModelChatMessageRole.System);
+		expect(result.messagesToSend[3].role).toBe(LanguageModelChatMessageRole.User);
+	});
+
+	test('truncation drops tool-call/tool-result exchanges atomically', () => {
+		const first = [system('sys'), user('first')];
+		const firstResult = prepareMessagesForRequest(first, undefined, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		// Build a history with an early tool exchange followed by many turns.
+		const longHistory = [system('sys'), user('first'), assistantWithToolCall('call-1', 'toolA'), userWithToolResult('call-1', 'result')];
+		for (let i = 0; i < 50; i++) {
+			longHistory.push(assistant(`assistant reply ${i}`));
+			longHistory.push(user(`user message ${i}`));
+		}
+
+		const result = prepareMessagesForRequest(longHistory, firstResult.newState, 100, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		expect(result.truncated).toBe(true);
+		// The tool-call and its matching tool-result must both be dropped together.
+		const sent = texts(result.messagesToSend);
+		expect(sent).not.toContain('result');
+		// The most recent turns are kept.
+		expect(sent[sent.length - 1]).toBe('user message 49');
+	});
+
+	test('summarizeDroppedTurns injects the summary into the sent messages', () => {
+		const first = [system('sys'), user('first')];
+		const firstResult = prepareMessagesForRequest(first, undefined, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		const longHistory = [system('sys'), user('first')];
+		for (let i = 0; i < 50; i++) {
+			longHistory.push(assistant(`assistant reply ${i}`));
+			longHistory.push(user(`user message ${i}`));
+		}
+
+		const config = { ...DefaultCacheAwareHistoryConfig, summarizeDroppedTurns: true };
+		const result = prepareMessagesForRequest(longHistory, firstResult.newState, 100, approximateTokenCount, config);
+
+		expect(result.truncated).toBe(true);
+		// The summary is appended as a system message so it reaches the model.
+		const last = result.messagesToSend[result.messagesToSend.length - 1];
+		expect(last.role).toBe(LanguageModelChatMessageRole.System);
+		expect(texts([last])[0]).toContain('dropped');
+	});
+
+	test('extendsLastSent is true when the candidate extends the last-sent prefix', () => {
+		const first = [system('sys'), user('first')];
+		const firstResult = prepareMessagesForRequest(first, undefined, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		const second = [system('sys'), user('first'), assistant('a1'), user('second')];
+		const secondResult = prepareMessagesForRequest(second, firstResult.newState, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		expect(secondResult.extendsLastSent).toBe(true);
+	});
+
+	test('extendsLastSent is false when an earlier message is rewritten', () => {
+		const first = [system('sys'), user('first')];
+		const firstResult = prepareMessagesForRequest(first, undefined, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		// The system prompt is rewritten, so the prefix diverges.
+		const second = [system('sys-rewritten'), user('first'), assistant('a1'), user('second')];
+		const secondResult = prepareMessagesForRequest(second, firstResult.newState, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		expect(secondResult.extendsLastSent).toBe(false);
+	});
+
+	test('aggressive truncation policy keeps fewer recent turns than conservative', () => {
+		const first = [system('sys'), user('first')];
+		const firstResult = prepareMessagesForRequest(first, undefined, 1000, approximateTokenCount, DefaultCacheAwareHistoryConfig);
+
+		const longHistory = [system('sys'), user('first')];
+		for (let i = 0; i < 50; i++) {
+			longHistory.push(assistant(`assistant reply ${i}`));
+			longHistory.push(user(`user message ${i}`));
+		}
+
+		const conservative = prepareMessagesForRequest(longHistory, firstResult.newState, 100, approximateTokenCount, { ...DefaultCacheAwareHistoryConfig, truncationPolicy: 'conservative' });
+		const aggressive = prepareMessagesForRequest(longHistory, firstResult.newState, 100, approximateTokenCount, { ...DefaultCacheAwareHistoryConfig, truncationPolicy: 'aggressive' });
+
+		// Aggressive keeps fewer recent turns (minRecentTurns) than conservative.
+		expect(aggressive.messagesToSend.length).toBeLessThan(conservative.messagesToSend.length);
+	});
+
+	test('approximateTokenCount counts non-text parts', () => {
+		const toolCall = assistantWithToolCall('call-1', 'toolA');
+		const toolResult = userWithToolResult('call-1', 'some result text');
+		const textOnly = user('hello world');
+
+		// Tool-call arguments and tool-result content contribute to the count.
+		expect(approximateTokenCount([toolCall])).toBeGreaterThan(0);
+		expect(approximateTokenCount([toolResult])).toBeGreaterThan(0);
+		expect(approximateTokenCount([toolCall, toolResult])).toBeGreaterThan(approximateTokenCount([textOnly]));
 	});
 });

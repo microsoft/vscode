@@ -683,8 +683,14 @@ export class CopilotLanguageModelWrapper extends Disposable {
 	 * conversation id derived from the system prompt + first user message.
 	 * Only populated for BYOK / customendpoint providers where the cache-aware
 	 * history manager is enabled.
+	 *
+	 * Bounded to avoid retaining an unbounded amount of user content for the
+	 * rest of the extension session: each value holds a near-context-window
+	 * transcript, so we cap the number of tracked conversations and evict the
+	 * least-recently-used entry when the cap is exceeded.
 	 */
 	private readonly _cacheAwareConversationState = new Map<string, ConversationState>();
+	private static readonly _cacheAwareConversationStateLimit = 64;
 
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -704,10 +710,17 @@ export class CopilotLanguageModelWrapper extends Disposable {
 	 * Applies the cache-aware history manager to the incoming messages for
 	 * BYOK / customendpoint providers. Returns the messages to render, or the
 	 * original messages if the feature is disabled or not applicable.
+	 *
+	 * @param tokenLimit The number of tokens available for the conversation
+	 * history after reserving space for the base prompt, completion, and tool
+	 * schemas. Budgeting against this (rather than the endpoint's full prompt
+	 * capacity) prevents a second truncation by the renderer after state was
+	 * recorded, which would defeat the stable-prefix guarantee.
 	 */
 	private _applyCacheAwareHistory(
 		endpoint: IChatEndpoint,
 		messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>,
+		tokenLimit: number,
 	): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
 		// Only apply to BYOK / customendpoint providers (OpenAIEndpoint instances).
 		if (!(endpoint instanceof OpenAIEndpoint)) {
@@ -721,23 +734,38 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 		const conversationId = deriveConversationId(messages);
 		const previousState = this._cacheAwareConversationState.get(conversationId);
-		const maxInputTokens = endpoint.modelMaxPromptTokens;
 
 		const { messagesToSend, newState, truncated, tokenCount } = prepareMessagesForRequest(
 			messages,
 			previousState,
-			maxInputTokens,
+			tokenLimit,
 			undefined,
 			config,
 		);
 
-		this._cacheAwareConversationState.set(conversationId, newState);
+		this._setCacheAwareConversationState(conversationId, newState);
 
 		if (truncated) {
-			this._logService.info(`[LanguageModelAccess] Cache-aware history manager truncated conversation '${conversationId}' to ${tokenCount} tokens (budget ${Math.floor(maxInputTokens * config.targetUtilization)}).`);
+			this._logService.info(`[LanguageModelAccess] Cache-aware history manager truncated conversation '${conversationId}' to ${tokenCount} tokens (budget ${Math.floor(tokenLimit * config.targetUtilization)}).`);
 		}
 
 		return messagesToSend as Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>;
+	}
+
+	/**
+	 * Stores cache-aware conversation state, evicting the least-recently-used
+	 * entry when the bounded cache exceeds its limit.
+	 */
+	private _setCacheAwareConversationState(conversationId: string, state: ConversationState): void {
+		// Refresh the LRU position on every access.
+		this._cacheAwareConversationState.delete(conversationId);
+		this._cacheAwareConversationState.set(conversationId, state);
+		if (this._cacheAwareConversationState.size > CopilotLanguageModelWrapper._cacheAwareConversationStateLimit) {
+			const oldest = this._cacheAwareConversationState.keys().next().value;
+			if (oldest !== undefined) {
+				this._cacheAwareConversationState.delete(oldest);
+			}
+		}
 	}
 
 	private _readCacheAwareConfig(): CacheAwareHistoryConfig {
@@ -778,8 +806,11 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		// Apply the cache-aware history manager for BYOK / customendpoint
 		// providers. This maximises KV-cache hits by keeping a long stable
 		// prefix across requests and only dropping the oldest turns when the
-		// projected token count approaches the input budget.
-		const cacheAwareMessages = this._applyCacheAwareHistory(_endpoint, _messages);
+		// projected token count approaches the input budget. We budget against
+		// `tokenLimit` (which already reserves space for the base prompt,
+		// completion, and tool schemas) so the renderer does not truncate again
+		// after state was recorded.
+		const cacheAwareMessages = this._applyCacheAwareHistory(_endpoint, _messages, tokenLimit);
 
 		// Add safety rules to the prompt if it originates from outside the Copilot Chat extension, otherwise they already exist in the prompt.
 		const { messages, tokenCount } = await PromptRenderer.create(this._instantiationService, {
@@ -845,16 +876,24 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		const options: OptionalChatRequestParams = LanguageModelOptions.Default.convert(_options.modelOptions ?? {});
 		const telemetryProperties = { messageSource: `api.${extensionId}` };
 
-		options.tools = _options.tools?.map((tool): OpenAiFunctionTool => {
-			return {
-				type: 'function',
-				function: {
-					name: tool.name,
-					description: tool.description,
-					parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
-				}
-			};
-		});
+		// Canonicalize the tool definitions by sorting them by name. The
+		// cache-aware history manager stabilizes the message prefix across
+		// requests, but the tool-schema portion of the model prompt is also
+		// part of the cached prefix. Sorting by name keeps the tool schema
+		// stable even when tools are added, removed, or reordered between
+		// requests, so the KV cache prefix is not invalidated by tool churn.
+		options.tools = [...(_options.tools ?? [])]
+			.sort((a, b) => a.name.localeCompare(b.name))
+			.map((tool): OpenAiFunctionTool => {
+				return {
+					type: 'function',
+					function: {
+						name: tool.name,
+						description: tool.description,
+						parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
+					}
+				};
+			});
 		if (_options.toolMode === vscode.LanguageModelChatToolMode.Required && _options.tools?.length && _options.tools.length > 1) {
 			throw new Error('LanguageModelChatToolMode.Required is not supported with more than one tool');
 		}
